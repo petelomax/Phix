@@ -1,0 +1,153 @@
+--
+-- demo_listviews.exw
+-- fast list views in arwen
+--
+-- Features:
+--  ListView data is held in a sequence rather than windows.
+--   (Note that the time shown in the window title is entirely
+--    that of creating the data; load into listview time is 0)
+--  The table is held in a directly sortable format.
+--   (Alternatively, the data could just as easily be held on 
+--    file, and the sort routine replaced by change of index.)
+--  The sort function must be coded in the application because
+--   that is where the data is held (it is only 9 lines).
+--  Field formatting is performed via the user-defined routine
+--   passed to setLVFormatRoutine (see LVformat).
+--  A simple image list is used; for a more complete example
+--   see demo_treeviews.exw.
+--  Listview is resized to fit the window
+--  Columns can be sorted by clicking on the column headings,
+--  first ascending order and then in descending order if the 
+--  same column is clicked again.
+--  Columns can be resized and dragged to reorder the display.
+--
+-- To Do:
+--  Wrap LVM_SETITEMCOUNT and LVM_SETEXTENDEDLISTVIEWSTYLE?
+--  insertLVItems should be deprecated.
+--  I cannot get checkboxes to work.
+--
+--
+include arwen.ew
+--include sort.e
+include ..\..\builtins\sort.e
+
+constant DEMO   = create(Window, "", 0, 0, 0, 0, 600, 400, 0),
+         STATUS = create(StatusBar, "", 0, DEMO, 0,0,0,0, 0),
+         LV     = create(ListView, { "Chq#",
+                                    {"Date",   80,LVCFMT_CENTER},
+                                    {"Amount",100,LVCFMT_RIGHT},
+                                    {"Status", 50,LVCFMT_CENTER},
+                                    "Bank"},
+                         0, DEMO, 10,20,540, 310, LVS_OWNERDATA),
+         MAX    = 5000
+
+-- get the recommended sizes for small icons:
+constant cX = c_func(xGetSystemMetrics,{SM_CXSMICON}),
+         cY = c_func(xGetSystemMetrics,{SM_CYSMICON})
+
+constant himl = c_func(xImageList_Create,{cX,cY,ILC_COLOR8+ILC_MASK,1,32})
+
+--constant pWord=allocate(2)
+
+atom icon
+--, mem
+
+--      mem = allocate_StringZ(getenv("EUDIR"))
+--      icon = c_func(xExtractAssociatedIcon,{instance(),mem,pWord})
+--      void = c_func(xImageList_AddIcon,{himl,icon})
+--      mem = allocate_StringZ(getenv("EUDIR")&"\\bin\\exw.exe")
+--      icon = c_func(xExtractAssociatedIcon,{instance(),mem,pWord})
+    icon = loadIcon("lightbulb.ico")
+    void = c_func(xImageList_AddIcon,{himl,icon})
+    void = c_func(xDeleteObject,{icon})
+
+atom t
+t=time()
+
+    void = sendMessage(LV, LVM_SETITEMCOUNT, MAX, 0)
+    void = sendMessage(LV, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,
+                       or_all({LVS_EX_FULLROWSELECT,
+                               LVS_EX_GRIDLINES,
+LVS_EX_CHECKBOXES, -- space is reserved, but I cannot get a checkbox to appear.
+--(it works in biglistview.exw)
+                               LVS_EX_HEADERDRAGDROP}))
+
+
+void=sendMessage(LV,LVM_SETIMAGELIST,LVSIL_SMALL,himl)
+
+sequence Data
+
+function LVformat(integer lRow, integer lColumn)
+    if lColumn=0 then   -- icon
+        return Data[lRow][4]!='R'       -- 0 for 1st icon, 1 for 2nd.
+    elsif lColumn=1 then
+        return sprintf("%6d", Data[lRow][lColumn])
+    elsif lColumn=2 then
+        return sprintf("%02d/%02d/%04d",reverse(Data[lRow][lColumn]))
+    elsif lColumn=3 then
+        return sprintf("%9.2f", Data[lRow][lColumn])
+    else
+        return Data[lRow][lColumn]
+    end if
+end function
+setLVFormatRoutine(LV, routine_id("LVformat"))
+
+
+constant RSPACE="R    "
+procedure buildDummyData()
+    Data = repeat(0,MAX)
+    for i = 1 to MAX do
+        Data[i] = {i,                                                   -- ChqNo
+                   {2006,rand(12),rand(28)},                            -- Date
+                   rand(999999)/100,                                    -- Amount,
+                   RSPACE[rand(5)],                                     -- Status,
+                   sprintf("%5d", rand(9999)+10000) }                   -- Bank
+    end for
+end procedure
+
+buildDummyData()
+setText(DEMO,sprintf("%d records created in %3.2f seconds",{MAX,time()-t}))
+
+integer SortColumn, Sign
+
+function CompareSortColumn(sequence s1,sequence s2)
+    return Sign*compare(s1[SortColumn],s2[SortColumn])
+end function
+
+function listHandler(integer id, integer msg, atom wParam, object lParam)
+atom t
+sequence rect
+    if msg=WM_CHAR 
+    and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    if id = LV then
+        if msg = WM_NOTIFY then
+            if wParam = LVN_COLUMNCLICK then
+                SortColumn = lParam[1]
+                Sign = lParam[2]
+                t = time()
+                Data = custom_sort(routine_id("CompareSortColumn"),Data)
+                void = sendMessage(id, LVM_UPDATE, 0, 0)
+                setText(STATUS,sprintf("sort completed in %3.2f seconds",time()-t))
+
+            elsif wParam = LVN_ITEMCHANGED then  
+--              setText(STATUS, sprintf("%s,%s,%s,%s,%s",getLVItem(id, 0)))
+                lParam = getLVItem(id,0)
+                if not equal(lParam,-1) then
+                    setText(STATUS, sprintf("%s,%s,%s,%s,%s",lParam))
+                end if
+            end if
+        end if
+    elsif msg = WM_SIZE then
+        rect = getClientRect(DEMO)
+        void = c_func( xMoveWindow, {getHwnd(LV), rect[1]+10, rect[2]+10, rect[3]-20, rect[4]-20, 1})
+    end if
+    return 0
+end function
+setHandler({DEMO,LV}, routine_id("listHandler"))
+
+--CCinit()
+WinMain(DEMO, SW_NORMAL)
+
+

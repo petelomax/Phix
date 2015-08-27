@@ -1,0 +1,2460 @@
+--
+-- pFTP.exw
+-- ========
+--
+-- A simple FTP client.
+--
+-- Also intended to act as an 'ftp server' for Edita. (eventually!)
+--
+-- v0.5: better integration with Edita.
+-- v0.4: integration with Edita.
+--
+-- v0.3: added resize logic and size save/restore
+-- TODO:
+--  Add progress bar.
+--  disconnect option (if nothing else force re-entry of ppoc)
+--  The " -al" part of FtpCommand("LIST -al"), as used in both GetListing() and 
+--   diagnostics(), should be an option, possibly/probably per site, and there
+--   should be some indication (dim?) on-screen for hidden files.
+--
+--  Tools/Jobs: create named jobs (not completely unlike Site Manager):
+--   Line 1 is site:<id>, then {local:<path> | remote:<path> | 
+--   upload:<file> | download:<file>}. Allow cut/paste of job text.
+--   (possibly also say ufresh/dfresh; skip if size/date/time match)
+--   When Jdd has a valid task name, further uploads/downloads cause the job
+--   text to be extended automatically, and enable a new tool: Save modified
+--   job. Changing Sdd should automatically clear Jdd.
+--  Edit (with Edita) [later]
+--  Interface with Edita: A remote file is downloaded and Edita (started        [IN PROGRESS]
+--   automatically if not already running) told to start editing it. When Edita
+--   saves/closes the file, it needs to send messages back so that pFTP can
+--   either upload or just discard the local copy. It should also be possible
+--   for Edita to initiate pFTP and expect to be told when the file is ready.
+--   I suppose there should also be a "local master" mode, ie you always edit
+--   the local copy and upload that, there is never any need to download the
+--   one on the server. Technically easier, as it is half the job, but I will
+--   leave that alone for now and consider it part of phase 2.
+--   Graceful handling is required by both parties: If either or the OS crashes,
+--   on restart it should resume when possible. That means writing details to
+--   edita.edb/pFTP.edb asap (as opposed to eg an ini file at shutdown).
+--  Permit exw pFtp.exw -j "jobname" to run a task automatically, and maybe
+--   -s "jobfile" to run from a text file: as above, line 1 of jobfile must 
+--   begin "site:", remaining lines must begin local/remote/upload/download,
+--   and/or (perhaps) blank lines and comments.
+--   Note that delete/rename/create directory/change attributes/refresh are
+--   inappropriate/invalid job entries, I think, not sure about Edit(a).
+--  Cleanup PFlist.ew error handling (messageBox and show segment of text)?
+--
+-- DUNNO:
+--  can I keep hSession for duration?
+--  can I keep hConnection for a while?/what happens on timeout?/can I detect such?
+--
+without trace
+
+constant pFTPversion="0.5 (06/05/2007)"
+--constant pFTPversion="0.4 (22/04/2007)"
+--constant pFTPversion="0.3 (19/11/2006)"
+
+--
+-- Site details (normally set/managed via pFsm.ew):
+--
+global object ServerId,ServerName,ServerPort,UserName,Password,localDir,remoteDir,ppocf
+
+ServerId=""
+
+include builtins\machine.e
+--/*
+include builtins\misc.e
+include builtins\sort.e
+include builtins\file.e
+include builtins\dll.e
+include builtins\ppp.e
+include builtins\get.e
+include ..\arwen\misc_arwen.e
+include ..\arwen\message_box.ew
+include ..\arwen\constants.ew
+include ..\arwen\dll_links.ew
+include ..\arwen\structures.ew
+include ..\arwen\Quick_Allocations.ew
+include ..\arwen\classes.ew
+--*/
+include ..\arwen\arwen.ew
+
+include builtins\ppp.e
+
+--/* Not required for Positive
+include builtins\sort.e
+include builtins\misc.e
+include builtins\file.e
+--*/
+
+include pFreg.ew    -- regIconInfo() [eg ".bat" ->/-> "C:\Windows\System\shell32.dll,-153"].
+
+
+global -- for pFsm.ew (etc)
+constant Main   = create(Window, "pFTP", 0, 0, 0, 0, 600, 400, 0)
+
+constant 
+         mainDC = getPrivateDC(Main),
+
+         M_File = create(Menu, "&File" , 0, Main, 0,0,0,0,0),
+         MF_sm  = create(MenuItem, "&Site Manager\t(Ctrl O)" , 0, M_File, 0,0,0,0,0),
+         MFexit = create(MenuItem, "E&xit" , 0, M_File, 0,0,0,0,0),
+
+         M_View = create(Menu, "&View" , 0, Main, 0,0,0,0,0),
+         MV_rfl = create(MenuItem, "Refresh &Local\t(Ctrl L)" , 0, M_View, 0,0,0,0,0),
+         MV_rfr = create(MenuItem, "Refresh &Remote\t(Ctrl R)" , 0, M_View, 0,0,0,0,0),
+--       MV_tb  = create(MenuItem, "&ToolBars" , 0, M_View, 0,0,0,0,0),
+--       MV_sb  = create(MenuItem, "&StatusBar" , 0, M_View, 0,0,0,0,0),
+--       MV_tl  = create(MenuItem, "Text &Labels" , 0, M_View, 0,0,0,0,0),
+--       MV_ml  = create(MenuItem, "&Message Log" , 0, M_View, 0,0,0,0,0),
+--       MV_cml = create(MenuItem, "&Clear Message Log" , 0, M_View, 0,0,0,0,0),
+
+         M_Tool = create(Menu, "&Tools" , 0, Main, 0,0,0,0,0),
+--       MT_opt = create(MenuItem, "&Options" , 0, M_Tool, 0,0,0,0,0),
+         MT_dia = create(MenuItem, "&Diag" , 0, M_Tool, 0,0,0,0,0),
+
+         M_Help = create(Menu, "&Help" , 0, Main, 0,0,0,0,0),
+         MH_abo = create(MenuItem, "&About" , 0, M_Help, 0,0,0,0,0),
+
+         M_Cmnu = create(Menu, "", 0, 0, 0,0,0,0,0),
+         M_Cud  = create(MenuItem,"?",                  0, M_Cmnu, 0,0,0,0,0),  -- Upload/Download
+         M_Ced  = create(MenuItem,"Edit with Edita",    0, M_Cmnu, 0,0,0,0,0),
+         M_Crn  = create(MenuItem,"Rename",             0, M_Cmnu, 0,0,0,0,0),
+         M_Chg  = create(MenuItem,"?",                  0, M_Cmnu, 0,0,0,0,0),  -- Change attributes/drive
+         M_Ccd  = create(MenuItem,"Create directory",   0, M_Cmnu, 0,0,0,0,0),
+         M_Cdel = create(MenuItem,"Delete",             0, M_Cmnu, 0,0,0,0,0),
+         M_Crfr = create(MenuItem,"Refresh",            0, M_Cmnu, 0,0,0,0,0),
+
+         -- site and job drop-down lists and buttons
+         Sdd    = create(ComboDropDownList,"",0,Main,15,7,200,321,0),
+         Sconn  = create(Button,"&Connect",0,Main,220,6,67,23,0),
+         Jdd    = create(ComboDropDownList,"",0,Main,331,7,142,319,0),
+         Jrun   = create(Button,"Run",0,Main,478,7,46,22,0),
+
+         l_lpath=create(Label,"",0,Main,15,40,171,20,SS_OWNERDRAW),
+         l_rpath=create(Label,"",0,Main,247,40,313,20,SS_OWNERDRAW),
+         Rl = create(PictureButton,"",0,Main,190,40,20,20,0),
+         Rr = create(PictureButton,"",0,Main,568,39,20,20,0),
+
+
+         -- The local listview
+         LVL    = create(ListView, { "Filename",
+                                    {"Size",80,LVCFMT_RIGHT},
+                                    {"Date",120}},
+                         0, Main, 14,69,195, 258, {{LVS_SHOWSELALWAYS,LVS_OWNERDATA},0}),
+
+         -- The remote listview
+         LVR    = create(ListView, { "Filename",
+                                    {"Size",80,LVCFMT_RIGHT},
+                                    {"Date",120},
+                                    {"Flags",60}},
+                         0, Main, 245,70,343, 259, {{LVS_SHOWSELALWAYS,LVS_OWNERDATA},0}),
+         LVids = {LVL,LVR},
+
+         -- upload and download buttons
+         Bup=create(PictureButton,"",0,Main,217,101,20,20,0),
+         Bdn=create(PictureButton,"",0,Main,219,129,20,20,0),
+
+         MainIds = {Main,Sdd,Sconn,Jdd,Jrun,LVL,LVR,Bup,Bdn},
+
+         -- hwnds for resizing etc:
+         mainHwnd = getHwnd(Main),
+         hw_l_lpath = getHwnd(l_lpath),
+         hw_Rl = getHwnd(Rl),
+         hw_LVL = getHwnd(LVL),
+         hw_Bup = getHwnd(Bup),
+         hw_Bdn = getHwnd(Bdn),
+         hw_l_rpath = getHwnd(l_rpath),
+         hw_Rr = getHwnd(Rr),
+         hw_LVR = getHwnd(LVR),
+         cmHwnd = getHwnd(M_Cmnu),
+
+         STATUS = create(StatusBar, "", 0, Main, 0,0,0,0, 0),
+        
+         CD = create(Window,"Confirm Deletion",0,Main,50,50,300,120,0),
+         CDwhat = create(Label,"",0,CD,20,20,260,25,0),
+         CDOK = create(Button,"OK",0,CD,50,60,75,25,0),
+         CDcncl = create(Button,"Cancel",0,CD,150,60,75,25,0),
+         CDids = {CD,CDOK,CDcncl},
+        
+         -- Rename, New directory, or Password input
+         RN = create(Window,"",0,Main,50,50,300,150,0),
+         RNwhat = create(Label,"",0,RN,20,20,260,25,0),
+         RNas = create(EditText,"",0,RN,20,50,260,22,0),
+         RNOK = create(Button,"OK",0,RN,50,90,75,25,0),
+         RNcncl = create(Button,"Cancel",0,RN,150,90,75,25,0),
+         RNids  = {RN,RNas,RNOK,RNcncl},
+
+         -- Change attributes
+         FA     = create(Window,"Unix file flags",  0, 0,219, 72,322,224,0),
+         FAfile = create(Label,"",                  0,FA, 10, 10,300, 20,0),
+         FAolbl = create(Label,"User",              0,FA, 10, 29, 93, 20,0),
+         FAor   = create(CheckBox,"Read",           0,FA, 15, 47, 85, 20,0),
+         FAow   = create(CheckBox,"Write",          0,FA, 15, 68, 85, 20,0),
+         FAox   = create(CheckBox,"Execute",        0,FA, 15, 91, 85, 20,0),
+         FAglbl = create(Label,"Group",             0,FA,111, 29, 89, 20,0),
+         FAgr   = create(CheckBox,"Read",           0,FA,116, 47, 85, 20,0),
+         FAgw   = create(CheckBox,"Write",          0,FA,116, 68, 85, 20,0),
+         FAgx   = create(CheckBox,"Execute",        0,FA,116, 91, 85, 20,0),
+         FAulbl = create(Label,"User",              0,FA,214, 29, 90, 20,0),
+         FAur   = create(CheckBox,"Read",           0,FA,219, 47, 85, 20,0),
+         FAuw   = create(CheckBox,"Write",          0,FA,219, 68, 85, 20,0),
+         FAux   = create(CheckBox,"Execute",        0,FA,219, 91, 85, 20,0),
+         FAnlbl = create(Label,"Numeric Value",     0,FA,  9,122, 87, 20,SS_OWNERDRAW),
+         FAnet  = create(EditText,"",               0,FA,104,118, 67, 22,ES_NUMBER),
+         FAset  = create(Button,"Set Attributes",   0,FA, 73,154, 82, 30,0),
+         FAcncl = create(Button,"Cancel",           0,FA,186,154, 75, 30,0),
+         FAids  = {FAor,FAow,FAox,FAgr,FAgw,FAgx,FAur,FAuw,FAux},
+         FAall  = FAids&{FA,FAnet,FAset,FAcncl}
+
+
+        setEnable({M_Ced,LVL,LVR,MV_rfl,MV_rfr,MT_dia},False)
+
+object lpath, rpath     -- keep track of effective/actual directories (local/remote)
+        rpath = 0
+
+integer BupState, BdnState  -- 1 if "enabled", else 0.
+                            -- (see SetImage calls rather than setEnable)
+
+integer rlOK,       -- 1 when OK to refresh local (Ctrl L)
+        rrOK        -- 1 when OK to refresh remote (Ctrl R)
+        rlOK=0
+        rrOK=0
+
+constant LOCAL=1, REMOTE=2  -- NB these match with UPLOAD=1 and DOWNLOAD=2
+
+integer M_Context
+
+setTextColour(l_lpath,Black)
+setTextColour(l_rpath,Black)
+
+
+--
+-- Help (status bar) text for menu items:
+--
+sequence Mtxtk, Mtxt
+         Mtxtk={} Mtxt={}
+
+procedure add_Mtxt(atom mParent, atom mMItem, sequence text)
+    Mtxtk=append(Mtxtk,{getHwnd(mParent),mMItem})
+    Mtxt=append(Mtxt,text)
+end procedure
+
+    add_Mtxt(M_File,MF_sm,"Add/Manage ftp sites")
+    add_Mtxt(M_File,MFexit,"Terminate program")
+    add_Mtxt(M_View,MV_rfl,"Reload local (left) directory listing (if connection open)")
+    add_Mtxt(M_View,MV_rfr,"Reload remote (right) directory listing (if connection open)")
+    add_Mtxt(M_Tool,MT_dia,"Dump possibly useful info to diag.txt (if connection open)")
+    add_Mtxt(M_Help,MH_abo,"Some help and author details")
+    add_Mtxt(M_Cmnu,M_Cud,"Upload (local) or download (remote) selected files")
+    add_Mtxt(M_Cmnu,M_Ced,"Edit with Edita")
+    add_Mtxt(M_Cmnu,M_Crn,"Rename file")
+    add_Mtxt(M_Cmnu,M_Chg,"Full directory browse (local) or change access permissions (remote)")
+    add_Mtxt(M_Cmnu,M_Ccd,"Create directory")
+    add_Mtxt(M_Cmnu,M_Cdel,"Delete")
+    add_Mtxt(M_Cmnu,M_Crfr,"Refresh Directory Listing (Ctrl L/R)")
+
+
+sequence cl
+    cl=command_line()
+    cl = cl[2]
+    for i=length(cl) to 1 by -1 do
+        if cl[i]='\\' then
+            cl = cl[1..i-1]
+            if not chdir(cl) then
+                void = messageBox("Error","chdir("&cl&") failed.",0)
+            end if
+            exit
+        end if
+    end for
+
+constant pFicons = "pFTP.bmp"
+
+sequence TBicons    -- [1] = upload valid
+                    -- [2] = upload invalid
+                    -- [3] = download valid
+                    -- [4] = download invalid
+                    -- [5] = refresh needed
+                    -- [6] = refresh not needed
+
+procedure loadToolBarIcons()
+atom toolBmp, toolDC, partDC, newBmp
+    TBicons = repeat(0,6)
+    toolBmp = loadImage(pFicons,IMAGE_BITMAP,0)
+    if toolBmp=NULL then
+        void = messageBox("Error",pFicons&" not found",0)
+    else
+        toolDC = c_func(xCreateCompatibleDC,{mainDC})
+        void = c_func(xSelectObject,{toolDC,toolBmp})
+        partDC = c_func(xCreateCompatibleDC,{mainDC})
+        for i=1 to 1 do -- left in case more rows of pFTP.bmp ever get used
+            for j=1 to 6 do
+                newBmp = c_func(xCreateCompatibleBitmap, {mainDC, 22, 22 } )
+                void = c_func(xSelectObject,{partDC,newBmp})
+                void = c_func(xBitBlt, {partDC,0,0,22,22,toolDC,j*23-22,i*23-22,SRCCOPY})
+                TBicons[j] = newBmp
+            end for
+        end for
+        void = c_func(xDeleteDC,{toolDC})
+        void = c_func(xDeleteDC,{partDC})
+        setImage(Bup,TBicons[2])    -- upload disabled icon
+        setImage(Bdn,TBicons[4])    -- download disabled icon
+        setImage(Rl,TBicons[6])
+        setImage(Rr,TBicons[6])
+    end if
+
+    BupState=0 BdnState=0       -- flag as "disabled"
+
+end procedure
+loadToolBarIcons()
+
+global sequence SMLVdata
+                SMLVdata = {}
+global constant S_Id=1,
+                S_host=2,
+                S_port=3,
+                S_alog=4,
+                S_ppoc=5,   -- prompt password on connect
+                S_name=6,
+                S_pass=7,
+                S_sort=8,
+                S_ldir=9,
+                S_rdir=10
+
+global procedure resetSdd(object id)
+-- Load Sdd (Site drop-down) from SMLVdata, ie pFTP.edb.
+-- id may be integer or string
+sequence sname
+    setEnable({Sdd,Sconn},length(SMLVdata)!=0)
+    deleteItem(Sdd,0)   -- empty list
+    for i=1 to length(SMLVdata) do
+        sname = SMLVdata[i][S_Id]
+        void=insertItem(Sdd,sname,0)
+        if equal(i,id) or equal(sname,id) then
+            setIndex(Sdd,i)
+        end if
+    end for
+end procedure
+
+
+global constant LVxstyle = or_all({LVS_EX_FULLROWSELECT,LVS_EX_HEADERDRAGDROP})
+
+global integer SortColumn, Sign
+integer dirS, dirSL, dirSR
+        dirSL=1 dirSR=1
+
+global -- for pFlist.ew
+sequence DataL, DataR
+
+global constant D_Name=1,
+                D_Size=2,
+                D_Date=3,
+                D_Icon=4,   -- if zero, item is a directory
+                D_Flags=5   -- only valid on DataR
+
+integer isWindowMaximised
+        isWindowMaximised=0
+
+integer LVLwidth
+        LVLwidth=276
+
+
+object sizeinfo5
+       sizeinfo5=0
+
+global procedure reSizeMain(sequence sizeinfo)
+-- called from [DEV...]
+-- See WM_CLOSE for creation of sizeinfo
+    LVLwidth = sizeinfo[1]
+    for i=1 to 3 do
+        void = sendMessage(LVL,LVM_SETCOLUMNWIDTH,i-1,sizeinfo[2][i])
+    end for
+    for i=1 to 4 do
+        void = sendMessage(LVR,LVM_SETCOLUMNWIDTH,i-1,sizeinfo[3][i])
+    end for
+    isWindowMaximised = sizeinfo[4]
+    if not atom(sizeinfo[5]) then
+        sizeinfo5 = sizeinfo[5]
+        -- Do this, even if about to openWindow(Main,SW_MAXIMISED),
+        -- so that Restore puts it back as expected.
+        void=c_func( xMoveWindow, mainHwnd&sizeinfo5&1)
+    end if
+end procedure
+
+function CompareSortColumn(sequence s1,sequence s2)
+integer c
+    if dirS then
+        c=compare(s1[D_Icon]!=0,s2[D_Icon]!=0)  -- Directories first
+        if c=0 then
+            return Sign*compare(upper(s1[D_Name]),upper(s2[D_Name]))
+        end if
+        return c    -- NB not Sign*c; directories always on top.
+    end if
+    return Sign*compare(s1[SortColumn],s2[SortColumn])
+end function
+
+include pFsm.ew -- site manager window
+
+-- get the recommended sizes for small icons:
+constant cX = c_func(xGetSystemMetrics,{SM_CXSMICON}),
+         cY = c_func(xGetSystemMetrics,{SM_CYSMICON})
+
+-- Local and remote imagelists
+constant himlL = c_func(xImageList_Create,{cX,cY,ILC_COLOR8+ILC_MASK,1,32})
+constant himlR = c_func(xImageList_Create,{cX,cY,ILC_COLOR8+ILC_MASK,1,32})
+
+void=sendMessage(LVL,LVM_SETIMAGELIST,LVSIL_SMALL,himlL)
+void=sendMessage(LVR,LVM_SETIMAGELIST,LVSIL_SMALL,himlR)
+
+constant pDword = allocate(4)
+
+-- get a few icons:
+
+atom s32
+    s32 = allocate_StringZ("shell32.dll")
+
+constant rqdIcons={3,2,0}
+         --3 SI_FOLDER_CLOSED   Closed folder
+         --2 SI_DEF_APPLICATION Default application
+         --0 SI_UNKNOWN Unknown File Type
+
+-- Note: Data[idx][D_Icon]=0 is thus same as test for SI_FOLDER(=3),
+--       ie, is Data[idx] a directory? (=the recommended test).
+
+    for i=1 to length(rqdIcons) do
+        if c_func(xExtractIconEx,{s32,rqdIcons[i],NULL,pDword,1})!=1 then
+            ?9/0
+        end if
+        icon = peek4u(pDword)
+
+        void = c_func(xImageList_AddIcon,{himlL,icon})
+        void = c_func(xImageList_AddIcon,{himlR,icon})
+        void = c_func(xDeleteObject,{icon})
+
+    end for
+
+    void = sendMessage(LVL, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
+    void = sendMessage(LVR, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
+
+
+constant KB = 1024,
+         MB = KB*KB,
+         GB = KB*MB,
+         --
+         -- the following written so that a single change to sw affects all:
+         --
+         sw = 11,                               -- size width of 11 characters
+         dpsfmt = sprintf("%%%d.2f%%s",sw-2),   -- with decimal places and suffix
+                   -- eg/ie "%9.2f%s"
+         sfmt = sprintf("%%%d.0f%%s",sw-2),     -- no d.p, but still suffix
+                 -- eg/ie "%9.0f%s"
+         bfmt = sprintf("%%%d.0f",sw)           -- no d.p, no suffix (size in bytes)
+                -- eg/ie "%11.0f"
+
+function Size00(atom size, integer factor, sequence suffix)
+-- common code for Size function, to avoid ".00" displaying
+sequence res, params
+    params = {floor(size/factor),suffix}
+    if remainder(size,factor) then
+        res = sprintf(dpsfmt, params)           -- eg 9.2GB
+        if equal(res[sw-4..sw-2],".00") then
+            res = sprintf(sfmt, params)         -- eg   9MB (not "9.00MB" when really 9.00004701MB)
+        end if
+    else
+        res = sprintf(sfmt, params)             -- eg 100KB (that is, when really 100.00000000KB)
+    end if
+    return res
+end function    
+
+function Size(atom size)
+    if size>=GB then
+        return Size00(size,GB,"GB")
+    elsif size>=MB then
+        return Size00(size,MB,"MB")
+    elsif size>=KB then
+        return Size00(size,KB,"KB")
+    end if
+    return sprintf(bfmt, size)                  -- eg     0 (ie absolute size in bytes)
+end function
+
+--DEV see edita.exw...
+function Date(sequence dt)
+integer t4
+    -- swap day and year
+    t4 = dt[1]
+    dt[1] = dt[3]
+    dt[3] = t4
+    -- 24hr -> 12hr AM/PM (re-using D_SECONDS [albeit dt is date()[D_YEAR..D_SECONDS])
+    t4 = dt[4]
+    if t4>=12 then
+        if t4>12 then
+            dt[4] = t4-12
+        end if
+        dt[6] = "PM"
+    else
+        dt[6] = "AM"
+    end if
+    return sprintf("%02d/%02d/%04d %02d:%02d %s",dt)
+end function
+
+function LVformat(sequence Data, integer lRow, integer lColumn)
+object res
+    if lColumn=0 then               -- icon
+        res = Data[lRow][D_Icon]
+    elsif lColumn=1 then            -- Filename
+        res = Data[lRow][lColumn]
+    elsif lRow = 1 and equal(Data[lRow][D_Name],"..") then
+        res = ""
+    elsif lColumn=2 then            -- Size
+        if Data[lRow][D_Icon]=0 then -- a directory
+            res = ""
+        else
+            res = Size(Data[lRow][lColumn])
+        end if
+    elsif lColumn=3 then            -- Date and time
+        res = Date(Data[lRow][lColumn])
+    elsif lColumn=4 then            -- Flags (LVR only)
+        res = DataR[lRow][D_Flags]  -- [5]
+    end if
+    return res
+end function
+
+function LVformatL(integer lRow, integer lColumn)
+    return LVformat(DataL,lRow,lColumn)
+end function
+setLVFormatRoutine(LVL, routine_id("LVformatL"))
+
+function LVformatR(integer lRow, integer lColumn)
+    return LVformat(DataR,lRow,lColumn)
+end function
+setLVFormatRoutine(LVR, routine_id("LVformatR"))
+
+sequence extensionsL,   -- for imagelist lookup (local)
+         extensionsR    -- "" (remote)
+         extensionsL={0,0}  -- 0 is folder, 1 is default exe, 2 is default object,
+         extensionsR={0,0}  -- more are loaded dynamically
+
+--DEV for eainet.ew (pFTP?)
+global constant Edita = "Edita"
+
+include pFinet.ew   -- ftp functions
+
+
+global -- for pFlist.ew
+atom hSession, hConnection
+
+sequence eeI    -- extended error info
+         eeI={}
+
+procedure FTPErr(integer id)
+-- id is just a unique integer, so I can tell where FTPErr was
+-- called from. Currently using 1..22.
+sequence title,msg
+--  title = sprintf("FTP error %d [%d]",{net_errno,id})
+    title = "FTP error"
+    msg = net_errmsg
+    if length(eeI) then
+        msg &= "\n\n"&eeI
+        eeI = {}
+    end if
+    msg &= sprintf("\n\nPlease quote error code %d [%d] when\n",{net_errno,id})&
+           "reporting problems, output from Tools\\Diag may also help."
+
+    void = messageBox(title,msg,0)
+    void = InternetClose(hSession)
+    setText(STATUS,"")
+end procedure
+
+function beginSession()
+
+    hSession = InternetOpen(0,0,0,0)
+    if hSession = NULL then FTPErr(1) return 0 end if
+
+    hConnection = InternetConnect(hSession,                     -- Session Handle
+                                  ServerName,
+                                  ServerPort,
+                                  UserName,
+                                  Password,
+                                  FTP,                          -- Service
+                                  PASSIVE,                      -- Flags
+                                  NULL)                         -- Context
+
+    if hConnection = NULL then
+        eeI=sprintf("%s, port %d",{ServerName,ServerPort})
+        FTPErr(2)
+        return 0
+    end if
+    return 1
+end function
+
+function dErr(integer fn, integer errCode)
+    -- errCode is 0,3,4,5,6, or 7
+    if errCode then FTPErr(errCode) end if
+    printf(fn,"Error code %d\n",{errCode})
+    close(fn)
+    return 0
+end function
+
+function diagnostics()
+-- dump HELP, HELP SITE, and LIST results to file, 
+--  for comparison with results from my ISP.
+integer fn
+atom hFile
+integer len
+object data
+    fn = open("diag.txt","w")
+    if not beginSession() then return dErr(fn,0) end if
+
+    if FtpCommand(hConnection,False,0,"HELP",0)=0 then return dErr(fn,3) end if
+
+    puts(fn,"HELP:\n")
+    puts(fn,InternetGetLastResponseInfo())
+
+    if FtpCommand(hConnection,False,0,"HELP SITE",0)=0 then return dErr(fn,4) end if
+
+    puts(fn,"HELP SITE:\n")
+    puts(fn,InternetGetLastResponseInfo())
+
+    if FtpCommand(hConnection,False,0,"FEAT",0)=0 then return dErr(fn,5) end if
+
+    puts(fn,"FEAT:\n")
+    puts(fn,InternetGetLastResponseInfo())
+
+    if not atom(rpath) then
+        void = FtpSetCurrentDirectory(hConnection, rpath)
+    end if
+
+    hFile = FtpCommand(hConnection,True,0,"LIST -al",0)
+
+    if hFile=NULL then return dErr(fn,6) end if
+
+    puts(fn,"LIST -al:\n")
+
+    len = InternetQueryDataAvailable(hFile)
+
+    if len=0 then return dErr(fn,7) end if
+    while len do
+        data = InternetReadFile(hFile, len)
+        if atom(data) or length(data)=0 then exit end if
+        puts(fn,data)
+        len = InternetQueryDataAvailable(hFile)
+    end while
+    void = InternetClose(hSession)
+    close(fn)
+    void = messageBox("Diagnostics written","see diag.txt",0)
+    return 1
+end function
+
+
+function getExtension(sequence name)
+    for j = length(name) to 1 by -1 do
+        if name[j]='.' then return upper(name[j+1..length(name)]) end if
+    end for
+    return ""
+end function
+
+include pFlist.ew -- LoadText()
+
+--with trace
+procedure loadDir(integer ftp, sequence path, object chd)
+--
+-- wrapper round dir() | FtpDir() to load the listview items.
+--
+-- if ftp is 1, then ServerName..ppocf must be set before call.
+--
+-- you won't fully get what path does until you get chd's use:
+--
+-- chd is used to change directory (while hConnection open);
+--  it is however a bit fiddly and a bit confusing...
+---[v0.2: see comments below]
+--  First simplification: always 0/ignored when ftp is zero.
+--   (so for local use, path always tells all).
+--  In ftp mode, there are three cases:
+--   Init: 0 (ie path tells all).
+--   Chdir: (ie LVN_ITEMACTIVATE). What it was made for.
+--   Refresh: "". OK, admission time - here I lost the plot.
+--    (and by "", I mean a string of length 0 [not ditto])
+--    Yes, it is as simple and trivial as it seems: path
+--    tells all - but be sure to chdir to it. However I have
+--    to admit the penny somehow never fully dropped here.
+--    All I am saying is be warned - it might not be quite as
+--    straightforward as it all seems.
+--
+-- As a further complication, (eg) "/htdocs/.." (as param to 
+--  FtpSetCurrentDirectory) appears to work but "/" does not.
+--  (Just trying to warn you here, maybe you had to be there)
+-- Also, note that this program will never do a local chdir()
+--  [mainly since doing so messes up ex.err handling in Edita]
+--  but instead maintains (and cleans up) the current path in 
+--  lpath, whereas it /does/ call FtpSetCurrentDirectory() and
+--  keeps track of the remote directory by saving the results
+--  from FtpGetCurrentDirectory() in rpath, relying on the ftp
+--  server to "clean up" the path (eg remove "/.."s).
+-- It may help to uncomment the pp({path,chd,rpath}) line to
+--  see what's really going on.
+--
+object d, di
+object ext
+integer k, didx
+sequence Data   -- stored in DataL or DataR at end
+integer LVx -- LVL or LVR (common LVM_SETITEMCOUNT)
+integer prevTop
+
+    if ftp then
+        setText(STATUS,"Loading remote directory")
+        rrOK=False
+        if not beginSession() then return end if
+        
+        if sequence(chd) then
+            if  (length(path)=0 or path[length(path)]!='/')
+            and (length(chd)=0 or chd[1]!='/') then
+                path&='/'&chd
+            else
+                path&=chd
+            end if
+        end if
+
+---[v0.2: commenting this load out helps clear the air!]
+
+--      d = FtpDir(hConnection,path,INTERNET_FLAG_RELOAD,NULL)
+
+--      if atom(d) then FTPErr(7) return end if
+
+        -- example of the 'fiddliness of chd'. While this may
+        -- look like it does the exact same job as code above,
+        -- see|uncomment the pp({path,chd,rpath}) line below.
+--      if sequence(chd) then
+--          if  (length(rpath)=0 or rpath[length(rpath)]!='/')
+--          and (length(chd)=0 or chd[1]!='/') then
+--              chd = rpath&'/'&chd
+--          else
+--              chd = rpath&chd
+--          end if
+--      else
+--          chd = path
+--      end if
+
+--      if sequence(chd) and length(chd) then
+--          void = FtpSetCurrentDirectory(hConnection, chd)
+--          if not void then eeI=chd FTPErr(8) return end if
+
+        if length(path) then
+            void = FtpSetCurrentDirectory(hConnection, path)
+            if not void then eeI=path FTPErr(8) return end if
+        end if
+
+        d = FtpDir(hConnection,NULL,INTERNET_FLAG_RELOAD,NULL)
+
+        if atom(d) then FTPErr(9) return end if
+
+        rpath = FtpGetCurrentDirectory(hConnection)
+--      pp({path,chd,rpath})
+
+        if not length(rpath) then FTPErr(10) return end if
+
+        if not equal(rpath,"/") then
+            d = prepend(d,{"..","d",0,0,0,0,0,0,0})
+        end if
+
+        setText(l_rpath,rpath)
+        setTextColour(l_rpath,Black)
+        setImage(Rr,TBicons[6])
+
+        --
+        -- Force complete redraw (DEV). Without this, previous chars get
+        -- left on screen, eg:
+        --  initially: \htdocs
+        --  cd dd      \htdocs\dd
+        --  cd ..      \htdocs\dd       -- wrong
+        --  cd XXXX    \htdocs\XXXX
+        --  cd ..      \htdocs\XXXX     -- wrong
+        --  cd dd      \htdocs\ddXX     -- wrong
+        --
+        setVisible(l_rpath,False)
+        setVisible(l_rpath,True)
+--      repaintWindow(l_rpath,False)    -- (DEV) not sure why this is not enough,
+                                        --  probably flaw in SS_OWNERDRAW handling.
+
+        setImage(Bdn,TBicons[4])
+--DEV: BdnState=0, surely?
+
+--      void = InternetClose(hSession)  -- now done below...
+
+        LVx = LVR
+    else
+        setText(STATUS,"Loading local directory")
+        rlOK=False
+        if not length(path) then path = current_dir() end if
+        if path[length(path)]!='\\' then path&='\\' end if
+        d = dir(path)
+        if atom(d) then
+            void = messageBox("dir() error",path,0)
+            return
+        end if
+        lpath = path
+        setText(l_lpath,lpath)
+        setTextColour(l_lpath,Black)
+        setImage(Rl,TBicons[6])
+
+        -- see comments for l_rpath above
+        setVisible(l_lpath,False)
+        setVisible(l_lpath,True)
+
+        setImage(Bup,TBicons[2])
+        BupState = 0                -- flag as "disabled"
+
+        LVx=LVL
+    end if
+
+    if length(d) and equal(d[1][D_NAME],".") then
+        d = d[2..length(d)]
+    end if
+
+    Data = d
+
+    -- tag sort: {isDir, case_insensitive_name, index}:
+
+    for i=1 to length(d) do
+        di = d[i]
+        d[i] = {not (find('d',di[D_ATTRIBUTES])),upper(di[D_NAME]),i}
+    end for
+    if length(d) and equal(d[1][2],"..") then
+        -- ".." could get displaced if files/directories begin !/#/$ etc:
+        d[2..length(d)] = sort(d[2..length(d)])
+    else
+        d = sort(d)
+    end if
+    for i=1 to length(d) do
+        d[i] = Data[d[i][3]]
+    end for
+    
+    prevTop = sendMessage(LVx, LVM_GETTOPINDEX, 0, 0)
+--setText(Main,sprintf("pFTP (gettop=%d)",prevTop))
+--  void = sendMessage(LVx, LVM_SETITEMCOUNT, length(d), 0)
+    setEnable(LVx,True)
+    setIndex(LVx,-1)
+--  void = sendMessage(LVx, LVM_ENSUREVISIBLE, 0, 0)
+    Data = repeat(0,length(d))
+    didx = 0
+    -- directories first
+    for i=1 to length(d) do
+        di = d[i]
+        if find('d',di[D_ATTRIBUTES]) then      -- a directory
+            didx+=1
+                        -- {D_Name,     D_Size,     D_Date,      D_Icon, D_Flags}
+            Data[didx] = {di[D_NAME],di[D_SIZE],di[D_YEAR..D_SECOND],0,"??"}
+        end if
+    end for
+    -- non-directories
+    for i=1 to length(d) do
+        di = d[i]
+        if not find('d',di[D_ATTRIBUTES]) then
+            didx+=1
+            ext = getExtension(di[D_NAME])
+            if ftp then
+                k = find(ext,extensionsR)
+            else
+                k = find(ext,extensionsL)
+                -- "" yields 0 every time for local EXE/ICO (see below)
+            end if
+
+            if k = 0 then
+                icon = NULL
+                if find(ext,{"EXE","ICO"}) then
+                    if ftp=0 then
+                        iconinfo = path&d[i][D_NAME]
+--pp(iconinfo)
+                    else
+                        iconinfo = -1
+                    end if
+                else
+                    iconinfo = parseDefaultIcon(regIconInfo("."&ext))
+                end if
+                if not equal(iconinfo,-1) then
+                    if c_func(xExtractIconEx,{allocate_StringZ(iconinfo),icon,NULL,pDword,1})=1 then
+                        icon = peek4u(pDword)
+--?icon
+                    end if
+                end if
+                if icon=NULL then
+                    -- use icons loaded initially
+                    if equal(ext,"EXE") then    -- default application (SI_DEF_APPLICATION) 
+                        k=1
+                    else                        -- unknown file type (SI_UNKNOWN)
+                        k=2
+                    end if
+                else
+                    if ftp then
+                        extensionsR = append(extensionsR,ext)
+                        k = length(extensionsR)
+                        void = c_func(xImageList_AddIcon,{himlR,icon})
+                    else
+                        if find(ext,{"EXE","ICO"}) then
+                            -- locally, get exe/ico icons every time
+                            ext = 0
+                        end if
+                        extensionsL = append(extensionsL,ext)
+                        k = length(extensionsL)
+                        void = c_func(xImageList_AddIcon,{himlL,icon})
+                    end if
+                    void = c_func(xDeleteObject,{icon})
+                end if
+            end if
+                      -- {D_Name,   D_Size,     D_Date,      D_Icon, D_Flags}
+            Data[i] = {di[D_NAME],di[D_SIZE],di[D_YEAR..D_SECOND],k,"??"}
+        end if
+    end for
+    if ftp then
+        DataR = Data
+        LoadText()      -- get flags (eg drwxr--rw-) via "LIST"
+--      if length(DataR)>length(Data) then
+--          void = sendMessage(LVR, LVM_SETITEMCOUNT, length(DataR), 0)
+--      end if
+        void = InternetClose(hSession)
+        setEnable({MV_rfr,MT_dia},True)
+        rrOK = True     -- refresh OK now
+        void = sendMessage(LVR, LVM_SETITEMCOUNT, length(DataR), 0)
+    else
+        DataL = Data
+        setEnable(MV_rfl,True)
+        rlOK = True     -- refresh OK now
+        void = sendMessage(LVL, LVM_SETITEMCOUNT, length(DataL), 0)
+    end if
+    void = sendMessage(LVx, LVM_ENSUREVISIBLE, prevTop, 0)
+    if prevTop then
+        prevTop+= sendMessage(LVx,LVM_GETCOUNTPERPAGE,0,0)-1
+        void = sendMessage(LVx, LVM_ENSUREVISIBLE, prevTop, 0)
+    end if
+    setFocus(LVx)
+    setText(STATUS,"")
+end procedure
+
+
+function cleanUpPath(sequence name)
+integer k
+    --
+    -- Replace any / in filepath with \\
+    --
+    while 1 do
+        k = find('/',name)
+        if k=0 then exit end if
+        name[k]='\\'
+    end while
+    --
+    -- check for and remove any \.. in filepath
+    --
+    while 1 do
+        k=match("\\..",name)
+        if k=0 then exit end if
+        if find('\\',name)=k then   -- avoid infinite loop
+            -- should never happen
+            puts(1,"Warning, cannot cleanup path "&name)
+            exit
+        end if
+        for j=k-1 to 1 by -1 do
+            if name[j]='\\' then
+                name=name[1..j-1]&name[k+3..length(name)]
+                exit
+            end if
+        end for
+    end while
+--  --
+--  -- Make sure there is a proper path.
+--  --
+--  if not find('\\',name) then
+--      name=initialcurrentdir&name
+--  end if
+    return name
+end function
+
+
+constant UPLOAD=1, DOWNLOAD=2   -- NB LOCAL=1 and REMOTE=2 (M_Context) also used
+
+--with trace
+function transfer_one(sequence file, integer ud)
+integer mode
+sequence rfilepath
+--progress(file,0)?
+--trace(1)
+
+    if find(getExtension(file),{"TXT","BAT","EXW","EX","E","EU"}) then
+        mode = ASCII
+    else
+        mode = BINARY
+    end if
+    if length(rpath) and rpath[length(rpath)]='/' then
+        rfilepath=rpath&file
+    else
+        rfilepath=rpath&'/'&file
+    end if
+    if ud = UPLOAD then
+        setText(STATUS,sprintf("Uploading file %s%s -> %s",{lpath,file,rfilepath}))
+        if not FtpPutFile(hConnection,lpath&file,rfilepath,mode,0) then
+            eeI=sprintf("FtpPutFile(%s%s,%s)",{lpath,file,rfilepath})
+            FTPErr(11)
+            return 0
+        end if
+    else -- ud = DOWNLOAD
+        setText(STATUS,sprintf("Downloading file %s -> %s%s",{rfilepath,lpath,file}))
+        if not FtpGetFile(hConnection,rfilepath,lpath&file,False,0,mode,0) then
+            eeI=sprintf("FtpGetFile(%s,%s%s)",{rfilepath,lpath,file})
+            FTPErr(12)
+            return 0
+        end if
+    end if
+--progress(file,100)?
+    setText(STATUS,"")
+    return 1
+end function
+
+function transfer_directory(sequence file, integer ud)
+object d, di
+atom res
+sequence oldrpath, oldlpath
+    oldrpath=rpath
+    oldlpath=lpath
+    res = 1
+    if not FtpSetCurrentDirectory(hConnection, file) then
+        if ud!=UPLOAD then
+            eeI=sprintf("FtpSetDir(%s)",{file})
+            FTPErr(13)
+            return 0
+        end if
+        if not FtpCreateDirectory(hConnection, file) then
+            eeI=sprintf("FtpCreateDir(%s)",{file})
+            FTPErr(14)
+            return 0
+        end if
+    end if
+--DEV check for local directory ("file"), if not create it, and
+-- save/extend/restore lpath like we're doing with rpath.
+    lpath &= '\\'&file
+    if atom(dir(lpath)) then
+        if ud!=DOWNLOAD then ?9/0 end if
+        if not c_func(xCreateDirectory,{allocate_StringZ(lpath),NULL}) then
+            res = c_func(xGetLastError,{})
+            void = messageBox("Error","Unable to create "&lpath&
+                                      "\nError code "&sprint(res),0)
+            res=0
+        end if
+    end if
+    if res then
+        rpath = rpath&'/'&file
+        d = FtpDir(hConnection,rpath,INTERNET_FLAG_RELOAD,NULL)
+        if atom(d) then
+            eeI=sprintf("FtpDir(%s)",{rpath})
+            FTPErr(15)
+            res = 0
+        else
+            for i=1 to length(d) do
+                di = d[i]
+                if find('d',di[D_ATTRIBUTES]) then
+                    di = di[D_NAME]
+                    if not find(di,{".",".."}) then
+                        if not transfer_directory(di, ud) then res=0 exit end if
+                    end if
+                else
+                    if not transfer_one(di[D_NAME],ud) then res = 0 exit end if
+                end if
+            end for
+        end if
+    end if
+
+    if not FtpSetCurrentDirectory(hConnection, "..") then
+        eeI="FtpSetDir(..)"
+        FTPErr(16)
+        res = 0
+    end if
+
+    rpath = oldrpath
+    lpath = oldlpath
+    return res
+end function
+
+
+procedure Transfer(integer ud)
+-- ud is either UPLOAD or DOWNLOAD
+sequence Data   -- DataL or DataR
+sequence s      -- a list of indexes to Data
+integer idx
+sequence file
+
+    if ud = UPLOAD then
+        if BupState != 1 then return end if
+        Data = DataL
+        s = getLVSelected(LVL)
+    else -- DOWNLOAD
+        if BdnState != 1 then return end if
+        Data = DataR
+        s = getLVSelected(LVR)
+    end if
+    if not beginSession() then return end if
+    for i=1 to length(s) do
+        idx = s[i]
+        file = Data[idx][D_Name]
+        if Data[idx][D_Icon]=0 then
+            if not transfer_directory(file,ud) then exit end if
+        else
+            if not transfer_one(file,ud) then exit end if
+        end if
+    end for
+    void = InternetClose(hSession)
+
+    if ud=UPLOAD then
+        setTextColour(l_rpath,BrightRed)
+        setImage(Rr,TBicons[5])
+        setFocus(LVL)
+    else
+        setTextColour(l_lpath,BrightRed)
+        setImage(Rl,TBicons[5])
+        setFocus(LVR)
+    end if
+
+end procedure
+
+function alignContext(integer id)
+--
+-- if input is Del/F2 from keyboard, ie, id is LVL or LVR, then
+--  set M_Context to LOCAL or REMOTE accordingly;
+-- else, menu item clicked (id is M_Cdel/M_Crn/M_Ccd), M_Context is 
+--  already set to LOCAL or REMOTE (via WM_RBUTTONDOWN), so
+--  set id to LVL or LVR, accordingly. There is often no need to call 
+--  this function when a menu item is clicked, but it must always be
+--  called to deal with keyboard input.
+-- end if
+--
+-- We are going to work mainly off what M_Context says, but we may
+--  also need id to be one of LVL or LVR for getLVSelected etc.
+--
+    if id=LVL then
+        M_Context = LOCAL           -- Makes sense! ;-)
+    elsif id=LVR then
+        M_Context = REMOTE          -- Makes sense! ;-)
+    elsif M_Context=LOCAL then
+        id = LVL                    -- Makes sense! ;-)
+    else
+        id = LVR                    -- Makes sense! ;-)
+    end if
+    return id
+end function
+
+--with trace
+procedure confirmdelete(integer id)
+integer k
+    id = alignContext(id)
+    k = getLVSelectedCount(id)
+    if k then
+        if k=1 then
+            k = getIndex(id)
+            if k=-1 then
+                void = messageBox("Delete","Nothing selected for deletion",0)
+                return
+            end if
+            if id = LVL then
+                setText(CDwhat,lpath&DataL[k][D_Name])
+            else
+                setText(CDwhat,rpath&'/'&DataR[k][D_Name])
+            end if
+        else
+            setText(CDwhat,sprintf("%d files",k))
+        end if
+        openWindow(CD,SW_NORMAL)
+        setFocus(CDcncl)
+    end if
+end procedure
+
+function delete_local_file(sequence file)
+atom eCode
+--DEV isn't lpath already \\ terminated??
+    setText(STATUS,sprintf("Deleting local file %s\\%s",{lpath,file}))
+    if not c_func(xDeleteFile,{allocate_StringZ(lpath&'\\'&file)}) then
+        eCode = c_func(xGetLastError,{})
+        void = messageBox("Error deleting",
+                          sprintf("%s\\%s\n\nError Code %d",{lpath,file,eCode}),0)
+        setText(STATUS,"")
+        return 0
+    end if
+    setText(STATUS,"")
+    return 1
+end function
+
+function delete_local_dir(sequence file)
+object d, di
+atom res
+sequence oldlpath
+    oldlpath=lpath
+    lpath&='\\'&file
+    res = 1
+    d = dir(lpath)
+    if atom(d) then
+        void = messageBox("Delete error",
+                          "Cannot get dir("&lpath&")",0)
+        res = 0
+    else
+        for i=1 to length(d) do
+            di = d[i]
+            if find('d',di[D_ATTRIBUTES]) then
+                di = di[D_NAME]
+                if not find(di,{".",".."}) then
+                    if not delete_local_dir(di) then res=0 exit end if
+                end if
+            else
+                if not delete_local_file(di[D_NAME]) then res = 0 exit end if
+            end if
+        end for
+    end if
+
+    if not c_func(xRemoveDir,{allocate_StringZ(lpath)}) then
+        res = c_func(xGetLastError,{})
+        void = messageBox("Error deleting directory",
+                          sprintf("%s\n\nError Code %d",{lpath,res}),0)
+        res = 0
+    end if
+
+    lpath = oldlpath
+    return res
+end function
+
+function delete_remote_file(sequence file)
+    setText(STATUS,sprintf("Deleting remote file %s/%s",{rpath,file}))
+    if not FtpDeleteFile(hConnection, rpath&'/'&file) then
+        eeI=sprintf("FtpDel(%s/%s)",{rpath,file})
+        FTPErr(17)
+        return 0
+    end if
+    setText(STATUS,"")
+    return 1
+end function
+
+
+function delete_remote_dir(sequence file)
+object d, di
+atom res
+sequence oldrpath
+    oldrpath = rpath
+    rpath = rpath&'/'&file
+    res = 1
+    d = FtpDir(hConnection,rpath,INTERNET_FLAG_RELOAD,NULL)
+    if atom(d) then
+        eeI=sprintf("FtpDir(%s)",{rpath})
+        FTPErr(18)
+        res = 0
+    else
+        for i=1 to length(d) do
+            di = d[i]
+            if find('d',di[D_ATTRIBUTES]) then
+                di = di[D_NAME]
+                if not find(di,{".",".."}) then
+                    if not delete_remote_dir(di) then res=0 exit end if
+                end if
+            else
+                if not delete_remote_file(di[D_NAME]) then res = 0 exit end if
+            end if
+        end for
+    end if
+
+    if not FtpRemoveDirectory(hConnection, rpath) then
+        eeI=sprintf("FtpRemDir(%s)",{rpath})
+        FTPErr(19)
+        res = 0
+    end if
+
+    rpath = oldrpath
+    return res
+end function
+
+
+procedure delete(integer id)
+-- id should be CDOK else do nothing.
+-- (in truth, id is only passed to keep mainHandler tidy)
+sequence s
+integer idx
+sequence file
+    if id = CDOK then
+        closeWindow(CD)
+        if M_Context=LOCAL then
+            s=getLVSelected(LVL)
+            for i=length(s) to 1 by -1 do
+                idx = s[i]
+                file = DataL[idx][D_Name]
+                if DataL[idx][D_Icon]=0 then
+                    if not delete_local_dir(file) then exit end if
+                else
+                    if not delete_local_file(file) then exit end if
+                end if
+                DataL = DataL[1..idx-1]&DataL[idx+1..length(DataL)]
+                --DataL[idx..idx]={}
+                void = sendMessage(LVL,LVM_DELETEITEM,idx-1,0)
+            end for
+--          loadDir(0,lpath,0)  -- always refresh after delete
+        else
+            if not beginSession() then return end if
+
+            s = getLVSelected(LVR)
+            for i=length(s) to 1 by -1 do
+                idx = s[i]
+                file = DataR[idx][D_Name]
+                if DataR[idx][D_Icon]=0 then
+                    if not find(file,{".",".."}) then
+                        if not delete_remote_dir(file) then exit end if
+                    end if
+                else
+                    if not delete_remote_file(file) then exit end if
+                end if
+                DataR = DataR[1..idx-1]&DataR[idx+1..length(DataR)]
+                --DataR[idx..idx]={}
+                void = sendMessage(LVR,LVM_DELETEITEM,idx-1,0)
+            end for
+
+            void = InternetClose(hSession)
+
+--          loadDir(1,rpath,"") -- always refresh after delete
+        end if
+    end if
+end procedure
+
+object renamedata   -- if a sequence, then RNOK=rename,
+                    -- elsif 2, then RNOK = createdir,
+                    -- elsif 3, then RNOK = connect with entered password.
+integer rnidx
+
+constant RENAME=1, CREATEDIR=2, PASSWORD=3
+procedure openRN(integer id, integer mode)
+-- this just opens a window for rename/create directory
+integer idx
+sequence file
+
+    if mode = RENAME then
+        id = alignContext(id)
+        renamedata = getLVSelected(id)
+        if not length(renamedata) then
+            void = messageBox("Rename","Nothing selected for rename",0)
+            return
+        end if
+        setText(RN,"Rename")
+        rnidx=1
+        idx=renamedata[rnidx]
+        if M_Context=LOCAL then
+            file = DataL[idx][D_Name]
+        else
+            file = DataR[idx][D_Name]
+        end if
+        setText(RNwhat,file)
+        setText(RNas,file)
+    elsif mode = CREATEDIR then
+        renamedata = 2
+        setText(RN,"Create Directory")
+        setText(RNwhat,"")
+        setText(RNas,"")
+    elsif mode = PASSWORD then
+        renamedata = 3
+        setText(RN,"Enter Password")
+        setText(RNwhat,"for "&ServerName)
+        setText(RNas,"")
+    end if
+    openWindow(RN,SW_NORMAL)
+    setFocus(RNas)
+end procedure
+
+procedure rencd()
+-- rename (renamedata is sequence),
+-- create directory (renamedata=2), or
+-- connect with entered password (renamedata=3)
+sequence text, oldfile
+integer idx
+    text = getText(RNas)
+    if length(text) then
+        if sequence(renamedata) then                    -- Rename:
+            idx=renamedata[rnidx]
+            if M_Context=LOCAL then
+                oldfile = DataL[idx][D_Name]
+                if not equal(oldfile,text) then
+                    if not c_func(xMoveFile,{allocate_StringZ(lpath&oldfile),
+                                             allocate_StringZ(lpath&text)}) then
+                        text = sprintf("Code %d",c_func(xGetLastError,{}))
+                        void = messageBox("Rename Error",text,0)
+                        rnidx = length(renamedata)+1    -- force close
+                    else
+                        DataL[idx][D_Name]=text
+                    end if
+                end if
+            else
+                oldfile = DataR[idx][D_Name]
+                if not equal(oldfile,text) then
+                    if beginSession() then
+                        if FtpRenameFile(hConnection,rpath&'/'&oldfile,rpath&'/'&text)!=1 then
+                            eeI=sprintf("FtpRenameFile(%s/%s,%s/%s)",{rpath,oldfile,rpath,text})
+                            FTPErr(20)
+                            rnidx = length(renamedata)+1    -- force close
+                        else
+                            DataR[idx][D_Name]=text
+                        end if
+                        void = InternetClose(hSession)
+                    end if
+                end if
+            end if
+            rnidx+=1
+            if rnidx>length(renamedata) then
+                closeWindow(RN)
+            else
+                idx=renamedata[rnidx]
+                if M_Context=LOCAL then
+                    oldfile = DataL[idx][D_Name]
+                else
+                    oldfile = DataR[idx][D_Name]
+                end if
+                setText(RNwhat,oldfile)
+                setText(RNas,oldfile)
+                setFocus(RNas)
+            end if
+
+        elsif renamedata=2 then                                 -- Create Directory:
+
+            if M_Context=LOCAL then
+                if not c_func(xCreateDir,{allocate_StringZ(lpath&text),NULL}) then
+--DEV 183, whereas ftp side xlates to "File Exists".... (ditto xMoveFile)
+                    text = sprintf("Code %d",c_func(xGetLastError,{}))
+                    void = messageBox("Create Directory Error",text,0)
+                else        -- always refresh after create dir
+                    loadDir(0,lpath,0)
+                end if
+            else
+                if beginSession() then
+                    if FtpCreateDirectory(hConnection,rpath&'/'&text)!=1 then
+                        eeI=sprintf("FtpCreateDirectory(%s/%s)",{rpath,text})
+                        FTPErr(21)
+                    else    -- always refresh after create dir
+                        loadDir(1,rpath,"")
+                    end if
+                    void = InternetClose(hSession)
+                end if
+            end if
+            closeWindow(RN)
+        else                                        -- Connect with entered password
+            if renamedata!=3 then ?9/0 end if
+            closeWindow(RN)
+            Password = text
+            loadDir(0,localDir,0)
+            loadDir(1,remoteDir,0)
+            setFocus(LVL)
+        end if
+    end if
+end procedure
+
+object flagdata
+integer fidx
+
+constant rwx="rwx",
+         msk="421"
+
+function odigit(sequence flags, integer offset)
+integer idx, ch
+integer res
+    res=0
+    for i=1 to 3 do
+        idx = offset+i-1
+        ch = flags[idx]
+        if ch='-' then
+            setCheck(FAids[idx-1],False)
+        else
+            if ch!=rwx[i] then ?9/0 end if
+            res+=msk[i]-'0'
+            setCheck(FAids[idx-1],True)
+        end if
+    end for
+    return res+'0'
+end function
+
+sequence octal
+sequence chmodfile
+procedure setFlagData()
+integer idx
+sequence flags
+    idx=flagdata[fidx]
+    flags=DataR[idx][D_Flags]
+    octal=repeat(0,3)
+    octal[1]=odigit(flags,2)
+    octal[2]=odigit(flags,5)
+    octal[3]=odigit(flags,8)
+    setText(FAnet,octal)
+    chmodfile = rpath
+    if not equal(chmodfile,"/") then
+        chmodfile&='/'
+    end if
+    chmodfile&=DataR[idx][D_Name]
+    setText(FAfile,chmodfile)
+end procedure
+
+
+constant octa={4,2,1}   -- bitmasks for rwx (octal)
+
+procedure setAttr(integer act)
+-- act is 1 to do the ftp thing, or
+-- 0 to recreate octal/set FAnet from checkboxes
+sequence newflags, oldflags
+integer idx
+sequence command
+integer n111222333  -- in for i=1 to 9, gets {1,1,1,2,2,2,3,3,3}
+integer n123123123  -- in for i=1 to 9, gets {1,2,3,1,2,3,1,2,3}
+
+    idx = flagdata[fidx]                        -- one of several selected for update
+    oldflags = DataR[idx][D_Flags]
+    newflags = oldflags                         -- preserve 'd'
+    octal = "000"
+    for i=1 to 9 do                             -- owner rwx, group rwx, user rwx
+        if isChecked(FAids[i]) then
+            n123123123 = remainder(i-1,3)+1     -- (trust the varname)
+            newflags[i+1]=rwx[n123123123]       -- set 'r'|'w'|'x' in "drwxrwxrwx"
+            n111222333 = floor((i-1)/3)+1       -- (trust the varname)
+            octal[n111222333] = octal[n111222333] + octa[n123123123] -- add 4|2|1 to '0'
+        else
+            newflags[i+1]='-'                 -- set '-' in "d---------"
+        end if
+    end for
+    if act=1 then                               -- actually do the ftp thing
+        if not equal(newflags,oldflags) then
+            command = "SITE CHMOD "&octal&" "&chmodfile
+            if beginSession() then
+                if FtpCommand(hConnection,False,0,command,0)=0 then
+                    eeI=sprintf("FtpCommand(%s)",{command})
+                    FTPErr(22)
+                    fidx = length(flagdata) -- force close
+                else
+                    DataR[idx][D_Flags]=newflags
+--                  void = messageBox("Set Attributes Result",
+--                                    InternetGetLastResponseInfo(),0)
+                end if
+                void = InternetClose(hSession)
+            end if
+        end if
+        fidx+=1
+        if fidx>length(flagdata) then
+            closeWindow(FA)
+        else
+            setFlagData()
+        end if
+    else                                            -- just update screen
+        setText(FAnet,octal)
+    end if
+end procedure
+
+procedure openFlags()
+    flagdata = getLVSelected(LVR)
+    if not length(flagdata) then
+        void = messageBox("Change Attributes","No file(s) selected",0)
+        return
+    end if
+    fidx=1
+    setFlagData()
+    openWindow(FA,SW_NORMAL)
+end procedure
+
+procedure octalEdit()
+-- The value in FAnet (the numeric edit text value of Flags)
+-- has been changed; deal with it (set other checkboxes etc)
+atom oClr
+integer ch
+
+    octal = getText(FAnet)
+    oClr = Black
+    if length(octal)!=3 then
+        oClr=BrightRed
+    else
+        for i=1 to 3 do
+            ch = octal[i]-'0'
+            if ch<0 or ch>7 then
+                oClr=BrightRed
+                exit
+            end if
+        end for
+    end if
+    setTextColour(FAnlbl,oClr)
+    if oClr = Black then
+        for i=1 to 3 do
+            ch = octal[i]-'0'
+            setCheck(FAids[i*3-2],and_bits(ch,4))
+            setCheck(FAids[i*3-1],and_bits(ch,2))
+            setCheck(FAids[i*3],and_bits(ch,1))
+        end for
+        for i=1 to length(FAids) do
+            repaintWindow(FAids[i],False)
+        end for
+    end if
+end procedure
+
+procedure attrClick(integer id, object lParam)
+-- an rwx attribute (in window FA) has been clicked.
+integer check
+    -- standard checkbox handling...
+    check = isChecked(id)
+    if lParam=1 then check = not check end if   -- accelerator key
+    setCheck(id,check)
+    -- ...and
+    setAttr(0)          -- update FAnet
+end procedure
+
+
+procedure Connect()
+integer Sidx
+sequence Si
+integer k, l
+    Sidx = getIndex(Sdd)
+    if Sidx>0 then
+        -- shuffle selection to top if not already top,
+        --  or more accurately, fiddle with indexes so
+        --  that it will be top when program next run:
+--      if Si!=1 then
+        Si = SMLVdata[Sidx]
+        k = Si[S_sort]
+        if k!=1 then
+--          k = SMLVdata[Si][S_sort]
+            for i = 1 to length(SMLVdata) do
+                l = SMLVdata[i][S_sort] 
+                if l=k then
+                    SMLVdata[i][S_sort] = 1
+                elsif l<k then
+                    SMLVdata[i][S_sort] = l+1
+                end if
+            end for
+            saveSites(0)
+            Si = SMLVdata[Sidx]
+        end if
+--      Si = SMLVdata[Si]
+        if Si[S_sort]!=1 then ?9/0 end if   -- sanity check
+        ServerId = Si[S_Id]
+        ServerName = Si[S_host]
+        ServerPort = Si[S_port]
+        ppocf = Si[S_ppoc]
+        UserName = Si[S_name]
+        Password = Si[S_pass]
+        if length(Si)>=S_rdir then
+            localDir = Si[S_ldir]
+            remoteDir= Si[S_rdir]
+        else
+            localDir = ""
+            remoteDir= ""
+        end if
+        if ppocf then
+            openRN(0, PASSWORD)
+        else
+            loadDir(0,localDir,0)
+            loadDir(1,remoteDir,0)
+            setFocus(LVL)
+        end if
+    end if
+end procedure
+
+
+
+procedure mainHelp()
+--DEV active link?
+    void = messageBox("pFTP version "&pFTPversion,
+                      "A simple open source FTP client.\n\n"&
+                      "First time users should run File/Site Manager to set up details\n"&
+                      "of remote site(s) to connect to - more help within that option.\n\n"&
+                      "The drop-down list to the left of the \"Connect\" button contains\n"&
+                      "all previously defined sites, and defaults to the last one opened.\n"&
+                      "Hopefully the \"Connect\" button is self-explanatory!\n\n"&
+                      "There is no code behind the \"Run\" button yet.\n\n"&
+--                    "The Tasks menu allows specific tasks to be created/recorded, saved\n"&
+--                    "or re-run (eg upload all files for a specific project).\n\n"&
+--                    "The \"Run\" button performs the last named task carried out, with\n"&
+--                    "the exeception that within Task definition, one (and only one) named\n"&
+--                    "task can be designated the default. The drop-down list to the left\n"&
+--                    "of the Run button contains all previously defined tasks.\n\n"&
+                      "Once connected to a site, navigate to the required directory,\n"&
+                      "select file(s), and press the \"->\" button to upload or the \"<-\"\n"&
+                      "button to download.\n\n"&
+                      "Filenames can be sorted by clicking on the column heading. It cycles\n"&
+                      "through two modes in fwd/rev order. Mode a) is directories first, then\n"&
+                      "case-insensitive (eg aBcDeF); Mode b) does not group directories first,\n"&
+                      "and is case-sensitive (eg BDFace). The \"..\" entry, if it exists, is\n"&
+                      "always left at the top. Click four times to see all sorts (;-)).\n"&
+                      "(Files also sort by size, date, and [not] even remote[ly useful] flags.)\n\n"&
+                      "Author: Pete Lomax, Copyright 2006.\n"&
+                      "Written in Phix (http://phix.isgreat.org).\n"&
+                      "Using Arwen, code based on the work of Fabio Ramirez to perform FTP tasks\n"&
+                      "and code based on the work of Davi Figueiredo to read the Windows registry.\n",0)
+end procedure
+
+
+constant SizeWECursor = loadCursor(IDC_SIZEWE)
+
+sequence LVLrect,LVRrect
+
+
+integer isWECursor, WExStart, isSizing
+        isWECursor=0          isSizing=0
+
+constant CD_PFTP=#20070421, -- Are you really pFTP?
+         CD_EMWH=#20070422, -- Here is Edita's main window handle
+         CD_UPLD=#20070502  -- Request from Edita to pFTP to re-upload a file
+constant CD_DNLD=#20070503  -- Request from Edita to pFTP to download a file
+constant CD_EDITA=#20050228 --        "     Are you really Edita?
+
+constant CD_RUNF=#20070529  -- Request from Edita to pFTP for remote filename (in http: form)
+                            -- Also used by pFTP to Edita ("here it is")
+
+constant CDS=allocate(12)
+constant CD_OPEN = #20050227    -- "Edit with Edita" - local files, no special handling
+constant CD_OPENF = #20070501   -- "Edit with Edita" from pFTP - remote files
+
+atom Ehwnd
+     Ehwnd=0
+
+function checkEdita()
+    poke4(CDS,{CD_EDITA,0,0})
+    if c_func(xSendMessage,{Ehwnd, WM_COPYDATA, mainHwnd, CDS})=CD_EDITA then return 1 end if
+    void = messageBox("Edita not responding",
+                      "Try Edita/FTP/Run pFTP to reset communications",0)
+    return 0
+end function
+
+procedure EditWithEdita(integer remote)
+sequence s, file, savelpath
+integer LVx -- LVL or LVR
+sequence data   -- DataR or DataL
+integer i,ch
+    if remote then
+        LVx = LVR
+        data = DataR
+    else
+        LVx = LVL
+        data = DataL
+    end if
+
+    if getLVSelectedCount(LVx)=1 then
+        s = getLVSelected(LVx)
+    else
+        s = {}  -- trigger error next
+    end if
+    if length(s)!=1
+    or data[s[1]][D_Icon]=0 then
+        void = messageBox("Error","Select a single file for edit",0)
+        return
+    end if
+    file = data[s[1]][D_Name]
+    if remote then
+        savelpath=lpath
+        lpath=sprintf("%s\\FTP\\%s\\%s\\",{current_dir(),ServerId,rpath})
+        i=1
+        while i<=length(lpath) do
+            ch=lpath[i]
+            if ch='/' then
+                lpath[i]='\\'
+                ch='\\'
+            end if
+            if ch='\\' then
+                if atom(dir(lpath[1..i])) then
+                    if not c_func(xCreateDirectory,{allocate_StringZ(lpath[1..i]),NULL}) then
+                        void = c_func(xGetLastError,{})
+                        void = messageBox("Error",sprintf("Unable to create %s\nError code %d",{lpath[1..i],void}),0)
+                        return
+                    end if
+                end if
+                i+=1
+                while i<=length(lpath) do
+                    ch=lpath[i]
+                    if ch!='/' and ch!='\\' then exit end if
+                    lpath=lpath[1..i-1]&lpath[i+1..length(lpath)]
+                end while
+            else
+                i+=1
+            end if
+        end while
+        if not beginSession() then return end if
+        if transfer_one(file,DOWNLOAD) then
+            if checkEdita() then
+                file = lpath&file
+                poke4(CDS,{CD_OPENF,length(file),allocate_StringZ(file)})
+--DEV mainHwnd?
+                void = c_func(xSendMessage, {Ehwnd, WM_COPYDATA, NULL, CDS})
+                c_proc(xSetForegroundWindow,{Ehwnd})
+            end if
+        end if
+        void = InternetClose(hSession)
+        lpath=savelpath
+    else
+        if checkEdita() then
+            file = lpath&file
+            poke4(CDS,{CD_OPEN,length(file),allocate_StringZ(file)})
+--DEV mainHwnd?
+            void = c_func(xSendMessage, {Ehwnd, WM_COPYDATA, NULL, CDS})
+            c_proc(xSetForegroundWindow,{Ehwnd})
+        end if
+    end if
+end procedure
+
+--with trace
+procedure qconn(sequence subpath)
+    for i=1 to length(subpath) do
+        if subpath[i]='\\' then
+            subpath=subpath[1..i-1]
+            if not equal(subpath,upper(ServerId)) then
+                for j=1 to length(SMLVdata) do
+                    if equal(subpath,upper(SMLVdata[j][S_Id])) then
+                        setIndex(Sdd,j)
+                        Connect()
+                        exit
+                    end if
+                end for
+            end if
+            exit
+        end if
+    end for
+end procedure
+
+object resd
+--with trace
+function anycase(sequence fname)
+-- match/update rpath and fname with any case instance.
+object ocd, d, urpim1, ufn
+integer ds
+--trace(1)
+    ocd = FtpGetCurrentDirectory(hConnection)
+    resd="/"
+    ds=2
+--  while 1 do
+        for i=2 to length(rpath)+1 do
+            if i>length(rpath)
+            or rpath[i]='/' then
+                void = FtpSetCurrentDirectory(hConnection, resd)
+                d = FtpDir(hConnection,NULL,INTERNET_FLAG_RELOAD,NULL)
+--              d=FtpDir(hConnection,resd,NULL,0)
+                urpim1=upper(rpath[ds..i-1])
+                for j=1 to length(d) do
+                    if equal(upper(d[j][1]),urpim1) then
+                        rpath[ds..i-1]=d[j][1]
+                        resd&=d[j][1]&'/'
+                        exit
+                    end if
+                end for
+                ds=i+1
+            end if
+        end for
+--  end while
+--  if resd!= then end if
+    void = FtpSetCurrentDirectory(hConnection, ocd)
+--  rpath=resd
+    d=FtpDir(hConnection,resd,NULL,0)
+    ufn=upper(fname)    -- [probably all lower(), btw]
+    for j=1 to length(d) do
+        if equal(upper(d[j][1]),ufn) then return d[j][1] end if
+    end for
+    return 0
+--  ?99
+--  return fname    -- oops?
+end function
+
+--with trace
+procedure ReUpload(sequence filepath, integer getremotefilename)
+sequence x
+object fwrk
+sequence savelpath, saverpath
+sequence msgtitle
+
+--trace(1)
+    if getremotefilename then
+        msgtitle = "GetRemoteFilename failure"
+    else
+        msgtitle = "ReUpload failure"
+    end if
+    filepath=upper(filepath)
+    x=current_dir()&"\\FTP\\"
+    if match(upper(x),filepath)!=1 then
+        void=messageBox(msgtitle,
+                        "match("&x&","&filepath&")!=1",0)
+        return
+    end if
+    fwrk=filepath[length(x)+1..length(filepath)]
+    qconn(fwrk) -- find/open connection as needed
+    if not rrOK then
+        void=messageBox(msgtitle,
+                        "rrOK is False (connect error?)",0)
+        return
+    end if
+    if match(upper(ServerId),fwrk)!=1 then
+        void=messageBox(msgtitle,
+                        "match("&ServerId&","&fwrk&")!=1",0)
+        return
+    end if
+    fwrk=fwrk[length(ServerId)+1..length(fwrk)]
+    savelpath=lpath
+    saverpath=rpath
+    lpath=""
+    for i=length(fwrk) to 1 by -1 do
+        if fwrk[i]='\\' then
+            lpath=filepath[1..length(x)+length(ServerId)+i]
+            fwrk[i]='/'
+            rpath=fwrk[1..i]
+            fwrk=fwrk[i+1..length(fwrk)]
+            for j=1 to length(rpath) do
+                if rpath[j]='\\' then
+                    rpath[j]='/'
+                end if
+            end for
+            exit
+        end if
+    end for
+    if not beginSession() then return end if
+    fwrk=anycase(fwrk)  -- also mods rpath
+    if atom (fwrk) then
+        void=messageBox(msgtitle,
+                        "no anycase match [on "&filepath&"]",0)
+        return
+    end if
+    if getremotefilename then
+        if match("ftp.",ServerName)!=1 then
+            void=messageBox(msgtitle,
+                            "ServerName does not begin \"ftp.\".",0)
+            return
+        end if
+        --DEV this is possibly specific to my ISP:
+        if match("/htdocs",rpath)=1 then
+            rpath=rpath[8..length(rpath)]
+        end if
+        fwrk="http://"&UserName&ServerName[4..length(ServerName)]&rpath&fwrk
+        --?9/0  -- if the above is building the url wrongly, uncomment this
+                -- to get an ex.err for me, (along with the exact url it
+                -- should be generating) however note that it will contain 
+                -- passwords etc, so edit the ex.err before sending!
+        poke4(CDS,{CD_RUNF,length(fwrk),allocate_StringZ(fwrk)})
+--DEV mainHwnd?
+        void = c_func(xSendMessage, {Ehwnd, WM_COPYDATA, NULL, CDS})
+        c_proc(xSetForegroundWindow,{Ehwnd})
+        void = InternetClose(hSession)
+        lpath=savelpath
+        rpath=saverpath
+    else
+        void = transfer_one(fwrk,UPLOAD)
+        void = InternetClose(hSession)
+        lpath=savelpath
+        rpath=saverpath
+        -- lastly set visual clues that remote is out of date.
+        setTextColour(l_rpath,BrightRed)
+        setImage(Rr,TBicons[5])
+    end if
+end procedure
+
+--with trace
+procedure ReDownload(sequence filepath)
+sequence x
+object fwrk
+sequence savelpath, saverpath
+
+--trace(1)
+    filepath=upper(filepath)    -- probably is already...
+    x=current_dir()&"\\FTP\\"
+    if match(upper(x),filepath)!=1 then
+        void=messageBox("ReDownload failure",
+                        "match("&x&","&filepath&")!=1",0)
+        return
+    end if
+    fwrk=filepath[length(x)+1..length(filepath)]
+    qconn(fwrk) -- find/open connection as needed
+    if not rrOK then return end if  -- message already given
+    if match(upper(ServerId),fwrk)!=1 then
+        void=messageBox("ReDownload failure",
+                        "match("&ServerId&","&fwrk&")!=1",0)
+        return
+    end if
+    fwrk=fwrk[length(ServerId)+1..length(fwrk)]
+    savelpath=lpath
+    saverpath=rpath
+    lpath=""
+    for i=length(fwrk) to 1 by -1 do
+        if fwrk[i]='\\' then
+            lpath=filepath[1..length(x)+length(ServerId)+i]
+--          fwrk[i]='/'
+            rpath=fwrk[1..i-1]
+            fwrk=fwrk[i+1..length(fwrk)]
+            for j=1 to length(rpath) do
+                if rpath[j]='\\' then
+                    rpath[j]='/'
+                end if
+            end for
+            exit
+        end if
+    end for
+    if not beginSession() then return end if
+    fwrk=anycase(fwrk)  -- also mods rpath
+    if atom (fwrk) then
+        void=messageBox("ReDownload failure",
+                        "no anycase match [on "&filepath&"]",0)
+        return
+    end if
+    if transfer_one(fwrk,DOWNLOAD) then
+        if checkEdita() then
+            fwrk = lpath&fwrk
+            poke4(CDS,{CD_OPENF,length(fwrk),allocate_StringZ(fwrk)})
+--DEV mainHwnd?
+            void = c_func(xSendMessage, {Ehwnd, WM_COPYDATA, NULL, CDS})
+            c_proc(xSetForegroundWindow,{Ehwnd})
+        end if
+    end if
+    void = InternetClose(hSession)
+    lpath=savelpath
+    rpath=saverpath
+end procedure
+
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+integer lvIdx
+integer ss  -- sortstart
+integer r1,r2,r3,r4
+integer k
+integer x, y
+atom msg_pos
+sequence sizeinfo
+atom mem
+integer len
+sequence fname
+
+    if msg = WM_CHAR then
+        if find(id,MainIds) then
+            if wParam = 12 and rlOK then    loadDir(0,lpath,0)  -- Ctrl L (Refresh Local)
+            elsif wParam = 15 then          SiteManager()       -- Ctrl O (Site Manager)
+            elsif wParam = 18 and rrOK then loadDir(1,rpath,"") -- Ctrl R (Refresh Remote)
+            elsif wParam = VK_ESCAPE then   closeWindow(Main)
+            end if
+        elsif find(id,CDids) then
+            if wParam = VK_RETURN then      delete(id)          -- (does nowt if id!=CDOK)
+            elsif wParam = VK_ESCAPE then   closeWindow(CD)
+            end if
+        elsif find(id,RNids) then
+            if wParam = VK_RETURN then      rencd()
+            elsif wParam = VK_ESCAPE then   closeWindow(RN)
+            end if
+        elsif find(id,FAall) then
+            if wParam = VK_RETURN then      setAttr(1)
+            elsif wParam = VK_ESCAPE then   closeWindow(FA)
+            end if
+        else
+            -- Probable cause: a button or other input field has been
+            -- added somewhere but not included in any id-list.
+            void = messageBox("Unhandled WM_CHAR",sprintf("id is %d",id),0)
+        end if
+        
+    elsif msg = WM_COMMAND then
+        if id = MF_sm then                              SiteManager()
+        elsif id = Sconn then                           Connect()
+        elsif id = Bup then                             Transfer(UPLOAD)
+        elsif id = M_Cud and M_Context = LOCAL then     Transfer(UPLOAD)
+        elsif id = Bdn then                             Transfer(DOWNLOAD)
+        elsif id = M_Cud and M_Context = REMOTE then    Transfer(DOWNLOAD)
+        elsif id = M_Ced then                           EditWithEdita(M_Context=REMOTE)
+        elsif id = MFexit then                          closeWindow(Main)
+        elsif id = MV_rfl or id = Rl then               loadDir(0,lpath,0)
+        elsif id = M_Crfr and M_Context = LOCAL then    loadDir(0,lpath,0)
+        elsif id = MV_rfr or id = Rr then               loadDir(1,rpath,"")
+        elsif id = M_Crfr and M_Context = REMOTE then   loadDir(1,rpath,"")
+        elsif id = M_Crn then                           openRN(id,RENAME)       -- Rename (F2)
+        elsif id = RNOK then                            rencd()
+        elsif id = RNcncl then                          closeWindow(RN)
+        elsif id = M_Ccd then                           openRN(id,CREATEDIR)    -- Create directory
+        elsif id = M_Cdel then                          confirmdelete(id)
+        elsif id = CDOK then                            delete(id)
+        elsif id = CDcncl then                          closeWindow(CD)
+        elsif id = M_Chg then
+            if M_Context = REMOTE then                  openFlags()             -- Change attributes
+            else -- M_Context = LOCAL                                           -- Change drive
+                                                        void = selectDirectory(0,0,NULL)
+                                                        if length(void) then
+                                                            loadDir(0,void,0)
+                                                        end if
+            end if
+        elsif id = FAset then                           setAttr(1)
+        elsif id = FAcncl then                          closeWindow(FA)
+        elsif id = FAnet then                           octalEdit()
+        elsif find(id,FAids) then                       attrClick(id,lParam)
+        elsif id = MT_dia then                          void=diagnostics()
+        elsif id = MH_abo then                          mainHelp()
+        end if
+
+    elsif msg = WM_SYSKEYDOWN and wParam = 'c' then -- from pFsm.ew/SMopen button
+        Connect()
+
+    elsif msg = WM_KEYDOWN and find(id,LVids) then
+        if wParam = VK_DELETE then          confirmdelete(id)
+        elsif wParam = VK_F2 then           openRN(id,RENAME)
+        end if
+
+    elsif msg = WM_MOUSEMOVE
+       or msg = WM_LBUTTONDOWN then
+
+        isWECursor=0
+        if sequence(lParam) then
+            x=lParam[1]
+            y=lParam[2]
+--setText(Main,ppf({x,y,LVLrect})) --sprintf("x:%d y:%d",{x,y}))
+            if y>=LVLrect[2]+5 and y<=LVLrect[4]-5
+            and ((x>=LVLrect[3]-5 and x<=LVLrect[3]+5)
+                 or (x>=LVRrect[1]-5 and x<=LVRrect[1]+5)) then
+                isWECursor=1
+                void=setCursor(SizeWECursor)
+            end if
+        end if
+
+        if msg = WM_LBUTTONDOWN then
+            isSizing=isWECursor
+            if isSizing then
+                WExStart=x
+--              void=setCursor(SizeWECursor)
+                captureMouse(Main)
+            end if
+        end if
+
+        if msg = WM_MOUSEMOVE and and_bits(wParam,MK_LBUTTON) and isSizing then
+            LVLwidth+=x-WExStart
+            WExStart=x
+            void=sendMessage(Main,WM_SIZE,0,0)
+        end if
+
+    elsif msg = WM_LBUTTONUP and isSizing then
+        isSizing=0
+        releaseMouse()
+
+
+    elsif find(id,LVids) then       -- LVL or LVR
+--      if msg = WM_CHAR and wParam = VK_RETURN then
+--          msg = WM_NOTIFY
+--          wParam = LVN_ITEMACTIVATE
+--      end if
+        if msg = WM_NOTIFY then
+            if wParam = LVN_COLUMNCLICK then
+                SortColumn = lParam[1]
+                Sign = lParam[2]
+                if id = LVL then
+                    ss = 1  -- sortstart
+                    if length(DataL) and equal(DataL[1][D_Name],"..") then
+                        ss = 2
+                    end if
+                    if SortColumn!=1 then
+                        dirSL=0
+                    end if
+                    dirS=dirSL
+                    DataL[ss..length(DataL)] = custom_sort(routine_id("CompareSortColumn"),
+                                                           DataL[ss..length(DataL)])
+                    if SortColumn=1 and Sign=-1 then
+                        dirSL=not dirSL
+                    end if
+                else -- id=LVR
+                    ss = 1  -- sortstart
+                    if length(DataR) and equal(DataR[1][D_Name],"..") then
+                        ss = 2
+                    end if
+                    if SortColumn!=1 then
+                        dirSR=0
+                    end if
+                    dirS=dirSR
+                    DataR[ss..length(DataR)] = custom_sort(routine_id("CompareSortColumn"),
+                                                           DataR[ss..length(DataR)])
+                    if SortColumn=1 and Sign=-1 then
+                        dirSR=not dirSR
+                    end if
+                end if
+                setIndex(id,-1) -- remove any selection
+                void = sendMessage(id, LVM_UPDATE, 0, 0)
+
+            elsif wParam = LVN_ITEMCHANGED then  
+                k = getLVSelectedCount(id)
+                if k=0
+                or (k=1
+                    and (   (id = LVR and equal(DataR[1][D_Name],".."))
+                         or (id = LVL and equal(DataL[1][D_Name],"..")))
+                    and equal(getLVSelected(id),{1})) then
+                    -- no items or '..' alone selected
+                    k=2 -- disabled icon
+                else
+                    k=1 -- enabled icon
+                end if
+                if id = LVR then
+                    setImage(Bdn,TBicons[k+2])
+                    BdnState = (k=1)
+                else
+                    setImage(Bup,TBicons[k])
+                    BupState = (k=1)
+                end if
+            elsif wParam = LVN_ITEMACTIVATE then
+                lvIdx = getIndex(id)
+                if id = LVR then
+                    if DataR[lvIdx][D_Icon]=0 then                          -- change directory
+setIndex(LVR,-1)
+----    prevTop = sendMessage(LVx, LVM_GETTOPINDEX, 0, 0)
+--  void = sendMessage(LVx, LVM_ENSUREVISIBLE, 0, 0)
+
+                        loadDir(1,rpath,DataR[lvIdx][D_Name])
+                    else                                                    -- download single file
+                        Transfer(DOWNLOAD)
+                    end if
+                else
+                    if DataL[lvIdx][D_Icon]=0 then                          -- change directory
+setIndex(LVL,-1)
+                        loadDir(0,cleanUpPath(lpath&DataL[lvIdx][D_Name]),0)
+                    else                                                    -- upload single file
+                        Transfer(UPLOAD)
+                    end if
+                end if
+            end if
+        elsif msg = WM_RBUTTONDOWN then
+            if id = LVL then
+                M_Context = LOCAL   --(=UPLOAD)
+                setText(M_Cud,"Upload")
+                setText(M_Chg,"Change drive")
+--setVisible(M_Ced,False)
+--              setEnable(M_Ced,False)
+            else -- LVR
+                M_Context = REMOTE  --(=DOWNLOAD)
+                setText(M_Cud,"Download")
+                setText(M_Chg,"Change attributes")
+--setVisible(M_Ced,True)
+--              setEnable(M_Ced,Ehwnd!=0)
+            end if
+            setEnable(M_Ced,Ehwnd!=0)
+
+            -- get the mouse position in *Screen* coords
+            msg_pos = c_func( xGetMessagePos, {} )
+            x = and_bits(msg_pos, #FFFF)
+            y = floor(msg_pos / #10000) 
+            void = c_func(xTrackPopupMenu, {cmHwnd,
+                                            TPM_LEFTALIGN+TPM_RIGHTBUTTON,
+                                            x, y, 0, mainHwnd, NULL} )
+            return {0}  -- seems to be needed to prevent the listview going
+                        -- into some wierd selection mode...
+        end if
+    elsif msg=WM_MENUSELECT then
+        setText(STATUS,"")
+        if not and_bits(hiWord(wParam),or_bits(MF_SEPARATOR,MF_POPUP)) then
+            k = find({lParam,loWord(wParam)},Mtxtk)
+            if k then
+                setText(STATUS,Mtxt[k])
+            end if
+        end if
+    elsif msg = WM_SIZE then
+        rect=getClientRect(Main)
+        r1 = rect[1]+10
+        r2 = rect[2]+70
+        r4 = rect[4]-80
+        r3 = rect[3]-r1-40-LVLwidth
+
+        void=c_func(xMoveWindow, {hw_l_lpath, r1, r2-30, LVLwidth-25, 25, 1} )
+        void=c_func(xMoveWindow, {hw_Rl, r1+LVLwidth-20, r2-30, 20, 20, 1} )
+        void=c_func(xMoveWindow, {hw_LVL, r1, r2, LVLwidth, r4, 1} )
+        void=c_func(xMoveWindow, {hw_Bup, LVLwidth+15, r2+60, 20, 20, 1} )
+        void=c_func(xMoveWindow, {hw_Bdn, LVLwidth+15, r2+90, 20, 20, 1} )
+        void=c_func(xMoveWindow, {hw_l_rpath, LVLwidth+40, r2-30, r3-25, 25, 1} )
+        void=c_func(xMoveWindow, {hw_Rr, rect[3]-r1-20, r2-30, 20, 20, 1} )
+        void=c_func(xMoveWindow, {hw_LVR, LVLwidth+40, r2, r3, r4, 1} )
+
+        --save some coordinates for WM_MOUSEMOVE checks:
+        LVLrect=getClientCoords(LVL)
+        LVRrect=getClientCoords(LVR)
+
+    elsif msg = WM_CLOSE    then
+        if db_open(pFTPedb,DB_LOCK_EXCLUSIVE)!=DB_OK then
+            void = messageBox("Warning","Error opening "&pFTPedb&", window size not saved",0)
+        else
+            if db_select_table("wsize")!=DB_OK then ?9/0 end if
+            sizeinfo = repeat(0,5)  -- see reSizeMain() for use of this
+            sizeinfo[1] = LVLwidth
+            sizeinfo[2] = repeat(0,3)
+            for i=1 to 3 do
+                sizeinfo[2][i] = sendMessage(LVL,LVM_GETCOLUMNWIDTH,i-1,0)
+            end for
+            sizeinfo[3] = repeat(0,4)
+            for i=1 to 4 do
+                sizeinfo[3][i] = sendMessage(LVR,LVM_GETCOLUMNWIDTH,i-1,0)
+            end for
+            if isWindowNormal(Main) then
+                sizeinfo[4] = 0     -- isWindowMaximised
+                sizeinfo[5] = getWindowRect(Main)
+                sizeinfo[5][3] = sizeinfo[5][3]-sizeinfo[5][1]
+                sizeinfo[5][4] = sizeinfo[5][4]-sizeinfo[5][2]
+            else
+                sizeinfo[4] = 1     -- isWindowMaximised
+                sizeinfo[5] = sizeinfo5 -- saved from reSizeMain()
+            end if
+            if db_table_size()=1 then
+                db_replace_data(1,sizeinfo)
+            else
+                if db_insert(1,sizeinfo)!=DB_OK then ?9/0 end if
+            end if
+
+            db_close()
+        end if
+
+    elsif msg = WM_COPYDATA then
+--return CDmessage(lParam)
+
+--function CDmessage(atom CDS)
+-- handle WM_COPYDATA messages (single instance handling, etc)
+--sequence text, selection
+--integer msg, len, line, colfrom, colto
+--atom mem
+--, hwnd
+--object s
+--sequence pos
+        msg = peek4u(lParam)
+--  len = peek4u(lParam+4) --DEV might crash if hwnd?
+        if msg=CD_PFTP then -- single instance: are you really pFTP?
+--setText(Main,sprintf("pFTP hwnd=%d",getWindowHwnd(Main)))
+--mainHwnd
+            return {CD_PFTP}
+        elsif msg = CD_EMWH then -- Here is Edita's main window handle:
+--          if peek4u(lParam+4)!=4 then ?9/0 end if     -- sanity check
+--          Ehwnd=peek4u(peek4u(lParam+8))
+--setText(Main,sprintf("Edita hwnd=%d; pFTP hwnd=%d",{Ehwnd,getWindowHwnd(Main)}))
+--setText(Main,sprintf("pFTP hwnd=%d; Edita hwnd=%d",{getWindowHwnd(Main),wParam}))
+            Ehwnd=wParam
+--          setEnable(M_Ced,True)   -- done at pop-up time.
+
+        elsif msg = CD_UPLD then -- File needing re-upload
+            len=peek4u(lParam+4)
+            mem=peek4u(lParam+8)
+            fname=peek({mem,len})
+            ReUpload(fname,0)
+
+        elsif msg = CD_RUNF then
+            len=peek4u(lParam+4)
+            mem=peek4u(lParam+8)
+            fname=peek({mem,len})
+            ReUpload(fname,1)
+            
+        elsif msg = CD_DNLD then
+            len=peek4u(lParam+4)
+            mem=peek4u(lParam+8)
+            fname=peek({mem,len})
+            ReDownload(fname)
+
+--  elsif msg = CD_OWR then -- Run: Output Write handle
+--      if len!=4 then ?9/0 end if      -- sanity check
+--      StoreOWR(peek4u(lParam+8)) -- see eacons.ew
+--  elsif msg = CD_FILL then -- Get path&filename length
+--      if actionsave[currfile]!=actionptr[currfile] then
+--          void = saveFile(1)
+--      end if
+--      return {length(filepaths[currfile])+length(filenames[currfile])}
+--  elsif msg = CD_FILC then        -- get ONE char of path&filename
+--      mem = peek4u(lParam+8)
+--      len = peek4s(mem)
+--      if len<=length(filepaths[currfile]) then
+--          return {filepaths[currfile][len]}
+--      else
+--          len-=length(filepaths[currfile])
+--          return {filenames[currfile][len]}
+--      end if
+--  elsif msg = CD_MODE then
+--      return {LDOpcode}
+        else
+            ?9/0    -- unhandled copydata message
+        end if
+--      return 0
+--end function
+
+    end if
+    return 0
+end function
+
+setHandler( {Main,LVL,Bup,Bdn,LVR,
+             Sdd,Sconn,Jdd,Jrun,
+             M_File,M_View,M_Tool,M_Help,M_Cmnu,
+             CD,CDOK,CDcncl,RN,RNas,RNOK,RNcncl,FA,
+             FAolbl,FAor,FAow,FAox,
+             FAglbl,FAgr,FAgw,FAgx,
+             FAulbl,FAur,FAuw,FAux,
+             FAnlbl,FAnet,FAset,FAcncl},
+             routine_id("mainHandler") )
+
+
+    loadSites()
+    resetSdd(1)
+
+    setEnable({Jdd,Jrun},False) --DEV
+
+
+    if isWindowMaximised then
+        WinMain( Main, SW_MAXIMIZE)
+    else
+        WinMain( Main, SW_NORMAL)
+    end if
+
+
+--Found on the web:
+--  // The operation failed or the file had no associated
+--  // icon. Try to get the default icons from SHELL32.DLL
+--
+--  try // to get the location of SHELL32.DLL
+--    FileName := 'C:\WINDOWS\SYSTEM\SHELL32.DLL';
+--  // Determine the default icon for the file extension
+--  if      (FileExt = '.DOC') then IconIndex := 1
+--  else if (FileExt = '.EXE')
+--       or (FileExt = '.COM') then IconIndex := 2
+--  else if (FileExt = '.HLP') then IconIndex := 23
+--  else if (FileExt = '.INI')
+--       or (FileExt = '.INF') then IconIndex := 63
+--  else if (FileExt = '.TXT') then IconIndex := 64
+--  else if (FileExt = '.BAT') then IconIndex := 65
+--  else if (FileExt = '.DLL')
+--       or (FileExt = '.SYS')
+--       or (FileExt = '.VBX')
+--       or (FileExt = '.OCX')
+--       or (FileExt = '.VXD') then IconIndex := 66
+--  else if (FileExt = '.FON') then IconIndex := 67
+--  else if (FileExt = '.TTF') then IconIndex := 68
+--  else if (FileExt = '.FOT') then IconIndex := 69
+--  else IconIndex := 0;
+--  // Attempt to get the icon.
+--  if ExtractIconEx(pchar(FileName), IconIndex,
+--      PLargeIcon^, PSmallIcon^, 1) <> 1 then
+--0 SI_UNKNOWN  Unknown File Type
+--1 SI_DEF_DOCUMENT Default document
+--2 SI_DEF_APPLICATION  Default application
+--3 SI_FOLDER_CLOSED    Closed folder
+--4 SI_FOLDER_OPEN  Open folder
+--5 SI_FLOPPY_514   5 1/4 floppy
+--6 SI_FLOPPY_35    3 1/2 floppy
+--7 SI_REMOVABLE    Removable drive
+--8 SI_HDD  Hard disk drive
+--9 SI_NETWORKDRIVE Network drive
+--10    SI_NETWORKDRIVE_DISCONNECTED    network drive offline
+--11    SI_CDROM    CD drive
+--12    SI_RAMDISK  RAM disk
+--13    SI_NETWORK  Entire network
+--14        ?
+--15    SI_MYCOMPUTER   My Computer
+--16    SI_PRINTMANAGER Printer Manager
+--17    SI_NETWORK_NEIGHBORHOOD Network Neighborhood
+--18    SI_NETWORK_WORKGROUP    Network Workgroup
+--19    SI_STARTMENU_PROGRAMS   Start Menu Programs
+--20    SI_STARTMENU_DOCUMENTS  Start Menu Documents
+--21    SI_STARTMENU_SETTINGS   Start Menu Settings
+--22    SI_STARTMENU_FIND   Start Menu Find
+--23    SI_STARTMENU_HELP   Start Menu Help
+--24    SI_STARTMENU_RUN    Start Menu Run
+--25    SI_STARTMENU_SUSPEND    Start Menu Suspend
+--26    SI_STARTMENU_DOCKING    Start Menu Docking
+--27    SI_STARTMENU_SHUTDOWN   Start Menu Shutdown
+--28    SI_SHARE    Sharing overlay (hand)
+--29    SI_SHORTCUT Shortcut overlay (small arrow)
+--30    SI_PRINTER_DEFAULT  Default printer overlay (small tick)
+--31    SI_RECYCLEBIN_EMPTY Recycle bin empty
+--32    SI_RECYCLEBIN_FULL  Recycle bin full
+--33    SI_DUN  Dial-up Network Folder
+--34    SI_DESKTOP  Desktop
+--35    SI_CONTROLPANEL Control Panel
+--36    SI_PROGRAMGROUPS    Program Group
+--37    SI_PRINTER  Printer
+--38    SI_FONT Font Folder
+--39    SI_TASKBAR  Taskbar
+--40    SI_AUDIO_CD Audio CD
+--41        ?
+--42        ?
+--43    SI_FAVORITES    IE favorites
+--44    SI_LOGOFF   Start Menu Logoff
+--45        ?
+--46        ?
+--47    SI_LOCK Lock
+--48    SI_HIBERNATE    Hibernate
+--

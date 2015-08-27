@@ -1,0 +1,208 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">define_c_func</h1>
+      <div id="mainSection">
+       <table>
+        <tr>
+        <col style="width: 5%"/>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+             integer rid = define_c_func(object lib, object fname, sequence args, atom return_type)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>Define the characteristics of a C function that you wish to
+             call from your Euphoria program. A small integer, known as a
+          <font color="#030303">
+           <b>routine id</b>
+          </font>, is
+            returned, or -1 if the function cannot be found.
+            <br>
+            <br>
+            lib is either an (atom) address returned by open_dll(), or {}.
+            <br>
+            if lib is an atom, fname is the name of a function within that dll, optionally as 
+            either {'+',"name"} or "+name" to specify the CDECL calling convention.
+            <br>
+            if lib is {}, fname is the (atom) address of a machine code function, optionally
+            as {'+',addr} to specify the CDECL calling convention.
+            <br>
+            <br>
+            CDECL is the default/only calling convention on a Linux system.
+            <br>
+            STDCALL is the default in a Windows system.
+            <br>
+            The CDECL convention requires the callee to clean up the stack, and is 
+            therefore more suited to variable numbers of arguments, whereas with 
+            STDCALL the routine cleans up the stack before returning.
+            <br>
+            <br>
+            args is a list of the parameter types for the function. 
+            <br>
+            return_type should be self explanatory. The following C types are predefined (in psym.e/syminit):
+         </td>
+        </tr>
+        <tr>
+         <td></td>
+         <td>
+<!--eucode>
+    global constant C_CHAR = #01000001,
+                   C_UCHAR = #02000001,
+                   C_SHORT = #01000002,
+                  C_USHORT = #02000002,
+                     C_INT = #01000004,
+                    C_UINT = #02000004,
+                    C_LONG = C_INT,
+                   C_ULONG = C_UINT,
+                 C_POINTER = C_ULONG,
+                   C_FLOAT = #03000004,
+                  C_DOUBLE = #03000008
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    global constant</font><font color="#000000"> C_CHAR</font><font color="#0000FF"> =</font><font color="#000000"> #01000001</font><font color="#0000FF">,
+</font><font color="#000000">                   C_UCHAR</font><font color="#0000FF"> =</font><font color="#000000"> #02000001</font><font color="#0000FF">,
+</font><font color="#000000">                   C_SHORT</font><font color="#0000FF"> =</font><font color="#000000"> #01000002</font><font color="#0000FF">,
+</font><font color="#000000">                  C_USHORT</font><font color="#0000FF"> =</font><font color="#000000"> #02000002</font><font color="#0000FF">,
+</font><font color="#000000">                     C_INT</font><font color="#0000FF"> =</font><font color="#000000"> #01000004</font><font color="#0000FF">,
+</font><font color="#000000">                    C_UINT</font><font color="#0000FF"> =</font><font color="#000000"> #02000004</font><font color="#0000FF">,
+</font><font color="#000000">                    C_LONG</font><font color="#0000FF"> =</font><font color="#000000"> C_INT</font><font color="#0000FF">,
+</font><font color="#000000">                   C_ULONG</font><font color="#0000FF"> =</font><font color="#000000"> C_UINT</font><font color="#0000FF">,
+</font><font color="#000000">                 C_POINTER</font><font color="#0000FF"> =</font><font color="#000000"> C_ULONG</font><font color="#0000FF">,
+</font><font color="#000000">                   C_FLOAT</font><font color="#0000FF"> =</font><font color="#000000"> #03000004</font><font color="#0000FF">,
+</font><font color="#000000">                  C_DOUBLE</font><font color="#0000FF"> =</font><font color="#000000"> #03000008</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b></b>
+         </td>
+         <td>
+DEV not yet supported:
+<br>
+        The C function that you define could be one created by the
+            Euphoria To C Translator, in which case you can pass Euphoria data
+            to it, and receive Euphoria data back.
+            A list of Euphoria types is contained in
+          <font color="#5500FF">
+           <b>dll.e</b>
+          </font>:
+         </td>
+        </tr>
+        <tr>
+         <td></td>
+         <td>
+<!--eucode>
+    global constant
+           E_INTEGER = #06000004,
+           E_ATOM    = #07000004,
+           E_SEQUENCE= #08000004,
+           E_OBJECT  = #09000004
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    global constant
+</font><font color="#000000">           E_INTEGER</font><font color="#0000FF"> =</font><font color="#000000"> #06000004</font><font color="#0000FF">,
+</font><font color="#000000">           E_ATOM   </font><font color="#0000FF"> =</font><font color="#000000"> #07000004</font><font color="#0000FF">,
+</font><font color="#000000">           E_SEQUENCE</font><font color="#0000FF">=</font><font color="#000000"> #08000004</font><font color="#0000FF">,
+</font><font color="#000000">           E_OBJECT </font><font color="#0000FF"> =</font><font color="#000000"> #09000004</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>The
+          <font color="#030303">
+           <b>routine id</b>
+          </font>, rid, can be
+             passed to c_func() when you want to call the C function.
+          <p>
+            You can pass or return any C integer type or pointer type.
+             You can also pass a Euphoria atom as a C double or float, and get
+             a C double or float returned to you as a Euphoria atom.
+          </p>
+          <p>
+            In C (on WIN32 and Linux), parameter types which use 4 bytes or less are all passed the
+             same way, so it is not necessary to be exact. However the
+             distinction between signed and unsigned may be important when
+             you specify the return type of a function.
+          </p>
+          <p>
+            Currently, there is no way to pass a C structure by value or
+             get a C structure as a return result. You can only pass a pointer
+             to a structure and get a pointer to a structure as a result.
+          </p>
+          <p>
+            If you are not interested in using the value returned by the
+             C function, you should instead define it with define_c_proc()
+             and call it with c_proc().
+          </p>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+atom user32
+integer LoadIcon
+-- open user32.dll - it contains the LoadIconA C function
+user32 = open_dll("user32.dll")
+-- It takes a C pointer and a C int as parameters.
+-- It returns a C int as a result.
+LoadIcon = define_c_func(user32, "LoadIconA",
+                         {C_POINTER, C_INT}, C_INT)
+if LoadIcon = -1 then
+    puts(1, "LoadIconA could not be found!\n")
+end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> user32
+</font><font color="#004080">integer</font><font color="#000000"> LoadIcon
+</font><font color="#000080">-- open user32.dll - it contains the LoadIconA C function
+</font><font color="#000000">user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">)
+</font><font color="#000080">-- It takes a C pointer and a C int as parameters.
+-- It returns a C int as a result.
+</font><font color="#000000">LoadIcon</font><font color="#0000FF"> =</font><font color="#7060A8"> define_c_func</font><font color="#0000FF">(</font><font color="#000000">user32</font><font color="#0000FF">,</font><font color="#008000"> "LoadIconA"</font><font color="#0000FF">,
+</font><font color="#800000">                         {</font><font color="#000000">C_POINTER</font><font color="#0000FF">,</font><font color="#000000"> C_INT</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> C_INT</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> LoadIcon</font><font color="#0000FF"> = -</font><font color="#000000">1</font><font color="#008080"> then
+</font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "LoadIconA could not be found!\n"</font><font color="#0000FF">)
+</font><font color="#008080">end if</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="c_func.htm">c_func</a>,
+          <a href="define_c_proc.htm">define_c_proc</a>,
+          <a href="c_proc.htm">c_proc</a>,
+          <a href="open_dll.htm">open_dll</a>,
+          <a href="cffi.htm">Calling C Functions</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

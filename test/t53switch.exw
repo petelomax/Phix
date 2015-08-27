@@ -1,0 +1,68 @@
+--
+-- t53switch.exw
+--
+
+-- Added 26/12/2010 (pre-isBase; was adjusting the jump table base by shortened jumps!)
+
+function M(atom a)
+object r
+    if a=11
+--  or a=12
+    or a=13
+    or a=14
+    or a=15
+    or a=16
+    or a=17 then
+        r = 0
+    elsif a=18 then
+--      #ilASM{ lea edx,[r]
+--              call %opInstance }  -- [edx] = instance()
+        r = instance()
+    elsif a=19 then
+        r = 0
+    else
+        -- oops...
+        puts(1,"machine_func %d\n")
+        a = 9/0
+    end if
+    return r
+end function
+
+constant Instance = M(18)
+if Instance then end if
+
+-- Added 19/2/2011:
+sequence r = ""
+for i=1 to 4 do
+switch i do
+    case 1 then
+--      puts(1,"one ")
+        r &= "one "
+        fallthru
+    case 2 then
+--      puts(1,"two ")
+        r &= "two "
+    case 3 then
+--      puts(1,"three ")
+        r &= "three "
+    case else
+--      puts(1,"else ")
+        r &= "else "
+end switch
+end for
+
+if r!="one two two three else " then ?9/0 end if
+
+-- Added 09/07/2013 (?9/0 triggered in pilx86.e as there was no opLabel)
+integer PrevWindow = 0
+
+procedure onMouse_Screen(integer event)
+    if PrevWindow = 0 and event != 2 then
+        return
+    else
+        PrevWindow = 0
+    end if
+end procedure
+constant rms = routine_id("onMouse_Screen")
+if rms then end if -- (suppress unused warning)
+

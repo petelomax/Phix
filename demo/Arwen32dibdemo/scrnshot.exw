@@ -1,0 +1,65 @@
+-- Arwen32Dib demo: captures the screen and saves it to a file
+--  Ported to Arwen by Pete Lomax
+
+include a32dcore.ew  -- only the core library is necessary
+
+object dib
+integer width, height
+
+constant 
+    HORZRES = 8,            --  Horizontal width in pixels
+    VERTRES = 10            --  Vertical width in pixels
+
+atom hdc
+    hdc = getDC(Screen)
+    width = c_func(xGetDeviceCaps, {hdc, HORZRES})
+    height = c_func(xGetDeviceCaps, {hdc, VERTRES})
+    releaseDC(Screen,hdc)
+
+    dib = newDib(width, height)  -- create the bitmap
+
+    if atom(dib) then
+        void = message_box("Couldn't create a bitmap.", "Error", MB_ICONERROR)
+        abort(0)
+    end if
+
+constant window = create(Window, "Arwen32Dib Screenshot Saver", 0, 0, Default, Default, 300, 200, {0,WS_EX_DLGMODALFRAME})
+constant ltxt   = "Click the button below to save a screenshot\n\rto a bitmap-file.\n\r" &
+                  "\n\rThis window and the file-dialog\n\rwill not be on the screenshot.\n\r\n\rCreated by: Tommy Carlier."
+constant label  = create(Label, ltxt, 0, window, 5, 3, 276, 100, SS_CENTER)
+    if label then end if -- suppress warnings
+constant button = create(Button, "[Click]", 0, window, 2, 108, 281, 51, BS_DEFPUSHBUTTON)
+
+function buttonHandler(integer id, integer msg, atom wParam, object lParam)
+object fileName
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_COMMAND then      
+        fileName = getSaveFileName(window, "screen.bmp", {"Bitmap Files(*.BMP)", "*.BMP"},0,NULL)
+        if sequence(fileName)
+        and length(fileName)=1 then
+            fileName = fileName[1]
+            if not find('.', fileName) then fileName &= ".bmp" end if
+        
+            showWindow(window, SW_HIDE)
+            sleep(1)
+            for i = 1 to 10000 do
+                doEvents(0) -- make sure the screen refreshes right
+            end for
+            copyToDib(dib, Screen, 0, 0, 0, 0, width - 1, height - 1) -- copy the screen to the bitmap
+            showWindow(window, SW_SHOW)
+        
+            if saveDib(dib, fileName, 0, 0, width - 1, height - 1) then -- save the bitmap to the file
+                void = message_box("Couldn't save the screenshot.", "Error", MB_OK + MB_ICONERROR)
+            end if
+        end if
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(window)
+    end if
+    return 0
+end function
+setHandler({button},routine_id("buttonHandler"))
+
+WinMain(window, SW_NORMAL)
+killDib(dib) -- delete the bitmap
+freeDib()   -- free the memory containing the machine code

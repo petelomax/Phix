@@ -1,0 +1,137 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">enter_cs</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">enter_cs(i=0)</font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>Begin mutually exclusive execution. 
+            <br>
+            <br>
+            Prevent other threads from executing similarly guarded code, or wait until they have completed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            If two (or more) threads update a shared variable simultaneously the result will not be as desired. 
+            While there are some atomic (lock) operations, you would certainly not want to run normal software
+            using them where they are not needed, as they can easily be 30 times slower than the equivalent
+            non-locked instructions. Modern pipelined processors offer hugh performance benefits over those of
+            a decade or more ago, but that means a read-update-write gets spread out over more clock cycles. 
+            Without any locking, if one thread increments an integer at the same time as another decrements it, 
+            or more accurately the 14 or more clock cycles such instructions spend in their pipelines overlap,
+            the result could easily be +/-1 the original value rather than the desired net effect of 0.
+            If two or more threads were to simultaneously access the same sequence, when one or both were
+            re-sizing/re-locating it, the outcome would be unpredictable to say the least. Using a critical 
+            section briefly pauses execution while any such conflicts exist, with minimal overhead.
+            <br>
+            <br>
+            The critical section, if provided, should have previously been created using init_cs().
+            <br>
+            <br>
+            If the parameter is omitted, an internal one ("stdcs") is used. This is appropriate for things like
+            the initialisation in printf(), but might cause excessive waiting or even deadlock in other cases,
+            that is if you try to use the single internal default to lock two or more logically distinct things. 
+            Accidentally initialising and leaving a private critical section variable set to 0 would obviously 
+            have the same consequences.
+            <br>
+            <br>
+            Note that shared literal constants (such as "hello") may need to be referenced inside a critical
+            section because of the shared hidden refcount updates, as per integer updates described above. See 
+            builtins\VM\pprntfN.e, routines Nan() and Inf(), for one possible thread-safe alternative. You may 
+            also want to consider a "deep_copy" (see builtins\VM\pDeleteN.e for one possible way) to create 
+            thread-specific instances of values that would not then require any subsequent locking. Mind you, 
+            calls to said "deep_copy" might need locking to avoid refcount issues, in the first place. Plus
+            of course it makes no sense to store thread-specific instances of anything in a shared list.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+todo_cs = init_cs()
+...
+-- main thread
+enter_cs(todo_cs)
+todo_list = append(todo_list,newtask)
+newtask = 0
+leave_cs(todo_cs)
+...
+-- worker thread
+newtask = 0
+enter_cs(todo_cs)
+if length(todo_list)>0 then
+    newtask = todo_list[1]
+    todo_list = todo_list[2..$]
+end if
+leave_cs(todo_cs)
+</eucode-->
+<pre>
+<font color="#000000">todo_cs</font><font color="#0000FF"> =</font><font color="#000000"> init_cs</font><font color="#0000FF">()
+..</font><font color="#000000">.
+</font><font color="#000080">-- main thread
+</font><font color="#000000">enter_cs</font><font color="#0000FF">(</font><font color="#000000">todo_cs</font><font color="#0000FF">)
+</font><font color="#000000">todo_list</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">todo_list</font><font color="#0000FF">,</font><font color="#000000">newtask</font><font color="#0000FF">)
+</font><font color="#000000">newtask</font><font color="#0000FF"> =</font><font color="#000000"> 0
+leave_cs</font><font color="#0000FF">(</font><font color="#000000">todo_cs</font><font color="#0000FF">)
+..</font><font color="#000000">.
+</font><font color="#000080">-- worker thread
+</font><font color="#000000">newtask</font><font color="#0000FF"> =</font><font color="#000000"> 0
+enter_cs</font><font color="#0000FF">(</font><font color="#000000">todo_cs</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">todo_list</font><font color="#0000FF">)&gt;</font><font color="#000000">0</font><font color="#008080"> then
+</font><font color="#000000">    newtask</font><font color="#0000FF"> =</font><font color="#000000"> todo_list</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]
+</font><font color="#000000">    todo_list</font><font color="#0000FF"> =</font><font color="#000000"> todo_list</font><font color="#0000FF">[</font><font color="#000000">2</font><font color="#0000FF">..</font><font color="#000000">$</font><font color="#0000FF">]
+</font><font color="#008080">end if
+</font><font color="#000000">leave_cs</font><font color="#0000FF">(</font><font color="#000000">todo_cs</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Note the use of newtask = 0 in the main thread; this avoids incidental refcount updates outside the critical section.
+            In contrast the worker thread is the sole owner (only reference) to the newtask by the time it reaches the leave_cs().
+            You may also need similar lines in the main thread to remove other references to elements of newtask, which would be
+            valid any time before the leave_cs() and indeed before the enter_cs(), if you were to prefer that.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="init_cs.htm">init_cs</a>,
+          <a href="delete_cs.htm">delete_cs</a>,
+          <a href="try_cs.htm">try_cs</a>,
+          <a href="leave_cs.htm">leave_cs</a>
+          <br>
+          <br>
+          builtins/VM/pfileioN.e uses an efficient low-level lock-free method to read fdtbl, search for "Multithreading issues".
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

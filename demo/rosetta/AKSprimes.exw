@@ -1,0 +1,100 @@
+--
+-- demo\rosetta\AKSprimes.exw
+-- ==========================
+--
+-- The AKS algorithm for testing whether a number is prime is a polynomial-time algorithm based on an elementary theorem about Pascal triangles.
+-- The theorem on which the test is based can be stated as follows:
+-- a number p is prime if and only if all the coefficients of the polynomial expansion of (x - 1)^p - (x^p - 1) are divisible by p.
+-- For example, trying p = 3:
+-- (x - 1)^3 - (x^3 - 1) = (x^3 - 3x^2 + 3x - 1) - (x^3 - 1) = - 3x^2 + 3x
+-- And all the coefficients are divisible by 3 so 3 is prime.
+-- Create a function/subroutine/method that given p generates the coefficients of the expanded polynomial representation of (x - 1)^p. 
+-- Use the function to show here the polynomial expansions of (x - 1)^p for p in the range 0 to at least 7, inclusive. 
+-- Use the previous function in creating another function that when given p returns whether p is prime using the theorem. 
+-- Use your test to generate a list of all primes under 35. 
+-- As a stretch goal, generate all primes under 50 (Needs greater than 31 bit integers). 
+-- Note: The task given here is related to the elementary theorem, not the actual AKS algorithm. Using the elementary theorem directly 
+--       as a way of testing for primes is interesting as an exercise but impractical.
+
+-- Does not work for primes above 53, which is actually beyond the original task anyway.
+-- Translated from the C version, just about everything is (working) out-by-1, what fun.
+
+sequence c = repeat(0,100)
+ 
+procedure coef(integer n)
+-- out-by-1, ie coef(1)==^0, coef(2)==^1, coef(3)==^2 etc.
+    c[n] = 1
+    for i=n-1 to 2 by -1 do
+        c[i] = c[i]+c[i-1]
+    end for
+end procedure
+
+function is_prime(integer n)
+    coef(n+1); -- (I said it was out-by-1)
+    for i=2 to n-1 do   -- (technically "to n" is more correct)
+        if remainder(c[i],n)!=0 then
+            return 0
+        end if
+    end for
+    return 1
+end function
+ 
+procedure show(integer n)
+-- (As per coef, this is (working) out-by-1)
+object ci
+    for i=n to 1 by -1 do
+        ci = c[i]
+        if ci=1 then
+            if remainder(n-i,2)=0 then
+                if i=1 then
+                    if n=1 then
+                        ci = "1" 
+                    else
+                        ci = "+1" 
+                    end if
+                else
+                    ci = ""
+                end if
+            else
+                ci = "-1"
+            end if
+        else
+            if remainder(n-i,2)=0 then
+                ci = sprintf("+%d",ci)
+            else
+                ci = sprintf("-%d",ci)
+            end if
+        end if
+        if i=1 then -- ie ^0
+            printf(1,"%s",{ci})
+        elsif i=2 then -- ie ^1
+            printf(1,"%sx",{ci})
+        else
+            printf(1,"%sx^%d",{ci,i-1})
+        end if
+    end for
+end procedure
+ 
+procedure AKS_test_for_primes()
+    for n=1 to 10 do -- (0 to 9 really)
+        coef(n);
+        printf(1,"(x-1)^%d = ", n-1);
+        show(n);
+        puts(1,'\n');
+    end for
+ 
+    puts(1,"\nprimes (<=53):");
+--  coef(2); -- (needed to reset c, if we want to avoid saying 1 is prime...)
+    c[2] = 1 -- (this manages "", which is all that call did anyway...)
+    for n = 2 to 53 do
+        if is_prime(n) then
+            printf(1," %d", n);
+        end if 
+    end for
+    puts(1,'\n');
+    if getc(0) then end if
+end procedure
+
+    AKS_test_for_primes()
+
+

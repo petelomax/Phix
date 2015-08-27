@@ -1,0 +1,156 @@
+--
+-- column printing demo (console display only).
+--
+-- Note constants are set for console demo:
+--
+constant maxwid=79,         -- characters across page
+         lpp=15,            -- lines per page
+         colsep=2,          -- space between cols
+         split_text_cols=0  -- 0 to stop text splits
+
+include get.e   -- wait_key()
+
+sequence colwidths, colfmts, colsplit, coltitles
+--integer totcolwidth
+sequence data, oneline
+
+procedure generateData()
+integer k
+    colwidths = repeat(0,10+rand(20))
+    colfmts = repeat(0,length(colwidths))
+    colsplit = repeat(0,length(colwidths))
+    coltitles = repeat(0,length(colwidths))
+    k = rand(3)
+    for i=1 to length(colfmts) do
+        k = rand(3)
+        if k=1 then
+            colwidths[i] = 5
+            colfmts[i] = "%5d"
+            coltitles[i] = "-ref-"
+            k = 2
+        elsif k=2 then
+            colwidths[i] = 9
+            colfmts[i] = "%-9s"
+            colsplit[i] = split_text_cols
+            coltitles[i] = "-- txt --"
+            k = 3
+        elsif k=3 then
+            colwidths[i] = 7
+            colfmts[i] = "%7.2f"
+            coltitles[i] = " amount"
+            k = 1
+        end if
+    end for
+
+    data = repeat(0,rand(45))
+    for i=1 to length(data) do
+        oneline = repeat(0,length(colfmts))
+        for j=1 to length(colfmts) do
+            k = colwidths[j]
+            if k=5 then
+                oneline[j]=rand(99999)
+            elsif k=9 then
+                k=rand(9)
+                oneline[j]=repeat('0'+k,k)
+            else
+                oneline[j]=rand(999999)/100
+            end if
+        end for
+        data[i]=oneline
+    end for
+end procedure
+
+integer fromcol, tocol, splitfirst, splitlast
+procedure printSheet(integer line)
+sequence onefield
+integer c
+    oneline = repeat(' ',maxwid+1)
+    printf(1,"Columns %d..%d:\n",{fromcol,tocol})
+    onefield = coltitles[fromcol]
+    puts(1,onefield[splitfirst+1..length(onefield)])
+    for j=fromcol+1 to tocol do
+        puts(1,"  ")
+        puts(1,coltitles[j])
+    end for
+    puts(1,"\n")
+    for i=line to line+lpp do
+        if i>length(data) then
+            oneline = repeat(' ',maxwid+1)
+        else
+            c=1
+            for j=fromcol to tocol do
+                onefield = sprintf(colfmts[j],{data[i][j]})
+                if splitfirst and j=fromcol then
+                    onefield = onefield[splitfirst+1..length(onefield)]
+                elsif splitlast and j=tocol then
+                    onefield = onefield[1..splitlast]
+                end if
+                oneline[c..c+length(onefield)-1]=onefield           
+                c+=length(onefield)+colsep
+            end for
+        end if
+        oneline[maxwid+1]='\n'
+        puts(1,oneline)
+    end for
+    puts(1,"Next sheet?")
+    if find(wait_key(),"nN") then abort(0) end if
+    puts(1,"\n")
+end procedure
+
+procedure printPage(integer line)
+integer thiswidth, k
+    fromcol=1
+    splitfirst=0
+    while fromcol<=length(colwidths) do
+        thiswidth=colwidths[fromcol]-splitfirst
+        tocol = fromcol
+        splitlast=0
+        while 1 do
+            if tocol=length(colwidths) then exit end if
+            k = colsep+colwidths[tocol+1]
+            if thiswidth+k>maxwid then
+                if colsplit[tocol+1] and thiswidth<maxwid-colsep then
+                    tocol+=1
+                    splitlast=maxwid-colsep-thiswidth
+                end if
+                exit
+            end if
+            thiswidth += k
+            tocol += 1
+        end while
+        printSheet(line)
+        splitfirst=splitlast
+        if splitlast then
+            fromcol=tocol
+        else
+            fromcol=tocol+1
+        end if
+    end while
+end procedure
+
+procedure printReport()
+integer page
+--  totcolwidth=colwidths[1]
+--  for i=2 to length(colwidths) do
+--      totcolwidth+=colsep+colwidths[i]
+--  end for
+    page=1
+    for i=1 to length(data) by lpp do
+        printf(1,"Page %d:  ",{page})
+        printPage(i)
+        page+=1
+    end for
+end procedure
+
+    generateData()
+
+printf(1,"Columns:%d, Lines:%d, Pages(down):%d\n",
+       {length(colwidths),length(data),-floor(-length(data)/lpp)})
+--include builtins\ppp.e
+--pp(coltitles)
+--pp(data)
+--if getc(0) then end if
+
+    printReport()
+
+

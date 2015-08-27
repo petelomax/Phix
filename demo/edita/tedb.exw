@@ -1,0 +1,1002 @@
+--
+-- tedb.exw
+--
+--  Tailorable Euphoria(/Phix) Database Browser
+--  Author: Pete Lomax
+--
+--  A short (ish) and simple (ish) program to display euphoria/phix database 
+--  files (.edb)
+--
+-- Features:
+--  Designed to work "out of the box", with details (columns) added as needed.
+--  Previously examined databases are listed, most recent first, or you can
+--  press Browse to open a database it does not yet know about.
+--  Selecting a database lists the tables, and then you can either Define the
+--   Columns for that table (see the Help button on the window that appears),
+--   or selecting a table lists the data.
+--  All columns can be sorted, resized, and even reordered.
+--  Resizing the detail window proportionally resizes the columns to fit the 
+--   new size, unless the Alt key is depressed, which can be much easier if 
+--   you want to expand one column only.
+--  Note that space is reserved for a vertical scrollbar on the right.
+--  The detail view window size and column widths are automatically saved.
+--  Records can be deleted from the detail view by pressing Delete.
+--  Entire tables can also be deleted from the Select Table window.
+--
+-- Further tailoring:
+--  If a column definition has a fourth element (a unique string), then
+--  the format() function below is invoked to apply special formatting.
+--  Three examples are given:
+--      "date" applies a custom sprintf to the data
+--      "dir" performs a cached lookup on a secondary table.
+--      "ints" forces string-like data to appear as numbers, 
+--              eg {65,66,67} as that, not "ABC"
+--  All you need to do is:
+--   1) modify format() below to cope with "somecode" (try to make sure
+--       it fails gracefully if passed bad data),
+--   2) specify eg ..,{"Details",0,0,"somecode"},.. in column definition
+--      (which you do at run-time, via the Define Columns button).
+--
+-- This program is, for the most part, designed to work with uniform data.
+-- For example, if you have a customer table, containing:
+--      a key of 0 to hold the next valid customer number (1 field),
+--      retail customer records which have 54 fields, and 
+--      trade customers with 79 fields,
+-- Then don't expect Column Definitions to work! In such cases, you should
+-- just leave column definitions well alone, the default mode of {key,data} 
+-- will have to suffice. Of course if the 0 key was moved to a "system"
+-- table, and the 25 extra fields for trade customers also moved, then you
+-- would have consistent data for which you could define column headings.
+-- Each table can of course be different, and you can leave any "mixed data" 
+-- tables to the default display.
+--
+-- Fine points:
+--  There is a raw view option which forces the record details to display
+--  as Key,Data; this may be helpful if the column definitions are out of
+--  date, omit data, or cause crashes, etc.
+--  There are options to mark the key or the data as simple strings (as
+--  opposed to lots of columns with one character in each!).
+--  There is also an option to show more detail for the current record
+--  below the listview, it it is too wide to fit in the columns.
+--
+-- Possible additions:
+--
+--  Add retry logic around DB_LOCK_EXCLUSIVE, and/or only resort to that
+--  when actually updating the files. The files should be closed as often
+--  as possible, as well.
+--
+--
+-- Not planned:
+--  Database and table creation. It is not hard (this program does it, see
+--  initDatabases), and you should not need to run a separate setup utility 
+--  before you can run an application.
+--  Multimedia type data - blocks of text, images etc.
+--  Getting rid of the space reserved on the right for a scrollbar, in
+--   those cases when we don't actually need it.
+--
+without trace
+include builtins\machine.e
+--/*
+include builtins\machine.e
+include builtins\misc.e
+include builtins\sort.e
+include builtins\file.e
+include builtins\dll.e
+include builtins\ppp.e
+include builtins\get.e
+include arwen\misc_arwen.e
+include arwen\message_box.ew
+include arwen\constants.ew
+include arwen\dll_links.ew
+include arwen\structures.ew
+include arwen\Quick_Allocations.ew
+include arwen\classes.ew
+--*/
+include ..\arwen\arwen.ew
+include builtins\database.e
+include builtins\ppp.e
+        ppOpt({pp_Maxlen,9999999,   -- stop ppf() putting \n in results.
+               pp_StrFmt,-2})       -- and number only strings
+--                     -1:  ditto, but without quotes.
+--                      1: as number only, eg {97, 98, 99}
+--                      3: as number&text, eg {97a, 98b, 99c}
+--      pp_IntFmt       integer format, default "%d"
+--                      NB: applies to pp_StrFmt 1 as well.
+
+
+-- (DTLcos2 allows Edita\Tools\Window Painter to work)
+constant DTLcos2 = {{"Key",50},{"Data",50}}
+sequence DTLcols
+         DTLcols= DTLcos2
+--with trace
+--type xxx(object o)
+--  trace(1)
+--  return object(o)
+--end type
+--xxx DTLrect
+sequence DTLrect,   -- rectangle of detail area
+         DTLstr     -- string key, sting data, show details
+         DTLrect={} DTLstr={0,0,0}
+
+sequence DTLlabs
+         DTLlabs={}
+
+sequence currdb, currtbl
+
+sequence dircache
+         dircache={}
+
+function format(object data, integer lColumn)
+--
+-- Modify this function for columns with special formatting requirements.
+-- Specify a unique code as the fourth element of the column definition.
+--
+sequence code
+integer tmp
+    code=DTLcols[lColumn][4]
+    if equal(code,"date") and sequence(data) and length(data)=6 then    -- used on Edita file and project records
+        -- swap day and year
+        tmp = data[1]
+        data[1] = data[3]
+        data[3] = tmp
+        return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",data)
+    elsif equal(code,"dir") and integer(data) and data>0 then           -- used on Edita file records
+        while data>length(dircache) do
+            dircache &= repeat(0,32)
+        end while
+        if atom(dircache[data]) then
+            if db_select_table("directories")=DB_OK then
+                for i=1 to db_table_size() do
+                    if db_record_data(i)=data then
+                        dircache[data]=db_record_key(i)
+                        exit
+                    end if
+                end for
+            end if
+            void = db_select_table(currtbl)     -- don't forget this!
+        end if
+        data=dircache[data]
+    elsif equal(code,"ints") then
+        -- unique file numbers. Make sure they don't appear as a nonsense 
+        -- string, for example {65,66,67} should _not_ appear as "ABC".
+        return ppExf(data,{pp_StrFmt,1})
+    end if
+    return ppf(data)
+end function
+
+
+sequence tedbedb
+integer lt
+    tedbedb = command_line()
+    tedbedb = tedbedb[2]
+    lt = length(tedbedb)
+    if equal(tedbedb[lt-3..lt],".exw") then
+        tedbedb[lt-1..lt] = "db"
+    else
+        tedbedb &= ".edb"
+    end if
+
+constant DBwin=create(Window,"Select Database",0,0,1,1,520,340,0)
+integer DBraw, DBlview
+
+constant STwin=create(Window,"Select Table",0,DBwin,20,20,219,282,0)
+constant STdcol=create(Button,"&Define Columns",0,STwin,5,5,125,30,0)
+constant STlbox=create(ListBox,"",0,STwin,5,45,202,240,LBS_NOINTEGRALHEIGHT)
+
+constant DTLwin=create(Window,"Record Details",0,STwin,40,40,819,382,0)
+
+integer noofDTLcols
+        noofDTLcols=2
+integer columnRecord
+
+constant LVstyle=or_all({LVS_OWNERDATA, LVS_SINGLESEL, LVS_SHOWSELALWAYS})
+constant DTLview=create(ListView,DTLcos2,0,DTLwin,2,2,216,360,LVstyle)
+constant LVxstyle=or_all({LVS_EX_FULLROWSELECT,LVS_EX_GRIDLINES,LVS_EX_HEADERDRAGDROP})
+
+    void = sendMessage(DTLview, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
+
+integer DataLoaded, KeySize, notAllSameKeyLength
+sequence doLower
+integer sortingdatabases
+        sortingdatabases = 0
+
+sequence Data
+
+integer ColumnError
+        ColumnError=0
+
+function DBselect(sequence DBname, sequence TBLname)
+    if db_select(DBname) != DB_OK then
+        if db_open(DBname,DB_LOCK_EXCLUSIVE) != DB_OK then
+            void = messageBox("Error","db_open("&DBname&")",0)
+            return 0
+        end if
+    end if
+    if db_select_table(TBLname)!= DB_OK then
+        void = messageBox("Error","db_select_table("&TBLname&")",0)
+        return 0
+    end if
+    return 1
+end function
+
+function missingData()
+    if ColumnError=0 then
+        void = messageBox("Insufficient Data","More columns defined than data",0)
+        ColumnError=1
+    end if
+    return "**Missing data**"
+end function
+
+--with trace
+object key,data
+function DTLviewFormat(integer lRow, integer lColumn)
+--
+-- Format as many columns as are defined by DTLcols above
+--
+integer lDTLc
+integer column
+sequence res
+    if lColumn=0 then return 0 end if   -- icon, do not remove this line.
+    lDTLc=length(DTLcols[lColumn])
+    if DataLoaded then
+        if lRow>length(Data) then -- not known to happen
+            res = "**Error**"
+        elsif lColumn>length(Data[lRow]) then
+            res = missingData()
+        elsif lDTLc>3 then
+            res = format(Data[lRow][lColumn],lColumn)
+        else
+            res = ppf(Data[lRow][lColumn])
+        end if
+    else
+        if lRow>db_table_size() then    -- not known to happen
+            res = "**Error**"
+        elsif length(DTLcols) = 2 then
+            if lColumn=1 then
+                if lDTLc>3 then
+                    res = format(db_record_key(lRow),lColumn)
+                else
+                    res = ppf(db_record_key(lRow))
+                end if
+            else--if lColumn=2 then
+                if lDTLc>3 then
+                    res = format(db_record_data(lRow),lColumn)
+                else
+                    res = ppf(db_record_data(lRow))
+                end if
+            end if
+        else
+            key=db_record_key(lRow)
+            res={-1}
+            if atom(key) or DTLstr[1] then
+                if lColumn=1 then
+                    if lDTLc>3 then
+                        res = format(key,lColumn)
+                    else
+                        res = ppf(key)
+                    end if
+                end if
+                column=lColumn-1
+            else
+                if lColumn<=length(key) then
+                    if lDTLc>3 then
+                        res = format(key[lColumn],lColumn)
+                    else
+                        res = ppf(key[lColumn])
+                    end if
+                end if
+                column=lColumn-length(key)
+            end if
+            if equal(res,{-1}) then
+                data=db_record_data(lRow)
+                if atom(data) or DTLstr[2] then
+                    if column>1 then
+                        res = missingData()
+                    else
+                        res = ppf(data)
+                    end if
+                else
+                    if column>length(data) then
+                        res = missingData()
+                    elsif lDTLc>3 then
+                        res = format(data[column],lColumn)
+                    else
+                        res = ppf(data[column])
+                    end if
+                end if
+            end if
+        end if
+    end if
+    -- Set the static label, if in use.
+    if DTLstr[3] then
+        if lRow=getIndex(DTLview) then
+            setText(DTLlabs[lColumn],res)
+        end if
+    end if
+    return res
+end function
+setLVFormatRoutine(DTLview, routine_id("DTLviewFormat"))
+
+function notString(object s, integer idx)
+-- Used in setting up doLower, to avoid case conversion
+-- problems when sorting non-string data. For example if
+-- the data is 70,71,102,103, [atoms] don't call lower;
+-- if it is "Echo","Foxtrot","echo","foxtrot", do.
+object c
+    if not sequence(s) then return 1 end if
+    if idx>length(s) then return 1 end if
+    s=s[idx]
+    if not sequence(s) then return 1 end if
+    for i=1 to length(s) do
+        c=s[i]
+        if not integer(c) then return 1 end if
+        if c<1 or c>255 then return 1 end if
+    end for
+    return 0
+end function
+
+procedure loadData()
+--
+-- Loads the entire database into memory (only done when column sort requested)
+-- All length(Data[i]) should match number of columns.
+-- Contents of Data should be binary-sortable where possible, for
+-- example dates in the format {2005,12,31} sort correctly, but
+-- dates in the format "31st December 2005" do not.
+--
+object key
+integer mdL
+    notAllSameKeyLength=0
+    doLower=repeat(1,length(DTLcols))
+    mdL=1
+    Data=repeat(0,db_table_size())
+    for i=1 to length(Data) do
+        if length(DTLcols) = 2 then
+            Data[i]={db_record_key(i),db_record_data(i)}
+        else
+            key=db_record_key(i)
+            if DTLstr[1] then
+                KeySize=1
+                Data[i]=prepend(db_record_data(i),key)
+            else
+                if i=1 then
+                    if atom(key) then
+                        KeySize=1
+                    else
+                        KeySize=length(key)
+                    end if
+                else
+                    if atom(key) then
+                        if KeySize!=1 then
+                            notAllSameKeyLength=1   -- we'll get confused deleting then...
+                        end if
+                    elsif KeySize!=length(key) then
+                        notAllSameKeyLength=1   -- we'll get confused deleting then...
+                    end if
+                end if
+--              if length(key)>length(doLower) then
+--                  doLower&=repeat(1,length(key)-length(doLower))
+--              end if
+                Data[i]=key&db_record_data(i)
+            end if
+        end if
+        for j=mdL to length(doLower) do
+            if doLower[j] then
+                if notString(Data[i],j) then
+                    doLower[j]=0
+                    while mdL<=length(doLower)
+                    and doLower[mdL]=0 do
+                        mdL+=1
+                    end while
+                end if
+            end if
+        end for
+    end for
+    DataLoaded=1
+end procedure
+
+integer SortColumn, Sign
+
+--include wildcard.e    -- for lower()
+function Lower(object o)
+    if sequence(o) then
+        for i=1 to length(o) do
+            o[i]=Lower(o[i])
+        end for
+        return o
+    end if
+    if integer(o) and o>='A' and o<='Z' then
+        o = o + ('a'-'A')
+    end if
+    return o
+end function
+
+function CompareSortColumn(sequence s1,sequence s2)
+    if SortColumn>length(s1) then return -Sign end if
+    if SortColumn>length(s2) then return  Sign end if
+    if sortingdatabases or doLower[SortColumn] then
+        return Sign*compare(Lower(s1[SortColumn]),Lower(s2[SortColumn]))
+    end if
+    return Sign*compare(s1[SortColumn],s2[SortColumn])
+end function
+
+function DTLviewHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+sequence c0
+integer c1, ctot, cnew
+integer delIdx,delRec
+sequence ccopy
+object preSortRec
+    if (msg = WM_CHAR and wParam = VK_ESCAPE)
+    or  msg = WM_CLOSE  then
+        for i=1 to length(DTLcols) do
+            DTLcols[i][2]=sendMessage(DTLview,LVM_GETCOLUMNWIDTH,i-1,0)
+        end for
+        if not isChecked(DBraw) then
+            if DBselect(tedbedb,"columns") then
+                columnRecord=db_find_key(currdb&':'&currtbl)
+                if columnRecord>0 then
+                    db_replace_data(columnRecord,{DTLrect,DTLcols,DTLstr})
+                else
+                    if db_insert(currdb&':'&currtbl,{DTLrect,DTLcols,DTLstr}) != DB_OK then
+                        void = messageBox("Error","db_insert failed",0)
+                    end if
+                end if
+                void=DBselect(currdb,currtbl)
+            end if
+        end if
+        setVisible(DTLwin,False)
+        setFocus(STlbox)
+    elsif msg=WM_KEYDOWN and wParam=VK_DELETE then
+        delIdx=getIndex(DTLview)
+        if delIdx>db_table_size() or delIdx<1 then
+            void = messageBox("Error","No record selected",0)
+            return 0
+        end if
+        if DataLoaded then
+            if length(DTLcols) = 2 then
+                delRec=db_find_key(Data[delIdx][1])
+            elsif notAllSameKeyLength then
+                void = messageBox("Error: Not all record keys are the same length",
+                    "In this case records can only be deleted before a column sort,\n"&
+                    "or in raw mode.",0)
+                setFocus(DTLview)
+                return 0
+            elsif KeySize=1 then
+                delRec=db_find_key(Data[delIdx][1])
+            else
+                delRec=db_find_key(Data[delIdx][1..KeySize])
+            end if
+            if delRec<=0 then
+                void = messageBox("Error",
+                    "Cannot locate record for deletion",0)
+                setFocus(DTLview)
+                return 0
+            end if
+        else
+            delRec=delIdx
+        end if
+        if messageBox("Confirm deletion",
+                        ppf({db_record_key(delRec),db_record_data(delRec)}),
+                        MB_OKCANCEL)=IDOK then
+            db_delete_record(delRec)
+            if DataLoaded then
+                Data=Data[1..delIdx-1]&Data[delIdx+1..length(Data)]
+            end if
+            void=sendMessage(DTLview,LVM_DELETEITEM,delIdx-1,0)
+        end if
+        setFocus(DTLview)
+    elsif msg = WM_CHAR and wParam=3 then   -- Ctrl C column copy
+        if equal(currdb,tedbedb)
+        and equal(currtbl,"columns")
+        and not DataLoaded then
+            ccopy=db_record_data(getIndex(DTLview))
+            setClipboardText(ppf(ccopy[2]))
+        end if
+--  elsif msg=WM_VSCROLL then   -- added 20/2/2011
+--      if id=DTLview or id=DBLview then
+--          repaintWindow(id)
+--      end if
+    elsif id=DTLview then
+        if msg=WM_NOTIFY then
+            if wParam=LVN_COLUMNCLICK then
+                SortColumn = lParam[1]
+                Sign = lParam[2]
+                if not DataLoaded then loadData() end if
+                delIdx=getIndex(DTLview)
+                if delIdx<=db_table_size() and delIdx>=1 then
+                    preSortRec = Data[delIdx]
+                end if
+                Data = custom_sort(routine_id("CompareSortColumn"),Data)
+                void = sendMessage(id, LVM_UPDATE, 0, 0)
+                if delIdx<=db_table_size() and delIdx>=1 then
+                    setIndex(DTLview,find(preSortRec,Data))
+                end if
+            end if
+        end if
+    elsif msg = WM_SIZE then
+        rect=getClientRect(DTLwin)
+        DTLrect=getWindowRect(DTLwin)
+--      DTLrect[3..4]-=DTLrect[1..2]        -- 2.4 bug
+        DTLrect[3]=DTLrect[3]-DTLrect[1]
+        DTLrect[4]=DTLrect[4]-DTLrect[2]
+        if DTLstr[3] then
+            void=c_func( xMoveWindow, {getHwnd(DTLview), rect[1]+2, rect[2]+2, rect[3]-4, rect[4]-4-length(DTLcols)*18, 1} )
+            for i = length(DTLcols) to 1 by -1 do
+                rect[4]=rect[4]-18
+                if i<=length(DTLlabs) then  --not quite sure why this is needed...
+                    void=c_func( xMoveWindow, {getHwnd(DTLlabs[i]), rect[1]+2, rect[4], rect[3]-4, 18, 1} )
+                end if
+            end for
+        else
+            void=c_func( xMoveWindow, {getHwnd(DTLview), rect[1]+2, rect[2]+2, rect[3]-4, rect[4]-4, 1} )
+        end if
+        --
+        -- Resize the columns to fit, proportionally, leaving 29 pixels for 
+        -- the vertical scrollbar (which may not be present)
+        --
+        if not getKeyState(VK_MENU) then    -- Alt key not depressed
+            c0=repeat(0,length(DTLcols))
+            ctot=0
+            for i=1 to length(c0) do
+                c1=sendMessage(DTLview,LVM_GETCOLUMNWIDTH,i-1,0)
+                c0[i]=c1
+                ctot+=c1
+            end for
+            cnew=0
+            for i=1 to length(c0)-1 do
+                c1=floor((c0[i]/ctot)*(rect[3]-29))
+                c0[i]=c1
+                cnew+=c1
+            end for
+            c0[length(c0)]=rect[3]-29-cnew
+            void = c_func(xSendMessage, {getHwnd(DTLview), WM_SETREDRAW, 0, 0} )
+            for i=1 to length(c0) do
+                void=sendMessage(DTLview,LVM_SETCOLUMNWIDTH,i-1,c0[i])
+                DTLcols[i][2]=c0[i]
+            end for
+            void = c_func(xSendMessage, {getHwnd(DTLview), WM_SETREDRAW, 1, 0} )
+        end if
+    elsif msg = WM_MOVE then
+        DTLrect=getWindowRect(DTLwin)
+        DTLrect[3]=DTLrect[3]-DTLrect[1]
+        DTLrect[4]=DTLrect[4]-DTLrect[2]
+    end if
+    return 0
+end function
+setHandler( {DTLwin,DTLview}, routine_id("DTLviewHandler") )
+
+integer switchSTfocus
+procedure selectedDB(object selected)
+sequence tl
+    currdb = selected[2]&'\\'&selected[1]
+    if db_select(currdb) != DB_OK then
+        if db_open(currdb,DB_LOCK_EXCLUSIVE) != DB_OK then
+            void = messageBox("Error opening file",currdb,0)
+            setFocus(DBlview)
+            return
+        end if
+    end if
+    tl=db_table_list()
+    deleteItem(STlbox,0)    -- empty list
+    for i = 1 to length(tl) do
+        void=insertItem(STlbox,tl[i],0)
+    end for
+    switchSTfocus=1
+    openWindow(STwin,SW_NORMAL)
+end procedure
+
+function getColumnDefinitions(integer ignoreRaw)
+    --
+    -- get column definitions, if they exist
+    --
+    if DBselect(tedbedb,"columns") then
+        columnRecord=db_find_key(currdb&':'&currtbl)
+        if (isChecked(DBraw) and not ignoreRaw)
+        or columnRecord<=0 then
+            DTLrect={}
+            DTLcols={{"Key",50},{"Data",50}}
+            DTLstr={0,0,0}
+        else
+            DTLrect=db_record_data(columnRecord)
+            if length(DTLrect)>=3 then
+                DTLstr=DTLrect[3]
+                if length(DTLstr)<3 then
+                    DTLstr&=repeat(0,3-length(DTLstr))
+                end if
+            else
+                DTLstr={0,0,0}
+            end if
+            DTLcols=DTLrect[2]
+            DTLrect=DTLrect[1]
+        end if
+        return 1
+    end if
+    return 0
+end function
+
+
+integer justDblClick
+        justDblClick=0
+
+
+constant DCwin=create(Window,"Define Columns",0,STwin,40,40,819,382,0)
+constant DCedit = create(MultiEditText,  "", 0, DCwin,10,30,120, 100,0)
+constant DChelp=create(Button,"&Help",0,DCwin,226,281,75,30,0)
+constant DCkeystr=create(CheckBox,"&Key is string",0,DCwin,374,297,109,20,0)
+constant DCdatastr=create(CheckBox,"&Data is string",0,DCwin,495,295,105,20,0)
+constant DCdetail=create(CheckBox,"&Show details",0,DCwin,612,295,105,20,0)
+
+--with trace
+function STlboxHandler(integer id, integer msg, atom wParam, object lParam)
+-- also handles DCwin
+sequence rect, result, onecol
+object cdtext
+    if object(lParam) then end if   -- suppress warnings
+    if (msg = WM_CHAR and wParam = VK_ESCAPE)
+    or  msg = WM_CLOSE  then
+        if find(id,{DCwin,DCedit,DChelp,DCkeystr,DCdatastr,DCdetail}) then
+            result=value(getText(DCedit))
+            if result[1]=GET_SUCCESS then
+                DTLcols=result[2]
+                DTLstr={isChecked(DCkeystr),isChecked(DCdatastr),isChecked(DCdetail)}
+                if columnRecord>0 then
+                    db_replace_data(columnRecord,{DTLrect,DTLcols,DTLstr})
+                else
+                    if db_insert(currdb&':'&currtbl,{DTLrect,DTLcols,DTLstr}) != DB_OK then
+                        void = messageBox("Error","db_insert failed",0)
+                    end if
+                end if
+            else
+                if messageBox("Error","result[1]!=GET_SUCCESS",MB_RETRYCANCEL) = IDRETRY then
+                    setFocus(DCedit)
+                    return{0}
+                end if
+            end if
+            setVisible(DCwin,False)
+            setFocus(STlbox)
+        else
+            setVisible(STwin,False)
+            setFocus(DBlview)
+            db_close()
+        end if
+    elsif msg = WM_COMMAND then
+        if id = STdcol then
+            currtbl=getItem(STlbox,0)
+            if length(currtbl) then
+                if getColumnDefinitions(1) then
+                    cdtext = ppExf(DTLcols,{pp_Nest,1})
+                    for i = length(cdtext) to 1 by -1 do
+                        if cdtext[i]='\n' then
+                            cdtext=cdtext[1..i-1]&'\r'&cdtext[i..length(cdtext)]
+                        end if
+                    end for
+                    setText(DCedit,cdtext)
+                    setCheck(DCkeystr,DTLstr[1])
+                    setCheck(DCdatastr,DTLstr[2])
+                    setCheck(DCdetail,DTLstr[3])
+                    openWindow(DCwin,SW_NORMAL)
+                end if
+            else
+                void = messageBox("Error","no record selected",0)
+            end if
+        elsif id = DChelp then
+            void = messageBox("Defining columns",
+                "Enter a sequence as follows:\n\n"&
+                "Each column can be a single text string,\n\n"&
+                " eg {\"Uniq\",\"Name\",\"Description\",\"Date\",\"Type\"} defines 5 columns\n\n"&
+                "or a sequence of up to four elements:\n"&
+                " The text heading,\n"&
+                " A width, which is used proportionally,\n"&
+                " The alignment, which should be:\n"&
+                "   0 for left-aligned, 1 for right-aligned, or 2 for a centred column.\n"&
+                " A unique format code, handled by format() in tedb.exw.\n\n"&
+                "  eg {{\"Directory\", 102,0}, {\"FileName\", 107,0}, {\"Date\", 43,2,\"date\"}}\n\n"&
+                " Columns are assumed from the record key/data. For example if the key\n"&
+                " is an atom, it occupies column 1, elsif length(key)=3 then the key part\n"&
+                " populates columns 1 to 3, with the remainder from the data part.\n"&
+                " If the key or data part is a [single] string, check the box accordingly,\n"&
+                " otherwise you might get one character per column. Check Show details if\n"&
+                " the data is too long to fit in one line.\n\n"&
+                "TIP: Leave column widths 0 and adjust them in the detail view\n"&
+                " using the mouse. The recalculated column widths are saved, along\n"&
+                " with the new window position/size, when the window is closed.\n"&
+                "TIP2: If you amend tedb.edb and browse the columns table, you can\n"&
+                " press Ctrl C to copy the column definition of an existing database.\n"&
+                " You can then select or delete all the text in the column definition\n"&
+                " window and paste.",0)
+            setFocus(DCedit)
+        elsif find(id,{DCkeystr,DCdatastr,DCdetail}) then
+            if lParam=1 then    -- accelerator key
+                setCheck(id,not isChecked(id))
+            else                -- space bar or mouse click
+                setCheck(id,isChecked(id))
+            end if
+            setFocus(DCedit)
+        end if
+    elsif msg = WM_SIZE then
+        if id = STwin then
+            rect=getClientRect(STwin)
+            void=c_func( xMoveWindow, {getHwnd(STlbox), rect[1]+2, rect[2]+42, rect[3]-4, rect[4]-44, 1} )
+        elsif id = DCwin then
+            rect=getClientRect(DCwin)
+            void=c_func( xMoveWindow, {getHwnd(DCedit), rect[1]+5, rect[2]+5, rect[3]-5, rect[4]-45, 1} )
+            void=c_func( xMoveWindow, {getHwnd(DChelp), rect[1]+5, rect[4]-30, 60,25,1})
+            void=c_func( xMoveWindow, {getHwnd(DCkeystr), rect[1]+95, rect[4]-30, 110,25,1})
+            void=c_func( xMoveWindow, {getHwnd(DCdatastr), rect[1]+215, rect[4]-30, 110,25,1})
+            void=c_func( xMoveWindow, {getHwnd(DCdetail), rect[1]+332, rect[4]-30, 110,25,1})
+        end if
+    elsif isVisible(DCwin) then
+    elsif msg = WM_LBUTTONDBLCLK then
+        justDblClick=1  -- focus issues (see eaqj)
+    elsif (msg = WM_LBUTTONUP and justDblClick)
+       or (msg = WM_CHAR and wParam = VK_RETURN) then
+--trace(1)
+        justDblClick=0
+        currtbl=getItem(STlbox,0)
+        if length(currtbl) then
+            if getColumnDefinitions(0) then
+                if DBselect(currdb,currtbl) then
+                    --
+                    -- Delete all existing columns and rebuild.
+                    --
+                    for i=noofDTLcols to 1 by -1 do
+                        void = sendMessage(DTLview, LVM_DELETECOLUMN, i-1, 0)
+                    end for
+                    noofDTLcols = length(DTLcols)
+                    for i=1 to noofDTLcols do
+                        onecol=DTLcols[i]
+                        if atom(onecol[1]) then
+                            onecol={onecol,0,0}
+                        end if
+                        while length(onecol)<3 do
+                            onecol&=0
+                        end while
+                        DTLcols[i]=onecol
+                        insertLVColumn(DTLview, onecol , i)
+                    end for
+                    if length(DTLrect) then
+                        void=c_func( xMoveWindow, getHwnd(DTLwin)&DTLrect&1 )
+                    end if
+                    if DTLstr[3] then
+                        while noofDTLcols > length(DTLlabs) do
+                            DTLlabs&=create(Label,"",0,DTLwin,0,0,0,0,0)
+                        end while
+                    end if
+                    for i = 1 to length(DTLlabs) do
+                        setText(DTLlabs[i],"")
+                        setVisible(DTLlabs[i],i<=noofDTLcols and DTLstr[3])
+                    end for                     
+                    void = sendMessage(DTLwin, WM_SIZE, 0, 0)   -- adjust column widths
+                    setLVItemCount(DTLview,db_table_size())
+                    DataLoaded=0
+                    openWindow(DTLwin,SW_NORMAL)
+                end if
+            end if
+        end if
+    elsif id = STlbox and msg=WM_KEYDOWN and wParam=VK_DELETE then
+        currtbl=getItem(STlbox,0)
+        if length(currtbl) then
+            if DBselect(currdb,currtbl) then
+                if messageBox("Confirm deletion",
+                        sprintf("Database %s, table %s (%d records)",{currdb,currtbl,db_table_size()}),
+                        MB_OKCANCEL+MB_DEFBUTTON2)=IDOK then
+                    db_delete_table(currtbl)
+                    deleteItem(STlbox,getIndex(STlbox))
+                end if
+            end if
+        end if
+        setFocus(STlbox)
+    elsif msg = WM_SETFOCUS and id = STdcol and switchSTfocus then
+        switchSTfocus=0
+        setIndex(STlbox,1)
+        setFocus(STlbox)
+        return {0}
+    end if
+    return 0
+end function
+setHandler({STwin,STdcol,STlbox,
+            DCwin,DCedit,DChelp,DCkeystr,DCdatastr,DCdetail},
+            routine_id("STlboxHandler"))
+
+integer switchDBfocus
+        switchDBfocus=0
+constant DBbrowse=create(Button,"&Browse",0,DBwin,4,7,75,30,0),
+         DBraw2=create(CheckBox,"&Raw view",0,DBwin,93,15,103,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+--constant DBdump=create(Button,"&Dump",0,DBwin,210,7,75,30,0)
+--constant DBreload=create(Button,"&Reload",0,DBwin,300,7,75,30,0)
+         DBlview2=create(ListView,{{"Name",80},{"Directory",384},{"rec",40,LVCFMT_CENTER}},0,DBwin,2,44,516,660,{{LVS_SINGLESEL,LVS_SHOWSELALWAYS,LVS_OWNERDATA},0})
+    -- (DBraw2 & DBlview2 allows Edita\Tools\Window Painter to work)
+    DBraw = DBraw2
+    DBlview = DBlview2
+
+    void = sendMessage(DBlview, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
+
+sequence databases  -- key is {directory,filename}, 
+                    -- data is rec (an integer between 1 and db_table_size())
+                    -- the most recently accessed database will have a rec of 1.
+
+procedure initDatabases()
+-- Load tedb.edb into databases
+-- If tedb.edb is corrupt, do the best fixup we can.
+sequence badset
+integer create_databases, k
+    if db_open(tedbedb,DB_LOCK_EXCLUSIVE) != DB_OK then
+        if db_create(tedbedb,DB_LOCK_EXCLUSIVE) != DB_OK then
+            void=messageBox("Error","Cannot open/create "&tedbedb,0)
+            abort(0)
+        end if
+        create_databases=1
+    else
+        create_databases = (db_select_table("databases") != DB_OK)
+    end if
+    if create_databases then
+        if db_create_table("databases") != DB_OK then
+            void=messageBox("Error","Cannot create databases table in "&tedbedb,0)
+            abort(0)
+        end if
+    end if
+    databases=repeat(0,db_table_size())
+    badset={}
+    for i=1 to length(databases) do
+--      databases[db_record_data(i)]=db_record_key(i)&db_record_data(i)
+        k=db_record_data(i)
+        if k<1 or k>length(databases) or not atom(databases[k]) then
+            badset=append(badset,i)
+        else
+            databases[k]=db_record_key(i)&k
+        end if
+        switchDBfocus=1
+    end for
+    if length(badset) then
+        void = messageBox("Warning","Corruption detected\n(it should be fixed automatically)",0)
+        for i=1 to length(databases) do
+            if atom(databases[i]) then
+                k=badset[1]
+                badset=badset[2..length(badset)]
+                db_replace_data(k,i)
+                databases[i]=db_record_key(k)&i
+            end if
+        end for
+    end if
+    setLVItemCount(DBlview,db_table_size())
+    if db_select_table("columns") != DB_OK then
+        if db_create_table("columns") != DB_OK then
+            void=messageBox("Error","Cannot create columns table in tedb.edb",0)
+            abort(0)
+        end if
+    end if
+end procedure
+initDatabases()
+
+function DBlviewFormat(integer lRow, integer lColumn)
+    if lColumn=0 then   -- no icon
+        return 0
+    elsif atom(databases[lRow])
+       or lColumn>length(databases[lRow]) then
+        return "**Error**"
+    elsif lColumn=1 then
+        return databases[lRow][2]
+    elsif lColumn=2 then
+        return databases[lRow][1]
+    elsif lColumn=3 then
+        return sprintf("%d",databases[lRow][3])
+    end if
+end function
+setLVFormatRoutine(DBlview, routine_id("DBlviewFormat"))
+
+function DBwinHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+object dbname
+integer k,k2
+    if msg = WM_CHAR and wParam = VK_ESCAPE then
+        closeWindow(DBwin)
+    elsif id = DBlview then
+        if msg = WM_NOTIFY then
+            if wParam = LVN_COLUMNCLICK then
+                SortColumn = lParam[1]
+                -- columns 1 and 2 are swapped in this particular case,
+                -- ie databases holds {dir,file,rec}, not like screen.
+                if SortColumn=1 then
+                    SortColumn=2
+                elsif SortColumn=2 then
+                    SortColumn=1
+                end if
+                Sign = lParam[2]
+                sortingdatabases = 1    -- don't use doLower
+                databases = custom_sort(routine_id("CompareSortColumn"),databases)
+                sortingdatabases = 0
+                void = sendMessage(id, LVM_UPDATE, 0, 0)
+            end if
+        elsif  msg = WM_LBUTTONDBLCLK then
+            justDblClick=1  -- focus issues (see eaqj)
+        elsif (msg = WM_LBUTTONUP and justDblClick)
+           or (msg = WM_CHAR and wParam = VK_RETURN) then
+            justDblClick=0
+            dbname=getLVItem(DBlview,0)
+            if not equal(dbname,-1) then
+                --
+                -- shuffle selected item up to position 1,
+                -- and renumber records that were above it.
+                --
+                if DBselect(tedbedb,"databases")=0 then return 0 end if
+                k=db_find_key({dbname[2],dbname[1]})
+                if k<1 then
+                    void = messageBox("Error","db_find_key("&ppf({dbname[2],dbname[1]})&")",0)
+                    return 0
+                end if
+                k=db_record_data(k)
+                for i=1 to db_table_size() do
+                    k2=db_record_data(i)
+                    if k2=k then
+                        db_replace_data(i,1)
+                    elsif k2<k then
+                        db_replace_data(i,k2+1)
+                    end if
+                end for
+                -- Separate pass as "databases" may have been sorted since load.
+                for i=1 to length(databases) do
+                    k2=databases[i][3]
+                    if k2=k then
+                        databases[i][3]=1
+                    elsif k2<k then
+                        databases[i][3]=k2+1
+                    end if
+                end for
+                void = sendMessage(id, LVM_UPDATE, 0, 0)
+                selectedDB(dbname)
+            end if
+        end if
+    elsif msg = WM_SIZE then
+        rect=getClientRect(DBwin)
+        void=c_func( xMoveWindow, {getHwnd(DBlview), rect[1]+2, rect[2]+44, rect[3]-4, rect[4]-46, 1} )
+    elsif id = DBbrowse then
+        if msg = WM_COMMAND 
+        or (msg = WM_CHAR and wParam = VK_RETURN) then
+            dbname = getOpenFileName(DBwin,current_dir()&"\\*.edb",{"edb databases","*.*"},OFN_HIDEREADONLY)
+            if sequence(dbname) and length(dbname)=1 then
+                dbname=dbname[1]
+                for i=length(dbname) to 1 by -1 do
+                    if dbname[i]='\\' then
+                        dbname={dbname[1..i-1],dbname[i+1..length(dbname)]}
+                        if DBselect(tedbedb,"databases") then
+                            k=db_find_key(dbname)
+                            if k<0 then
+                                k=length(databases)+1
+                                databases=append(databases,dbname&k)
+                                if db_insert(dbname,k) != DB_OK then
+                                    void = messageBox("Error","Cannot insert record",0)
+                                end if
+                                setLVItemCount(DBlview,db_table_size())
+                            end if
+                            for j=1 to length(databases) do
+                                if equal(dbname,databases[j][1..2]) then
+                                    setIndex(DBlview,j)
+                                    exit
+                                end if
+                            end for
+                        end if
+                        exit
+                    end if
+                end for 
+            end if
+            setFocus(DBlview)
+        elsif msg = WM_SETFOCUS and switchDBfocus then  -- only on startup
+            switchDBfocus=0
+            setIndex(DBlview,1)
+            setFocus(DBlview)
+            return {0}
+        end if
+    elsif id=DBraw and msg=WM_COMMAND then
+        if lParam=1 then    -- accelerator key
+            setCheck(id,not isChecked(id))
+        else                -- space bar or mouse click
+            setCheck(id,isChecked(id))
+        end if
+        setFocus(DBlview)
+    end if
+    return 0
+end function
+setHandler( {DBwin,DBlview,DBbrowse,DBraw}, routine_id("DBwinHandler") )
+
+
+WinMain(DBwin,SW_NORMAL)

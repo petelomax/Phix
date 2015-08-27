@@ -1,0 +1,1650 @@
+--
+-- axtra.ew
+--
+-- Extra functions for use with arwen.ew
+-- The purpose of this file is to keep arwen tidy.
+--  Rarely used routines go here, commonly used ones not.
+--
+--/*
+include misc_arwen.e as misca
+--*/
+include dll_links.ew
+include structures.ew
+include constants.ew
+
+global function getSysColor(integer color_XX)
+-- For a list of valid color_XX values, see COLOR_XX constants
+--  or the msdn documentation for GetSysColor.
+--  (they range from COLOR_SCROLLBAR = 0 to COLOR_INFOBK = 24)
+    return c_func(xGetSysColor, {color_XX})
+end function
+
+global integer xpmErrFlag
+global sequence xpmErrMsg
+constant
+    XPM_OK          =  0,   -- no error
+    XPM_ERR_FILE    = -1,   -- file related error
+    XPM_ERR_COLORS  = -2,   -- too many colours in bitmap
+                            -- (Very unlikely; would use at least 256MB just 
+                            --  for the colour table, let alone the pixels!
+                            --  I somehow doubt that 256MB of source code
+                            --  to define a single constant would actually
+                            --  compile anyway...)
+    XPM_ERR_HEADER  = -3,   -- error in XPM header
+    XPM_ERR_COLOR   = -4,   -- couldn't translate colour code
+    XPM_ERR_QUOTE   = -5,   -- missing quote
+    XPM_ERR_LENGTH  = -6    -- height/width error
+--  XPM_ERR_CDIB    = -7    -- error in xCreateDIBitmap
+
+-- x color names
+sequence ColourNames,   ColourTuples    --, ColourQuads
+         ColourNames={} ColourTuples={} --ColourQuads={}
+
+procedure xColour(sequence name, integer rr, integer gg, integer bb)
+    ColourNames = append(ColourNames,name)
+    ColourTuples = append(ColourTuples,{bb,gg,rr})
+--  ColourQuads = append(ColourQuads,{bb,gg,rr,0})
+end procedure
+
+procedure setColourNames()
+    xColour("black",                    #00, #00, #00)
+
+    xColour("blue",                     #00, #00, #FF)
+    xColour("blue1",                    #00, #00, #FF)
+    xColour("blue2",                    #00, #00, #EE)
+    xColour("blue3",                    #00, #00, #CD)
+    xColour("blue4",                    #00, #00, #8B)
+    xColour("lightblue",                #AD, #D8, #E6)
+    xColour("lightblue1",               #BF, #EF, #FF)
+    xColour("lightblue2",               #B2, #DF, #EE)
+    xColour("lightblue3",               #9A, #C0, #CD)
+    xColour("lightblue4",               #68, #83, #8B)
+    xColour("mediumblue",               #00, #00, #CD)
+    xColour("aliceblue",                #F0, #F8, #FF)
+    xColour("cadetblue",                #5F, #9E, #A0)
+    xColour("cadetblue1",               #98, #F5, #FF)
+    xColour("cadetblue2",               #8E, #E5, #EE)
+    xColour("cadetblue3",               #7A, #C5, #CD)
+    xColour("cadetblue4",               #53, #86, #8B)
+    xColour("cornflowerblue",           #64, #95, #ED)
+    xColour("dodgerblue",               #1E, #90, #FF)
+    xColour("dodgerblue1",              #1E, #90, #FF)
+    xColour("dodgerblue2",              #1C, #86, #EE)
+    xColour("dodgerblue3",              #18, #74, #CD)
+    xColour("dodgerblue4",              #10, #4E, #8B)
+    xColour("midnightblue",             #19, #19, #70)
+    xColour("powderblue",               #B0, #E0, #E6)
+    xColour("royalblue",                #41, #69, #E1)
+    xColour("royalblue1",               #48, #76, #FF)
+    xColour("royalblue2",               #43, #6E, #EE)
+    xColour("royalblue3",               #3A, #5F, #CD)
+    xColour("royalblue4",               #27, #40, #8B)
+    xColour("sergblue",                 #00, #00, #B4)
+    xColour("skyblue",                  #87, #CE, #EB)
+    xColour("skyblue1",                 #87, #CE, #FF)
+    xColour("skyblue2",                 #7E, #C0, #EE)
+    xColour("skyblue3",                 #6C, #A6, #CD)
+    xColour("skyblue4",                 #4A, #70, #8B)
+    xColour("lightskyblue",             #87, #CE, #FA)
+    xColour("lightskyblue1",            #B0, #E2, #FF)
+    xColour("lightskyblue2",            #A4, #D3, #EE)
+    xColour("lightskyblue3",            #8D, #B6, #CD)
+    xColour("lightskyblue4",            #60, #7B, #8B)
+    xColour("deepskyblue",              #00, #BF, #FF)
+    xColour("deepskyblue1",             #00, #BF, #FF)
+    xColour("deepskyblue2",             #00, #B2, #EE)
+    xColour("deepskyblue3",             #00, #9A, #CD)
+    xColour("deepskyblue4",             #00, #68, #8B)
+    xColour("slateblue",                #6A, #5A, #CD)
+    xColour("slateblue1",               #83, #6F, #FF)
+    xColour("slateblue2",               #7A, #67, #EE)
+    xColour("slateblue3",               #69, #59, #CD)
+    xColour("slateblue4",               #47, #3C, #8B)
+    xColour("lightslateblue",           #84, #70, #FF)
+    xColour("mediumslateblue",          #7B, #68, #EE)
+    xColour("darkslateblue",            #48, #3D, #8B)
+    xColour("steelblue",                #46, #82, #B4)
+    xColour("steelblue1",               #63, #B8, #FF)
+    xColour("steelblue2",               #5C, #AC, #EE)
+    xColour("steelblue3",               #4F, #94, #CD)
+    xColour("steelblue4",               #36, #64, #8B)
+    xColour("lightsteelblue",           #B0, #C4, #DE)
+    xColour("lightsteelblue1",          #CA, #E1, #FF)
+    xColour("lightsteelblue2",          #BC, #D2, #EE)
+    xColour("lightsteelblue3",          #A2, #B5, #CD)
+    xColour("lightsteelblue4",          #6E, #7B, #8B)
+    xColour("turquoise",                #40, #E0, #D0)
+    xColour("turquoise1",               #00, #F5, #FF)
+    xColour("turquoise2",               #00, #E5, #EE)
+    xColour("turquoise3",               #00, #C5, #CD)
+    xColour("turquoise4",               #00, #86, #8B)
+    xColour("paleturquoise",            #AF, #EE, #EE)
+    xColour("paleturquoise1",           #BB, #FF, #FF)
+    xColour("paleturquoise2",           #AE, #EE, #EE)
+    xColour("paleturquoise3",           #96, #CD, #CD)
+    xColour("paleturquoise4",           #66, #8B, #8B)
+    xColour("mediumturquoise",          #48, #D1, #CC)
+    xColour("darkturquoise",            #00, #CE, #D1)
+    xColour("navy",                     #00, #00, #80)
+    xColour("navyblue",                 #00, #00, #80)
+
+    xColour("brown",                    #A5, #2A, #2A)
+    xColour("brown1",                   #FF, #40, #40)
+    xColour("brown2",                   #EE, #3B, #3B)
+    xColour("brown3",                   #CD, #33, #33)
+    xColour("brown4",                   #8B, #23, #23)
+
+    xColour("peru",                     #CD, #85, #3F)
+    xColour("rosybrown",                #BC, #8F, #8F)
+    xColour("rosybrown1",               #FF, #C1, #C1)
+    xColour("rosybrown2",               #EE, #B4, #B4)
+    xColour("rosybrown3",               #CD, #9B, #9B)
+    xColour("rosybrown4",               #8B, #69, #69)
+    xColour("saddlebrown",              #8B, #45, #13)
+    xColour("sandybrown",               #F4, #A4, #60)
+    xColour("sienna",                   #A0, #52, #2D)
+    xColour("sienna1",                  #FF, #82, #47)
+    xColour("sienna2",                  #EE, #79, #42)
+    xColour("sienna3",                  #CD, #68, #39)
+    xColour("sienna4",                  #8B, #47, #26)
+    xColour("chocolate4",               #8B, #45, #13)
+    xColour("chocolate",                #D2, #69, #1E)
+    xColour("chocolate1",               #FF, #7F, #24)
+    xColour("chocolate2",               #EE, #76, #21)
+    xColour("chocolate3",               #CD, #66, #1D)
+    xColour("tan",                      #D2, #B4, #8C)
+    xColour("tan1",                     #FF, #A5, #4F)
+    xColour("tan2",                     #EE, #9A, #49)
+    xColour("tan3",                     #CD, #85, #3F)
+    xColour("tan4",                     #8B, #5A, #2B)
+
+    xColour("cyan",                     #00, #FF, #FF)
+    xColour("cyan1",                    #00, #FF, #FF)
+    xColour("cyan2",                    #00, #EE, #EE)
+    xColour("cyan3",                    #00, #CD, #CD)
+    xColour("cyan4",                    #00, #8B, #8B)
+    xColour("lightcyan",                #E0, #FF, #FF)
+    xColour("lightcyan1",               #E0, #FF, #FF)
+    xColour("lightcyan2",               #D1, #EE, #EE)
+    xColour("lightcyan3",               #B4, #CD, #CD)
+    xColour("lightcyan4",               #7A, #8B, #8B)
+
+    xColour("grey0",                    #00, #00, #00)
+    xColour("grey1",                    #03, #03, #03)
+    xColour("grey2",                    #05, #05, #05)
+    xColour("grey3",                    #08, #08, #08)
+    xColour("grey4",                    #0A, #0A, #0A)
+    xColour("grey5",                    #0D, #0D, #0D)
+    xColour("grey6",                    #0F, #0F, #0F)
+    xColour("grey7",                    #12, #12, #12)
+    xColour("grey8",                    #14, #14, #14)
+    xColour("grey9",                    #17, #17, #17)
+    xColour("grey10",                   #1A, #1A, #1A)
+    xColour("grey11",                   #1C, #1C, #1C)
+    xColour("grey12",                   #1F, #1F, #1F)
+    xColour("grey13",                   #21, #21, #21)
+    xColour("grey14",                   #24, #24, #24)
+    xColour("grey15",                   #26, #26, #26)
+    xColour("grey16",                   #29, #29, #29)
+    xColour("grey17",                   #2B, #2B, #2B)
+    xColour("grey18",                   #2E, #2E, #2E)
+    xColour("grey19",                   #30, #30, #30)
+    xColour("grey20",                   #33, #33, #33)
+    xColour("grey21",                   #36, #36, #36)
+    xColour("grey22",                   #38, #38, #38)
+    xColour("grey23",                   #3B, #3B, #3B)
+    xColour("grey24",                   #3D, #3D, #3D)
+    xColour("grey25",                   #40, #40, #40)
+    xColour("grey26",                   #42, #42, #42)
+    xColour("grey27",                   #45, #45, #45)
+    xColour("grey28",                   #47, #47, #47)
+    xColour("grey29",                   #4A, #4A, #4A)
+    xColour("grey30",                   #4D, #4D, #4D)
+    xColour("grey31",                   #4F, #4F, #4F)
+    xColour("grey32",                   #52, #52, #52)
+    xColour("grey33",                   #54, #54, #54)
+    xColour("grey34",                   #57, #57, #57)
+    xColour("grey35",                   #59, #59, #59)
+    xColour("grey36",                   #5C, #5C, #5C)
+    xColour("grey37",                   #5E, #5E, #5E)
+    xColour("grey38",                   #61, #61, #61)
+    xColour("grey39",                   #63, #63, #63)
+    xColour("grey40",                   #66, #66, #66)
+    xColour("grey41",                   #69, #69, #69)
+    xColour("grey42",                   #6B, #6B, #6B)
+    xColour("grey43",                   #6E, #6E, #6E)
+    xColour("grey44",                   #70, #70, #70)
+    xColour("grey45",                   #73, #73, #73)
+    xColour("grey46",                   #75, #75, #75)
+    xColour("grey47",                   #78, #78, #78)
+    xColour("grey48",                   #7A, #7A, #7A)
+    xColour("grey49",                   #7D, #7D, #7D)
+    xColour("grey50",                   #7F, #7F, #7F)
+    xColour("grey51",                   #82, #82, #82)
+    xColour("grey52",                   #85, #85, #85)
+    xColour("grey53",                   #87, #87, #87)
+    xColour("grey54",                   #8A, #8A, #8A)
+    xColour("grey55",                   #8C, #8C, #8C)
+    xColour("grey56",                   #8F, #8F, #8F)
+    xColour("grey57",                   #91, #91, #91)
+    xColour("grey58",                   #94, #94, #94)
+    xColour("grey59",                   #96, #96, #96)
+    xColour("grey60",                   #99, #99, #99)
+    xColour("grey61",                   #9C, #9C, #9C)
+    xColour("grey62",                   #9E, #9E, #9E)
+    xColour("grey63",                   #A1, #A1, #A1)
+    xColour("grey64",                   #A3, #A3, #A3)
+    xColour("grey65",                   #A6, #A6, #A6)
+    xColour("grey66",                   #A8, #A8, #A8)
+    xColour("grey67",                   #AB, #AB, #AB)
+    xColour("grey68",                   #AD, #AD, #AD)
+    xColour("grey69",                   #B0, #B0, #B0)
+    xColour("grey70",                   #B3, #B3, #B3)
+    xColour("grey71",                   #B5, #B5, #B5)
+    xColour("grey72",                   #B8, #B8, #B8)
+    xColour("grey73",                   #BA, #BA, #BA)
+    xColour("grey74",                   #BD, #BD, #BD)
+    xColour("grey75",                   #BF, #BF, #BF)
+    xColour("grey",                     #C0, #C0, #C0)
+    xColour("grey76",                   #C2, #C2, #C2)
+    xColour("grey77",                   #C4, #C4, #C4)
+    xColour("grey78",                   #C7, #C7, #C7)
+    xColour("grey79",                   #C9, #C9, #C9)
+    xColour("grey80",                   #CC, #CC, #CC)
+    xColour("grey81",                   #CF, #CF, #CF)
+    xColour("grey82",                   #D1, #D1, #D1)
+    xColour("grey83",                   #D4, #D4, #D4)
+    xColour("grey84",                   #D6, #D6, #D6)
+    xColour("grey85",                   #D9, #D9, #D9)
+    xColour("grey86",                   #DB, #DB, #DB)
+    xColour("grey87",                   #DE, #DE, #DE)
+    xColour("grey88",                   #E0, #E0, #E0)
+    xColour("grey89",                   #E3, #E3, #E3)
+    xColour("grey90",                   #E5, #E5, #E5)
+    xColour("grey91",                   #E8, #E8, #E8)
+    xColour("grey92",                   #EB, #EB, #EB)
+    xColour("grey93",                   #ED, #ED, #ED)
+    xColour("grey94",                   #F0, #F0, #F0)
+    xColour("grey95",                   #F2, #F2, #F2)
+    xColour("grey96",                   #F5, #F5, #F5)
+    xColour("grey97",                   #F7, #F7, #F7)
+    xColour("grey98",                   #FA, #FA, #FA)
+    xColour("grey99",                   #FC, #FC, #FC)
+    xColour("grey100",                  #FF, #FF, #FF)
+    xColour("dimgrey",                  #69, #69, #69)
+    xColour("lightgrey",                #D3, #D3, #D3)
+    xColour("lightslategrey",           #77, #88, #99)
+    xColour("slategrey",                #70, #80, #90)
+    xColour("slategrey1",               #C6, #E2, #FF)
+    xColour("slategrey2",               #B9, #D3, #EE)
+    xColour("slategrey3",               #9F, #B6, #CD)
+    xColour("slategrey4",               #6C, #7B, #8B)
+    xColour("darkslategrey",            #2F, #4F, #4F)
+    xColour("darkslategrey1",           #97, #FF, #FF)
+    xColour("darkslategrey2",           #8D, #EE, #EE)
+    xColour("darkslategrey3",           #79, #CD, #CD)
+    xColour("darkslategrey4",           #52, #8B, #8B)
+
+    xColour("timgrey",                  #61, #5C, #5C)
+    xColour("rosegrey40",               #70, #66, #66)
+
+    xColour("green",                    #00, #FF, #00)
+    xColour("green1",                   #00, #FF, #00)
+    xColour("green2",                   #00, #EE, #00)
+    xColour("green3",                   #00, #CD, #00)
+    xColour("green4",                   #00, #8B, #00)
+    xColour("darkgreen",                #00, #64, #00)
+    xColour("springgreen",              #00, #FF, #7F)
+    xColour("springgreen1",             #00, #FF, #7F)
+    xColour("springgreen2",             #00, #EE, #76)
+    xColour("springgreen3",             #00, #CD, #66)
+    xColour("springgreen4",             #00, #8B, #45)
+    xColour("mediumspringgreen",        #00, #FA, #9A)
+    xColour("lawngreen",                #7C, #FC, #00)
+    xColour("lightseagreen",            #20, #B2, #AA)
+    xColour("limegreen",                #32, #CD, #32)
+    xColour("darkolivegreen",           #55, #6B, #2F)
+    xColour("darkolivegreen1",          #CA, #FF, #70)
+    xColour("darkolivegreen2",          #BC, #EE, #68)
+    xColour("darkolivegreen3",          #A2, #CD, #5A)
+    xColour("darkolivegreen4",          #6E, #8B, #3D)
+    xColour("palegreen",                #98, #FB, #98)
+    xColour("palegreen1",               #9A, #FF, #9A)
+    xColour("palegreen2",               #90, #EE, #90)
+    xColour("palegreen3",               #7C, #CD, #7C)
+    xColour("palegreen4",               #54, #8B, #54)
+    xColour("seagreen",                 #2E, #8B, #57)
+    xColour("seagreen1",                #54, #FF, #9F)
+    xColour("seagreen2",                #4E, #EE, #94)
+    xColour("seagreen3",                #43, #CD, #80)
+    xColour("seagreen4",                #2E, #8B, #57)
+    xColour("mediumseagreen",           #3C, #B3, #71)
+    xColour("darkseagreen",             #8F, #BC, #8F)
+    xColour("darkseagreen1",            #C1, #FF, #C1)
+    xColour("darkseagreen2",            #B4, #EE, #B4)
+    xColour("darkseagreen3",            #9B, #CD, #9B)
+    xColour("darkseagreen4",            #69, #8B, #69)
+    xColour("forestgreen",              #22, #8B, #22)
+    xColour("yellowgreen",              #9A, #CD, #32)
+
+    xColour("aquamarine",               #7F, #FF, #D4)
+    xColour("aquamarine1",              #7F, #FF, #D4)
+    xColour("aquamarine2",              #76, #EE, #C6)
+    xColour("aquamarine3",              #66, #CD, #AA)
+    xColour("aquamarine4",              #45, #8B, #74)
+    xColour("mediumaquamarine",         #66, #CD, #AA)
+
+    xColour("khaki",                    #F0, #E6, #8C)
+    xColour("khaki1",                   #FF, #F6, #8F)
+    xColour("khaki2",                   #EE, #E6, #85)
+    xColour("khaki3",                   #CD, #C6, #73)
+    xColour("khaki4",                   #8B, #86, #4E)
+    xColour("darkkhaki",                #BD, #B7, #6B)
+
+    xColour("olivedrab",                #6B, #8E, #23)
+    xColour("olivedrab1",               #C0, #FF, #3E)
+    xColour("olivedrab2",               #B3, #EE, #3A)
+    xColour("olivedrab3",               #9A, #CD, #32)
+    xColour("olivedrab4",               #69, #8B, #22)
+
+    xColour("red",                      #FF, #00, #00)
+    xColour("red1",                     #FF, #00, #00)
+    xColour("red2",                     #EE, #00, #00)
+    xColour("red3",                     #CD, #00, #00)
+    xColour("red4",                     #8B, #00, #00)
+    xColour("orangered",                #FF, #45, #00)
+    xColour("orangered1",               #FF, #45, #00)
+    xColour("orangered2",               #EE, #40, #00)
+    xColour("orangered3",               #CD, #37, #00)
+    xColour("orangered4",               #8B, #25, #00)
+    xColour("indianred",                #CD, #5C, #5C)
+    xColour("indianred1",               #FF, #6A, #6A)
+    xColour("indianred2",               #EE, #63, #63)
+    xColour("indianred3",               #CD, #55, #55)
+    xColour("indianred4",               #8B, #3A, #3A)
+    xColour("violetred",                #D0, #20, #90)
+    xColour("violetred1",               #FF, #3E, #96)
+    xColour("violetred2",               #EE, #3A, #8C)
+    xColour("violetred3",               #CD, #32, #78)
+    xColour("violetred4",               #8B, #22, #52)
+    xColour("palevioletred",            #DB, #70, #93)
+    xColour("palevioletred1",           #FF, #82, #AB)
+    xColour("palevioletred2",           #EE, #79, #9F)
+    xColour("palevioletred3",           #CD, #68, #89)
+    xColour("palevioletred4",           #8B, #47, #5D)
+    xColour("mediumvioletred",          #C7, #15, #85)
+
+    xColour("firebrick",                #B2, #22, #22)
+    xColour("firebrick1",               #FF, #30, #30)
+    xColour("firebrick2",               #EE, #2C, #2C)
+    xColour("firebrick3",               #CD, #26, #26)
+    xColour("firebrick4",               #8B, #1A, #1A)
+    xColour("tomato",                   #FF, #63, #47)
+    xColour("tomato1",                  #FF, #63, #47)
+    xColour("tomato2",                  #EE, #5C, #42)
+    xColour("tomato3",                  #CD, #4F, #39)
+    xColour("tomato4",                  #8B, #36, #26)
+    xColour("magenta",                  #FF, #00, #FF)
+    xColour("magenta1",                 #FF, #00, #FF)
+    xColour("magenta2",                 #EE, #00, #EE)
+    xColour("magenta3",                 #CD, #00, #CD)
+    xColour("magenta4",                 #8B, #00, #8B)
+    xColour("maroon",                   #B0, #30, #60)
+    xColour("maroon1",                  #FF, #34, #B3)
+    xColour("maroon2",                  #EE, #30, #A7)
+    xColour("maroon3",                  #CD, #29, #90)
+    xColour("maroon4",                  #8B, #1C, #62)
+    xColour("orchid",                   #DA, #70, #D6)
+    xColour("orchid1",                  #FF, #83, #FA)
+    xColour("orchid2",                  #EE, #7A, #E9)
+    xColour("orchid3",                  #CD, #69, #C9)
+    xColour("orchid4",                  #8B, #47, #89)
+    xColour("mediumorchid",             #BA, #55, #D3)
+    xColour("mediumorchid1",            #E0, #66, #FF)
+    xColour("mediumorchid2",            #D1, #5F, #EE)
+    xColour("mediumorchid3",            #B4, #52, #CD)
+    xColour("mediumorchid4",            #7A, #37, #8B)
+    xColour("darkorchid",               #99, #32, #CC)
+    xColour("darkorchid1",              #BF, #3E, #FF)
+    xColour("darkorchid2",              #B2, #3A, #EE)
+    xColour("darkorchid3",              #9A, #32, #CD)
+    xColour("darkorchid4",              #68, #22, #8B)
+    xColour("plum",                     #DD, #A0, #DD)
+    xColour("plum1",                    #FF, #BB, #FF)
+    xColour("plum2",                    #EE, #AE, #EE)
+    xColour("plum3",                    #CD, #96, #CD)
+    xColour("plum4",                    #8B, #66, #8B)
+    xColour("purple",                   #A0, #20, #F0)
+    xColour("purple1",                  #9B, #30, #FF)
+    xColour("purple2",                  #91, #2C, #EE)
+    xColour("purple3",                  #7D, #26, #CD)
+    xColour("purple4",                  #55, #1A, #8B)
+    xColour("mediumpurple",             #93, #70, #DB)
+    xColour("mediumpurple1",            #AB, #82, #FF)
+    xColour("mediumpurple2",            #9F, #79, #EE)
+    xColour("mediumpurple3",            #89, #68, #CD)
+    xColour("mediumpurple4",            #5D, #47, #8B)
+    xColour("thistle",                  #D8, #BF, #D8)
+    xColour("thistle1",                 #FF, #E1, #FF)
+    xColour("thistle2",                 #EE, #D2, #EE)
+    xColour("thistle3",                 #CD, #B5, #CD)
+    xColour("thistle4",                 #8B, #7B, #8B)
+    xColour("indigo",                   #4B, #00, #82)
+    xColour("violet",                   #EE, #82, #EE)
+    xColour("blueviolet",               #8A, #2B, #E2)
+    xColour("darkviolet",               #94, #00, #D3)
+
+    xColour("coral",                    #FF, #7F, #50)
+    xColour("coral1",                   #FF, #72, #56)
+    xColour("coral2",                   #EE, #6A, #50)
+    xColour("coral3",                   #CD, #5B, #45)
+    xColour("coral4",                   #8B, #3E, #2F)
+    xColour("lightcoral",               #F0, #80, #80)
+    xColour("orange",                   #FF, #A5, #00)
+    xColour("orange1",                  #FF, #A5, #00)
+    xColour("orange2",                  #EE, #9A, #00)
+    xColour("orange3",                  #CD, #85, #00)
+    xColour("orange4",                  #8B, #5A, #00)
+    xColour("darkorange",               #FF, #8C, #00)
+    xColour("darkorange1",              #FF, #7F, #00)
+    xColour("darkorange2",              #EE, #76, #00)
+    xColour("darkorange3",              #CD, #66, #00)
+    xColour("darkorange4",              #8B, #45, #00)
+
+    xColour("yellow",                   #FF, #FF, #00)
+    xColour("yellow1",                  #FF, #FF, #00)
+    xColour("yellow2",                  #EE, #EE, #00)
+    xColour("yellow3",                  #CD, #CD, #00)
+    xColour("yellow4",                  #8B, #8B, #00)
+    xColour("greenyellow",              #AD, #FF, #2F)
+    xColour("lightyellow",              #FF, #FF, #E0)
+    xColour("lightyellow1",             #FF, #FF, #E0)
+    xColour("lightyellow2",             #EE, #EE, #D1)
+    xColour("lightyellow3",             #CD, #CD, #B4)
+    xColour("lightyellow4",             #8B, #8B, #7A)
+    xColour("lightgoldenrodyellow",     #FA, #FA, #D2)
+
+    xColour("gold",                     #FF, #D7, #00)
+    xColour("gold1",                    #FF, #D7, #00)
+    xColour("gold2",                    #EE, #C9, #00)
+    xColour("gold3",                    #CD, #AD, #00)
+    xColour("gold4",                    #8B, #75, #00)
+
+    xColour("goldenrod",                #DA, #A5, #20)
+    xColour("goldenrod1",               #FF, #C1, #25)
+    xColour("goldenrod2",               #EE, #B4, #22)
+    xColour("goldenrod3",               #CD, #9B, #1D)
+    xColour("goldenrod4",               #8B, #69, #14)
+    xColour("lightgoldenrod",           #EE, #DD, #82)
+    xColour("lightgoldenrod1",          #FF, #EC, #8B)
+    xColour("lightgoldenrod2",          #EE, #DC, #82)
+    xColour("lightgoldenrod3",          #CD, #BE, #70)
+    xColour("lightgoldenrod4",          #8B, #81, #4C)
+    xColour("darkgoldenrod",            #B8, #86, #0B)
+    xColour("darkgoldenrod1",           #FF, #B9, #0F)
+    xColour("darkgoldenrod2",           #EE, #AD, #0E)
+    xColour("darkgoldenrod3",           #CD, #95, #0C)
+    xColour("darkgoldenrod4",           #8B, #65, #08)
+    xColour("palegoldenrod",            #EE, #E8, #AA)
+
+    xColour("pink",                     #FF, #C0, #CB)
+    xColour("pink1",                    #FF, #B5, #C5)
+    xColour("pink2",                    #EE, #A9, #B8)
+    xColour("pink3",                    #CD, #91, #9E)
+    xColour("pink4",                    #8B, #63, #6C)
+    xColour("lightpink",                #FF, #B6, #C1)
+    xColour("lightpink1",               #FF, #AE, #B9)
+    xColour("lightpink2",               #EE, #A2, #AD)
+    xColour("lightpink3",               #CD, #8C, #95)
+    xColour("lightpink4",               #8B, #5F, #65)
+    xColour("hotpink",                  #FF, #69, #B4)
+    xColour("hotpink1",                 #FF, #6E, #B4)
+    xColour("hotpink2",                 #EE, #6A, #A7)
+    xColour("hotpink3",                 #CD, #60, #90)
+    xColour("hotpink4",                 #8B, #3A, #62)
+    xColour("deeppink",                 #FF, #14, #93)
+    xColour("deeppink1",                #FF, #14, #93)
+    xColour("deeppink2",                #EE, #12, #89)
+    xColour("deeppink3",                #CD, #10, #76)
+    xColour("deeppink4",                #8B, #0A, #50)
+
+    xColour("salmon",                   #FA, #80, #72)
+    xColour("salmon1",                  #FF, #8C, #69)
+    xColour("salmon2",                  #EE, #82, #62)
+    xColour("salmon3",                  #CD, #70, #54)
+    xColour("salmon4",                  #8B, #4C, #39)
+    xColour("lightsalmon",              #FF, #A0, #7A)
+    xColour("lightsalmon1",             #FF, #A0, #7A)
+    xColour("lightsalmon2",             #EE, #95, #72)
+    xColour("lightsalmon3",             #CD, #81, #62)
+    xColour("lightsalmon4",             #8B, #57, #42)
+    xColour("darksalmon",               #E9, #96, #7A)
+
+    xColour("white",                    #FF, #FF, #FF)
+    xColour("whitesmoke",               #F5, #F5, #F5)
+    xColour("ghostwhite",               #F8, #F8, #FF)
+    xColour("antiquewhite",             #FA, #EB, #D7)
+    xColour("antiquewhite1",            #FF, #EF, #DB)
+    xColour("antiquewhite2",            #EE, #DF, #CC)
+    xColour("antiquewhite3",            #CD, #C0, #B0)
+    xColour("antiquewhite4",            #8B, #83, #78)
+    xColour("floralwhite",              #FF, #FA, #F0)
+    xColour("navajowhite",              #FF, #DE, #AD)
+    xColour("navajowhite1",             #FF, #DE, #AD)
+    xColour("navajowhite2",             #EE, #CF, #A1)
+    xColour("navajowhite3",             #CD, #B3, #8B)
+    xColour("navajowhite4",             #8B, #79, #5E)
+
+    xColour("blanchedalmond",           #FF, #EB, #CD)
+    xColour("bisque",                   #FF, #E4, #C4)
+    xColour("bisque1",                  #FF, #E4, #C4)
+    xColour("bisque2",                  #EE, #D5, #B7)
+    xColour("bisque3",                  #CD, #B7, #9E)
+    xColour("bisque4",                  #8B, #7D, #6B)
+    xColour("cornsilk",                 #FF, #F8, #DC)
+    xColour("cornsilk1",                #FF, #F8, #DC)
+    xColour("cornsilk2",                #EE, #E8, #CD)
+    xColour("cornsilk3",                #CD, #C8, #B1)
+    xColour("cornsilk4",                #8B, #88, #78)
+    xColour("honeydew",                 #F0, #FF, #F0)
+    xColour("honeydew1",                #F0, #FF, #F0)
+    xColour("honeydew2",                #E0, #EE, #E0)
+    xColour("honeydew3",                #C1, #CD, #C1)
+    xColour("honeydew4",                #83, #8B, #83)
+    xColour("ivory",                    #FF, #FF, #F0)
+    xColour("ivory1",                   #FF, #FF, #F0)
+    xColour("ivory2",                   #EE, #EE, #E0)
+    xColour("ivory3",                   #CD, #CD, #C1)
+    xColour("ivory4",                   #8B, #8B, #83)
+    xColour("lavender",                 #E6, #E6, #FA)
+    xColour("lavenderblush",            #FF, #F0, #F5)
+    xColour("lavenderblush1",           #FF, #F0, #F5)
+    xColour("lavenderblush2",           #EE, #E0, #E5)
+    xColour("lavenderblush3",           #CD, #C1, #C5)
+    xColour("lavenderblush4",           #8B, #83, #86)
+    xColour("lemonchiffon",             #FF, #FA, #CD)
+    xColour("lemonchiffon1",            #FF, #FA, #CD)
+    xColour("lemonchiffon2",            #EE, #E9, #BF)
+    xColour("lemonchiffon3",            #CD, #C9, #A5)
+    xColour("lemonchiffon4",            #8B, #89, #70)
+    xColour("linen",                    #FA, #F0, #E6)
+    xColour("mintcream",                #F5, #FF, #FA)
+    xColour("mistyrose",                #FF, #E4, #E1)
+    xColour("mistyrose1",               #FF, #E4, #E1)
+    xColour("mistyrose2",               #EE, #D5, #D2)
+    xColour("mistyrose3",               #CD, #B7, #B5)
+    xColour("mistyrose4",               #8B, #7D, #7B)
+    xColour("oldlace",                  #FD, #F5, #E6)
+    xColour("papayawhip",               #FF, #EF, #D5)
+    xColour("seashell",                 #FF, #F5, #EE)
+    xColour("seashell1",                #FF, #F5, #EE)
+    xColour("seashell2",                #EE, #E5, #DE)
+    xColour("seashell3",                #CD, #C5, #BF)
+    xColour("seashell4",                #8B, #86, #82)
+    xColour("snow",                     #FF, #FA, #FA)
+    xColour("snow1",                    #FF, #FA, #FA)
+    xColour("snow2",                    #EE, #E9, #E9)
+    xColour("snow3",                    #CD, #C9, #C9)
+    xColour("snow4",                    #8B, #89, #89)
+    xColour("wheat",                    #F5, #DE, #B3)
+    xColour("wheat1",                   #FF, #E7, #BA)
+    xColour("wheat2",                   #EE, #D8, #AE)
+    xColour("wheat3",                   #CD, #BA, #96)
+    xColour("wheat4",                   #8B, #7E, #66)
+
+    xColour("peachpuff",                #FF, #DA, #B9)
+    xColour("peachpuff1",               #FF, #DA, #B9)
+    xColour("peachpuff2",               #EE, #CB, #AD)
+    xColour("peachpuff3",               #CD, #AF, #95)
+    xColour("peachpuff4",               #8B, #77, #65)
+
+    xColour("chartreuse",               #7F, #FF, #00)
+    xColour("chartreuse1",              #7F, #FF, #00)
+    xColour("chartreuse2",              #76, #EE, #00)
+    xColour("chartreuse3",              #66, #CD, #00)
+    xColour("chartreuse4",              #45, #8B, #00)
+
+    xColour("azure",                    #F0, #FF, #FF)
+    xColour("azure1",                   #F0, #FF, #FF)
+    xColour("azure2",                   #E0, #EE, #EE)
+    xColour("azure3",                   #C1, #CD, #CD)
+    xColour("azure4",                   #83, #8B, #8B)
+    xColour("beige",                    #F5, #F5, #DC)
+    xColour("burlywood",                #DE, #B8, #87)
+    xColour("burlywood1",               #FF, #D3, #9B)
+    xColour("burlywood2",               #EE, #C5, #91)
+    xColour("burlywood3",               #CD, #AA, #7D)
+    xColour("burlywood4",               #8B, #73, #55)
+    xColour("gainsboro",                #DC, #DC, #DC)
+    xColour("moccasin",                 #FF, #E4, #B5)
+end procedure
+
+global function GetNamedColour(string name)
+-- returns a tuple {#bb,#gg,#rr} where each element is in the range 0 to 255.
+-- incurs a fatal error if passed a non-existent colour name.
+integer idx
+    if length(ColourNames)=0 then
+        setColourNames()
+    end if
+    idx = find(name,ColourNames)
+    return ColourTuples[idx]    
+end function
+--DEV in constants.ew
+constant CBM_INIT = #4   --  initialize bitmap
+
+sequence validHex                   -- hex chars 0..9, A..F, a..f xlation map.
+         validHex=repeat(-1,256)    -- -1=invalid.
+
+    for i= 0 to  9 do validHex[i+'0'+1]=i end for
+    for i=10 to 15 do validHex[i+'A'-9]=i end for
+    for i=10 to 15 do validHex[i+'a'-9]=i end for
+
+function hex2(integer ch1, integer ch2)
+--
+-- Converts a pair of hex chars, eg hex2('F','F') returns 255, =#FF.
+--
+    ch1 = validHex[ch1+1]
+    ch2 = validHex[ch2+1]
+    if ch1=-1 or ch2=-1 then xpmErrFlag = XPM_ERR_COLOR return NULL end if
+    return ch1*16+ch2
+end function
+
+atom transColor   -- transparent colour
+     transColor=0.1 -- impossible value
+
+sequence transTuple, transQuad
+
+integer lineNo
+function xpm_gets(integer fn)
+object line
+integer qs,         -- quote start
+        cs          -- comment start
+    while fn do
+        line = gets(fn)
+        if atom(line) then exit end if
+        lineNo+=1
+        qs = find('\"',line)
+        if qs then          -- skip blank/comment-only lines (eg /* XPM */)
+            while 1 do          -- for exit only, not looping:
+                if qs>2 then    -- if quote in col 1 or 2 don't even bother checking for a comment,
+                                -- also there is no requirement to cope with /*...*/ "part of xpm" lines.
+                    cs = match("/*",line)
+                    if cs and cs<qs then exit end if
+                end if
+                for j=qs+1 to length(line) do
+                    if line[j]='\"' then return line[qs+1..j-1] end if
+                end for
+                xpmErrFlag = XPM_ERR_QUOTE
+                xpmErrMsg = sprintf("missing quote line %d: %d",{lineNo,line})
+                close(fn)
+                return NULL
+            end while
+        end if
+    end while
+    xpmErrFlag = XPM_ERR_FILE
+    xpmErrMsg = "unexpected end of file"
+    close(fn)
+    return NULL
+end function
+
+
+integer width,      -- width of the xpm
+        height      -- height of the xpm
+
+--with trace
+global function createDIBfromXPM(object xpm, integer transparency)
+--
+-- If xpm is a sequence it is assumed to be an included constant of
+--  the form:
+--      constant Xpm = {"5 5 2 1",
+--                      "  c None",
+--                      "x c #000000",
+--                      "     ",
+--                      " x x ",
+--                      "  x  ",
+--                      " x x ",
+--                      "     "}
+--  Obviously the one passed can be any size and number of colours, but
+--  the one shown describes a 5x5 bitmap with 2 colours, one char per pixel,
+--  and as you can hopefully see above is a small 'X'. [DEV I plan to write 
+--  an editor for these (and integrate it with Edita) one day...]
+-- Else (xpm is an atom) it is assumed to be an open file handle, which 
+--  can be read to yield similar strings (with Eu or C style syntax). 
+--  This file is closed before returning, unless an error occurs.
+--
+-- transparency is a 24-bit RGB colour, eg #FFFF00 for bright yellow.
+--  Use getSysColor(COLOR_XXX) to obtain any of the colours documented
+--  under the GetSysColor API.
+--
+-- returns dibHandle or NULL on error.
+--
+-- If the result is null then xpmErrFlag -1..-5 indicates the error in
+--  the xpm file or else holds xGetLastError() from xCreateDIBitmap().
+--  A textual error description is also available in xpmErrMsg.
+--
+object data             -- scratch var
+integer ch,             -- char (scratch var)
+        nn,             -- scratch var
+        colours,        -- colours in the xpm
+        codeWide,       -- width of the colour code
+        pwidth          -- packed scanline width
+atom    N               -- number decode (scratch var)
+
+sequence cc,            -- colour code, eg 'x' ==> palette[7] (ie cc[7] would be 'x').
+                        -- cc[i] may be char (if codeWide=1) or string (if >1).
+         pal            -- palette of tuples, matches cc
+
+integer palSize,        -- colours rounded up to supported sizes
+        headerSize,     -- BITMAPINFO header + palSize RGBQuads
+        bitMapSize,     -- h*packed scanline size
+        bpp             -- bits per pixel (1, 4, 8, or 24)
+
+atom memBitmapInfo,     -- allocate(headerSize+bitMapSize)
+     mbPtr,             -- for poking the above
+     hdc,               -- screenDC needed for xCreateDIBitmap
+     hDIB               -- result
+
+integer bytes,          -- loop limit for packing scanlines, [ *3 | *1 | /2 | /8 ] see code
+        oidx,           -- output idx for pi-->packed loops
+        pidx            -- output idx for converting charsWide>1 inputs to pi
+
+sequence pi,            -- one line as colour indexes
+         packed         -- "" packed as per bpp and padded to dword boundary
+
+integer rr, gg, bb      -- red green and blue bytes
+
+    xpmErrFlag = XPM_OK
+    lineNo = 0
+
+    if transparency!=transColor then
+        transColor = transparency
+        transTuple = {and_bits(transColor/#10000,#FF),
+                      and_bits(transColor/#100,#FF),
+                      and_bits(transColor,#FF)}
+                        -- note transTuple is {b,g,r}, not {r,g,b} (only used if bpp=24)
+--?{transTuple,transTuple-1,transTuple-8}
+        transQuad = {and_bits(transColor/#10000,#FF),
+                     and_bits(transColor/#100,#FF),
+                     and_bits(transColor,#FF),0}
+--  d={and_bits(floor(d/#10000),#FF),and_bits(floor(d/#100),#FF),and_bits(d,#FF),2}
+--  bColour = {and_bits(bColour,#FF),and_bits(bColour,#FF00)/#100,and_bits(bColour,#FF0000)/#10000}
+
+    end if
+
+    -- extract the values: "<wide> <tall> <colours> <chars per pixel>"
+    if sequence(xpm) then
+        data = xpm[1]
+        lineNo += 1
+    else
+        data = xpm_gets(xpm)
+        if xpmErrFlag then return NULL end if
+    end if
+    xpmErrMsg = data
+    nn = 1
+    N = 0
+    for i=1 to length(data) do
+        ch = data[i]
+        if ch<=' ' then
+            if N then
+                data[nn] = N
+                N = 0
+                nn+=1
+            end if
+        else
+            if ch<'0' or ch>'9' then nn=1 exit end if   -- nn=1 forces error below
+            N = N*10 + ch-'0'
+        end if
+    end for
+    if N then
+        data[nn] = N
+        nn+=1
+    end if
+    if nn<5 then    -- ensure 4 words (or more) were found
+        xpmErrFlag = XPM_ERR_HEADER
+        xpmErrMsg = "Unable to decode: "&xpmErrMsg
+        if integer(xpm) then close(xpm) end if
+        return NULL
+    end if  
+
+    width    = data[1]
+    height   = data[2]
+    colours  = data[3]
+    codeWide = data[4]
+
+    -- palette and packing size
+    if    colours<=2 then               palSize = 2     bpp = 1
+    elsif colours<=16 then              palSize = 16    bpp = 4
+    elsif colours<=256 then             palSize = 256   bpp = 8
+    elsif colours<=16777216 then        palSize = 0     bpp = 24
+    else
+        xpmErrFlag = XPM_ERR_COLORS
+        xpmErrMsg = "Too many colours(?): "&xpmErrMsg
+        if integer(xpm) then close(xpm) end if
+        return NULL
+    end if
+
+    -- calculate the size of the BITMAPINFO header
+    headerSize = sizeofstruct(BITMAPINFOHEADER) + (sizeofstruct(RGBQUAD) * palSize)
+
+    --
+    -- Calculate the memory needed for the DIB,
+    -- by first calculating the length of a packed and padded line,
+    -- which we may as well create now for later use.
+    --
+    -- setup packed input storage:
+    pi = repeat(0,width)    -- an array of palette indexes, one per pixel in the line.
+
+    -- setup packed output storage:
+    if bpp = 24 then        -- 3 bytes per pixel
+        bytes = width * 3
+    elsif bpp = 8 then      -- 1:1, 1 byte per pixel
+        bytes = width
+    elsif bpp = 4 then      -- 2:1, 2 pixels per byte
+        if remainder(width,2) then pi = append(pi,0) end if             -- pad to multiple of 2
+        bytes = floor(length(pi) / 2)
+    elsif bpp = 1 then      -- 8:1, 8 pixels per byte (monochrome)
+        while remainder(length(pi),8) do pi = append(pi,0) end while    -- pad to multiple of 8
+        bytes = floor(length(pi) / 8)
+    end if
+
+    -- scanline needs to fall on a dword boundary (4 bytes)
+    if remainder(bytes, 4) then
+        packed = repeat(0, bytes + 4-remainder(bytes, 4))
+    else
+        packed = repeat(0, bytes)
+    end if
+
+    pwidth = length(packed)
+    bitMapSize = height*pwidth
+
+    -- Allocate memory for header and DIB in one block
+    memBitmapInfo = allocate(headerSize+bitMapSize)
+
+    -- build the bitmap info header
+    poke4(memBitmapInfo + BIH_biSize, sizeofstruct(BITMAPINFOHEADER))
+    poke4(memBitmapInfo + BIH_biWidth, width)           -- Width in pixels.
+    poke4(memBitmapInfo + BIH_biHeight, -height)        -- Height in pixels (-ve=topdown).
+    poke2(memBitmapInfo + BIH_biPlanes, 1)              -- 1 colour plane. (always)
+    poke2(memBitmapInfo + BIH_biBitCount, bpp)          -- no. of bits per pixel (0, 1, 4, 8, 16, 24, 32)
+    poke4(memBitmapInfo + BIH_biCompression, BI_RGB)    -- compression format - none in this case
+    poke4(memBitmapInfo + BIH_biSizeImage, 0)           -- size in bytes of image, set to 0 (unneeded) if no compression
+    poke4(memBitmapInfo + BIH_biXPelsPerMeter, 0)       -- Not needed
+    poke4(memBitmapInfo + BIH_biYPelsPerMeter, 0)       -- Not needed
+    poke4(memBitmapInfo + BIH_biClrUsed, colours)       -- colours actually used by the bitmap
+    poke4(memBitmapInfo + BIH_biClrImportant, 0)        -- no. colours needed to display image, 0=all
+
+    -- get the address of the first rgb tuple
+    mbPtr = memBitmapInfo+BITMAPINFO_bmiColors
+
+    -- create a palatte and data
+    cc = repeat(0,colours)  -- colour code map of <charsWide> chars --> palette index
+    if bpp=24 then
+        pal = repeat(0,colours)
+    end if
+
+    if sequence(xpm) then
+        xpm = xpm[2..length(xpm)]   -- discard header
+    end if
+
+    -- read the colour data (number of colours determined from line 1, 3rd number)
+    for i = 1 to colours do
+
+        if sequence(xpm) then
+            data = xpm[i]
+            lineNo += 1
+        else
+            data = xpm_gets(xpm)
+            if xpmErrFlag then return NULL end if
+        end if
+        -- extract the colour code          (eg "c" in "c None")
+        if codeWide=1 then
+            cc[i] = data[codeWide]  -- use faster method when possible
+        else
+            cc[i] = data[1..codeWide]
+        end if
+
+        -- and the colour itself            (eg "None" in "c None")
+
+        xpmErrFlag = XPM_ERR_COLOR
+        for j=codeWide+2 to length(data) do
+            if data[j]='c' and data[j+1]=' ' then
+                for k=j+2 to length(data) do
+                    if data[k]>' ' then
+                        xpmErrFlag = XPM_OK
+--/**/                  data = lower(data[k..length(data)])
+--/*
+                        data = misca:lower(data[k..length(data)])
+--*/
+                        for l=1 to length(data) do
+                            if data[l]<=' ' then
+                                if l>=length(data)-1
+                                or data[l+1]<=' '
+                                or data[l+2]<=' ' then
+                                    data = data[1..l-1]
+                                    exit --j
+                                end if
+                            end if
+                        end for
+                        exit --j
+                    end if
+                end for
+                exit
+            end if
+        end for
+        if xpmErrFlag=XPM_OK then
+
+            -- convert to an {r,g,b} code
+            if data[1] = '#' then
+                if length(data)=7 then
+                    -- hex tuple: #rrggbb
+                    rr = hex2(data[2],data[3])
+                    gg = hex2(data[4],data[5])
+                    bb = hex2(data[6],data[7])
+                elsif length(data)>12 then
+                    -- hex tuple: #rr??gg??bb??
+                    rr = hex2(data[2],data[3])
+                    gg = hex2(data[6],data[7])
+                    bb = hex2(data[10],data[11])
+                else
+                    N = 0
+                    for h=2 to length(data) do
+                        ch = data[h]
+                        if ch>=0 and ch<='9' then
+                            N = N*16+ch='0'
+                        elsif ch>='A' and ch<='F' then
+                            N = N*16+ch-'A'+10
+                        elsif ch>='a' and ch<='f' then
+                            N = N*16+ch-'a'+10
+                        else
+                            xpmErrFlag = XPM_ERR_COLOR
+                            exit
+                        end if
+                    end for
+                    rr = and_bits(N,#FF)
+                    N = floor(N/#100)
+                    gg = and_bits(N,#FF)
+                    N = floor(N/#100)
+                    bb = and_bits(N,#FF)
+                end if
+                if xpmErrFlag=XPM_OK then
+                    if bpp=24 then
+                        pal[i] = {bb,gg,rr}
+                    else
+--                      poke4(mbPtr,(rr*#100+gg)*#100+bb)
+                        poke(mbPtr,{bb,gg,rr,0})
+                    end if
+                end if
+
+            elsif equal(data, "none") then
+                if bpp=24 then
+--DEV this -1 should not help, but it does....
+-- actually, here (16-bit colour) -1 thru -8 seem to help,
+--                -0 too light, -9 too dark;
+--          but on 24-bit colour, +1 and -1 are wrong.
+                    pal[i] = transTuple
+                else
+--                  poke4(mbPtr, transColor)
+                    poke(mbPtr, transQuad)
+                end if
+
+            else
+                for s=length(data) to 1 by -1 do
+                    if find(data[s]," _") then
+                        data = data[1..s-1]&data[s+1..length(data)]
+                    end if
+                end for
+                nn = match("gray",data)
+                if nn then data[nn+2]='e' end if    -- 'gray' -> 'grey'
+                if length(ColourNames)=0 then
+                    setColourNames()
+                end if
+                nn = find(data,ColourNames)
+                if nn then
+                    if bpp=24 then
+                        pal[i] = ColourTuples[nn]
+                    else
+                        poke4(mbPtr,0)
+                        poke(mbPtr,ColourTuples[nn])
+--                      poke(mbPtr,ColourQuads[nn])
+                    end if
+                else
+                    xpmErrFlag = XPM_ERR_COLOR
+                end if
+            end if
+        end if
+        if xpmErrFlag then
+            free(memBitmapInfo)
+            xpmErrMsg = sprintf("Unable to decode line %d: %s",{lineNo,data})
+            if integer(xpm) then close(xpm) end if
+            return NULL
+        end if
+        mbPtr+=4
+
+    end for
+
+    if sequence(xpm) then
+        xpm = xpm[colours+1..length(xpm)]   -- discard colour table
+        if length(xpm)!=height then
+            free(memBitmapInfo)
+            xpmErrFlag = XPM_ERR_LENGTH
+            xpmErrMsg = sprintf("Height error, (%d!=%d)",{length(xpm),height})
+            return NULL
+        end if
+    end if
+
+    mbPtr = memBitmapInfo+headerSize
+
+    -- convert the text into indexes
+    for i = 1 to height do
+
+        -- get a line
+        if sequence(xpm) then
+            data = xpm[i]
+            lineNo += 1
+        else
+            data = xpm_gets(xpm)
+            if xpmErrFlag then return NULL end if
+        end if
+
+--      if length(data)!=length(pi)*codeWide then   !!!
+        if length(data)!=width*codeWide then
+            free(memBitmapInfo)
+            xpmErrFlag = XPM_ERR_LENGTH
+            xpmErrMsg = sprintf("Width error on line %d: %s",{lineNo,data})
+            if integer(xpm) then close(xpm) end if
+            return NULL
+        end if
+
+        -- convert XPM chars (or pairs/sets of chars if charsWide>1)
+        -- into palette indexes, eg 'X' --> 7, if X was the 7th colour
+        -- listed in the colours section:
+        
+        if codeWide=1 then
+            -- use the faster method when possible
+            for j = 1 to length(data) do
+                pi[j] = find(data[j], cc) - 1
+            end for
+        else
+            pidx = 1
+            for j = 1 to length(data) by codeWide do
+                pi[pidx] = find(data[j..j+codeWide-1], cc) - 1
+                pidx+=1
+            end for
+        end if
+        --
+        -- Now convert this array of colour indexes into a packed scanline:
+        --
+        if bpp = 24 then
+            -- 3 byte triplet; blue, green, red (per pixel)
+            oidx = 1
+            for j = 1 to bytes/3 do
+                packed[oidx..oidx+2] = pal[pi[j]+1]
+                oidx+=3
+            end for
+
+        elsif bpp = 8 then -- 1:1
+            -- Note: the [shorter] poke should be OK, any garbage left over ignored.
+            --       However I have left this code here in case it is needed.
+--          if length(packed)=bytes then    -- if poke() will be OK
+            packed = pi
+--          else
+--              -- Copy byte-by-byte to preserve length(packed) [just in case].
+--              for j=1 to bytes do
+--                  packed[j]=pi[j]
+--              end for
+--              -- assume remainder of packed still 0
+--          end if
+
+        elsif bpp = 4 then -- 4:1
+
+            -- 4 bits per; 2 numbers per byte
+            oidx = 1
+            for j = 1 to bytes*2 by 2 do
+                packed[oidx] = (pi[j]   * 16) +
+                               (pi[j+1] * 1)
+                oidx+=1
+            end for
+
+        elsif bpp = 1 then -- 8:1
+
+            -- 1 bits per; 8 numbers per byte
+            oidx = 1
+            for j = 1 to bytes*8 by 8 do
+                packed[oidx] = (pi[j]   * 128) +
+                               (pi[j+1] * 64) +
+                               (pi[j+2] * 32) +
+                               (pi[j+3] * 16) +
+                               (pi[j+4] * 8) +
+                               (pi[j+5] * 4) +
+                               (pi[j+6] * 2) +
+                               (pi[j+7] * 1)
+                oidx+=1
+            end for
+        end if
+
+        poke(mbPtr, packed)
+        mbPtr+=pwidth
+    end for
+    if atom(xpm) then close(xpm) end if     --DEV should be callee's job...
+
+    hdc = c_func(xGetDC,{0})        -- Get the screen's device context.
+
+    -- Create the DIB.
+    hDIB = c_func(xCreateDIBitmap, {hdc,                                    -- create DDB for/compatible with this
+                                    memBitmapInfo+BITMAPINFO_bmiHeader,     -- info about the DIB to create, eg h*w
+                                    CBM_INIT,                               -- int it please with...
+                                    memBitmapInfo+headerSize,               --      this bitmap,
+                                    memBitmapInfo,                          --      which has this structure
+                                    DIB_RGB_COLORS})                        --      and has explicit RGB values
+
+    if hDIB=NULL then
+        xpmErrFlag = c_func(xGetLastError,{})
+        xpmErrMsg = sprintf("CreateDIBitmap failure %d",{xpmErrFlag})
+    end if
+
+    if c_func(xReleaseDC, {0, hdc}) then end if   -- release the screen dc
+
+    free(memBitmapInfo)
+
+    return hDIB
+end function
+
+global function getLastDIBw()
+-- return width of DIB just created via createDIBfromXPM().
+    return width
+end function
+
+global function getLastDIBh()
+-- return height of DIB just created via createDIBfromXPM().
+    return height
+end function
+
+--DEV rename this, use full set of GWL_xx vars?
+global procedure toggleWindowTitle(integer id)
+atom hWnd, style, prev
+    hWnd = getHwnd(id)
+    style = c_func(xGetWindowLong,{hWnd, GWL_STYLE })
+    style = xor_bits(style,WS_BORDER)
+    prev = c_func(xSetWindowLong,{hWnd,GWL_STYLE,style})
+    if c_func(xSetWindowPos,{hWnd,0,0,0,0,0,SWP_UPDATECACHE}) then end if
+--  if not and_bits(style,WS_BORDER) then
+--      void = c_func(xSetClassLong, {hWnd, GCL_HICON, NULL})
+--  end if
+
+end procedure
+
+global procedure showWindow(integer id, atom mode)
+    c_proc(xShowWindow,{getHwnd(id),mode})
+end procedure
+
+
+global procedure DeleteFile(sequence filename)
+    if c_func(xDeleteFile,{allocate_StringZ(filename)}) then end if
+end procedure
+
+-- Ported from Thomas Parslow (PatRat) example, who said:
+--Yes, I am aware that it's called the Taskbar Notification Area but I've 
+--always called it the System Tray and I'm not gonna stop now so there! ;)
+
+integer WinID
+atom hWnd
+object Icon
+atom hIcon
+sequence Tip
+integer Visible
+
+atom NID 
+     NID = -1
+constant sizeNID = sizeofstruct(NOTIFYICONDATA)
+
+procedure set_NOTIFYICONDATA(atom flags, atom callbackmessage)
+    
+    if NID=-1 then
+        NID = allocate(sizeNID)
+    end if
+    mem_set(NID,0,sizeNID)
+    poke4(NID+NOTIFYICONDATA_cbSize,sizeNID)
+    poke4(NID+NOTIFYICONDATA_hWnd,hWnd)
+    poke4(NID+NOTIFYICONDATA_uID,WinID)
+    poke4(NID+NOTIFYICONDATA_uFlags,flags)
+    poke4(NID+NOTIFYICONDATA_uCallbackMessage,callbackmessage)
+    poke4(NID+NOTIFYICONDATA_hIcon,hIcon)
+    poke(NID+NOTIFYICONDATA_szTip,Tip)
+end procedure
+
+global constant systray_CREATE = #01,
+                systray_SETICON = #02,
+                systray_SETTIP = #04,
+                systray_SHOW = #08,
+                systray_HIDE = #10
+
+global procedure systray(integer cmd, atom winid, object icon, object tip)
+integer bRes -- (zero indicates failure)
+    if and_bits(cmd,systray_CREATE) then
+        WinID = winid
+        hWnd = getHwnd(winid)
+        Icon = 0
+        hIcon = -1
+        Tip = ""
+        Visible = False
+    end if
+    if and_bits(cmd,systray_SETICON) then
+        if not equal(Icon,icon) then
+            Icon = icon
+            if sequence(icon) then
+                hIcon = c_func(xExtractIcon,{0,allocate_StringZ(icon),0})
+            else
+                hIcon = icon
+            end if
+        end if
+    end if
+    if and_bits(cmd,systray_SETTIP) then
+        if length(tip) > 63 then
+            tip = tip[1..63]
+        end if      
+        Tip = tip
+    end if
+    if and_bits(cmd,systray_SHOW) then
+        if not Visible then     
+            set_NOTIFYICONDATA(or_all({NIF_MESSAGE,NIF_ICON,NIF_TIP}),SM_SYSTRAY)
+            bRes = c_func(xShell_NotifyIcon,{NIM_ADD,NID})
+            if bRes=0 then
+                puts(1,"NIM_ADD failure\n")
+            end if
+            Visible = True
+        end if
+    end if
+    if and_bits(cmd,systray_HIDE) then
+        if Visible then
+            set_NOTIFYICONDATA(or_all({NIF_ICON,NIF_TIP}),0)
+            bRes = c_func(xShell_NotifyIcon,{NIM_DELETE,NID})
+            if bRes=0 then
+                puts(1,"NIM_DELETE failure\n")
+            end if
+            Visible = False
+        end if
+    end if
+end procedure
+
+--DEV I half-ported this; needs getCtrlSize equiv to get width,height.
+-- (and a test program..)
+
+----create a 16 color icon from a bitmap, mask color is {255,0,255}
+----NOTE: This function can only create 16 color icons, bitmaps can be supplied with more but they will be converted
+--global function systray_Bitmap2Icon(atom src) --src must be a bitmap
+--atom maskDC, srcDC, hMaskBmp, hMaskPrevBmp, Success, OrigColor
+--sequence size
+--atom II
+--atom ret
+--integer width, height
+--  
+--  size = ??getCtlSize( src )
+--  width = ??
+--  height = ??
+--  
+--  srcDC = getDC(src)
+--  maskDC = c_func(xCreateCompatibleDC, {srcDC})
+--  -- Create monochrome bitmaps for the mask-related bitmaps:
+--  hMaskBmp = c_func(xCreateBitmap, {width, height, 1, 1, 0})
+--  
+--  hMaskPrevBmp = c_func(xSelectObject, {maskDC, hMaskBmp})
+--
+--  -- Create mask: set background color of source to transparent color.
+--  OrigColor = c_func(xSetBkColor, {srcDC, rgb(255,0,255)})
+--  Success = c_func(xBitBlt, {maskDC, 0, 0, width, height, srcDC, 0, 0, SRCCOPY})
+--      
+--  -- restore the original color
+--  Success = c_func(xSetBkColor, {srcDC, OrigColor})
+--  
+--  Success = c_func(xSelectObject, {maskDC, hMaskPrevBmp})
+--  Success = c_func(xDeleteDC, {maskDC})
+--  
+--  releaseDC(src,srcDC)
+--
+--  II = allocate(sizeofstruct(ICONINFO))
+--  poke4(II+NOTIFYICONDATA_fIcon,1)
+--  poke4(II+NOTIFYICONDATA_xHotspot,0)
+--  poke4(II+NOTIFYICONDATA_yHotspot,0)
+--  poke4(II+NOTIFYICONDATA_hbmMask,hMaskBmp)
+--  poke4(II+NOTIFYICONDATA_hbmColor,src)
+--
+--  ret = c_func(xCreateIconIndirect,{II})
+--  free(II)
+--  Success = c_func(xDeleteObject, {hMaskBmp})
+--  return ret
+--end function
+
+-- added PL 24/06/2014 (until end comment)
+global function getTextExtent(integer id, sequence text)
+atom point
+atom lHDC
+    point = allocate_Point()
+    lHDC = getDC(id)
+    if not c_func(xGetTextExtentPoint32, {lHDC,allocate_StringZ(text),length(text),point}) then ?9/0 end if
+    releaseDC(id,lHDC)
+    return peek4s({point,2})
+end function
+
+global constant
+    NULL_BRUSH = 5,
+--  BLACK_PEN = 7,
+    NullBrushID     = c_func(xGetStockObject, {NULL_BRUSH}),
+--  DefaultPenID    = c_func(xGetStockObject, {BLACK_PEN}),
+    PenColor        = 1,
+    PenStyle        = 2,
+    PenROP2         = 3,
+--  PenBkMode       = 4,
+    PenWidth        = 5,
+--  PenBkColor      = 6,
+    PenBrushColor   = 7,        -- if {} use PenColor else it is {color}
+
+-- Binary raster ops
+--  R2_BLACK = 1,           -- Pixel is always 0.
+--  R2_NOTMERGEPEN = 2,     -- Pixel is the inverse of the R2_MERGEPEN color.
+--  R2_MASKNOTPEN = 3,      -- combination common screen and inverse of pen.
+--  R2_NOTCOPYPEN = 4,      -- Pixel is the inverse of the pen color.
+--  R2_MASKPENNOT = 5,      -- combination common to pen and inverse of screen.
+--  R2_NOT = 6,             -- Pixel is the inverse of the screen color.
+--  R2_XORPEN = 7,          -- Pixel is the inverse of the R2_XORPEN color.
+--  R2_NOTMASKPEN = 8,      -- Pixel is the inverse of the R2_MASKPEN color.
+--  R2_MASKPEN = 9,         -- combination common to pen and the screen.
+--  R2_NOTXORPEN = 10,      -- combination of colors in pen and screen, but not in both.
+--  R2_NOP = 11,            -- Pixel remains unchanged.
+--  R2_MERGENOTPEN = 12,    -- combination of screen and inverse of pen.
+    R2_COPYPEN = 13,        -- Pixel is the pen color.
+--  R2_MERGEPENNOT = 14,    -- combination of pen color and inverse of screen color.
+--  R2_MERGEPEN = 15,       -- combination of pen color and the screen color.
+--  R2_WHITE = 16,          -- Pixel is always 1.
+--  R2_LAST = 16,
+
+--  Pen Styles
+    Solid        = 0,
+--  Dash         = 1,                   --  -------
+--  Dot          = 2,                   --  .......
+--  DashDot      = 3,                   --  _._._._
+--  DashDotDot   = 4                    --  _.._.._
+$
+
+sequence
+    PenDefaults     = {Black, Solid, R2_COPYPEN, TRANSPARENT, 1, COLOR_BTNFACE, {}}
+
+global procedure setPenColor(integer nColor)
+    PenDefaults[PenColor] = nColor
+end procedure
+
+--global procedure setPenStyle(integer nStyle)
+--  PenDefaults[PenStyle] = nStyle
+--end procedure
+
+--global procedure setPenROP(integer nROP)
+--  PenDefaults[PenROP2] = nROP
+--end procedure
+
+--global procedure setPenBkMode(integer nBkMode)
+--  PenDefaults[PenBkMode] = nBkMode
+--end procedure
+
+--global procedure setPenWidth(integer nWidth)
+--  PenDefaults[PenWidth] = nWidth
+--end procedure
+
+--global procedure setPenBkColor(integer nBkColor)
+--  PenDefaults[PenBkColor] = nBkColor
+--end procedure
+
+global procedure setPenBrushColor(integer nBrushColor)
+    PenDefaults[PenBrushColor] = {nBrushColor}
+end procedure
+
+constant    xSetROP2 = link_c_func(gdi32, "SetROP2", {C_POINTER, C_LONG}, C_LONG)
+
+--procedure createPen(integer id, atom hdc)
+procedure createPen(atom hdc, atom colour)
+atom rop2, hPen
+--  if id then end if
+    hPen = c_func(xCreatePen, {PenDefaults[PenStyle],PenDefaults[PenWidth],colour})
+--?hPen
+    hPen = c_func(xSelectObject,{hdc, hPen})
+    void = c_func(xDeleteObject,{hPen})
+--?void
+    rop2 = PenDefaults[PenROP2]
+    if rop2 then
+        void = c_func(xSetROP2, {hdc, rop2})
+    end if
+end procedure
+
+--procedure createBrush(integer id, integer filled, atom hdc)
+procedure createBrush(integer filled, atom hdc)
+atom hBrush, lColor
+--  if id then end if
+    if filled!=0 then
+        if length(PenDefaults[PenBrushColor])=0 then
+            lColor = PenDefaults[PenColor]
+        else
+            lColor = PenDefaults[PenBrushColor][1]
+        end if
+        hBrush = c_func(xCreateSolidBrush, {lColor})
+    else
+        hBrush = NullBrushID
+    end if
+    hBrush = c_func(xSelectObject,{hdc, hBrush})
+    void = c_func(xDeleteObject,{hBrush})
+end procedure
+
+constant xRectangle = link_c_func(gdi32,"Rectangle",{C_POINTER,C_INT,C_INT,C_INT,C_INT},C_LONG)
+
+global procedure drawRectangleh(atom hdc, integer filled, integer xLeft, integer yTop, atom xRight, atom yBottom)
+--integer id = 0
+--  createPen(id, hdc)
+    createPen(hdc,PenDefaults[PenColor])
+--  createBrush(id, filled, hdc)
+    createBrush(filled, hdc)
+--  void = c_func(xSelectObject,{hdc,hBitmap})
+    void = c_func(xRectangle, {hdc, xLeft, yTop, xRight, yBottom})
+--?{void,xLeft, yTop, xRight, yBottom}
+end procedure
+
+global procedure drawRectangle(integer id, integer filled, integer xLeft, integer yTop, integer xRight, integer yBottom)
+--global procedure drawRectangle(atom hdc, integer filled, integer xLeft, integer yTop, integer xRight, integer yBottom)
+atom hdc
+
+    hdc = getDC(id)
+--hdc = getPrivateDC(id)
+--  drawRectangleh(hdc, filled, xLeft, yTop, xRight, yBottom)
+--integer id = 0
+--  createPen(id, hdc)
+    createPen(hdc,PenDefaults[PenColor])
+--  createBrush(id, filled, hdc)
+    createBrush(filled, hdc)
+--  void = c_func(xSelectObject,{hdc,hBitmap})
+    void = c_func(xRectangle, {hdc, xLeft, yTop, xRight, yBottom})
+--?{void,xLeft, yTop, xRight, yBottom}
+    releaseDC(id,hdc)
+end procedure
+
+global procedure drawLineX(integer id, atom startX, atom startY, atom endX, atom endY)
+atom hdc
+    hdc = getDC(id)
+    createPen(hdc,PenDefaults[PenColor])
+    void = c_func(xMoveToEx, {hdc, startX, startY, NULL})
+    void = c_func(xLineTo, {hdc, endX, endY})
+    releaseDC(id,hdc)
+end procedure
+
+global procedure drawLinesh(atom hdc, sequence coords)
+--
+-- Draws zero or more lines.
+--  The lines are drawn between the sets of coordinates in coords.
+--  This sequence can contain Colors, Points, Lines, or Rects:
+--      A Color is a single atom that is a 24-bit color value. Subsequent lines use this color.
+--      A Point is a 2-element sequence {X,Y} that gives the X,Y position of the end-point
+--          of a line. The line is drawn to this position from the last end-point supplied,
+--          or if this is the first Point specified, the current pen position for the control. [DEV 0,0?]
+--      A Line is a 4-element sequence {X1,Y1,X2,Y2} that specifies the X,Y position of a line's
+--          starting point and the X,Y position of its end point. The line is drawn from X1,Y1
+--          to X2,Y2.
+--      A Rect is a 5-element sequence {Fill, X1,Y1,X2,Y2} that specifies a rectangle.
+--          The first element is w32True for a filled rectangle and w32False for an outline only. 
+--          The X1,Y1 is the X,Y position of the top-left corner and X2,Y2 is the X,Y position of 
+--          the bottom-right corner.
+--
+-- If no color parameters are supplied, the current pen color for the control is used.
+--
+-- Example: [DEV]
+--
+--      -- draw a shape in TheWindow
+--      drawLinesh(hDC, {White,{40,0,0,80},{80,80},{40,0},
+--                       Blue,{40,5,0,85},{80,85},{40,5}})
+--
+integer colour = PenDefaults[PenColor]
+integer filled
+atom x1, y1, x2, y2
+object ci
+
+-- PL 29/4/09
+--  object hdc, result
+--  object hdc
+
+    -- Initialize them to improbable values.
+--  x2 = -987654321
+--  y2 = -987654321
+
+    -- get the device context
+--  hdc = getDC(id)
+
+    -- create a pen
+    if length(coords) > 0 and not atom(coords[1]) then
+        -- Make sure we have a pen to start with.
+        createPen(hdc, colour)
+    end if
+
+--  x1 = getControlInfo(id,CONTROLINFO_x)
+--  y1 = getControlInfo(id,CONTROLINFO_y)
+
+    for i = 1 to length(coords) do
+        ci = coords[i]
+        if atom(ci) then
+--          call_proc(r_setPenColor,{id, ci})
+            colour = ci
+--?:
+            PenDefaults[PenColor] = colour
+            createPen(hdc, colour)
+
+        elsif length(ci) = 5 then
+            {filled,x1,y1,x2,y2} = ci
+--          setPenBrushColor(integer nBrushColor)
+            createBrush(filled, hdc)
+--          createBrush(id, ci[1], hdc)
+--          x1 = ci[2]
+--          y1 = ci[3]
+--          x2 = ci[4]
+--          y2 = ci[5]
+            void = c_func(xRectangle, {hdc, x1, y1, x2, y2})
+
+        elsif length(ci) = 4 then
+            {x1,y1,x2,y2} = ci
+--          x1 = ci[1]
+--          y1 = ci[2]
+--          x2 = ci[3]
+--          y2 = ci[4]
+            void = c_func(xMoveToEx, {hdc, x1, y1, NULL})
+            void = c_func(xLineTo, {hdc, x2, y2})
+
+        elsif length(ci) = 2 then
+            {x2,y2} = ci
+--          if x2 != -987654321 or y2 != -987654321 then
+--              x1 = x2
+--              y1 = y2
+--          end if
+--          x2 = ci[1]
+--          y2 = ci[2]
+
+--          -- move to the first point
+--          VOID = c_func(xMoveToEx, {hdc, x1, y1, NULL})
+
+            -- draw the line
+            void = c_func(xLineTo, {hdc, x2, y2})
+        end if
+    end for
+
+    -- release the device context
+--  releaseDC(id)
+
+end procedure
+
+global procedure drawPolygonX(integer id, sequence points)
+atom hdc
+atom pPoints = allocate(length(points)*4)
+    hdc = getDC(id)
+    createPen(hdc,PenDefaults[PenColor])
+    createBrush(True, hdc)
+    poke4(pPoints,points)
+    void = c_func(xPolygon, {hdc, pPoints, length(points)/2})
+    releaseDC(id,hdc)
+    free(pPoints)
+end procedure
+
+global procedure drawPolygonh(atom hdc, sequence points)
+atom pPoints
+    for i=length(points) to 1 by -1 do
+        if sequence(points[i]) then
+            points[i..i] = points[i]
+        end if
+    end for
+    pPoints = allocate(length(points)*4)
+    createPen(hdc,PenDefaults[PenColor])
+    createBrush(True, hdc)
+    poke4(pPoints,points)
+    void = c_func(xPolygon, {hdc, pPoints, length(points)/2})
+    free(pPoints)
+end procedure
+
+global procedure drawEllipseh(atom hdc, integer left, integer top, integer right, integer bottom)
+    createPen(hdc,PenDefaults[PenColor])
+    createBrush(True, hdc)
+    void = c_func(xEllipse,{hdc,left,top,right,bottom})
+end procedure
+
+global procedure setTextColor(object id, integer nColor)
+atom hdc
+
+    if sequence(id) then
+        for i=1 to length(id) do
+            setTextColor(id[i],nColor)
+        end for
+    else
+        hdc = getDC(id)
+        void = c_func(xSetTextColor,{hdc,nColor})
+        releaseDC(id,hdc)
+    end if
+end procedure
+
+global procedure wPuts2(atom hdc, integer xpos, integer ypos, object s)
+-- Display text at {xpos,ypos} on specified window.
+-- s may be a simple text string, an atom (automatically formatted using %g),
+-- or a pair of {format_string,params}, eg:
+--  wPuts(main,10,10,"Test")
+--  wPuts(main,10,50,3.5)
+--  wPuts(main,10,90,{"%d of %d",{5,10}})
+--atom hdc
+
+    -- Check for formatting
+    if atom(s) then
+        s = sprintf("%g", s)
+    elsif length(s)=2 and sequence(s[1]) then
+        s = sprintf(s[1], s[2])
+    end if
+
+--  hdc = getDC(id)
+--  hdc = getPrivateDC(id)  --NB this will only work for windows
+    void = c_func(xSetBkMode , {hdc, TRANSPARENT})
+
+    -- display the text in the buffer
+    c_proc(xTextOut,{hdc,xpos,ypos,allocate_StringZ(s),length(s)})
+
+    -- release the device context
+--  releaseDC( id , hdc )
+
+end procedure
+-- PL 24/06/2014 (end of additions)
+

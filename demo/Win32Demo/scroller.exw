@@ -1,0 +1,131 @@
+-- scroller.exw
+-- ============
+--  As posted to EuForum by Derek Parnell.
+--  See arwendemo\scroller for an updated and improved version, this is only
+--  here for comparison purposes and as a guideline for future porting.
+--
+without warning
+include Win32Lib.ew
+
+integer vxScreen
+integer vyScreen 
+integer fromX
+integer fromY
+integer vxMainWin
+integer vyMainWin
+integer MainWin
+integer VirtScrn 
+        
+-------------------------------
+procedure InitVirtualScreen()
+-------------------------------
+
+    -- Clear the pixmap to all white                         
+    setPenColor(VirtScrn, BrightWhite)
+    drawRectangle(VirtScrn, w32True, 0, 0, vxScreen, vyScreen)
+    
+    -- Draw a black rectangle in the pixmap
+    setPenColor(VirtScrn, Black)
+    drawRectangle(VirtScrn, w32False, 10, 10, 600, 415)
+         
+    -- Draw a red rectangle in the pixmap
+    setPenColor(VirtScrn, BrightRed)
+    drawRectangle(VirtScrn, w32False, 320, 240, vxScreen-75, vyScreen-75)
+                         
+    -- Draw a green rectangle in the pixmap
+    setPenColor(VirtScrn, Green)
+    drawRectangle(VirtScrn, w32False, 5, 5, vxScreen-5, vyScreen-5)
+                            
+end procedure
+
+-------------------------------
+procedure onPaint_MainWin(integer self, integer event, sequence parms)
+-------------------------------
+             
+   -- Copy the pixmap to the window.
+    bitBlt(MainWin, 0, 0,           -- Dest
+           VirtScrn, fromX, fromY,  -- Source 
+           vxMainWin, vyMainWin,    -- width, height
+           SRCCOPY)                 -- style
+    
+end procedure
+   
+-------------------------------
+procedure onResize_MainWin(integer self, integer event, sequence parms)
+-------------------------------
+    -- Get the new size of the window
+    vxMainWin = parms[2]
+    vyMainWin = parms[3]                     
+    
+    -- Shift viewport if new area is exposed.
+    if fromX + vxMainWin > vxScreen then
+        fromX = vxScreen - vxMainWin
+    end if
+    if fromY + vyMainWin > vyScreen then
+        fromY = vyScreen - vyMainWin
+    end if
+
+    -- Adjust scrollbars    
+    setScrollRange ( {MainWin, SB_HORZ}, 1, (vxScreen - vxMainWin))
+    setScrollRange ( {MainWin, SB_VERT}, 1, (vyScreen - vyMainWin))
+
+end procedure
+
+-------------------------------
+procedure onScroll_MainWin(integer self, integer event, sequence parms)
+-------------------------------
+    integer pos            
+    
+    pos = parms[1] - 1
+    if parms[3] = SB_HORZ then
+        if pos + vxMainWin < vxScreen then
+            fromX = pos
+        else
+            fromX = vxScreen - vxMainWin
+        end if
+    elsif parms[3] = SB_VERT then
+        if pos + vyMainWin < vyScreen then
+            fromY = pos
+        else
+            fromY = vyScreen - vyMainWin
+        end if
+    end if
+                            
+    -- Only bother redrawing if still scrolling.
+    if parms[2] != SB_ENDSCROLL then
+        onPaint_MainWin(self, w32HPaint, {})
+    end if
+
+end procedure
+
+with trace
+-------------------------------
+procedure RunApp()
+-------------------------------
+    
+    vxScreen = 1280
+    vyScreen = 960
+    fromX = 0
+    fromY = 0
+    vxMainWin = 640
+    vyMainWin = 480
+
+    MainWin = createEx( Window, "Virtual Window Demo", NULL, 25, 25, 
+                        vxMainWin, vyMainWin, WS_SCROLLBARS, 0)
+    VirtScrn = createEx( Pixmap, "", 0, 0, 0, vxScreen, vyScreen, 0, 0)
+
+    InitVirtualScreen()
+        
+    setHandler(MainWin, w32HPaint,  routine_id("onPaint_MainWin"))
+    setHandler(MainWin, w32HResize, routine_id("onResize_MainWin"))
+    setHandler(MainWin, w32HScroll, routine_id("onScroll_MainWin"))
+
+    WinMain(MainWin, Normal) 
+end procedure
+
+
+-------------------------------
+-------------------------------
+-------------------------------
+
+RunApp()

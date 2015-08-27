@@ -1,0 +1,152 @@
+--
+-- builtins\VM\_readme.txt
+-- =======================
+--
+-- The files in builtins\VM are the "virtual machine" aka "back end" of Phix.
+-- They are also sometimes collectively referred to as "the runtime".
+--
+-- They are compiled into p[w].exe and when interpreting those versions are used 
+-- instead of rebuilding a second copy of everything in memory. While this has a
+-- beneficial impact on performance (in practice around 0.2s per run), it is the
+-- opTrace and opLnt routines that mandate this approach, with a similar argument
+-- for opProfile/opLnp/opLnpt. The reason is they need direct access to pglobals/
+-- allfiles etc, or at least more so than anything else.
+--
+-- It may help to imagine that the VM directly implements the "edit\test" cycle;
+-- most of the files in builtins\VM require "p -cp" before any changes will come
+-- into effect, or at least "p -c test"/run instead of just "p test". In fact,
+-- even an explicit "include builtins\VM\xxx" statement may be quietly ignored,
+-- and continue to use the old pre-compiled version of things: you should not be
+-- surprised at any such kinds of non-standard behaviour (after reading this).
+--
+-- One special case worth mentioning is making a local/project-specific copy of 
+-- the builtins\VM directory. Historically it has been acceptable to have say a
+-- copy of builtins\file.e as a means of trying to ensure that the application 
+-- will work on future releases of the compiler. However applying that practice
+-- to builtins\VM may cause all manner of problems not just in the next release
+-- but the current one as well, where "all manner" may include "quite subtle".
+-- Rather, you should avoid relying on implementation details, or, if you must,
+-- make and consistently use a fully-renamed copy of selected files, or bundle
+-- the complete runtime (pw.exe and builtins\ etc) with each release.
+--
+-- WARNING: Do not edit any files in this directory without first making a 
+--          backup you can restore. After editing any files, make sure you 
+--          can successfully run:
+--              p p -test       [**]
+--              p p -c -test    [*]
+--              p -cp
+--              p -test
+--              p -c -test      [*]
+--              p test\terror  (and run all/F6)
+--              p pgui         (and a selection of the demos)
+--              p edita
+--          If any of those fail, you must either fix the problem or restore
+--          the modified files. The main executables p.exe and pw.exe gain
+--          extra protection from a four-round-compile/compare/overwrite
+--          scheme which makes it unlikely to damage them beyond recovery,
+--          but when backing up things you may as well include them too.
+--          [**] This may be a "non-test"; the VM is encoded as an optable
+--          (see optable.e/pemit2.e/filedump.exw) of entry points and even 
+--          an explicit "include builtins\VM\pHeap.e" may be completely 
+--          ignored when interpreting, so you may only see errors on the 
+--          next (-c) stage, but it is only a couple of seconds anyway.
+--          [*] My AV (Avast) often generates false positives at this stage,
+--          obviously if that wouldn't run before your mods, you'll have to
+--          omit that test. Oddly, I never had a single FP from test\terror,
+--          but I suspect other AV might well trigger. Submitting an FP to 
+--          your AV supplier may or may not improve matters, but NOT doing 
+--          so pretty much guarantees that things will NEVER get fixed.
+--
+--          In some cases you may need to make "small steps", eg leave opFor
+--          alone and add a new opFor2, test what you can, add a flag to 
+--          toggle between opFor/opFor2, once opFor is no longer used make
+--          it identical to the new opFor2, and lastly untoggle and delete
+--          opFor2. All very tedious but sometimes quite necessary.
+--
+--          Obviously, if you have made any saving (preferrably one that is
+--          actually measurable) or made something clearer/easier to follow,
+--          and all the above pass with no obvious detriment, then please
+--          ship me a copy of any modified source and I'll merge it. Or just
+--          point me at a sourceforge/github/whatever place I can download:
+--          I will only go that route once/if I start getting overwhelmed...
+--
+--  While editing any of the VM sources, the edit/run cycle should be replaced
+--  with an edit/compile/run cycle. For interpretation to work properly, the 
+--  VM compiled into the heart of p.exe has to match the VM sources! It does
+--  not matter whether you compile the test or rebuild the interpreter, but
+--  doing neither is unlikely to work. On a similar note, manually including
+--  parts of the VM may have unintended consequences. For example pDiag/Debug
+--  may effectively cripple the copies pre-compiled into p.exe, especially if
+--  there is some low-level skullduggery going on or conflicting global label
+--  names (such as #ilASM{ :%opTrace }) exist.
+--
+--  Bugs in builtins\VM files may not get properly reported when interpreted:
+--  there is no symtab entry, no linetab, etc. However things should be fine 
+--  when compiled. Specifically, if p.exe/pHeap errors -> fine, whereas when
+--  p.exe test.exw/pHeap errors -> expect problems that may need "p -c test"
+--  to produce a meaningful error report.
+--  
+--
+-- Porting
+-- =======
+--  The p -test set is designed to catch errors when attempting fundamental 
+--  changes, examples of which are the new thread safe call stack, and the 
+--  64-bit support. Hence they are ideal for porting to a new architecture 
+--  (eg ARM) though obviously you would probably have to run them one-by-one 
+--  by hand at the start. The first major task would be to make filedump.exw 
+--  work on some test files, anything fro a real system that you know works.
+--  Next, hack pemit2.e to create a test binary using a hand-crafted snippet 
+--  of machine code. Then extend the format directive and get "p -d(!)" to 
+--  create some reasonable-looking list.asm files. After that, a long slog.
+--  Actually, before all that, take a look at pHeap.e and decide whether there 
+--  is any chance whatsoever that you could convert (/add eg [ARM] to) that, 
+--  and of course make pilasm.e cope with a whole new instruction set. 
+--  Naturally, setting up say VirtualBox and testing cross-compilation on a 
+--  working OS may help get round the chicken-and-egg situation, but that is 
+--  beyond the scope of this document.
+--
+--
+-- Memory Addresses
+-- ================
+--  Since all memory allocations are dword-aligned (end in 0b00) we can store
+--  them /4 in a 31-bit integer and avoid fiddly conversion back from a float 
+--  to a 32-bit value. To remind you, a Phix ref is stored as /4 + #40000000, 
+--  basically the same principle but with a high order bit set. Occasionally 
+--  this incurs a fairly minor overhead, but certainly makes life easier, eg
+--
+--      integer addr4
+--      #ilASM{ ...
+--              shr eax,2
+--              mov [addr4],eax
+--              ...
+--              mov eax,[addr4]
+--              mov edx,[ebx+eax*4+N]   -- (try to avoid AGI stalls like this)
+--              ...}
+--
+--  instead of the atom-handling equivalents:
+--
+--      atom addr
+--      #ilASM{ ...
+--              push ebx -- (=0)
+--              push eax
+--              fild qword[esp]
+--              add esp,8
+--              lea edi,[addr]
+--              call %:pStoreFlt
+--              ...
+--              mov eax,[addr]  --DEV :%pLoadMint
+--              cmp eax,h4
+--              jl @f
+--                  sub esp,8
+--                  fld qword[ebx+eax*4]    -- (tbyte on 64 bit)
+--                  fistp qword[esp]
+--                  pop eax
+--                  add esp,4
+--            @@:
+--              mov edx,[eax+N]       -- (partially solved AGI stall, but...)
+--              ... }
+--
+--  Obviously similar handling can (and should) be used on 64-bit, where this
+--  trick is still /4, despite many other "4"s being translated to "8"s.
+--
+

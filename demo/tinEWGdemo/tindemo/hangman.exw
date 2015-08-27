@@ -1,0 +1,421 @@
+--
+-- hangman.exw
+-- ===========
+--
+-- This is code from Irv Mullins posted on the OpenEuphoria Forum
+-- I just changed the code so it works with tinEWG instead of EuGTK
+-- See his homepage for the original code https://sites.google.com/site/euphoriagtk/Home
+--
+-- 2012 Andreas Wagner andi@indonesianet.de
+
+-- ported to Phix by Pete Lomax
+--
+--  There are 4 routines (binop_ok, series, begins, transmute) that could 
+--   probably do with being converted into proper auto-includes.
+--
+--  NOTE: I think the gameplay is wrong: both good and bad guesses deduct,
+--        meaning the game becomes imposible even when you know what it is. 
+--        You should get fewer quesses and only bad guesses cost "lives".
+--
+
+--include GtkEngine.e
+include ../tinewg.ew
+
+--/*
+include std/search.e
+include std/io.e
+include std/filesys.e
+include std/sequence.e
+include std/text.e
+--*/
+
+-- EuGTK keywords are in blue;
+
+ ------------------------------------------------------------------------
+-- variables;
+------------------------------------------------------------------------
+integer max, ct = 0
+object avail, blanks, current_word
+-- max limits number of guesses allowed;
+-- ct tracks how many guesses so far;
+-- avail is the set of un-guessed letters, initially a...z;
+-- blanks holds substitute characters to use in place of hidden letters;
+
+object letters = repeat(0,'z'-'a'+1) -- build a set of empty buttons;
+integer display, lbl1
+
+--DEV needed for/nicked as per series() [and decidely temp as we'd be going sq_add/sq_mul anyways]:
+function binop_ok(object a, object b)
+    if atom(a) or atom(b) then
+        return 1
+    end if
+
+    if length(a)!=length(b) then
+        return 0
+    end if
+
+    for i=1 to length(a) do
+        if not binop_ok(a[i], b[i]) then
+            return 0
+        end if
+    end for
+
+    return 1
+end function
+
+--DEV nicked from std\sequence.e:
+function series(object start, object increment, integer count = 2, integer op = '+')
+sequence result
+
+    if count<0 then
+        return 0
+    end if
+
+    if not binop_ok(start, increment) then
+        return 0
+    end if
+
+    if count=0 then
+        return {}
+    end if
+
+    result = repeat(0, count)
+    result[1] = start
+    switch op do
+        case '+' then
+            for i=2 to count    do
+                start += increment
+                result[i] = start
+            end for
+
+        case '*' then
+            for i=2 to count do
+                start *= increment
+                result[i] = start
+            end for
+
+        case else
+            return 0
+    end switch
+    return result
+end function
+
+--DEV nicked from std\search.e:
+function begins(object sub_text, sequence full_text)
+    if length(full_text)=0 then
+        return 0
+    end if
+
+    if atom(sub_text) then
+        if equal(sub_text, full_text[1]) then
+            return 1
+        else
+            return 0
+        end if
+    end if
+
+    if length(sub_text)>length(full_text) then
+        return 0
+    end if
+
+    if equal(sub_text, full_text[1..length(sub_text)]) then
+        return 1
+    else
+        return 0
+    end if
+end function
+
+--DEV nicked from std\sequence.e:
+function transmute(sequence source_data, sequence current_items, sequence new_items, integer start=1, integer limit = length(source_data))
+integer pos
+integer cs
+integer ns
+integer i
+integer elen
+
+    -- Check 'current' for single or sub-sequence matching
+    if equal(current_items[1], {}) then
+        cs = 1
+        current_items = current_items[2..$]
+    else
+        cs = 0
+    end if
+
+    -- Check 'new' for element or sequence replacements
+    if equal(new_items[1], {}) then
+        ns = 1
+        new_items = new_items[2..$]
+    else
+        ns = 0
+    end if
+
+    -- Begin scanning
+    i = start-1
+    if cs=0 then
+        -- Compare and replace single item in source.
+        if ns=0 then
+            -- Treat 'new' as a single item to replace the match.
+            while i<length(source_data) do
+                if limit<=0 then
+                    exit
+                end if
+                limit -= 1
+
+                i += 1
+                pos = find(source_data[i], current_items)
+                if pos then
+                    source_data[i] = new_items[pos]
+                end if
+            end while
+        else
+            -- Treat 'new' as a set of items to replace the match.
+            while i<length(source_data) do
+                if limit<=0 then
+                    exit
+                end if
+                limit -= 1
+
+                i += 1
+                pos = find(source_data[i], current_items)
+                if pos then
+                    source_data = replace(source_data, new_items[pos], i, i)
+                    -- Skip over the replacement data 
+                    i += length(new_items[pos])-1
+                end if
+            end while
+        end if
+    else
+        -- Compare and replace sub-sequences in source.
+        if ns=0 then
+            -- Treat 'new' as a single item to replace the match.
+            while i<length(source_data) do
+                if limit<=0 then
+                    exit
+                end if
+                limit -= 1
+
+                i += 1
+                pos = 0
+                for j=1 to length(current_items) do
+                    if begins(current_items[j], source_data[i..$]) then
+                        pos = j
+                        exit
+                    end if
+                end for
+                if pos then
+                    elen = length(current_items[pos])-1
+                    source_data = replace(source_data, {new_items[pos]}, i, i+elen)
+                end if
+            end while
+        else
+            -- Treat 'new' as a set of items to replace the match.
+            while i<length(source_data) do
+                if limit<=0 then
+                    exit
+                end if
+                limit -= 1
+
+                i += 1
+                pos = 0
+                for j=1 to length(current_items) do
+                    if begins(current_items[j], source_data[i..$]) then
+                        pos = j
+                        exit
+                    end if
+                end for
+                if pos then
+                    elen = length(current_items[pos])-1
+                    source_data = replace(source_data, new_items[pos], i, i+elen)
+                    -- Skip over the replacement data 
+                    i += length(new_items[pos])-1
+                end if
+            end while
+        end if
+    end if
+    return source_data
+
+end function
+
+function FormatWord(object word) -- handles display and testing a for win;
+object result = ""
+
+    --set(lbl1,"text",sprintf("%d letter word,\n%d guesses left.",
+    --              {length(current_word),max-ct}))
+    SetText(lbl1,sprintf("%d letter word,\n%d guesses left.",
+                         {length(current_word),max-ct}))
+    word = transmute(word,avail,blanks)     -- change un-guessed letters to underscores,
+                                                        -- using the still untried letters remaining;
+    for i=1 to length(word) do                  -- add spaces between letters (looks better!);
+        result &= word[i]  & ' '
+    end for
+
+    if not find('_',word) then              -- if no hidden letters left, puzzle solved!
+
+    --      set(display,"markup",sprintf("%s",{result})) 
+        SetText(display,sprintf("%s",{result}))
+--      if Question(win,"Congratulations!",current_word,
+--              sprintf("You guessed it in %d tries!\nPlay again?",ct)) = MB_YES then
+--              new_word()
+--              return FormatWord(current_word)
+        if AskMsg(sprintf("You guessed it in %d tries!\nPlay again?",ct),"Congratulations!") then
+            new_word()
+            return FormatWord(current_word)
+        --else abort(0)
+        else
+            CloseApp(0)  -- CloseApp is the better choice i think
+        end if
+
+    end if
+
+    return result
+end function
+
+--DEV: (make this a standard autoinclude?)
+function read_lines(sequence filename)
+sequence lines
+integer fn = open(filename,"r")
+    if fn=-1 then ?9/0 end if
+    lines = get_text(fn,GT_LF_STRIPPED)
+    close(fn)
+    return lines
+end function
+
+sequence file = canonical_path("words.txt")
+sequence words = read_lines(file)
+
+procedure new_word() -- selects a random word, resets available letters;
+----------------------------------------------------------------------------------------------------------
+    current_word = words[rand(length(words))]
+    current_word = lower(current_word)              -- my german wordlist has uppercase letters
+    avail = series('a',1,32,'+')                    -- set of {'a'...'z'}
+    blanks = repeat('_',length(avail))           -- to hide unguessed letters;
+    ct = 0                                          -- number of tries so far;
+    max = 2*length(current_word)         -- number of tries allowed;
+
+--      set(display,"markup",FormatWord(current_word)) 
+    SetText(display,FormatWord(current_word))
+    for i=1 to length(letters) do                -- reset colors;
+--              set(letters[i],"background","gray")
+        SetColor(letters[i],CL_BLACK,CL_GRAY)
+    end for
+end procedure
+
+procedure KeyPressed()
+-- this function is linked to both keypresses and button clicks, 
+-- so we need to determine which happened;
+integer key
+
+    --if is_in_range(event,{'a','z'}) then key = event   -- button clicked;
+    --else key = lower(peek(event+20))                  -- keyboard input;
+    --end if
+    key = 0 -- make sure key has a Value
+    if Event=Key then
+--      if is_in_range(EventItem,{'a','z'}) then key = EventItem end if
+        if EventItem>='a' 
+        and EventItem<='z' then
+            key = EventItem
+        elsif EventItem=KEY_ESCAPE then
+            abort(0)
+        end if
+    else
+        if Event=Click then
+            for i=1 to length(letters) do
+                if EventOwner=letters[i] then
+                    key = i+96  --for small letters
+                end if
+            end for
+        end if
+    end if
+
+
+--  if is_in_list(key,avail) then                           -- in set of unused letters?;
+    if find(key, avail)!=0 then
+        ct += 1                                                 -- new guess counts;    --DEV as above
+        if find(key,current_word)>0 then
+--              set(letters[key-'a'+1],"background","green")
+            SetColor(letters[key-'a'+1],CL_BLACK,CL_GREEN)
+        else
+--              set(letters[key-'a'+1],"background","yellow")
+            SetColor(letters[key-'a'+1],CL_BLACK,CL_YELLOW)
+        end if
+
+        avail = remove_all(key,avail) -- remove letter from available set;
+
+--      set(display,"markup",FormatWord(current_word))
+        SetText(display,FormatWord(current_word))
+        if ct>max then                      -- too many tries;
+--          if Question(win,"Sorry",
+--                      sprintf("The word was %s",{current_word}),
+--                      "Play again?") = MB_YES then    
+            if AskMsg(sprintf("The word was %s\n\rPlay again?",{current_word}), "Sorry") then
+                new_word()
+            else
+                abort(0)
+            end if
+        end if
+
+    end if
+    --return 1
+end procedure
+constant keypressed = routine_id("KeyPressed")
+
+
+------------------------------------------------------------------------
+-- interface;
+------------------------------------------------------------------------
+--constant win = create(GtkWindow)
+WindowType = StandardWin
+{} = Window("HangMan")
+SetDim(WinHwnd,460,240)
+--      set(win,"border width",10)
+--      connect(win,"destroy","Quit") -- on program end;
+--      connect(win,"key-press-event",keypressed)  
+SetHandler(WinHwnd,Key,keypressed)
+
+--constant panel = create(GtkBox,1)
+--      add(win,panel)
+
+--constant display = create(GtkLabel) -- for word being guessed;
+display = Control(Label,"",30,10,400,80)
+constant font1 = NewFont("Arial",28,1,0,0)
+SetFont(display,font1)
+--      set(display,"font","bold 24")
+--      add(panel,display)
+
+--constant lbl1 = create(GtkLabel,"Guess the word") -- for status;
+lbl1 = Control(Label, "Guess the word",30,90,400,40)
+constant font2 = NewFont("Arial",12,0,0,0)
+SetFont(lbl1,font2)
+--      set(lbl1,"font","8")
+--      add(panel,lbl1)
+
+-- There is no Grid in tinEWG
+--constant grid = create(GtkGrid) -- to hold button set;
+--      add(panel,grid)
+--      set(grid,"row spacing",2)
+--      set(grid,"column spacing",2)
+
+integer x = 0, y = 130, z = 0
+
+constant font3 = NewFont("Arial",14,0,0,0)
+
+    for i=1 to length(letters) do
+        z = 'a'+i-1
+        letters[i] = Control(ClickLabel,sprintf("%s",z),x*35,y,35,35)   --ClickLabel fits better
+        SetHandler(letters[i],Key,keypressed)
+        SetHandler(letters[i],Click,keypressed)
+        SetFont(letters[i],font3)
+        --SetWindowTheme(letters[i],0,0)
+--      set(grid,"attach",letters[i],x,y,1,1)
+        x += 1 if x>12 then x = 0 y += 35 end if -- time for a new row;
+    end for
+
+    new_word()      -- get a new word and initialize counters;
+    --set(display,"markup",FormatWord(current_word))
+    SetText(display,FormatWord(current_word))
+    --show_all(win)
+    --main()
+    WinMain()
+    ----------------------------------------------------------------------------------------------------------
+
+

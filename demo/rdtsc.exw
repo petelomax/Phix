@@ -1,0 +1,70 @@
+--
+-- rdtsc.exw
+--
+--  rdtsc is the read time stamp counter instruction.
+--  Shows blocks of always-increasing 64-bit counts.
+--
+--  This is somewhat out of date, See https://en.wikipedia.org/wiki/Time_Stamp_Counter 
+--  for important caveats regarding the use of rdtsc on more recent machines
+--
+
+with console 4.0    -- (this will not run on RDS Eu!)
+
+integer alow, 
+        ahigh, 
+        dlow, 
+        dhigh
+
+procedure rdtsc()   -- (aka read time stamp counter)
+--
+-- Invokes rdtsc. Assumes it is supported. (First introduced on the Pentium,
+--  in 1993, though not on Cyrix chips prior to 1996. Cyrix ceased to exist 
+--  in 1999 and never released anything above 433MHz. The rdtsc intruction
+--  can also be disabled, not that I have any idea how one might do so.)
+--
+-- Stores four 16-bit integers, to avoid any problems with storing 32-bit 
+--  integers as/in 64-bit floats. Exactly the same thing is done on 64-bit, 
+--  even though two 32-bit values would actually fit quite comfortably.
+--
+    #ilASM{
+        [32]
+            rdtsc
+            xor ecx,ecx -- (to clear high word)
+            mov cx,ax
+            shr eax,16
+            mov [alow],ecx
+            mov [ahigh],eax
+            mov cx,dx
+            shr edx,16
+            mov [dlow],ecx
+            mov [dhigh],edx
+            xor ebx,ebx         -- ebx:=0 (never forget to do this!)
+        [64]
+            rdtsc       -- (clears the high 32bits of rax and rdx)
+            xor rcx,rcx -- (to clear high 3 words)
+            mov cx,ax
+            shr rax,16
+            mov [alow],rcx
+            mov [ahigh],rax
+            mov cx,dx
+            shr rdx,16
+            mov [dlow],rcx
+            mov [dhigh],rdx
+            xor rbx,rbx         -- rbx:=0 (never forget to do this!)
+        []
+           }
+end procedure
+
+puts(1,"\n Simple rdtsc Demo\n")
+puts(1,"\n Press Enter to show another 16, Escape to exit\n\n\n")
+
+while 1 do
+    for i=1 to 16 do
+        rdtsc()
+        printf(1,"%04x %04x %04x %04x\n",{dhigh,dlow,ahigh,alow})
+    end for
+
+    if wait_key()=27 then exit end if   -- quit on Escape
+    puts(1,"\n\n")
+end while
+

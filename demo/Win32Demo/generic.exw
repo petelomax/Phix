@@ -1,0 +1,617 @@
+-- generic.exw
+--
+-- Demo of "generic" application
+--
+-- Change Log-------------------------------------------------------
+-- 07/Sep/2000 Wolfgang Fritz
+--	 Replace \r\n with \n when writing out the MLE contents.
+--------------------------------------------------------------------
+-- This demo shows off a lot of the features of Win32Lib, including:
+--
+-- Menus
+-- File Open/Save/SaveAs dialogs
+-- Printer
+-- Toolbars
+-- Tooltips
+
+include win32lib6.ew -- win32 library
+
+include tbar_xpm.e	-- pixmap library
+
+without warning
+-- version
+constant
+    Ver     = "Version 2.2",
+    App     = "Generic Demo",
+    CrLf    = {'\r', '\n'},
+    Lf	    = {'\n'}
+
+-- flag for printing errors
+integer
+    printErr
+
+-- name of the currently open file
+sequence openFileName
+    openFileName = ""
+
+-- default file types the app recognizes
+constant FileTypes = {
+		      "dialog flags", {OFN_ALLOWMULTISELECT},
+		      "Text File", "*.TXT",
+		      "Euphoria Program", "*.EX;*.EXW;*.E;*.EW",
+		      "All Files", "*.*"}
+
+-----------------------------------------------------------------------------
+-- BUTTONBAR SUPPORT ROUTINES
+
+-----------------------------------------------------------------------------
+integer
+    lastButtonX     -- position of last button on button bar
+    lastButtonX = 2
+
+-----------------------------------------------------------------------------
+function ToolbarButton(integer toolbar, sequence tooltip, object xpm)
+    -- create a button in the toolbar
+    -- if xpm is 0, creates a seperation instead
+
+    integer button
+    atom dib
+    sequence bmp
+
+    -- request for seperator?
+    if atom(xpm) then
+	-- increment space
+	lastButtonX += 4
+	return 0
+    end if
+
+    -- convert the xpm to a dib
+    -- transparent colors are converted to the button color
+    setTransparentColor(getSysColor(COLOR_BTNFACE))
+
+    -- create to dib
+    dib = createDIB(xpmToEuBmp(xpm))
+
+    -- create a 28x28 button in the toolbar
+    button = create(PictureButton, "", toolbar, lastButtonX, 0, 28, 28, dib)
+
+    -- add the tooltip text
+    setHint(button, tooltip)
+
+    -- increment
+    lastButtonX += 28
+
+    return button
+
+end function
+
+-----------------------------------------------------------------------------
+-- THE CONTROLS
+-----------------------------------------------------------------------------
+
+constant
+-- The window
+Generic = create(Window, "Untitled - " & App, 0, 0.05, 0.05, 0.9, 0.9, 0),
+
+-- The toolbar
+GTools	= create(ToolBar, "", Generic, 0, 0, 0, 34, 0),
+
+-- The status bar
+GStatus = create(StatusBar, "Ready", Generic, 0, {{40},0.46,-1}, 0, 0, 0),
+
+-- The text edit box
+GText = create(RichEdit, "", Generic, 4, 25, 380, 200, ES_NOHIDESEL),
+
+-- The menus
+    FileMenu	= create(Menu, "&File", Generic, 0, 0, 0, 0, 0),
+    MenuNew	= create(MenuItem, "&New",	FileMenu, 0, 0, 0, 0, 0),
+    MenuOpen	= create(MenuItem, "&Open",	FileMenu, 0, 0, 0, 0, 0),
+    MenuSep1	= create(MenuItem, "-", 	FileMenu, 0, 0, 0, 0, 0),
+    MenuSave	= create(MenuItem, "&Save",	FileMenu, 0, 0, 0, 0, 0),
+    MenuSaveAs	= create(MenuItem, "Save &As",	FileMenu, 0, 0, 0, 0, 0),
+    MenuSep2	= create(MenuItem, "-", 	FileMenu, 0, 0, 0, 0, 0),
+    MenuPrint	= create(MenuItem, "Print",	FileMenu, 0, 0, 0, 0, 0),
+    MenuSep3	= create(MenuItem, "-", 	FileMenu, 0, 0, 0, 0, 0),
+    MenuClose	= create(MenuItem, "&Close",	FileMenu, 0, 0, 0, 0, w32AUTOCLOSE),
+
+    EditMenu	= create(Menu, "&Edit", Generic, 0, 0, 0, 0, 0),
+    MenuUndo	= create(MenuItem, "&Undo",	EditMenu, 0, 0, 0, 0, 0),
+    MenuSep4	= create(MenuItem, "-", 	EditMenu, 0, 0, 0, 0, 0),
+    MenuCut	= create(MenuItem, "Cu&t",	EditMenu, 0, 0, 0, 0, 0),
+    MenuCopy	= create(MenuItem, "&Copy",	EditMenu, 0, 0, 0, 0, 0),
+    MenuPaste	= create(MenuItem, "&Paste",	EditMenu, 0, 0, 0, 0, 0),
+    MenuDelete	= create(MenuItem, "De&lete",	EditMenu, 0, 0, 0, 0, 0),
+
+    HelpMenu	= create(Menu, "&Help", Generic, 0, 0, 0, 0, 0),
+    MenuAbout	= create(MenuItem, "&About " & App & "...", HelpMenu, 0, 0, 0, 0, 0),
+
+-- Toolbar buttons
+    ToolNew	= ToolbarButton(GTools, "New",	    new_xpm),
+    ToolOpen	= ToolbarButton(GTools, "Open",     open_xpm),
+    ToolSave	= ToolbarButton(GTools, "Save",     save_xpm),
+    ToolSaveAs	= ToolbarButton(GTools, "Save As",  save_as_xpm),
+    ToolPrint	= ToolbarButton(GTools, "Print",    print_xpm),
+    ToolClose	= ToolbarButton(GTools, "Close",    close_xpm),
+
+    ToolSep1	= ToolbarButton(GTools, "",	    0),
+    ToolUndo	= ToolbarButton(GTools, "Undo",     undo_xpm),
+    ToolCut	= ToolbarButton(GTools, "Cut",	    cut_xpm),
+    ToolCopy	= ToolbarButton(GTools, "Copy",     copy_xpm),
+    ToolPaste	= ToolbarButton(GTools, "Paste",    paste_xpm),
+    ToolDelete	= ToolbarButton(GTools, "Trash",    trash_xpm),
+
+    ToolSep2	= ToolbarButton(GTools, "",	0),
+    ToolAbout	= ToolbarButton(GTools, "Help",     help_xpm)
+
+    setFont(GText, "Courier New", 10, {"ALL",Normal})
+    setFont(GStatus, "Arial", 12, Normal)
+
+-----------------------------------------------------------------------------
+-- MENU ACTIONS
+-----------------------------------------------------------------------------
+procedure onClick_MenuNew(integer self, integer even, sequence parms)
+    -- clear file, and blank name
+
+    -- clear window title
+    setText(Generic, "Untitled - " & App)
+
+    -- clear file name
+    openFileName = ""
+
+    -- clear the MLE
+    setText(GText, "")
+
+end procedure
+setHandler({MenuNew, ToolNew}, w32HClick, routine_id("onClick_MenuNew"))
+
+
+-----------------------------------------------------------------------------
+procedure setOpenFileName(sequence fName)
+
+    -- save the name of the open file
+    -- update the title bar of the window
+
+    sequence shortName, lDir
+
+    -- save name
+    openFileName = fName
+
+    -- truncate path from name
+    shortName = fName
+    for i = length(fName) to 1 by -1 do
+	if fName[i] = '\\' then
+	    shortName = fName[i+1..length(fName)]
+	    lDir = fName[1..i]
+	    exit
+	end if
+    end for
+
+    -- update title bar
+    setText(Generic, shortName & " - " & App)
+    setText({GStatus,3},lDir)
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuOpen(integer self, integer even, sequence parms)
+
+    -- read a file into the MLE
+
+    integer handle
+    sequence fName, buffer
+    object data
+
+    -- get the file name
+    fName = getOpenFileName(Generic, "", FileTypes)
+
+    -- entered a file name?
+    if length(fName) = 0 then
+	setText({GStatus,3},"No File Selected")
+	return
+    end if
+
+    if sequence(fName[1]) then
+	fName = fName[1] & fName[2]
+    end if
+    -- open the file
+    handle = open(fName, "r")
+
+    -- read the file
+    buffer = {}
+    while 1 do
+	-- get data
+	data = gets(handle)
+
+	-- end of file?
+	if atom(data) then
+	    exit
+	end if
+
+	-- replace { ... \n } with { ... \r, \n }
+	data = data[1..length(data)-1] & CrLf
+
+	-- append
+	buffer = buffer & data
+
+    end while
+
+    -- close the file
+    close(handle)
+
+    -- place the data in the mle
+    setText(GText, buffer)
+
+    -- set file name
+    setOpenFileName(fName)
+
+end procedure
+setHandler({MenuOpen, ToolOpen}, w32HClick, routine_id("onClick_MenuOpen"))
+
+
+
+
+-----------------------------------------------------------------------------
+procedure saveFile(sequence fName)
+
+    -- write the current data out as a file
+
+    integer handle, ignore, lFound
+
+    sequence lBuffer
+
+    -- open the file
+    handle = open(fName, "w")
+    if handle = -1 then
+	-- give message and exit
+	ignore = message_box("Save File Error",
+			     "Unable to create the file " & fName,
+			     MB_ICONHAND+MB_TASKMODAL)
+	return
+    end if
+
+    -- Get all of the text.
+    lBuffer = getRichText(GText, -1)
+    -- replace CRLF with LF
+    while 1 do
+	lFound = match(CrLf, lBuffer)
+	if lFound = 0 then
+	    exit
+	end if
+
+	lBuffer = lBuffer[1 .. lFound - 1] &
+		  Lf &
+		  lBuffer[lFound+length(CrLf) .. length(lBuffer)]
+    end while
+
+    -- replace CR with LF
+    while 1 do
+	lFound = find(13, lBuffer)
+	if lFound = 0 then
+	    exit
+	end if
+
+	lBuffer = lBuffer[1 .. lFound - 1] &
+		  Lf &
+		  lBuffer[lFound+1 .. length(lBuffer)]
+    end while
+
+    -- write the file
+    puts(handle, lBuffer)
+
+    -- close the file
+    close(handle)
+
+    -- set file name
+    setOpenFileName(fName)
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuSaveAs(integer self, integer even, sequence parms)
+
+    -- save as
+    sequence fName
+
+    fName = getSaveFileName(Generic, openFileName, FileTypes)
+
+    -- cancelled?
+    if length(fName) = 0 then
+	return
+    end if
+
+    -- save the file
+    saveFile(fName)
+
+end procedure
+setHandler({MenuSaveAs, ToolSaveAs}, w32HClick, routine_id("onClick_MenuSaveAs"))
+
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuSave(integer self, integer even, sequence parms)
+
+    -- save
+
+    integer ignore
+
+    -- named file?
+    if length(openFileName) = 0 then
+	-- give message and exit
+	ignore = message_box("Save Error",
+			     "Please select a file name.",
+			     MB_ICONHAND+MB_TASKMODAL)
+	return
+    end if
+
+    -- write the file out
+    saveFile(openFileName)
+
+end procedure
+setHandler({MenuSave, ToolSave}, w32HClick, routine_id("onClick_MenuSave"))
+
+-----------------------------------------------------------------------------
+function printPage(sequence doc)
+    -- prints document on page
+    -- returns amount of document not printed yet
+    integer pageY, fontY, y, z
+    sequence result
+
+
+    -- is the document empty?
+    if length(doc) = 0 then
+	-- do nothing
+	return doc
+    end if
+
+    -- start a new page
+    if not startPage() then
+	-- set error and return empty sequence
+	printErr = w32True
+	return {}
+    end if
+
+    -- get the attributes of font
+    result = getFontSize(Printer)
+    fontY = result[2]
+
+    -- get the attributes of the page
+    result = getCtlSize(Printer)
+    pageY = result[2]
+
+    -- start at top of page
+    y = 0
+
+    z = 1
+    while z <= length(doc) do
+
+	-- out of space?
+	if y + fontY > pageY then
+	    exit
+	end if
+
+	-- print on page
+	setPenPosition(Printer, 0, y)
+	wPuts(Printer, doc[z])
+
+	-- move down a line
+	y += fontY
+	z += 1
+
+    end while
+
+    -- end the page
+    if not endPage() then
+	-- flag printer error
+	printErr = w32True
+    end if
+
+    -- return the unprinted portion
+    return doc[z .. length(doc)]
+
+end function
+
+-----------------------------------------------------------------------------
+procedure printDoc(sequence doc, sequence jobName)
+object result
+
+    -- empty?
+    if length(doc) = 0 then
+	-- do nothing
+	return
+    end if
+
+    result = getPageSetup()
+    if not sequence(result) then
+	return
+    end if
+
+    -- start the document
+    if not startDoc(jobName) then
+	-- error
+	printErr = w32True
+    end if
+
+    -- until end of document or error
+    while length(doc) != 0
+    and   not printErr do
+	-- send document to printer; returns unprinted amount
+	doc = printPage(doc)
+    end while
+
+    -- end the document
+    if not endDoc() then
+	printErr = w32True
+    end if
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+function breakText(sequence text)
+
+    -- text returned from the MLE is delimited with CrLf.
+    -- break the text into seperate lines
+    integer at
+    sequence doc
+    sequence lEOL
+
+    -- convert into lines
+    at = match(CrLf, text)
+    if at != 0 then
+	lEOL = CrLf
+    else
+	at = match({13}, text)
+	if at != 0 then
+	    lEOL = {13}
+	else
+	    lEOL = {10}
+	end if
+    end if
+    doc = {}
+    while w32True do
+
+	-- look for an end of line
+	at = match(lEOL, text)
+	if at = 0 then
+
+	    -- any text remaining?
+	    if length(text) then
+		doc = append(doc, text)
+	    end if
+
+	    -- leave loop
+	    exit
+
+	end if
+
+	-- add text to document
+	doc = append(doc, text[1..at-1])
+
+	-- remove from text
+	text = text[at+length(lEOL)..length(text)]
+
+    end while
+
+    return doc
+
+end function
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuPrint(integer self, integer even, sequence parms)
+
+    -- print document on printer
+    integer at, ignore
+    sequence result, doc
+
+    -- get the entire document text
+    doc = getRichText(GText ,-1)
+
+    -- break into seperate lines
+    doc = breakText(doc)
+
+    -- clear the error flag
+    printErr = w32False
+
+    -- select the printer
+    result = getPrinter()
+    if length(result) = 0 then
+	-- user cancelled
+	return
+    end if
+
+    -- set the font
+    setFont(Printer, "Courier New", 10, Normal)
+
+    -- print the document
+    printDoc(doc, App)
+
+    -- release the printer
+    releasePrinter()
+
+    -- was there an error?
+    if printErr then
+	-- display an error message
+	ignore = message_box("Print File Error",
+			     "Error Printing File",
+			     MB_ICONHAND+MB_TASKMODAL)
+    end if
+
+
+
+end procedure
+setHandler({MenuPrint, ToolPrint}, w32HClick, routine_id("onClick_MenuPrint"))
+
+
+-----------------------------------------------------------------------------
+-- Use the 'close' routine inbuilt into the library.
+setHandler(ToolClose, w32HClick, routine_id("autoclose"))
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuUndo(integer self, integer even, sequence parms)
+    -- undo
+    undo(GText)
+end procedure
+setHandler({MenuUndo, ToolUndo}, w32HClick, routine_id("onClick_MenuUndo"))
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuCut(integer self, integer even, sequence parms)
+-- cut
+    cut(GText)
+end procedure
+setHandler({MenuCut, ToolCut}, w32HClick, routine_id("onClick_MenuCut"))
+
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuCopy(integer self, integer even, sequence parms)
+-- copy
+    copy(GText)
+end procedure
+setHandler({MenuCopy , ToolCopy},w32HClick, routine_id("onClick_MenuCopy"))
+
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuPaste(integer self, integer even, sequence parms)
+-- paste
+    paste(GText)
+end procedure
+setHandler({MenuPaste, ToolPaste}, w32HClick,routine_id("onClick_MenuPaste"))
+
+
+-----------------------------------------------------------------------------
+procedure onClick_MenuDelete(integer self, integer even, sequence parms)
+-- clear
+    clear(GText)
+end procedure
+setHandler({MenuDelete, ToolDelete}, w32HClick,  routine_id("onClick_MenuDelete"))
+
+
+-----------------------------------------------------------------------------
+-- about... behavior
+procedure onClick_MenuAbout(integer self, integer even, sequence parms)
+    integer result
+
+    result = message_box(App & " " & Ver		    -- text
+			 & CrLf & "Simple Editor"
+			 & CrLf & "Demonstrates Win32Lib Features",
+			 "About " & App,		    -- title
+			 MB_ICONINFORMATION+MB_TASKMODAL)   -- icon
+end procedure
+setHandler({MenuAbout, ToolAbout}, w32HClick, routine_id("onClick_MenuAbout"))
+
+
+-----------------------------------------------------------------------------
+procedure onResize_Generic(integer self, integer even, sequence parms)
+
+    -- get the area in the window not occupied by the
+    -- toolbar and status area
+
+    -- size the MLE control to the client area
+    setRect(GText, 0,0, w32Edge, w32Edge, w32True)
+
+end procedure
+
+setHandler(Generic, w32HResize, routine_id("onResize_Generic"))
+   
+WinMain(Generic, Normal)
+

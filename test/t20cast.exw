@@ -1,0 +1,97 @@
+--
+-- t20cast.exw
+--
+-- Phix tests: assignment between types. 
+-- Commented out below are the types the compiler/run-time catches.
+--  ("Type error correctly reported" means a compile-time error,
+--   as opposed to "trapped at runtime")
+-- This is all very basic stuff.
+--
+constant RDS = --/**/ 0 --/* Phix
+		      1 --   RDS */
+--/* -- for RDS:
+type string(object s) return sequence(s) end type
+--*/
+
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+integer I
+atom N
+string S
+sequence P
+object O
+--atom t0 t0=time()
+
+    I=1
+    N=I
+    N=1.5
+    S="fred"
+    P={1,2,3}
+    I=I
+--  I=N     -- Type error correctly reported
+--  I=I+N   -- ""
+--  I=N+I   -- ""
+--  I=S     -- ""
+--  I=P     -- ""
+
+    N=I+N
+    if N!=2.5 then Abort("N!=2.5\n") end if
+
+    if N=2.4 then Abort("N=2.4!\n") end if
+    if N=2.6 then Abort("N=2.6!\n") end if
+    if 2.5!=N then Abort("2.5!=N\n") end if
+    N=N+I
+    if N!=3.5 then Abort("N!=3.5\n") end if
+    if 3.5!=N then Abort("3.5!=N\n") end if
+    O=2
+    if O!=2 then Abort("O!=2\n") end if
+    if 2!=O then Abort("2!=O\n") end if
+    I=O
+    if I!=2 then Abort("I!=2\n") end if
+    if 2!=I then Abort("2!=I\n") end if
+    N=O
+    if N!=2 then Abort("N!=2(O)\n") end if
+    if 2!=N then Abort("2!=N\n") end if
+    N=I
+    if N!=2 then Abort("N!=2\n") end if
+    N=N
+--  N=S -- Type error correctly reported
+--  N=P -- ""
+    O=1.5
+--  I=O -- trapped at runtime.
+    N=O
+    if N!=1.5 then Abort("N!=1.5\n") end if
+--  S=I -- Type error correctly reported
+--  S=N -- ""
+    S=S
+if not RDS then
+    if S!="fred" then Abort("S!=fred\n") end if
+    if "fred"!=S then Abort("fred!=S\n") end if
+end if
+    P="fred"
+
+if not RDS then
+    if P!="fred" then Abort("P!=fred\n") end if
+    if "fred"!=P then Abort("fred!=P\n") end if
+end if
+    --	printf(1,"%s\n",{P})
+    S=P
+    O="fred"
+--  I=O -- trapped at runtime.
+--  N=O -- ""
+    S=O
+    O=1
+--  S=O -- trapped at runtime.
+
+--  P=I -- Type error correctly reported
+--  P=N -- ""
+    P=S
+    P=P
+--  P=O -- trapped at runtime.
+    O=I
+    O=N
+    O=S
+    O=P
+    O=O
+
+--printf(1," rt:%3.2f seconds\n",{time()-t0})

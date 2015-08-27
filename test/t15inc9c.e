@@ -1,0 +1,1 @@
+global constant c=3

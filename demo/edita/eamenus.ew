@@ -1,0 +1,2875 @@
+--
+-- eamenus.ew
+--
+-- The menu entries and handler for edita.
+--
+-- All menu entries are defined in a single table, which is translated before the
+-- menus are created. All menu entries must be expressed as a simple procedure or
+-- function call, which is normally local to this source.
+--
+--without trace
+--with trace
+
+--/* 4.0.2
+include builtins\machine.e
+include builtins\file.e
+include builtins\misc.e
+include builtins\dll.e
+--*/
+
+global integer menusExist
+               menusExist = 1 -- (set to 0 by Shift F11)
+
+sequence menuset    -- see below
+constant TEXT       = 1,
+         PARENT     = 2,
+         ID0        = 3,    -- menu id (index to mID/result from nm())
+         ID         = 4,    -- menu id (result from create())
+         HELPTXT    = 5,
+--       PF_RID     = 6,
+         PF_RTYP    = 6,
+         PF_R_ID    = 7,         
+         PARAMS     = 8
+--       PARAMS     = 7
+
+--
+-- Constants for menus (M_File..M_Tmenu) and any MenuItems we might need, 
+-- eg to setCheck on (T_ShowS...)
+--
+integer nxt_m_uniq
+        nxt_m_uniq = 0
+function nm()
+    nxt_m_uniq += 1
+    return nxt_m_uniq
+end function
+
+constant M_Main     = nm(),
+         M_File     = nm(), -- this set directly handled by menuHandler()
+         M_Edit     = nm(), --  ""
+         M_pFTP     = nm(), --  ""
+--       M_Proj     = nm(),
+         M_Tool     = nm(), --  ""
+         M_Mkro     = nm(), --  ""
+         M_Opts     = nm(), --  ""
+         M_Help     = nm(), --  ""
+         M_Ctxt     = nm(), --  ""
+         M_Tmnu     = nm(), --  ""  --plus, must follow M_Ctxt
+         M_Fold     = nm(), --  ""
+         E_Book     = nm(), --  ""
+         E_Case     = nm(), --  ""
+         E_Clip     = nm(), --  ""
+         E_FndM     = nm(), --  ""
+         E_Fold     = nm(), --  ""
+         E_SelM     = nm(), --  "" (so don't insert any 'normal' entries above here)
+--       M_Dmnu     = nm(),
+         F_New      = nm(),
+         F_Open     = nm(),
+         F_ReOpen   = nm(),
+         F_Save     = nm(),
+         F_SaveAll  = nm(),
+         F_SaveAs   = nm(),
+         F_TabList  = nm(),
+         F_Close    = nm(),
+         F_Print    = nm(),
+         F_Pprvw    = nm(),
+         F_RPaint   = nm(),
+         F_Cpub     = nm(),
+         E_Cut      = nm(),
+         E_Cuta     = nm(),
+         E_Cutp     = nm(),
+         E_Copy     = nm(),
+         E_Copya    = nm(),
+         E_Copyp    = nm(),
+         E_Paste    = nm(),
+         E_CpyFN    = nm(),
+         E_CwCR     = nm(),
+         E_CwoCR    = nm(),
+         E_CwHtm    = nm(),
+         E_StHtm    = nm(),
+         E_Fone     = nm(),
+         E_Fexp     = nm(),
+         E_Fall     = nm(),
+         E_Fxpa     = nm(),
+         E_Frfd     = nm(),
+         E_SelA     = nm(),
+         E_SelW     = nm(),
+         E_Cmm      = nm(),
+         E_UCmm     = nm(),
+         E_Ind      = nm(),
+         E_UInd     = nm(),
+         E_Undo     = nm(),
+         E_Redo     = nm(),
+         E_Find     = nm(),
+         E_Fnxt     = nm(),
+         E_Fprv     = nm(),
+         E_Ffs      = nm(),
+         E_Fns      = nm(),
+         E_F4       = nm(),
+         E_sF4      = nm(),
+         E_ncs      = nm(),
+         E_pcs      = nm(),
+         E_Goto     = nm(),
+         F_rFTP     = nm(),
+         F_pFTP     = nm(),
+         T_WPaint   = nm(),
+         T_Bind     = nm(),     -- enabled if Eu file only
+         T_Rein     = nm(),     -- ""
+         T_Run      = nm(),
+         T_PRun     = nm(),
+         T_Comp     = nm(),     -- enabled if currfile
+         T_DComp    = nm(),     -- ""
+         T_FIF      = nm(),     -- ""
+         T_CCA      = nm(),     -- ""
+--       T_PMac     = nm(),     -- ""
+--       T_RMac     = nm(),     -- ""
+--       T_SMac     = nm(),     -- ""
+         T_Qjmp     = nm(),     -- ""
+         T_Rcvr     = nm(),     -- ""
+         T_ShowS    = nm(),     -- ""
+         O_AutoC    = nm(),     -- ""
+         O_Wwrap    = nm(),     -- ""
+         K_F6       = nm(),
+         K_F7       = nm(),
+         K_F8       = nm(),
+         K_F9       = nm(),
+         K_rF6      = nm(),
+         K_rF7      = nm(),
+         K_rF8      = nm(),
+         K_rF9      = nm(),
+         K_macm     = nm(),
+         O_BackG    = nm(),
+         O_Clrs     = nm(),
+         O_Fonts    = nm(),
+         O_Edit     = nm(),
+         O_Fext     = nm(),
+         O_Disp     = nm(),
+--       O_Tlbar    = nm(),
+--       O_Tbbar    = nm(),
+         O_Treev    = nm(),
+         O_Marea    = nm(),
+--       O_HScrl    = nm(),
+--       O_VScrl    = nm(),
+--       O_PScrl    = nm(),
+--       O_Stats    = nm(),
+--       O_WWrap    = nm(),
+         O_err      = nm(),
+         H_Cntxt    = nm(),
+         H_Keys     = nm(),
+         M_Cut      = nm(),
+         M_Cuta     = nm(),
+         M_Copy     = nm(),
+         M_Copya    = nm(),
+         M_Paste    = nm(),
+         M_Cmm      = nm(),
+         M_UCmm     = nm(),
+         M_Ind      = nm(),
+         M_UInd     = nm(),
+         M_Undo     = nm(),
+         M_Redo     = nm(),
+         M_New      = nm(),
+         M_Open     = nm(),
+         M_Save     = nm(),
+         M_SaveAs   = nm(),
+         M_Close    = nm(),
+
+--       M_Fold     = nm(),
+         M_Fone     = nm(),
+         M_Fexp     = nm(),
+--       M_Fall     = nm(),
+--       M_Fxpa     = nm(),
+         M_Frfd     = nm(),
+         M_Info     = nm(),
+
+         M_Max      = nm()
+
+sequence mID
+    mID = repeat(0,M_Max-1)
+    mID[1] = Main
+
+sequence state
+    state = repeat(1,M_Max-1)
+
+--DEV:
+constant CD_EMWH = #20070422    -- Here is Edita's main window handle
+constant CD_UPLD = #20070502    -- Request from Edita to pFTP to re-upload a file
+constant CD_DNLD = #20070503    -- Request from Edita to pFTP to download a file
+global 
+constant CD_RUNF = #20070529    -- Request from Edita to pFTP for remote filename (in http: form)
+
+global atom pFTPhwnd        -- set in eamenus.ew
+            pFTPhwnd = 0
+
+function RunpFTP()
+atom CDS
+    pFTPhwnd = checkSingleInstance(CD_PFTP)
+    if not pFTPhwnd then
+        if LDRun("pFTP") then
+            for i=1 to 3 do
+                sleep(1)
+                pFTPhwnd = checkSingleInstance(CD_PFTP)
+                if pFTPhwnd then exit end if
+            end for
+            if not pFTPhwnd then
+                void = proemh(xl("Error"),xl("Edita <--> pFTP handshake failure"),0)
+                return 0
+            end if
+        end if
+    end if
+    CDS = allocate(12)
+    poke4(CDS,{CD_EMWH,0,0})
+    void = c_func(xSendMessage,{pFTPhwnd, WM_COPYDATA, mainHwnd, CDS})
+    free(CDS)
+    return 1
+end function
+constant r_RunpFTP=routine_id("RunpFTP")
+
+procedure FTPupload(sequence filepath)
+atom CDS
+    if RunpFTP() then
+        CDS = allocate(12)
+        poke4(CDS,{CD_UPLD,length(filepath),allocate_StringZ(filepath)})
+        void = c_func(xSendMessage, {pFTPhwnd, WM_COPYDATA, mainHwnd, CDS})
+        free(CDS)
+        c_proc(xSetForegroundWindow,{mainHwnd})
+    end if
+end procedure
+r_FTPupload = routine_id("FTPupload")
+
+global procedure runviaFTP(sequence filepath)
+atom CDS
+    if RunpFTP() then
+        CDS = allocate(12)
+        poke4(CDS,{CD_RUNF,length(filepath),allocate_StringZ(filepath)})
+        void = c_func(xSendMessage, {pFTPhwnd, WM_COPYDATA, mainHwnd, CDS})
+        free(CDS)
+    end if
+end procedure
+
+global procedure FTPdownload(sequence filepath)
+atom CDS
+    if RunpFTP() then
+        CDS = allocate(12)
+        poke4(CDS,{CD_DNLD,length(filepath),allocate_StringZ(filepath)})
+        void = c_func(xSendMessage, {pFTPhwnd, WM_COPYDATA, mainHwnd, CDS})
+        free(CDS)
+    end if
+end procedure
+
+include src\eatabl.e
+
+procedure Crash() -- development aid!
+    if messageBox("Please Confirm",
+                  "Do you really want an error dump?\n\n"&
+                  "Pressing OK will terminate the editor and discard all\n"&
+                  "unsaved amendments. Press Cancel to resume editing.\n\n"&
+                  "(It is perfectly safe to try this, provided that you\n"&
+                  " have saved your work or just started the editor.\n"&
+                  " The .err file created may be requested, as a last\n"&
+                  " resort, to solve a difficult to reproduce problem.)",
+                  MB_OKCANCEL+MB_DEFBUTTON2) = IDOK then    ?9/0    -- Crash prompt
+    end if
+end procedure
+constant r_Crash=routine_id("Crash")
+--without trace
+
+integer TBinit
+        TBinit = 0
+
+atom toolBmp
+
+-- This must match the five rows of eatools.bmp.
+-- Note that odd columns (1,3,5) are enabled, even cols are disabled icons.
+-- Buttons can be removed from the toolbar by setting the translation to "", see elng_XXX.txt
+constant TBset=
+  {{F_New,F_Open,F_Save,F_SaveAll,F_Close},
+   {F_Print,F_Pprvw},
+-- {E_Cut,E_Cuta,E_Copy,E_Copya,E_Paste},
+   {E_Cut,E_Copy,E_Paste},
+   {E_Undo,E_Redo,E_Find,E_Fnxt,E_Fprv},
+   {T_Run,T_ShowS,O_AutoC,O_Wwrap},
+   {O_Fonts,O_Clrs},
+   {O_BackG,H_Cntxt}}
+
+sequence TBids
+         TBids = {}
+constant TB_id = 1,
+         TB_on = 2,         -- \ (bitmap
+         TB_off = 3,        -- / handles)
+         TB_state = 4,
+         TB_mid = 5         -- menu id
+--       TB_desc = 6 (unused/already setHint()'d, but probably quite helpful when debugging)
+
+integer r_menuHandler
+
+
+function toolBarHandler(integer id, integer msg, atom wParam, object lParam)
+--  if id=TB then
+--  if msg=WM_COMMAND then
+    if msg=WM_LBUTTONUP then    -- 6/11/2005
+        for i = 1 to length(TBids) do
+            if id = TBids[i][TB_id] then
+                if TBids[i][TB_state]
+--              or TBids[i][TB_mid] = O_Wwrap
+                or TBids[i][TB_mid] = O_BackG then
+                    id = mID[TBids[i][TB_mid]]
+                    void = call_func(r_menuHandler,{id,msg,wParam,lParam})
+                end if
+                exit
+            end if
+        end for
+        softSetFocus(Main)
+        return {1}
+--elsif not find(msg,{5,7,8,15,20,24,32,33,34,70,71,131,132,133,307,309,312,241,243,247,512,513,528,533}) then
+--  ?msg
+    end if
+    if msg=WM_SETFOCUS then
+        softSetFocus(Main)
+        return {1}
+    end if
+    return 0
+end function
+setHandler(TB,routine_id("toolBarHandler"))
+
+sequence BackOn, BackOff
+
+
+procedure setTBstatus(object id, integer s)
+-- s is TB_on or TB_off (2 or 3)
+integer id1
+sequence TBi
+    if integer(id) then
+        id1 = id
+    else
+        id1 = id[1]
+    end if
+    for i=1 to length(TBids) do
+        TBi = TBids[i]
+        if TBi[TB_mid]=id1 then
+            if TBi[TB_state] != (s=TB_on) then
+                setImage(TBi[TB_id],TBi[s])
+                TBi = {}
+                TBids[i][TB_state] = (s=TB_on)
+            end if
+            exit
+        end if
+    end for
+    if id1!=O_BackG and menusExist and state[id1]!=s then
+        state[id1] = s
+        if mID[id1] then
+            setEnable(mID[id1],(s=TB_on))
+        end if
+        if sequence(id) then
+            for i=2 to length(id) do
+                id1 = id[i]
+--      if state[id1]!=s then
+--          state[id1] = s
+                if mID[id1] then
+                    setEnable(mID[id1],(s=TB_on))
+                end if
+--      end if
+            end for
+        end if
+    end if
+end procedure
+
+--with trace
+procedure SetEnable(integer id, integer s)
+    if menusExist and state[id]!=s then
+        state[id] = s
+        id = mID[id]
+        if id then
+            setEnable(id,s=TB_on)
+        end if
+    end if
+end procedure
+
+--integer wasWordWrapON
+--      wasWordWrapON = 0
+
+global procedure enableMenuToolBar()
+integer s, TBonoff, id
+sequence BookMarkSet, TBi
+object SetEntry
+--integer thisY
+integer foldsExist, foldThis
+sequence ext
+
+--  if isSCwinVisible() then    -- colour dialogue open
+    if not isEnabled(TC) then
+        s = TB_off
+    else
+        s = TB_on
+    end if
+    setTBstatus({F_New,M_New},s)
+    setTBstatus({F_Open,M_Open},s)
+    if not currfile then
+        s = TB_off
+    end if
+    setTBstatus({F_ReOpen,F_Close,M_Close},s)
+    if currfile and actionsave[currfile] != actionptr[currfile] then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    setTBstatus({F_Save,M_Save},s)
+    s = TB_off
+    for c=1 to length(actionsave) do
+        if c!=currfile and actionsave[c] != actionptr[c] then
+            s = TB_on
+            exit
+        end if
+    end for
+    setTBstatus(F_SaveAll,s)
+    if currfile then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    SetEnable(F_SaveAs,s)
+    SetEnable(F_TabList,s)
+    SetEnable(M_SaveAs,s)
+    SetEnable(M_Edit,s)
+--  SetEnable(E_Book,s)
+--  SetEnable(E_Clip,s)
+--  SetEnable(E_FndM,s)
+--  SetEnable(E_Fold,s)
+--  SetEnable(E_SelM,s)
+    if isDebug then s = TB_off end if
+    setTBstatus(F_Print,s)
+    setTBstatus(F_Pprvw,s)
+    SetEnable(F_RPaint,s)
+--DEV (15/7/10)
+--  SetEnable(F_Cpub,currfile!=0)
+    if currfile then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    SetEnable(F_Cpub,s)
+    if currfile and selON and (selX!=CursorX or selY!=CursorY) then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    SetEnable(E_Case,s)
+    setTBstatus({E_Cut,M_Cut},s)
+    setTBstatus({E_Copy,M_Copy},s)
+--  if currfile and isWordWrapON and selON and selY!=CursorY then
+    if isClip() and currfile then
+        setTBstatus({E_Paste,M_Paste},TB_on)
+    else
+        setTBstatus({E_Paste,M_Paste},TB_off)
+        s = TB_off
+    end if
+    setTBstatus({E_Cuta,E_Cutp,M_Cuta},s)
+    setTBstatus({E_Copya,E_Copyp,M_Copya},s)
+    if currfile and isWordWrapON and selON then
+        if distanceFromTopLine(CursorY, CursorX)!=distanceFromTopLine(selY, selX) then
+            s = TB_on
+        else
+            s = TB_off
+        end if
+    else
+        s = TB_off
+    end if
+    setTBstatus({E_CwCR,E_CwoCR},s)
+    if currfile then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    setTBstatus(E_CpyFN,s)
+    setTBstatus({E_Find,E_SelA,E_SelW,E_Cmm,E_UCmm,E_Ind,E_UInd,E_F4,E_Goto},s)
+    setTBstatus({M_Cmm,M_UCmm,M_Ind,M_UInd},s)
+    SetEnable(E_sF4,s)
+    if isFindNP() and currfile then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    setTBstatus({E_Fnxt,E_Fns},s)
+    setTBstatus({E_Fprv,E_Ffs},s)
+    if currfile and actionptr[currfile] then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    setTBstatus({E_Undo,M_Undo},s)
+    if currfile and actionptr[currfile]<length(actions[currfile]) then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    setTBstatus({E_Redo,M_Redo},s)
+    if currfile and equal(SynNames[newSyntax],"Euphoria") then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    if s=TB_on or (selON and selY!=CursorY) or isWordWrapON then
+--  if validFoldSelection() then    --nah, can jump CursorY...
+        SetEnable(E_Fone,TB_on)
+        SetEnable(M_Fone,TB_on)
+    else
+        SetEnable(E_Fone,TB_off)
+        SetEnable(M_Fone,TB_off)
+    end if
+    foldThis = TB_off
+    foldsExist = TB_off
+    if currfile then
+        SetEntry = bookmarks[currfile]
+        if sequence(SetEntry) then
+            BookMarkSet = SetEntry
+            if length(BookMarkSet)>CursorY then
+                SetEntry = BookMarkSet[CursorY+1]
+                if sequence(SetEntry)
+                and and_bits(SetEntry[bfType],FOLD) then
+                    foldThis = TB_on
+                    foldsExist = TB_on
+                else
+                    for i=1 to length(BookMarkSet) do
+                        SetEntry = BookMarkSet[i]
+                        if sequence(SetEntry) and and_bits(SetEntry[bfType],FOLD) then
+                            foldsExist = TB_on
+                            exit
+                        end if
+                    end for
+                end if
+            end if
+        end if
+    end if
+    SetEnable(E_Fexp,foldThis)
+    SetEnable(M_Fexp,foldThis)
+    SetEnable(E_Fall,s)
+    SetEnable(E_Fxpa,foldsExist)
+    if lastFold then
+        SetEnable(E_Frfd,TB_on)
+        SetEnable(M_Frfd,TB_on)
+    else
+        SetEnable(E_Frfd,TB_off)
+        SetEnable(M_Frfd,TB_off)
+    end if
+    SetEnable(E_ncs,s)
+    SetEnable(E_pcs,s)
+    SetEnable(T_Bind,s)
+--22/01/14 eareinh.ew is Phix-only:
+--/**/  if currfile then
+--/**/      ext = getFileExtension(filenames[currfile])
+--/**/      if find(ext,{"htm","html","xml"}) then
+--/**/          s = TB_on
+--/**/      end if
+--/**/  end if
+    SetEnable(T_Rein,s)
+    if isDebug then s=TB_off end if
+    SetEnable(T_WPaint,s)
+
+    s = TB_off
+    if currfile then
+        ext = getFileExtension(filenames[currfile])
+        if find(ext,{"ex","exu","exw","exwc","htm","html","bat"})
+        or length(getExtRunWith(ext)) then
+            s = TB_on
+        end if
+    end if
+    setTBstatus(T_Run,s)
+    SetEnable(T_PRun,s)
+
+    -- set the Play F6..F9 states
+    for i=1 to length(MacroKeys) do
+        if currfile and length(MacroKeys[i]) then
+            s = TB_on
+        else
+            s = TB_off
+        end if
+        SetEnable(K_F6+i-1,s)
+    end for
+
+    if currfile then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    if menusExist then      -- (this test is made inside SetEnable anyway)
+        for i=T_Comp to O_AutoC do
+            SetEnable(i,s)
+        end for
+    end if
+    setTBstatus(O_Clrs,s)
+    setTBstatus(O_Fonts,s)
+--  if not isWordWrapON then
+--      s = TB_off
+--  end if
+--  setTBstatus(O_Wwrap,s)
+    if ((CheckCaptured()=0) or runFullBackgroundScan) 
+    and currfile and runBack and isBackGround then
+        s = TB_on
+    else
+        s = TB_off
+    end if
+    setTBstatus(O_BackG,s)
+
+    if TBinit then
+        for i=1 to length(TBids) do
+            TBi = TBids[i]
+            if TBi[TB_mid]=O_Wwrap then
+                id = TBi[TB_id]
+                TBonoff = TB_off-isWordWrapON       -- TB_on(2) or TB_off(3)
+                setImage(id,TBi[TBonoff])
+                setCheck(id,isWordWrapON)
+                exit
+            end if
+        end for
+    end if
+    if menusExist and mID[O_Wwrap] then
+        setCheck(mID[O_Wwrap],isWordWrapON)
+    end if
+end procedure
+r_enableMenuToolBar = routine_id("enableMenuToolBar")
+
+
+global procedure toggleSpecials()
+sequence TBi
+    if menusExist and mID[T_ShowS] then
+        showSpecials = not isChecked(mID[T_ShowS])
+        setCheck(mID[T_ShowS],showSpecials)
+    else
+        showSpecials = not showSpecials
+    end if
+    if TBinit then
+        for i=1 to length(TBids) do
+            TBi = TBids[i]
+            if TBi[TB_mid]=T_ShowS then
+                setCheck(TBi[TB_id],showSpecials)
+                exit
+            end if
+        end for
+    end if
+    paintall()
+end procedure
+global constant r_toggleSpecials=routine_id("toggleSpecials")
+
+procedure toggleAutoComplete()
+sequence TBi
+    if menusExist and mID[O_AutoC] then
+        isAutoComplete = not isChecked(mID[O_AutoC])
+        setCheck(mID[O_AutoC],isAutoComplete)
+    else
+        isAutoComplete = not isAutoComplete
+    end if
+    if TBinit then
+        for i=1 to length(TBids) do
+            TBi = TBids[i]
+            if TBi[TB_mid]=O_AutoC then
+                setCheck(TBi[TB_id],isAutoComplete)
+                exit
+            end if
+        end for
+    end if
+end procedure
+constant r_toggleAutoComplete=routine_id("toggleAutoComplete")
+
+global procedure toggleWordWrap()
+-- also called from sysKey() [Alt W]
+--sequence BookMarkSet, TBi
+sequence TBi
+--integer BiT, TBonoff, id
+integer TBonoff, id
+--object bi
+    isWordWrapON = not isWordWrapON
+    if menusExist and mID[O_Wwrap] then
+        setCheck(mID[O_Wwrap],isWordWrapON)
+    end if
+    if isWordWrapON then
+        Column = 0
+        if currfile then
+            rebuildWraps(currfile,0)    -- added 21/5/07
+            wrapped[currfile] = 0
+        end if
+--DEV this is fine, but in reality it achieves nowt?:
+--  elsif currfile then
+--      BookMarkSet = bookmarks[currfile]
+--      for i = 1 to length(BookMarkSet) do
+--          bi = BookMarkSet[i]
+--          if sequence(bi) then
+--              BiT = bi[bfType]
+--              if and_bits(BiT,WRAP) then
+--                  BookMarkSet[i] = 0
+--                  if BiT!=WRAP then
+--                      bi[bfType] = MARK   -- leave the mark in place
+--                      bi[bfEnd] = 0
+--                      BookMarkSet[i] = bi
+--                  end if
+--              end if
+--          end if
+--      end for
+    end if
+    forceCursorOnscreen()
+    if TBinit then
+        for i=1 to length(TBids) do
+            TBi = TBids[i]
+            if TBi[TB_mid]=O_Wwrap then
+                id = TBi[TB_id]
+                setCheck(id,isWordWrapON)
+                TBonoff = TB_off-isWordWrapON       -- TB_on(2) or TB_off(3)
+                setImage(id,TBi[TBonoff])
+                exit
+            end if
+        end for
+    end if
+    paintall()
+end procedure
+r_toggleWordWrap = routine_id("toggleWordWrap")
+
+procedure toggleBackGround()
+sequence TBi
+integer id
+    if menusExist and mID[O_BackG] then
+        isBackGround = not isChecked(mID[O_BackG])
+        setCheck(mID[O_BackG],isBackGround)
+    else
+        isBackGround = not isBackGround
+    end if
+    if TBinit then
+        for i=1 to length(TBids) do
+            TBi = TBids[i]
+            if TBi[TB_mid]=O_BackG then
+                id = TBi[TB_id]
+                setCheck(id,isBackGround)
+                if isBackGround then
+                    setHint(id,BackOn)
+                else
+                    setHint(id,BackOff)
+                end if
+                exit
+            end if
+        end for
+    end if
+end procedure
+constant r_toggleBackGround=routine_id("toggleBackGround")
+
+
+if isAutoSaveTimer then
+    startTimer(AutoSaveTimer,Main,isAutoSaveTimer*1000)
+end if
+
+-- used by eaopts.ew:
+global procedure resizeClientArea(integer refocus)
+-- force a repaint of the client area after toggle of O_Tlbar, OptTool, or O_Marea.
+    repaintWindow(Main,False)
+    void = postMessage(Main, WM_KILLFOCUS, 0,0) -- destroy caret
+    void = postMessage(Main, WM_SIZE, 0,0)  -- recalculate cliprect
+    if refocus then
+        void = postMessage(Main, WM_SETFOCUS, 0,0)  -- recreate caret
+    end if
+    if isVisible(TV) then
+--      repaintWindow(TV,False)
+        setVisible(TV,False)
+        setVisible(TV,True)
+    end if
+end procedure
+
+without trace
+function rtnListHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_COMMAND and wParam=LBN_SELCHANGE then
+--  ?{id,msg,wParam,lParam}
+        lParam=getIndex(id) --rtnList
+        if lParam!=prevRtnIdx then
+            prevRtnIdx = lParam
+            paintCursorY()
+            CursorY = routines[currfile][rtnSTART][prevRtnIdx]-1
+            CursorX = 0
+            forceCursorOnscreen()
+            paintCursorY()
+        end if
+        softSetFocus(Main)
+    elsif msg=WM_SETCURSOR then
+        softSetFocus(Main)
+    end if
+    return 0
+end function
+--with trace
+
+--called from eaopts.ew (and below)
+global procedure toggleToolBar(integer refocus)
+sequence TBdesc, mk
+object mhelp
+atom toolDC, partDC, onBmp, offBmp, prevBmp, xBmp
+integer thisButton, btntype, TBsij
+integer sepRqd
+    if not TBinit then
+        toolBmp = loadImage(initialcurrentdir&"bitmaps\\eatools.bmp",IMAGE_BITMAP,0)
+        if toolBmp=0 then
+            void = messageBox(xl("Error"),initialcurrentdir&"bitmaps\\eatools.bmp not found",0)
+            isToolBarVIS = False
+        else
+            toolDC = c_func(xCreateCompatibleDC,{mainDC})
+            void = c_func(xSelectObject,{toolDC,toolBmp})
+            partDC = c_func(xCreateCompatibleDC,{mainDC})
+            sepRqd = 1
+            for i=1 to length(TBset) do
+                if sepRqd then
+                    void = create(ToolSep,"",0,TB,0,0,0,0,0)
+                    sepRqd = 0
+                end if
+                for j=1 to length(TBset[i]) do
+                    TBdesc = ""
+                    TBsij = TBset[i][j]
+                    for k=1 to length(menuset) do
+                        mk = menuset[k]
+                        if mk[ID]=mID[TBsij] then
+--                      if menuset[k][ID0]=TBsij then   --DEV try this...
+                            mhelp = mk[HELPTXT]
+                            if sequence(mhelp) then
+                                if mk[ID0]=-1 then
+                                    TBdesc = mhelp
+                                elsif TBsij=O_BackG then
+                                    mhelp = mk[TEXT]
+                                    BackOn = xl(mhelp&" (on)")
+                                    BackOff = xl(mhelp&" (off)")
+                                    if isBackGround then
+                                        TBdesc = BackOn
+                                    else
+                                        TBdesc = BackOff
+                                    end if
+                                else
+                                    TBdesc = xl(mhelp)
+                                end if
+                            end if
+                            exit
+                        end if
+                    end for
+                    if length(TBdesc) then
+                        onBmp = c_func(xCreateCompatibleBitmap, {mainDC, 22, 22})
+                        prevBmp = c_func(xSelectObject,{partDC,onBmp})
+                        void = c_func(xBitBlt, {partDC,0,0,22,22,toolDC,j*46-45,i*23-22,SRCCOPY})
+                        offBmp = c_func(xCreateCompatibleBitmap, {mainDC, 22, 22})
+                        void = c_func(xSelectObject,{partDC,offBmp})
+                        void = c_func(xBitBlt, {partDC,0,0,22,22,toolDC,j*46-22,i*23-22,SRCCOPY})
+--DEV this (deselect) could be replaced by :
+--  void = c_func(xDeleteDC,{partDC})
+--(and  void = c_func(xDeleteDC,{toolDC})
+-- at the end of the loop. (works for pFTP anyway).
+                        void = c_func(xSelectObject,{partDC,prevBmp})   -- unselect, so bitmap can be shown on screen (!!)
+                        xBmp = onBmp
+                        if find(TBsij,{T_ShowS,O_AutoC,O_Wwrap,O_BackG}) then
+                            btntype = TogglePictureButton
+--                          btntype = ToggleButton
+                            if TBsij = O_Wwrap and not isWordWrapON then
+                                xBmp = offBmp
+                            end if
+                        else
+                            btntype = PictureButton
+                        end if
+                        thisButton = create(btntype, "",xBmp,TB, 0,3,28,28,0)
+                        --                   {TB_id,TB_on,TB_off,TB_state,TB_mid,TB_desc}
+                        TBids = append(TBids,{thisButton,onBmp,offBmp,1,TBsij,TBdesc})
+                        setHandler(thisButton,routine_id("toolBarHandler"))
+            
+                        setHint(thisButton,TBdesc)
+                        if TBsij = O_AutoC then
+                            setCheck(thisButton,isAutoComplete)
+                        elsif TBsij = O_Wwrap then
+                            setCheck(thisButton,isWordWrapON)
+                        elsif TBsij = O_BackG then
+                            setCheck(thisButton,isBackGround)
+                        end if
+                        sepRqd = 1
+                    end if
+                end for
+            end for
+            if sepRqd then
+                void= create(ToolSep,"",0,TB,0,0,0,0,0)
+            end if
+            rtnList = create(ComboDropDownList,"",0,TB,0,0,250,250,0)
+            setHandler(rtnList,routine_id("rtnListHandler"))
+            TBinit = 1
+        end if
+    end if
+    setVisible(TB,isToolBarVIS)
+    resizeClientArea(refocus)
+end procedure
+
+--as suggested by/for Don Cole:
+global -- for eaopts.ew
+sequence lastTabDir
+         lastTabDir = ""
+--also called via global rRebuildTabBar:
+procedure rebuildTabBar()
+integer rebuildRqd
+sequence name
+    if currfile then
+        if isSingleDir then
+            rebuildRqd = not equal(lastTabDir,filepaths[currfile])
+            lastTabDir = filepaths[currfile]
+        else
+            rebuildRqd = find(0,tabs)
+            lastTabDir = ""
+        end if
+        if isTabBarVIS and rebuildRqd then
+            for i = 1 to length(tabs) do
+                if tabs[i] then
+                    void = destroy(tabs[i])
+                    tabs[i] = 0
+                end if
+            end for
+            if length(tabs)!=length(filenames) then ?9/0 end if -- sanity check
+            for i = 1 to length(filenames) do
+                if (not isSingleDir) or equal(lastTabDir,filepaths[i]) then
+                    name = filenames[i]
+                    if match(untitled,name)=1 then
+                        name = untitled
+                    end if
+                    tabs[i] = create(TabItem, name, 0, TC, 0,0,0,0,0)
+                    setTabColour(tabs[i],name)
+                end if
+            end for
+            changeTo(currfile)
+        end if
+    end if
+end procedure
+rRebuildTabBar = routine_id("rebuildTabBar")
+rebuildTabBar()
+
+--with trace
+global procedure toggleTreeView(integer two)
+    if not isFilePanelVIS then
+        if menusExist and mID[O_Treev] then
+            setCheck(mID[O_Treev],True)
+        end if
+        isFilePanelVIS = two    -- Ctrl Q is not permanent/saved to ini file
+        resetPrev = 1 -- jump to current file
+        setVisible(TV,True)
+        resizeClientArea(1)
+    else
+        isFilePanelVIS = False
+        if menusExist and mID[O_Treev] then
+            setCheck(mID[O_Treev],False)
+        end if
+        hideCaret()
+--      currProjFileSet = {}    -- force rebuild
+        rebuildProjectSet = 1   -- force rebuild
+        setVisible(TV,False)
+        resizeClientArea(1)
+        setFocus(Main)
+    end if
+end procedure
+constant r_toggleTreeView=routine_id("toggleTreeView")
+
+global procedure toggleMsgArea()
+    if menusExist and mID[O_Marea] then
+        isMessageVIS = not isChecked(mID[O_Marea])
+        setCheck(mID[O_Marea],isMessageVIS)
+    else
+        isMessageVIS = not isMessageVIS
+    end if
+    setVisible(MA,isMessageVIS)
+    resizeClientArea(1)
+end procedure
+constant r_toggleMsgArea=routine_id("toggleMsgArea")
+
+-- used by eaopt.ew:
+global procedure toggleErrFormat()
+    if menusExist and mID[O_err] then
+        isFormatErr = not isChecked(mID[O_err])
+        setCheck(mID[O_err],isFormatErr)
+    else
+        isFormatErr = not isFormatErr
+    end if
+end procedure
+constant r_toggleErrFormat=routine_id("toggleErrFormat")
+
+include src\eaopts.ew
+
+--constant eUrl = "http://palacebuilders.pwp.blueyonder.co.uk"  -- long gone
+constant eUrl = "http://edita.is-great.org"
+--constant eHome = eUrl & "/edita.htm"      --DEV
+constant eHome = eUrl & "/index.php"        --DEV
+procedure EditaHomePage()
+    void = shellExecute(NULL, "open", eHome, NULL, NULL, SW_SHOWNORMAL)
+end procedure
+constant r_EditaHomePage=routine_id("EditaHomePage")
+
+--DEV now in Phix.chm?
+constant eMan = "docs/manual.htm"
+procedure manual()
+sequence manpath
+    manpath = initialcurrentdir & eMan
+    if atom(dir(manpath)) then
+        manpath = eUrl & "/" & eMan
+    end if
+    void = shellExecute(NULL, "open", manpath, NULL, NULL, SW_SHOWNORMAL)
+end procedure
+constant r_manual=routine_id("manual")
+
+procedure licence()
+    void = messageBox(xlQ("Edita ")&eaversion,
+                      xlQ("Edita is free and open source.\n\n"&
+                          "Redistribution is permitted as long as any modified sources are included."),
+                      0)
+end procedure
+constant r_licence=routine_id("licence")
+
+procedure about()
+    void = messageBox(xlQ("Edita ")&eaversion,
+                      xlQ("Author Pete Lomax,\n"&
+                          "Using arwen by Mike Vulcan,\n"&
+                          "With help from Juergen Luethje, Al Getz, Bob Elia, \n"&
+                          "and testing by Tone Skoda, Jacques Deschênes, \n"&
+                          "Tommy Carlier (who also provided the Dutch translations), \n"&
+                          "Ferlin Scarborough, Georg Wrede, Greg Haberek, \n"&
+                          "Michael Bolin, and Pro Krastinashun."),0)
+end procedure
+constant r_about=routine_id("about")
+
+--procedure act(integer what, object tabcom)
+--  if currfile then
+--      if tabcom=0 then    -- this rtn is passed either VK_TAB or 0;
+--          tabcom = comment    -- since comment varies by file extension.
+--      end if
+--      if what = INDENT then
+--          addAction(INDENT,indentWith(tabcom))
+--      else
+--          addAction(UNINDENT,unindent(tabcom))
+--      end if
+--  end if
+--end procedure
+
+procedure Recover()
+    if not isFilePanelVIS then toggleTreeView(2) end if
+    setFocus(TVrecov)
+end procedure
+constant r_Recover=routine_id("Recover")
+
+procedure Restore()
+-- On entry, the current file path is initialcurrentdir&"backup\\".
+-- Find what file it is a backup of, close it if it is already open,
+--  set the path and filename on currfile, and saveFile().
+-- This will create a new backup of the file just restored over (if it exists).
+sequence backName, backExt
+integer backNo, digit, prevcurrfile
+object rDetails
+    backName = filenames[currfile]
+    if length(backName)<=9 or backName[9]!='.' then
+        void = messageBox(xl("Error"),xl("not a backup file?"),0)
+        return
+    end if
+    backExt = backName[9..length(backName)]
+    backName = backName[1]&'0'&backName[2..8]
+    if find(backName[3],"ABC") then
+        backName[2] = '1'
+        backName[3] = backName[3] - ('A' - '0')
+    end if
+    backNo = 0
+    for i=1 to 9 do
+        digit = backName[i] - '0'
+        if digit<0 or digit>9 then
+            void = messageBox(xl("Error"),xl("not a backup file?"),0)
+            return
+        end if
+        backNo = backNo*10 + digit
+    end for
+    rDetails = getRestoreDetails(backNo,backExt)
+    if atom(rDetails) then
+        void = messageBox(xl("Error"),xl("recovery details missing"),0)
+--  elsif match(backExt,rDetails[2])!=length(rDetails[2])-length(backExt)+1 then
+--      void = messageBox(xl("Error"),xl("recovery extension mismatch?"),0)
+    else
+        if messageBox(xl("Restore"),xl("Restore?"),MB_YESNO+MB_DEFBUTTON2) = IDYES then
+            -- first, close the original if it is open
+if usegpp then
+            for c=1 to length(filepaths) do
+                if equal(rDetails[1],filepaths[c])
+                and equal(rDetails[2],filenames[c]) then
+                    if currfile<c then
+                        prevcurrfile = currfile
+                    else
+                        prevcurrfile = currfile-1
+                    end if
+                    currfile = c
+                    closeTab()
+                    filepaths[prevcurrfile] = rDetails[1]
+                    rDetails = rDetails[2]
+                    filenames[prevcurrfile] = rDetails
+                    changeTo(prevcurrfile)
+                    actionsave[currfile]=-2 -- force the write
+                    void = saveCurr()
+                    if isTabBarVIS then
+                        if match(untitled,rDetails)=1 then
+                            rDetails = untitled
+                        end if
+                        setText(tabs[currfile],rDetails)
+                    end if
+                    exit
+                end if
+            end for
+else -- not usegpp
+            for c=1 to length(filepaths) do
+                if equal(rDetails[1],UpperCase(filepaths[c]))
+                and equal(rDetails[2],LowerCase(filenames[c])) then
+                    if currfile<c then
+                        prevcurrfile = currfile
+                    else
+                        prevcurrfile = currfile-1
+                    end if
+                    currfile = c
+                    closeTab()
+                    filepaths[prevcurrfile] = rDetails[1]
+                    rDetails = rDetails[2]
+                    filenames[prevcurrfile] = rDetails
+                    changeTo(prevcurrfile)
+                    actionsave[currfile]=-2 -- force the write
+                    void = saveCurr()
+                    if isTabBarVIS then
+                        if match(untitled,rDetails)=1 then
+                            rDetails = untitled
+                        end if
+                        setText(tabs[currfile],rDetails)
+                    end if
+                    exit
+                end if
+            end for
+end if
+        end if
+    end if
+end procedure
+
+--with trace
+integer roinit
+        roinit = 0
+integer ropop,rotxt,roltc,b8,b4,bh,bc
+
+function roHandler(integer id, integer msg, atom wParam, object lParam)
+--sequence txt
+    if  msg = WM_COMMAND
+    or (msg = WM_CHAR and wParam = VK_RETURN) then
+        if wParam or object(lParam) then end if
+        if id=bh and bh!=0 then
+            void = openFile(initialcurrentdir&"ltchelp.txt",1,0)
+--      return 0
+--  end if
+--trace(1)
+        elsif id=b8 then
+            -- reopen, prompt on error, disable legacy tab handling
+            void = openFile(-1,1,0)
+        elsif id=b4 then
+            -- reopen, prompt on error, force legacy tab handling.
+            void = openFile(-1,1,-1)
+        end if
+        msg = WM_COMMAND
+    end if
+    if  msg = WM_CLOSE
+    or  msg = WM_COMMAND
+    or (msg = WM_CHAR and wParam = VK_ESCAPE) then
+        removeFocus(ropop)
+        setVisible(ropop,False)
+        setFocus(Main)
+    end if
+    return 0
+end function
+
+global procedure reopen()
+sequence txt
+integer r
+    if not currfile then return end if
+    r = actionsave[currfile]-actionptr[currfile]
+    if r then
+        if r<0 then
+            r = 0-r
+        end if
+        txt = sprintf(xl("Warning %d changes will be discarded"),r)
+    elsif not equal(filedt[currfile],dir(filepaths[currfile]&filenames[currfile])) then
+        -- open silently if externally modified...
+        void = openFile(-1,1,0)
+        return
+    else
+        txt = xl("File has not been edited since ")
+        if length(actions[currfile]) then
+            txt &= xl("last save")
+        else
+            txt &= xl("opening")
+        end if
+    end if
+    if not roinit then
+        ropop = create(Window,xl("ReOpen"),0,Main,100,100,453,160,0)
+        rotxt = create(Label,"",0,ropop,19,19,400,20,0)
+        roltc = create(Label,"",0,ropop,19,42,400,20,0)
+        b8 = create(Button,sprintf(xl("Open as tab %d"),8),0,ropop,16,85,127,30,0)
+        r = routine_id("roHandler")
+        if isTabWidth!=8 then
+            b4 = create(Button,sprintf(xl("Open as tab %d"),isTabWidth),0,ropop,156,85,127,30,0)
+            setHandler(b4, r)
+        end if
+        if not atom(dir(initialcurrentdir&"ltchelp.txt")) then
+            bh = create(Button,xl("Help"),0,ropop,298,85,55,30,0)
+            setHandler(bh, r)
+        else
+            bh = 0
+        end if
+        bc = create(Button,xl("Cancel"),0,ropop,370,85,60,30,0)
+        setHandler({ropop,b8,bc}, r)
+        roinit = 1
+    end if
+    setText(rotxt,txt)
+    setText(roltc,sprintf(xl("Legacy tab char handling has been applied %d times this session"),
+                          ltchcount))
+    addFocus(ropop)
+    openWindow(ropop,SW_NORMAL)
+end procedure
+global constant r_reopen = routine_id("reopen")
+
+--procedure cbj(integer direction)
+--  ctrlBracket(direction)
+--  jumpTo(cbX,cbY)
+--end procedure
+
+constant C=-3,  -- charInput (not yet defined)
+         V=-2   -- virtualKey ("")
+
+global integer r_CharInput,r_VirtualKey
+
+---- These are needed because the above two are not set at menu creation time...
+--procedure CharInput(sequence params)
+--  void = call_func(r_CharInput,params)
+--end procedure
+--constant C = routine_id("CharInput")
+--
+--procedure VirtualKey(sequence params)
+--  void = call_func(r_VirtualKey,params)
+--end procedure
+--constant V = routine_id("VirtualKey")
+
+function cmap(integer n)
+    if n='\t' then return "\\t" end if
+    if n='\n' then return "\\n" end if
+    if n='\r' then return "\\r" end if
+    if n='\"' then return "\\\"" end if
+    if n='\'' then return "\\\'" end if
+    if n='\\' then return "\\\\" end if
+    setText(SB6,sprintf("invalid character:%d",n))
+    return ""   
+end function
+
+--with trace
+global procedure numbConv(integer base)
+sequence pos, c, hexchar
+object d
+integer ld, ch, k, leadin, sign, skip
+atom n
+--trace(1)
+    pos = DeleteBlockPos()  -- save co-ords
+    d = getSelection(SEL_COPY)
+    if sequence(d) and length(d)=1 then     -- (ie {"1234"} is text on one line, length 1)
+        d = d[1]
+        ld = length(d)
+        if ld then
+            c = d
+            n = 0
+            sign = 0
+            
+            if base>0 then
+
+                if length(d)>1 and d[1]='-' then
+                    sign = 1
+                    d = d[2..length(d)]
+                end if
+                if d[1]='#' then
+                    for i=2 to length(d) do
+                        ch = d[i]
+                        if ch>='0' and ch<='9' then
+                            n = n*16+ch-'0'
+                        elsif ch>='A' and ch<='F' then
+                            n = n*16+ch-'A'+10
+                        elsif ch>='a' and ch<='f' then
+                            n = n*16+ch-'a'+10
+                        else
+                            return
+                        end if
+                    end for
+
+                elsif length(d)>2 and equal(d[1..2],"0b") then
+                    for i=3 to length(d) do
+                        ch = d[i]
+                        if ch>='0' and ch<='1' then
+                            n = n*2+ch-'0'
+                        else
+                            return
+                        end if
+                    end for
+
+                elsif length(d)>2 and equal(d[1..2],"0o") then
+                    for i=3 to length(d) do
+                        ch = d[i]
+                        if ch>='0' and ch<='7' then
+                            n = n*8+ch-'0'
+                        else
+                            return
+                        end if
+                    end for
+
+                elsif length(d)>2 and equal(d[1..2],"0x") then
+                    for i=3 to length(d) do
+                        ch = d[i]
+                        if ch>='0' and ch<='9' then
+                            n = n*16+ch-'0'
+                        elsif ch>='A' and ch<='F' then
+                            n = n*16+ch-'A'+10
+                        elsif ch>='a' and ch<='f' then
+                            n = n*16+ch-'a'+10
+                        else
+                            return
+                        end if
+                    end for
+
+                else
+                    for i=1 to length(d) do
+                        ch = d[i]
+                        if ch>='0' and ch<='9' then
+                            n = n*10+ch-'0'
+                        else
+                            return
+                        end if
+                    end for
+                end if
+                if sign 
+                and base!=10 
+                and n<#100000000 then
+                    n = #100000000-n
+                    sign = 0
+                end if
+                if base=16 then     -- show as hex
+
+--Bugfix: number is too big for %x or %o format 
+--                  c = sprintf("#%x",n)
+                    hexchar = "0123456789ABCDEF"
+                    c = ""
+                    while n do
+                        k = floor(remainder(n,16)+1)
+                        c = prepend(c,hexchar[k])
+                        n = floor(n/16)
+                    end while
+                    c = prepend(c,'#')
+
+                elsif base=10 then  -- show as decimal
+
+                    if sign then
+                        n = -n
+                    end if
+                    c = sprintf("%d",n)
+                    sign = 0
+
+                elsif base=8 then   -- show as octal
+                    c = ""
+                    while n do
+                        k = remainder(n,8)
+                        c = prepend(c,k+'0')
+                        n = floor(n/8)
+                    end while
+                    c = "0o"&c
+
+                elsif base=2 then   -- show as binary
+                    c = ""
+                    while n do
+                        k = remainder(n,2)
+                        c = prepend(c,k+'0')
+                        n = floor(n/2)
+                    end while
+                    c = "0b"&c
+                else
+                    ?9/0    -- unknown base
+                end if
+                if sign then
+                    c = "-"&c
+                end if
+            elsif base=-1 then  -- show as sequence/string
+                c = d
+                if ld>1 then
+                    ch = d[1]
+                    k = d[ld]
+                    if ch='"' and k='"' then
+--                      c = sprint(d[2..ld-1])
+                        c = "{"
+                        leadin = 0
+                        for i=2 to ld-1 do
+                            ch = d[i]
+                            if leadin then
+                                leadin = 0
+                                if not find(ch,"\"\'\\") then
+                                    if ch='t' then
+                                        ch = '\t'
+                                    elsif ch='n' then
+                                        ch = '\n'
+                                    elsif ch='r' then
+                                        ch = '\r'
+                                    else
+                                        setText(SB6,"unrecognised escape character:"&ch)
+                                        return
+                                    end if
+                                end if
+                                c &= sprintf("%d,",ch)
+                            elsif ch='\\' then
+                                leadin = 1
+                            else
+                                c &= sprintf("%d,",ch)
+                            end if
+                        end for
+                        if leadin then
+                            setText(SB6,"leadin error")
+                            return
+                        end if
+                        ld = length(c)
+                        if ld>1 then
+                            c[ld] = '}'
+                        else
+                            c &= '}'
+                        end if
+                    elsif ch='{' and k='}' then
+                        c = "\"" --{'"'}
+                        skip = 0
+                        for i=2 to ld-1 do
+                            if skip then
+                                skip -= 1
+                            else
+                                ch = d[i]
+                                if ch>='0' and ch<='9' then
+                                    n = n*10+ch-'0'
+                                elsif ch=',' then
+                                    if n<' ' or n>255 or find(n,"\"\'\\") then
+                                        hexchar = cmap(n)
+                                        if length(hexchar)=0 then return end if
+                                        c &= hexchar
+                                    else
+                                        c = append(c,n)
+                                    end if
+                                    n = 0
+                                elsif ch='\'' then
+                                    if d[i+1]='\\' then
+                                        skip = 3
+                                    else
+                                        skip = 2
+                                    end if
+                                else
+                                    setText(SB6,"unrecognised character:"&ch)
+                                    return
+                                end if
+                            end if
+                        end for
+                        if n<' ' or n>255 or find(n,"\"\'\\") then
+                            hexchar = cmap(n)
+                            if length(hexchar)=0 then return end if
+                            c &= hexchar
+                        else
+                            c = append(c,n)
+                        end if
+                        c = append(c,'"')
+                    end if
+                end if
+            else
+                ?9/0    -- base=0??
+            end if
+
+            if not equal(c,d) then
+                void = copyTextToClipboard({c},CF_TEXT)
+                Paste()
+--              k = length(c)-length(d)
+                k = length(c)-ld
+                if k then
+                    if pos[2]<pos[4] then   -- CursorX<selX
+                        pos[4] = pos[4]+k
+                    else
+                        pos[2] = pos[2]+k
+                    end if
+                end if
+                restoreBlockPos(pos)
+            end if
+        end if
+    end if
+end procedure
+constant r_numbConv=routine_id("numbConv")
+
+procedure copyFileName()
+    if currfile then
+        void = copyTextToClipboard({filepaths[currfile]&filenames[currfile]},CF_TEXT)
+    end if
+end procedure
+constant r_copyFileName=routine_id("copyFileName")
+
+--DEV eapc.ew
+function htmlclr(atom c)
+-- convert 0x00bbggrr hex values (as used by eg setbkColor) into #RRGGBB (text) for html.
+sequence res
+integer tmp
+    res = sprintf("#%06x",c)
+    tmp = res[2]
+    res[2] = res[6]
+    res[6] = tmp
+    tmp = res[3]
+    res[3] = res[7]
+    res[7] = tmp
+    return res
+end function
+
+sequence r, ct
+integer toClip, fn
+procedure addpCode(object x)
+    if toClip then
+        r &= x
+        if r[length(r)]='\n' then
+            ct = append(ct,r[1..length(r)-1])
+            r = {}
+        end if
+    else
+        puts(fn,x)
+    end if
+end procedure
+
+--with trace
+procedure publishCode(integer toClipBoard)
+-- 28/4/2010
+--  toClipBoard of 2 is for BBcode
+--  toClipBoard of 3 is for <eucode> inlining, result left in ct
+--  toClipBoard of 4 is "", StripHtml'd code is in ct.
+--integer fn
+sequence backdir, pcfile, dt, code, oneline, chunk, url
+integer chunklen, cstart, font, bold, ital, uline
+atom clr
+integer wasSelON, offset, ch
+integer fmt
+--DEV Ctrl P -> IE; Ctrl Shift P gives options first
+--trace(1)
+    toClip = toClipBoard
+    if toClipBoard then
+        r = {}
+        if toClipBoard!=4 then
+            ct = {}
+        end if
+    else
+        backdir = initialcurrentdir&"backup\\"
+        if atom(dir(backdir)) then
+            if not createDirectory(backdir) then
+                void = proemh(xl("Error"),xl("Unable to create backup directory")&backdir,0)
+                return
+            end if
+        end if
+
+        pcfile = backdir&"pc.htm"
+        fn = open(pcfile,"w")
+        if fn=-1 then
+            void = proemh(xl("Error"),xl("Unable to create ")&pcfile,0)
+            return
+        end if
+    end if
+    if selON and selY!=CursorY then
+        code = getSelection(SEL_COPY)
+        offset = selY
+        if CursorY<selY then
+            offset = CursorY
+        end if
+    elsif toClipBoard=4 then
+        code = ct
+        offset = 0
+        ct = {}
+    else
+        code = filetext[currfile]
+        offset = 0
+    end if
+    dt = date()
+if toClipBoard=2 then
+    addpCode("[pre][color=#000000]")
+elsif toClipBoard>=3 then
+    if toClipBoard=4 then
+        addpCode("<pre>\n")
+    end if
+    addpCode("<font color=\"#000000\">")
+else
+    addpCode(sprintf("<html><head><title>%s %02d/%02d/%04d %02d:%02d</title></head>\n",
+                     {filenames[currfile],dt[3],dt[2],dt[1],dt[4],dt[5]}))
+--  puts(fn,"<body bgcolor=\"#FFFFFF\" text=\"#000000\">\n<pre>\n")
+--  addpCode(sprintf("<body bgcolor=%s text=\"#000000\">\n",{htmlclr(ColourTab[Background])}))
+    addpCode(sprintf("<body bgcolor=\"%s\" text=\"#000000\">\n",{htmlclr(ColourTab[Background])}))
+    addpCode("<pre>\n")
+    addpCode("<font color=\"#000000\">\n")
+    addpCode("<!-- NB: when posting to EUforum, please use <eucode> tags instead -->\n")
+end if
+    bold = False
+    ital = False
+    uline = False
+    clr = 0
+    wasSelON = selON
+    selON = 0
+--trace(1)
+    for l=1 to length(code) do
+        oneline = ExpandTabs(code[l])
+        chunk = syntaxColour(oneline,l+offset,0,0)  -- ={length,txt_clr,bck_clr,attr}*
+        cstart = 1
+        for i=1 to chunkMax by 4 do
+            chunklen = chunk[i]
+            font = chunk[i+3]   -- 1=bold, 2=Italic, 3=Bold+Italic, 4=Normal, 5=url
+            if font!=1 and font!=3 then
+                if bold then
+                    addpCode("</b>")
+                    bold = False
+                end if
+            end if
+            if font!=2 and font!=3 then
+                if ital then
+                    addpCode("</i>")
+                    ital = False
+                end if
+            end if
+            if font!=5 then
+                if uline then
+                    addpCode("</u>")
+                    if uline=2 then         -- 17/02/08
+                        addpCode("</a>")    -- 08/12/07
+                    end if
+                    uline = False
+                end if
+            end if
+            if clr!=chunk[i+1] then
+if toClipBoard=2 then
+                addpCode("[/color]")
+else
+                addpCode("</font>")
+end if
+            end if
+            if clr!=chunk[i+1] then
+                clr = chunk[i+1]
+if toClipBoard=2 then
+                addpCode(sprintf("[color=%s]",{htmlclr(clr)}))
+else
+--              addpCode(sprintf("<font color=%s>",{htmlclr(clr)}))
+                addpCode(sprintf("<font color=\"%s\">",{htmlclr(clr)}))
+end if
+            end if
+            if font=5 then
+                if not uline then
+                    uline = True
+                    url = oneline[cstart..cstart+chunklen-1]
+                    if match("edit:",url)!=1 then           -- 17/02/08
+                        while url[length(url)]='\n' do      -- ""
+                            url = url[1..length(url)-1]
+                        end while
+                        addpCode("<a href=\""&url&"\">")    -- 08/12/07
+                        uline = 2
+                    end if
+                    addpCode("<u>")
+                end if
+            end if
+            if font=2 or font=3 then
+                if not ital then
+                    addpCode("<i>")
+                    ital = True
+                end if
+            end if
+            if font=1 or font=3 then
+                if not bold then
+                    addpCode("<b>")
+                    bold = True
+                end if
+            end if
+
+--          addpCode(oneline[cstart..cstart+chunklen-1])
+            for cx=cstart to cstart+chunklen-1 do
+                ch = oneline[cx]
+                if ch='\n' then
+                    if uline then               -- 17/02/08
+                        addpCode("</u>")        -- ""
+                        if uline=2 then         -- ""
+                            addpCode("</a>")    -- ""
+                        end if                  -- ""
+                        uline = False           -- ""
+                    end if                      -- ""
+                    if toClip then
+                        ct = append(ct,r[1..length(r)-1])
+                        r = {}
+                    else
+                        puts(fn,ch)
+                    end if
+                elsif ch='&' and toClipBoard!=2 then addpCode("&amp;")
+                elsif ch='<' and toClipBoard!=2 then addpCode("&lt;")
+                elsif ch='>' and toClipBoard!=2 then addpCode("&gt;")
+                else
+                    if toClip then
+                        r &= ch
+                    else
+                        puts(fn,ch)
+                    end if
+                end if
+            end for
+            cstart += chunklen
+        end for
+        if uline then               -- 17/02/08
+            addpCode("</u>")        -- ""
+            if uline=2 then         -- ""
+                addpCode("</a>")    -- ""
+            end if                  -- ""
+            uline = False           -- ""
+        end if                      -- ""
+        addpCode("\n")
+        chunk = {}
+    end for
+    selON=wasSelON
+    if bold then
+        addpCode("</b>")
+    end if
+    if ital then
+        addpCode("</i>")
+    end if
+    if uline then
+        addpCode("</u>")
+    end if
+if toClipBoard=2 then
+    addpCode("[/color][/pre]\n")
+elsif toClipBoard>=3 then
+--trace(1)
+--  addpCode("</font>\n")
+--  oneline = ct[length(ct)]
+--  oneline = oneline[1..length(oneline)-1]&"</font>\n"
+--  ct[length(ct)] = oneline
+--  ct[length(ct)-1] &= "</font>"
+    ct[length(ct)-1] &= r&"</font>"
+    r = {}
+    if toClipBoard=4 then
+        addpCode("</pre>\n")
+    end if
+    return  -- leave in ct
+else
+    addpCode("</font></pre></body></html>\n")
+end if
+    if toClip then
+        if unicodefile[currfile]=0 then
+            fmt = CF_TEXT
+        else
+            fmt = CF_UNICODETEXT
+        end if
+        void = copyTextToClipboard(ct,fmt)
+        ct = {}
+    else
+        close(fn)
+--DEV: (works, might want an option to do this instead?)
+--  void = openFile(pcfile,1,0)
+        void = shellExecute(NULL, "open", "pc.htm", NULL, initialcurrentdir&"backup\\", SW_SHOWNORMAL)
+        if void = 31 then
+            void = messageBox(xl("Error"),"ERROR_GEN_FAILURE",0)
+        end if
+    end if
+end procedure
+constant r_publishCode=routine_id("publishCode")
+
+
+constant ampdeadset = {"&gt;","&lt;","&nbsp;","&amp;","<p>","<P>","<BR>"},
+         adrep      = { ">",    "<",   " ",     "&",    "",   "",   ""}
+
+--with trace
+constant newSH = 1  -- DEV just an idea...
+integer cfound
+
+constant kampers = {"&gt;","&lt;","&nbsp;","&amp;"},
+         kamprep = {{'>',0,0,0},{'<',0,0,0},{' ',0,0,0,0,0},{'&',0,0,0,0}}
+
+function matchword(sequence code, integer os, integer oe, integer cs)
+    for i=os to oe do
+        if code[i]!=code[cs+i-os] then return 0 end if
+    end for
+    return 1
+end function
+function closedOK(sequence code, integer os, integer oe)
+    if cfound then return 1 end if
+    -- these don't need a closing tag:
+    return find(LowerCase(code[os..oe]),{"br","meta","hr","p","img","li","tr","td"})
+end function
+
+sequence hout
+         hout = repeat(-1,256)
+
+for i=0 to 9 do
+    hout[i+48] = i  -- '0'..'9' => 0..9
+end for
+for i=10 to 15 do
+    hout[i+55] = i  -- 'A'..'F' => 10..15
+    hout[i+87] = i  -- 'a'..'f' => 10..15
+end for
+
+procedure StripHtml(integer toClipBoard)
+object clip
+sequence code
+integer k, k2, k3, k4, ko,ke, lc, done
+integer ci1, ci2
+sequence endtag
+
+--atom hGlobal,pData
+integer fmt
+
+    if selON and selY!=CursorY then
+        clip = getSelection(SEL_COPY)
+    else
+        clip = filetext[currfile]
+    end if
+
+    if unicodefile[currfile]=0 then
+        fmt = CF_TEXT
+    else
+        fmt = CF_UNICODETEXT
+    end if
+
+    if sequence(clip) and length(clip)>=1 then
+        if newSH then
+            k = ExpLength(clip[1])
+            for i=2 to length(clip) do
+                k += 2+ExpLength(clip[i])
+            end for
+            code = repeat(0,k)
+            k = ExpLength(clip[1])
+            code[1..k] = ExpandTabs(clip[1])
+            for i=2 to length(clip) do
+                k += 2
+                code[k-1] = '\r'
+                code[k] = '\n'
+                k2 = ExpLength(clip[i])
+                code[k+1..k+k2] = ExpandTabs(clip[i])
+                k += k2
+            end for
+            lc = length(code)
+            if k!=lc then ?9/0 end if
+            for i=1 to lc-3 do
+                if code[i]='<' then
+                    if code[i+1]='!'
+                    and code[i+2]='-'
+                    and code[i+3]='-' then
+                        for j=i+4 to length(code) do
+                            if code[j]='>'
+                            and code[j-1]='-'
+                            and code[j-2]='-' then
+                                code[i..j] = 0
+                                exit
+                            end if
+                        end for
+                    else
+                        for j=i+1 to length(code) do
+                            if find(code[j],"= >") then
+                                cfound = 0
+                                for ej=j+1 to length(code)-j+i-1 do
+                                    if code[ej]='<'
+                                    and code[ej+1]='/'
+                                    and code[ej+j-i+1]='>' then
+--trace(1)
+                                        if matchword(code,i+1,j-1,ej+2) then
+                                            code[ej..ej+j-i+1] = 0
+                                            cfound = 1
+                                            exit
+                                        end if
+                                    end if
+                                end for
+                                if closedOK(code,i+1,j-1) then
+                                    -- get rid of all eg <font size=2>
+                                    for ej=j to length(code) do
+                                        if code[ej]='>' then
+                                            code[i..ej] = 0
+                                            exit
+                                        end if
+                                    end for
+                                end if
+                                exit
+                            end if
+                        end for
+                    end if
+                elsif code[i]='=' then
+                    ci1 = code[i+1]
+                    ci2 = code[i+2]
+--DEV.. (24/09/2013)
+if ci1!=0 and ci2!=0 then
+                    if hout[ci1]!=-1 
+                    and hout[ci2]!=-1 then
+                        code[i] = hout[ci1]*16+hout[ci2]
+                        code[i+1..i+2] = 0
+                    elsif ci1='\r'
+                    and ci2='\n' then
+                        code[i..i+2] = 0
+                    end if
+end if
+                end if
+            end for
+            for i=1 to length(kampers) do
+                while 1 do
+                    k = match(kampers[i],code)
+                    if k=0 then exit end if
+                    code[k..k+length(kampers[i])-1] = kamprep[i]
+                end while
+            end for
+            k=find(0,code)
+            if k then
+                for i=k+1 to length(code) do
+                    k2 = code[i]
+                    if k2!=0 then
+                        code[k] = k2
+                        k += 1
+                    end if
+                end for
+                code = code[1..k-1]
+            end if
+            if toClipBoard then
+                void = copyTextToClipboard({code},fmt)
+            else
+                ct = lineify(code)
+            end if
+        else
+--DEAD CODE...
+            code = ExpandTabs(clip[1])
+            for i=2 to length(clip) do
+                code &= "\r\n"&ExpandTabs(clip[i])
+            end for
+            clip = {}
+            k2 = 1
+            while 1 do
+                k = match("<!--",code[k2..length(code)])    -- comment start
+                if k=0 then exit end if
+                k += k2-1
+                k2 = match("-->",code[k+4..length(code)]) -- comment end
+                if k2=0 then exit end if
+                k2 += k+3
+--      for i=k+4 to k2-1 do                        -- specific spam test
+--      ch = code[i]
+--      if (ch>='0' and ch<='9')
+--      or (ch>='A' and ch<='Z')
+--      or (ch>='a' and ch<='z') then
+--          if i=k2-1 then
+                code = code[1..k-1]&code[k2+3..length(code)]
+                k2 = k
+--          exit
+--          end if
+--      else
+--          k2 = k+1
+--          exit
+--      end if
+--      end for
+            end while
+
+            --
+            -- chop matching, eg <pre>..</pre>
+            --
+            done = 1
+            ko = 1      -- opening '<'
+            ke = 1      -- ending '>', on the opening doobrie
+            while 1 do
+                ko=find('<',code[done..length(code)])
+                if ko=0 then exit end if
+                ke=find('>',code[done+ko..length(code)])
+                if ke=0 then exit end if
+                --
+                -- ok, now we have a tag
+                -- find the closing tag to look for
+                --
+                k3=find(' ',code[done+ko..done+ko+ke-2])-1
+                if k3=-1 then
+                    k3 = ke-1
+                end if
+                endtag = "</"&code[done+ko..done+ko+k3-1]&'>'
+                if not find(endtag,{"</br>","</meta>","</hr>","</p>","</img>",      -- added 8/6/7
+                                    "</BR>","</META>","</HR>","</P>","</IMG>"}) then
+                    --
+                    -- now find the equivalent closing html:
+                    -- eg <pre>... </pre>
+                    --
+                    k4 = match(endtag,code[done+ko+ke-1..length(code)])
+                    if k4 then
+                        code = code[1..done-1+ko-1]&
+                               code[done+ko+ke..done+ko+ke+k4-2]&
+                               code[done+ko+ke+k4+k3+2..length(code)]
+--                  done = 1    -- far too hard; start again!
+                    elsif find(endtag,{"</li>"}) then                   -- added 8/6/7
+                        code = code[1..done-1+ko-1]&code[done+ko+ke..length(code)]
+                    else
+                        done += ko+ke
+                    end if
+                else
+                    code = code[1..done-1+ko-1]&code[done+ko+ke..length(code)]
+                end if
+            end while
+            for i=1 to length(ampdeadset) do
+                while 1 do
+                    k = match(ampdeadset[i],code)
+                    if k=0 then exit end if
+                    code = code[1..k-1]&adrep[i]&code[k+length(ampdeadset[i])..length(code)]
+                end while
+            end for
+--/*
+--          -- instead of eg:
+--          --  void = copyTextToClipboard(clip)
+--          -- since code already contains embedded \r\n, use direct API calls:
+--          if c_func(xOpenClipboard,{c_func(xGetActiveWindow, {})}) then
+--              if c_func(xEmptyClipboard,{}) then
+--                  hGlobal = c_func(xGlobalAlloc,{GMEM_CLIPBOARD,length(code)})
+--                  if hGlobal then
+--                      pData = c_func(xGlobalLock,{hGlobal})
+--                      if not pData then
+--                          void = c_func(xGlobalFree,{hGlobal})
+--                      else
+--                          poke(pData,code)
+--                          void = c_func(xGlobalUnlock,{hGlobal})
+--                          void = c_func(xSetClipboardData,{CF_TEXT,hGlobal})
+--                          c_proc(xCloseClipboard,{})
+--                          --Note that we should NOT GlobalFree hGlobal, since the clipboard now owns it.
+--                      end if
+--                  end if
+--              end if
+--          end if
+--*/
+            setClipboardText(code, fmt)
+        end if
+
+    end if
+end procedure
+constant r_StripHtml=routine_id("StripHtml")
+
+integer hEstate
+procedure hemismatch(integer lineno, integer fileno)
+    changeTo(fileno)
+    jumpTo(0, lineno-1)
+    void = messageBox("Error",
+                      sprintf("eucode/pre tag mismatch [line %d]",lineno),
+                      0)
+    hEstate = -1
+end procedure
+
+--with trace
+procedure htmliseEucode()
+--
+-- Processes all open .htm[l] files in the current directory.
+-- It looks for:
+--      <!--eucode>
+--      <plaintext>
+--      </eucode-->
+--      <pre>
+--      <colourised text>
+--      </pre>
+-- Or:
+--      <eucode>
+--      <colourised text>
+--      </eucode>
+-- In the first case, it deletes <colourised text> and replaces it with 
+--  <plaintext> as passed through publishCode(). In the second case, it
+--  copies <colourised text>, and passes it through StripHtml(0) before 
+--  publishCode(), and then replaces it. While the second form may look
+--  easier, colourising it makes the code unreadable.
+--
+-- Note: eucode and pre lines should have no whitespace or comments.
+--
+-- A basic sanity check is made that each file has the right number of
+--  pairs of each of the marker lines, and they are in the right order.
+--
+sequence thisdir, txt, oneline, todos, todo, wasFileNameI
+object wasbCfwd
+--,d1,d2
+integer eustart, euend, prestart, preend
+integer fmt
+--trace(1)
+integer wascurrfile
+    wascurrfile = currfile
+    if currfile then
+        thisdir = filepaths[currfile]
+        for i=1 to length(filenames) do
+            if equal(thisdir,filepaths[i])
+            and find(getFileExtension(filenames[i]),{"htm","html"}) then
+                txt = filetext[i]
+                hEstate = 4
+                todos = {}
+                for j=length(txt) to 1 by -1 do
+                    oneline = txt[j]
+                    if equal(oneline,"</pre>") then
+                        if hEstate!=4 then hemismatch(j,i) exit end if
+                        preend = j-1
+                        hEstate = 3
+                    elsif equal(oneline,"<pre>") then
+                        if hEstate!=3 then hemismatch(j,i) exit end if
+                        prestart = j+1
+                        hEstate = 4
+                        if j>1 then
+                            oneline = txt[j-1]
+                            if equal(oneline,"</eucode-->") then
+                                hEstate = 2
+                            end if
+                        end if
+                    elsif equal(oneline,"</eucode-->") then
+                        if hEstate!=2 then hemismatch(j,i) exit end if
+                        euend = j-1
+                        hEstate = 1
+                    elsif equal(oneline,"<!--eucode>") then
+                        if hEstate!=1 then hemismatch(j,i) exit end if
+                        eustart = j+1
+                        todos = append(todos,{eustart,euend,prestart,preend})
+                        hEstate = 4
+                    elsif equal(oneline,"</eucode>") then
+                        if hEstate!=4 then hemismatch(j,i) exit end if
+                        euend = j-1
+                        hEstate = 5
+                    elsif equal(oneline,"<eucode>") then
+                        if hEstate!=5 then hemismatch(j,i) exit end if
+                        eustart = j+1
+                        todos = append(todos,{eustart,euend})--,eustart,euend})
+                        hEstate = 4
+                    end if
+                end for
+                if hEstate=-1 then exit end if  -- error occurred
+                if hEstate!=4 then
+                    if hEstate=3 then
+                        hemismatch(preend+1,i)
+                    else
+                        hemismatch(1,i)
+                    end if
+                    exit
+                end if
+
+                if length(todos) then
+--trace(1)
+                    changeTo(i)
+                    wasbCfwd = bCfwd
+                    bCfwd = {}
+                    wasFileNameI = filenames[i]
+                    filenames[i] = "html.exw"
+                    changeTo(i)     -- (set Eu syntax colouting)
+                    clearSelection()
+                    for j=1 to length(todos) do
+                        todo = todos[j]
+                        eustart = todo[1]
+                        euend = todo[2]
+                        CursorX = 0
+                        CursorY = eustart-1     -- 0-based
+                        selX = 0
+                        selY = euend            -- "", but to end of line
+--                      forceCursorOnscreen()
+                        if selY!=CursorY then
+                            selON = 1
+                            if length(todo)=2 then  -- <eucode>...</eucode> form
+                                StripHtml(0)
+                                publishCode(4)
+                                prestart = eustart
+                                preend = euend
+                            else                    -- <!--eucode>..</eucode--><pre>..</pre> form
+                                publishCode(3)
+                                prestart = todo[3]
+                                preend = todo[4]
+                            end if
+                            selON = 0       -- also used as flag, if we need to paste
+                            if length(ct)-1!=(preend-prestart+1) then
+--trace(1)
+                                selON = 1
+                            else
+                                for k=1 to length(ct)-1 do
+                                    if not equal(ct[k],ExpandTabs(txt[prestart+k-1])) then
+--trace(1)
+--d1 = ct[k]
+--d2 = txt[prestart+k-1]
+                                        selON = 1
+                                        exit
+                                    end if
+                                end for
+                            end if
+                            if selON then
+                                CursorY = prestart-1    -- 0-based
+                                selY = preend           -- "", but to end of line
+                                if unicodefile[currfile]=0 then
+                                    fmt = CF_TEXT
+                                else
+                                    fmt = CF_UNICODETEXT
+                                end if
+                                if copyTextToClipboard(ct,fmt) then
+                                    Paste()
+                                end if
+                            end if
+                        end if
+                    end for
+                    bCfwd = wasbCfwd
+                    filenames[i] = wasFileNameI
+                    changeTo(i)     -- (reset html syntax colouring)
+                end if
+            end if
+        end for
+        changeTo(wascurrfile)
+    end if
+end procedure
+constant r_htmliseEucode=routine_id("htmliseEucode")
+
+procedure CopyWithCR()
+object clipText
+integer cX, cY, nWj
+sequence BookMarkSet, oneline, onechunk, nWrap
+object SetEntry
+integer fmt
+    clipText = getSelection(SEL_COPY)
+    if sequence(clipText) then
+        cY = CursorY
+        cX = CursorX
+        if selY<cY or (selY=cY and selX<cX) then
+            cY = selY
+            cX = selX
+        end if
+        BookMarkSet = bookmarks[currfile]
+        for i=1 to length(clipText) do
+            SetEntry = BookMarkSet[cY+i]
+            if sequence(SetEntry)
+            and and_bits(SetEntry[bfType],WRAP) then
+                oneline = ExpandTabs(clipText[i])
+                nWrap = SetEntry[bfEnd]
+                for j=length(nWrap) to 1 by -1 do
+                    nWj = nWrap[j]
+                    if i=1 and cX then
+                        if nWj<=cX then exit end if
+                        nWj -= cX
+                    end if
+                    if nWj<=length(oneline) then
+                        onechunk = oneline[nWj+1..length(oneline)]
+                        while length(onechunk)
+                        and find(onechunk[length(onechunk)]," \t") do
+                            onechunk = onechunk[1..length(onechunk)-1]
+                        end while
+                        clipText = clipText[1..i]&{onechunk}&
+                                   clipText[i+1..length(clipText)]
+                        oneline = oneline[1..nWj]
+                    end if
+                end for
+                clipText = clipText[1..i-1]&{oneline}&
+                           clipText[i+1..length(clipText)]
+            end if
+        end for
+        for i=1 to length(clipText) do
+            clipText[i] = ConvertTabs(clipText[i],isTabWidth,8)
+        end for
+        if unicodefile[currfile]=0 then
+            fmt = CF_TEXT
+        else
+            fmt = CF_UNICODETEXT
+        end if
+        void = copyTextToClipboard(clipText,fmt)
+    end if
+end procedure
+constant r_CopyWithCR=routine_id("CopyWithCR")
+
+procedure CopyWithOutCR()
+object clipText
+integer fmt
+    clipText = getSelection(SEL_COPY)
+    if sequence(clipText) then
+        for i=1 to length(clipText) do
+            clipText[i] = ConvertTabs(clipText[i],isTabWidth,8)
+        end for
+        for i=length(clipText) to 2 by -1 do
+            if length(clipText[i])
+            and length(clipText[i-1]) then
+                if not find(clipText[i][1]," \t")
+                and not find(clipText[i-1][length(clipText[i-1])]," \t") then
+                    clipText[i-1] = clipText[i-1]&' '&clipText[i]
+                else
+                    clipText[i-1] = clipText[i-1]&clipText[i]
+                end if
+                clipText = clipText[1..i-1]&clipText[i+1..length(clipText)]
+            end if
+        end for
+        if unicodefile[currfile]=0 then
+            fmt = CF_TEXT
+        else
+            fmt = CF_UNICODETEXT
+        end if
+        void = copyTextToClipboard(clipText,fmt)
+    end if
+end procedure
+constant r_CopyWithOutCR=routine_id("CopyWithOutCR")
+
+procedure MHelp(integer i)
+    openChm(helpfiles[i],0)
+end procedure
+constant r_MHelp=routine_id("MHelp")
+
+constant PROC = 1,
+         FUNC = 2
+
+function ToolMenus()
+--DEV build this from/extend with a user-defined tool definition file.
+--    note that LDrun will accept "eabind" and run eabind.exw, if that helps.
+--    (ask me for a copy of that if you want it as a template)
+sequence udt, tmp, mText, mProg
+integer k
+    udt = {}
+    if not isDebug then
+        for i=1 to length(isToolSet) do
+            tmp = isToolSet[i]
+            k=find(':',tmp)
+            if k>1 then
+--DEV use xl?
+                mText = tmp[1..k-1]
+                mProg = tmp[k+1..length(tmp)]
+                if not atom(dir(initialcurrentdir&mProg&".exw")) 
+                or not atom(dir(initialcurrentdir&mProg&".exe")) then
+                    if length(udt)=0 then
+                        udt = {{"-",        M_Tool,0,0,0,0}}
+                    end if
+                    udt = append(udt,{mText,M_Tool,0,0,0,FUNC,r_LDRun,{mProg}})
+                end if
+            end if
+        end for
+    end if
+    return { {"Bind",                           M_Tool,T_Bind,0,"Make exe",PROC,r_Bind,{}}
+            ,{"Run\t(F5)",                      M_Tool,T_Run,0,"Run (interpret) program",V,0,{VK_F5,0,0}}
+            ,{"Parameterised Run\t(Ctrl F5)",   M_Tool,T_PRun,0,0,       V,0,{VK_F5,1,0}}
+            ,{"Jump To Error\t(F12)",           M_Tool,0,0,0,            V,0,{VK_F12,0,0}}
+            ,{"Compare",                        M_Tool,T_Comp, 0,0,PROC,r_Compare,{0}}
+            ,{"Directory Compare",              M_Tool,T_DComp,0,0,PROC,r_Compare,{1}}
+            ,{"Find in Files\t(Ctrl Shift F)",  M_Tool,T_FIF,  0,0,PROC,r_FIF,{}}
+            ,{"Htmlise eucode",                 M_Tool,T_FIF,  0,0,PROC,r_htmliseEucode,{}}
+            ,{"Re-indent source",               M_Tool,T_Rein, 0,0,PROC,r_ReIndent,{}}
+            ,{"Common Code Analysis",           M_Tool,T_CCA,  0,0,PROC,r_CCA,{}}
+            ,{"Quick Jump\t(Ctrl Q)",           M_Tool,T_Qjmp, 0,0,PROC,r_onClickToolQjmp,{}}
+            ,{"Recovery",                       M_Tool,T_Rcvr, 0,0,PROC,r_Recover,{}}
+            ,{"Window Painter",                 M_Tool,T_WPaint,0,"WYSIWYG layout editor",FUNC,r_LDRun,{2}}}
+           & udt
+end function
+
+function HelpMenus()
+sequence res
+    res = {}
+    for i=1 to length(helpfiles) do
+        if sequence(menuTxts[i]) then
+            if length(res)=0 then
+                res = {{"-",        M_Help,0,0,0,0}}
+            end if
+            res = append(res,{menuTxts[i],M_Help,-1,0,helpfiles[i],PROC,r_MHelp,{i}})
+        end if
+    end for
+    if length(res) then
+        res = append(res,{"-",      M_Help,0,0,0,0})
+    end if
+    return res
+end function
+
+constant mt = {"",{""},{1},0} -- params for newFile("",{""},{1},0)
+
+--
+-- Menu entries are:
+--  TEXT[1],
+--  PARENT[2], (index into mID)     \ M_, F_, etc constants as
+--  ID0[3],    (index into mID)     / defined above (see nm())
+--  ID[4],     (result from create)
+--  HELPTXT[5],
+----    PF_RID[6], routine_id   -- only rqd for MenuItems
+--  PF_RTYP[6], PROC/FUNC   -- only rqd for MenuItems
+--  PF_R_ID[7], routine_id  -- only rqd for MenuItems
+----    PARAMS[7].              -- only rqd for MenuItems
+--  PARAMS[8].              -- only rqd for MenuItems
+--
+-- An entry of length < PF_RTYP ia a Menu, else it is a MenuItem
+-- if ID0 is -1 then do not translate either TEXT or HELPTXT.
+-- if ID0 is -2 then translate TEXT but not HELPTXT.
+--
+constant r_closeWindow=routine_id("closeWindow")    -- (in arwen.ew)
+
+global integer r_ISInfo -- (set in eaisense.ew)
+
+procedure Info()
+    call_proc(r_ISInfo,{})
+end procedure
+constant r_Info = routine_id("Info")
+
+procedure resetMenus()
+    menuset = 
+{{"File",M_Main,M_File,0}
+,{"New\t(Ctrl N)",      M_File,F_New,0,"Create a new, empty, file",                 PROC,r_newFile,mt}
+,{"Open\t(Ctrl O)",     M_File,F_Open,0,"Open an existing file",                    FUNC,r_openFile,{0,1,1}}
+,{"ReOpen\t(Ctrl Shift O)", M_File,F_ReOpen,0,"Reopen the current file",            PROC,r_reopen,{}}
+,{"Close\t(Ctrl F4)",   M_File,F_Close,0,"Close the current file",                  PROC,r_closeFile,{}}
+,{"Save\t(Ctrl S)",     M_File,F_Save,0,"Save the current file",C,0,{19,0,0}}
+,{"Save All",           M_File,F_SaveAll,0,"Save all open files",                   FUNC,r_saveAll,{0}}
+,{"Save As",            M_File,F_SaveAs,0,"Save in a different/new file/directory", FUNC,r_saveFileAs,{}}
+,{"Tabs List\t(Ctrl T)",M_File,F_TabList,0,"List open file tabs",                   PROC,r_tabsList,{0}}
+,{"-",                  M_File,0,0,0,0}
+----                    FilePage = menuItem("Page Setup+")
+,{"Print",              M_File,F_Print,0,"Print the current file",                  FUNC,r_LDRun,{0}}
+,{"Print Preview\t(Ctrl P)",M_File,F_Pprvw,0,"Print Preview the current file",      FUNC,r_LDRun,{1}}
+,{"Report Painter",     M_File,F_RPaint,0,"WYSIWYG layout editor",                  FUNC,r_LDRun,{-1}}
+,{"Code Publisher",     M_File,F_Cpub,0,"Print/html-ise code",                      PROC,r_publishCode,{0}}
+,{"-",                  M_File,0,0,0,0}
+,{"Exit\t(Alt F4)",     M_File,0,0,"Shutdown Edita",                                PROC,r_closeWindow,{Main}}
+
+,{"Edit",M_Main,M_Edit,0}
+,{"Undo\t(Ctrl Z)",     M_Edit,E_Undo,0,"Undo the previous editing action",C,0,{26,1,0}}    -- Ctrl Z
+,{"Redo\t(Ctrl Y)",     M_Edit,E_Redo,0,"Redo the last undone editing action",C,0,{25,1,0}} -- Ctrl Y
+,{"-",M_Edit,0,0,0,0}
+--Duplicate line (Ctrl D)
+--Word jump (Ctrl leftarrow/rightarrow, with Shift extends selection)
+,{"Bookmarks",          M_Edit,E_Book,0,"Bookmark functions"}
+,{"Toggle bookmark\t(Ctrl F2)",             E_Book,0,0,0,V,0,{VK_F2,1,0}}
+,{"Remove all bookmarks\t(Ctrl Shift F2)",  E_Book,0,0,0,V,0,{VK_F2,1,1}}
+,{"Next bookmark\t(F2)",                    E_Book,0,0,0,V,0,{VK_F2,0,0}}
+,{"Previous bookmark\t(Shift F2)",          E_Book,0,0,0,V,0,{VK_F2,0,1}}
+
+,{"Case",               M_Edit,E_Case, 0,"Convert case of selected text"}
+,{"Upper\t(Alt U)",             E_Case,0,0,"Convert to upper case",      C,0,{21,0,-2}}
+,{"Lower\t(Alt L)",             E_Case,0,0,"Convert to lower case",      C,0,{21,0,-1}}
+,{"Invert\t(Alt I)",            E_Case,0,0,"Invert case",                C,0,{21,0,-5}}
+,{"Capitalise\t(Alt Shift U)",  E_Case,0,0,"Capitalise each word",       C,0,{21,0,-3}}
+,{"Sentence\t(Alt Shift L)",    E_Case,0,0,"Convert to sentence case",   C,0,{21,0,-4}}
+,{"Show as Binary (Ctrl B)",    E_Case,0,0,0,PROC,r_numbConv,{2}}
+,{"Show as Octal (Ctrl Shift B)",E_Case,0,0,0,PROC,r_numbConv,{8}}
+,{"Show as Hex (Ctrl H)",       E_Case,0,0,0,PROC,r_numbConv,{16}}
+,{"Show as Seq/Str (Ctrl J)",   E_Case,0,0,0,PROC,r_numbConv,{-1}}
+,{"Show as Decimal (Ctrl K)",   E_Case,0,0,0,PROC,r_numbConv,{10}}
+
+,{"Clipboard",          M_Edit,E_Clip, 0,"Clipboard functions"}
+,{"Cut\t(Ctrl X)",              E_Clip,E_Cut,  0,"Delete current selection and place on clipboard",      C,0,{24,1, 0}}
+,{"Cut append\t(Ctrl Shift X)", E_Clip,E_Cuta, 0,"Delete current selection and append to clipboard",     C,0,{24,1, 1}}
+,{"Cut prepend\t(Alt Shift X)", E_Clip,E_Cutp, 0,"Delete current selection and prepend to clipboard",    C,0,{24,1,-1}}
+,{"Copy\t(Ctrl C)",             E_Clip,E_Copy, 0,"Copy the current selection to the clipboard",          C,0,{ 3,1, 0}}
+,{"Copy append\t(Ctrl Shift C)",E_Clip,E_Copya,0,"Append the current selection to the clipboard",        C,0,{ 3,1, 1}}
+,{"Copy prepend\t(Alt Shift C)",E_Clip,E_Copyp,0,"Prepend the current selection to the clipboard",       C,0,{ 3,1,-1}}
+,{"Paste\t(Ctrl V)",            E_Clip,E_Paste,0,"Insert the clipboard contents at the current location",C,0,{22,1, 0}}
+,{"Copy filename",              E_Clip,E_CpyFN,0,0,PROC,r_copyFileName,{}}
+,{"Copy with CR",               E_Clip,E_CwCR, 0,0,PROC,r_CopyWithCR,{}}
+,{"Copy w/o CR",                E_Clip,E_CwoCR,0,0,PROC,r_CopyWithOutCR,{}}
+,{"Copy with Html",             E_Clip,E_CwHtm,0,0,PROC,r_publishCode,{1}}
+,{"Copy with BBcode",           E_Clip,E_CwHtm,0,0,PROC,r_publishCode,{2}}
+,{"Strip Html",                 E_Clip,E_StHtm,0,0,PROC,r_StripHtml,{1}}
+
+,{"Find",               M_Edit,E_FndM,0,0}
+,{"Find\t(Ctrl F)",                     E_FndM,E_Find,0,"Find (or replace) a specified string",C,0,{6,0,0}}
+,{"Find Next\t(F3)",                    E_FndM,E_Fnxt,0,"Find the next occurence of the last search string",V,0,{VK_F3,0,0}}
+,{"Find Prior\t(Shift F3)",             E_FndM,E_Fprv,0,"Find the previous occurence of the last search string",V,0,{VK_F3,0,1}}
+,{"Find First Selected\t(Ctrl F3)",     E_FndM,E_Ffs,0,0,V,0,{VK_F3,1,0}}
+,{"Find Next Selected\t(Ctrl Shift F3)",E_FndM,E_Fns,0,0,V,0,{VK_F3,1,1}}
+,{"Next Difference\t(F4)",              E_FndM,E_F4, 0,0,V,0,{VK_F4,0,0}}
+,{"Prior Difference\t(Shift F4)",       E_FndM,E_sF4,0,0,V,0,{VK_F4,0,1}}
+,{"-",E_FndM,0,0,0,0}
+,{"Next Control structure\t(Ctrl ] )",  E_FndM,E_ncs,0,0,V,0,{']'+128,1,0}}
+,{"Prior Control structure\t(Ctrl [ )", E_FndM,E_pcs,0,0,V,0,{'['+128,1,0}}
+
+,{"Folds",              M_Edit,E_Fold,0,"Show/Hide text blocks"}
+,{"Fold selection or control block\t(Ctrl - )", E_Fold,E_Fone,0,0,PROC,r_Fold,{'-',0}}
+,{"Expand fold\t(Ctrl + )",                     E_Fold,E_Fexp,0,0,PROC,r_Fold,{'+',0}}
+,{"Fold all routines\t(Alt - )",                E_Fold,E_Fall,0,0,PROC,r_setFolds,{'-'}}
+,{"Expand all folds\t(Alt + )",                 E_Fold,E_Fxpa,0,0,PROC,r_setFolds,{'+'}}
+,{"Re-fold last expansion\t(Ctrl Shift - )",    E_Fold,E_Frfd,0,0,PROC,r_Fold,{'-',1}}
+
+,{"Select",             M_Edit,E_SelM,0,0}
+,{"Select All\t(Ctrl A)",   E_SelM,E_SelA,0,0,C,0,{ 1,1,0}}
+,{"Select Word\t(Ctrl W)",  E_SelM,E_SelW,0,0,C,0,{23,1,0}}
+
+,{"-",M_Edit,0,0,0,0}
+,{"Comment\t(Ctrl > )",     M_Edit,E_Cmm,0,0, V,0,{'>'+128,1,0}}
+,{"Uncomment\t(Ctrl < )",   M_Edit,E_UCmm,0,0,V,0,{'<'+128,1,0}}
+,{"-",M_Edit,0,0,0,0}
+,{"Indent\t(Alt > )",       M_Edit,E_Ind,0,0, V,0,{VK_TAB,1,0}} -- Ctrl Tab (handled in virtualKey)
+,{"Unindent\t(Alt < )",     M_Edit,E_UInd,0,0,C,0,{VK_TAB,0,1}} -- Shift Tab (handled in charInput)
+,{"-",M_Edit,0,0,0,0}
+,{"Goto Line\t(Ctrl G)",    M_Edit,E_Goto,0,0,PROC,r_Goto,{}}
+
+,{"FTP",M_Main,M_pFTP,0}
+,{"Run pFTP",           M_pFTP,F_rFTP,0,"Run pFTP",FUNC,r_RunpFTP,{}}
+,{"Previous FTP edits", M_pFTP,F_pFTP,0,"List previous FTP edits",PROC,r_tabsList,{1}}
+
+,{"Tools",M_Main,M_Tool,0}
+}&ToolMenus()&
+{{"-",          M_Tool,0,0,0,0}
+,{"Crash (?9/0)",       M_Tool,0,0,"[Development aid]",PROC,r_Crash,{}} --DEV development aid
+,{"Show Formatting\t(Ctrl Shift H)",M_Tool,T_ShowS,0,"Show spaces, tabs, and returns",PROC,r_toggleSpecials,{}}
+,{"Translation Assistant",M_Tool,0,0,"lang/elng_XXX.txt utility",PROC,r_xutil,{}}
+
+,{"Macro",M_Main,M_Mkro,0}
+,{"Record F6\t(Ctrl F6)",           M_Mkro,K_rF6,0,"Save keystrokes", V,0,{VK_F6,1,0}}
+,{"Record F7\t(Ctrl F7)",           M_Mkro,K_rF7,0,"Save keystrokes", V,0,{VK_F7,1,0}}
+,{"Record F8\t(Ctrl F8)",           M_Mkro,K_rF8,0,"Save keystrokes", V,0,{VK_F8,1,0}}
+,{"Record F9\t(Ctrl F9)",           M_Mkro,K_rF9,0,"Save keystrokes", V,0,{VK_F9,1,0}}
+,{"Play F6\t(F6)",                  M_Mkro,K_F6,0,"Replay keystrokes",V,0,{VK_F6,0,0}}
+,{"Play F7\t(F7)",                  M_Mkro,K_F7,0,"Replay keystrokes",V,0,{VK_F7,0,0}}
+,{"Play F8\t(F8)",                  M_Mkro,K_F8,0,"Replay keystrokes",V,0,{VK_F8,0,0}}
+,{"Play F9\t(F9)",                  M_Mkro,K_F9,0,"Replay keystrokes",V,0,{VK_F9,0,0}}
+,{"Macro management\t(Shift F8)",   M_Mkro,K_macm,0,"",               V,0,{VK_F8,0,1}}
+
+,{"Options",M_Main,M_Opts,0}
+,{"Auto Complete",  M_Opts,O_AutoC,0,"Auto Complete",                           PROC,r_toggleAutoComplete,{}}
+,{"Background Processing",M_Opts,O_BackG,0,"Housekeeping (keep on if possible)",PROC,r_toggleBackGround,{}}
+,{"Colours",        M_Opts,O_Clrs,0,"Set the syntax highlighting colours",      PROC,r_SetSyntaxColours,{}}
+,{"Fonts",          M_Opts,O_Fonts,0,"Set the font",                            PROC,r_PickFont,{}}
+,{"Display options",M_Opts,O_Disp,0,"Set Display options",                      PROC,r_DisplayOptions,{}}
+,{"Edit options",   M_Opts,O_Edit,0,"Set Edit options",                         PROC,r_EditOptions,{}}
+,{"File Extensions",M_Opts,O_Fext,0,"Setup File Extensions",                    PROC,r_FileExt,{}}
+----    OptFile = menuItem("Files")
+----    OptKeybd = menuItem("Keyboard")
+----    OptMouse = menuItem("Mouse")
+----    OptRefs  = menuItem("References+")
+----    OptShtSt = menuItem("Shutdown and Startup+")
+----    OptSinst = menuItem("Single Instance")
+,{"File Panel\t(Ctrl L)",   M_Opts,O_Treev,0,"Project/Directory/Recovery",PROC,r_toggleTreeView,{1}}
+,{"Message area\t(Ctrl M)", M_Opts,O_Marea,0,0,PROC,r_toggleMsgArea,{}}
+--,{"Horizontal Scroll bar",    M_Opts,O_HScrl,0,0,R(PROC,"toggleHScroll"),{}}
+--,{"Vertical Scroll bar",  M_Opts,O_VScrl,0,0,R(PROC,"toggleVScroll"),{}}
+--,{"Permanent Scrollbars", M_Opts,O_PScrl,0,0,R(PROC,"togglePScroll"),{}}
+--,{"Status bar",       M_Opts,O_Stats,0,0,R(PROC,"toggleStatusBar"),{}}
+,{"Wordwrap\t(Alt W)",      M_Opts,O_Wwrap,0,"Wordwrap",PROC,r_toggleWordWrap,{}}
+,{"Reformat ex.err",        M_Opts,O_err,0,0,PROC,r_toggleErrFormat,{}}
+    
+,{"Help",M_Main,M_Help,0}
+--DEV H_Cntxt "Context Help [not implemented]",
+--  HelpCxKy = menuItem("Context/Keyboard\t(F1)")
+--,{"Context/Keyboard\t(F1)",       M_Help,H_Cntxt,0,"Context Help (F1)",R(PROC,"F1"),{}}
+,{"Context Help\t(F1)",         M_Help,H_Cntxt,0,"Context Help",V,0,{VK_F1,0,0}}
+,{"Keyboard Help\t(Ctrl F1)",   M_Help,H_Keys,0,"Keyboard Help",V,0,{VK_F1,1,0}}
+}&HelpMenus()&
+{{"Edita Home Page",            M_Help,-2,0,eHome,PROC,r_EditaHomePage,{}}
+--DEV Phix?
+--,{"Euphoria Reference Manual",    M_Help,-2,0,"EUDIR\\HTML\\Refman.htm",PROC,r_EuRefMan,{""}}
+--  HelpEuph = menuItem("Euphoria Reference Manual")
+--  HelpMHme = menuItem("MEditor Home Page")
+--  HelpManl = menuItem("MEditor Manual")
+--  HelpRCon = menuItem("Recent User Contributions")
+--  HelpServ = menuItem("Search Mailing List Archive")
+----    Helpwn32 = menuItem("Win32lib+")
+--  Helpw32H = menuItem("w32Hflags")
+--  Helpw32R = menuItem("Win32Lib Reference Manual")
+--  Helpwstl = menuItem("Window Styles")
+--      menuSep() constant
+--  HelpUGrp = menuItem("User Group+")
+,{"Manual",     M_Help,-1,0,eMan,PROC,r_manual,{}} -- manual()
+,{"Licence",    M_Help,0,0,0,PROC,r_licence,{}}-- licence()
+,{"About",      M_Help,0,0,0,PROC,r_about,{}}  -- about()
+
+--DEV use ctrl keys:
+,{"",M_Ctxt,M_Ctxt,0}
+,{"Cut",        M_Ctxt,M_Cut,  0,0,C,0,{24,1, 0}}
+,{"Cut append", M_Ctxt,M_Cuta, 0,0,C,0,{24,1, 1}}
+,{"Copy",       M_Ctxt,M_Copy, 0,0,C,0,{ 3,1, 0}}
+,{"Copy append",M_Ctxt,M_Copya,0,0,C,0,{ 3,1, 1}}
+,{"Paste",      M_Ctxt,M_Paste,0,0,C,0,{22,1, 0}}
+,{"-",M_Ctxt,0,0,0,0}
+,{"Comment",    M_Ctxt,M_Cmm, 0,0,V,0,{'>'+128,1,0}}
+,{"Uncomment",  M_Ctxt,M_UCmm,0,0,V,0,{'<'+128,1,0}}
+,{"Indent",     M_Ctxt,M_Ind, 0,0,V,0,{VK_TAB,1,0}} -- Ctrl Tab (handled in virtualKey)
+,{"Unindent",   M_Ctxt,M_UInd,0,0,C,0,{VK_TAB,0,1}} -- Shift Tab (handled in charInput)
+,{"Undo",       M_Ctxt,M_Undo,0,0,C,0,{26,1,0}} -- Ctrl Z
+,{"Redo",       M_Ctxt,M_Redo,0,0,C,0,{25,1,0}} -- Ctrl Y
+
+,{"Folds",      M_Ctxt,M_Fold,0,"Fold functions"}
+,{"Fold selection or control block\t(Ctrl - )", M_Fold,M_Fone,0,0,V,0,{'-'+64,1,0}}
+,{"Expand fold\t(Ctrl + )",                     M_Fold,M_Fexp,0,0,V,0,{'+'+64,1,0}}
+,{"Re-fold last expansion\t(Ctrl Shift - )",    M_Fold,M_Frfd,0,0,V,0,{'-'+64,1,1}}
+
+,{"-",M_Ctxt,0,0,0,0}
+,{"Info",           M_Ctxt,M_Info,0,0,PROC,r_Info,{}}
+,{"Context Help",   M_Ctxt,0,0,0,PROC,r_F1help,{0}}
+
+,{"",M_Tmnu,M_Tmnu,0}
+,{"New",        M_Tmnu,M_New,   0,0,PROC,r_newFile,mt}          -- newFile("",{""},{1},0)
+,{"Open",       M_Tmnu,M_Open,  0,0,FUNC,r_openFile,{0,1,1}}    -- void = openFile(0,1,1)
+--,{"ReOpen",       M_Tmnu,0,   0,0,FUNC,r_openFile,{-1,1}}         -- void = openFile(-1,1)
+,{"ReOpen",     M_Tmnu,0,       0,0,PROC,r_reopen,{}}
+,{"Save As",    M_Tmnu,M_SaveAs,0,0,FUNC,r_saveFileAs,{}}       -- void = saveFileAs()
+,{"Save",       M_Tmnu,M_Save,  0,0,FUNC,r_saveCurr,{}}     -- void = saveCurr()
+,{"Close",      M_Tmnu,M_Close, 0,0,PROC,r_closeFile,{}}        -- closeFile()
+}
+end procedure
+resetMenus()
+
+global procedure TrackMenu(integer Tmenu, integer rightclick, integer cX, integer cY)
+-- First parameter is 0 for edit area context (cut/copy/paste..),
+--         or 1 for tab bar context (new/open/close..)
+--         or 2 for treeview context (open/rename/delete...)    --DEV??
+-- Second parameter is 0 for keyboard activation,
+--          or 1 for right mouse click.
+--
+integer x, y
+atom msg_pos, rect
+
+    if currfile or Tmenu=2 then
+        if Tmenu=0  -- edit area
+        and equal(initialcurrentdir&"backup\\",filepaths[currfile]) then
+            Restore()
+        else
+--          rect = allocate_Rect()
+            if rightclick then
+            -- get the mouse position in *Screen* coords
+                msg_pos = c_func(xGetMessagePos, {})
+                x = and_bits(msg_pos, #FFFF)
+                y = floor(msg_pos / #10000) 
+            else
+                if Tmenu then       -- use tab position
+                    rect = allocate_Rect()
+                    if not sendMessage(TC, TCM_GETITEMRECT, currfile-1, rect) then ?9/0 end if
+                    x = peek4s(rect+8)
+                    y = peek4s(rect+12)
+                else                -- use caret position
+                    x = CaretPosX --+CharWidth
+                    y = CaretPosY+CharHeight
+                end if
+-- 10/7/2013:
+--              void = clientToScreen(TC,x,y)
+                void = clientToScreen(Main,x,y)
+                x=void[1]
+                y=void[2]
+            end if
+--          c_proc(xShowWindow,{mID[M_Info],(rightclick and chovinfo)}) -- 5/6/14
+--setEnable
+--      elsif CtrlType=MenuItem then
+--          flag = MF_BYCOMMAND + (flag=0) -- special translation for menu flags
+--          void = c_func(xEnableMenuItem,{getParentHwnd(id),id,flag})
+--DEV/temp:
+if 0 then
+            setEnable(mID[M_Info],1)
+else
+            setEnable(mID[M_Info],(rightclick and chovinfo))
+end if
+
+            rcX = cX    rcY = cY    -- for F1help()
+--          poke4(rect,{x,y-CharHeight,x+120,y})
+--DEV: crash here with getHwnd(0)??
+--          void = c_func(xTrackPopupMenu, {getHwnd(mID[M_Ctxt+Tmenu]),
+--                                          TPM_LEFTALIGN+TPM_RIGHTBUTTON,
+--                                          x, y, 0, mainHwnd, NULL})
+----                                            x, y, rect, mainHwnd, NULL})
+            rect = allocate(20) -- TPMPARAMS (size+rect, just to be awkward)
+            poke4(rect,{20,x,y-CharHeight,x+120,y})
+            void = c_func(xTrackPopupMenuEx, {getHwnd(mID[M_Ctxt+Tmenu]),
+                                              TPM_LEFTALIGN+TPM_RIGHTBUTTON+TPM_VERTICAL,
+                                              x, y, mainHwnd, rect})
+            free(rect)
+        end if
+    end if
+end procedure
+dTrackMenu = routine_id("TrackMenu")    -- for eadir.ew
+
+--global procedure TrackTabMenu(integer rightclick)
+--  void = TrackPopupMenu(M_Tmnu,rightclick)
+--end procedure
+
+global procedure showMessageArea()
+-- used by CD_message
+    if not isMessageVIS then
+        isMessageVIS = 2    --True
+        if menusExist and mID[O_Marea] then
+            setCheck(mID[O_Marea],True)
+        end if
+        setVisible(MA,True)
+        resizeClientArea(1)
+    end if
+end procedure
+--r_showMessageArea = routine_id("showMessageArea") -- for F12() in edita.exw
+
+global function menuHandler(integer id, integer msg, atom wParam, object lParam)
+--object t, mjhelp
+integer t
+object mjhelp
+sequence mj, params
+integer mid
+    if msg=WM_MENUSELECT then
+        setText(SB6,"")
+--  if and_bits(hiWord(wParam),MF_MOUSESELECT)
+--  and not and_bits(hiWord(wParam),or_bits(MF_SEPARATOR,MF_POPUP)) then
+--  if not and_bits(hiWord(wParam),or_bits(MF_SEPARATOR,MF_POPUP)) then
+        if not and_bits(hiWord(wParam),MF_SEPARATOR) then
+            for i = M_File to E_SelM do
+--      for i = E_Book to E_SelM do
+                mid = mID[i]
+                if mid then
+                    if and_bits(hiWord(wParam),MF_POPUP) then
+                        if getHwnd(mid) = c_func(xGetSubMenu,{lParam,loWord(wParam)}) then
+                            for j=E_Book to length(menuset) do
+                                mj = menuset[j]
+                                if mj[ID]=mid then
+                                    if length(mj)>=HELPTXT then
+                                        mjhelp = mj[HELPTXT]
+                                        if sequence(mjhelp) then
+                                            if mj[ID0]<=-1 then
+                                                setText(SB6,mjhelp)
+                                            else
+                                                setText(SB6,xlna(mjhelp))
+                                            end if
+                                        end if
+                                    end if
+                                    exit
+                                end if
+                            end for
+                        end if
+                    else
+                        if getHwnd(mid)=lParam then
+                            for j=1 to length(menuset) do
+                                mj = menuset[j]
+                                if mj[PARENT]=i
+                                and mj[ID]=loWord(wParam) then
+                                    mjhelp = mj[HELPTXT]
+                                    if sequence(mjhelp) then
+                                        if mj[ID0]<=-1 then
+                                            setText(SB6,mjhelp)
+                                        else
+                                            setText(SB6,xlna(mjhelp))
+                                        end if
+                                    end if
+                                    exit
+                                end if
+                            end for
+                            exit
+                        end if
+                    end if
+                end if
+            end for
+        end if
+    else
+--if isToolBarVIS then
+--if id=menuButton then
+--  addFocus(menuWin)
+--  setVisible(menuWin,True)
+--  return 0
+--end if
+--removeFocus(menuWin)
+--setVisible(menuWin,False)
+--end if
+        for j = 1 to length(menuset) do
+            mj = menuset[j]
+            if id=mj[ID] then
+--              t = mj[PF_RID]
+                t = mj[PF_RTYP]
+                params = mj[PARAMS]
+--18/4/10
+--              if atom(t) then
+                    if t=C then
+                        void = call_func(r_CharInput,params)
+                    elsif t=V then
+                        void = call_func(r_VirtualKey,params)
+--                  else
+--                      ?9/0    -- incorrectly defined menu.
+--                  end if
+--              else
+--                  if t[1] = PROC then
+                    elsif t=PROC then
+--                      call_proc(t[2],params)
+                        call_proc(mj[PF_R_ID],params)
+--                  else
+                    elsif t=FUNC then
+--                      void = call_func(t[2],params)
+                        void = call_func(mj[PF_R_ID],params)
+else
+    ?9/0
+                    end if
+--              end if
+                exit
+            end if
+        end for
+    end if
+    return 0
+end function
+r_menuHandler = routine_id("menuHandler")
+
+
+procedure createMenus()
+integer midx, id, parent
+sequence text
+--DEV ,mi (=menuset[i])
+    resetMenus()
+    for i = 1 to length(menuset) do
+        text = menuset[i][TEXT]
+--      if length(menuset[i])<HELPTXT or not equal(menuset[i][HELPTXT],-1) then
+        if length(menuset[i])<HELPTXT or not equal(menuset[i][ID0],-1) then
+            text = xl(text)
+        end if
+--  text = menuset[i][TEXT]
+--  if equal(text,"ReOpen as tab 8") then
+--      if isTabWidth=8 then
+--          text = ""
+--      else
+--          text = xl(text)
+--          midx = find('8',text)
+--          if midx then
+--              text[midx] = isTabWidth+'0'
+--          end if
+--      end if
+--  else
+--      text = xl(text)
+--  end if
+        midx = menuset[i][ID0]
+--  if length(text) or length(menuset[i])=4 then    --or midx then
+        if length(text) or midx=M_Ctxt or midx=M_Tmnu then
+            parent = mID[menuset[i][PARENT]]
+--if menuset[i][PARENT]=M_Main then
+--  parent = menuWin
+--end if
+--          if length(menuset[i])<PF_RID then
+            if length(menuset[i])<PF_RTYP then
+                id = create( Menu, text, 0, parent, 0,0,0,0,0)
+            elsif parent then
+                id = create( MenuItem, text, 0, parent, 0,0,0,0,0)
+            else
+                id = 0
+            end if
+            if midx>0 then
+                mID[midx] = id
+            end if
+            menuset[i][ID] = id
+        end if
+    end for
+--  setHandler(mID[M_File..E_SelM],r_menuHandler)
+    for i=M_File to E_SelM do
+        id = mID[i]
+        if id then
+            setHandler(id,r_menuHandler)
+        end if
+    end for
+--DEV:
+--   M_pFTP = nm(), --  ""
+--  setHandler( mID[O_Tlbar],r_menuHandler)
+--setHandler(menuButton,r_menuHandler)
+end procedure
+createMenus()
+
+
+--
+-- Apply ini options once the menus have been created...
+--
+procedure setMenuChecks()
+--  setCheck(mID[O_Tbbar],isTabBarVIS)
+--  setCheck(mID[O_HScrl],isHScrollVIS)
+--  setCheck(mID[O_VScrl],isVScrollVIS)
+--  setCheck(mID[O_PScrl],isScrollPerm)
+--  setCheck(mID[O_Stats],isStatusBar)
+--  setCheck(mID[O_WWrap],isWordWrap)
+    if mID[O_err] then
+        setCheck(mID[O_err],isFormatErr)
+    end if
+    if mID[O_Treev] then
+        setCheck(mID[O_Treev],isFilePanelVIS)
+    end if
+    if mID[O_Marea] then
+        setCheck(mID[O_Marea],isMessageVIS)
+    end if
+end procedure
+
+--include eaini.e   -- init code and saveINI
+if isToolBarVIS then toggleToolBar(1) end if
+if isAutoComplete and mID[O_AutoC] then toggleAutoComplete() end if
+if isBackGround and mID[O_BackG] then toggleBackGround() end if
+enableMenuToolBar()
+--setCheck(mID[O_Tlbar],isToolBarVIS) -- toggleTooBar() is called direct from eaini.e
+setMenuChecks()
+
+--used by F11()
+global procedure toggleMenus()
+    if menusExist then
+        menusExist = 0
+        for i=H_Cntxt to F_New by -1 do
+            void = destroyMenu(mID[i])
+--      mID[i] = 0  -- erm, still used by toolbar
+        end for
+        for i=M_File to M_Help do
+            void = removeMenu(mID[i])
+--      mID[i] = 0  -- ""
+        end for
+    else
+        createMenus()
+        menusExist = 1
+        setCheck(mID[O_AutoC],isAutoComplete)
+        setCheck(mID[O_Wwrap],isWordWrapON)
+        setCheck(mID[O_BackG],isBackGround)
+        setCheck(mID[T_ShowS],showSpecials)
+-- and show specials, etc...
+--  setCheck(mID[O_Tlbar],isToolBarVIS)
+        setMenuChecks()
+
+        enableMenuToolBar() --DEV?
+    end if
+end procedure
+--DEV new compiler crashed w/o an extra cr...
+r_toggleMenus = routine_id("toggleMenus")
+

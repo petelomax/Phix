@@ -1,0 +1,504 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Glossary</h1>
+      <div id="mainSection">
+        Let me know of anything else that should be clarified here, or anything that needs further simplification for those
+        completely new to computers and programming, obviously within reason and assuming they have access to several other 
+        sources of educational material. Of particular importance are any words and phrases used elsewhere in this document
+        and/or the sources of Phix that might be slightly ambiguous.
+       <br>
+       <br>
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <a name=allocation></a>
+            allocation
+         </td>
+         <td>
+            Can mean reserving a block of memory (see <a href="allocate.htm">allocate</a>()) or a <a href="#register">register</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=assignment></a>
+            assignment
+         </td>
+         <td>
+            The simple act of storing a value in a variable.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=atom></a>
+            atom
+         </td>
+         <td>
+            A variable that can hold an
+          <a href="#integer">integer</a> or a
+          <a href="#float">floating point value</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=BOM></a>
+            BOM
+         </td>
+         <td>
+            A Byte Order Mark is a special byte sequence at the start of a text file which indicates UTF8, UTF16LE/BE,
+            or UTF32. See edita.exw/readFile() and ptok/loadFile() for supported values.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=callingconvention></a>
+            calling convention
+         </td>
+         <td>
+            Most entry points in the run-time VM (virtual machine) require parameters in specific registers and precise stack content.
+            These are documented in the sources (builtins\VM). I use builtins\VM\pHeap.e\::pGetMem as my go-to place for a quick
+            recap on the various operating-system-api-specific calling conventions.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=compilation></a>
+            compilation
+         </td>
+         <td>
+            In Phix, this specifically means creating an executable file. See also interpretation.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=directive></a>
+            compiler directive
+         </td>
+         <td>
+            A command line option or programming statement that does not directly generate code but instead instructs the compiler how to 
+            subsequently generate code. Examples include "with trace", "-c", and "format".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=dwordseq></a>
+            dword-sequence
+         </td>
+         <td>
+            Specifically used to indicate a
+          <a href="#sequence">sequence</a> which is
+          <i>not</i> a
+          <a href="#string">string</a> but (on 32-bit) 4 bytes per element.
+            On 64-bit, they are (of course) technically qword-sequences, 8 bytes per element, but are still usually referred to as dword-sequences.
+            You cannot natively declare a variable as dword-sequence-but-not-string, however the following user defined type has the same effect:
+<!--eucode>
+    type dword_sequence(object o)
+        return (sequence(o) and not string(o))
+    end type
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    type</font><font color="#000000"> dword_sequence</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> o</font><font color="#0000FF">)
+</font><font color="#008080">        return</font><font color="#0000FF"> (</font><font color="#004080">sequence</font><font color="#800000">(</font><font color="#000000">o</font><font color="#800000">)</font><font color="#008080"> and not</font><font color="#004080"> string</font><font color="#800000">(</font><font color="#000000">o</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#008080">    end type</font>
+</pre>
+            <br>
+            You can (sometimes) alternatively use a #isginfo{} statement to instruct the compiler to perform an equivalent compile-time check.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=era></a>
+            era
+         </td>
+         <td>
+            The effective return address, a low-level implementation detail of how the debugger actually works. Normally, in day-to-day use of 
+            Phix, the era is correctly translated to a hll line number and is of no concern to you.
+            <br>
+            <br>
+            Quite often the era is just the same as a usual return address. However, suppose that opApnd invokes opDealloc, and something goes 
+            wrong in the latter. Rather than using the real return address into the middle of opApnd, we want an era that can be converted to 
+            a hll line number. Or perhaps during the statement s[1][2][3][4][5][6] = x, we might find that s[1][2][3][4] is 0, and need to 
+            issue an "attempt to subscript an atom" error when 4 out of 6 subscripts have been processed (popped from the stack). While it may
+            have little or no impact on runtime performance, correctly maintaining an era (propagating it through nested calls) may consume a 
+            not entirely insignificant amount of effort when modifying the low-level back end. If an error message shows line number -1, your 
+            first suspicion should be that some low level code is not getting the era quite right.
+            <br>
+            <br>
+            Note that era often have a -1 applied. Consider the following (fictional) listing fragment
+            <pre>
+                    112     n = <expr>
+                                ...
+                                call :%pStoreFlt        ;#004020145
+                    113     s = t
+                                add [ebx+esi*4-16],1    ;#00402014A
+            </pre>
+            ie pStoreFlt preserves all registers, and the first instruction for line 113, assuming the compiler knows that [t] is already
+            in esi and that t is not unassigned, is to increase the reference count on it. If we catch an exception at #402014A, we want
+            to point the user at line 113, however if there is a problem in pStoreFlt, then rather than use the actual return address of
+            #402014A we use an era of #4020149, to point the error message at line 112. Naturally the above instructions would normally
+            work just fine, but if n/t/esi have been corrupted somehow, we need to say something.
+            <br>
+            <br>
+            All memory allocations also have an era stored against them for use in memory leak checking and suchlike.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=falsepositives></a>
+            false positives
+         </td>
+         <td>
+            When an antivirus(AV) program proclaims there is a problem in a file, but in fact there is nothing wrong with it. 
+            The ever increasing rate of malware production has forced AV makers to adopt "heuristic" and "reputation" based 
+            mechanisms, with an unavoidable hike in false positives, and is the lastest bane of many a developer. 
+            One in particular has caused me problems: Avast/evo-gen. The good news is that once a program "matures", or 
+            reaches a certain size, the problem stops. Obviously I report these as and when I see fit, but response times
+            are painfully slow. While submission may or may not achieve miracles, not doing so almost guarantees that things 
+            will simply <i>never</i> get fixed. See also <a href="html\rectools.htm">Recommended Tools</a> for links to 
+            several on-line scanners, which obviously would not exist if all or even any AV were perfect.
+            <br>
+            <br>
+            Some of the (smaller) included demos have a trailing "--/**/include ..\test\t02parms.exw" or similar as that can 
+            make some false positives go away. My hope is that any such measures prove to be temporary.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=float></a>
+            float
+         </td>
+         <td>
+            Specifically used to indicate an
+          <a href="#atom">atom</a> which is
+          <i>not</i> an
+          <a href="#integer">integer</a> but (on 32-bit) a 
+            64 bit floating point value, ranging from approximately -1.79e308 to +1.793308 with around 15 decimal digits of precision. 
+            On 64-bit, floats are 80-bit (tbyte), ranging from roughly -1.18e4932 to +1.18e4932 with about 19 decimal digits of precision.
+            You cannot natively declare a variable as float-but-not-integer, however the following user defined type has the same effect:
+<!--eucode>
+    type float(object o)
+        return (atom(o) and not integer(o))
+    end type
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    type</font><font color="#000000"> float</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> o</font><font color="#0000FF">)
+</font><font color="#008080">        return</font><font color="#0000FF"> (</font><font color="#004080">atom</font><font color="#800000">(</font><font color="#000000">o</font><font color="#800000">)</font><font color="#008080"> and not</font><font color="#004080"> integer</font><font color="#800000">(</font><font color="#000000">o</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#008080">    end type</font>
+</pre>
+            <br>
+            You can (sometimes) alternatively use a #isginfo{} statement to instruct the compiler to perform an equivalent compile-time check.
+            Note however that the result of 1.5+1.5 is the integer 3, not the float 3.0, hence the above type is highly likely to cause a wholly 
+            unnecessary type check failure at some point and rather rudely terminate the application.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=gvar></a>
+            gvar
+         </td>
+         <td>
+            Internal compiler/back-end term. Constants, file-level, global, and any unnamed temporary variables in top-level code are
+            all gvars. They are stored in a static table at the start of the data section, see pemit2.e/filedump.exw for more details.
+            See also/contrast with tvar.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=integer></a>
+            integer
+         </td>
+         <td>
+            A variable that (on 32-bit) can hold a 31-bit signed integer value in the range -1073741824..1073741823 (#C0000000..#3FFFFFFF).
+            On 64-bit, the 63-bit signed integer range is -4611686018427387904..4611686018427387903 (#C000000000000000..#3FFFFFFFFFFFFFFF).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=interpretation></a>
+            interpretation
+         </td>
+         <td>
+            Running a program "from source". Technically speaking, interpretation is in fact compilation, but without creating an executable file.
+            Some other steps are also omitted, in particular populating the symbol table with actual names instead of ternary tree indexes, unless 
+            there is an error that needs reporting, and the re-use of some builtin routines that are already available as part of the compiler.
+            In many cases an interpreted program runs just as fast as a compiled one, quite unlike other interpreted programming languages.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=isginfo></a>
+            isginfo
+         </td>
+         <td>
+            Not recommended for general use. An internal compile-time type check. Statements of the form
+            #isginfo{name,0b0101,MIN,MAX,integer,-2} are checked at the end of compilation in an attempt
+            to ensure a variable is being assigned the right kinds of things and will require the minimum 
+            of run-time type-checks. They were introduced to streamline the compiler development, where
+            they are still quite widely used, but proved less than spectacularly successful. All too often
+            the only sensible way to create a new statement is to copy an existing one and then copy the
+            actual details from the resulting compiler error message. They can often trigger in subtle and 
+            irrelevant ways and can be extremely difficult to debug. That said, sometimes the compiler ones 
+            do indeed catch stupid coding errors in a fairly helpful and immediate manner. There is also a
+            full (t49, 800+ lines) test file, run as part of p -test, dedicated entirely to #isginfo{}.
+            By the time you know enough to use these in anger, you won&rsquo;t need me to tell you what 
+            each of the individual fields mean, and if you have to ask you&rsquo;re probably not ready.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=namespace></a>
+            namespace
+         </td>
+         <td>
+            A namespace allows the programmer to explicitly specify in which source file, or source sub-tree, a particular identifier is declared.
+            This is most useful when a particular global identifier occurs in more than one file, but might just be there to clarify intent.
+            Traditionally a namespace is declared using "as &lt;namespace&gt;" on an include statement, but it can also be declared at the start
+            of the included file. Note that a namespace is always deemed local rather than global and may therefore require a source file to be
+            re-included by any source files that want to qualify a reference with it. See <a href="scope.htm">scope</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=qwordseq></a>
+            qword-sequence
+         </td>
+         <td>
+            See dword-sequence. The use of qword-sequence implies a 64-bit-only situation.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=register></a>
+            register
+         </td>
+         <td>
+            In a 32-bit x86 application, one of eight temporary storage places in the heart of the physical CPU (Central Processing Unit), 
+            or 16 in a 64-bit X64 application. Careful selection of these ("register allocation") can significantly improve performance.
+            <br>
+            <br>
+            The existing method (a naieve, most recently used affair, in pilx86.e) is adequate rather than exceptional and is overdue for 
+            a complete rewrite (to a suitably lightweight linear scan or something similar, but definitely not graph colouring).
+            <br>
+            <br>
+            There are also several floating-point and SSE (etc) registers, however the use of an unqualified "register" usually means one
+            of the integer-only registers in the main CPU.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=scope></a>
+            scope
+         </td>
+         <td>
+            The term scope is a general concept used when describing how the compiler resolves references to identifiers. In most cases it
+            is simple and intuitive, involving nothing more than plain old common sense. The scope of an identifier is where, in terms of 
+            which lines of code, it can be referenced. The scope of a variable starts at the point of declaration and ends at the end of 
+            the declaring block, routine, file, or in the case of globals, on the last line of the main file. The scope of a routine is 
+            anywhere in the file it is declared in, or in the case of global routines, anywhere in the entire application. Namespaces and
+            explicit forward declarations can be used to further qualify and clarify matters. See <a href="scope.htm">scope</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=sequence></a>
+            sequence
+         </td>
+         <td>
+            A variable-length array of elements, which can be integer, float, string, or a nested sub-sequence, to any depth.
+            A variable declared as sequence can also hold a
+          <a href="#string">string</a> but not vice versa.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=string></a>
+            string
+         </td>
+         <td>
+            A variable-length array of 8-bit characters/bytes/integers with values from 0 to 255. Strings can be stored in 
+            variables declared as
+          <a href="html/glossary.htm#sequence">sequence</a>, however variables declared as string
+          <i>
+           <b>cannot</b>
+          </i> hold
+          <a href="#dwordseq">dword-sequences</a>.
+            Strings can also be used to hold raw binary data, though you would normally use allocate() for that. Likewise
+            unicode text other than UTF8 is normally best kept in raw memory or a <a hred="#dwordseq">dword-sequence</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=TCB></a>
+            TCB
+         </td>
+         <td>
+            Thread Control Block. Used in and private to builtins/VM/pHeap.e, contains tables of owned and non-owned
+            lists of free blocks, which minimises lock contention by allocate and free and their low-level internal
+            equivalents (:%pAllocStr etc).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=technicalia></a>
+            technicalia
+         </td>
+         <td>
+            A made-up word loosely meaning one of "technical details you do not need to know for day-to-day use" or
+            "some useless trivia" or "extremely unlikely scenario" or "covering my ass", or all four. Several pages in 
+            this document end with a technicalia drop-down. They are initially hidden to avoid breaking the flow of my 
+            (or more acurately Rob Craig&rsquo;s) otherwise achingly beautiful prose. <img src="Images/ksk-smile.png" /> 
+            They can be skipped on first reading, may help when you hit a difficult problem, and above all are not worth 
+            getting all hot and bothered about, he says hopefully.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=threadstack></a>
+            threadstack
+         </td>
+         <td>
+            An <b>outdated</b> internal compiler/back-end term, from before making tvars ebp-relative. Where this is
+            still used, it probably just means the gvar table, or quite likely should just be completely ignored.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=tvar></a>
+            tvar
+         </td>
+         <td>
+            Internal compiler/back-end term. Routine parameters, local variables, and any unnamed temporaries required
+            inside a routine are all tvars. They are stored relative to ebp, with storage for them created by opFrame
+            and destroyed by opRetf, see the comments in builtins/VM/pStack.e for more details.
+            See also/contrast with gvar. Note that while gvars can have an associated compile-time value for constant
+            and assignment-on-declaration purposes, that is not the case for tvars, which only have run-time values.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=UTF8></a>
+            UTF8
+         </td>
+         <td>
+            An international standard for holding non-ascii text. Phix source files may be stored as UTF8 (but not UTF16)
+            and Edita can edit UTF8/16 files seamlessly, as long as they begin with a proper BOM. Note that UTF8 string 
+            characters can be difficult to process using normal subscripts; since unicode characters can be composed of 
+            more than one byte, the third character (for instance) is not necessarily stored at s[3]. However substring
+            matching, and subsequent replacement, generally works perfectly well, without any known issues.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=VM></a>
+            VM
+         </td>
+         <td>
+            The term Virtual Machine has several meanings in the computer world; quite commonly it is used for a software 
+            imitation of an entire operating system running inside another. However in Phix it is simply a collection of 
+            software components that augment the physical hardware and wrap many (but not all) OS-specific requirements. 
+            These components can be found in the builtins\VM directory. For example the hardware add can only operate on
+            two integers and fadd on two floats, whereas :%opAdd (in builtins\VM\pMath.e) can operate on any combination 
+            of integer and float, and yield either an integer or floating point result.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=word></a>
+            word
+         </td>
+         <td>
+            When I use "word", I usually mean a 16-bit value (and dword/qword for 32/64 bits). Many academic papers use 
+            it to mean "machine word", which of course these days means "32 or 64 depending on how you compiled it".
+         </td>
+        </tr>
+       </table>
+       <!--
+DEV format routine_id call_back type user defined type enum constant inline assembly listing trace profile profile_time 
+console gui global public include whitespace ansi utf8 utf16 WideString unicode ascii byte dword qword 
+coercion casting commandline autoinclude (multiple) slice subscript typecheck intermediate code, il x86
+X64 ffi closure(!! time to give up !! [erm, see compose suggestion in totdo.txt])-->
+       <br>
+       <br>
+      </div>
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+      <br>
+      <br>
+      &nbsp;
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

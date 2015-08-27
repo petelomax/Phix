@@ -1,0 +1,140 @@
+--
+-- t31sce.exw
+--
+-- Phix tests for short circuit evaluation.
+-- (this file was originally written for concepts which have
+--  long been dropped; everything after *implicit* below
+--  has been completely rewritten or deleted, compared to
+--  the original, that is. It now also runs on RDS Eu,
+--  which the original never did.)
+--
+--/* -- RDS Eu:
+type string(object s) return sequence(s) end type
+--*/
+
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+integer nse
+procedure nowt()
+-- dummy routine [prevent some potential compiler optimisations,
+--		    in particular the checks for "then end if"]
+    nse=1   -- avoid "no side effects" warning (this and var nse can be commented out if desired)
+end procedure
+
+function F(object o)
+-- another dummy routine to thwart some compiler optimisations.
+    return o
+end function
+
+integer x,y
+object o
+--  x=0
+    x = F(0)	-- (x is now 0, but the compiler does not know that)
+
+    -- avoid divide by zero:
+    if x!=0 and 1/x>10 then Abort("x!=0 and 1/x>10\n") end if
+--  if x!=1 and 1/x>10 then Abort("x!=0 and 1/x>10\n") end if	-- trapped OK
+    o = {1,2,3,4,5}
+    while 1 or o do nowt() exit end while	    -- avoid condition must be an atom
+--  while 0 or o do nowt() exit end while	    -- ensure "" is actually caught
+    if x=0 or y then nowt() end if		    -- avoid uninitialised variable
+--  if x=1 or y then nowt() end if		    -- ensure "" is actually caught
+    y = F(1) -- suppress 'never assigned a value' warning
+
+sequence s,t
+    s = {1,2,3}
+    if x>=1 and s[x] then Abort("x>=1 and s[x]\n") end if   -- avoid bounds check[0] error
+--  if x>=0 and s[x] then Abort("x>=1 and s[x]\n") end if   -- ensure "" is actually caught
+--  o=1
+procedure seto() o=1 end procedure
+    seto()
+    if atom(o) or length(o)=1 then nowt() end if    -- avoid length of atom is undefined
+integer i
+    i=1
+    while i<=length(s) and s[i]!=4 and s[i]!=5 do   -- avoid bounds check[4] error
+	s[i]=1
+	i+=1
+    end while
+
+--
+-- Phix does not support *implicit* sequence operations, 
+--  eg/ie {1,1,0,0}={1,0,1,0} simply yields 0 (false), 
+--  whereas sq_eq({1,1,0,0},{1,0,1,0}) gives {1,0,0,1}.
+-- IMNSHO it is better to force "sq_add" instead of "+"
+--  in the very rare cases that need it (and the even
+--  rarer "sq_eq" instead of "="), rather than force 
+--  "equal" instead of "=" practically everywhere.
+--  
+	s={1,1,1}   -- should already be this from above
+
+--/**/	-- This is fine on Phix:
+--/**/	if s={9,9,9} or s={6,6,6} then
+--/**/	    Abort("error: s=999 or s=666!\n")
+--/**/	end if
+	-- but RDS Eu needs this:
+	--  (which also works fine on Phix)
+	if equal(s,{9,9,9}) or equal(s,{6,6,6}) then
+	    Abort("error: equal(s,999) or equal(s,666)!\n")
+	end if
+
+--/**/	-- However Phix needs this:
+--/**/	s = sq_or(sq_eq(s,{9,1,9}),sq_eq(s,{6,6,1}))
+--/*	-- Whereas RDS Eu copes with this
+--	--  (you get a compile-time type error in Phix)
+	s = s={9,1,9} or s={6,6,1}
+--*/
+	if not equal(s,{0,1,1}) then Abort("s!={0,1,1}\n") end if
+
+--  <aside>
+--	Yup, the above is yuk. But not exactly commonplace. Notice
+--	how many times I have to use "equal()" to get these things
+--	to run on RDS Eu... Eg in Phix (only!) I can just code:
+--/**/	if s!={0,1,1} then Abort("s!={0,1,1}\n") end if
+--	--  (you get true/false condition must be ATOM on RDS)
+--  </aside>
+
+--/**/	-- And Phix needs this:
+--/**/	s = sq_eq(s,{9,1,9})
+--/*	-- Whereas RDS Eu copes with this
+--	--  (you get a compile-time type error in Phix)
+	s = s={9,1,9}
+--*/
+	if not equal(s,{0,1,0}) then Abort("s!={0,1,01}\n") end if
+
+--/**/	-- And Phix needs this:
+--/**/	t = sq_eq({1,2},{3,4})&1
+--/*	-- Whereas RDS Eu copes with this
+--	--  (t ends up as {0,1} in Phix)
+	t = ({1,2}={3,4})&1
+--*/
+	if not equal(t,{0,0,1}) then Abort("t!={0,0,1}\n") end if
+
+--	Assuming we really want {1,1,1}={1,1} aka false,
+--	The expression
+--	i = ({1,2,3}={1,2,3})=({1,2}={1,2})
+--	is misleading on Phix (it gets reduced to (1=1) aka true),
+--	and causes "sequence lengths are not the same" on RDS Eu.
+--	We must be more explict about which "=" we want:
+--/**/	-- Phix:
+--/**/	i = sq_eq({1,2,3},{1,2,3})=sq_eq({1,2},{1,2})
+--/*	-- RDS:
+	i = equal({1,2,3}={1,2,3},{1,2}={1,2})
+--*/
+	if i then Abort("({1,2,3}={1,2,3})=({1,2}={1,2})\n") end if
+
+--/**/	if s={9,9,9} or s={6,6,6} then
+--/*
+	if equal(s,{9,9,9}) or equal(s,{6,6,6}) then
+--*/
+	    Abort("s={9,9,9} or s={6,6,6}\n")
+	end if
+
+--/**/	o=({1,2,3}={1,2,3})=({1,2}={1,2})
+--/**/	  -- ditto, this naturally reduces to true=true, no error.
+--/**/	if o!=1 then Abort("o!=1\n") end if
+--/**/
+--/**/	if ({1,2,3}={1,2,3})!=({1,2}={1,2}) then
+--/**/	    Abort("({1,2,3}={1,2,3})!=({1,2}={1,2})\n")
+--/**/	end if
+
+

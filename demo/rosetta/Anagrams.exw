@@ -1,0 +1,83 @@
+--
+-- demo\rosetta\Anagrams.exw
+-- =========================
+--
+-- Two or more words can be composed of the same characters, but in a different order. 
+-- Using the word list at http://www.puzzlers.org/pub/wordlists/unixdict.txt find the 
+-- sets of words that share the same characters that contain the most words in them.
+
+procedure fatal(string msg)
+    printf(1,"unixdict.txt %s. download it from http://www.puzzlers.org/pub/wordlists/unixdict.txt\n",{msg})
+    if getc(0) then end if
+    abort(1)
+end procedure
+
+procedure Anagrams()
+integer fn
+sequence words = {}, anagrams = {}, last="", letters
+object word
+integer maxlen = 1
+
+    fn = open("unixdict.txt","r")
+    if fn=-1 then fatal("not found") end if
+    while 1 do
+        word = trim(gets(fn))
+        if atom(word) then exit end if
+        if length(word) then
+            letters = sort(word)
+            words = append(words, {letters, word})
+        end if
+    end while
+    close(fn)
+    if length(words)=0 then fatal("is empty") end if
+
+    words = sort(words)
+    for i=1 to length(words) do
+        {letters,word} = words[i]
+        if letters=last then
+            anagrams[$] = append(anagrams[$],word)
+            anagrams[$][1] = length(word)
+            if length(anagrams[$])>maxlen then
+                maxlen = length(anagrams[$])
+            end if
+        else
+            last = letters
+            anagrams = append(anagrams,{0,word})
+        end if
+    end for
+     
+    puts(1,"\nMost anagrams:\n")
+    for i=1 to length(anagrams) do
+        last = anagrams[i]
+        if length(last)=maxlen then
+            for j=2 to maxlen do
+                if j>2 then puts(1,", ") end if
+                puts(1,last[j])
+            end for
+            puts(1,"\n")
+        end if
+    end for
+
+    puts(1,"\nLongest anagrams:\n")
+    anagrams = sort(anagrams)
+    maxlen = 1
+    for i=length(anagrams) to 1 by -1 do
+        last = anagrams[i]
+        if last[1]<maxlen then exit end if
+        for j=2 to length(last) do
+            puts(1,last[j])
+            if j<length(last) then puts(1,", ") end if
+        end for
+        puts(1,"\n")
+--      maxlen = last[1] -- (show 1 set only)
+        if maxlen=1 then
+            -- (the -2 makes it show 3 sets)
+            maxlen = last[1]-2
+        end if
+    end for
+
+    if getc(0) then end if
+end procedure
+
+    Anagrams()
+

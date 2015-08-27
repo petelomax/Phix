@@ -1,0 +1,107 @@
+--
+-- demo_tabs.exw
+-- =============
+--
+
+include arwen.ew
+
+--sequence tabstyles
+--  tabstyles = getClassStyles(TabControl)
+--atom tabStyle, tabStyleEx
+--  tabStyle = tabstyles[1]
+--  tabStyleEx = tabstyles[2]
+--DEV this shows better XP-style tabs, but worse ownerdrawn...
+-- (not that it really matters, you would normally pick one or the other and stick with it!)
+--  tabStyle -= and_bits(tabStyle,TCS_OWNERDRAWFIXED)       -- \ work, but obviously all colour &
+--  setClassDefaults(TabControl, tabStyle, tabStyleEx)      -- / enabled stuff ceases to show up.
+
+constant DEMO = create(Window,  "Demonstration of Tab Controls in ARWEN", 0, 0,10,10,579,216,{0,WS_EX_CLIENTEDGE})
+--DEV These let us know if size/position is right [DEV still a wee bit off, on XP]
+constant btnMinus = create(Button, "-TCS_OWNERDRAWFIXED" ,0, DEMO, 5, 5,175,55,BS_MULTILINE)
+constant btnPlus  = create(Button, "+TCS_OWNERDRAWFIXED" ,0, DEMO, 5,75,175,55,BS_MULTILINE)
+constant TABCONTROL = create(TabControl, "" , 0, DEMO, 196,6,350,150,0)
+constant IDI1 = addIcon(loadIcon(IDI_ASTERISK))
+constant IDI2 = addIcon(loadIcon(IDI_EXCLAMATION))
+constant IDI3 = addIcon(loadIcon(IDI_HAND))
+-- The following also work (as long as the files exist):
+--atom hIcon
+--hIcon = extractIcon("C:\\Program Files\\Phix\\p.exe",1,0)
+--hIcon = extractIcon("C:\\Program Files\\Edita\\95.ico",1,0)
+--constant IDI4 = addIcon(hIcon)
+--void = c_func(xDestroyIcon,{hIcon})
+
+constant TABCONTROL1 = create(TabItem,  "  TabItem 1  " , IDI1, TABCONTROL, 0,0,0,0,0)
+constant TABCONTROL2 = create(TabItem,  "TabItem 2" , IDI2, TABCONTROL, 0,0,0,0,0)
+constant TABCONTROL3 = create(TabItem,  "TabItem 3" , IDI3, TABCONTROL, 0,0,0,0,0)
+constant TABCONTROL4 = create(TabItem,  "&TabItem 4" , 0, TABCONTROL, 0,0,0,0,0)
+setEnable(TABCONTROL2, 0)
+setTextColour(TABCONTROL4, Red)
+setBackColour(TABCONTROL1,Yellow)
+constant TABBUTTON1 = create(Button, "Enable TabItem 2" ,0, TABCONTROL1, 40, 44,110,40,BS_MULTILINE)
+constant TABBUTTON1a = create(Button, "Set 2 Cyan" ,0, TABCONTROL1, 180, 44,110,40,BS_MULTILINE)
+--constant TABBUTTON1a = create(Button, "Set 2 Cyan" ,0, TABCONTROL1, 180, 44,110,40,or_all({BS_MULTILINE,BS_OWNERDRAW}))
+--setBackColour(TABBUTTON1a, Yellow)    -- no good
+--setBackColour(DEMO, Yellow)
+constant TABBUTTON2 = create(Button, "Change text" ,0, TABCONTROL2, 30, 10,110,30,0)
+constant TABBUTTON3 = create(Button, "Click here to change out of this Tab" ,0, TABCONTROL3, 30, 15,110,60,BS_MULTILINE)
+constant TABBUTTON4 = create(Button, "Click here to Disable TabItem 2" ,0, TABCONTROL4, 60, 45,110,60,BS_MULTILINE)
+
+function handler_TABBUTTONS(integer id, integer msg, atom wParam, object lParam)
+sequence text
+    if msg = WM_COMMAND then
+        if id = TABBUTTON1 then
+            if atom(wParam) or object(lParam) then end if -- suppress warnings
+            setEnable(TABCONTROL2, True)
+        elsif id=TABBUTTON1a then
+            if equal(getText(TABBUTTON1a),"Set 2 Cyan") then
+                setBackColour(TABCONTROL2, Cyan)
+                setText(TABBUTTON1a,"Unset 2 Cyan")
+            else
+                setBackColour(TABCONTROL2, -1)
+                setText(TABBUTTON1a,"Set 2 Cyan")
+            end if
+        elsif id = TABBUTTON2 then
+            text = getText(TABCONTROL2)
+--          text += text != ' '                 (<== seq op!)
+            for i=1 to length(text) do
+                if text[i]!=' ' then text[i] = xor_bits(text[i],7) end if
+            end for
+            setText(TABCONTROL2, text)
+        elsif id = TABBUTTON3 then
+            setFocus(TABCONTROL4)
+        elsif id = TABBUTTON4 then
+            setEnable(TABCONTROL2, False)
+        elsif id = btnMinus then
+            removeStyle(TABCONTROL,TCS_OWNERDRAWFIXED)
+            setVisible(TABCONTROL,False)
+            setVisible(TABCONTROL,True)
+        elsif id = btnPlus then
+            addStyle(TABCONTROL,TCS_OWNERDRAWFIXED)
+            setVisible(TABCONTROL,False)
+            setVisible(TABCONTROL,True)
+        end if
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+end function
+
+function handler_TABCONTROL(integer id, integer msg, atom wParam, object lParam)
+    if msg = WM_NOTIFY and wParam = TCN_SELCHANGING then
+        if id or object(lParam) then end if -- suppress warnings
+        if getIndex(TABCONTROL) = TABCONTROL3 then
+            return 1
+        end if
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+end function
+
+setHandler({DEMO,btnMinus,btnPlus,TABBUTTON1,TABBUTTON1a,TABBUTTON2,TABBUTTON3,TABBUTTON4} , routine_id("handler_TABBUTTONS") )
+setHandler(TABCONTROL, routine_id("handler_TABCONTROL"))
+    
+WinMain(DEMO, SW_NORMAL)
+

@@ -1,0 +1,68 @@
+--
+-- demo_msgtraps.exw
+-- =================
+--
+
+include arwen.ew
+
+sequence traptext, traptext2
+
+traptext = ""
+traptext2 = ""
+
+constant messtext = "ARWEN Win32 library"
+
+constant DEMO = create(Window,  "Message trapping - type some text in the fields", 0, 0, 50,50,480,150,WS_OVERLAPPEDWINDOW)
+constant EDIT = create(EditText, "", 0, DEMO, 20,30,200, 20,{0,WS_EX_CLIENTEDGE})
+constant EDIT2 = create(EditText, "", 0, DEMO, 240,30,200, 20,{0,WS_EX_CLIENTEDGE})
+constant STATUS = create(StatusBar,  "", 0, DEMO, 200, 0, 25, 25, 0)
+
+function handler_EDITS(integer id, integer msg, atom wParam, atom lParam)
+integer newchar, len
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(DEMO)
+        end if
+        if id=EDIT then
+            setText(STATUS, wParam)
+            if wParam=13 then
+                setFocus(EDIT2)
+                return 0
+            end if
+            -- store the real value somewhere
+            traptext &= wParam
+
+            -- work out new value to return
+            len = length(traptext)
+            if len>length(messtext) then
+                newchar = '.'
+            else
+                newchar = messtext[len]
+            end if
+
+            -- return new value back so windows can process it
+            return {newchar, lParam}
+        elsif id=EDIT2 then
+            if wParam=13 then
+                setFocus(EDIT)
+                return 0
+            end if
+            -- get the actual text typed
+            traptext2 &= wParam
+
+            -- show actual typed text in the status bar
+            if length(traptext2) then
+                setText(STATUS, "Password is :  " & traptext2)
+            end if
+
+            -- return new value back so windows can process it
+            return {'*', lParam}
+        end if
+    end if
+    return 0
+end function
+
+setHandler({EDIT,EDIT2},routine_id("handler_EDITS"))
+
+WinMain(DEMO, SW_NORMAL)

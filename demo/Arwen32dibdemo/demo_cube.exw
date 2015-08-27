@@ -1,0 +1,248 @@
+--
+-- demo_cube.exw
+-- =============
+--
+-- Ripped off from demo_lines, with solid sides, resize/fullscreen.
+--
+-- press 'c' to toggle corner colouring
+-- moving the mouse should make it spin faster (however in fullscreen it seems it is already going as fast as it can, which is not particularly fast)
+-- press escape to close
+--
+-- TODO:
+--  make shape[1] constant
+--  make view_point an {X,Y,Z} coordinate
+--  keyboard input: up/down/left/right/+/- (or random)
+--  add some drop-downs: shape, colours, view mode(focus at 0,0,0 or not)
+
+include arwen.ew
+include a32dpoly.ew
+
+constant TEST = create(Window,  "Cube demo", 0, 0, 10,10,500,460,{0,0})
+
+object screen_dib = 0
+
+integer axis
+atom sin_angle, cos_angle
+
+constant X = 1, Y = 2, Z = 3
+
+type point(sequence x)
+    return length(x)=3
+end type
+
+type matrix(sequence x)
+    return length(x)=4 and sequence(x[1])
+end type
+
+function vector_product(sequence v, matrix m)
+-- multiply a 4-vector by a 4x4 matrix
+-- note: v is actually length(3), treated as if v[4] is 1.
+sequence c
+    c = repeat(0, 4)
+    for j=1 to 4 do
+        c[j] = v[1]*m[1][j]+
+               v[2]*m[2][j]+
+               v[3]*m[3][j]+
+                    m[4][j]
+    end for
+    return c
+end function
+
+function view(point view_point)
+-- compute initial view
+atom {x,y,z} = view_point
+atom hyp = sqrt(x*x + y*y),
+     sin_theta = x/hyp,
+     cos_theta = y/hyp,
+     sin2theta = sin_theta*sin_theta,
+     cos2theta = cos_theta*cos_theta,
+     stc_theta = sin_theta*cos_theta,
+     soc_theta = sin_theta/cos_theta
+    return {{-2*cos_theta, -2*sin2theta,      -stc_theta, 0},
+            { 2*sin_theta, -2*stc_theta,      -cos2theta, 0},
+            {           0,  2*cos_theta,      -sin_theta, 0},
+            {           0,            0, y + x*soc_theta, 1}}
+end function
+
+function new_points(sequence overall, sequence points)
+-- compute the screen coordinates from the 3-D coordinates
+sequence screen_coords
+atom x,y,z
+point p
+integer x2, y2
+integer xoff = 0, yoff = 0
+
+    x2 = floor(screen_dib[DibWidth]/2)
+    y2 = floor(screen_dib[DibHeight]/2)
+    if x2>y2 then
+        xoff = x2-y2
+        x2 = y2
+    else
+        yoff = y2-x2
+        y2 = x2
+    end if
+    screen_coords = repeat(0, length(points))
+    for i=1 to length(points) do
+        p = points[i]
+        {x,y,z} = vector_product(p, overall)
+        screen_coords[i] = {x2*(x/z+1)+xoff, y2*(y/z+1)+yoff, z}
+    end for
+    return screen_coords
+end function
+
+function rotate_points(integer axis, sequence points)
+-- rotate a set of points
+atom x,y,z
+sequence pi
+    for i = 1 to length(points) do
+        {x,y,z} = points[i]
+        if axis = X then
+            pi = {x, y*cos_angle + z*sin_angle, z*cos_angle - y*sin_angle}
+        elsif axis = Y then
+            pi = {x*cos_angle - z*sin_angle, y, x*sin_angle + z*cos_angle}
+        else  -- axis = Z
+            pi = {x*cos_angle + y*sin_angle, y*cos_angle - x*sin_angle, z}
+        end if
+        points[i] = pi
+    end for
+    return points
+end function
+
+integer colourcorners = 0
+sequence cornercolours = {{128,  0,  0},    -- Red
+                          {  0,  0,128},    -- Blue
+                          {  0,128,  0},    -- Green
+                          {128,  0,128},    -- Magenta
+                          { 64, 64,  0},    -- DarkBrown
+                          {128, 64,  0},    -- Orange
+                          {128,128,128},    -- Grey
+                          {255,176,176}}    -- Pink
+function makeCube()
+sequence points, faces, shape
+    points = {{-0.5,-0.5,-0.5},     -- base: left rear
+              {-0.5,-0.5, 0.5},     --       left front
+              { 0.5,-0.5, 0.5},     --       right front
+              { 0.5,-0.5,-0.5},     --       right rear
+              {-0.5, 0.5,-0.5},     -- top: left rear
+              {-0.5, 0.5, 0.5},     --      left front
+              { 0.5, 0.5, 0.5},     --      right front
+              { 0.5, 0.5,-0.5}}     --      right rear
+--  faces = {{1,2,3,4,{128,  0,  0}},       -- base (Red)
+--           {1,4,8,5,{  0,  0,128}},       -- rear (Blue)
+--           {4,3,7,8,{  0,128,  0}},       -- right (Green)
+--           {1,2,6,5,{128,  0,128}},       -- left (Magenta)
+--           {5,6,7,8,{ 64, 64,  0}},       -- top (DarkBrown)
+--           {2,3,7,6,{128, 64,  0}}}       -- front (Orange)
+    faces = {{1,2,3,4,{  0,192,  0},2},     -- base (Green)
+             {1,4,8,5,{0,  0,  255},3},     -- rear (Red)
+             {4,3,7,8,{  0,225,225},1},     -- right (Yellow)
+             {1,2,6,5,{225,225,255},1},     -- left (White)
+             {5,6,7,8,{255,  0,  0},2},     -- top (Blue)
+             {2,3,7,6,{16,  96,255},3}}     -- front (Orange)
+    shape = {points,faces}
+    return shape
+end function
+
+sequence overall
+point view_point
+integer r
+atom rot_speed
+sequence shape
+
+view_point = sq_div({6, 8, 7.5},5.2)
+overall = view(view_point)
+rot_speed = 0.09
+sin_angle = sin(rot_speed)
+cos_angle = cos(rot_speed)
+axis = Z
+shape = makeCube()
+
+sequence coords
+
+function by_depth(integer i, integer j)
+    return compare(coords[i][Z],coords[j][Z])
+end function
+
+procedure spin()
+sequence faces,dtags,donefaces
+sequence dest_coords, colours
+integer p1,p2,p3,p4
+sequence colour
+    coords = new_points(overall, shape[1])
+    clearDib(screen_dib, {255, 255, 0})
+    dtags = custom_sort(routine_id("by_depth"),tagset(length(coords)))
+    faces = shape[2]
+    donefaces = repeat(False,length(faces))
+    -- for each point, furthest away first..
+    for dti = length(dtags) to 1 by -1 do
+        -- ..draw all faces that have that point and have not yet been drawn
+        for i=1 to length(faces) do
+            if not donefaces[i] 
+            and find(dtags[dti],faces[i]) then
+                {p1,p2,p3,p4,colour} = faces[i]
+                dest_coords = {coords[p1],coords[p2],coords[p3],coords[p4]}
+                if colourcorners then
+                    colours = {cornercolours[p1],cornercolours[p2],cornercolours[p3],cornercolours[p4]}
+                else
+                    colours = repeat(colour,4)
+                end if
+                drawShadedPolygonToDib(screen_dib, dest_coords, colours)
+                donefaces[i] = True
+            end if
+        end for
+    end for
+    drawDib(TEST, screen_dib, 0, 0, 0, 0, screen_dib[DibWidth]-1, screen_dib[DibHeight]-1)
+
+    r = rand(50)
+
+    if r=1 then
+        axis = X
+    elsif r=2 then
+        axis = Y
+    elsif r=3 then
+        axis = Z
+    elsif r=7 then
+        if rand(2)=1 then
+            rot_speed = .03
+        else
+            rot_speed = .01*rand(5)
+        end if
+        sin_angle = sin(rot_speed)
+        cos_angle = cos(rot_speed)
+    end if
+    shape[1] = rotate_points(axis, shape[1])
+end procedure
+
+constant SpinTimer = createTimer()
+
+function handler_TEST(integer id, integer msg, atom wParam, object lParam)
+integer dw, dh
+    if id or object(lParam) then end if
+    if msg=WM_PAINT then
+        if sequence(screen_dib) then
+            drawDib(TEST, screen_dib, 0, 0, 0, 0, screen_dib[DibWidth]-1, screen_dib[DibHeight]-1)
+        end if
+    elsif msg=WM_SIZE then
+        if sequence(screen_dib) then killDib(screen_dib) end if
+        {{},{},dw,dh} = getClientRect(TEST)
+        screen_dib = newDib(dw, dh)
+    elsif msg=WM_MOUSEMOVE then
+        spin()
+    elsif msg=WM_TIMER then
+        spin()
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(TEST)
+        elsif upper(wParam)='C' then
+            colourcorners = 1-colourcorners
+        end if
+    end if
+    return 0
+end function
+setHandler({TEST}, routine_id("handler_TEST"))
+--setHandler(IDLE, routine_id("spin"))
+--startIdle(50)
+startTimer(SpinTimer,TEST,100)
+
+WinMain(TEST, SW_NORMAL)
+freeDib()

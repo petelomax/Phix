@@ -1,0 +1,254 @@
+--
+-- t50gscan.exw
+--
+--  Some code snippets which have posed problems (usually infinite loops)
+--   for pgscan.e; the only thing this now has to do is compile cleanly.
+--   (pgscan.e has been replaced; now part of pilx86.e and/or pltype.e)
+--
+--  NOTE: p t50 is very much a non-test; you need to run p -c t50
+--          (there is an "if not bind then exit" in pemit.e)
+--
+
+--/**/  constant T_cmdlnflg  = 19   -- (should match pglobals.e!)
+--/**/  
+--/**/  sequence symtab
+--/**/  object si -- (not newEmit)
+--/**/      si = 1  -- get current callstack (as there ain't no saved one!)
+--/**/      #ilASM{
+--/**/          [32]
+--/**/              lea edi,[symtab]
+--/**/              lea esi,[si]            -- flag/crashmsg (not used for newEmit)
+--/**/  --          xor ecx,ecx             -- (unused)
+--/**/          [64]
+--/**/              lea rdi,[symtab]
+--/**/          []
+--!/**/             call %opGetST }         -- [edi]=symtab -- DEV :%opGetST for newEmit...
+--/**/          call :%opGetST }        -- [edi]=symtab -- DEV :%opGetST for newEmit...
+--!/**/     if symtab[T_cmdlnflg]!=1 then   --DEV (newEmit)
+--/**/      if not and_bits(symtab[T_cmdlnflg],1) then  --DEV (newEmit) [just for completeness]
+--/**/          puts(1,"WARNING: running t50gscan interpreted is a non-test...\n")
+--/**/  --      sleep(2)
+--/**/      end if
+
+--/**/with console
+
+-- cannot recall if this was actually a real problem or just something 
+--  to start investigating/developing pgscan.e with:
+
+integer a13
+function X(object b)
+    return b
+end function
+constant ONE=X(1),
+         THREE=X(3)
+a13=X(1)
+a13=X(THREE)
+integer A,B
+    A=ONE
+    B=2
+object Y, Z
+    Y=X({1,2,3})
+    Z=repeat(0,3)
+
+--===================================================================
+
+--  This is nonsense code, but that does /not/ mean pgscan should go
+--   into in an infinite loop! (problem of trying to take the element
+--   type of something that never properly got one)
+
+without warning -- peek2u2 has no side effect
+procedure peek2u2(object addr)
+    addr = addr[1]
+end procedure
+
+    if 1=2 then
+        peek2u2(0)
+    end if
+
+--===================================================================
+
+-- similar to above but even less assigningments:
+
+without warning -- crud unused/not resolved at run-time, peek2u has no side effect
+procedure peek2u(object addr)
+    addr = addr[1]  -- {object,-,-,object,-2}
+end procedure
+
+constant crud = routine_id("crud")
+--if getc(0) then end if
+
+--===================================================================
+
+-- 1) missed the assignmnent on declaration of ifpoint.
+-- 2) bug in opAddiii, since completely rewritten.
+integer ifpoint
+        ifpoint=1
+
+sequence lvx
+
+integer wasifpoint
+
+if 1=2 then
+    lvx={}
+    lvx=append(lvx,1)
+    wasifpoint = ifpoint
+    ifpoint = length(lvx)+1
+    wasifpoint+=1
+    ifpoint = wasifpoint
+end if
+
+--===================================================================
+
+-- This one commented out since it is designed to take 9 scans, thus
+--  just breaking the limit coded in pemit.e (see rescancount)
+--integer a
+--      a=1
+--integer b,c,d,e,f,g,h,i,j
+--      j=a
+--      i=j
+--      h=i
+--      g=h
+--      f=g
+--      e=f
+--      d=e
+--      c=d
+--      b=c
+----        a=b     -- with this removed, it takes 9 scans to determine b is 1..2
+--      a=2
+
+--===================================================================
+
+-- 'bounce' of min/max alternately 1,1 & MIN/MAX:
+
+procedure XXX()
+integer I
+object O
+sequence P
+    O=1
+--  if 1=2 then
+    if 1.1=2.1 then -- needed 22/10/09 [OK, caused by mods in Expr, see lhsli/rhsli]
+        O={}
+    end if
+    I=O -- no type error! (not at compile-time anyway)
+--!/**/ #istype{O,0b0101}   -- 0b0001 better!!! [DEV, see Assignment]
+--!/**/ #istype{O,0b0001} (now getting this in pilx86 but above in pmain.e 18/8/09)
+    P=O -- no type error!
+--/**/  #istype{P,0b1100}   --DEV ??? 0b0100/error ???
+    O=P
+end procedure
+if 1=2 then XXX() end if
+
+--===================================================================
+-- some more nonsensical code that should not cause an infinite loop:
+function ps(atom addr)
+    return ""
+end function
+procedure Fatal(object msg)
+    if atom(msg) then
+        msg = ps(msg)
+    end if
+end procedure
+Fatal("missing closing quote")
+
+--===================================================================
+-- an infinite loop from win32lib, vOnXXXSupport bounced between
+--  a 0,1 and MAX,MIN range, rather than settling on MIN,MAX at
+--  the first iteration (see Circularity in pgscan.e):
+constant w32False = (1 = 0)
+
+integer vOnXXXSupport vOnXXXSupport = w32False
+
+procedure ResolveDeferredHandler()
+object lTemp
+    lTemp = vOnXXXSupport
+    vOnXXXSupport = lTemp
+    lTemp = vOnXXXSupport
+    vOnXXXSupport = lTemp
+end procedure
+
+constant r_createForm = routine_id("ResolveDeferredHandler")
+if r_createForm then end if -- (suppress unused warning)
+--===================================================================
+-- .. and one from arwen:
+function BFFMcallback(atom lParam)
+    if lParam then end if   -- suppress warnings
+    return 0
+end function
+constant BBFM_cb=call_back(routine_id("BFFMcallback"))
+--===================================================================
+
+integer XX  -- 0,1 range
+    XX = 0
+--  XX = 1
+
+integer YY  -- MIN/MAX range (0,1 better)
+    YY = 0
+--  YY = 1
+procedure setXY(integer i)
+    XX=i
+    YY=i
+end procedure
+setXY(1)
+
+integer wasYY   -- MIN/MAX range (0,1 better)
+    wasYY = YY
+    YY = 1
+    YY = wasYY
+
+--===================================================================
+
+-- pf was getting the wrong type:
+
+--DEV retry once x=s[i] properly working:
+--constant showprogress=01
+atom inf,nan
+    inf = 1e300 * 1e300
+    nan = -(inf / inf)
+
+atom pf
+
+procedure MYsprintf(object args)
+object o
+    if atom(args) then
+        o = args
+pf = args
+    else
+        o = 0
+    end if
+    args = {}
+end procedure
+
+procedure MYsprint(object x)
+    if atom(x) then
+        MYsprintf(x)
+    else
+        MYsprint(-nan) 
+--      MYsprintf(-nan)
+    end if
+end procedure
+
+--if showprogress then puts(1,"1\n") end if
+MYsprint({-nan})
+--MYsprintf(-nan)
+--if showprogress then puts(1,"2\n") end if
+
+--===================================================================
+
+-- K_Fres fix, 13/11 [not actually anything to do with pgscan, btw]
+--  (the problem was it was not compiling cleanly, since it was
+--   marking res:dir as "not sequence" at the elsif, and then
+--   issuing a "probable logic error (always false)" warning.)
+--/*
+include ..\builtins\sort.e
+include ..\builtins\misc.e
+include ..\builtins\file.e
+--*/
+if sequence(dir("pgui.exw")) then
+    puts(1,"ok[1]\n")
+elsif sequence(dir("pgui.exe")) then
+    puts(1,"ok[2]\n")
+else
+    puts(1,"ok[3]\n")
+end if
+--if getc(0) then end if
+

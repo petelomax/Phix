@@ -1,0 +1,203 @@
+-- Arwen32Dib demo: demonstrates some of the manipulation possibilities of Win32Dib
+--  Ported to Arwen by Pete Lomax
+
+include a32dgeom.ew
+include a32dcolr.ew
+include a32dfltr.ew
+
+object orig_dib, manip_dib, brightness_dib
+    orig_dib = loadDib("demo.bmp") -- orig_dib is the original bitmap
+    if not sequence(orig_dib) then
+        void = message_box("Can't load bitmap 'demo.bmp'.", "Error", MB_ICONERROR)
+        abort(0)
+    end if
+    manip_dib = copyDib(orig_dib)  -- manip_dib is the manipulated bitmap
+    if not sequence(manip_dib) then
+        void = message_box("Can't make copy of bitmap.", "Error", MB_ICONERROR)
+        abort(0)
+    end if
+    brightness_dib = newDib(orig_dib[DibWidth], orig_dib[DibHeight])
+    if not sequence(brightness_dib) then
+        void = message_box("Can't create a brightness-bitmap.", "Error", MB_ICONERROR)
+        abort(0)
+    end if
+
+integer bytes, c
+sequence c1, c2
+atom addr
+    bytes = brightness_dib[DibBytesPerLine]
+    c1 = repeat(100, bytes)
+    c2 = repeat(200, bytes)
+    c = 0
+    addr = brightness_dib[DibMemory]
+    for zzz=0 to brightness_dib[DibBytesTotal]-bytes by bytes do
+        if c then c = 0  poke(addr, c1)
+        else c = 1  poke(addr, c2)
+        end if
+        addr += bytes
+    end for
+    c1 = {}  c2 = c1
+
+constant
+    win = create(Window, "Arwen32Dib bitmap manipulation demo", 0, 0, Default, Default, 600, 400, 0),
+    mnuManipulate = create(Menu, "&Manipulate", 0, win, 0, 0, 0, 0, 0),
+    mnuInvert = create(MenuItem, "&Invert", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuFlipHor = create(MenuItem, "Flip &horizontally", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuFlipVert = create(MenuItem, "Flip &vertically", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuScale = create(Menu, "&Scale", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuScale25 = create(MenuItem, "25%", 0, mnuScale, 0, 0, 0, 0, 0),
+    mnuScale50 = create(MenuItem, "50%", 0, mnuScale, 0, 0, 0, 0, 0),
+    mnuScale150 = create(MenuItem, "150%", 0, mnuScale, 0, 0, 0, 0, 0),
+    mnuScale200 = create(MenuItem, "200%", 0, mnuScale, 0, 0, 0, 0, 0),
+    mnuRotate = create(Menu, "&Rotate", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuRotate90 = create(MenuItem, "90°", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuRotate180 = create(MenuItem, "180°", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuRotate270 = create(MenuItem, "270°", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuSep1 = create(MenuItem, "-", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuRotate15red = create(MenuItem, "15° (red fill color)", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuRotate15wrap = create(MenuItem, "15° (wrapping)", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuRotate45green = create(MenuItem, "45° (green fill color)", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuRotate45wrap = create(MenuItem, "45° (wrapping)", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuRotate200blue = create(MenuItem, "200° (blue fill color)", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuRotate200wrap = create(MenuItem, "200° (wrapping)", 0, mnuRotate, 0, 0, 0, 0, 0),
+    mnuMakeGray = create(MenuItem, "Make &gray", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuSep2 = create(MenuItem, "-", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuColorize = create(Menu, "&Colorize", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuColorizeRed = create(MenuItem, "&Red", 0, mnuColorize, 0, 0, 0, 0, 0),
+    mnuColorizeGreen = create(MenuItem, "&Green", 0, mnuColorize, 0, 0, 0, 0, 0),
+    mnuColorizeBlue = create(MenuItem, "&Blue", 0, mnuColorize, 0, 0, 0, 0, 0),
+    mnuAdjustBrightness = create(Menu, "Adjust &brightness", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuAdjustBrightnessMinus200 = create(MenuItem, "-200", 0, mnuAdjustBrightness, 0, 0, 0, 0, 0),
+    mnuAdjustBrightnessMinus100 = create(MenuItem, "-100", 0, mnuAdjustBrightness, 0, 0, 0, 0, 0),
+    mnuAdjustBrightnessPlus100 = create(MenuItem, "+100", 0, mnuAdjustBrightness, 0, 0, 0, 0, 0),
+    mnuAdjustBrightnessPlus200 = create(MenuItem, "+200", 0, mnuAdjustBrightness, 0, 0, 0, 0, 0),
+    mnuAdjustContrast = create(Menu, "Adjust c&ontrast", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuAdjustContrastMinus10 = create(MenuItem, "-1.0", 0, mnuAdjustContrast, 0, 0, 0, 0, 0),
+    mnuAdjustContrastMinus05 = create(MenuItem, "-0.5", 0, mnuAdjustContrast, 0, 0, 0, 0, 0),
+    mnuAdjustContrastPlus05 = create(MenuItem, "+0.5", 0, mnuAdjustContrast, 0, 0, 0, 0, 0),
+    mnuAdjustContrastPlus10 = create(MenuItem, "+1.0", 0, mnuAdjustContrast, 0, 0, 0, 0, 0),
+    mnuSep3 = create(MenuItem, "-", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuFilter = create(Menu, "&Filter", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuDetectEdges = create(MenuItem, "Detect &Edges", 0, mnuFilter, 0, 0, 0, 0, 0),
+    mnuSharpen = create(MenuItem, "&Sharpen", 0, mnuFilter, 0, 0, 0, 0, 0),
+    mnuSubtleSharpen = create(MenuItem, "S&ubtle Sharpen", 0, mnuFilter, 0, 0, 0, 0, 0),
+    mnuBlur = create(MenuItem, "&Blur", 0, mnuFilter, 0, 0, 0, 0, 0),
+    mnuSubtleBlur = create(MenuItem, "Su&btle Blur", 0, mnuFilter, 0, 0, 0, 0, 0),
+    mnuEmboss = create(Menu, "E&mboss", 0, mnuFilter, 0, 0, 0, 0, 0),
+    mnuEmbossRed = create(MenuItem, "&Red", 0, mnuEmboss, 0, 0, 0, 0, 0),
+    mnuEmbossGreen = create(MenuItem, "&Green", 0, mnuEmboss, 0, 0, 0, 0, 0),
+    mnuEmbossBlue = create(MenuItem, "&Blue", 0, mnuEmboss, 0, 0, 0, 0, 0),
+    mnuEmbossGray = create(MenuItem, "Gr&ay", 0, mnuEmboss, 0, 0, 0, 0, 0),
+    mnuApplyBrightness = create(MenuItem, "&Apply Brightness", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuSep4 = create(MenuItem, "-", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuReset = create(MenuItem, "Rese&t", 0, mnuManipulate, 0, 0, 0, 0, 0),
+    mnuInfo = create(MenuItem, "&Info", 0, win, 0, 0, 0, 0, 0)
+    if mnuSep1 or mnuSep2 or mnuSep3 or mnuSep4 then end if -- suppress warnings
+
+--constant xRectangle = define_c_func(gdi32,"Rectange",{C_POINTER,C_INT,C_INT,C_INT,C_INT},C_LONG)
+
+function winHandler(integer id, integer msg, atom wParam, object lParam)
+--sequence size
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_PAINT then
+--DEV (does not seem to make any difference anyway)
+--      setPenColor(win, getSysColor(COLOR_BTNFACE))
+--      size = getCtlSize(win)
+--      drawRectangle(win, True, 0, 0, size[1], size[2])
+        if sequence(orig_dib) then
+            drawDib(win, orig_dib, 0, 0, 0, 0, orig_dib[DibWidth]-1, orig_dib[DibHeight]-1)
+            if sequence(manip_dib) then
+                drawDib(win, manip_dib, orig_dib[DibWidth]+5, 0, 0, 0, manip_dib[DibWidth]-1, manip_dib[DibHeight]-1)
+            end if
+        end if
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(win)
+    end if
+    return 0
+end function
+setHandler(win, routine_id("winHandler"))
+
+constant WaitPointer = loadCursor(IDC_WAIT),
+         ArrowCursor = loadCursor(IDC_ARROW)
+
+function menuHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_COMMAND then
+        if wParam or object(lParam) then end if -- suppress warnings
+        void = setClassCursor(win,WaitPointer)
+        if sequence(manip_dib) then killDib(manip_dib) end if
+        manip_dib = copyDib(orig_dib)
+        if id=mnuInvert then invertDib(manip_dib)
+        elsif id=mnuFlipHor then flipDibHor(manip_dib)
+        elsif id=mnuFlipVert then flipDibVert(manip_dib)
+        elsif id=mnuMakeGray then makeDibGray(manip_dib)
+        elsif id=mnuColorizeRed then colorizeDib(manip_dib, {0, 0, 255})
+        elsif id=mnuColorizeGreen then colorizeDib(manip_dib, {0, 255, 0})
+        elsif id=mnuColorizeBlue then colorizeDib(manip_dib, {255, 0, 0})
+        elsif id=mnuAdjustBrightnessMinus200 then adjustDibBrightness(manip_dib, -200)
+        elsif id=mnuAdjustBrightnessMinus100 then adjustDibBrightness(manip_dib, -100)
+        elsif id=mnuAdjustBrightnessPlus200 then adjustDibBrightness(manip_dib, 200)
+        elsif id=mnuAdjustBrightnessPlus100 then adjustDibBrightness(manip_dib, 100)
+        elsif id=mnuAdjustContrastMinus10 then adjustDibContrast(manip_dib, -1.0)
+        elsif id=mnuAdjustContrastMinus05 then adjustDibContrast(manip_dib, -0.5)
+        elsif id=mnuAdjustContrastPlus05 then adjustDibContrast(manip_dib, 0.5)
+        elsif id=mnuAdjustContrastPlus10 then adjustDibContrast(manip_dib, 1.0)
+        elsif id=mnuDetectEdges then detectDibEdges(manip_dib)
+        elsif id=mnuSharpen then sharpenDib(manip_dib)
+        elsif id=mnuBlur then blurDib(manip_dib)
+        elsif id=mnuReset then -- do nothing
+        elsif id=mnuScale25 then manip_dib = scaleDibPct(manip_dib, 25, True)
+        elsif id=mnuScale50 then manip_dib = scaleDibPct(manip_dib, 50, True)
+        elsif id=mnuScale150 then manip_dib = scaleDibPct(manip_dib, 150, True)
+        elsif id=mnuScale200 then manip_dib = scaleDibPct(manip_dib, 200, True)
+        elsif id=mnuRotate90 then manip_dib = rotateDib(manip_dib, 90, True)
+        elsif id=mnuRotate180 then manip_dib = rotateDib(manip_dib, 180, True)
+        elsif id=mnuRotate270 then manip_dib = rotateDib(manip_dib, 270, True)
+        elsif id=mnuRotate15red then manip_dib = rotateDibFree(manip_dib, 15, {0, 0, 255}, True)
+        elsif id=mnuRotate15wrap then manip_dib = rotateDibFree(manip_dib, 15, 0, True)
+        elsif id=mnuRotate45green then manip_dib = rotateDibFree(manip_dib, 45, {0, 255, 0}, True)
+        elsif id=mnuRotate45wrap then manip_dib = rotateDibFree(manip_dib, 45, 0, True)
+        elsif id=mnuRotate200blue then manip_dib = rotateDibFree(manip_dib, 200, {255, 0, 0}, True)
+        elsif id=mnuRotate200wrap then manip_dib = rotateDibFree(manip_dib, 200, 0, True)
+        elsif id=mnuEmbossRed then embossDib(manip_dib, {0, 0, 255})
+        elsif id=mnuEmbossGreen then embossDib(manip_dib, {0, 255, 0})
+        elsif id=mnuEmbossBlue then embossDib(manip_dib, {255, 0, 0})
+        elsif id=mnuEmbossGray then embossDib(manip_dib, {128, 128, 128})
+        elsif id=mnuApplyBrightness then applyDibBrightnessToDib(manip_dib, brightness_dib, 0, 0, 0, 0, orig_dib[DibWidth]-1, orig_dib[DibHeight]-1, 50)
+        elsif id=mnuSubtleBlur then subtleBlurDib(manip_dib)
+        elsif id=mnuSubtleSharpen then subtleSharpenDib(manip_dib)
+        end if
+        void = winHandler(win, WM_PAINT, 0, 0)
+        void = setClassCursor(win,ArrowCursor)
+    end if
+    return 0
+end function
+setHandler({mnuInvert, mnuFlipHor, mnuFlipVert, mnuMakeGray, mnuColorizeRed, mnuColorizeGreen, mnuColorizeBlue,
+            mnuAdjustBrightnessMinus200, mnuAdjustBrightnessMinus100, mnuAdjustBrightnessPlus100, mnuAdjustBrightnessPlus200,
+            mnuAdjustContrastMinus10, mnuAdjustContrastMinus05, mnuAdjustContrastPlus05, mnuAdjustContrastPlus10,
+            mnuDetectEdges, mnuSharpen, mnuBlur, mnuReset, mnuScale25, mnuScale50, mnuScale150, mnuScale200,
+            mnuRotate90, mnuRotate180, mnuRotate270, mnuRotate15red, mnuRotate15wrap, mnuRotate45green, mnuRotate45wrap,
+            mnuRotate200blue, mnuRotate200wrap, mnuEmbossRed, mnuEmbossGreen, mnuEmbossBlue, mnuEmbossGray, mnuApplyBrightness,
+            mnuSubtleBlur, mnuSubtleSharpen},
+           routine_id("menuHandler"))
+
+function infoHandler(integer id, integer msg, atom wParam, object lParam)
+integer result
+sequence txt
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_COMMAND then
+        txt = sprintf("Arwen32Dib demo: bitmap manipulation.\n\nWin32Dib version %d.%d.%d", Arwen32DibVersion)
+        txt &= sprintf("\n%s version %d, %3.2f\n\n", ARWENVERSION)
+        txt &= "Copyright © 2004 - 2005 Tommy Carlier\n\ntommy.carlier@telenet.be\nhttp://users.telenet.be/tommycarlier"
+        txt &= "\nPorted to Arwen by Pete Lomax"
+        result = message_box(txt,"Info", MB_OK+MB_ICONINFORMATION)
+    end if
+    return 0
+end function
+setHandler(mnuInfo, routine_id("infoHandler"))
+
+    WinMain(win, SW_NORMAL)
+
+    if sequence(orig_dib) then killDib(orig_dib) end if
+    if sequence(manip_dib) then killDib(manip_dib) end if -- delete the bitmaps
+    freeDib()

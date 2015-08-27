@@ -1,0 +1,3266 @@
+--    eucom: allows euphoria programs to use COM objects
+--    Copyright (C) 2007  Matt Lewis
+--
+--    This library is free software; you can redistribute it and/or
+--    modify it under the terms of the GNU Library General Public
+--    License as published by the Free Software Foundation
+--    version 2 of the License.
+--
+--    This library is distributed in the hope that it will be useful,
+--    but WITHOUT ANY WARRANTY; without even the implied warranty of
+--    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+--    Library General Public License for more details.
+--
+--    You should have received a copy of the GNU Library General Public
+--    License along with this library; if not, write to the Free
+--    Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+
+-- Introduction
+--------------------
+
+--/topic Introduction
+--/desc EuCOM.ew v2.08: COM wrappers for <a href="http://www.rapideuphoria.com">Euphoria</a>
+--/info
+--<a href="http://sf.net/projects/eucom">EuCOM</a> v2.08: COM wrappers for <a href="http://www.rapideuphoria.com">Euphoria</a>
+--<br>by Matt Lewis<br>
+--<a href ="mailto:mattlewis@users.sourceforge.net">mattlewis@users.sourceforge.net</a> <br>
+-- <br>
+--EuCOM opens up the wonderful and confusing world of COM to <a href="http://www.rapideuphoria.com">Euphoria</a> 
+--programs.  COM experts will no doubt see some things missing from my
+--wrappers, but I think that there's plenty here to do just about anything
+--you need to (although you might have to get your hands a little dirty 
+--if you try something fancy).  EuCOM can also turn a Win32 app into an 
+--ActiveX container.
+--
+--EuCOM is compatible with, but does not require Win32Lib.  However, it does use some support routines
+--from Win32Lib.  If you do not wish to use EuCOM with Win32Lib, then you'll need to unzip w32support.zip
+--and put the decompressed files (w32support.e, w32memory.ew, w32utils.e) in the same directory as EuCOM.
+--/code
+--LICENSE AND DISCLAIMER
+--
+--    This library is free software; you can redistribute it and/or
+--    modify it under the terms of the GNU Library General Public
+--    License as published by the Free Software Foundation
+--    version 2 of the License.
+--
+--    This library is distributed in the hope that it will be useful,
+--    but WITHOUT ANY WARRANTY; without even the implied warranty of
+--    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+--    Library General Public License for more details.
+--
+--    You should have received a copy of the GNU Library General Public
+--    License along with this library; if not, write to the Free
+--    Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+--
+--THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+--INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY 
+--AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE 
+--AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+--OR CONSEQUENTIAL DAMGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+--SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFIT; OR BUSINESS 
+--INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+--CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+--ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+--POSSIBILITY OF SUCH DAMAGE. 
+--/endcode
+
+-- Changes
+-------------------
+
+--/topic Changes
+--/desc Log of important changes by version
+--Log of important changes by version
+--/code
+--v2.08
+-- * Compatibility with win32lib v0.70
+--* Fixed bug in /alloc_bstr() that didn't add second null terminator to a wide string
+--
+--v2.07
+--* New: /create_safearray()
+--* /com_err_out() can now specify a user supplied routine that will be called
+--   in case of a COM error
+-- * New Excel demo that shows how to use an array to set multiple cells.
+--
+--v2.06
+-- * Use w32support.e instead of tk_mem.e to avoid Win32Lib namespace conflicts
+-- * TBrowse updated to use setHandler() event handlers
+-- * variant.ew improved handling of VT_DATE and VT_CY datatypes (Jean-Marc DURO)
+-- * Improved Excel demo (Jean-Marc DURO)
+-- 
+--v2.05
+-- * Added support for VT_DECIMAL.  Values are converted to and from doubles.
+-- * TBrowse wrappers now use a namespace for all tk_mem.e references
+--* Added documentation for /move_obj()
+-- * Implemented IOleControlSite for ActiveX objects
+--
+--v2.04
+-- *  event_invoke() now returns FALSE when dispIdMember is DISPID_USERMODE 
+-- *  Implemented IOleInPlaceSiteEx for ActiveX objects
+-- *  Improved COM object registration code in TBrowse
+--
+--v2.03 
+-- *  Added get_array().  get_variant() now converts VT_ARRAYs and VT_SAFEARRAYs
+--    into a sequence of values.
+-- *  Added get_active_object()
+--
+--v2.02
+--*  Added /add_user_init() for custom initialization of objects
+--*  Can change 'lcid' at runtime using /get_lcid() and /set_lcid()
+-- *  Improved Excel, Browser Demos to include some event handling
+-- *  Updated to work with new version of fptr.e
+--
+--v2.01
+-- *  Bugfixes to the way events handled and set up
+-- *  Default LCID changed to 1033 (English-US)
+-- *  Added Excel, Browser Demo
+--
+--v2.0
+-- *  All ActiveX functionality moved to eucom.ew
+--    + Eliminated:
+--      - activex.ew
+--      - interface.ew
+--      - connectionpoint.ew
+--      - ioleclientsite.ew
+--      - ioleinplaceobject.ew
+--      - ipersiststreaminit.ew
+--      - iquickactivate.ew
+-- *  Win32Lib no longer required for ActiveX
+-- *  Can have event interfaces for non-ActiveX objects
+--*  /invoke() now will call GetIdsOfNames for you automatically as required
+-- *  Improved tbrowse.exw
+-- *  Handles multiple ActiveX objects of same kind
+--
+--v1.1
+-- *  Can implement event sink outgoing interfaces for ActiveX controls
+--*  Bug fixes to /invoke().
+-- *  IDispatch::Invoke in ActiveX.ew now accepts all 9 parameters (upgrade
+--    to fptr.e).
+--/endcode
+without warning
+include get.e
+include dll.e
+include machine.e
+--include w32support.e
+include fptr.e as fptr
+include unicode.ew as u
+include variant.ew as v
+include file.e
+include comerr.ew as err
+
+
+global integer return_true_variant
+               return_true_variant = 0
+
+atom lcid
+     lcid = 1033
+
+global constant
+
+DISP_TYPE_PROP = 1,
+DISP_TYPE_METHOD = 2,
+DISP_TYPE_EVENT = 3,
+
+DISPATCH_METHOD         = 1,
+DISPATCH_PROPERTYGET    = 2,
+DISPATCH_PROPERTYPUT    = 4,
+DISPATCH_PROPERTYPUTREF = 8,
+
+DISPID_UNKNOWN            = ( -1 ),
+
+--/* DISPID reserved for the "value" property */
+DISPID_VALUE              = (  0 ),
+
+--/* The following DISPID is reserved to indicate the param
+-- * that is the right-hand-side (or "put" value) of a PropertyPut */
+DISPID_PROPERTYPUT        = ( -3 ),
+
+--/* DISPID reserved for the standard "NewEnum" method */
+DISPID_NEWENUM            = ( -4 ),
+
+--/* DISPID reserved for the standard "Evaluate" method */
+DISPID_EVALUATE           = ( -5 ),
+
+DISPID_CONSTRUCTOR        = ( -6 ),
+DISPID_DESTRUCTOR         = ( -7 ),
+DISPID_COLLECT            = ( -8 ),
+
+DISPID_LOCALEID         = -705,
+DISPID_USERMODE         = -709,
+DISPID_UIDEAD           = -710,
+DISPID_SHOWGRABHANDLES  = -711,
+DISPID_SHOWHATCHING     = -712,
+DISPID_DISPLAYASDEFAULT = -713,
+
+
+DVASPECT_CONTENT        = 1,     
+DVASPECT_THUMBNAIL      = 2, 
+DVASPECT_ICON           = 4,     
+DVASPECT_DOCPRINT       = 8,
+
+
+-- errors
+-- Need to extrace all of these to make error handling 
+-- more automatic and thorough
+S_OK = 0,
+E_NOTIMPL           = #80004001,
+E_NOINTERFACE       = #80004002,
+E_UNEXPECTED        = #8000FFFF,
+
+DISP_E_TYPEMISMATCH = #80020005,
+DISP_E_NONAMEDARGS  = #80020007,
+DISP_E_OVERFLOW     = #8002000A
+
+--/topic Utilities
+--/func string_to_guid(sequence guid)
+--/ret Byte representation of a GUID (as a sequence)
+--Convert a GUID in string form into byte form, which can be poked into memory.
+--/code
+--? string_to_guid("0000-0000-0000-00000000")
+-- -- output: {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+--/endcode
+
+global function string_to_guid(sequence guid)
+object ok
+sequence GUID   
+
+    GUID = {}
+    ok = value("#" & guid[1..8])
+    GUID &= int_to_bytes(ok[2])
+
+    guid = guid[10..length(guid)]
+
+    for i = 1 to 2 do
+        ok = value("#" & guid[1..4])
+        ok = int_to_bytes(ok[2])
+        GUID &= ok[1..2]
+        guid = guid[6..length(guid)]
+    end for
+
+    for i = 1 to 2 do
+        ok = value("#" & guid[1..2])
+        GUID &= ok[2]
+        guid = guid[3..length(guid)]
+    end for
+
+    guid = guid[2..length(guid)]
+
+    for i = 1 to 6 do
+        ok = value("#" & guid[1..2])
+        GUID &= ok[2]
+        guid = guid[3..length(guid)]
+    end for
+
+    return GUID
+
+end function
+
+--/topic Utilities
+--/func guid_to_string(sequence string)
+--/ret String representation of a GUID
+--Converts a GUID from byte form (a sequence of 16 bytes in the same order
+--as stored in memory) to string form ("0000-0000-0000-00000000")
+
+global function guid_to_string(sequence guid)
+sequence str
+
+    str = ""
+    str &= sprintf("%08x-", bytes_to_int(guid[1..4]))
+    guid = guid[5..length(guid)]
+
+    for i = 1 to 2 do
+        str &= sprintf("%04x-", bytes_to_int(guid[1..2] & {0,0}))
+        guid = guid[3..length(guid)]
+    end for
+
+    for i = 1 to 2 do
+        str &= sprintf("%02x", guid[i])
+    end for
+
+    str &= "-"
+
+    for i =  3 to 8 do
+        str &= sprintf("%02x", guid[i])
+    end for
+
+    return str
+end function
+
+
+global constant
+IUnknown = "00000000-0000-0000-C000-000000000046",
+IUnknown_bytes = string_to_guid(IUnknown),
+IUnknown_QueryInterface = 0,
+IUnknown_AddRef = 1,
+IUnknown_Release = 2,
+IUnknown_ix = 1,
+IUnknown_riid = allocate(16)
+
+global constant
+IDispatch = "00020400-0000-0000-C000-000000000046",
+IDispatch_riid = allocate(16),
+IDispatch_QueryInterface = 0,
+IDispatch_AddRef = 1,
+IDispatch_Release = 2,
+IDispatch_GetTypeInfoCount = 3,
+IDispatch_GetTypeInfo = 4,
+IDispatch_GetIDsOfNames = 5,
+IDispatch_Invoke = 6
+
+global constant
+IConnectionPoint = "B196B286-BAB4-101A-B69C-00AA00341D07",
+IConnectionPoint_b = string_to_guid(IConnectionPoint),
+IConnectionPointContainer = "B196B284-BAB4-101A-B69C-00AA00341D07",
+IConnectionPointContainer_b = string_to_guid(IConnectionPointContainer),
+
+IConnectionPoint_QueryInterface = 0,
+IConnectionPoint_AddRef = 1,
+IConnectionPoint_Release = 2,
+IConnectionPoint_GetConnectionInterface = 3,
+IConnectionPoint_GetConnectionPointContainer = 4,
+IConnectionPoint_Advise = 5,
+IConnectionPoint_Unadvise = 6,
+IConnectionPoint_EnumConnections = 7,
+
+
+IConnectionPointContainer_QueryInterface = 0,
+IConnectionPointContainer_AddRef = 1,
+IConnectionPointContainer_Release = 2,
+IConnectionPointContainer_EnumConnectionPoints = 3,
+IConnectionPointContainer_FindConnectionPoint = 4
+
+global constant
+IDispatch_b = string_to_guid(IDispatch),
+IOleClientSite = "00000118-0000-0000-C000-000000000046",
+IOleClientSite_b = string_to_guid(IOleClientSite),
+IOleWindow = "00000114-0000-0000-C000-000000000046",
+IOleWindow_b = string_to_guid(IOleWindow),
+IOleInPlaceSite = "00000119-0000-0000-C000-000000000046",
+IOleInPlaceSite_b = string_to_guid(IOleInPlaceSite),
+IOleInPlaceSiteEx = "9C2CAD80-3424-11CF-B670-00AA004CD6D8",
+IOleInPlaceSiteEx_b = string_to_guid(IOleInPlaceSiteEx),
+IOleInPlaceUIWindow = "00000115-0000-0000-C000-000000000046",
+IOleInPlaceUIWindow_b = string_to_guid(IOleInPlaceUIWindow),
+IOleInPlaceFrame = "00000116-0000-0000-C000-000000000046",
+IOleInPlaceFrame_b = string_to_guid(IOleInPlaceFrame),
+IParseDisplayName = "0000011a-0000-0000-C000-000000000046",
+IParseDisplayName_b = string_to_guid(IParseDisplayName),
+IOleContainer = "0000011b-0000-0000-C000-000000000046",
+IOleContainer_b = string_to_guid(IOleContainer),
+IErrorInfo = "1CF2B120-547D-101B-8E65-08002B2BD119",
+IErrorInfo_b = string_to_guid(IErrorInfo),
+ISupportErrorInfo = "DF0B3D60-548F-101B-8E65-08002B2BD119",
+ISupportErrorInfo_b = string_to_guid(ISupportErrorInfo),
+
+-- 07/26/2004 new:
+IOleControlSite = "B196B289-BAB4-101A-B69C-00AA00341D07",
+IOleControlSite_b = string_to_guid(IOleControlSite),
+
+IOleControlSite_QueryInterface = 0,
+IOleControlSite_AddRef = 1,
+IOleControlSite_Release =2,
+IOleControlSite_OnControlInfoChanged =3,
+IOleControlSite_LockInPlaceActive =4,
+IOleControlSite_GetExtendedControl =5,
+IOleControlSite_TransformCoords=6,
+IOleControlSite_TranslateAccelerator =7,
+IOleControlSite_OnFocus =8,
+IOleControlSite_ShowPropertyFrame=9,
+
+
+IOleObject = "00000112-0000-0000-C000-000000000046"
+
+--    IConnectionPoint : public IUnknown
+
+--        virtual HRESULT STDMETHODCALLTYPE GetConnectionInterface(
+--            /* [out] */ IID __RPC_FAR *pIID) = 0;
+                
+--        virtual HRESULT STDMETHODCALLTYPE GetConnectionPointContainer(
+--            /* [out] */ IConnectionPointContainer __RPC_FAR *__RPC_FAR *ppCPC) = 0;
+                
+--        virtual HRESULT STDMETHODCALLTYPE Advise(
+--            /* [in] */ IUnknown __RPC_FAR *pUnkSink,
+--            /* [out] */ DWORD __RPC_FAR *pdwCookie) = 0;
+                
+--        virtual HRESULT STDMETHODCALLTYPE Unadvise(
+--            /* [in] */ DWORD dwCookie) = 0;
+                
+--        virtual HRESULT STDMETHODCALLTYPE EnumConnections(
+--            /* [out] */ IEnumConnections __RPC_FAR *__RPC_FAR *ppEnum) = 0;
+
+global constant
+IOleInPlaceObject = "00000113-0000-0000-C000-000000000046",
+IOleInPlaceObject_iid = string_to_guid(IOleInPlaceObject),
+IOleInPlaceObject_QueryInterface = 0,
+IOleInPlaceObject_AddRef = 1,
+IOleInPlaceObject_Release = 2,
+IOleInPlaceObject_GetWindow = 3,
+IOleInPlaceObject_ContextSensitiveHelp = 4,
+IOleInPlaceObject_InPlaceDeactivate = 5,
+IOleInPlaceObject_UIDeactivate = 6,
+IOleInPlaceObject_SetObjectRects = 7,
+IOleInPlaceObject_ReactivateAndUndo = 8
+
+--        virtual /* [input_sync] */ HRESULT STDMETHODCALLTYPE GetWindow(
+--            /* [out] */ HWND __RPC_FAR *phwnd) = 0;
+                
+--        virtual HRESULT STDMETHODCALLTYPE ContextSensitiveHelp(
+--            /* [in] */ BOOL fEnterMode) = 0;
+
+--        virtual HRESULT STDMETHODCALLTYPE InPlaceDeactivate(void) = 0;
+                
+--        virtual HRESULT STDMETHODCALLTYPE UIDeactivate(void) = 0;
+                
+--        virtual /* [input_sync] */ HRESULT STDMETHODCALLTYPE SetObjectRects(
+--            /* [in] */ LPCRECT lprcPosRect,
+--            /* [in] */ LPCRECT lprcClipRect) = 0;
+                
+--        virtual HRESULT STDMETHODCALLTYPE ReactivateAndUndo(void) = 0;
+
+global constant
+IPersistStreamInit = "7FD52380-4E07-101B-AE2D-08002B2EC713",
+IPersistStreamInit_QueryInterface = 0,
+IPersistStreamInit_AddRef = 1,
+IPersistStreamInit_Release = 2,
+IPersistStreamInit_GetClassID = 3,
+IPersistStreamInit_IsDirty = 4,
+IPersistStreamInit_Load = 5,
+IPersistStreamInit_Save = 6,
+IPersistStreamInit_GetSizeMax = 7,
+IPersistStreamInit_InitNew = 8
+
+
+--        HRESULT ( STDMETHODCALLTYPE __RPC_FAR *QueryInterface )(
+--            IPersistStreamInit __RPC_FAR * This,
+--            /* [in] */ REFIID riid,
+--            /* [iid_is][out] */ void __RPC_FAR *__RPC_FAR *ppvObject);
+--        
+--        ULONG ( STDMETHODCALLTYPE __RPC_FAR *AddRef )(
+--            IPersistStreamInit __RPC_FAR * This);
+--        
+--        ULONG ( STDMETHODCALLTYPE __RPC_FAR *Release )(
+--            IPersistStreamInit __RPC_FAR * This);
+--        
+--        HRESULT ( STDMETHODCALLTYPE __RPC_FAR *GetClassID )(
+--            IPersistStreamInit __RPC_FAR * This,
+--            /* [out] */ CLSID __RPC_FAR *pClassID);
+--        
+--        HRESULT ( STDMETHODCALLTYPE __RPC_FAR *IsDirty )(
+--            IPersistStreamInit __RPC_FAR * This);
+--        
+--        HRESULT ( STDMETHODCALLTYPE __RPC_FAR *Load )(
+--            IPersistStreamInit __RPC_FAR * This,
+--            /* [in] */ LPSTREAM pStm);
+--        
+--        HRESULT ( STDMETHODCALLTYPE __RPC_FAR *Save )(
+--            IPersistStreamInit __RPC_FAR * This,
+--            /* [in] */ LPSTREAM pStm,
+--            /* [in] */ BOOL fClearDirty);
+--        
+--        HRESULT ( STDMETHODCALLTYPE __RPC_FAR *GetSizeMax )(
+--            IPersistStreamInit __RPC_FAR * This,
+--            /* [out] */ ULARGE_INTEGER __RPC_FAR *pCbSize);
+--        
+--        HRESULT ( STDMETHODCALLTYPE __RPC_FAR *InitNew )(
+--            IPersistStreamInit __RPC_FAR * This);
+
+global constant
+IQuickActivate = "CF51ED10-62FE-11CF-BF86-00A0C9034836",
+IQuickActivate_QueryInterface = 0,
+IQuickActivate_AddRef = 1,
+IQuickActivate_Release = 2,
+IQuickActivate_QuickActivate = 3,
+IQuickActivate_SetContentExtent = 4,
+IQuickActivate_GetContentExtent = 5
+
+--    HRESULT QuickActivate(
+--                [in] QACONTAINER * pQaContainer,
+--                [in,out] QACONTROL * pQaControl
+--            );
+--
+--
+--    HRESULT SetContentExtent(
+--                [in] LPSIZEL pSizel
+--            );
+--
+--    HRESULT GetContentExtent(
+--                [out] LPSIZEL pSizel
+--            );
+
+--    typedef [v1_enum] enum tagQACONTAINERFLAGS {
+--        QACONTAINER_SHOWHATCHING      = 0x0001,
+--        QACONTAINER_SHOWGRABHANDLES   = 0x0002,
+--        QACONTAINER_USERMODE          = 0x0004,
+--        QACONTAINER_DISPLAYASDEFAULT  = 0x0008,
+--        QACONTAINER_UIDEAD            = 0x0010,
+--        QACONTAINER_AUTOCLIP          = 0x0020,
+--        QACONTAINER_MESSAGEREFLECT    = 0x0040,
+--        QACONTAINER_SUPPORTSMNEMONICS = 0x0080
+--    } QACONTAINERFLAGS;
+--    
+--    typedef [uuid(66504301-BE0F-101A-8BBB-00AA00300CAB), public] DWORD OLE_COLOR;        
+--    
+--    typedef struct tagQACONTAINER {
+--        ULONG                   cbSize;
+--        IOleClientSite *        pClientSite;
+--        IAdviseSinkEx *         pAdviseSink;
+--        IPropertyNotifySink *   pPropertyNotifySink;
+--        IUnknown *              pUnkEventSink;
+--        DWORD                   dwAmbientFlags;
+--        OLE_COLOR               colorFore;
+--        OLE_COLOR               colorBack;
+--        IFont *                 pFont;
+--        IOleUndoManager *       pUndoMgr;
+--        DWORD                   dwAppearance;
+--        LONG                    lcid;
+--        HPALETTE                hpal;
+--        IBindHost *             pBindHost;
+--        IOleControlSite *       pOleControlSite;
+--        IServiceProvider *      pServiceProvider;
+--    } QACONTAINER;
+
+--    typedef struct tagQACONTROL {
+--        ULONG   cbSize;
+--        DWORD   dwMiscStatus;
+--        DWORD   dwViewStatus;
+--        DWORD   dwEventCookie;
+--        DWORD   dwPropNotifyCookie;
+--        DWORD   dwPointerActivationPolicy;
+--    } QACONTROL;
+
+
+constant
+IFont_ = "BEF6E002-A874-101A-8BBA-00AA00300CAB"
+
+global constant
+--EXCEPINFO_wCode = w32allot(Word),
+--EXCEPINFO_wReserved = w32allot(Word),
+--EXCEPINFO_bstrSource = w32allot(Long),
+--EXCEPINFO_bstrDescription = w32allot(Long),
+--EXCEPINFO_bstrHelpFile = w32allot(Long),
+--EXCEPINFO_dwHelpContext = w32allot(Long),
+--EXCEPINFO_pvReserved = w32allot(Long),
+--EXCEPINFO_pfnDeferredFillIn = w32allot(Long),
+--sizeof_EXCEPINFO = w32allotted_size()
+--typedef struct FARSTRUCT tagEXCEPINFO
+--   {
+--   unsigned short wCode;                    // Error code.
+--   Unsigned short wReserved;                // Reserved.
+--   BSTR bstrSource;                         // Exception source.
+--   BSTR bstrDescription;                    // Exception description.
+--   BSTR bstrHelpFile;                       // Help file path.
+--   Unsigned long dwHelpContext;             // Help context ID.
+--   Void FAR* pvReserved;                    // Reserved.
+--   HRESULT (STDAPICALLTYPE FAR* pfnDeferredFillIn) // Pointer to a
+--       (struct tagEXCEPINFO FAR*);               // function that
+--                                                 // fills in help and
+--                                                 // description info.
+--   SCODE scode;                             // Return value.
+--   } EXCEPINFO, FAR* LPEXCEPINFO;
+    EXCEPINFO                   = new_struct(),
+    EXCEPINFO_wCode             = struc(C_USHORT),
+    EXCEPINFO_wReserved         = struc(C_USHORT),
+    EXCEPINFO_bstrSource        = struc(C_PTR),
+    EXCEPINFO_bstrDescription   = struc(C_PTR),
+    EXCEPINFO_bstrHelpFile      = struc(C_PTR),
+    EXCEPINFO_dwHelpContext     = struc(C_ULONG),
+    EXCEPINFO_pvReserved        = struc(C_PTR),
+    EXCEPINFO_pfnDeferredFillIn = struc(C_PTR),
+    EXCEPINFO_scode             = struc(C_LONG)
+             
+
+global constant
+
+ole32 = open_dll("ole32.dll"),
+oleaut32 = open_dll("oleaut32.dll"),
+olepro32 = open_dll("olepro32.dll"),
+
+GetErrorInfo = define_c_func(oleaut32, "GetErrorInfo", 
+                             {C_POINTER, C_POINTER}, C_LONG),
+
+GetActiveObject = define_c_func(oleaut32, "GetActiveObject", {C_POINTER,
+                                                              C_POINTER, C_POINTER}, C_ULONG),
+
+OleInitialize = define_c_func(ole32, "OleInitialize", {C_LONG}, C_LONG),
+OleUninitialize = define_c_proc(ole32, "OleUninitialize", {}),
+
+OleDraw = define_c_func(ole32, "OleDraw", {C_POINTER, C_LONG,
+                                           C_LONG, C_POINTER}, C_LONG),
+OleRun = define_c_func(ole32, "OleRun", {C_POINTER}, C_LONG),
+
+OleCreateFontIndirect = define_c_func(olepro32, "OleCreateFontIndirect",
+                                      {C_POINTER, C_POINTER, C_POINTER}, C_LONG),
+        
+CoCreateInstance = define_c_func(ole32, "CoCreateInstance",
+                                 {C_POINTER, C_POINTER, C_INT, C_POINTER, C_POINTER}, C_LONG),
+
+CoInitialize = define_c_func(ole32, "CoInitialize", {C_POINTER}, C_LONG),
+CoBuildVersion = define_c_func(ole32, "CoBuildVersion", {}, C_LONG),
+CoUnInitialize = define_c_func(ole32, "CoUninitialize", {}, C_LONG),
+CoGetClassObject = define_c_func(ole32, "CoGetClassObject",
+                                 {C_POINTER, C_INT, C_POINTER, C_POINTER, C_POINTER}, C_LONG),
+ProgIDFromCLSID = define_c_func(ole32, "ProgIDFromCLSID",
+                                {C_POINTER, C_POINTER},C_POINTER),
+        --Retrieves the ProgID for a given CLSID.
+        --WINOLEAPI ProgIDFromCLSID(
+        --REFCLSID clsid,
+        --LPOLESTR * lplpszProgID
+
+CLSIDFromProgID = define_c_func(ole32, "CLSIDFromProgID",
+                                {C_POINTER, C_POINTER},C_POINTER)
+
+constant
+u32 = open_dll("user32.dll"),
+xSetParent = define_c_func(u32, "SetParent", {C_POINTER, C_POINTER},C_POINTER),
+Show_Window = define_c_func(u32, "ShowWindow", {C_POINTER, C_INT}, C_INT)
+
+--/topic Win32
+--/proc set_parent(atom child, atom parent)
+--Assigns an ActiveX control to a parent window.  This procedure calls the Windows API 
+--function SetParent.  You should call /get_handle_obj to get the handle to the 
+--ActiveX control.  The /b parent parameter should be the handle to the window.
+--(In Win32Lib, use getHandle(id) to get the parent window's handle.)
+global procedure set_parent(atom child, atom parent)
+atom prevp
+
+    prevp = c_func(xSetParent, {child, parent})
+end procedure
+
+
+
+atom guid_mset
+sequence clsid_table, iid_table, obj_table, interface_table
+global integer IDispatch_ix
+
+
+constant 
+CLSID_GUID = 1,
+CLSID_BYTES = 2,
+CLSID_IID = 3,
+CLSID_INIT = 4,
+
+IID_GUID = 1,
+IID_BYTES = 2,
+IID_CLSID = 3,
+
+OBJ_PVTBL = 1,
+OBJ_CLSID_IX = 2,
+OBJ_IID_VTBL = 3,
+OBJ_IID_THIS = 4,
+OBJ_EVENTSINK = 5,
+OBJ_POS = 6,
+OBJ_PARENT = 7,
+OBJ_EU_THIS = 8
+
+sequence com_eventsink_table, com_implement_interface_table
+
+com_eventsink_table = repeat({}, 4)
+com_implement_interface_table = repeat({}, 4)
+
+-- Event Sink constants
+constant
+ES_EVENTS = 1,
+ES_UNADVISE = 2,
+ES_THIS = 3
+
+constant
+I_THIS = 1,
+I_OBJ = 2,
+I_BYTES = 3
+
+constant
+CE_CLSID = 1,
+CE_IID = 2,
+CE_VTBL = 3,
+CE_IDS = 4
+
+constant
+CI_CLSID = 1,
+CI_IID = 2,
+CI_VTBL = 3,
+CI_PARENTS = 4
+
+-- IID indices
+integer disp_ix, quickactivate_ix, persist_ix, persiststreaminit_ix,
+        oleobject_ix, olewindow_ix
+
+constant event_offset = IDispatch_Invoke
+
+sequence event_vtbl
+clsid_table = repeat({}, 4)
+iid_table = repeat({}, 3)
+obj_table = repeat({}, 8)
+interface_table = repeat({}, 3)
+
+--/topic Errors
+--/func is_error(atom hresult)
+--/ret Boolean: 1 if error, 0 if not error
+--Typically, an hresult (the standard return value from a COM function call) will 
+--be 0 if no error, and non-zero if an error occurs.  However, there are some values that 
+--are non-zero that are 'qualified' successes.  Critical errors, as they are called, can 
+--be detected by using a mask of #80000000, which is what this funcion does.
+global function is_error(atom hresult)
+    return and_bits(hresult, #80000000)
+end function
+
+--/topic API
+--/func get_obj_this(integer obj_ix)
+--/ret 'this' pointer to an object
+--This function is used to retrieve the 'this' pointer to an object when 
+--you have the object id that is returned from creating or referencing a COM 
+--object in EuCOM.  You may need to pass a 'this' pointer to some other object.
+global function get_obj_this(integer obj_ix)
+    return obj_table[OBJ_PVTBL][obj_ix]
+end function
+
+--/topic API
+--/func get_pvtbl(atom obj_ix, atom clsid_ix, atom iid_ix)
+--/ret Pointer to the specified interface for the object specified
+--The interface in question must have been added to the object's CLSID using 
+--/add_iid.  Use /query_interface for other interfaces.
+global function get_pvtbl(atom obj_ix, atom iid_ix)
+integer ci
+
+    ci = obj_table[OBJ_CLSID_IX][obj_ix]
+    ci = find(iid_ix, clsid_table[CLSID_IID][ci])
+
+    if not ci then return {0,0} end if
+
+    return {obj_table[OBJ_IID_THIS][obj_ix][ci], obj_table[OBJ_IID_VTBL][obj_ix][ci]}
+
+end function
+
+
+--/topic API
+--/func call_interface_ptr(atom this, atom vtbl, integer func_id, sequence args)
+--/ret HRESULT from member method
+--/desc Calls a function from an interface.
+--call_interface_ptr can be used when you have the pointer to an object vtbl.  If you 
+--have the 'this' pointer to an object, you can easily get the pointer to the vtbl:
+--/code
+--
+--example:
+--
+--  vtbl = peek4u(this)
+--
+--/endcode
+--/b func_id is the function's index in the vtbl (zero-based).  For example, the func_id for 
+--IUnknown::Release() would be 2, since the IUnknown vtbl looks like:
+--/code
+--(0) IUnknown::QueryInterface
+--(1) IUnknown::AddRef
+--(2) IUnknown::Release
+--/endcode
+--
+--This function allows you to call an interface that wasn't preregistered 
+--with EuCOM before you created the object.
+
+global function call_interface_ptr(atom this, atom vtbl, 
+                                   integer func_id, sequence args)
+atom pfunc
+
+    args = this & args
+    pfunc = peek4u(vtbl + func_id * 4)
+    
+    return fptr:call_stdcall(pfunc, args)
+end function
+
+--/topic API
+--/func call_interface(integer obj_ix, object iid, integer iid_func, sequence args)
+--/ret HRESULT from member method
+--/desc Calls a method belonging to an interface of an object
+--Call a function in an interface.  iid can be an integer (corresponding 
+--to the iid_ix returned by add_iid()) or an iid in string or byte form. 
+--iid_func is the index of the function in the interface to call.  Note 
+--that the index is zero based, so QueryInterface will always be 0, etc. 
+--/br This function actually calls /call_interface_ptr, so if you know the 
+--this pointer and the vtbl for the object's interface, it's quicker to call 
+--/call_interface_ptr directly.
+
+global function call_interface(integer obj_ix, object iid,
+                                integer iid_func, sequence args)
+integer iid_ix, ci_ix
+atom vtbl, this
+
+    -- find interface in iid_table
+    if sequence(iid) then
+        iid_ix = find(iid, iid_table[IID_GUID])
+        if not iid_ix then
+            return 0
+        end if
+    else
+        iid_ix = iid
+    end if
+        
+    -- find the index of the clsid
+    ci_ix = obj_table[OBJ_CLSID_IX][obj_ix]
+    if not ci_ix then
+        return #8000FFFF
+    end if
+        
+    -- get the index of the vtbl for the iid on the clsid
+    ci_ix = find(iid_ix, clsid_table[CLSID_IID][ci_ix])
+    if not ci_ix then
+        puts(errout,"Invalid iid--iid not registered\n")
+        return #8000FFFF
+    end if
+        
+    -- retrieve the pointer to the vtbl
+    this = obj_table[OBJ_IID_THIS][obj_ix][ci_ix]
+    vtbl = obj_table[OBJ_IID_VTBL][obj_ix][ci_ix]
+        
+    if not this then
+        return E_NOINTERFACE
+    end if
+    -- call the function
+    return call_interface_ptr(this, vtbl, iid_func, args)
+end function
+
+global atom IID_NULL
+
+--/topic API
+--/func get_dispid(integer obj_ix, sequence dispnames)
+--/ret DISPID of /i dispnames
+--This function can be used to get the DISPID of a member to be used 
+--by /invoke.  It is not necessary to call get_dispid(), as /invoke will 
+--automatically look up the DISPID for you.
+
+global function get_dispid(integer obj_ix, sequence dispnames)
+-- dispnames is a sequence of strings with the names
+-- {prop/method [,arg1, ...]}
+integer c
+atom rgszNames, rgDispId
+sequence names
+object ok, dispid, res
+        
+    c = length(dispnames)
+
+    rgszNames = allocate(c * 4)
+    names = repeat(0,c)
+
+    for i = 1 to c do
+        names[i] = unicode_string(dispnames[i])
+    end for
+    poke4(rgszNames,names)
+        
+    rgDispId = allocate(4 * c)
+        
+    ok = call_interface(obj_ix, 2,
+                        IDispatch_GetIDsOfNames, 
+                        {IID_NULL, rgszNames, c, lcid, rgDispId})
+        
+    if not ok then
+        -- GetIDsOfNames succeeded
+--      dispid = peek4s({rgDispId, c})
+        res = peek4s(rgDispId)
+    else
+        -- failed
+        for i = 1 to c do
+            if peek4s(rgDispId + 4 * (c-1)) = DISPID_UNKNOWN then
+                print_com_error(sprintf("Argument %d unknown name.\n",c))
+            end if
+        end for
+--      w32release_mem(mset)
+--      return 0
+        res = 0
+    end if
+        
+--  w32release_mem(mset)
+    for i=1 to c do
+        free(names[i])
+    end for
+    free(rgszNames)
+    free(rgDispId)
+    return res
+        
+--  return dispid[1]
+
+end function
+
+
+--/topic API
+--/func query_interface(integer obj_ix, object iid)
+--/ret {success = 0, pointer to interface}
+--/desc Get the pointer to an interface of an object
+--If /i iid is an integer, then query_interface returns the pointer to the
+--corresponding interface that was added using /add_iid.  Otherwise, /i iid 
+--should be a GUID in string form.  If successful (i.e., the object has the
+--interface you're looking for), the first element of the return sequence will
+--be zero, and the second will be the pointer to the interface.
+
+global function query_interface(integer obj_ix, object iid)
+atom ppv, riid, ok, res
+
+    if integer(iid) then
+        iid = iid_table[IID_GUID][iid]
+    end if
+        
+    riid = allocate(16)
+    poke(riid,string_to_guid(iid))
+    ppv = allocate(4)
+
+    ok = call_interface(obj_ix, IUnknown, IUnknown_QueryInterface,
+                        {riid, ppv})
+
+    if ok then
+        err:com_error(ok)--, "QueryInterface failed: " & sprint(iid))
+    end if
+    res = peek4u(ppv)
+    free(riid)
+    free(ppv)
+    return {ok, res}
+
+end function
+
+function get_disp_pp(integer obj)
+-- need to query_interface
+object ok
+
+    ok = query_interface(obj, IDispatch)
+    return ok[2]
+end function
+
+--/topic API
+--/func invoke(object obj, sequence dispnames, sequence args, sequence argtypes, integer disp_method)
+--/ret Return value of member property or method
+--/desc Call a method, put or get a property
+--Invoke is used when an object has a DISPINTERFACE (short for IDispatch Interface).  This 
+--is used by all ActiveX objects, and many other COM objects, rather than directly calling 
+--functions through interfaces.
+--/li /b obj The object to be invoked.  Can be either the object id or a sequence: {this, vtbl}
+--/li /b dispnames The dispids or member names, including the arguments.
+--/li /b args Arguments to be passed to the member.
+--/li /b argtypes The variable types of the arguments (in VT_ values)
+--/li /b disp_method One of DISPATCH_PROPERTYPUT, DISPATCH_PROPERTYGET or DISPATCH_METHOD
+global function invoke(object obj, sequence dispnames, sequence args, sequence argtypes, integer disp_method)
+integer c
+object ok, dispid, retval, bstr, iid
+atom pDispParams, pVarResult, rgvarg, pExcepInfo,
+     puArgErr, rdispidNamedArgs, dummy, riid, rgszNames, rgDispId,
+     this, pvtbl
+sequence params, source, desc, dispargs
+sequence names
+
+    if atom(obj) then
+        ok = get_pvtbl(obj, IDispatch_ix)
+        if not ok[1] then
+            ok = get_disp_pp(obj)
+        end if
+    else
+        ok = obj
+    end if
+    this = ok[1]
+    pvtbl = ok[2]
+
+    -- getidsofnames begins here:
+        
+    -- dispnames is a sequence of strings with the names
+    -- {prop/method [,arg1, ...]}
+    -- Stop if there's an atom in there (i.e., DISPID_PROPERTYPUT)
+    c = 1
+    while c <= length(dispnames) do
+        if not sequence(dispnames[c]) then
+            c -= 1
+            exit
+        elsif c = length(dispnames) then
+            exit
+        end if
+        c += 1
+    end while
+
+    if sequence(dispnames[1]) then
+        
+        rgszNames = allocate(c * 4)
+        names = repeat(0,c)
+        for i = 1 to c do
+            names[i] = unicode_string(dispnames[i])
+        end for
+        poke4(rgszNames,names)
+        
+        rgDispId = allocate(4 * c)
+        ok = call_interface_ptr(this, pvtbl, IDispatch_GetIDsOfNames, 
+                                {IID_NULL, rgszNames, c, lcid, rgDispId})
+        
+        for i = 1 to c do
+            free(names[i])
+        end for
+        free(rgszNames)
+
+        if not ok then
+            -- GetIDsOfNames succeeded
+--          for i =0 to c - 1 do
+--              dispnames[i+1] = peek4u(rgDispId)
+--              rgDispId += 4
+--          end for
+            dispnames[1..c] = peek4u({rgDispId,c})
+            free(rgDispId)
+        else
+            -- failed
+            com_error(ok)
+            for i = 1 to c do
+                if peek4s(rgDispId + 4 * (i-1)) = DISPID_UNKNOWN then
+                    print_com_error(sprintf("Argument %d: \"%s\" unknown name.\n",{i,dispnames[i]}))
+                end if
+            end for
+            free(rgDispId)
+            return ok
+        end if
+    end if
+    dispid = dispnames[1]
+    dispargs = dispnames[2..length(dispnames)]
+
+    -- invoke begins here:
+        
+    -- They're pushed into the array in reverse order, just
+    -- like they would be on the stack
+    args = reverse(args) 
+    dispargs = reverse(dispargs)
+    argtypes = reverse(argtypes)
+        
+    -- allocate the various pointers we'll need
+    pVarResult = allocate(16)
+    pExcepInfo = allocate(32)
+    puArgErr = allocate(4)
+    pDispParams = allocate(16)
+    rgvarg = 0
+        
+    if length(args) then
+        rgvarg = allocate(length(args) * 16)
+        rdispidNamedArgs = allocate(length(dispargs) * 4)
+                
+        -- Fill pDispParams
+        poke4(pDispParams, rgvarg)
+        poke4(pDispParams + 4, rdispidNamedArgs)
+        poke4(pDispParams + 8, length(args))
+        poke4(pDispParams + 12, length(dispargs))
+
+        -- Put the dispid's of named params in their array
+        poke4(rdispidNamedArgs, dispargs)
+        
+        -- Fill the array of VARIANTARG's
+        for i = 0 to length(args) - 1 do
+            v:make_variant(rgvarg + i * 16, argtypes[i+1], args[i+1])
+        end for
+    end if
+        
+    params = {dispid, IID_NULL, lcid, disp_method, pDispParams, 
+              pVarResult, pExcepInfo, puArgErr}
+        
+    -- Call IDispatch::Invoke
+    ok = call_interface_ptr(this, pvtbl, IDispatch_Invoke, params)
+        
+    if ok = DISP_E_NONAMEDARGS then
+                
+        if disp_method = DISPATCH_PROPERTYPUT then
+            if length(args) > 1 then
+                poke4(pDispParams + 12, 1)
+            else
+                poke4(pDispParams + 12, 0)
+            end if
+        else
+            poke4(pDispParams + 12, 0)
+        end if
+        ok = call_interface_ptr(this, pvtbl, IDispatch_Invoke, params)                      
+    end if
+        
+    if ok then
+        -- Debug print
+        retval = ok
+        free(pVarResult)
+        ok = peek4u(puArgErr) + 1
+
+        if retval = DISP_E_TYPEMISMATCH then
+                        
+            err:print_com_error(sprintf("%08x: Type mismatch, arg %d: #%08x / vt = %d\n",
+                                        {retval, length(args) - ok + 1,args[ok], argtypes[ok]}))
+                
+        elsif retval = DISP_E_OVERFLOW then
+                        
+            err:print_com_error(sprintf("Overflow, arg %d: #%08x / vt = %d\n",
+                                        {length(args) - ok + 1, args[ok], argtypes[ok]}))
+        else
+            err:com_error(retval)
+        end if
+        source = u:peek_bstr(peek4u(pExcepInfo+EXCEPINFO_bstrSource))
+        desc = u:peek_bstr(peek4u(pExcepInfo+EXCEPINFO_bstrDescription))
+        print_com_error(sprintf("Exception Source: %s\nException Description: %s\n",{source,desc}))
+
+    else
+        -- get the return value--it's a VARIANT
+        if return_true_variant then
+            retval = pVarResult --w32acquire_mem(0,16)
+        --    poke4(retval, peek({pVarResult,16}))
+        else
+                        
+            retval = v:get_variant(pVarResult)
+            free(pVarResult)
+--          w32release_mem(mset)
+        end if
+    end if
+
+    free(pExcepInfo)
+    free(puArgErr)
+    free(pDispParams)
+    if rgvarg then
+        free(rgvarg)
+        free(rdispidNamedArgs)
+    end if
+    return retval
+end function
+
+--/topic API
+--/func add_iid(integer clsid_ix, sequence iid)
+--/ret Index to the interface for the CLSID
+--/desc Add an interface to be used by the CLSID
+--This function is called when a CLSID is being defined, usually in a wrapper or include file.
+--The value returned can be used in conjunction with /call_interface.
+
+global function add_iid(integer clsid_ix, sequence iid)
+integer iid_ix
+sequence iid_b
+object ok
+
+    iid_ix = find(iid, iid_table[IID_GUID])
+        
+    if iid_ix and find(clsid_ix, iid_table[IID_CLSID][iid_ix]) then
+        return iid_ix
+    end if
+        
+    iid_b = string_to_guid(iid)
+        
+    if not iid_ix then
+                
+        iid_table[IID_GUID] &= {iid}
+        iid_table[IID_BYTES] &= {iid_b}
+        iid_table[IID_CLSID] &= {{}}
+        --iid_table[IID_PVTBL] &= {{}}
+        iid_ix = length(iid_table[1])
+        
+    end if
+        
+    if equal(iid, IDispatch) then
+        IDispatch_ix = iid_ix
+    end if
+        
+    iid_table[IID_CLSID][iid_ix] &= clsid_ix
+    clsid_table[CLSID_IID][clsid_ix] &= iid_ix
+        
+    return iid_ix
+end function
+
+--/topic API
+--/func add_clsid(sequence clsid)
+--/ret Index to the CLSID
+--/desc Add a CLSID for later use
+--Registers a CLSID with EuCOM.  You need to register an object's CLSID before
+--you can create it.  Returns clsid_ix, which can be used to create
+--COM objects with /create_com_object or /create_com_control, or when referencing a
+--COM object using /ref_com_object.  /i clsid should be a GUID in string form.
+
+global function add_clsid(sequence clsid)
+integer clsid_ix, ok
+
+    clsid_ix = find(clsid, clsid_table[1])
+    if clsid_ix then
+        return clsid_ix
+    end if
+        
+    clsid_table[CLSID_GUID] &= {clsid}
+    clsid_table[CLSID_BYTES] &= {string_to_guid(clsid)}
+    clsid_table[CLSID_IID] &= {{}}
+    clsid_table[CLSID_INIT] &= {{}}
+
+    clsid_ix = length(clsid_table[1])
+    ok = add_iid(clsid_ix, IUnknown)
+        
+    return clsid_ix
+end function
+
+-- Tracks info regarding interfaces we've implemented
+sequence p_table
+
+constant
+PT_THIS = 1,
+PT_REF = 2,
+PT_VTBL = 3,
+PT_BYTES = 4,
+PT_OBJ = 5
+
+p_table = repeat({}, 5)
+
+-- Figure out who we are based on the this pointer
+-- To be used by implemented interfaces
+function find_this(atom this, sequence iid)
+integer ix, jx, lx
+
+    jx = 1
+    lx = length(p_table[1])
+        
+    ix = find(this, p_table[PT_THIS])
+    while ix do
+        ix += jx - 1
+                
+        if equal(iid, p_table[PT_BYTES]) then
+            return ix
+        end if
+                
+        jx = ix + 1
+                
+        ix = find(this, p_table[PT_THIS][jx..lx])
+                
+    end while
+        
+    return 0
+end function
+
+--/topic Implementing Interfaces
+--/func i_query_interface(atom this, sequence iid, atom ppv)
+--/ret HRESULT
+--/desc IUnknown::QueryInterface
+--This is a standard implementation of IUnknown::QueryInterface, used to implement
+--interfaces when called through /implement_interface.  You should call this function
+--from your implementation of QueryInterface.  Your function needs to peek the 16-byte
+--GUID (/i riid in the example below), and pass it as a sequence to /b i_query_interface().
+--/b i_query_interface() has access to all the interfaces that have been implemented, and 
+--will store the correct pointer in ppv.
+--/code
+--ex:
+--
+--function QueryInterface(atom this, atom riid, atom ppv)
+--    sequence iid
+--    iid = peek({riid, 16})
+--    return i_query_interface(this, iid, ppv)
+--end function
+--/endcode
+
+global function i_query_interface(atom this, sequence iid, atom ppv)
+integer ix
+    --ix = find_this(this, iid)
+
+    ix = find(iid, p_table[PT_BYTES])
+    if not ix then
+        if equal(iid, IUnknown_bytes) then
+            poke4(ppv, this)
+            print_com_error(sprintf("IUnknown::QueryInterface\nFound implemented interface: %s\n\n", 
+                                    {guid_to_string(iid)}))
+            return 0
+        end if
+        print_com_error(sprintf("IUnknown::QueryInterface(80004002)\nCould not find implemented interface: %s\n\n", 
+                                {guid_to_string(iid)}))
+        poke4(ppv, 0)
+        return #80004002
+    end if
+    print_com_error(sprintf("IUnknown::QueryInterface\nFound implemented interface: %s\n\n", 
+                            {guid_to_string(iid)}))
+    poke4(ppv, p_table[PT_THIS][ix])
+    return 0
+end function
+
+--/topic Implementing Interfaces
+--/func i_add_ref(atom this, sequence iid)
+--/ret HRESULT
+--/desc IUnknown::AddRef
+--This is a standard implementation of IUnknown::AddRef, used to implement
+--interfaces when called through /implement_interface().  Your implemented version of
+--AddRef should pass the 16-byte GUID for the implemented interface (in byte form)
+--and pass it as a sequence to /b i_add_ref().  
+--/code
+--ex:
+--
+--function AddRef(atom this)
+--    return i_add_ref(this, IOleCommandTarget_b)
+--end function
+--/endcode
+
+global function i_add_ref(atom this, sequence iid)
+integer ix
+
+    ix = find(this, p_table[PT_THIS])
+    p_table[PT_REF][ix] += 1
+        
+    return p_table[PT_REF][ix]
+end function
+
+--/topic Implementing Interfaces
+--/func i_release(atom this, sequence iid)
+--/ret HRESULT
+--/desc IUnknown::Release
+--This is a standard implementation of IUnknown::Release, used to implement
+--interfaces when called through /implement_interface.  Your implemented version of
+--Release should pass the 16-byte GUID for the implemented interface (in byte form)
+--and pass it as a sequence to /b i_release().  
+--/code
+--ex:
+--
+--function Release(atom this)
+--    return i_release(this, IOleCommandTarget_b)
+--end function
+--/endcode
+
+global function i_release(atom this, sequence iid)
+integer ix, ref
+atom pvtbl
+
+    ix = find(this, p_table[PT_THIS])
+    ref = p_table[PT_REF][ix]
+    ref -= 1
+    if not ref then
+                --w32release_mem(p_table[PT_VTBL][ix])
+    end if
+        
+    p_table[PT_REF][ix] = ref
+        
+    return ref
+end function
+
+
+-- Don't know what this is for...look at how/when it's called
+global function get_i_pvtbl(atom this, sequence iid)
+integer p_ix
+
+    if length(iid) != 16 then
+        iid = string_to_guid(iid)
+    end if
+        
+    p_ix = find_this(this, iid)
+    if not p_ix then
+        return 0
+    end if
+        
+    return p_table[PT_VTBL][p_ix]
+end function
+
+
+-- Return the this pointer from an obj_ix and IID
+global function get_obj_iid_this(atom obj, sequence iid)
+integer o_ix, iid_ix, ix, jx
+
+    if length(iid) != 16 then
+        iid = string_to_guid(iid)
+    end if
+        
+    ix = length(p_table[PT_BYTES])
+    jx = 0
+    iid_ix = find(iid, p_table[PT_BYTES])
+    while iid_ix do
+        
+        iid_ix += jx
+                
+        if p_table[PT_OBJ][iid_ix] = obj then
+            return p_table[PT_THIS][iid_ix]
+        end if
+                
+        jx = iid_ix
+                
+        iid_ix = find(iid, p_table[PT_BYTES][jx+1..ix])
+    end while
+        
+    return 0
+end function
+
+-- New! 2/21/02
+-- To be used by implemented interfaces to find their obj_ix
+
+--/topic Implementing Interfaces
+--/func get_obj_from_this(atom this)
+--/ret obj_ix
+--/desc To be used by implemented interfaces to find their obj_ix
+--To be used by implemented interfaces to find their obj_ix
+--When implementing interfaces, you may have more than one object that could be
+--calling the interface.  This function converts the /i this pointer for the
+--interface into the /i obj_ix for the object.
+
+global function get_obj_from_this(atom this)
+integer ix
+
+    ix = find(this, p_table[PT_THIS])
+    if ix then
+        return p_table[PT_OBJ][ix]
+    end if
+
+    return 0
+
+end function
+
+function imp_int(atom obj, sequence iid, 
+                  sequence vtbl, sequence parents, atom this)
+atom pvtbl, ppv
+
+    if length(iid) != 16 then
+        iid = string_to_guid(iid)
+    end if
+
+    if not this then
+        this = allocate(4)   
+    end if
+
+    if length(parents) then
+        pvtbl = imp_int(obj, parents[1], vtbl, 
+                        parents[2..length(parents)], this)
+    else
+
+        pvtbl = allocate(length(vtbl) * 4)
+        poke4(pvtbl, vtbl)
+        poke4(this, pvtbl)
+
+    end if
+        
+    p_table[PT_THIS] &= this
+    p_table[PT_REF] &= 1
+    p_table[PT_VTBL] &= pvtbl
+    p_table[PT_BYTES] &= {iid}
+    p_table[PT_OBJ] &= obj
+        
+    return this                                             
+end function
+
+--/topic Implementing Interfaces
+--/func implement_interface(atom obj, sequence iid, sequence vtbl, sequence parents)
+--/ret 'this' pointer to new interface
+--/desc Implements an interface on the container side
+--/li /b obj: obj_ix for which interface is implemented
+--/li  /b iid: IID to be implemented
+--/li  /b vtbl: sequence of callbacks for the implemented interface
+--/li  /b parents: sequence of IID's of the 'parent' interfaces (other than IUnknown)
+
+global function implement_interface(atom obj, sequence iid, 
+                                     sequence vtbl, sequence parents)
+atom pvtbl, ppv, this
+
+    return imp_int(obj, iid, vtbl, parents, 0)  
+
+end function
+
+--/topic Events
+--/func obj_this_to_ix(atom this)
+--/ret obj_ix
+--/desc Used by EuCOM to match an event with an object
+global function obj_this_to_ix(atom this)
+integer ix
+
+    for i = 1 to length(obj_table[1]) do
+        ix = find(this, obj_table[OBJ_EVENTSINK][i][ES_THIS])
+        if ix then
+            return i
+        end if
+    end for
+    return 0
+end function
+
+
+procedure add_com_events(integer obj_ix)
+atom this, pconnection, ppconnection, riid, ok, pevent, pvtbl,
+     punadvise, ppenum, penum, venum, rgpcn, pcFetched, pIID
+
+integer ev_id, ce_ix, clsid
+sequence iid_b, vtbl
+
+    -- get the clsid to check for an interface
+    -- clsid = ax_table[AX_CLSID_IX][ax_ix]
+    clsid = obj_table[OBJ_CLSID_IX][obj_ix]
+    ce_ix = find(clsid, com_eventsink_table[CE_CLSID])
+
+    if not ce_ix or not length(com_eventsink_table[CE_IID][ce_ix]) then
+        return
+    end if
+        
+    iid_b = string_to_guid(com_eventsink_table[CE_IID][ce_ix])
+    vtbl = event_vtbl & com_eventsink_table[CE_VTBL][ce_ix]
+        
+    --this = get_this(ax_ix)
+    this = obj_table[OBJ_IID_THIS][obj_ix][1]
+    -- obj_ix = get_ax_obj_ix(ax_ix)
+        
+    -- 1/21/03: Added IDispatch as parent
+    pevent = implement_interface(obj_ix, iid_b, vtbl, {IDispatch})
+        
+    for i = 1 to length(obj_table[OBJ_EVENTSINK][obj_ix])   do
+        obj_table[OBJ_EVENTSINK][obj_ix][i] &= {{}}
+    end for
+    ev_id = length(obj_table[OBJ_EVENTSINK][obj_ix][1])
+    obj_table[OBJ_EVENTSINK][obj_ix][ES_EVENTS] = repeat(-1, 
+                                                         length(com_eventsink_table[CE_IDS][ce_ix]))
+
+
+    riid = allocate(16)
+    poke(riid, iid_b)
+    ppconnection = allocate(4)
+    poke4(ppconnection,0)
+        
+    ok = call_interface(obj_ix, IConnectionPointContainer,
+                        IConnectionPointContainer_FindConnectionPoint,
+                        {riid, ppconnection})
+        
+    if ok then
+        print_com_error("FindConnectionPoint failed: " & sprintf("#%08x",ok) & "\n")
+        --return
+    end if
+        
+    pconnection = peek4u(ppconnection)
+        
+    if not pconnection then
+        print_com_error("No IConnectionPoint for " & guid_to_string(iid_b) & "\n")
+    else
+        
+        pvtbl = peek4u(pconnection)
+        
+        punadvise = allocate(4)
+        
+        ok = call_interface_ptr(pconnection, pvtbl, IConnectionPoint_Advise,
+                                {pevent, punadvise})
+        
+        if ok then
+            print_com_error("Advise eventsink failed: " & sprintf("#%08x",ok) & "\n")
+        else
+            obj_table[OBJ_EVENTSINK][obj_ix][ES_UNADVISE][ev_id] = peek4u(punadvise)
+            obj_table[OBJ_EVENTSINK][obj_ix][ES_THIS][ev_id] = pevent
+        end if
+        free(punadvise)     
+    end if
+    free(riid)
+    free(ppconnection)
+
+end procedure
+
+-- implement the default interfaces defined for this object
+procedure implement_com_interfaces(integer obj_ix)
+integer clsid, ci_ix
+atom void
+
+    clsid = obj_table[OBJ_CLSID_IX][obj_ix]
+    ci_ix = find(clsid, com_implement_interface_table[CI_CLSID])
+        
+    if not ci_ix or not length(com_implement_interface_table[CI_IID][ci_ix]) then
+        return
+    end if
+        
+    for i = 1 to length(com_implement_interface_table[CI_IID]) do
+        void = implement_interface(obj_ix, 
+                                   com_implement_interface_table[CI_IID][ci_ix][i], 
+                                   com_implement_interface_table[CI_VTBL][ci_ix][i],
+                                   com_implement_interface_table[CI_PARENTS][ci_ix][i])         
+    end for
+
+end procedure
+
+--/topic API
+--/func ref_com_object(integer clsid_ix, atom this)
+--/ret obj_ix
+--/desc Make EuCOM aware of an object
+--Sometimes an object that you are working with will return a pointer to another
+--object.  Using functions such as /invoke and /call_interface_ptr, you can work
+--with that object without EuCOM having any reference to it.  However, you can
+--make EuCOM aware of the object by specifying its clsid_ix (which must have been
+--previously added using /add_clsid) and its /i this pointer.  You may then use
+--the object just as if it were created by EuCOM.
+
+global function ref_com_object(integer clsid_ix, atom this)
+integer obj_ix
+object ok
+sequence iids
+
+    -- successfully created an instance
+    obj_ix = find(0, obj_table[OBJ_PVTBL])
+                
+    if not obj_ix then
+        for i = 1 to length(obj_table) do
+            obj_table[i] &= {{}}
+        end for
+        obj_ix = length(obj_table[1])
+    end if
+                
+    obj_table[OBJ_PVTBL][obj_ix] = this
+    obj_table[OBJ_CLSID_IX][obj_ix] = clsid_ix
+                
+    iids = clsid_table[CLSID_IID][clsid_ix]
+                
+    obj_table[OBJ_IID_THIS][obj_ix] &= this
+    obj_table[OBJ_IID_VTBL][obj_ix] &= peek4u(this)
+    obj_table[OBJ_EVENTSINK][obj_ix] = repeat({}, 3)          
+    for i = 2 to length(iids) do
+        -- Get pointers to the interfaces
+        ok = query_interface(obj_ix, iids[i])
+                
+        if not ok[1] then
+            -- Successful
+            ok = ok[2]
+            obj_table[OBJ_IID_THIS][obj_ix] &= ok
+            obj_table[OBJ_IID_VTBL][obj_ix] &= peek4u(ok)
+                        
+        else
+            -- Didn't get a pointer to the interface
+            err:print_com_error(sprintf("could not get interface %d: %08x\n",
+                                        {i, ok[1]}))
+            obj_table[OBJ_IID_THIS][obj_ix] &= 0
+            obj_table[OBJ_IID_VTBL][obj_ix] &= 0
+        end if
+                        
+                        
+    end for
+
+    -- New!
+    implement_com_interfaces(obj_ix)
+    add_com_events(obj_ix)
+
+
+    for i = 1 to length(clsid_table[CLSID_INIT][clsid_ix]) do
+        call_proc(clsid_table[CLSID_INIT][clsid_ix][i], {obj_ix})
+    end for
+
+    return obj_ix
+
+end function
+
+--/topic API
+--/func create_com_object(integer clsid_ix)
+--/ret New obj_ix
+--/desc Creates a new object
+--Creates and initializes a new object of CLSID clsid_ix, including any event interfaces
+--that were set up.  Any user defined initalization routines set using /add_user_init()
+--will be called as well.
+
+global function create_com_object(integer clsid_ix)
+integer obj_ix
+atom pvtbl, ppv, rclsid, riid
+object ok
+sequence iids
+
+    ppv = allocate(4)
+    rclsid = allocate(16)
+    poke(rclsid,clsid_table[CLSID_BYTES][clsid_ix])
+    riid = allocate(16)
+    poke(riid,iid_table[IID_BYTES][1])
+        
+    ok = c_func(CoCreateInstance, {rclsid, 0 , 5, riid, ppv})
+
+    if not ok then
+trace(1)
+        obj_ix = ref_com_object(clsid_ix, peek4u(ppv))
+    else
+        err:print_com_error(sprintf("CoCreateInstance Error: %x\n",ok))
+        err:com_error(ok)
+        obj_ix = 0
+    end if
+
+    free(ppv)
+    free(rclsid)
+    free(riid)
+    
+    return obj_ix
+end function
+
+-- 'b' is an interface to be implemented.  This allows us to 
+-- remember which interfaces have been implemented by us
+procedure add_iid_to_obj(integer obj_ix, atom this, sequence b)
+
+    interface_table[I_THIS] &= this
+    interface_table[I_OBJ] &= obj_ix
+    interface_table[I_BYTES] &= {b} 
+
+end procedure
+
+
+global function quick_activate(integer obj_ix, atom fore_color,
+                                atom back_color, atom pfont, atom this, atom clientsite, 
+                                atom advisesink)
+
+atom pcontainer, pcontrol, ok, ppvIFont, riid,
+--   ppvClient, ppvAdvise, ppvUnk, 
+     iocs
+object duh, vtbl
+
+    ppvIFont = allocate(4)
+    riid = allocate(16)
+    poke(riid,string_to_guid(IFont_))
+        
+    -- need to release this interface pointer eventually when 
+    -- we're done
+    ok = c_func(OleCreateFontIndirect, {pfont, riid, ppvIFont})
+    if is_error(ok) then 
+        com_err_out(1)  -- Print the error on console 
+        com_error(ok)   -- Display the error on console 
+        while get_key() = -1 do -- Wait for key press 
+        end while 
+        ?1/0 -- Crash 
+    end if 
+    pfont = peek4u(ppvIFont)
+        
+--  ppvClient = allocate(4)
+--  ppvAdvise = allocate(4)
+--  ppvUnk = allocate(4)
+        
+        --poke4(ppvClient, clientsite)
+        --poke4(ppvAdvise, advisesink)
+        --poke4(ppvUnk, advisesink)
+        
+    pcontainer = allocate(16 * 4)
+    poke4(pcontainer, 16 * 4)
+    --poke4(pcontainer + 1 * 4, ppvClient)
+    --poke4(pcontainer + 2 * 4, ppvAdvise)
+    poke4(pcontainer + 1 * 4, clientsite)
+    --poke4(pcontainer + 2 * 4, advisesink)
+    --poke4(pcontainer + 4 * 4, ppvUnk)
+    poke4(pcontainer + 5 * 4, 131)
+    poke4(pcontainer + 6 * 4, #C0C0)
+    poke4(pcontainer + 7 * 4, back_color)
+    --poke4(pcontainer + 8 * 4, ppvIFont)
+    poke4(pcontainer + 8 * 4, pfont)
+    poke4(pcontainer + 11 * 4, lcid)
+         
+    pcontrol = allocate(6 * 4)
+    poke4(pcontrol, 24)
+        
+    ok = call_interface(obj_ix, IQuickActivate, 
+                        IQuickActivate_QuickActivate, {pcontainer, pcontrol})
+    if ok != S_OK then
+        -- set the client site manually?
+        duh = query_interface(obj_ix, IOleObject)
+        if duh[1] = S_OK then
+            iocs = duh[2]
+            ok = call_interface_ptr(iocs, peek4u(iocs), 3, {clientsite})
+        end if
+    end if
+        
+    free(ppvIFont)
+    free(riid)
+--  free(ppvClient)
+--  free(ppvAdvise)
+--  free(ppvUnk)
+    free(pcontrol)
+        
+    return ok
+end function
+
+--include interface.ew
+
+-- From ActiveX.ew originally:
+
+-- Required interfaces:
+
+--   Interface              Parent Interface
+-- - -----------------      -----------------
+-- X IOleClientSite
+-- X IOleInPlaceSite        IOleWindow
+-- X IOleInPlaceFrame       IOleWindow::IOleInPlaceUIWindow
+-- X IOleContainer          IParseDisplayName
+-- X IDispatch
+-- X IErrorInfo
+
+-- Optional interfaces
+
+--   Interface              Parent Interface
+-- - -----------------      -----------------
+--   IAdviseSink
+--   ISimpleFrameSite
+--   IPropertyNotifySink
+--   IClassFactory2
+
+
+function impl_QueryInterface(atom this, atom riid, atom ppv)
+sequence iid
+    iid = peek({riid, 16})
+    return i_query_interface(this, iid, ppv)
+end function
+
+
+function IOleControlSite_AddRef_(atom this)
+    return i_add_ref(this, IOleControlSite_b)
+end function
+
+function IOleControlSite_Release_(atom this)
+    return i_release(this, IOleControlSite_b)
+end function
+
+--Informs the container that the control's CONTROLINFO structure has 
+--changed and that the container should call the control's 
+--IOleControl::GetControlInfo for an update.
+function IOleControlSite_OnControlInfoChanged_(atom this)
+    return S_OK
+end function
+
+--Indicates whether or not a control should remain in-place active. Calls to 
+--this method typically nest an event to ensure that the object's activation 
+--state remains stable throughout the processing of the event.
+function IOleControlSite_LockInPlaceActive_(atom this, atom fLock)
+    return E_NOTIMPL
+end function
+
+--Requests an IDispatch pointer to the extended control that the container 
+--uses to wrap the real control.
+function IOleControlSite_GetExtendedControl_(atom this, atom ppDisp)
+    return E_NOTIMPL
+end function
+
+--Converts between a POINTL structure expressed in HIMETRIC units (as is standard 
+--in OLE) and a POINTF structure expressed in units specified by the container. By 
+--converting the methods, the control can ensure that it sends coordinate information 
+--to the container in units that are directly usable in the container without 
+--additional conversion.
+function IOleControlSite_TransformCoords_(atom this, atom pPtlHimetric,
+                                          atom pPtfContainer ,  atom dwFlags)
+    return E_NOTIMPL
+end function
+
+--Instructs the control site to process the keystroke described in pMsg and 
+--modified by the flags in grfModifiers.
+function IOleControlSite_TranslateAccelerator_(atom this, atom pMsg, atom grfModifiers)
+    return E_NOTIMPL
+end function
+
+--Indicates whether the control managed by this control site has gained or 
+--lost the focus, according to the fGotFocus parameter. The container uses 
+--this information to update the state of Default and Cancel buttons according 
+--to how the control with the focus processes Return or Esc keys. A control's 
+--behavior regarding the Return and Esc keys is specified in the control's 
+--CONTROLINFO structure. See IOleControl::GetControlInfo.
+function IOleControlSite_OnFocus_(atom this, atom fGotFocus)
+    return S_OK
+end function
+
+--Instructs a container to display a property sheet for the control embedded in this site.
+function IOleControlSite_ShowPropertyFrame_(atom this)
+    return S_OK
+end function
+
+constant IOleControlSite_vtbl = {
+                                 call_back(routine_id("impl_QueryInterface")),
+                                 call_back(routine_id("IOleControlSite_AddRef_")),
+                                 call_back(routine_id("IOleControlSite_Release_")),
+                                 call_back(routine_id("IOleControlSite_OnControlInfoChanged_")),
+                                 call_back(routine_id("IOleControlSite_LockInPlaceActive_")),
+                                 call_back(routine_id("IOleControlSite_GetExtendedControl_")),
+                                 call_back(routine_id("IOleControlSite_TransformCoords_")),
+                                 call_back(routine_id("IOleControlSite_TranslateAccelerator_")),
+                                 call_back(routine_id("IOleControlSite_OnFocus_")),
+                                 call_back(routine_id("IOleControlSite_ShowPropertyFrame_"))
+                                }
+
+-- Begin: IOleClientSite
+function IOleClientSite_AddRef_(atom this)
+    return i_add_ref(this, IOleClientSite_b)
+end function
+
+function IOleClientSite_Release_(atom this)
+    return i_release(this, IOleClientSite_b)
+end function
+
+
+function IOleClientSite_SaveObject(atom this)
+    return 0
+end function
+
+function IOleClientSite_GetMoniker(atom this, atom dwAssign, atom dwWhichMoniker,
+                                    atom ppmk)
+    return E_NOTIMPL
+end function
+
+function IOleClientSite_GetContainer(atom this, atom ppContainer)
+
+    poke4(ppContainer, 0)
+
+    return E_NOINTERFACE
+end function
+
+function IOleClientSite_ShowObject(atom this)
+--DEV:
+    return 0
+    return E_NOTIMPL
+end function
+
+function IOleClientSite_OnShowWindow(atom this, atom fShow)
+        
+    return 0
+end function
+
+function IOleClientSite_RequestNewObjectLayout(atom this)
+
+    return E_NOTIMPL
+end function
+
+constant IOleClientSite_vtbl = {
+                                call_back(routine_id("impl_QueryInterface")),
+                                call_back(routine_id("IOleClientSite_AddRef_")),
+                                call_back(routine_id("IOleClientSite_Release_")),
+                                call_back(routine_id("IOleClientSite_SaveObject")),
+                                call_back(routine_id("IOleClientSite_GetMoniker")),
+                                call_back(routine_id("IOleClientSite_GetContainer")),
+                                call_back(routine_id("IOleClientSite_ShowObject")),
+                                call_back(routine_id("IOleClientSite_OnShowWindow")),
+                                call_back(routine_id("IOleClientSite_RequestNewObjectLayout"))
+                               }
+        
+
+-- End: IOleClientSite
+
+-- Begin: IOleWindow
+--    MIDL_INTERFACE("00000114-0000-0000-C000-000000000046")
+
+--        virtual /* [input_sync] */ HRESULT STDMETHODCALLTYPE GetWindow(
+--            /* [out] */ HWND __RPC_FAR *phwnd) = 0;
+function IOleWindow_GetWindow(atom this, atom phwnd)
+integer obj_ix
+
+    obj_ix = get_obj_from_this(this)
+
+    poke4(phwnd, obj_table[OBJ_PARENT][obj_ix])
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE ContextSensitiveHelp(
+--    /* [in] */ BOOL fEnterMode) = 0;
+
+function IOleWindow_ContextSensitiveHelp(atom this, atom fEnterMode)
+
+    return 0
+end function
+-- End: IOleWindow
+
+
+-- Begin: IOleInPlaceSite IOleWindow
+function IOleInPlaceSite_AddRef_(atom this)
+
+    return i_add_ref(this, IOleClientSite_b)
+end function
+
+function IOleInPlaceSite_Release_(atom this)
+
+    return i_release(this, IOleInPlaceSite_b)
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE CanInPlaceActivate(void) = 0;
+function IOleInPlaceSite_CanInPlaceActivate(atom this)
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE OnInPlaceActivate(void) = 0;
+function IOleInPlaceSite_OnInPlaceActivate(atom this)
+
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE OnUIActivate(void) = 0;
+function IOleInPlaceSite_OnUIActivate(atom this)
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE GetWindowContext(
+--    /* [out] */ IOleInPlaceFrame __RPC_FAR *__RPC_FAR *ppFrame,
+--    /* [out] */ IOleInPlaceUIWindow __RPC_FAR *__RPC_FAR *ppDoc,
+--    /* [out] */ LPRECT lprcPosRect,
+--    /* [out] */ LPRECT lprcClipRect,
+--    /* [out][in] */ LPOLEINPLACEFRAMEINFO lpFrameInfo) = 0;
+function IOleInPlaceSite_GetWindowContext(atom this, atom ppFrame, 
+                atom ppDoc, atom lprcPosRect, atom lprcClipRect, atom lpFrameInfo)
+sequence rect
+integer obj_ix
+atom pframe
+
+    obj_ix = get_obj_from_this(this)
+ 
+    if not obj_ix then
+        poke4(ppFrame, 0)
+        poke4(ppDoc, 0)
+        poke4(lprcPosRect, repeat(0, 4))
+        poke4(lprcClipRect, repeat(0, 4))
+        poke4(lpFrameInfo, repeat(0, 5))
+        -- E_UNEXPECTED
+        return #800FFFF
+    end if
+        
+    rect = obj_table[OBJ_POS][obj_ix]
+--    rect[3..4] += rect[1..2]
+
+    -- supply the pointer to IOleInPlaceFrame
+    pframe = find(IOleInPlaceFrame_b, interface_table[I_BYTES])
+    pframe = interface_table[I_THIS][pframe]
+    poke4(ppFrame, pframe)
+
+    poke4(ppDoc, 0)
+
+--  rect[3..4] += rect[1..2]
+--    rect[3] += rect[1]
+--    rect[4] += rect[2]
+
+    rect[3] = rect[3] + rect[1]  
+    rect[4] = rect[4] + rect[2]  
+        
+    poke4(lprcPosRect, rect)
+    poke4(lprcClipRect, rect)
+
+    -- Fill OLEINPLACEFRAME
+    poke4(lpFrameInfo, {20, 0, obj_table[OBJ_PARENT][obj_ix],0, 0})
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE Scroll(
+--    /* [in] */ SIZE scrollExtant) = 0;
+function IOleInPlaceSite_Scroll(atom this, atom scrollExtant)
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE OnUIDeactivate(
+--    /* [in] */ BOOL fUndoable) = 0;
+function IOleInPlaceSite_OnUIDeactivate(atom this, integer fUndoable)
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE OnInPlaceDeactivate(void) = 0;
+function IOleInPlaceSite_OnInPlaceDeactivate(atom this)
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE DiscardUndoState(void) = 0;
+function IOleInPlaceSite_DiscardUndoState(atom this)
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE DeactivateAndUndo(void) = 0;
+function IOleInPlaceSite_DeactivateAndUndo(atom this)
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE OnPosRectChange(
+--    /* [in] */ LPCRECT lprcPosRect) = 0;
+function IOleInPlaceSite_OnPosRectChange(atom this, atom lprcPosRect)
+    return 0
+end function
+
+constant IOleInPlaceSite_vtbl = 
+        {
+                call_back(routine_id("impl_QueryInterface")),
+                call_back(routine_id("IOleInPlaceSite_AddRef_")),
+                call_back(routine_id("IOleInPlaceSite_Release_")),
+                call_back(routine_id("IOleWindow_GetWindow")),
+                call_back(routine_id("IOleWindow_ContextSensitiveHelp")),
+                call_back(routine_id("IOleInPlaceSite_CanInPlaceActivate")),
+                call_back(routine_id("IOleInPlaceSite_OnInPlaceActivate")),
+                call_back(routine_id("IOleInPlaceSite_OnUIActivate")),
+                call_back(routine_id("IOleInPlaceSite_GetWindowContext")),
+                call_back(routine_id("IOleInPlaceSite_Scroll")),
+                call_back(routine_id("IOleInPlaceSite_OnUIDeactivate")),
+                call_back(routine_id("IOleInPlaceSite_OnInPlaceDeactivate")),
+                call_back(routine_id("IOleInPlaceSite_DiscardUndoState")),
+                call_back(routine_id("IOleInPlaceSite_DeactivateAndUndo")),
+                call_back(routine_id("IOleInPlaceSite_OnPosRectChange"))
+        }
+
+-- End: IOleInPlaceSite        IOleWindow
+
+function IOleInPlaceSiteEx_OnInPlaceActivateEx(atom this, atom pfNoRedraw, atom dwFlags)
+
+    -- requires the object to redraw itself when activated
+    -- this could cause some flickering...
+    poke4(pfNoRedraw, 0)
+
+    return 0
+end function
+
+
+function IOleInPlaceSiteEx_OnInPlaceDeactivateEx(atom this, atom pfNoRedraw)
+
+    return 0
+end function
+
+
+function IOleInPlaceSiteEx_RequestUIActivate(atom this)
+
+    return 0
+end function
+
+constant IOleInPlaceSiteEx_vtbl = 
+        {
+                call_back(routine_id("impl_QueryInterface")),
+                call_back(routine_id("IOleInPlaceSite_AddRef_")),
+                call_back(routine_id("IOleInPlaceSite_Release_")),
+                call_back(routine_id("IOleWindow_GetWindow")),
+                call_back(routine_id("IOleWindow_ContextSensitiveHelp")),
+                call_back(routine_id("IOleInPlaceSite_CanInPlaceActivate")),
+                call_back(routine_id("IOleInPlaceSite_OnInPlaceActivate")),
+                call_back(routine_id("IOleInPlaceSite_OnUIActivate")),
+                call_back(routine_id("IOleInPlaceSite_GetWindowContext")),
+                call_back(routine_id("IOleInPlaceSite_Scroll")),
+                call_back(routine_id("IOleInPlaceSite_OnUIDeactivate")),
+                call_back(routine_id("IOleInPlaceSite_OnInPlaceDeactivate")),
+                call_back(routine_id("IOleInPlaceSite_DiscardUndoState")),
+                call_back(routine_id("IOleInPlaceSite_DeactivateAndUndo")),
+                call_back(routine_id("IOleInPlaceSite_OnPosRectChange")),
+                call_back(routine_id("IOleInPlaceSiteEx_OnInPlaceActivateEx")),
+                call_back(routine_id("IOleInPlaceSiteEx_OnInPlaceDeactivateEx")),
+                call_back(routine_id("IOleInPlaceSiteEx_RequestUIActivate"))
+        }
+                
+
+-- Begin: IOleInPlaceUIWindow IOleWindow
+
+--    virtual /* [input_sync] */ HRESULT STDMETHODCALLTYPE GetBorder(
+--        /* [out] */ LPRECT lprectBorder) = 0;
+function IOleInPlaceUIWindow_GetBorder(atom this, atom lprectBorder)
+
+    return 0
+end function
+
+--    virtual /* [input_sync] */ HRESULT STDMETHODCALLTYPE RequestBorderSpace(
+--        /* [unique][in] */ LPCBORDERWIDTHS pborderwidths) = 0;
+function IOleInPlaceUIWindow_RequestBorderSpace(atom this, atom pborderwidths)
+
+    return 0
+end function
+
+--  virtual /* [input_sync] */ HRESULT STDMETHODCALLTYPE SetBorderSpace(
+--    /* [unique][in] */ LPCBORDERWIDTHS pborderwidths) = 0;
+function IOleInPlaceUIWindow_SetBorderSpace(atom this, atom pborderwidths)
+
+ --return E_UNEXPECTED
+    return 0
+end function
+
+--  virtual HRESULT STDMETHODCALLTYPE SetActiveObject(
+--    /* [unique][in] */ IOleInPlaceActiveObject __RPC_FAR *pActiveObject,
+--    /* [unique][string][in] */ LPCOLESTR pszObjName) = 0;
+function IOleInPlaceUIWindow_SetActiveObject(atom this, atom pActiveObject, atom pszObjName)
+
+    return 0
+end function
+
+-- End: IOleInPlaceUIWindow     IOleWindow
+
+
+
+-- Begin: IOleInPlaceFrame       IOleInPlaceUIWindow
+function IOleInPlaceFrame_AddRef_(atom this)
+
+    return i_add_ref(this, IOleClientSite_b)
+end function
+
+function IOleInPlaceFrame_Release_(atom this)
+
+    return i_release(this, IOleInPlaceFrame_b)
+end function
+
+--    virtual HRESULT STDMETHODCALLTYPE InsertMenus(
+--        /* [in] */ HMENU hmenuShared,
+--        /* [out][in] */ LPOLEMENUGROUPWIDTHS lpMenuWidths) = 0;
+function IOleInPlaceFrame_InsertMenus(atom this, atom hmenuShared,
+                                        atom lpMenuWidths)
+    return 0
+end function
+
+--    virtual /* [input_sync] */ HRESULT STDMETHODCALLTYPE SetMenu(
+--            /* [in] */ HMENU hmenuShared,
+--            /* [in] */ HOLEMENU holemenu,
+--            /* [in] */ HWND hwndActiveObject) = 0;
+function IOleInPlaceFrame_SetMenu(atom this, atom hmenuShared,
+                        atom holemenu, atom hwndActiveObject)
+     --return E_UNEXPECTED
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE RemoveMenus(
+--            /* [in] */ HMENU hmenuShared) = 0;
+function IOleInPlaceFrame_RemoveMenus(atom this, atom hmenuShared)
+
+    return 0
+end function
+
+--        virtual /* [input_sync] */ HRESULT STDMETHODCALLTYPE SetStatusText(
+--            /* [unique][in] */ LPCOLESTR pszStatusText) = 0;
+function IOleInPlaceFrame_SetStatusText(atom this, atom pszStatusText)
+
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE EnableModeless(
+--            /* [in] */ BOOL fEnable) = 0;
+function IOleInPlaceFrame_EnableModeless(atom this, atom fEnable)
+
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE TranslateAccelerator(
+--            /* [in] */ LPMSG lpmsg,
+--            /* [in] */ WORD wID) = 0;
+function IOleInPlaceFrame_TranslateAccelerator(atom this,
+                        atom lpmsg, atom wID)
+    return 0
+end function
+
+constant IOleInPlaceFrame_vtbl = 
+        {
+                call_back(routine_id("impl_QueryInterface")),
+                call_back(routine_id("IOleInPlaceFrame_AddRef_")),
+                call_back(routine_id("IOleInPlaceFrame_Release_")),
+                call_back(routine_id("IOleWindow_GetWindow")),
+                call_back(routine_id("IOleWindow_ContextSensitiveHelp")),
+                call_back(routine_id("IOleInPlaceUIWindow_GetBorder")),
+                call_back(routine_id("IOleInPlaceUIWindow_RequestBorderSpace")),
+                call_back(routine_id("IOleInPlaceUIWindow_SetBorderSpace")),
+                call_back(routine_id("IOleInPlaceUIWindow_SetActiveObject")),
+                call_back(routine_id("IOleInPlaceFrame_InsertMenus")),
+                call_back(routine_id("IOleInPlaceFrame_SetMenu")),
+                call_back(routine_id("IOleInPlaceFrame_RemoveMenus")),
+                call_back(routine_id("IOleInPlaceFrame_SetStatusText")),
+                call_back(routine_id("IOleInPlaceFrame_EnableModeless")),
+                call_back(routine_id("IOleInPlaceFrame_TranslateAccelerator"))
+        }
+
+-- End: IOleInPlaceFrame       IOleWindow
+
+-- Begin: IParseDisplayName
+
+--        virtual HRESULT STDMETHODCALLTYPE ParseDisplayName(
+--            /* [unique][in] */ IBindCtx __RPC_FAR *pbc,
+--            /* [in] */ LPOLESTR pszDisplayName,
+--            /* [out] */ ULONG __RPC_FAR *pchEaten,
+--            /* [out] */ IMoniker __RPC_FAR *__RPC_FAR *ppmkOut) = 0;
+function IParseDisplayName_ParseDisplayName(atom this, atom pbc,
+                        atom pszDisplayName, atom pchEaten, atom ppmkOut)
+
+    return 0
+end function
+-- End: IParseDisplayName
+
+
+-- Begin: IOleContainer          IParseDisplayName
+function IOleContainer_AddRef_(atom this)
+
+    return i_add_ref(this, IOleContainer_b)
+end function
+
+function IOleContainer_Release_(atom this)
+
+    return i_release(this, IOleContainer_b)
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE EnumObjects(
+--            /* [in] */ DWORD grfFlags,
+--            /* [out] */ IEnumUnknown __RPC_FAR *__RPC_FAR *ppenum) = 0;
+function IOleContainer_EnumObjects(atom this, atom grfFlags, atom ppenum)
+
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE LockContainer(
+--            /* [in] */ BOOL fLock) = 0;
+function IOleContainer_LockContainer(atom this, atom fLock)
+
+    return 0
+end function
+
+constant IOleContainer_vtbl = 
+        {
+                call_back(routine_id("impl_QueryInterface")),
+                call_back(routine_id("IOleContainer_AddRef_")),
+                call_back(routine_id("IOleContainer_Release_")),
+                call_back(routine_id("IParseDisplayName_ParseDisplayName")),
+                call_back(routine_id("IOleContainer_EnumObjects")),
+                call_back(routine_id("IOleContainer_LockContainer"))
+        }
+
+-- End: IOleContainer          IParseDisplayName
+
+
+-- Begin: IDispatch
+function IDispatch_AddRef_(atom this)
+
+    return i_add_ref(this, IDispatch_b)
+end function
+
+function IDispatch_Release_(atom this)
+
+    return i_release(this, IDispatch_b)
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetTypeInfoCount(
+--            /* [out] */ UINT __RPC_FAR *pctinfo) = 0;
+function IDispatch_GetTypeInfoCount_(atom this, atom pctinfo)
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetTypeInfo(
+--            /* [in] */ UINT iTInfo,
+--            /* [in] */ LCID lcid,
+--            /* [out] */ ITypeInfo __RPC_FAR *__RPC_FAR *ppTInfo) = 0;
+function IDispatch_GetTypeInfo_(atom this, atom iTInfo, atom lcid,
+                                atom ppTInfo)
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetIDsOfNames(
+--            /* [in] */ REFIID riid,
+--            /* [size_is][in] */ LPOLESTR __RPC_FAR *rgszNames,
+--            /* [in] */ UINT cNames,
+--            /* [in] */ LCID lcid,
+--            /* [size_is][out] */ DISPID __RPC_FAR *rgDispId) = 0;
+function IDispatch_GetIDsOfNames_(atom this, atom riid, atom rgszNames,
+                        atom cNames, atom lcid, atom rgDispId)
+
+    return 0
+end function
+
+
+atom invoke_args
+--        virtual /* [local] */ HRESULT STDMETHODCALLTYPE Invoke(
+--            /* [in] */ DISPID dispIdMember,
+--            /* [in] */ REFIID riid,
+--            /* [in] */ LCID lcid,
+--            /* [in] */ WORD wFlags,
+--            /* [out][in] */ DISPPARAMS __RPC_FAR *pDispParams,
+--            /* [out] */ VARIANT __RPC_FAR *pVarResult,
+--            /* [out] */ EXCEPINFO __RPC_FAR *pExcepInfo,
+--            /* [out] */ UINT __RPC_FAR *puArgErr) = 0;
+function IDispatch_Invoke_(atom this,atom dispIdMember, atom riid, atom lcid, atom wFlags, 
+                           atom pDispParams, atom pVarResult, atom  pExcepInfo, atom puArgErr)
+
+integer ix
+sequence arg
+
+
+    if dispIdMember = DISPID_SHOWGRABHANDLES then
+                
+        if wFlags = DISPATCH_PROPERTYGET then
+                        
+            v:make_variant(arg[7], v:VT_BOOL, 0)
+            return 0
+        end if
+                
+    elsif dispIdMember = DISPID_SHOWHATCHING then
+                        
+        if wFlags = DISPATCH_PROPERTYGET then
+                        
+            v:make_variant(arg[7], v:VT_BOOL, 0)
+            return 0
+        end if
+    end if
+    print_com_error(sprintf("(%d) DISPID not handled",dispIdMember))
+    return #800FFFF
+end function
+
+atom invoke_addr
+invoke_addr = call_back(routine_id("IDispatch_Invoke_"))
+
+constant IDispatch_vtbl = 
+        {
+                call_back(routine_id("impl_QueryInterface")),
+                call_back(routine_id("IDispatch_AddRef_")),
+                call_back(routine_id("IDispatch_Release_")),
+                call_back(routine_id("IDispatch_GetTypeInfoCount_")),
+                call_back(routine_id("IDispatch_GetTypeInfo_")),
+                call_back(routine_id("IDispatch_GetIDsOfNames_")),
+                invoke_addr
+        }
+
+-- End: IDispatch
+
+
+-- Begin: IErrorInfo
+function IErrorInfo_AddRef_(atom this)
+
+    return i_add_ref(this, IErrorInfo_b)
+end function
+
+function IErrorInfo_Release_(atom this)
+
+    return i_release(this, IErrorInfo_b)
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetGUID(
+--            /* [out] */ GUID __RPC_FAR *pGUID) = 0;
+function IErrorInfo_GetGUID(atom this, atom pGUID)
+
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetSource(
+--            /* [out] */ BSTR __RPC_FAR *pBstrSource) = 0;
+function IErrorInfo_GetSource(atom this, atom pBstrSource)
+
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetDescription(
+--            /* [out] */ BSTR __RPC_FAR *pBstrDescription) = 0;
+function IErrorInfo_GetDescription(atom this, atom pBstrDescription)
+
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetHelpFile(
+--            /* [out] */ BSTR __RPC_FAR *pBstrHelpFile) = 0;
+function IErrorInfo_GetHelpFile(atom this, atom pBstrHelpFile)
+
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetHelpContext(
+--            /* [out] */ DWORD __RPC_FAR *pdwHelpContext) = 0;
+function IErrorInfo_GetHelpContext(atom this, atom pdwHelpContext)
+
+    return 0
+end function
+
+constant IErrorInfo_vtbl = 
+        {
+                call_back(routine_id("impl_QueryInterface")),
+                call_back(routine_id("IErrorInfo_AddRef_")),
+                call_back(routine_id("IErrorInfo_Release_")),
+                call_back(routine_id("IErrorInfo_GetGUID")),
+                call_back(routine_id("IErrorInfo_GetSource")),   
+                call_back(routine_id("IErrorInfo_GetDescription")),
+                call_back(routine_id("IErrorInfo_GetHelpFile")),
+                call_back(routine_id("IErrorInfo_GetHelpContext"))
+        }
+
+-- End: IErrorInfo
+
+
+
+-- This initializes a visible control
+global procedure init_control(integer obj_ix)
+object ok
+atom szName, rgszNames, rgDispId, c, this, pfont, fontdesc,
+     pfontname, pclient, padvise, pDisp, psite, pframe, pcontainer,
+     perror, psuperr, prectl, pcbSize, pcontrolsite
+
+sequence wname, name, rectl
+
+    this = allocate(4)
+
+    obj_table[OBJ_EU_THIS][obj_ix] = this
+
+    pclient = implement_interface(obj_ix, IOleClientSite_b, 
+                                  IOleClientSite_vtbl, {})
+
+    add_iid_to_obj(obj_ix, pclient, IOleClientSite_b)
+
+    -- new 2.05:
+    pcontrolsite = implement_interface(obj_ix, IOleControlSite_b,
+                                       IOleControlSite_vtbl, {})
+    add_iid_to_obj(obj_ix, pcontrolsite, IOleControlSite_b)
+
+    psite = implement_interface(obj_ix, IOleInPlaceSiteEx_b, 
+                                IOleInPlaceSiteEx_vtbl, {IOleInPlaceSite_b, IOleWindow_b})
+
+    add_iid_to_obj(obj_ix, psite, IOleInPlaceSite_b)
+
+    pframe = implement_interface(obj_ix, IOleInPlaceFrame_b, 
+                                 IOleInPlaceFrame_vtbl, {IOleInPlaceUIWindow_b, IOleWindow_b})
+
+    add_iid_to_obj(obj_ix, pframe, IOleInPlaceFrame_b)
+ 
+    pcontainer = implement_interface(obj_ix, IOleContainer_b, 
+                                     IOleContainer_vtbl, {IParseDisplayName_b})
+
+    add_iid_to_obj(obj_ix, pcontainer, IOleContainer_b)
+ 
+    pDisp = implement_interface(obj_ix, IDispatch_b, 
+                                IDispatch_vtbl, {})
+
+    add_iid_to_obj(obj_ix, pDisp, IDispatch_b)
+
+    perror = implement_interface(obj_ix, IErrorInfo_b, 
+                                 IErrorInfo_vtbl, {})
+
+    add_iid_to_obj(obj_ix, perror, IErrorInfo_b)
+
+    -- Put pointer into *this
+    poke4(this, pDisp)
+
+    -- Create the font object
+    fontdesc = allocate(23)
+
+    -- cbSizeofstruct
+    poke4(fontdesc, 23)
+
+    -- lpstrName
+    pfontname = unicode_string("Times New Roman")
+    poke4(fontdesc + 4, pfontname)
+
+    -- cySize, sWeight, sCharset
+    poke4(fontdesc + 8, {10 * 10000, 400, 0})
+
+    -- Activate control
+    ok = quick_activate(obj_ix, 0, #FFFFFF, fontdesc, this, pclient, 0)
+
+    ok = call_interface(obj_ix, oleobject_ix, 3, {pclient})
+
+    -- Initialize the stream so the control can save its state
+    ok = call_interface(obj_ix, persiststreaminit_ix, 
+                        IPersistStreamInit_InitNew, {})
+
+    rectl = obj_table[OBJ_POS][obj_ix]
+--/**/rectl[3..4] = sq_add(rectl[3..4],rectl[1..2]) --/*
+    rectl[3..4] += rectl[1..2]                      --*/
+    prectl = allocate(16)
+    poke4(prectl, rectl)
+
+    -- set host names
+    name = {unicode_string("EuCOM App " & sprint(obj_table[OBJ_PARENT][obj_ix])),
+            unicode_string("EuCOM ActiveX Container " & sprint(obj_table[OBJ_PARENT][obj_ix]))
+           }
+
+    ok = call_interface(obj_ix, oleobject_ix, 5, name)
+
+    free(name[1])
+    free(name[2])
+    -- do verb
+    name = {-5, 0, pclient, obj_ix, obj_table[OBJ_PARENT][obj_ix], prectl}
+ 
+    ok = call_interface(obj_ix, oleobject_ix, 11, name)
+
+    free(prectl)
+
+end procedure
+
+--/topic API
+--/func get_active_object(integer clsid_ix)
+--
+--Returns a running instance of a COM object.  This function can be used rather 
+--than creating a new instance of the object (such as a Microsoft Office application).
+--get_active_object() gets the /i this pointer and calls /ref_com_object() for you,
+--so you can use the result immediately.  If there is no running object, then 
+--the return will be /b 0.
+global function get_active_object(integer clsid_ix)
+atom clsid, punk, ok
+
+    punk = allocate(4)
+    clsid = allocate(16)
+
+    poke(clsid, clsid_table[CLSID_BYTES][clsid_ix])
+
+    ok = c_func(GetActiveObject, {clsid, 0, punk})
+    if ok then
+        com_error(ok)
+        ok = 0
+    else
+        ok = peek4u(punk)
+        ok = ref_com_object(clsid_ix, ok)
+    end if
+
+    free(punk)
+    free(clsid)
+
+    return ok
+
+end function
+
+
+--/topic Win32
+--/func get_handle_obj(integer obj_ix)
+--/ret hwnd of a com object
+global function get_handle_obj(integer obj_ix)
+
+object ok
+atom this, pwindow, phwnd, hwnd
+
+    -- need to call IOleInPlaceObject::GetWindow
+    ok = query_interface(obj_ix, IOleInPlaceObject)
+        
+    this = ok[2]
+    pwindow = peek4u(this)
+        
+    phwnd = allocate(4)
+        
+    ok = call_interface_ptr(this, pwindow, 3, {phwnd})
+        
+    -- retrieve the hwnd for the control
+    hwnd = peek4u(phwnd)
+    free(phwnd)
+        
+    -- release the interface
+    ok = call_interface_ptr(this, pwindow, 2, {})
+    return hwnd
+end function
+
+--/topic Win32
+--/proc set_visible_obj(integer obj_ix, integer visible)
+--/decs Set an object visible or invisible.
+--This function calls the windows function ShowWindow.  The object must not have been created
+--using /create_com_object(), since it will not be assigned a hwnd.
+
+global procedure set_visible_obj(integer obj_ix, integer visible)
+atom hwnd, ok
+
+    hwnd = get_handle_obj(obj_ix)
+        
+    ok = c_func(Show_Window, {hwnd, visible})
+end procedure
+
+--/topic API
+--/func create_com_control(integer clsid_ix, atom hwnd_parent, integer x, integer y, integer cx, integer cy)
+--/ret obj_ix
+--/desc Creates a visible COM control (usually ActiveX)
+--You should call this routine, rather than /create_com_object for ActiveX controls that
+--are meant to be visible.  There are several initializations that must be done to 
+--make a control visible, including the implementation of several interfaces by EuCOM to
+--allow the object to 'talk' to EuCOM.
+
+global function create_com_control(integer clsid_ix, atom hwnd_parent, integer x, integer y, integer cx, integer cy)
+integer obj_ix
+
+    disp_ix = add_iid(clsid_ix, IDispatch)
+    quickactivate_ix = add_iid(clsid_ix, IQuickActivate)
+    persiststreaminit_ix = add_iid(clsid_ix, IPersistStreamInit)
+    oleobject_ix = add_iid(clsid_ix, IOleObject)
+        
+    obj_ix = create_com_object(clsid_ix)
+        
+    if not obj_ix then
+        return 0
+    end if
+        
+    -- initialize values in ax_table
+    obj_table[OBJ_POS][obj_ix] = {x, y, cx, cy}
+    obj_table[OBJ_PARENT][obj_ix] = hwnd_parent
+        
+    -- make sure we have entry for the clsid in the eventsink table
+    if not find(clsid_ix, com_eventsink_table[CE_CLSID]) then
+        com_eventsink_table[CE_CLSID] = append(com_eventsink_table[CE_CLSID],
+                                               clsid_ix)
+        for i = 2 to length(com_eventsink_table) do
+            com_eventsink_table[i] = append(com_eventsink_table[i], {})
+        end for
+    end if
+        
+    init_control(obj_ix)
+    set_parent(get_handle_obj(obj_ix), hwnd_parent)
+
+    return obj_ix
+end function
+
+
+guid_mset = 0
+
+global procedure init_com()
+object ok
+    if guid_mset then
+        return
+    end if
+        
+    guid_mset = 1
+    ok = c_func(OleInitialize, {0})
+        
+    IID_NULL = allocate(16)
+    mem_set(IID_NULL, 0, 16)
+    poke(IDispatch_riid, string_to_guid(IDispatch))
+    poke(IUnknown_riid, string_to_guid(IUnknown))
+end procedure
+
+
+global procedure release_interface(integer obj_ix, integer iid_ix)
+atom ok
+
+    -- Call IUnknown::Release() to release interfaces
+    ok = call_interface(obj_ix, iid_ix, IUnknown_Release, {})
+
+end procedure
+
+sequence com_cleanup
+
+com_cleanup = {}
+
+--/topic API 
+--/proc add_com_cleanup(integer rid)
+--/desc Custom cleanup routine
+--Add a custom cleanup routine to be called when /com_release is called.
+global procedure add_com_cleanup(integer rid)
+    if find(rid, com_cleanup) then
+        return
+    end if
+    com_cleanup &= rid
+end procedure
+
+--/topic API
+--/proc release_com()
+--/desc Uninitializes COM
+--/info Uninitializes COM
+--This should be called at the end of your program to ensure that all resources are freed.
+
+global procedure release_com()
+integer clsid_ix
+
+    for obj = 1 to length(obj_table[1]) do
+                
+        clsid_ix = obj_table[OBJ_CLSID_IX][obj]
+                
+        for iid = 1 to length(clsid_table[CLSID_IID][clsid_ix]) do
+            release_interface(obj, clsid_table[CLSID_IID][clsid_ix][iid])
+        end for
+    end for
+        
+    for i = 1 to length(com_cleanup) do
+        call_proc(com_cleanup[i], {})
+    end for
+        
+    guid_mset = 0
+    c_proc(OleUninitialize, {})
+end procedure
+
+global procedure draw_object(integer obj_ix, atom aspect, 
+                             atom dc, sequence rectl)
+atom lprcBounds, ok
+
+    lprcBounds = allocate(16)
+    poke4(lprcBounds, rectl)
+        
+    ok = c_func(OleDraw, {obj_table[OBJ_PVTBL][obj_ix], aspect,
+                          dc, lprcBounds})
+        
+    free(lprcBounds)
+end procedure
+
+global function run_ole(integer obj_ix)
+    return c_func(OleRun, {obj_table[OBJ_PVTBL][obj_ix]})
+end function
+
+global function get_vtbl(integer obj_ix)
+    return obj_table[OBJ_IID_THIS][obj_ix]
+end function
+
+--/topic Events
+--/proc reg_com_eventsink(integer clsid, sequence iid, sequence vtbl, sequence dispid)
+--
+--This notifies EuCOM that all objects of /i clsid will have a default event interface 
+--of /i iid.  /i vtbl should be a sequence of routine ids, and /i dispid a sequence 
+--of the dispids corresponding to the events.  TBROWSE will usually set this up 
+--for you.
+global procedure reg_com_eventsink(integer clsid, sequence iid, 
+                                    sequence vtbl, sequence dispid)
+integer ce_ix
+
+    ce_ix = find(clsid, com_eventsink_table[CE_CLSID])
+    if not ce_ix then
+        for i =  1 to length(com_eventsink_table) do
+            com_eventsink_table[i] = append(com_eventsink_table[i], {})
+        end for
+        ce_ix = length(com_eventsink_table[CE_CLSID])
+    else
+        return
+    end if
+        
+    com_eventsink_table[CE_CLSID][ce_ix] = clsid
+    com_eventsink_table[CE_IID][ce_ix] = iid
+    com_eventsink_table[CE_VTBL][ce_ix] = vtbl
+    com_eventsink_table[CE_IDS][ce_ix] = dispid
+
+end procedure
+
+--/topic Implementing Interfaces
+--/proc reg_com_interface(integer clsid, sequence iid, sequence vtbl, sequence parents)
+--
+global procedure reg_com_interface(integer clsid, sequence iid, 
+                                    sequence vtbl, sequence parents)
+integer ci_ix
+
+    ci_ix = find(clsid, com_implement_interface_table[CI_CLSID])
+    if not ci_ix then
+        for i =  1 to length(com_implement_interface_table) do
+            com_implement_interface_table[i] = append(com_implement_interface_table[i], {})
+        end for
+        ci_ix = length(com_implement_interface_table[CI_CLSID])
+    else
+        return
+    end if
+        
+    com_implement_interface_table[CI_CLSID][ci_ix] = clsid
+    com_implement_interface_table[CI_IID][ci_ix] &= {iid}
+    com_implement_interface_table[CI_VTBL][ci_ix] &= {vtbl}
+    com_implement_interface_table[CI_PARENTS][ci_ix] &= {parents}
+
+end procedure
+
+procedure com_event_cleanup()
+    for obj_ix = 1 to length(obj_table[1]) do
+                
+        for iid_ix = 1 to length(obj_table[OBJ_EVENTSINK][obj_ix]) do
+                        -- release the interfaces
+                        -- we might need to also store the containerpoint this pointer
+                        
+        end for
+    end for
+end procedure
+
+--/topic Events
+--/proc com_event_routine(integer obj_ix, atom event, integer rid)
+--/desc Set up an event handler
+--Set up an event handler
+--Assigns procedure /i rid to be the event handler for all /i event events for 
+--object /i obj_ix.
+global procedure com_event_routine(integer obj_ix, atom event, integer rid)
+integer clsid_ix, ev_ix
+sequence clsid
+
+    clsid_ix = find(obj_table[OBJ_CLSID_IX][obj_ix], com_eventsink_table[CE_CLSID])
+        
+    if not clsid_ix then 
+        print_com_error("Could not create COM event handler #" & sprint(event) &
+                        " for Object " & guid_to_string(clsid_table[CLSID_GUID][obj_table[OBJ_CLSID_IX][obj_ix]])
+                        & "\n")
+        return
+    end if
+        
+    ev_ix = find(event, com_eventsink_table[CE_IDS][clsid_ix])
+        
+    if not ev_ix then
+        print_com_error("Invalid event id: " & sprint(event) & "\n")
+        return
+    end if
+        
+    obj_table[OBJ_EVENTSINK][obj_ix][ES_EVENTS][ev_ix] = rid
+    add_com_cleanup(routine_id("com_event_cleanup"))
+end procedure
+
+constant sptr = allocate(4)
+function signed(atom unsigned)
+    poke4(sptr,unsigned)
+    return peek4s(sptr)
+end function
+atom event_invoke_args
+--        virtual /* [local] */ HRESULT STDMETHODCALLTYPE Invoke(
+--            /* [in] */ DISPID dispIdMember,
+--            /* [in] */ REFIID riid,
+--            /* [in] */ LCID lcid,
+--            /* [in] */ WORD wFlags,
+--            /* [out][in] */ DISPPARAMS __RPC_FAR *pDispParams,
+--            /* [out] */ VARIANT __RPC_FAR *pVarResult,
+--            /* [out] */ EXCEPINFO __RPC_FAR *pExcepInfo,
+--            /* [out] */ UINT __RPC_FAR *puArgErr) = 0;
+
+function event_invoke(atom this, atom dispIdMember, atom riid, atom lcid, atom wFlags, 
+                      atom pDispParams, atom pVarResult, atom pExcepInfo, atom puArgErr)
+
+integer ix, num_args, rid, iid_ix, ix_ix, ev_ix, obj_ix, clsid
+sequence arg, param, obj
+atom pvars, signed_dispid
+
+    signed_dispid = signed(dispIdMember)
+
+    if signed_dispid = DISPID_SHOWGRABHANDLES then
+
+        if wFlags = DISPATCH_PROPERTYGET then
+                   
+            v:make_variant(pVarResult, VT_BOOL, 0)
+            return 0
+        end if
+                
+    elsif signed_dispid = DISPID_SHOWHATCHING then
+
+        if wFlags = DISPATCH_PROPERTYGET then
+                        
+            v:make_variant(pVarResult, VT_BOOL, 0)
+            return 0
+        end if
+    elsif signed_dispid = DISPID_USERMODE then
+        if wFlags = DISPATCH_PROPERTYGET then
+            v:make_variant(pVarResult, VT_BOOL, 1)
+            return 0
+        end if
+    end if
+
+    pvars = peek4u(pDispParams)
+    num_args = peek4u(pDispParams + 8)
+        
+    rid = -1
+        
+    obj_ix = obj_this_to_ix(this)
+
+    if not obj_ix then
+        return 0
+    end if
+    obj = obj_table[OBJ_EVENTSINK][obj_ix]
+    clsid = obj_table[OBJ_CLSID_IX][obj_ix]
+    ix_ix = find(clsid, com_eventsink_table[CE_CLSID])
+    if not ix_ix then
+        return 0
+    end if
+        
+    -- get the routine id of the handler
+    ev_ix = find(dispIdMember, com_eventsink_table[CE_IDS][ix_ix])
+    if not ev_ix then
+        return 0
+    end if
+        
+    rid = obj[ES_EVENTS][ev_ix]
+    if rid = -1 then
+        return E_NOTIMPL
+    else
+        param = {}
+        for i = num_args to 1 by -1 do
+            param = append(param, get_variant(pvars + (i - 1) * 16))
+        end for
+        param = prepend(param, this)
+        call_proc(rid, param)
+    end if
+
+    return 0
+
+end function
+
+object event_invoke_addr
+event_invoke_addr = call_back(routine_id("event_invoke"))
+
+function obj_this_to_iid_b(atom this)
+integer obj_ix, clsid_ix, ev_ix
+
+    obj_ix = obj_this_to_ix(this)
+    if not obj_ix then
+        return {}
+    end if
+        
+    clsid_ix = obj_table[OBJ_CLSID_IX][obj_ix]
+    ev_ix = find(clsid_ix, com_eventsink_table[CE_CLSID])
+    if not ev_ix then
+        return {}
+    end if
+        
+    return com_eventsink_table[CE_IID][ev_ix]
+end function
+
+--dispinterface ::IDispatch
+function event_queryinterface(atom this, atom riid, atom ppv)
+sequence iid
+    iid = peek({riid, 16})
+    return i_query_interface(this, iid, ppv)
+end function
+
+function event_addref(atom this)
+
+    return i_add_ref(this, obj_this_to_iid_b(this))
+end function
+
+function event_release(atom this)
+integer obj_ix
+    return i_release(this, obj_this_to_iid_b(this))
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetTypeInfoCount(
+--            /* [out] */ UINT __RPC_FAR *pctinfo) = 0;
+function event_gettypeinfocount(atom this, atom pctinfo)
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetTypeInfo(
+--            /* [in] */ UINT iTInfo,
+--            /* [in] */ LCID lcid,
+--            /* [out] */ ITypeInfo __RPC_FAR *__RPC_FAR *ppTInfo) = 0;
+function event_gettypeinfo(atom this, atom iTInfo, atom lcid,
+                            atom ppTInfo)
+    return 0
+end function
+
+--        virtual HRESULT STDMETHODCALLTYPE GetIDsOfNames(
+--            /* [in] */ REFIID riid,
+--            /* [size_is][in] */ LPOLESTR __RPC_FAR *rgszNames,
+--            /* [in] */ UINT cNames,
+--            /* [in] */ LCID lcid,
+--            /* [size_is][out] */ DISPID __RPC_FAR *rgDispId) = 0;
+function event_getidsofnames(atom this, atom riid, atom rgszNames,
+                             atom cNames, atom lcid, atom rgDispId)
+
+    return 0
+end function
+
+event_vtbl = {
+              call_back(routine_id("event_queryinterface")),
+              call_back(routine_id("event_addref")),
+              call_back(routine_id("event_release")),
+              call_back(routine_id("event_gettypeinfocount")),
+              call_back(routine_id("event_gettypeinfo")),
+              call_back(routine_id("event_getidsofnames")),
+              event_invoke_addr
+             }
+
+--/topic API
+--/proc move_obj(integer obj_ix, sequence new_rect)
+--
+--<ul>
+--/li /b obj_ix: EuCOM index of the object
+--/li /b new_rect: {x, y, cx, cy}
+--</ul>
+global procedure move_obj(integer obj_ix, sequence new_rect)
+atom this, pinplace, lprcPosRect, lprcClipRect
+object ok
+sequence rect
+
+
+    -- want to save the format of new_rect to store later
+    -- change into {x1,y1,x2,y2}
+    rect = new_rect
+--/**/rect[3..4] = sq_add(rect[3..4],rect[1..2])    --/*
+    rect[3..4] += rect[1..2]                    --*/
+
+    -- get IOleInPlaceObject
+    ok = query_interface(obj_ix, IOleInPlaceObject)
+    if ok[1] then
+        return
+    end if
+
+    this = ok[2]
+    pinplace = peek4u(this)
+
+    lprcPosRect = allocate(16)
+    lprcClipRect = allocate(16)
+
+    poke4(lprcPosRect, rect)
+    poke4(lprcClipRect, rect)
+
+
+    ok = call_interface_ptr(this, pinplace, IOleInPlaceObject_SetObjectRects,
+                            {lprcPosRect, lprcClipRect})
+
+    -- release the interface
+    ok = call_interface_ptr(this, pinplace, IUnknown_Release, {})
+
+    if not ok then
+        obj_table[OBJ_POS][obj_ix] = new_rect
+    end if
+
+    free(lprcPosRect)
+    free(lprcClipRect)
+
+end procedure
+
+--/topic API
+--/proc add_user_init(  integer clsid_ix, integer rid)
+--/desc Allows user specified initialization of a control
+--Allows user specified initialization of a control
+--You can set as many init procedures as you like, and they will be called
+--each time an object of the clsid is created or referenced.  The routine
+--should take one parameter, the id of the object:
+--/code
+--procedure myObjectInit(integer obj_ix)
+--  -- do stuff
+--end procedure
+--add_user_init(myObject_clsid_ix, routine_id("myObjectInit"))
+--/endcode
+--This routine allows you to do things such as setting initial properties or
+--implementing interfaces that EuCOM does not handle.
+
+global procedure add_user_init(integer clsid_ix, integer rid)
+    clsid_table[CLSID_INIT][clsid_ix] &= rid
+end procedure
+
+--/topic API
+--/proc set_lcid(atom new_lcid)
+--Set the locale id.
+--This allows you to set the locale id that EuCOM uses.  Some objects are designed
+--to use the settings specific to a locale.  The default is 1033 (English-US).
+--If the locale id is different from what the object expects, the object may not
+--function properly.
+
+global procedure set_lcid(atom new_lcid)
+    lcid = new_lcid
+end procedure
+
+--/topic API
+--/func get_lcid()
+--Read the locale id.
+--This allows you to read the locale id that EuCOM uses.  Some objects are designed
+--to use the settings specific to a locale.  The default is 1033 (English-US).
+--If the locale id is different from what the object expects, the object may not
+--function properly.
+
+global function get_lcid()
+    return lcid
+end function
+
+init_com()
+
+-- API
+---------------------------
+
+--/topic API
+--/desc Interfacing with EuCOM
+--Interfacing with EuCOM
+--These routines are the meat of EuCOM.  They allow you to create and work with COM
+--objects and their interfaces.
+
+-- Errors
+--------------------------
+
+--/topic Errors
+--/desc Error handling in EuCOM
+--Error handling in EuCOM
+--There are some built in error handling functions in EuCOM to take care of errors
+--returned by COM objects.
+
+-- Win32
+--------------------
+
+--/topic Win32
+--/desc EuCOM and Win32
+--EuCOM and Win32
+--These routines allow you to do some normal Win32-type things to COM objects, such
+--as get hwnd's, move objects on the screen and make objects visible or invisible.
+
+-- Utilities
+-----------------------
+
+--/topic Utilities
+--/desc Helper functions and procedures
+--Helper functions and procedures
+--These functions will help you to do a lot of the grunt work that's necessary to 
+--work with COM.
+
+
+-- Implementing Interfaces
+-----------------------------
+
+--/topic Implementing Interfaces
+--/desc Creating interfaces to let COM talk to <a href="http://www.rapideuphoria.com">Euphoria</a>
+--Creating interfaces to let COM talk to <a href="http://www.rapideuphoria.com">Euphoria</a>
+--
+--Sometimes, COM objects need to communicate with your program.  This is done the same
+--way that you communicate with the COM objects--through interfaces.  The only difference
+--is that you (or, as in most cases, EuCOM) are responsible for allocating memory, setting
+--up the virtual function table and implementing the functions.  You may never need these
+--routines, but they can help you if you need to implement any interfaces.
+--If you do need to implement an interface, the calls to /implement_interface() should be done
+--from inside of a user defined initialization routine specified by /add_user_init().
+--<br><br>
+--EuCOM automatically impelements several interfaces for you.  If your object has events, then
+--/i IDispatch is implemented.  For a visible COM control (i.e., ActiveX), EuCOM implements:<br><br>
+--/li /i IOleClientSite
+--/li /i IOleInPlaceSite
+--/li /i IOleInPlaceFrame
+--/li /i IOleContainer
+--/li /i IErrorInfo
+--<br><br>
+--These interfaces are used by the control to communicate with your application.  Most of the
+--members of these interfaces are not really implemented, since their functionality isn't
+--necessary for most things.  There is currently no way to override any of these functions
+--(other than by editing eucom.ew), although if the need arises, this could be modified.
+
+-- Intro to COM
+------------------------
+
+--/topic Component Object Model
+--/desc Intro to COM
+--[ <a href="#COM_intro">COM</A> | <a href = "#AX_intro">ActiveX</a> | <a href = "#EV_intro">Events</a> ]
+--<a name="COM_intro"> /b COM </a>
+--<br>The Component Object Model (COM) was designed to allow reuse of binary
+--objects (ie, rather than reusing source code, you reuse a program, or
+--component).  These objects can be used by programs written in any
+--language.  This is because COM is a binary standard, and can be used
+--with C/C++, VB, Delphi, ASM and now <a href="http://www.rapideuphoria.com">Euphoria</a>.
+--<br><br>
+--COM objects are identified by a 16-byte Globally Unique Identifier (GUID),
+--usually referred to as a class id (CLSID).  These GUID's are stored in
+--your computer's registry, and then any COM enabled program can access
+--them through ole32.dll (which is the COM automation server in windows).
+--Objects are also identified by ProgID's, which are descriptive names for
+--the object, and can be used to find a CLSID in the registry.
+--<br><br>
+--When a COM object is instantiated (i.e., created), it exposes interfaces
+--to the client (your program that created the object).  These interfaces
+--are also identified by GUID's, and are referred to as IID's.  Every
+--interface with the same IID works exactly the same.  So if you know
+--how to call IDispatch, for example, on one object, you use the same
+--techniques on all other objects.  Of course, objects usually have
+--their own customized interfaces as well, but often you won't need
+--to bother with these at all (at least for ActiveX apps).
+--<br><br>
+--A program 'sees' the interface as a table of pointers to the functions
+--in the interface.  It's actually the same format as a C++ virtual
+--function table (vtbl), if that means anything to you.  I had to write
+--an assembly routine to call functions by pointer in <a href="http://www.rapideuphoria.com">Euphoria</a> [and pass
+--arguments].
+--<br><br>
+--The first argument passed to any function is the 'this' pointer.  Anyone
+--familiar with C++ knows that this happens implicitly when you call
+--an object's member function.  Since we're not C++, we have to pass it 
+--explicitly.  The 'this' pointer is obtained when we get the pointer to
+--the object through QueryInterface.  If you examine /call_interface_ptr(),
+--you'll notice that 'this' is added to the argument list passed to the
+--function.
+--<br><br>
+--There's a lot more to it, but I recommend browsing the web, or at least
+--<a href="http://msdn.microsoft.com">msdn.microsoft.com</a> if you want to learn more.
+--<br><br>
+--<a name="AX_intro"> /b ActiveX </a><br>
+--ActiveX controls are really just COM objects, although they can be a little
+--more complex to use, since there are requirements for container apps that
+--don't come along with plain old COM objects (VB does this for you, and C++
+--has libs that do most of the work, too).  Lucky for you, I've taken care
+--of most of the ugly details of implementing interfaces, etc.
+--<br><br>
+--The demo provided (sheet.exw) uses runs sgrid.ocx, which is
+--a freeware ActiveX control I found.  sgrid.ocx is a nice control that gives
+--you a spreadsheet like grid, including simple formula support.  
+--<br><br>
+--Sheet.exw will automatically register sgrid.ocx for you.  If you later
+--want to unregister sgrid, the following piece of code will do it for you:
+--/code
+-- -- begin unregistration code
+--
+--constant
+--sgrid_ocx = open_dll("sgrid.ocx"),
+--unreg = define_c_proc(sgrid_ocx, "DllUnregisterServer", {}),
+--ok = c_proc(unreg, {})
+--
+-- -- end unregistration code
+--/endcode
+--<br><br>
+--<a name="EV_intro"> /b Events </a><br>
+--You'll need to implement the control's outgoing interface.  See sgrid.ew for
+--an example.  The routines will most likely be called through IDispatch::Invoke,
+--if IDispatch is part of the interface.
+--<br><br>
+--Once you have all the functions in a vtbl, you'll need to call reg_com_events()
+--to let the control know about your interface.  This should all be done when 
+--the control is initialized.
+--<br><br>
+--You then create <a href="http://www.rapideuphoria.com">Euphoria</a> routines in your main program to handle the routines.
+--These work similar to events in Win32Lib.  Your event handlers should have the same
+--parameters as the interface routines, however, any strings will be converted to 
+--sequences from pointers.  The first parameter will always be the id returned when 
+--you created the control (as opposed to the 'this' pointer which is actually 
+--received by the interface).
+
+
+-- Resources
+--------------------
+
+--/topic Resources
+--/desc COM Utilities and stuff
+--COM Utilities and stuff
+--There is a lot of stuff out on the web.  One of the best places, of course,
+--is <a href="http://msdn.microsoft.com">msdn.microsoft.com</a>.
+--<br><br>
+--<a href = "http://www.comslicer.com">www.comslicer.com</a>  These guys make a really neat program that will trace all
+--calls made to a COM object.  You can also view typelib's with it.
+--<br><br>
+--Some other stuff I found on <a href="http://www.CNet.com">CNet.com</a>:<br>
+--/li Comwizard:  Get CLSID's, IID's for objects.
+--/li ComExplorer: Automatic registering/unregistering of components, view registry info on an object.
+
+-- Events
+------------------------
+
+--/topic Events
+--/desc Trapping COM events
+--Trapping COM events
+
+-- FAQ
+-------------------------
+
+--/topic Frequently Asked Questions
+--/desc /lit '<a href="eucom_faq.htm">FAQ</a>'
+--<a href="eucom_faq.htm">FAQ</a>
+
+-- TODO
+-------------------
+
+--/topic TODO
+--/desc What's next
+--/info
+--What's next
+--/li Add SafeArray support to variant.ew
+
+
+
+
+
+
+
+
+

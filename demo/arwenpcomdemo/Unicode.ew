@@ -1,0 +1,259 @@
+-- unicode.ew
+-- Matt Lewis
+-- routines for dealing with unicode strings
+--    eucom: allows euphoria programs to use COM objects
+--    Copyright (C) 2007  Matt Lewis
+--
+--    This library is free software; you can redistribute it and/or
+--    modify it under the terms of the GNU Library General Public
+--    License as published by the Free Software Foundation
+--    version 2 of the License.
+--
+--    This library is distributed in the hope that it will be useful,
+--    but WITHOUT ANY WARRANTY; without even the implied warranty of
+--    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+--    Library General Public License for more details.
+--
+--    You should have received a copy of the GNU Library General Public
+--    License along with this library; if not, write to the Free
+--    Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+--include w32support.e
+
+constant
+k32 = open_dll( "kernel32.dll" ),
+-- winnls.h
+xMultiByteToWideChar = define_c_func( k32, "MultiByteToWideChar", 
+    { C_UINT, C_LONG, C_POINTER, C_LONG, C_POINTER, C_LONG}, C_LONG),
+xWideCharToMultiByte = define_c_func( k32, "WideCharToMultiByte", 
+    { C_UINT, C_LONG, C_POINTER, C_LONG, C_POINTER, C_LONG, C_POINTER,
+      C_POINTER}, C_LONG),
+xlstrlen = define_c_func( k32, "lstrlen", { C_POINTER }, C_LONG ),
+
+oleaut32 = open_dll( "oleaut32.dll" ),
+xSysAllocString = define_c_func( oleaut32, "SysAllocString",{ C_POINTER },
+    C_LONG ),
+xSysFreeString = define_c_proc( oleaut32, "SysFreeString", { C_POINTER} ),
+xSysStringLen = define_c_func( oleaut32, "SysStringLen", { C_POINTER },C_POINTER )
+
+
+global function unicode_string(string utf8str)
+-- Returns an atom pointer to memory containing the ansi/utf8 input converted to a null-word (#0000) terminated WideString.
+-- Caller is responsible for free()ing memory (that the result points to) once the WideString result is no longer required.
+atom res
+integer len
+    len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,NULL,0})
+    res = allocate(len*2)
+    len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,res,len})
+    return res
+end function
+
+global function peek_unicode_string(atom pInBuff)
+-- Returns an ansi/utf8 string converted from the passed pointer to WideString (pInBuff).
+-- Caller may or may not need to free(pInBuff) [or CoTaskMemFree(pInBuff)], whereas the
+--  return value (a normal string) should take care of itself.
+integer nLen
+atom pOutBuff
+string res
+    nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pInBuff,-1,NULL,0,NULL,NULL})
+    pOutBuff = allocate(nLen)
+    nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pInBuff,-1,pOutBuff,nLen,NULL,NULL})
+    res = peek({pOutBuff,nLen-1})
+    free(pOutBuff)
+    return res
+end function
+
+global function peek_bstr(atom pBSTR)
+-- Returns an ansi/utf8 string converted from the passed BSTR.
+-- Caller may or may not need to SysFreeString(pBSTR) [or whatever], whereas the
+--  return value (a normal string) should take care of itself.
+integer nBSTRlen, nLen
+atom pOutBuff
+string res
+    nBSTRlen = c_func(xSysStringLen, {pBSTR})
+    nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pBSTR,nBSTRlen,NULL,0,NULL,NULL})
+    pOutBuff = allocate(nLen)
+    nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pBSTR,nBSTRlen,pOutBuff,nLen,NULL,NULL})
+    res = peek({pOutBuff,nLen-1})
+    free(pOutBuff)
+    return res
+end function
+
+--/topic Utilities
+--/func unicode_to_ansi( sequence uni )
+--/desc Convert Unicode text into ANSI text
+--Convert Unicode text into ANSI text
+--All strings passed to COM functions are Unicode strings.  Actually, they
+--are Basic Strings (see /alloc_bstr ).  You should not generally need to 
+--call this function, as you can use /peek_bstr and /peek_unicode, which
+--automatically convert Unicode text to ANSI.
+
+--function unicode_to_ansi( sequence uni )
+--atom ansi_ptr, mset, uni_ptr, ok
+--integer uni_len, ansi_len
+--sequence ansi
+--  
+--  ansi_ptr = 0
+----    mset = w32new_memset()
+--  
+--  uni_len = length(uni)
+--  uni_ptr = allocate(uni_len+2)
+--  poke(uni_ptr,uni)
+--  poke2(uni_ptr+uni_len,0)
+----    ansi_len = uni_len/2 --floor( uni_len / 2 + 1 )
+--  
+--  -- first find the size buffer we need
+--  ansi_len = c_func(WideCharToMultiByte,
+--            { 0,            -- code page
+--              0,            -- flags
+--              uni_ptr,      -- ptr to string
+--              -1,           -- length of string
+--              0,            -- ptr to buffer for return value
+--              0,            -- length of buffer
+--            0,            -- default char
+--            0             -- used default char
+--            } )
+--  
+--  ansi_ptr =  allocate(ansi_len+2)
+--  
+--  -- now convert the string
+--  ok = c_func( WideCharToMultiByte, 
+--          { 0,            -- code page
+--            0,            -- flags
+--            uni_ptr,      -- ptr to string
+--            -1,           -- length of string
+--            ansi_ptr,     -- ptr to buffer for return value
+--            ansi_len,     -- length of buffer
+--            0,            -- default char
+--            0             -- used default char
+--          } )
+--  
+--  ansi = peek( {ansi_ptr, ansi_len } )
+--  
+--  free(ansi_ptr)
+--  free(uni_ptr)
+--      
+--  return ansi
+--  
+--end function
+
+--/topic Utilities
+--/func ansi_to_unicode( sequence ansi )
+--/desc Convert ANSI text into Unicode text
+--/desc Convert ANSI text into Unicode text
+--All strings passed to COM functions are Unicode strings.  Actually, they
+--are Basic Strings (see /alloc_bstr ).  You should not generally need to 
+--call this function, as you can use /alloc_bstr, which automatically converts
+--ANSI text to Unicode.
+
+--global function ansi_to_unicode( sequence ansi )
+--  atom uni_ptr, ansi_ptr, ok
+--  integer ansi_len, uni_len
+--  sequence uni
+--  
+----    mset = w32new_memset()
+--  
+--  ansi_len = length( ansi ) 
+----    uni_len = ansi_len * 2 + 2
+--  
+--  ansi_ptr = allocate_string(ansi)
+--  
+--  -- first find the size buffer we need
+--  uni_len = c_func( MultiByteToWideChar, 
+--            { 0,            -- code page
+--              0,            -- flags
+--              ansi_ptr,     -- ptr to string
+--              ansi_len,     -- length of string
+--              0,            -- ptr to buffer for return value
+--              0             -- length of buffer
+--            } )
+--  
+--  uni_ptr =  allocate( uni_len*2 )
+--  
+--  -- now convert the string
+--  ok = c_func( MultiByteToWideChar, 
+--          { 0,            -- code page
+--            0,            -- flags
+--            ansi_ptr,     -- ptr to string
+--            ansi_len,     -- length of string
+--            uni_ptr,      -- ptr to buffer for return value
+--            uni_len       -- length of buffer
+--          } )
+--  
+--  uni = peek( {uni_ptr, uni_len - 2} )
+--  
+----    w32release_mem( mset )
+--  free(uni_ptr)
+--  free(ansi_ptr)
+--  
+--  return uni
+--end function
+
+--/topic Utilities
+--/func alloc_bstr( sequence str )
+--/desc Allocates a Basic-String in memory
+--Allocates a Basic-String in memory
+--In order to pass string values to COM functions, they must be of the BSTR type
+--(short for Basic-String).  These strings are Unicode, and have an additional
+--4-bytes allocated before the text begins indicating the length of the string.
+--These strings are allocated by COM, and should only be allocated by /b alloc_bstr
+--and freed using /free_bstr.
+
+global function alloc_bstr(sequence str)
+atom pbstr, lpwstr
+    
+--  str = ansi_to_unicode( str ) & 0 & 0 -- add double null for wide string terminator
+    
+--  lpwstr = allocate_string( str )
+    lpwstr = unicode_string(str)
+    pbstr = c_func(xSysAllocString, {lpwstr})
+    free(lpwstr)
+    
+    return pbstr
+end function
+
+--/topic Utilities
+--/func peek_unicode( atom ptr )
+--/desc Reads a Unicode string in memory and converts to ANSI
+--Reads a Unicode string in memory and converts to ANSI
+
+--global function peek_unicode( atom ptr )
+--  sequence str, temp
+--  
+--  str = ""
+--  temp = {}
+--  while not equal( temp, {0,0} ) do
+--      str &= temp
+--      temp = peek( {ptr,2} )
+--      ptr += 2
+--  end while
+--  
+--  return unicode_to_ansi(str)
+--end function
+
+--/topic Utilities
+--/func peek_bstr( atom bstr )
+--/desc Reads a BSTR from memory and converts to ANSI
+--Reads a BSTR from memory and converts to ANSI
+
+--global function peek_bstr( atom bstr )
+--  integer len
+--  
+--  len = c_func( SysStringLen, { bstr } )
+--  
+--  return unicode_to_ansi( peek({ bstr, len * 2 }) )
+--end function
+
+--/topic Utilities
+--/proc free_bstr( atom bstr )
+--/desc Frees a BSTR from memory
+--Frees a BSTR from memory
+--You should always use this routine to free a BSTR.  These strings are sometimes
+--referece-counted by COM, and so the string may not be actually released when this
+--is called.
+
+global procedure free_bstr(atom bstr)
+    c_proc(xSysFreeString, {bstr})
+end procedure
+
+

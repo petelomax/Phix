@@ -1,0 +1,191 @@
+--
+-- t19find.exw
+--
+-- find() tests.
+--
+constant showprogress=0
+
+procedure Abort(sequence msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+if showprogress then puts(1,"1\n") end if
+
+    if find(1,{})!=0 then Abort("find(1,{}!=0\n") end if
+    if find(1,{1,2,3,4})!=1 then Abort("find(1,{1,2,3,4}!=1\n") end if
+    if find(2,{1,2,3,4})!=2 then Abort("find(2,{1,2,3,4}!=2\n") end if
+    if find(3,{1,2,3,4})!=3 then Abort("find(3,{1,2,3,4}!=3\n") end if
+    if find(4,{1,2,3,4})!=4 then Abort("find(4,{1,2,3,4}!=4\n") end if
+    if find('b',"abcd")!=2 then Abort("find('b',\"abcd\"!=2\n") end if
+    if find(1.2,{1.1,1.2,1.3})!=2 then Abort("find(1.2,{1.1,1.2,1.3})!=2\n") end if
+    if find("ab",{"","a","ab","abc"})!=3 then Abort("find(\"ab\",{\"\",\"a\",\"ab\",\"abc\"})!=3\n") end if
+
+if showprogress then puts(1,"2\n") end if
+
+sequence ab, AB     -- ensure "ab" matches {'a','b'} and vice versa, etc.
+
+                    -- Note: we avoid always testing/using say "ab" etc, and 
+                    --  instead construct some sequences and strings by hand/
+                    --  via subscripts, since otherwise we'd just end up with
+                    --  say symtab[1004] being an S_Const of "ab" and possibly 
+                    --  copping out too soon (via "same ref") rather than 
+                    --  actually fully testing things to the lowest level.
+                    -- (Study the list.asm created from "p -d t19", the first
+                    --  use of an "ab" (above) creates an S_Const symtab entry 
+                    --  for it, all subsequent "ab" refer to the same entry,
+                    --  as in fact does the S_Const entry 3 futher on, though
+                    --  you'll just have to accept my word on that.)
+
+    ab=repeat(0,2)
+    ab[1]='a'
+    ab[2]='b'
+
+if showprogress then puts(1,"3\n") end if
+
+--  ab={'a','b'}
+    AB="ab" -- test str seq case
+
+    if find({AB},{{"x"}})!=0 then Abort("find({AB},{{x}})!=0\n") end if
+    if find({AB},{{ab}})!=1 then Abort("find({AB},{{ab}})!=1\n") end if
+
+    if find("ab",{ab})!=1 then Abort("find(\"ab\",{ab})!=1\n") end if
+    if find("ab",{2,ab})!=2 then Abort("find(\"ab\",{2,ab})!=2\n") end if
+    if find("ab",{3,2,ab})!=3 then Abort("find(\"ab\",{3,2,ab})!=3\n") end if
+    if find("ab",{3,2,1,0})!=0 then Abort("find(\"ab\",{3,2,1,0})!=0\n") end if
+    if find(ab,{3,"aa","ac"})!=0 then Abort("find(ab,{3,\"aa\",,\"ac\"})!=0\n") end if
+    if find(ab,{3,2,"ab"})!=3 then Abort("find(ab,{3,2,\"ab\"})!=3\n") end if
+    if find(ab,{2,"ab"})!=2 then Abort("find(ab,{2,\"ab\"})!=2\n") end if
+    if find(ab,{"ab"})!=1 then Abort("find(ab,{\"ab\"})!=1\n") end if
+
+if showprogress then puts(1,"4\n") end if
+
+    if find({{{AB}}},{{{{ab}}}})!=1 then Abort("find({{{AB}}},{{{{ab}}}})!=1\n") end if
+    if find({{{ab}}},{1,{{{AB}}}})!=2 then Abort("find({{{ab}}},{1,{{{AB}}}})!=2\n") end if
+    if find({{{ab,AB}}},{{{{AB,ab}}}})!=1 then Abort("find({{{ab,AB}}},{{{{AB,ab}}}})!=1\n") end if
+    if find({{{AB,ab}}},{1,{{{AB,ab}}}})!=2 then Abort("find({{{AB,ab}}},{1,{{{AB,ab}}}})!=2\n") end if
+    if find({{{AB,ab}}},{{{{ab,AB}}}})!=1 then Abort("find({{{ab,AB}}},{{{{ab,AB}}}})!=1\n") end if
+    if find({{{AB,ab}}},{{{{ab}}}})!=0 then Abort("find({{{ab,AB}}},{{{{ab}}}})!=0\n") end if
+
+if showprogress then puts(1,"5\n") end if
+
+--  AB=ab   -- test seq seq case
+    AB=repeat(0,2)
+    AB[1]='a'
+    AB[2]='b'
+
+if showprogress then puts(1,"6\n") end if
+
+    if find({AB},{{"x"}})!=0 then Abort("find({AB},{{x}})!=0\n") end if
+    if find({AB},{{ab}})!=1 then Abort("find({AB},{{ab}})!=1\n") end if
+
+    if find("ab",{ab})!=1 then Abort("find(\"ab\",{ab})!=1\n") end if
+    if find("ab",{2,ab})!=2 then Abort("find(\"ab\",{2,ab})!=2\n") end if
+    if find("ab",{3,2,ab})!=3 then Abort("find(\"ab\",{3,2,ab})!=3\n") end if
+    if find("ab",{3,2,1,0})!=0 then Abort("find(\"ab\",{3,2,1,0})!=0\n") end if
+    if find(ab,{3,"aa","ac"})!=0 then Abort("find(ab,{3,\"aa\",,\"ac\"})!=0\n") end if
+    if find(ab,{3,2,"ab"})!=3 then Abort("find(ab,{3,2,\"ab\"})!=3\n") end if
+    if find(ab,{2,"ab"})!=2 then Abort("find(ab,{2,\"ab\"})!=2\n") end if
+    if find(ab,{"ab"})!=1 then Abort("find(ab,{\"ab\"})!=1\n") end if
+
+if showprogress then puts(1,"7\n") end if
+
+    if find({{{AB}}},{{{{ab}}}})!=1 then Abort("find({{{AB}}},{{{{ab}}}})!=1\n") end if
+    if find({{{ab}}},{1,{{{AB}}}})!=2 then Abort("find({{{ab}}},{1,{{{AB}}}})!=2\n") end if
+    if find({{{ab,AB}}},{{{{AB,ab}}}})!=1 then Abort("find({{{ab,AB}}},{{{{AB,ab}}}})!=1\n") end if
+    if find({{{AB,ab}}},{1,{{{AB,ab}}}})!=2 then Abort("find({{{AB,ab}}},{1,{{{AB,ab}}}})!=2\n") end if
+    if find({{{AB,ab}}},{{{{ab,AB}}}})!=1 then Abort("find({{{ab,AB}}},{{{{ab,AB}}}})!=1\n") end if
+    if find({{{AB,ab}}},{{{{ab}}}})!=0 then Abort("find({{{ab,AB}}},{{{{ab}}}})!=0\n") end if
+
+if showprogress then puts(1,"8\n") end if
+
+--  ab="ab" -- test seq str case
+    ab="  "
+    ab[1]='a'
+    ab[2]='b'
+
+if showprogress then puts(1,"9\n") end if
+
+    if find({AB},{{"x"}})!=0 then Abort("find({AB},{{x}})!=0\n") end if
+    if find({AB},{{ab}})!=1 then Abort("find({AB},{{ab}})!=1\n") end if
+
+    if find("ab",{ab})!=1 then Abort("find(\"ab\",{ab})!=1\n") end if
+    if find("ab",{2,ab})!=2 then Abort("find(\"ab\",{2,ab})!=2\n") end if
+    if find("ab",{3,2,ab})!=3 then Abort("find(\"ab\",{3,2,ab})!=3\n") end if
+    if find("ab",{3,2,1,0})!=0 then Abort("find(\"ab\",{3,2,1,0})!=0\n") end if
+    if find(ab,{3,"aa","ac"})!=0 then Abort("find(ab,{3,\"aa\",,\"ac\"})!=0\n") end if
+    if find(ab,{3,2,"ab"})!=3 then Abort("find(ab,{3,2,\"ab\"})!=3\n") end if
+    if find(ab,{2,"ab"})!=2 then Abort("find(ab,{2,\"ab\"})!=2\n") end if
+    if find(ab,{"ab"})!=1 then Abort("find(ab,{\"ab\"})!=1\n") end if
+
+if showprogress then puts(1,"10\n") end if
+
+    if find({{{AB}}},{{{{ab}}}})!=1 then Abort("find({{{AB}}},{{{{ab}}}})!=1\n") end if
+    if find({{{ab}}},{1,{{{AB}}}})!=2 then Abort("find({{{ab}}},{1,{{{AB}}}})!=2\n") end if
+    if find({{{ab,AB}}},{{{{AB,ab}}}})!=1 then Abort("find({{{ab,AB}}},{{{{AB,ab}}}})!=1\n") end if
+    if find({{{AB,ab}}},{1,{{{AB,ab}}}})!=2 then Abort("find({{{AB,ab}}},{1,{{{AB,ab}}}})!=2\n") end if
+    if find({{{AB,ab}}},{{{{ab,AB}}}})!=1 then Abort("find({{{ab,AB}}},{{{{ab,AB}}}})!=1\n") end if
+    if find({{{AB,ab}}},{{{{ab}}}})!=0 then Abort("find({{{ab,AB}}},{{{{ab}}}})!=0\n") end if
+
+if showprogress then puts(1,"11\n") end if
+
+--  AB=ab   -- test str str case
+    AB="  "
+    AB[1]='a'
+    AB[2]='b'
+
+if showprogress then puts(1,"12\n") end if
+
+    if find({AB},{{"x"}})!=0 then Abort("find({AB},{{x}})!=0\n") end if
+    if find({AB},{{ab}})!=1 then Abort("find({AB},{{ab}})!=1\n") end if
+
+    if find("ab",{ab})!=1 then Abort("find(\"ab\",{ab})!=1\n") end if
+    if find("ab",{2,ab})!=2 then Abort("find(\"ab\",{2,ab})!=2\n") end if
+    if find("ab",{3,2,ab})!=3 then Abort("find(\"ab\",{3,2,ab})!=3\n") end if
+    if find("ab",{3,2,1,0})!=0 then Abort("find(\"ab\",{3,2,1,0})!=0\n") end if
+    if find(ab,{3,"aa","ac"})!=0 then Abort("find(ab,{3,\"aa\",,\"ac\"})!=0\n") end if
+    if find(ab,{3,2,"ab"})!=3 then Abort("find(ab,{3,2,\"ab\"})!=3\n") end if
+    if find(ab,{2,"ab"})!=2 then Abort("find(ab,{2,\"ab\"})!=2\n") end if
+    if find(ab,{"ab"})!=1 then Abort("find(ab,{\"ab\"})!=1\n") end if
+
+if showprogress then puts(1,"13\n") end if
+
+--  AB="ab"
+    if find({{{AB}}},{{{{ab}}}})!=1 then Abort("find({{{AB}}},{{{{ab}}}})!=1\n") end if
+    if find({{{ab}}},{1,{{{AB}}}})!=2 then Abort("find({{{ab}}},{1,{{{AB}}}})!=2\n") end if
+    if find({{{ab,AB}}},{{{{AB,ab}}}})!=1 then Abort("find({{{ab,AB}}},{{{{AB,ab}}}})!=1\n") end if
+    if find({{{AB,ab}}},{1,{{{AB,ab}}}})!=2 then Abort("find({{{AB,ab}}},{1,{{{AB,ab}}}})!=2\n") end if
+    if find({{{AB,ab}}},{{{{ab,AB}}}})!=1 then Abort("find({{{ab,AB}}},{{{{ab,AB}}}})!=1\n") end if
+    if find({{{AB,ab}}},{{{{ab}}}})!=0 then Abort("find({{{ab,AB}}},{{{{ab}}}})!=0\n") end if
+
+if showprogress then puts(1,"14\n") end if
+
+    if find({1,2,3},{{1,2,4},-1,{1,2,3},99})!=3 then 
+        Abort("find({1,2,3},{{1,2,4},-1,{1,2,3},99})!=3\n") end if
+    if find({{}},{1,2,3,{{}}})!=4 then 
+        Abort("find({{}},{1,2,3,{{}}})!=4\n") end if
+    if find({1,2.5,"x",{"y",2}},{{1,2.5,"x",{"y",2}}})!=1 then 
+        Abort("find({1,2.5,\"x\",{\"y\",2}},{{1,2.5,\"x\",{\"y\",2}}})!=1\n") end if
+    if find({1,2.5,"x",{"y",3}},{{1,2.5,"x",{"y",2}}})!=0 then 
+        Abort("find({1,2.5,\"x\",{\"y\",3}},{{1,2.5,\"x\",{\"y\",2}}})!=0\n") end if
+    if find({{{{2.2}}}},{{{{{2.2}}}}})!=1 then 
+        Abort("find({{{{2.2}}}},{{{{{2.2}}}}})!=1\n") end if
+    if find({{{{2.2}}}},{{{{{2.1}}}}})!=0 then 
+        Abort("find({{{{2.2}}}},{{{{{2.2}}}}})!=0\n") end if
+
+if showprogress then puts(1,"15\n") end if
+
+    if find({""},{"k","","at"})!=0 then
+        Abort("find({\"\"},{\"k\",\"\",\"at\"})!=0\n") end if
+
+    if find("fred",{{'f','r','e','d'}})!=1 then
+        Abort("find(\"fred\",{{'f','r','e','d'}})!=1\n") end if
+
+    if find({'f','r','e','d'},{"fred"})!=1 then
+        Abort("find({'f','r','e','d'},{\"fred\"})!=1\n") end if
+
+-- 02/09/2010 (result decref code was wrong)
+
+object iTemp
+
+    iTemp = {}
+    iTemp = find(3,{})
+
+

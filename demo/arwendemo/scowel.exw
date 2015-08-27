@@ -1,0 +1,2778 @@
+--with trace
+--with profile
+--
+--  scowel.exw - Simple Clone Of Windows ExpLorer.
+--  ==========
+--
+--  The main reason for doing this is to show the basic techniques, and hence 
+--  there is some argument to keep it clean and simple (eg no internet stuff)
+--  however, the closer we can get, within reason, the better.
+--
+--  Beginners should note that this is about as advanced as "basic" gets. The
+--  program does however pack in alot of stuff - icons, treeviews, listviews,
+--  delete, rename, drag&drop, properties, to name just a few, and hence they
+--  may want to study other simpler programs first. While not that tortuously 
+--  difficult, this uses some of the most obscure programming techniques that
+--  you should ever need. Suggestions to get the same functionality from less
+--  or more readable code are as always welcome.
+--
+--  At some point, Windows Explorer was designed as a brilliantly elegant and 
+--  simple solution to a deceptively difficult problem, and largely still is.
+--  Over time, feature creep has somewhat clouded the original vision, and is
+--  the only reason I ever considered creating this in the first place.
+--
+--  For a prime example, what programmer wants to view files "as a web page"?
+--
+--  Of course if you just said "I do" then this will not interest you at all.
+--  And sure, if someone wants to show me a maybe 500-line way to add that to
+--  this program, then great, but a 5,000 or 50,000-line way, erm, no thanks.
+--
+--  There will always be things Windows Explorer does this does not and never
+--  probably will do, and possibly a few things vice versa.
+--
+--  This should be considered an on-going project in which you are welcome to
+--  participate. (Simply email/upload the entire modified file(s), I have all
+--  the tools, personally written, ready to compare/merge in new features and
+--  in fact relish any opportunity to further test/improve said tools. Simple
+--  one or two line changes can, of course, instead be submitted as such.)
+--
+--  Explorer has:
+--      Desktop
+--          My Documents
+--          My Computer
+--          My Network Places
+--          Recycle Bin
+--          Unused Desktop Shortcuts
+--  Scowel only has:
+--      My Computer
+--  and further that is shown just like any other folder, not split into
+--      Files Stored On This Computer
+--      Hard Disk Drives
+--      Devices with Removable Storage
+--      Other
+--  (and there are no plans to change that.)
+--
+-- BUGS: (help rqd)
+--  Cannot get multiple properties to work. I set SHELLEXECUTEINFO_lpFile to
+--   a "list of null-terminated strings" as per the docs, but it just treats 
+--   it exactly the same as a single file. Not that the docs I have actually
+--   mention the verb "properties" anywhere...
+--  See LVN_ITEMACTIVATE. If you have the directories:
+--      C:\test\a1
+--              b1
+--              c1\a2
+--                 b2
+--                 c2
+--  Then a double-click on c1 leaves c2 selected. Not the end of the world 
+--  but not what Explorer does, and well, just wrong. There is a call to
+--  setIndex(-1) which should stop this, but evidently it is not enough.
+--            
+-- May be fixed?:
+--  Cannot get the link overlay to work. Eg compare C:\Windows\Desktop in
+--   this and Explorer; the latter has the equivalent of SI_SHORTCUT over 
+--   the standard icon which I cannot get to appear. It is the xSHGetFileInfo
+--   call in loadDir() which is at fault. The annoying thing is that I can
+--   get a SHFILEINFO_hIcon no problem, but I cannot get the corresponding
+--   SHFILEINFO_iIcon, and of course I want that, rather than to build and
+--   populate otherwise identical copies of the system imagelists....
+--   So before anyone suggests "open shell32.dll, load this bitmap, xor 
+--   these bits, ..." well, just don't bother, OK.
+--   (The win32lib demo fileprop.exw uses SHFILEINFO_hIcon, btw, and the
+--    incomplete effm.exw gets it just as wrong as I do.)
+--  Dunno what's going on with C:\Windows\Downloaded Program Files. I get
+--   a few .osd and .log entries with a "random/last" icon from the last
+--   directory I listed. Windows Explorer shows an empty directory. MSDOS
+--   does not list it but allows cd "Downloaded Program Files" and shows
+--   the same set of files I do. Clearly Microsoft is trying to hide some
+--   form of skullduggery from me and not doing a very good job of it.
+--   Oh, and properties from Explorer shows 5 items in an empty directory, 
+--   which matches the 5 I can see and get same properties of in scowel.
+--      
+--
+-- TODO:
+--  Many extra menu items (see M_File)
+--  Standard buttons/toolbar/text labels
+--  Address bar
+--  Add rebarbands (see tooltip.exw, (rebar.exw), and RB.TXT)
+--  A "Folders" heading over the treeview and the x to close.
+--  No "Type" column in listview
+--  I want an "Attributes" column in listview
+--  F2 rename (treeview) is fake.
+--  F2 rename (listview) uses RN rather than in-place edit, and does not update the treeview.
+--  RN should possibly be completely removed...
+--  use recycle bin (see C:\Program Files\Phix\demo\arwen\pae\recycle)
+--  CSM on listview (as per M_File, plus Cut/Copy/Delete/Rename)
+--  Monitor for new items (see FindNextChangeNotification?)
+--* run/open on click/return...
+--  New Folder
+--  Undo/Cut/Copy/Paste/Paste Shortcut/Select All/Invert Selection\n"&
+--  Arrange Icons
+--  Edit with edita incomplete. It never gets a hwnd (see easinst.ew?)
+--* drag/drop on the listview (kill existing menu)
+--  Right-click dragging, with pop-up of {move/copy/create shortcut/cancel}
+--   (at the moment only left-click dragging works, on the treeview not the listview)
+--  "My Computer" selected in the treeview should show Type/Total Size/Free Space in the listview
+--  Selecting entries in the (fudged) "My Computer" listview currently does nothing.
+--  Desktop/Printers/Control Panel/Scheduled Tasks/Recycle Bin (global) ... maybe?
+--  The CSM key (menu with arrow pointer on it) is not detected, anyway it needs a better
+--      concept (probably just 2 or 3 simple vars) of the "current focus" of this app.
+--  No delay. In Windows Explorer, if you have My Computer,A:,C:, with no diskette in A:,
+--      then a quick double-up/downarrow on the keyboard does not attempt to read A: and
+--      likewise you can easily skip over empty CD or other removeable media drives.
+--      There is no equivalent delay in this program, you always get an error.
+--      Also if you right-click on say A: (with no disk) it says "dir() error", which is
+--      understandable but wrong, try again and select properties, you get C:!
+--  No char shortcuts. In C:, pressing 'W' should get you to (eg) C:\WINDOWS.
+--
+--  Wrong sort order (see D:\coll, not sure I want to replicate that...)
+--      Basically sort(" !#$%&(),.;@[]^_`{}~+='-09aAzZ") should do nowt, I think.
+--  There are a few (very) minor issues with column sorting. If you have eg:
+--      C:\temp\S\
+--                  <dir a>
+--                  file b
+--             \T\
+--                  <dir a>
+--                  <dir b>
+--                  file c
+--  and open S, click on Filename. The four available sort orders are way too many for
+--  S and it feels like you have to do everything twice. Now if you click in S until a
+--  moves below b, then open T, the first click on Filename is inoperative - because 
+--  the internal sort order flags are in the "state before" the default that T opens in.
+--  (obvious solution: reset the internals when reloading the listview)
+--  Also, things are kinda setup such that, at least when the program is first started,
+--  opening T and clicking on Filename actually does something. However if you sort by
+--  date or size then click on Filename, I expect/would prefer it went back to the default.
+--  **AH BELAY THAT** The problem is that mixing/not mixing dirs&files, and having both
+--  case sensitive & case insensitive sort orders is a nonsense and should be ripped out.
+--
+--  FindFirstChangeNotification/FindNextChangeNotification/FindCloseChangeNotification/
+--  WaitForSingleObject/WaitForMultipleObjects, OLE
+--  GetCommandString
+--
+--  CDefFolderMenu_Create2
+--
+--  Use the shell right click menus... (needs OLE!!!)
+--
+-- DragAcceptFiles
+-- DragQueryFile
+-- WM_DROPFILES are things you should look for in the platform SDK
+--
+--  There are also probably quite a few things in here that could and should be made more 
+--  general purpose and properly incorporated into arwen.
+
+include arwen.ew
+
+--DEV: 14/05:
+--  xSHGetFileInfo = link_c_func(shell32, "SHGetFileInfo",
+--      {C_PTR,     --  LPCTSTR pszPath
+--       C_UINT,    --  DWORD dwFileAttributes  (Ignored/we do not use SHGFI_USEFILEATTRIBUTES)
+--       C_PTR,     --  SHFILEINFO *psfi
+--       C_UINT,    --  UINT cbFileInfo (size of psfi)
+--       C_UINT},   --  UINT uFlags
+--      C_PTR),     -- DWORD_PTR
+
+--DEV move to constants.ew
+constant 
+     SHGFI_LARGEICON         = #000000000, -- get large icon
+     SHGFI_SMALLICON         = #000000001, -- get small icon
+--   SHGFI_OPENICON          = #000000002, -- get open icon
+--   SHGFI_SHELLICONSIZE     = #000000004, -- get shell size icon
+--   SHGFI_PIDL              = #000000008, -- pszPath is a pidl
+--   SHGFI_USEFILEATTRIBUTES = #000000010, -- use passed dwFileAttribute
+--   SHGFI_ADDOVERLAYS       = #000000020, -- apply the appropriate overlays
+--   SHGFI_OVERLAYINDEX      = #000000040, -- Get the index of the overlay
+--   SHGFI_ICON              = #000000100, -- get icon
+     SHGFI_DISPLAYNAME       = #000000200, -- get display name
+--   SHGFI_TYPENAME          = #000000400, -- get type name
+--   SHGFI_ATTRIBUTES        = #000000800, -- get attributes
+--   SHGFI_ICONLOCATION      = #000001000, -- get icon location
+--   SHGFI_EXETYPE           = #000002000, -- return exe type
+     SHGFI_SYSICONINDEX      = #000004000, -- get system icon index
+--   SHGFI_LINKOVERLAY       = #000008000, -- put a link overlay on icon
+--   SHGFI_SELECTED          = #000010000, -- show icon in selected state
+--   SHGFI_ATTR_SPECIFIED    = #000020000, -- get only specified attributes
+SHGFI_XXX = 0 if SHGFI_XXX then end if
+
+--  SHFILEINFO                      = new_struct(),
+--  SHFILEINFO_hIcon                = struc(C_PTR),         -- HICON hIcon
+--  SHFILEINFO_iIcon                = struc(C_UINT),        -- int iIcon
+--  SHFILEINFO_dwAttributes         = struc(C_LONG),        -- DWORD dwAttributes
+--  SHFILEINFO_szDisplayName        = struc(anySize(260)),  -- TCHAR szDisplayName[MAX_PATH]
+--  SHFILEINFO_szTypeName           = struc(anySize(80)),   -- TCHAR szTypeName[80]
+
+constant SHFI_len = sizeofstruct(SHFILEINFO),
+         SHFI = allocate(SHFI_len)
+
+integer uFlags  -- for use with xSHGetFileInfo
+
+--constant useSH = 01
+--14/05 ends
+
+include ppp.e
+
+--/* Not required for Phix
+include sort.e
+include misc.e
+include file.e
+--*/
+
+constant Main   = create(Window, "Scowel", 0, 0, 0, 0, 600, 400, 0)
+
+constant 
+--       mainDC = getPrivateDC(Main),
+
+         M_File = create(Menu, "&File", 0, Main, 0,0,0,0,0),
+-- Open/Print/Edit (eg .txt-> txtfile/shell -> open/print, .zip -> pkzipfile/shell -> extract/open/test)
+--                  (and default of Op&en with...)
+--                  (ah, html has "open in same window"...)
+-- New folder
+-- Delete
+-- Rename
+-- Properties**DEV:
+         MFopenwith   = create(MenuItem, "Open With...", 0, M_File, 0,0,0,0,0), --DEV disable on folders...
+         MFproperties = create(MenuItem, "P&roperties", 0, M_File, 0,0,0,0,0),
+-- Recent
+         MFexit = create(MenuItem, "E&xit", 0, M_File, 0,0,0,0,0),
+-- Edit:
+--  Undo Copy/Move
+--  Cut/copy/paste
+--  Select All
+--  Invert Selection
+         M_View = create(Menu, "&View", 0, Main, 0,0,0,0,0),
+--Toolbars -> Standard Buttons/Toolbars,Text Labels
+--Status Bar
+--Explorer Bar (->Folders only)
+--Attributes(show column/filter by)/Size/Type
+--Arrange Icons -> by Name/Size/Type/Date
+--Refresh
+         MVlargeicons = create(MenuItem, "Large Icons",         0, M_View, 0,0,0,0,0),
+         MVsmallicons = create(MenuItem, "Small Icons",         0, M_View, 0,0,0,0,0),
+         MVlist       = create(MenuItem, "List",                0, M_View, 0,0,0,0,0),
+         MVdetail     = create(MenuItem, "Details",             0, M_View, 0,0,0,0,0),
+         MVtvicons    = create(MenuItem, "TreeView Icons",      0, M_View, 0,0,0,0,0),
+         MVtvcheck    = create(MenuItem, "TreeView Checkboxes", 0, M_View, 0,0,0,0,0),
+--DEV (detail mode only) listview icons/checkboxes/longname/shortname/size/type/attributes/date*3
+         MV_rfl = create(MenuItem, "Refresh &Local\t(Ctrl L)", 0, M_View, 0,0,0,0,0),
+--       MV_tb  = create(MenuItem, "&ToolBars", 0, M_View, 0,0,0,0,0),
+--       MV_sb  = create(MenuItem, "&StatusBar", 0, M_View, 0,0,0,0,0),
+--       MV_tl  = create(MenuItem, "Text &Labels", 0, M_View, 0,0,0,0,0),
+--       MV_ml  = create(MenuItem, "&Message Log", 0, M_View, 0,0,0,0,0),
+--       MV_cml = create(MenuItem, "&Clear Message Log", 0, M_View, 0,0,0,0,0),
+         MVdset = {MVlargeicons,MVsmallicons,MVlist,MVdetail},
+         MVstyle = {LVS_ICON,LVS_SMALLICON,LVS_LIST,LVS_REPORT},
+
+-- Go:
+--  Back/Forward/Up
+--  My Computer
+
+         M_Tool       = create(Menu, "&Tools", 0, Main, 0,0,0,0,0),
+--Find -> (Files or Folders only)
+--       MT_opt       = create(MenuItem, "&Options", 0, M_Tool, 0,0,0,0,0),
+--       MT_dia       = create(MenuItem, "&Diag", 0, M_Tool, 0,0,0,0,0),
+
+         M_Help       = create(Menu, "&Help", 0, Main, 0,0,0,0,0),
+         MH_about     = create(MenuItem, "&About", 0, M_Help, 0,0,0,0,0),
+
+        -- pop-up (right click) menu:
+         M_Cmnu       = create(Menu,"",0,0,0,0,0,0,0),
+--Attributes (Read Only/Hidden/Archive/System tri-checkboxes which can apply to multiple files, like on properties)
+--       M_Cud        = create(MenuItem,"?",                0, M_Cmnu, 0,0,0,0,0),  -- Upload/Download
+         MCedita      = create(MenuItem,"Edit with Edita",  0, M_Cmnu, 0,0,0,0,0),
+         MCrename     = create(MenuItem,"Rename\t(F2)",     0, M_Cmnu, 0,0,0,0,0),
+         M_Chg        = create(MenuItem,"Change drive",     0, M_Cmnu, 0,0,0,0,0),
+         M_Ccd        = create(MenuItem,"Create directory", 0, M_Cmnu, 0,0,0,0,0),
+         MCdelete     = create(MenuItem,"Delete\t(Delete)", 0, M_Cmnu, 0,0,0,0,0),
+         MCrefresh    = create(MenuItem,"Refresh\t(F5)",    0, M_Cmnu, 0,0,0,0,0),
+         MCopenwith   = create(MenuItem,"Open With...",     0, M_Cmnu, 0,0,0,0,0),  -- DEV disable on folders
+         MCproperties = create(MenuItem,"P&roperties",      0, M_Cmnu, 0,0,0,0,0),
+
+--       TV = create(TreeView, "", 0, Main,10, 10, 312, 244, TVS_EDITLABELS),
+         TV = create(TreeView, "", 0, Main,10, 10, 312, 244, 0),
+         treeHwnd = getHwnd(TV),
+
+         -- The listview
+         LV = create(ListView, {"Filename",
+                                {"Size",80,LVCFMT_RIGHT},
+--DEV Type, Attributes, Modified/Date*3, -- and right click menu
+                                {"Date",120}},
+                     0, Main, 245,70,343, 259, {{LVS_SHOWSELALWAYS,LVS_OWNERDATA},0}),
+--                   0, Main, 245,70,343, 259, {{LVS_SHOWSELALWAYS,LVS_OWNERDATA,LVS_EDITLABELS},0}),
+
+         MainIds = {Main,LV},
+
+--DEV??
+         -- hwnds for resizing etc:
+         mainHwnd = getHwnd(Main),
+         hw_LV = getHwnd(LV),
+         cmHwnd = getHwnd(M_Cmnu),
+
+         STATUS = create(StatusBar, "", 0, Main, 0,0,0,0, 0),
+        
+         CD     = create(Window,"Confirm Deletion",0,Main,50,50,300,120,0),
+         CDwhat = create(Label,"",0,CD,20,20,260,25,0),
+         CDOK   = create(Button,"OK",0,CD,50,60,75,25,0),
+         CDcncl = create(Button,"Cancel",0,CD,150,60,75,25,0),
+         CDids = {CD,CDOK,CDcncl},
+        
+         -- Rename or New directory input [DEV!]
+         RN     = create(Window,"",0,Main,50,50,300,150,0),
+         RNwhat = create(Label,"",0,RN,20,20,260,25,0),
+         RNas   = create(EditText,"",0,RN,20,50,260,22,0),
+         RNOK   = create(Button,"OK",0,RN,50,90,75,25,0),
+         RNcncl = create(Button,"Cancel",0,RN,150,90,75,25,0),
+         RNids  = {RN,RNas,RNOK,RNcncl}
+
+--      setEnable({MCedita,LV,MV_rfl,MT_dia},False)
+--      setEnable({MCedita,LV,MV_rfl},False)
+    setEnable(MCedita,False)
+
+object lpath
+
+--integer M_Context
+
+--
+-- Help (status bar) text for menu items:
+--
+sequence Mtxtk, Mtxt
+         Mtxtk={} Mtxt={}
+
+procedure add_Mtxt(atom mParent, atom mMItem, sequence text)
+    Mtxtk = append(Mtxtk,{getHwnd(mParent),mMItem})
+    Mtxt = append(Mtxt,text)
+end procedure
+
+    add_Mtxt(M_File,MFexit,"Terminate program")
+    add_Mtxt(M_View,MV_rfl,"Reload local (left) directory listing (if connection open)")
+--  add_Mtxt(M_Tool,MT_dia,"Dump possibly useful info to diag.txt (if connection open)")
+    add_Mtxt(M_Help,MH_about,"Some help and author details")
+--  add_Mtxt(M_Cmnu,M_Cud,"Upload (local) or download (remote) selected files")
+    add_Mtxt(M_Cmnu,MCedita,"Edit with Edita")
+    add_Mtxt(M_Cmnu,MCrename,"Rename file")
+    add_Mtxt(M_Cmnu,M_Chg,"Full directory browse")
+    add_Mtxt(M_Cmnu,M_Ccd,"Create directory")
+    add_Mtxt(M_Cmnu,MCdelete,"Delete")
+    add_Mtxt(M_Cmnu,MCrefresh,"Refresh Directory Listing")
+    add_Mtxt(M_Cmnu,MCopenwith,"Displays the standard open with dialogue")
+    add_Mtxt(M_Cmnu,MCproperties,"Displays the properties of the selected items")
+
+
+--sequence cl
+--  cl = command_line()
+--  cl = cl[2]
+--  for i=length(cl) to 1 by -1 do
+--      if cl[i]='\\' then
+--          cl = cl[1..i-1]
+--          if not chdir(cl) then
+--              void = messageBox("Error","chdir("&cl&") failed.",0)
+--          end if
+--          exit
+--      end if
+--  end for
+
+--constant pFicons = "pFTP.bmp"
+
+--sequence TBicons  -- [1] = upload valid
+                    -- [2] = upload invalid
+                    -- [3] = download valid
+                    -- [4] = download invalid
+                    -- [5] = refresh needed
+                    -- [6] = refresh not needed
+
+--procedure loadToolBarIcons()
+--atom toolBmp, toolDC, partDC, newBmp
+--  TBicons = repeat(0,6)
+--  toolBmp = loadImage(pFicons,IMAGE_BITMAP,0)
+--  if toolBmp=NULL then
+--      void = messageBox("Error",pFicons&" not found",0)
+--  else
+--      toolDC = c_func(xCreateCompatibleDC,{mainDC})
+--      void = c_func(xSelectObject,{toolDC,toolBmp})
+--      partDC = c_func(xCreateCompatibleDC,{mainDC})
+--      for i=1 to 1 do -- left in case more rows of pFTP.bmp ever get used
+--          for j=1 to 6 do
+--              newBmp = c_func(xCreateCompatibleBitmap, {mainDC, 22, 22 } )
+--              void = c_func(xSelectObject,{partDC,newBmp})
+--              void = c_func(xBitBlt, {partDC,0,0,22,22,toolDC,j*23-22,i*23-22,SRCCOPY})
+--              TBicons[j] = newBmp
+--          end for
+--      end for
+--      void = c_func(xDeleteDC,{toolDC})
+--      void = c_func(xDeleteDC,{partDC})
+--      setImage(-,TBicons[2])  -- upload disabled icon
+--      setImage(-,TBicons[4])  -- download disabled icon
+--  end if
+--
+--end procedure
+--loadToolBarIcons()
+
+constant LVxstyle = or_all({LVS_EX_FULLROWSELECT,LVS_EX_HEADERDRAGDROP})
+
+    void = sendMessage(LV, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
+
+integer SortColumn, Sign
+--DEV??:
+integer dirS, dirSL
+    dirSL = 1
+
+sequence LVdata
+
+sequence lastpath
+         lastpath = ""
+
+global constant D_Name = 1,
+                D_Size = 2,
+--DEV Type, Attributes, Date*3
+                D_Date = 3,
+                D_Icon = 4, -- index into the system image list.
+                D_Dir  = 5  -- -1 if directory, else 0
+
+integer isWindowMaximised
+        isWindowMaximised = SW_NORMAL   -- or SW_MAXIMIZE
+
+integer LVwidth
+        LVwidth = 276   -- (nb current value kept in scowel.edb)
+
+object sizeinfo5
+       sizeinfo5 = 0
+
+--DEV does not seem to be needed...
+--constant ole32    = assign_dll("ole32.dll"),
+--      xCoInitialize = define_c_func( ole32, "CoInitialize", {C_POINTER}, C_LONG ),
+--      xCoUnInitialize = define_c_func( ole32, "CoUninitialize", {}, C_LONG )
+--
+--void = c_func(xCoInitialize,{0})
+
+
+global procedure reSizeMain(sequence sizeinfo)
+-- called from [DEV...]
+-- See WM_CLOSE for creation of sizeinfo
+    LVwidth = sizeinfo[1]
+    for i=1 to 3 do
+        void = sendMessage(LV,LVM_SETCOLUMNWIDTH,i-1,sizeinfo[2][i])
+    end for
+    isWindowMaximised = sizeinfo[4]     -- SW_NORMAL or SW_MAXIMIZE
+    sizeinfo5 = sizeinfo[5]
+    if not atom(sizeinfo5) then
+        -- Do this, even if about to openWindow(Main,SW_MAXIMISED),
+        -- so that Restore puts it back as expected.
+        void = c_func(xMoveWindow, mainHwnd&sizeinfo5&1)
+    end if
+end procedure
+
+atom hSiml, -- save of small system image list (for MVtvicons)
+     hLiml  -- save of large system image list (really a flag)
+     hLiml = 0
+
+integer detail  -- controls large icons/small icons/list/detail views. (1..4)
+
+--DEV move to constants.ew:
+constant 
+--       SI_UNKNOWN = 0,                        -- Unknown File Type
+--       SI_DEF_DOCUMENT = 1,                   -- Default document
+--       SI_DEF_APPLICATION = 2,                -- Default application
+         SI_FOLDER_CLOSED = 3,                  -- Closed folder
+         SI_FOLDER_OPEN = 4,                    -- Open folder
+--       SI_FLOPPY_514 = 5,                     -- 5 1/4 floppy
+--       SI_FLOPPY_35 = 6,                      -- 3 1/2 floppy
+--       SI_REMOVABLE = 7,                      -- Removable drive
+--       SI_HDD = 8,                            -- Hard disk drive
+--       SI_NETWORKDRIVE = 9,                   -- Network drive
+--       SI_NETWORKDRIVE_DISCONNECTED = 10,     -- network drive offline
+--       SI_CDROM = 11,                         -- CD drive
+--       SI_RAMDISK = 12,                       -- RAM disk
+         SI_MYCOMPUTER = 15,                    -- My Computer
+         SI_EXPLORER = 45                       -- windows explorer icon
+
+--Found on the web:
+--  else if (FileExt = '.INI')
+--       or (FileExt = '.INF') then IconIndex := 63 (Notepad+cog)
+--  else if (FileExt = '.TXT') then IconIndex := 64 (Notepad)
+--  else if (FileExt = '.BAT') then IconIndex := 65 (App + cog)
+--  else if (FileExt = '.DLL')
+--       or (FileExt = '.SYS')
+--       or (FileExt = '.VBX')
+--       or (FileExt = '.OCX')
+--       or (FileExt = '.VXD') then IconIndex := 66 (Page + cog)
+--  else if (FileExt = '.FON') then IconIndex := 67 (Page + A)
+--  else if (FileExt = '.TTF') then IconIndex := 68 (Page + TT)
+--  else if (FileExt = '.FOT') then IconIndex := 69 (Page + a)
+--  70 (App + eggtimer)
+--0 SI_UNKNOWN  Unknown File Type
+--1 SI_DEF_DOCUMENT Default document
+--2 SI_DEF_APPLICATION  Default application
+--3 SI_FOLDER_CLOSED    Closed folder
+--4 SI_FOLDER_OPEN  Open folder
+--5 SI_FLOPPY_514   5 1/4 floppy
+--6 SI_FLOPPY_35    3 1/2 floppy
+--7 SI_REMOVABLE    Removable drive
+--8 SI_HDD  Hard disk drive
+--9 SI_NETWORKDRIVE Network drive
+--10    SI_NETWORKDRIVE_DISCONNECTED    network drive offline
+--11    SI_CDROM    CD drive
+--12    SI_RAMDISK  RAM disk
+--13    SI_NETWORK  Entire network (blue globe)
+--14        ?   (Tree thing)
+--15    SI_MYCOMPUTER   My Computer
+--16    SI_PRINTMANAGER Printer Manager
+--17    SI_NETWORK_NEIGHBORHOOD Network Neighborhood
+--18    SI_NETWORK_WORKGROUP    Network Workgroup
+--19    SI_STARTMENU_PROGRAMS   Start Menu Programs
+--20    SI_STARTMENU_DOCUMENTS  Start Menu Documents
+--21    SI_STARTMENU_SETTINGS   Start Menu Settings
+--22    SI_STARTMENU_FIND   Start Menu Find
+--23    SI_STARTMENU_HELP   Start Menu Help
+--24    SI_STARTMENU_RUN    Start Menu Run
+--25    SI_STARTMENU_SUSPEND    Start Menu Suspend
+--26    SI_STARTMENU_DOCKING    Start Menu Docking
+--27    SI_STARTMENU_SHUTDOWN   Start Menu Shutdown
+--28    SI_SHARE    Sharing overlay (hand)
+--29    SI_SHORTCUT Shortcut overlay (small arrow)
+--30    SI_PRINTER_DEFAULT  Default printer overlay (small tick)
+--31    SI_RECYCLEBIN_EMPTY Recycle bin empty
+--32    SI_RECYCLEBIN_FULL  Recycle bin full
+--33    SI_DUN  Dial-up Network Folder
+--34    SI_DESKTOP  Desktop
+--35    SI_CONTROLPANEL Control Panel
+--36    SI_PROGRAMGROUPS    Program Group
+--37    SI_PRINTER  Printer Folder
+--38    SI_FONT Font Folder
+--39    SI_TASKBAR  Taskbar
+--40    SI_AUDIO_CD Audio CD
+--41        ? (Tree)
+--42        ? (Folder with PC in front)
+--43    SI_FAVORITES    IE favorites
+--44    SI_LOGOFF   Start Menu Logoff
+--45    SI_EXPLORER Windows Explorer icon
+--46        ? (Flag & globe)
+--47    SI_LOCK Lock (three sheets?)
+--48    SI_HIBERNATE    Hibernate (Print preview big??)
+--
+
+procedure setExplorerIcon()
+atom shell32
+atom iLarge,iSmall,icon
+    shell32 = allocate_StringZ("shell32.dll")
+    iLarge = allocate(4)
+    iSmall = allocate(4)
+    void = c_func(xExtractIconEx,{shell32,SI_EXPLORER,iLarge,iSmall,1})
+    icon = peek4u(iSmall)
+    void = sendMessage(Main,WM_SETICON,ICON_SMALL,icon)
+    void = deleteObject(icon)
+    icon = peek4u(iLarge)
+    void = sendMessage(Main,WM_SETICON,ICON_BIG,icon)
+    void = deleteObject(icon)
+    free(iSmall)
+    free(iLarge)
+end procedure
+-- (DEV) omitting this makes it easier to compare Scowel vs. Explorer...
+if 0 then
+    setExplorerIcon()
+end if
+
+
+constant KB = 1024,
+         MB = KB*KB,
+         GB = KB*MB,
+    --
+    -- the following written so that a single change to sw affects all:
+    --
+    sw = 11,                                -- size width of 11 characters
+    dpsfmt = sprintf("%%%d.2f%%s",sw-2),    -- with decimal places and suffix    -- eg/ie "%9.2f%s"
+    sfmt = sprintf("%%%d.0f%%s",sw-2),      -- no d.p, but still suffix          -- eg/ie "%9.0f%s"
+    bfmt = sprintf("%%%d.0f",sw)            -- no d.p, no suffix (size in bytes) -- eg/ie "%11.0f"
+
+function Size00(atom filesize, atom factor, sequence suffix)
+-- common code for Size function, to avoid ".00" displaying
+sequence res, params
+    params = {floor(filesize/factor),suffix}
+    if remainder(filesize,factor) then
+        res = sprintf(dpsfmt, params)           -- eg 9.2GB
+        if equal(res[sw-4..sw-2],".00") then
+            res = sprintf(sfmt, params)         -- eg   9MB (not "9.00MB" when really 9.00004701MB)
+        end if
+    else
+        res = sprintf(sfmt, params)             -- eg 100KB (that is, when really 100.00000000KB)
+    end if
+    return res
+end function    
+
+function Size(atom filesize)
+    if filesize>=GB then
+        return Size00(filesize,GB,"GB")
+    elsif filesize>=MB then
+        return Size00(filesize,MB,"MB")
+    elsif filesize>=KB then
+        return Size00(filesize,KB,"KB")
+    end if
+    return sprintf(bfmt, filesize)              -- eg     0 (ie absolute size in bytes)
+end function
+
+--DEV see edita.exw...
+function Date(sequence dt)
+integer t4
+    -- swap day and year
+    t4 = dt[1]
+    dt[1] = dt[3]
+    dt[3] = t4
+    -- 24hr -> 12hr AM/PM (re-using D_SECONDS [albeit dt is date()[D_YEAR..D_SECONDS])  -- DEV BUG!
+    t4 = dt[4]
+    if t4>=12 then
+        if t4>12 then
+            dt[4] = t4-12
+        end if
+        dt[6] = "PM"
+    else
+        dt[6] = "AM"
+    end if
+    return sprintf("%02d/%02d/%04d %02d:%02d %s",dt)
+end function
+
+function LVformat(integer lRow, integer lColumn)
+object res
+    if lColumn=0 then               -- icon
+        res = LVdata[lRow][D_Icon]
+    elsif lColumn=D_Name then           -- Filename
+        res = LVdata[lRow][D_Name]
+--  elsif lRow=1 and equal(LVdata[lRow][D_Name],"..") then
+--      res = ""
+    elsif lColumn=D_Size then           -- Size
+        if LVdata[lRow][D_Dir] then -- a directory
+            res = ""
+        else
+            res = Size(LVdata[lRow][D_Size])
+        end if
+    elsif lColumn=D_Date then           -- Date and time
+        if lastpath="My Computer" then
+            res = ""
+        else
+            res = Date(LVdata[lRow][D_Date])
+        end if
+    end if
+    return res
+end function
+
+setLVFormatRoutine(LV, routine_id("LVformat"))
+
+--DEV for eainet.ew (pFTP?)
+global constant Edita = "Edita"
+
+--function getExtension(sequence name)
+--  for j = length(name) to 1 by -1 do
+--      if name[j]='.' then return upper(name[j+1..length(name)]) end if
+--  end for
+--  return ""
+--end function
+
+function CompareSortColumn(sequence s1,sequence s2)
+integer c
+    if dirS then
+        c = compare(s1[D_Dir],s2[D_Dir])    -- Directories first
+        if c=0 then
+            return Sign*compare(upper(s1[D_Name]),upper(s2[D_Name]))
+        end if
+        return c    -- NB not Sign*c; directories always on top.
+    end if
+    return Sign*compare(s1[SortColumn],s2[SortColumn])
+end function
+
+sequence treeItems
+         treeItems = {}
+
+--DEV replace tLoaded with TVIS_EXPANDEDONCE?
+-- indexes to treeItems:
+constant tHandle = 1,
+         tText   = 2,
+         tLoaded = 3,
+         tPidx   = 4
+constant dName   = 5,   -- display Name [only exists on root directories]
+         dNxt    = 6    -- drives link for "My Computer" listview
+
+integer nDrives, dLast  -- reverse-linked list of drives for "My Computer" listview
+
+procedure loadDir(sequence path)
+--
+-- wrapper round dir() to load the listview items.
+--
+-- Also, note that this program will never do a local chdir()
+--  [mainly since doing so messes up ex.err handling in Edita]
+--  but instead maintains (and cleans up) the current path in 
+--  lpath.
+-- It may help to uncomment the pp({path,chd}) line to
+--  see what's really going on. ??? [DEV]
+--
+object d, di
+--object ext
+integer k, isdir
+sequence Data   -- stored in LVdata at end
+integer prevTop
+sequence name
+integer nxt
+atom himl
+    prevTop = sendMessage(LV, LVM_GETTOPINDEX, 0, 0)
+
+    lastpath = path
+--  setText(STATUS,"Loading local directory")
+    if equal(path,"My Computer") then
+        -- create a dummy dir() from the treeviews' linked drive list:
+        Data = repeat(0,nDrives)
+        nxt = dLast
+        for i=nDrives to 1 by -1 do
+            di = treeItems[nxt] -- {handle,txt,loaded,parent[,dname,dlink]}
+            k = getTVicon(TV,di[tHandle])
+                     -- {D_Name, D_Size,D_Date,  D_Icon,D_Dir}
+            Data[i] = {di[dName],99,{0,0,0,0,0,0},k,-1}
+            nxt = di[dNxt]
+        end for
+    else
+        if not length(path) then ?9/0 path = current_dir() end if
+        if path[length(path)]!='\\' then path&='\\' end if
+        d = dir(path)
+        if atom(d) then
+            void = messageBox("dir() error",path,0)
+            return
+        end if
+        lpath = path
+
+        if length(d) and equal(d[1][D_NAME],".") then
+--          d = d[2..length(d)]
+            d = d[3..length(d)]
+        end if
+
+        Data = d
+
+        -- tag sort: {isDir, case_insensitive_name, index}:
+
+        for i=1 to length(d) do
+            di = d[i]
+            d[i] = {not (find('d',di[D_ATTRIBUTES])),upper(di[D_NAME]),i}
+        end for
+--      if length(d) and equal(d[1][2],"..") then
+--          -- ".." could get displaced if files/directories begin !/#/$ etc:
+--          d[2..length(d)] = sort(d[2..length(d)])
+--      else
+        d = sort(d)
+--      end if
+        for i=1 to length(d) do
+            d[i] = Data[d[i][3]]
+        end for
+    
+--setText(Main,sprintf("pFTP (gettop=%d)",prevTop))
+--  void = sendMessage(LV, LVM_SETITEMCOUNT, length(d), 0)
+--  setEnable(LV,True)
+        setIndex(LV,-1)
+--      setIndex(LV,0) -- NO!
+--      void = sendMessage(LV, LVM_ENSUREVISIBLE, 0, 0)
+        Data = repeat(0,length(d))
+        for i=1 to length(d) do
+            di = d[i]
+            name = di[D_NAME]
+            if equal(name,".?.") then
+                k = SI_FOLDER_CLOSED
+            else
+
+                if detail=1 then
+                    uFlags = SHGFI_LARGEICON
+--uFlags = SHGFI_SMALLICON
+                else
+                    uFlags = SHGFI_SMALLICON
+                end if
+--DEV SHGFI_LINKOVERLAY does not do what I hoped it would (eg C:\windows\desktop)
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_LINKOVERLAY
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_LINKOVERLAY+SHGFI_ICON
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_LINKOVERLAY+SHGFI_ICON+SHGFI_OVERLAYINDEX+SHGFI_ADDOVERLAYS
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_LINKOVERLAY+SHGFI_OVERLAYINDEX+SHGFI_ADDOVERLAYS
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_LINKOVERLAY+SHGFI_OVERLAYINDEX
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_OVERLAYINDEX
+--              uFlags += SHGFI_OVERLAYINDEX
+-- neither does SHGFI_ADDOVERLAYS (as documented)
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_ADDOVERLAYS
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_OVERLAYINDEX+SHGFI_ICON+SHGFI_LINKOVERLAY+SHGFI_ADDOVERLAYS
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_LINKOVERLAY+SHGFI_ADDOVERLAYS
+--              uFlags += SHGFI_SYSICONINDEX+SHGFI_OVERLAYINDEX+SHGFI_LINKOVERLAY+SHGFI_ADDOVERLAYS+SHGFI_ICON
+
+-- anyhows, after much stumbling about in the dark, this is as far/best as I got:
+                uFlags += SHGFI_SYSICONINDEX
+--              uFlags = or_bits(uFlags,or_bits(SHGFI_ICON,SHGFI_SYSICONINDEX))
+                himl = c_func(xSHGetFileInfo,{allocate_StringZ(path&di[D_NAME]),0,SHFI,SHFI_len,uFlags})
+                if detail=1 and hLiml=0 then
+                    hLiml = himl
+                    void = sendMessage(LV,LVM_SETIMAGELIST,LVSIL_NORMAL,hLiml)
+                end if
+                k = peek4u(SHFI+SHFILEINFO_iIcon)
+            end if
+            isdir = 0
+            if find('d',di[D_ATTRIBUTES]) then
+                isdir = -1
+--              k = SI_FOLDER_CLOSED
+            end if
+                      -- {D_Name,   D_Size,     D_Date,      D_Icon, D_Dir}
+            Data[i] = {di[D_NAME],di[D_SIZE],di[D_YEAR..D_SECOND],k,isdir}
+        end for
+    end if
+    LVdata = Data
+--  setEnable(MV_rfl,True)
+    void = sendMessage(LV, LVM_SETITEMCOUNT, length(LVdata), 0)
+    void = sendMessage(LV, LVM_ENSUREVISIBLE, prevTop, 0)
+    if prevTop then
+        prevTop += sendMessage(LV,LVM_GETCOUNTPERPAGE,0,0)-1
+        void = sendMessage(LV, LVM_ENSUREVISIBLE, prevTop, 0)
+    end if
+--  setFocus(LV)
+    setText(STATUS,"")
+end procedure
+
+--DEV use getProperPath?
+function cleanUpPath(sequence name)
+integer k
+    --
+    -- Replace any / in filepath with \\
+    --
+    while 1 do
+        k = find('/',name)
+        if k=0 then exit end if
+        name[k] = '\\'
+    end while
+    --
+    -- check for and remove any \.. in filepath
+    --
+    while 1 do
+        k = match("\\..",name)
+        if k=0 then exit end if
+        if find('\\',name)=k then   -- avoid infinite loop
+            -- should never happen
+            puts(1,"Warning, cannot cleanup path "&name)
+            exit
+        end if
+        for j=k-1 to 1 by -1 do
+            if name[j]='\\' then
+                name = name[1..j-1]&name[k+3..length(name)]
+                exit
+            end if
+        end for
+    end while
+--  --
+--  -- Make sure there is a proper path.
+--  --
+--  if not find('\\',name) then
+--      name = initialcurrentdir&name
+--  end if
+    return name
+end function
+
+
+function alignContext(integer id)
+--
+-- if input is Del/F2 from keyboard, ie, id is LV or -, then
+--  set M_Context to - or - accordingly;
+-- else, menu item clicked (id is MCdelete/MCrename/M_Ccd), M_Context is 
+--  already set to - or - (via WM_RBUTTONDOWN), so
+--  set id to LV or -, accordingly. There is often no need to call 
+--  this function when a menu item is clicked, but it must always be
+--  called to deal with keyboard input.
+-- end if
+--
+-- We are going to work mainly off what M_Context says, but we may
+--  also need id to be one of LV or - for getLVSelected etc.
+--
+--  if id=LV then
+--      M_Context = -           -- Makes sense! ;-)
+--  elsif id=- then
+--      M_Context = -           -- Makes sense! ;-)
+--  elsif M_Context=- then
+        id = LV                 -- Makes sense! ;-)
+--  else
+--      id = -                  -- Makes sense! ;-)
+--  end if
+        return id
+end function
+
+--with trace
+procedure confirmdelete(integer id)
+integer k
+    id = alignContext(id)
+    k = getLVSelectedCount(id)
+    if k then
+        if k=1 then
+            k = getIndex(id)
+            if k=-1 then
+                void = messageBox("Delete","Nothing selected for deletion",0)
+                return
+            end if
+            setText(CDwhat,lpath&LVdata[k][D_Name])
+        else
+            setText(CDwhat,sprintf("%d files",k))
+        end if
+        openWindow(CD,SW_NORMAL)
+        setFocus(CDcncl)
+    end if
+end procedure
+
+function delete_local_file(sequence file)
+atom eCode
+--DEV isn't lpath already \\ terminated?? (return to this when you put recycle bin in)
+    setText(STATUS,sprintf("Deleting local file %s\\%s",{lpath,file}))
+    if not c_func(xDeleteFile,{allocate_StringZ(lpath&'\\'&file)}) then
+        eCode = c_func(xGetLastError,{})
+        void = messageBox("Error deleting",
+                          sprintf("%s\\%s\n\nError Code %d",{lpath,file,eCode}),0)
+        setText(STATUS,"")
+        return 0
+    end if
+    setText(STATUS,"")
+    return 1
+end function
+
+function delete_local_dir(sequence file)
+object d, di
+atom res
+sequence oldlpath
+    oldlpath = lpath
+    lpath &= '\\'&file
+    res = 1
+    d = dir(lpath)
+    if atom(d) then
+        void = messageBox("Delete error","Cannot get dir("&lpath&")",0)
+        res = 0
+    else
+        for i=1 to length(d) do
+            di = d[i]
+            if find('d',di[D_ATTRIBUTES]) then
+                di = di[D_NAME]
+                if not find(di,{".",".."}) then
+                    if not delete_local_dir(di) then res = 0 exit end if
+                end if
+            else
+                if not delete_local_file(di[D_NAME]) then res = 0 exit end if
+            end if
+        end for
+    end if
+
+    if not c_func(xRemoveDir,{allocate_StringZ(lpath)}) then
+        res = c_func(xGetLastError,{})
+        void = messageBox("Error deleting directory",
+                          sprintf("%s\n\nError Code %d",{lpath,res}),0)
+        res = 0
+    end if
+
+    lpath = oldlpath
+    return res
+end function
+
+procedure delete(integer id)
+-- id should be CDOK else do nothing.
+-- (in truth, id is only passed to keep cdHandler tidy)
+sequence s
+integer idx
+sequence file
+    if id=CDOK then
+        closeWindow(CD)
+        s = getLVSelected(LV)
+        for i=length(s) to 1 by -1 do
+            idx = s[i]
+            file = LVdata[idx][D_Name]
+            if LVdata[idx][D_Dir] then
+                if not delete_local_dir(file) then exit end if
+            else
+                if not delete_local_file(file) then exit end if
+            end if
+            LVdata = LVdata[1..idx-1]&LVdata[idx+1..length(LVdata)]
+            --LVdata[idx..idx] = {}
+            void = sendMessage(LV,LVM_DELETEITEM,idx-1,0)
+        end for
+--      loadDir(lpath)  -- always refresh after delete
+    end if
+end procedure
+
+function cdHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_CHAR then
+        if wParam=VK_RETURN then                    delete(id)          -- (does nowt if id!=CDOK)
+        elsif wParam=VK_ESCAPE then                 closeWindow(CD)
+        elsif lParam then -- suppress warning
+        end if
+    elsif msg=WM_COMMAND then
+        if id=CDOK then                             delete(id)
+        elsif id=CDcncl then                        closeWindow(CD)
+        end if
+    end if
+    return 0
+end function
+setHandler(CDids,routine_id("cdHandler") )
+
+
+object renamedata   -- if a sequence, then RNOK = rename,
+                    -- elsif 2, then RNOK = createdir
+integer rnidx
+
+constant RENAME = 1,
+         CREATEDIR = 2
+
+procedure openRN(integer id, integer rnmode)
+-- this just opens a window for rename/create directory
+integer idx
+sequence file
+
+    if rnmode=RENAME then
+        id = alignContext(id)
+        renamedata = getLVSelected(id)
+        if not length(renamedata) then
+            void = messageBox("Rename","Nothing selected for rename",0)
+            return
+        end if
+        setText(RN,"Rename")
+        rnidx = 1
+        idx = renamedata[rnidx]
+        file = LVdata[idx][D_Name]
+        setText(RNwhat,file)
+        setText(RNas,file)
+    elsif rnmode=CREATEDIR then
+        renamedata = 2
+        setText(RN,"Create Directory")
+        setText(RNwhat,"")
+        setText(RNas,"")
+    end if
+    openWindow(RN,SW_NORMAL)
+    setFocus(RNas)
+end procedure
+
+procedure rencd()
+-- rename (renamedata is sequence), or
+-- create directory (renamedata=2)
+sequence text, oldfile
+integer idx
+    text = getText(RNas)
+    if length(text) then
+        if sequence(renamedata) then                    -- Rename:
+            idx = renamedata[rnidx]
+            oldfile = LVdata[idx][D_Name]
+            if not equal(oldfile,text) then
+                if not c_func(xMoveFile,{allocate_StringZ(lpath&oldfile),
+                                         allocate_StringZ(lpath&text)}) then
+                    text = sprintf("Code %d",c_func(xGetLastError,{}))
+                    void = messageBox("Rename Error",text,0)
+                    rnidx = length(renamedata)+1    -- force close
+                else
+                    LVdata[idx][D_Name] = text
+                end if
+            end if
+            rnidx += 1
+            if rnidx>length(renamedata) then
+                closeWindow(RN)
+            else
+                idx = renamedata[rnidx]
+                oldfile = LVdata[idx][D_Name]
+                setText(RNwhat,oldfile)
+                setText(RNas,oldfile)
+                setFocus(RNas)
+            end if
+
+        elsif renamedata=CREATEDIR then
+
+            if not c_func(xCreateDir,{allocate_StringZ(lpath&text),NULL}) then
+                text = sprintf("Code %d",c_func(xGetLastError,{}))
+                void = messageBox("Create Directory Error",text,0)
+            else        -- always refresh after create dir
+                loadDir(lpath)
+            end if
+            closeWindow(RN)
+        else
+            ?9/0
+        end if
+    end if
+end procedure
+
+procedure mainHelp()
+--DEV active link?
+    void = messageBox("Scowel version 0.1",
+                      "A simple clone of windows explorer.\n\n"&
+                      "This is a no-frills recreation of the basic Explorer concept, using as far\n"&
+                      "as possible exactly the same icons and much the same techniques.\n"&
+                      "It exists to show how things are done, though I have no problem with\n"&
+                      "people helping me slowly knock it into something useable/useful.\n\n"&
+                      "Missing things include:\n"&
+                      " New Folder\n"&
+                      " Properties [DEV inprogress]\n"&
+                      " Undo/Cut/Copy/Paste/Paste Shortcut/Select All/Invert Selection\n"&
+                      " Standard Buttons, Text Labels.\n"&
+                      " The heading Folders and the x to close.\n"&
+                      " Arrange Icons\n\n"&
+                      "Other deliberately missing things include:\n"&
+                      " All internet related stuff (see pFTP.exw for an example of that).\n"&
+                      " Work Offline, Desktop, Network Neighboorhood, AddressBar, Links, Radio,\n"&
+                      " Search, Favourites (explorer bar and menu entry), History, Tip of the Day,\n"&
+                      " as Web Page, Customise this Folder, Folder Options, Map Network Drive,\n"&
+                      " Disconnect Network Drive, Synchronize, etc.\n\n"&
+                      "Filenames can be sorted by clicking on the column heading. It cycles\n"&
+                      "through two modes in fwd/rev order. Mode a) is directories first, then\n"&
+                      "case-insensitive (eg aBcDeF); Mode b) does not group directories first,\n"&
+                      "and is case-sensitive (eg BDFace). The \"..\" entry, if it exists, is\n"&
+                      "always left at the top. Click four times to see all sorts (;-)).\n"&
+                      "(Files also sort by size, date, and [not] even remote[ly useful] flags.)\n\n"&
+                      "Author: Pete Lomax, Copyright 2006-2010.\n"&
+                      "Written in Phix (http://phix.isgreat.org/index.htm).\n"&
+                      "Using Arwen, and code by Davi Figueiredo to read the Windows registry.\n",0)
+end procedure
+
+
+constant SizeWECursor = loadCursor(IDC_SIZEWE)
+
+sequence LVrect
+
+integer isWECursor, WExStart, isSizing
+        isWECursor = 0        isSizing = 0
+
+--constant 
+--       CD_EMWH = #20070422 -- Here is Edita's main window handle
+
+constant CD_EDITA = #20050228 --         "     Are you really Edita?
+
+constant CDS = allocate(12)
+constant CD_OPEN = #20050227    -- "Edit with Edita" - local files, no special handling
+
+--DEV this is never set properly (see easinst.ew)
+atom Ehwnd
+     Ehwnd = 0
+
+procedure EditWithEdita()
+sequence s, file
+
+    if getLVSelectedCount(LV)=1 then
+        s = getLVSelected(LV)
+    else
+        s = {}  -- trigger error next
+    end if
+    if length(s)!=1
+    or LVdata[s[1]][D_Dir] then
+        void = messageBox("Error","Select a single file for edit",0)
+        return
+    end if
+    file = LVdata[s[1]][D_Name]
+    poke4(CDS,{CD_EDITA,0,0})
+    if c_func(xSendMessage,{Ehwnd, WM_COPYDATA, mainHwnd, CDS})=CD_EDITA then
+        file = lpath&file
+        poke4(CDS,{CD_OPEN,length(file),allocate_StringZ(file)})
+        void = c_func(xSendMessage, {Ehwnd, WM_COPYDATA, NULL, CDS})
+        c_proc(xSetForegroundWindow,{Ehwnd})
+    else
+--DEV
+        void = messageBox("Edita not responding",
+                          "Try Edita/FTP/Run pFTP to reset communications",0)
+    end if
+end procedure
+
+constant pEdb = "scowel.edb"
+
+constant Tset = {"wsize"}   -- record 1 is sizeinfo,
+                            -- record 2 is {tvicons,detail,tvcheck} (icon/view stuff)
+                            -- record 3 is lastDirectory
+
+integer errCode
+
+sequence MVdone
+
+sequence lastDirectory
+         lastDirectory = "C:\\"
+
+global procedure loadSettings()
+sequence tlist
+integer dts, tvicons, tvcheck
+sequence rd2
+atom style
+
+    errCode = db_open(pEdb,DB_LOCK_EXCLUSIVE)
+    if errCode!=DB_OK then
+        if errCode = DB_LOCK_FAIL then
+            void = messageBox("Error",pEdb&" locked, aborting",0)
+            abort(0)
+        elsif db_create(pEdb,DB_LOCK_EXCLUSIVE)!=DB_OK then
+            void = messageBox("Error","error creating "&pEdb,0)
+            ?9/0
+        end if
+    end if
+
+    tlist = db_table_list()
+    for i=1 to length(Tset) do
+        if not find(Tset[i],tlist) then
+            if db_create_table(Tset[i])!=DB_OK then
+                void = messageBox("Error","unable to create "&Tset[i]&" table",0)
+                abort(0)
+            end if
+        end if
+    end for
+
+    if db_select_table("wsize")!=DB_OK then ?9/0 end if
+    dts = db_table_size()
+    tvicons = True
+    detail = 4
+    MVdone = repeat(0,4)
+    tvcheck = False
+    if dts then
+        reSizeMain(db_record_data(1))
+        rd2 = db_record_data(2)
+        tvicons = (rd2[1]!=0)
+        detail = rd2[2]
+        tvcheck = (rd2[3]!=0)
+--      if dts>2 then
+        lastDirectory = db_record_data(3)
+--      end if
+    end if
+    setCheck(MVtvicons,tvicons)
+    setCheck(MVtvcheck,tvcheck)
+    setCheck(MVdset[detail],True)
+    style = c_func(xGetWindowLong,{hw_LV,GWL_STYLE})
+    style -= and_bits(style,3)      -- (3 is the same as or_all(MVstyle))
+    style += MVstyle[detail]
+    void = c_func(xSetWindowLong,{hw_LV,GWL_STYLE,style})
+    MVdone[detail] = 1
+    db_close()
+end procedure
+
+    loadSettings()
+
+--useSH:
+
+--abort(0)
+
+-- old notes from demo_treeview.exw (which should be updated from this?)
+-- =============
+--
+--  Lists all drives, and their files and directories.
+--
+--  Fast. See performance section below.
+--
+--  Treeview text is held in local table rather than Windows.
+--
+--  Subdirectory(subtree) loading delayed until item expanded.
+--
+--  Subdirectories initially shown as empty (when they are).
+--
+--  Selection of/auto-navigate to previous item, works equally on both 
+--   files and folders. See selectPreviousItem().
+--
+--  Simple implementation of imagelists.
+--   (some minor improvements no doubt possible)
+--
+--  Drag/drop handling:
+--   a) visual:
+--    TVN_BEGINDRAG (g_fDragging=True),
+--    WM_MOUSEMOVE, (includes automatic scrolling)
+--    WM_LBUTTONUP (g_fDragging=False).
+--    -works both with and without icons/associated imagelist
+--   b) practical/physical:
+--    moveTree (recursive, preserving flags/icons etc)
+--    --Obviously, you'll need to completely rewrite the first half of this 
+--      function (fMove/c_func(xMoveFile)) if not working with files and 
+--      directories, second half can(/must) remain as-is.
+--
+--  In-place editing (via F2, does not change anything on disk).
+--
+--  Reload/refresh selected directory (F5). Now uses a freelist.
+--
+--  Control F5 and/or Shift F5 now reload the entire treeview.
+--
+--  Skips load of diskettes during startup (user must press F5).
+--
+--  Ability to toggle checkbox and icon display. It may be of 
+--   limited practical value to change such on-the-fly, but it
+--   may help in design choices.
+--
+--  Treeview resized to fit window.
+--
+--  Simple guard against dangerous actions, eg attempts to
+--   drag/rename C:\\Windows. (see function non_sensible())
+--
+--
+-- TODO / known issues:
+-- ===================
+--  F5 clears all checkboxes. In this DEMO, checkboxes don't do anything, are
+--   *not* stored anywhere, and F5 deletes the tree(/branch) and reloads all 
+--   data from disk, with all checkboxes blank by default.
+--   It is unlikely the behaviour of this program will change in that respect.
+--
+--  pop-menu on WM_RBUTTONUP:
+--   Drag-end suggestions include copy, move, create shortcut, cancel.
+--   Context suggestions include rename, delete, and create directory.
+--
+--  timer delays, eg auto-expand directory when hovering over it.
+--
+--  Migrate code/routines to arwen.ew [as & when suggested]
+--
+--  Label edit (F2) does nothing; might want moveFile (see TVN_ENDLABELEDIT)
+--   Note that, with this "update tree but not hard disk" situation in place,
+--    if you 'rename' a directory eg C:\temp to say C:\fred, before it, and
+--    /all/ subdirectories, have been expanded, then later attempts to expand
+--    (ie load) them will fail as dir(C:\fred) [and/or dir(C:\fred\stuff)]
+--    returns -1 instead of a listing for C:\temp[\stuff]. [obviously]
+--
+--  Using dir() to determine whether there are any files prior to loading
+--   them is somewhat overkill. There should probably be another builtin
+--   eg non_empty_dir() which returns False if dir is empty. (see d2)
+-- 
+--
+-- Performance:
+-- ===========
+--  This program is probably just as fast as Windows Explorer (arguments
+--   about the quality of that app aside), with one qualification:
+--DEV BLUFF:
+--  A fair comparison is not just to load a (single) big directory in
+--   this program and Explorer: the latter only loads directories into
+--   the treeview, it puts files and some subdirs into a (much simpler)
+--   listview, whereas this program puts the lot into a single treeview.
+--   If it takes Explorer 2 seconds to load say C:\\Windows\\System, 
+--   whereas this program takes 4, then for reasons outlined above I 
+--   perceive the treeview handling performance is level-pegging.
+--   Naturally, any such comparisons should be performed by running both 
+--   programs first, then timing them on a second run, to avoid either 
+--   being penalised for loading the cache while the other benefits from 
+--   the fact that the data needed is already in memory.
+--
+--  Failry obviously, if you organise your files/data so that no one 
+--   parent has more than say 1000 child records, then load delays are 
+--   very rarely noticeable, if ever. But even a plain listview of say
+--   10,000 items can take several seconds to load, even in assembly.
+--
+--  The check whether a directory contains files (under delayed loading)
+--   is somewhat suspect. Essentially it uses length(dir(path))>2, which
+--   may mean building a table several thousand entries long just to see
+--   if there is anything more than "." and "..". Naturally, a simpler
+--   and better answer would be to use a function which returns true the 
+--   moment it finds a (real) file, false if it finds no files.
+--   The pdir.e file as distributed with Phix could be used to craft
+--   such a routine, ie replacing res={}/res=append() with filecount=0/
+--   filecount+=1/if filecount>2 then return 0|1 (that source is windows 
+--   only but would be equally viable on Eu and Phix).
+--
+
+integer freelist    -- of treeItems
+        freelist=0
+
+
+function caseInsensitiveSort(sequence s1,sequence s2)
+    return compare(upper(s1[D_NAME]),upper(s2[D_NAME]))
+end function
+
+atom tRoot
+sequence dname
+
+function getFreeTreeEntry()
+-- common code to add/reuse a treeItem entry
+integer treeIdx
+    if freelist then
+        treeIdx = freelist
+        freelist = treeItems[freelist]
+    else
+        treeItems = append(treeItems,0)
+        treeIdx = length(treeItems)
+    end if
+    return treeIdx
+end function
+
+function loadTree(integer pidx, sequence path, integer iIcon)
+--
+--  Load the specified path, to the level of immediate subdirectories only.
+--   eg loading C:\ will create a node for that, plus ones for (eg)
+--      C:\arrdvarks to C:\windows but no deeper. This allows C:\ to be 
+--      expanded/collapsed. All directories get properly set with/without 
+--      children flags, and therefore the correct '+' gui markers.
+--      It is only (unloaded) nodes with child subdirectories that get a 
+--      0 left in treeItems[treeIdx][tLoaded], everything else gets a 1.
+--
+--  pidx should be 0 for eg "C:", despite the fact that technically it is a child of "My Computer"
+--      Of course "My Computer" isn't loaded by this routine (see loadAllDrives(), next).
+--  path should be full. Note that if you have C:\Program Files\Phix\asm, with no subdirectories, 
+--      then this is called with "C:", "C:\\Program Files" and "C:\\Program Files\\Phix", but not 
+--      with "C:\\Program Files\\Phix\\asm", because the last call (of C:\\Program Files\\Phix) 
+--      uses hasChildren=0 both to suppress the gui "+" and set tLoaded to 1.
+--  iIcon is only used/non-0 from loadAllDrives, when pidx=0, and contains an index into the 
+--      system image list, which is already associated with TV.
+--
+--  returns 1 if there are children (ie sub*directories*), else 0.
+--
+sequence root   -- (path less the final '\\')
+integer lp
+atom parent, handle
+object d, d2
+integer hasChildren, ld
+sequence name
+integer treeIdx
+integer iSel        -- (selected version of iIcon)
+
+    lp = length(path)
+    if path[lp]='\\' then
+        lp -= 1
+        root = path[1..lp]
+    else
+        root = path
+        path &= '\\'
+    end if
+
+    if pidx then
+        iIcon = SI_FOLDER_CLOSED
+        iSel = SI_FOLDER_OPEN
+    else
+        iSel = iIcon
+    end if
+
+    d = dir(path)   -- DEV retrieve dir only (create a custom version of dir()??)
+    if sequence(d) then
+        if equal(d[1][1],".") then d = d[3..length(d)] end if
+        ld = 0 --length(d)
+        for i=1 to length(d) do
+            if find('d',d[i][D_ATTRIBUTES]) then        -- only keep directories
+                ld += 1
+                d[ld] = d[i]
+            end if
+        end for
+        d = d[1..ld]
+    end if
+
+    if sequence(d) and length(d) then
+        if pidx=0 then
+            -- add the root parent only once we know whether it has children
+            pidx = getFreeTreeEntry()
+            parent = addTVItem(TV,tRoot,pidx,iIcon,iSel,1)
+            treeItems[pidx] = {parent,root,1,0,dname,dLast} -- {handle,txt,loaded,parent[,dname,dlink]}
+            dLast = pidx
+            nDrives += 1
+        else
+            parent = treeItems[pidx][tHandle]
+        end if
+        d = custom_sort(routine_id("caseInsensitiveSort"),d)
+        for i=1 to length(d) do
+            --
+            -- delay the full load, but set the children marker now.
+            --
+            name = d[i][D_NAME]
+            d2 = dir(path&name)     --DEV as above, only more so (just want to know if any)
+            hasChildren = False
+            if sequence(d2) then
+                -- assume all subdirs start with . and ..
+                for j=3 to length(d2) do
+                    if find('d',d2[j][D_ATTRIBUTES]) then       -- only keep directories
+                        hasChildren = True
+                        exit
+                    end if
+                end for
+            end if
+            treeIdx = getFreeTreeEntry()
+            uFlags = SHGFI_SMALLICON+SHGFI_SYSICONINDEX
+            void = c_func(xSHGetFileInfo,{allocate_StringZ(path&name),0,SHFI,SHFI_len,uFlags})
+            iIcon = peek4u(SHFI+SHFILEINFO_iIcon)
+            if iIcon=SI_FOLDER_CLOSED then
+                iSel = SI_FOLDER_OPEN
+            else
+                iSel = iIcon
+            end if
+            -- if no children, mark as loaded, else leave as unloaded:
+            treeItems[treeIdx] = {0,name,not hasChildren,pidx} -- {handle,txt,loaded,parent[,dname,dlink]}
+            handle = addTVItem(TV,parent,treeIdx,iIcon,iSel,hasChildren)
+--          handle = addTVItem(TV,parent,treeIdx,iIcon,SI_FOLDER_OPEN,hasChildren)
+            treeItems[treeIdx][tHandle] = handle
+        end for
+        return 1    -- hasChildren
+    elsif pidx=0 then
+        -- add the root parent only once we know whether it has children
+        treeIdx = getFreeTreeEntry()
+        handle = addTVItem(TV,tRoot,treeIdx,iIcon,iIcon,0)
+        treeItems[treeIdx] = {handle,root,0,0,dname,dLast} -- {handle,txt,loaded,parent[,dname,dlink]}
+        dLast = treeIdx
+        nDrives += 1
+    end if
+    return 0        -- does not have Children
+end function
+
+--with trace
+procedure loadAllDrives()
+integer buflen
+atom buffer, pDrive
+sequence onedrive
+integer drivetype
+atom handle
+integer treeIdx
+atom hSysil -- system image list
+--trace(1)
+    treeIdx = getFreeTreeEntry()
+--if treeIdx!=1 then ?9/0 end if    -- OK
+    tRoot = addTVItem(TV,NULL,treeIdx,SI_MYCOMPUTER,SI_MYCOMPUTER,1)
+    treeItems[treeIdx] = {tRoot,"My Computer",1,0} -- {handle,txt,loaded,parent[,dname,dlink]}
+    -- Note: while everything else is a (sub)child of tRoot, the final
+    --       treeItems[treeIdx][tPidx] is 0, not linked to record 1.
+
+    buflen = c_func(xGetLogicalDriveStrings,{0,NULL})
+    buffer = allocate(buflen)
+    void = c_func(xGetLogicalDriveStrings,{buflen,buffer})
+    dLast = 0
+    nDrives = 0
+    pDrive = buffer
+    while 1 do
+        onedrive = upper(peek_string(pDrive))
+        buflen = length(onedrive)
+        if buflen=0 then exit end if
+        -- get a handle to the system image list, and a drive icon
+        uFlags = SHGFI_SMALLICON+SHGFI_SYSICONINDEX+SHGFI_DISPLAYNAME
+        hSysil = c_func(xSHGetFileInfo,{pDrive,0,SHFI,SHFI_len,uFlags})
+        if length(treeItems)=1 then
+            void = sendMessage(TV,TVM_SETIMAGELIST,TVSIL_NORMAL,hSysil)
+            hSiml = hSysil
+            void = sendMessage(LV,LVM_SETIMAGELIST,LVSIL_SMALL,hSysil)
+        end if
+        drivetype = peek4u(SHFI+SHFILEINFO_iIcon)
+        dname = peek_string(SHFI+SHFILEINFO_szDisplayName)
+--printf(1,"%s: DisplayName: %s\n",{onedrive,dname})
+--if getc(0) then end if
+
+        if c_func(xGetDriveType,{pDrive})=DRIVE_REMOVABLE then  -- skip floppies (user must key F5)
+            -- skip floppies (etc) at first
+            treeIdx = getFreeTreeEntry()
+            handle = addTVItem(TV,tRoot,treeIdx,drivetype,drivetype,1)
+-- 25/07/2010: (makes rather a big difference!)
+--          treeItems[treeIdx] = {handle,onedrive,1,0,dname,dLast}
+            treeItems[treeIdx] = {handle,onedrive,0,0,dname,dLast} -- {handle,txt,loaded,parent[,dname,dlink]}
+            dLast = treeIdx
+            nDrives += 1
+        else
+            void = loadTree(0,onedrive[1..-2],drivetype)
+        end if
+        pDrive += buflen+1  -- skip trailing/separating nulls
+    end while
+    free(buffer)
+end procedure
+loadAllDrives()
+
+
+function getTreeText(integer treeIdx, integer fullpath)
+-- gets the text of the treeview item, optionally returning the full tree path.
+-- If fullpath is 0, the result is eg "ascii.bat";
+-- if fullpath is 1, the result is eg "C:\\Euphoria\\bin\\ascii.bat";
+--/** NB the following is not used/commented out in this program **/
+---- if fullpath is 2, the result is eg {"C:","Euphoria","bin","ascii.bat"}
+--   (the last case is more useful for trees which are not file directories)
+sequence text
+    if fullpath then
+--      if fullpath=1 then
+        text = treeItems[treeIdx][tText]
+        while 1 do
+            treeIdx = treeItems[treeIdx][tPidx]
+            if treeIdx=0 then exit end if
+            text = treeItems[treeIdx][tText]&'\\'&text
+        end while
+        return text
+--      else -- fullpath=2
+--          text = {treeItems[treeIdx][tText]}
+--          while 1 do
+--              treeIdx = treeItems[treeIdx][tPidx]
+--              if treeIdx=0 then exit end if
+--              text = prepend(text,treeItems[treeIdx][tText])
+--          end while
+--
+--          return text
+--      end if
+    end if
+    return treeItems[treeIdx][tText]
+end function
+
+procedure delTree(integer treeIdx)
+    for i=1 to length(treeItems) do
+        if sequence(treeItems[i]) and treeItems[i][tPidx]=treeIdx then
+--          printf(1,"Deleting %s\n",{treeItems[i][tText]})
+            delTree(i)
+            deleteTVItem(TV, treeItems[i][tHandle])
+            treeItems[i] = freelist
+            freelist = i
+        end if
+    end for
+end procedure
+
+procedure moveTree(integer fromIdx, integer toIdx, integer fMove)
+--
+-- fromIdx and toIdx are indexes into treeItems.
+-- fMove is 1 when called externally: actually move the file;
+-- whereas recursive calls do NOT want to do this as the entire
+-- directory has already been moved in one go - the point of 
+-- recursive calls is to update the treeview only.
+--
+integer loaded, parent
+integer eCode
+sequence tfrom, tto, emsg
+atom imode, dmode
+sequence ibest,dlast,this,test
+integer hasChildren, check
+atom hItem, newH
+integer iIcon, iSel
+    tfrom = getTreeText(fromIdx,1)
+    tto = getTreeText(toIdx,1)
+    loaded = treeItems[fromIdx][tLoaded]
+    if fMove then
+        tto &='\\'&getTreeText(fromIdx,0)
+        if not c_func(xMoveFile,{allocate_StringZ(tfrom),allocate_StringZ(tto)}) then
+            eCode = c_func(xGetLastError,{})
+            -- expand common error codes
+            if eCode=183 then
+                emsg = "[ERROR_ALREADY_EXISTS]"
+            else
+                emsg = ""
+            end if
+            emsg = sprintf("Move %s to %s\n\n Failure Code %d%s",{tfrom,tto,eCode,emsg})
+            void = messageBox("MoveFile Error",emsg,0)
+            -- leave tree as-is then
+            return
+        end if
+    end if
+    hItem = treeItems[fromIdx][tHandle] -- deleted at end
+    if treeItems[toIdx][tLoaded]=1 then
+        iIcon = getTVicon(TV,hItem)
+        iSel = iSelectedImage   -- (iSelectedImage is set by getTVicon)
+        check = isTVChecked(TV,hItem)
+        if loaded=-1 then
+--DEV don't think this can happend anymore...
+            hasChildren = 0
+        else
+            hasChildren = getTVChildFlag(TV,hItem)
+        end if
+        parent = treeItems[fromIdx][tPidx]
+
+        -- put the moved item in the right place:
+        -- TVI_SORT won't work because we put directories out first.
+        -- set imode to TVI_FIRST or handle of item to insert after.
+        -- note there is no particular guarantee that treeItems are
+        -- in any way sorted or grouped, not after external updates,
+        -- F5, and the knock-on effects of freelist, anyway.
+
+        imode = TVI_FIRST   -- default if no files found
+        dlast = ""          -- init highest dir yet found (loaded=-1 only)
+        dmode = TVI_FIRST   -- default if no dirs found
+        ibest = ""          -- init highest file (lower than this) yet found
+        this = upper(treeItems[fromIdx][tText])
+        for i=1 to length(treeItems) do
+            if treeItems[i][tPidx]=toIdx then
+                if loaded=-1 then -- drag item is a leaf (file)
+--DEV don't think this can happen anymore, now TV has no leaf nodes? (still valid in demo_treeview.exw, btw)
+                    if treeItems[i][tLoaded]=-1 then    -- look at leaf nodes then
+                        -- save highest file less than this:
+                        test = upper(treeItems[i][tText])
+                        if compare(this,test)>0         -- dragitem after treeItems[i]
+                        and compare(test,ibest)>0 then  -- nowt better than treeItems[i] yet found
+                            ibest = test
+                            imode = treeItems[i][tHandle]
+                        end if
+                    elsif imode=TVI_FIRST then  -- no pre-file found yet
+                        -- save highest dir (to insert after)
+                        test = upper(treeItems[i][tText])
+                        if compare(test,dlast)>0 then
+                            dlast = test
+                            dmode = treeItems[i][tHandle]
+                        end if
+                    end if
+                else -- dragitem is a dir
+                    if treeItems[i][tLoaded]!=-1 then   -- look at dirs then
+                        -- save highest dir less than this (or stick with TVI_FIRST)
+                        test = upper(treeItems[i][tText])
+                        if compare(this,test)>0
+                        and compare(test,ibest)>0 then
+                            ibest = test
+                            imode = treeItems[i][tHandle]
+                        end if
+                    end if
+                end if
+            end if
+        end for
+        if loaded=-1 and imode=TVI_FIRST then
+--ditto
+            -- insert after highest dir if no lower files found
+            -- dmode is still TVI_FIRST if no directories found
+            imode = dmode
+        end if
+        setTVInsertMode(imode)
+--DEV useSH (think this is OK, needs proper retest)
+        newH = addTVItem(TV,treeItems[toIdx][tHandle],fromIdx,iIcon,iSel,hasChildren)
+        treeItems[fromIdx][tHandle] = newH
+        setTVCheck(TV,newH,check)
+    
+        setTVInsertMode(TVI_LAST)   -- restore normal insertion behaviour
+        
+        treeItems[fromIdx][tPidx] = toIdx
+        setTVChildFlag(TV, treeItems[toIdx][tHandle],1) -- toIdx definitely now has children
+ 
+        if parent then
+            for i=1 to length(treeItems) do
+                if treeItems[i][tPidx]=parent then  -- still has children, do nowt
+                    parent = 0
+                    exit
+                end if
+            end for
+            if parent then
+                -- no children remain, clear TVITEM_cChildren
+                setTVChildFlag(TV, treeItems[parent][tHandle],0)
+            end if
+        end if
+
+        if loaded=1 then    -- move any existing treeview sub-items then
+            for i=1 to length(treeItems) do
+                if treeItems[i][tPidx]=fromIdx then
+                    moveTree(i,fromIdx,0)
+                end if
+            end for
+        end if
+    else
+        -- target (new parent) is not loaded (/not yet expanded)
+--      delTree(fromIdx)    -- doh! not needed, obviously!
+        -- put now unused record onto the freelist
+        -- (item will appear automatically when new parent is expanded)
+        treeItems[fromIdx] = freelist -- and item itself
+        freelist = fromIdx
+    end if
+    deleteTVItem(TV, hItem)
+end procedure
+
+procedure purgefreelist()
+-- shrink treeItems as much as possible
+integer newmax,k, flscan
+    --
+    -- work out new extent of treeItems
+    --
+    newmax = 0
+    for i=length(treeItems) to 1 by -1 do
+        if sequence(treeItems[i]) then
+            newmax = i
+            exit
+        end if
+    end for
+    --
+    -- Remove all entries at the start of the freelist 
+    --  which are past the new extent.
+    --  (eg if newmax is 4 and freelist is 10,3,7,1 then
+    --   set freelist to 3).
+    --
+    while freelist>newmax do
+        freelist = treeItems[freelist]
+    end while
+    --
+    -- Remove any embedded entries in the remaining 
+    --  freelist which refer past the new extent
+    --  (eg if newmax is 4 and freelist is 3,7,1 then
+    --   set freelist to 3,1)
+    --
+    flscan = freelist
+    while flscan do
+        k = treeItems[flscan]
+        if k>newmax then
+            treeItems[flscan] = treeItems[k]
+        else
+            flscan = k
+        end if
+    end while
+    --
+    -- and finally shrink the table
+    --
+    treeItems = treeItems[1..newmax]
+end procedure
+
+--
+-- Select a previous item (does nothing if not found):
+--
+--with trace
+procedure selectPreviousItem(sequence previtem)
+sequence this
+integer previdx, pidx, loaded
+atom hItem
+object tip
+--trace(1)
+    previdx = 1
+    --
+    -- Use a while loop rather than a for loop as  
+    --  treeItems may get extended by loadTree.
+    --
+    hItem = 0
+    pidx = 0
+    previtem = upper(previtem)
+    while previdx<=length(treeItems) do
+        tip = treeItems[previdx]
+        if sequence(tip) and tip[tPidx]=pidx then
+            this = upper(tip[tText])
+            if match(this,previtem)=1 then
+                pidx = previdx
+                loaded = tip[tLoaded]
+                hItem = tip[tHandle]
+                if loaded=-1 then exit end if       -- a leaf node
+                if length(previtem)=length(this) then exit end if   -- or directory selected
+                if not loaded then  -- subdir needs loading
+                    tip = 0 -- kill refcount
+                    treeItems[previdx][tLoaded] = 1
+                    void = loadTree(previdx,getTreeText(previdx,1),0)
+                end if
+                -- chop target by dir and trailing '\'
+                previtem = previtem[length(this)+2..length(previtem)]
+            end if
+        end if
+        previdx += 1
+    end while
+    if hItem then
+        void = sendMessage(TV,TVM_SELECTITEM,TVGN_CARET,hItem)
+        void = sendMessage(TV,TVM_EXPAND,TVE_TOGGLE,hItem)
+    end if
+end procedure
+
+--DEV ini file??
+--selectPreviousItem("C:\\")
+--selectPreviousItem("C:\\WINDOWS\\Desktop")
+selectPreviousItem("C:\\AAAAAA")
+--selectPreviousItem(lastDirectory)
+
+
+function non_sensible(integer treeIdx)
+--
+-- Simple trap on a few daft/dangerous things,
+--  ie/eg attempts to drag/rename C:\\Windows.
+-- Feel free to add anything else here that you
+--  think should also be disallowed (and let me
+--  know). Of course you can also delete things
+--  from this list - just don't then blame me!!
+-- (BTW, I never actually tried to actually do
+--  any of these - some may already be covered 
+--  by in use errors/lower level checks..?)
+--
+sequence utxt
+    utxt = upper(getTreeText(treeIdx,1))
+    if find(utxt,
+            {"C:\\WINDOWS",
+             "C:\\PROGRAM FILES",
+             "C:\\MY DOCUMENTS",
+             "C:\\EUPHORIA",
+             "C:\\RECYCLED",
+             "C:",
+             "C:\\AUTOEXEC.BAT",
+             "C:\\COMMAND.COM",
+             "C:\\CONFIG.SYS",
+             "C:\\IO.SYS",
+             "C:\\MSDOS.SYS",
+             "C:\\MSDOS.---",
+             "C:\\VIDEOROM.BIN"}) then
+        void = messageBox("Erm","Don't try that on\n\n"&utxt&"\n\n"&
+                          "See function non_sensible().",0)
+        return 1
+    end if
+    return 0    -- OK to carry on
+end function
+
+constant TVI = allocate(sizeofstruct(TVITEM)) -- rqd for checkbox off
+
+integer g_fDragging
+        g_fDragging = False
+
+constant ht = allocate(sizeofstruct(HITTESTINFO))
+
+atom htiTarget, htiParent, hDrag, himl2
+integer tvItemHeight, dragIdx
+
+constant NoEntryCursor = loadCursor(IDC_NO),
+         ArrowCursor = loadCursor(IDC_ARROW)
+
+atom dragCursor -- also used as test in WM_LBUTTONUP
+
+--DEV: add to constants.ew:
+constant ETO_OPAQUE = 2
+
+integer wasTreeIdx
+        wasTreeIdx = 0
+
+constant SXlen = sizeofstruct(SHELLEXECUTEINFO),
+         SX = allocate(SXlen)
+
+constant LVI = allocate(sizeofstruct(LVITEM))
+
+integer MCpWhat     -- TV or LV, set when menu opened
+
+--with trace
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+integer lvIdx
+integer sortstart
+integer LVlen
+integer r1,r2,r3,r4
+integer k
+integer x, y
+atom msg_pos
+sequence sizeinfo
+integer flag
+atom style
+atom state
+integer treeIdx
+sequence text
+integer len
+atom mem
+atom pRect
+atom lpRect
+atom lpText
+atom hDC
+integer width
+atom hBmp
+atom pDC
+atom hItem
+integer hasChildren
+integer dts
+integer tvicons, tvcheck
+sequence rd2
+sequence selset, file
+atom tvItem, newItem
+sequence verb
+integer setlen
+
+    if id=TV and msg=WM_CHAR and wParam=VK_ESCAPE then
+        closeWindow(Main)
+--DEV tryme:
+--  elsif id=TV and (msg=WM_LBUTTONDBLCLK or
+--                     (msg=WM_CHAR and wParam=VK_RETURN)) then
+    elsif (msg=WM_CHAR and id=TV and wParam=VK_RETURN)
+       or (msg=WM_LBUTTONDBLCLK and id=TV) then
+--trace(1)
+        treeIdx = getIndex(TV)
+--DEV search for other similar (treeview no longer gets any leaf nodes)
+--      if treeIdx and treeItems[treeIdx][tLoaded]=-1 then  -- a leaf node
+--          void = messageBox("Selected",getTreeText(treeIdx,1),0)
+----            closeWindow(Main)
+--          setFocus(TV)
+--      else
+        void = sendMessage(TV,TVM_EXPAND,TVE_TOGGLE,treeItems[treeIdx][tHandle])
+--      end if
+        return {0}
+
+    elsif msg=WM_CHAR then
+        if find(id,MainIds) then    -- {Main,LV}
+            if wParam=12 then               loadDir(lpath)  -- Ctrl L (Refresh Local)
+            elsif wParam=VK_ESCAPE then     closeWindow(Main)
+            end if
+        elsif find(id,RNids) then   -- {RN,RNas,RNOK,RNcncl}
+            if wParam=VK_RETURN then        rencd()
+            elsif wParam=VK_ESCAPE then     closeWindow(RN)
+            end if
+        else
+--          -- Probable cause: a button or other input field has been
+--          -- added somewhere but not included in any id-list.
+--          void = messageBox("Unhandled WM_CHAR",sprintf("id is %d",id),0)
+            return {0}
+        end if
+        
+    elsif msg=WM_COMMAND then
+        if    id=MCedita then                           EditWithEdita()
+        elsif id=MFexit then                            closeWindow(Main)
+        elsif id=MV_rfl then                            loadDir(lpath)
+        elsif id=MCrefresh then                         loadDir(lpath)  --DEV should this do the tree (instead)?
+        elsif id=MCrename then                          openRN(id,RENAME)       -- Rename (F2)
+        elsif id=RNOK then                              rencd()
+        elsif id=RNcncl then                            closeWindow(RN)
+        elsif id=M_Ccd then                             openRN(id,CREATEDIR)    -- Create directory
+        elsif id=MCdelete then                          confirmdelete(id)
+        elsif id=M_Chg then                         -- Change drive [???]
+            void = selectDirectory(0,0,0)
+            if length(void) then
+                loadDir(void)
+            end if
+        elsif id=MCproperties
+           or id=MCopenwith
+           or id=MFproperties
+           or id=MFopenwith then
+            if id=MCopenwith
+            or id=MFopenwith then
+                verb = "openas"
+            else
+                verb = "properties"
+            end if
+--DEV
+--Verbs for lpVerb:
+--
+--"open"      - see MSDN
+--"openas"  - Opens dialog when no program is associated to the extension
+--"opennew"  - see MSDN
+--"edit"      - see MSDN    
+--"explore"  - see MSDN
+--"properties"  - see MSDN
+--"copy"      - see MSDN    \ No good for >1 file!
+--"cut"      - see MSDN     /
+--"delete"  - see MSDN     /
+--"paste"    - see MSDN
+--"pastelink"    - pastes a shortcut
+--"print"    - see MSDN
+--"printto"  - see MSDN
+--"find"      - see MSDN
+
+            if MCpWhat=TV then  -- (set onFocus)
+                mem_set(SX,0,SXlen)
+                poke4(SX + SHELLEXECUTEINFO_cbSize,SXlen)
+                poke4(SX + SHELLEXECUTEINFO_fMask,#C)       --DEV proper name
+                poke4(SX + SHELLEXECUTEINFO_hwnd,mainHwnd)
+                poke4(SX + SHELLEXECUTEINFO_lpVerb,allocate_StringZ(verb))
+                poke4(SX + SHELLEXECUTEINFO_lpFile,allocate_StringZ(lpath))
+                void = c_func(xShellExecuteEx,{SX})
+            elsif MCpWhat=LV then
+                selset = getLVSelected(LV)
+                setlen = length(selset)
+                if setlen then
+                    if setlen>1 then
+                        -- if you can figure out how to show the properties of >1 file then..
+                        void = messageBox("Sorry","ShellExecuteEx only works on a single file",0)
+                    else
+                        -- (may need space handling)
+                        lvIdx = selset[1]
+                        file = lpath&LVdata[lvIdx][D_Name]
+                        mem_set(SX,0,SXlen)
+                        poke4(SX + SHELLEXECUTEINFO_cbSize,SXlen)
+--DEV
+--SEE_MASK_INVOKEIDLIST = #C
+                        poke4(SX + SHELLEXECUTEINFO_fMask,#C)
+                        poke4(SX + SHELLEXECUTEINFO_hwnd,mainHwnd)
+                        poke4(SX + SHELLEXECUTEINFO_lpVerb,allocate_StringZ(verb))
+                        poke4(SX + SHELLEXECUTEINFO_lpFile,allocate_StringZ(file))
+--                      poke4(SX + SHELLEXECUTEINFO_lpDirectory,allocate_StringZ(lpath))
+--                      poke4(SX + SHELLEXECUTEINFO_nShow,SW_SHOW)
+                        void = c_func(xShellExecuteEx,{SX})
+                    end if
+                end if
+            end if
+
+        elsif id=MH_about then
+            mainHelp()
+        elsif id=MVtvicons then -- show treeview icons
+            flag = not isChecked(MVtvicons)
+            setCheck(MVtvicons,flag)
+            if flag then
+                void = sendMessage(TV,TVM_SETIMAGELIST,TVSIL_NORMAL,hSiml)
+            else
+                void = sendMessage(TV,TVM_SETIMAGELIST,TVSIL_NORMAL,NULL)
+            end if
+        elsif id=MVtvcheck then -- show treeview checkboxes
+            tvcheck = not isChecked(MVtvcheck)
+            setCheck(MVtvcheck,tvcheck)
+            style = c_func(xGetWindowLong,{treeHwnd,GWL_STYLE})
+            if tvcheck then
+                style = or_bits(style,TVS_CHECKBOXES)
+            else
+                style = and_bits(style,not_bits(TVS_CHECKBOXES))
+                --
+                -- NOTE: Only for the incurably curious. You almost certainly
+                -- will never actually want to do this in real life. If you do, 
+                -- you will need to save (and restore) all the checked states.
+                -- (and_bits(state,#1000) is OFF; and_bits(state,#2000) is ON)
+                --      
+                mem_set(TVI,0,sizeofstruct(TVITEM))
+                poke4(TVI + TVITEM_mask, TVIF_STATE)
+                for i=1 to length(treeItems) do
+                    poke4(TVI + TVITEM_hItem, treeItems[i][tHandle])
+                    void = sendMessage(TV,TVM_GETITEM,0,TVI)
+                    state = peek4s(TVI + TVITEM_state)
+                    state = and_bits(state,#CFFF)   -- clear checked and unchecked bits
+                    poke4(TVI + TVITEM_state, state)
+                    poke4(TVI + TVITEM_stateMask, #3000) -- update ""
+                    void = sendMessage(TV,TVM_SETITEM,0,TVI)
+                end for
+            end if
+            void = c_func(xSetWindowLong,{treeHwnd,GWL_STYLE,style})
+
+        elsif id=MVlargeicons
+           or id=MVsmallicons
+           or id=MVlist
+           or id=MVdetail then
+--          wasdetail = detail
+            setCheck(MVdset[detail],False)  -- clear previous check
+            detail = find(id,MVdset)
+            setCheck(id,True)               -- (same as setCheck(MVdset[detail],True))
+            style = c_func(xGetWindowLong,{hw_LV,GWL_STYLE})
+            k = and_bits(style,3)      -- (3 is the same as or_all(MVstyle))
+            style -= k
+            if k=LVS_ICON and MVdone[3]=0 then
+--          if detail!=3 and MVdone[3]=0 then
+--          if id!=MVlist and MVdone[3]=0 then
+--          if id=MVlargeicons and MVdone[3]=0 then
+--          if id=MVsmallicons and MVdone[3]=0 then
+                -- Bugfix. Switching to small mode displays ridiculously
+                --  narrow columns. It seems that first putting it into 
+                --  list mode solves this, for some unknown reason...
+--              void = c_func(xSetWindowLong,{hw_LV,GWL_STYLE,style+LVS_LIST})
+--15/5 whatever it is, is getting worse... the above was once enough...
+                void = c_func(xSetWindowLong,{hw_LV,GWL_STYLE,style+LVS_LIST})
+                void = c_func(xSetWindowLong,{hw_LV,GWL_STYLE,style+LVS_REPORT})
+                void = c_func(xSetWindowLong,{hw_LV,GWL_STYLE,style+LVS_LIST})
+            end if
+            style += MVstyle[detail]
+            void = c_func(xSetWindowLong,{hw_LV,GWL_STYLE,style})
+            MVdone[detail] = 1
+--          if wasdetail=1 or detail=1 then
+            if hLiml=0 and detail=1 then
+                -- reload due to set hLiml/LVSIL_NORMAL if first time with large icons
+                loadDir(lpath)
+            end if
+        end if
+
+    elsif msg=WM_KEYDOWN then
+        if id=LV then
+            if wParam=VK_DELETE then            confirmdelete(id)
+--          elsif wParam=VK_F2 then             openRN(id,RENAME)
+            elsif wParam=VK_F2 then
+--trace(1)
+                if getLVSelectedCount(LV)=1 then
+                    selset = getLVSelected(LV)
+                    lvIdx = selset[1]
+                    addStyle(LV,LVS_EDITLABELS)
+--DEV this just allows the field edit, does not change file/data:
+                    void = sendMessage(LV,LVM_EDITLABEL,lvIdx-1,0)
+                end if
+            end if
+        elsif id=TV then
+            if wParam=VK_F2 then        -- rename
+                treeIdx = getIndex(TV)
+                if non_sensible(treeIdx) then return 0 end if
+                addStyle(TV,TVS_EDITLABELS)
+                void = sendMessage(TV,TVM_EDITLABEL,0,treeItems[treeIdx][tHandle])
+            elsif wParam=VK_F5 then     -- refresh
+                treeIdx = 0
+                if not getKeyState(VK_CONTROL) then
+                    if not getKeyState(VK_SHIFT) then
+                        treeIdx = getIndex(TV)
+                    end if
+                end if
+                if treeIdx then
+                    text = getTreeText(treeIdx,1) -- fullpath
+                    if treeItems[treeIdx][tLoaded]=-1 then      -- leaf node
+                        treeIdx = treeItems[treeIdx][tPidx]     -- refresh parent
+                    end if
+                    if treeItems[treeIdx][tLoaded] then
+                        void = sendMessage(TV,WM_SETREDRAW,False,0)
+                        delTree(treeIdx)
+                        purgefreelist()
+                        void = sendMessage(TV,WM_SETREDRAW,True,0)
+                    else
+                        treeItems[treeIdx][tLoaded] = 1
+                    end if
+                    hasChildren = loadTree(treeIdx,getTreeText(treeIdx,1),0)
+                    setTVChildFlag(TV,treeItems[treeIdx][tHandle],hasChildren)
+                    selectPreviousItem(text)
+                else
+                    void = sendMessage(TV,WM_SETREDRAW,False,0)
+                    delTree(0)
+                    void = sendMessage(TV,WM_SETREDRAW,True,0)
+                    purgefreelist()
+                    deleteTVItem(TV, TVI_ROOT) -- clear
+                    loadAllDrives()
+                end if
+            end if
+        end if
+
+    elsif msg=WM_MOUSEMOVE
+       or msg=WM_LBUTTONDOWN then
+
+        if msg=WM_MOUSEMOVE
+          and id=Main
+--       then
+            --
+        -- NOTE: 
+        --  Controls such as TV will get a 'raw' lParam
+        --  (ie an atom with y in hiWord and x in loWord)
+        --  whereas windows such as Main get an {x,y} sequence.
+        --  This is because (I think!) WndProc calls isMouseMsg
+        --  and proc_MouseMessage, whereas SubProc does not.
+        -- (WndProc, SubProc, etc are defined in arwen.ew)
+        --
+        --      if 
+        and g_fDragging and sequence(lParam) then
+
+            if not c_func(xImageList_DragMove, lParam) then
+                puts(1,"ImageList_DragMove error\n")
+            end if
+
+            rect = getClientCoords(TV)
+
+            poke4(ht+LVHITTESTINFO_ptX,lParam[1]-rect[1])
+            poke4(ht+LVHITTESTINFO_ptY,lParam[2]-rect[2])
+
+            if not c_func(xImageList_DragShowNolock,{False}) then
+                puts(1,"ImageList_DragShowNolock error[0]\n")
+            end if
+            htiTarget = sendMessage(TV,TVM_HITTEST,0,ht)
+            -- select or clear current drop highlight
+            -- (ie we still call this if htiTarget=NULL):
+            if not sendMessage(TV,TVM_SELECTITEM,TVGN_DROPHILITE,htiTarget) then
+                puts(1,"TVGN_DROPHILITE error\n")
+            end if
+
+            -- Check whether drop target is one of none, existing parent, 
+            -- self, subfolder of self, or non-dir; if so make cursor no-entry.
+
+            if htiTarget=NULL                   -- cannot drag off screen
+            or htiTarget=hDrag                  -- ..or onto itself
+            or htiTarget=htiParent then         -- ..or into the parent it is already in
+                dragCursor = NoEntryCursor
+            else
+                dragCursor = ArrowCursor
+                for i=1 to length(treeItems) do
+                    if htiTarget=treeItems[i][tHandle] then
+                        treeIdx = i
+                        while treeIdx do
+                            if treeItems[treeIdx][tLoaded]=-1           -- .. or into a leaf node(non-dir)
+                            or treeItems[treeIdx][tHandle]=hDrag then   -- .. or into a subdir of itself
+                                dragCursor = NoEntryCursor
+                                exit
+                            end if
+                            treeIdx = treeItems[treeIdx][tPidx]
+                        end while
+                        exit
+                    end if
+                end for
+            end if
+            void = setCursor(dragCursor)
+
+            if htiTarget!=NULL then
+
+                -- scroll if needed:
+                hItem = htiTarget
+                if lParam[2]<=rect[2]+tvItemHeight then -- mouse pointer at top of treeview
+                    hItem = sendMessage(TV,TVM_GETNEXTITEM,TVGN_PREVIOUSVISIBLE,htiTarget)
+                    if hItem=NULL then
+                        hItem = htiTarget
+                    end if
+                elsif lParam[2]>=rect[4]-tvItemHeight then -- mouse at bottom of treeview
+                    hItem = sendMessage(TV,TVM_GETNEXTITEM,TVGN_NEXTVISIBLE,htiTarget)
+                    if hItem=NULL then
+                        hItem = htiTarget
+                    end if
+                end if
+                void = sendMessage(TV,TVM_ENSUREVISIBLE,0,hItem)
+            end if
+            if not c_func(xImageList_DragShowNolock,{True}) then
+                puts(1,"ImageList_DragShowNolock error[1]\n")
+            end if
+
+        else
+
+            isWECursor = 0
+            if sequence(lParam) then
+                x = lParam[1]
+                y = lParam[2]
+            else
+                x = and_bits(lParam, #FFFF)
+                if x>32767 then
+                    x -= 65536
+                end if
+                y = floor(lParam / #10000)
+                if y>32767 then
+                    y -= 65536
+                end if
+            end if
+--?{x,y,LVrect}
+--setText(Main,ppf({x,y,LVrect})) --sprintf("x:%d y:%d",{x,y}))
+            if y>=LVrect[2]+5 and y<=LVrect[4]-5
+--          and x>=LVrect[3]-5 and x<=LVrect[3]+5 then
+            and x>=LVrect[1]-5 and x<=LVrect[1]+5 then
+                isWECursor = 1
+                void = setCursor(SizeWECursor)
+            end if
+--      end if
+
+            if msg=WM_LBUTTONDOWN then
+                isSizing = isWECursor
+                if isSizing then
+                    WExStart = x
+--                  void = setCursor(SizeWECursor)
+                    captureMouse(Main)
+                end if
+            end if
+
+            if msg=WM_MOUSEMOVE and and_bits(wParam,MK_LBUTTON) and isSizing then
+                LVwidth += WExStart-x
+                WExStart = x
+                void = sendMessage(Main,WM_SIZE,0,0)
+            end if
+
+        end if
+
+    elsif msg=WM_LBUTTONUP and isSizing then
+        isSizing = 0
+        releaseMouse()
+
+    elsif msg=WM_RBUTTONDOWN then
+        x = and_bits(lParam, #FFFF)
+        y = floor(lParam / #10000)
+        poke4(ht+LVHITTESTINFO_ptX,x)
+        poke4(ht+LVHITTESTINFO_ptY,y)
+        if id=TV then
+--          MCpWhat = TV
+            setFocus(TV)
+            htiTarget = sendMessage(TV,TVM_HITTEST,0,ht)
+            void = sendMessage(TV,TVM_SELECTITEM,TVGN_CARET,htiTarget)
+            return {0}  -- rqd, if we ever want to see the WM_RBUTTONUP
+        elsif id=LV then
+--          MCpWhat = LV
+            setFocus(LV)
+            htiTarget = sendMessage(LV,LVM_HITTEST,0,ht)
+            poke4(LVI+LVITEM_mask,LVIF_STATE)
+            poke4(LVI+LVITEM_stateMask,LVIS_SELECTED+LVIS_FOCUSED)
+            state = sendMessage(LV,LVM_GETITEMSTATE,htiTarget,LVIS_SELECTED+LVIS_FOCUSED)
+            if not and_bits(state,LVIS_SELECTED) then
+                if not getKeyState(VK_SHIFT) then
+                    if not getKeyState(VK_CONTROL) then
+                        -- kill any existing selections
+                        selset = getLVSelected(LV)
+                        poke4(LVI+LVITEM_state,0)
+                        for i=1 to length(selset) do
+                            k = selset[i]
+                            void = sendMessage(LV,LVM_SETITEMSTATE,k-1,LVI)
+                        end for
+                    end if
+                end if
+                setIndex(LV,htiTarget+1)
+            elsif not and_bits(state,LVIS_FOCUSED) then
+                k = getIndex(LV)
+                if k then
+                    poke4(LVI+LVITEM_state,LVIS_SELECTED)
+                    void = sendMessage(LV,LVM_SETITEMSTATE,k-1,LVI)
+                end if
+                poke4(LVI+LVITEM_state,LVIS_SELECTED+LVIS_FOCUSED)
+                void = sendMessage(LV,LVM_SETITEMSTATE,htiTarget,LVI)
+            end if
+--DEV 10/5/09:
+--      poke4(LVI+LVITEM_state,0)
+--      void = sendMessage(id,LVM_SETITEMSTATE,ObjectExtra[id][3] - 1,LVI)
+--      poke4(LVI+LVITEM_state,LVIS_SELECTED+LVIS_FOCUSED)
+--      void = sendMessage(id,LVM_SETITEMSTATE,selection-1,LVI)
+--      ObjectExtra[id][3] = selection
+--      void = sendMessage(id,LVM_ENSUREVISIBLE,selection-1,0)
+
+--          setIndex(LV,htiTarget+1)
+--          if not setLVSelected(LV,htiTarget) then
+----87 = ERROR_INVALID_PARAMETER
+--              ?getLastError()
+--          end if
+--global function setLVSelected(integer id, atom item)
+--  poke4(LVI+LVITEM_mask,LVIF_STATE)
+--  poke4(LVI+LVITEM_state,LVIS_SELECTED)
+--  poke4(LVI+LVITEM_stateMask,-1)
+--  poke4(LVI+LVITEM_iItem,item)
+--  poke4(LVI+LVITEM_iSubItem,0)
+--  return sendMessage(id, LVM_SETITEM, 0, LVI)
+--end function
+
+            return {0}  -- rqd, if we ever want to see the WM_RBUTTONUP
+        end if
+
+    elsif msg=WM_SETFOCUS then
+        if id=TV or id=LV then
+            MCpWhat = id
+        end if
+    elsif msg=WM_LBUTTONUP
+       or msg=WM_RBUTTONUP then
+        if g_fDragging then
+            if not c_func(xImageList_DragLeave,{treeHwnd}) then
+                puts(1,"ImageList_DragLeave error\n")
+            end if
+
+            if not c_func(xImageList_EndDrag,{}) then
+--hmm:
+--              puts(1,"ImageList_EndDrag error\n")
+            end if
+
+            if not isChecked(MVtvicons) then
+                if not c_func(xImageList_Destroy,{himl2}) then
+                    puts(1,"ImageList_Destroy error\n")
+                end if
+            end if
+
+--          if msg!=WM_RBUTTONUP then
+
+            -- See WM_MOUSEMOVE; test true if drop target is valid
+            if dragCursor=ArrowCursor then
+                treeIdx = -1
+                for i=1 to length(treeItems) do
+                    if htiTarget=treeItems[i][tHandle] then
+                        treeIdx = i
+                        exit
+                    end if
+                end for
+                moveTree(dragIdx,treeIdx,1)
+            end if
+            if not sendMessage(TV,TVM_SELECTITEM,TVGN_DROPHILITE,NULL) then
+                puts(1,"TVGN_DROPHILITE error(0)[2]\n")
+            end if
+
+            releaseMouse()
+            void = c_func(xShowCursor,{True})
+            g_fDragging = False
+
+            --end if (msg!=WM_RBUTTONUP)
+--      elsif msg=WM_RBUTTONUP then --DEV popup menu?
+        elsif msg=WM_RBUTTONUP then
+--?{id,msg,wParam,lParam}
+            if id=TV then
+--DEV save this from WM_RBUTTONDOWN!
+                rect = getClientCoords(TV)
+                x = and_bits(lParam, #FFFF)-rect[1]
+                y = floor(lParam / #10000) -rect[2]
+                poke4(ht+LVHITTESTINFO_ptX,x)
+                poke4(ht+LVHITTESTINFO_ptY,y)
+                htiTarget = sendMessage(TV,TVM_HITTEST,0,ht)
+                treeIdx = -1
+                for i=1 to length(treeItems) do
+                    if htiTarget=treeItems[i][tHandle] then
+--                      ? treeItems[i][tText]   -- GOOD!
+                        treeIdx = i
+--DEV: tgtType = tDirectory/disable some menu entries/store {TV/treeIdx} for use in WM_COMMAND
+                        setEnable(MCedita,False)
+                        exit
+                    end if
+                end for
+                setEnable(MCrename,treeIdx!=-1)
+            elsif id=LV then
+--DEV ditto!
+                x = and_bits(lParam, #FFFF)
+                y = floor(lParam / #10000)
+                poke4(ht+LVHITTESTINFO_ptX,x)
+                poke4(ht+LVHITTESTINFO_ptY,y)
+                htiTarget = sendMessage(LV,LVM_HITTEST,0,ht)
+--              ? LVdata[htiTarget+1][D_Name]   --GOOD!
+                setEnable(MCedita,(Ehwnd!=0 and htiTarget!=-1))
+            else
+                id = 0
+            end if
+            if id then
+--constant HT = allocate(sizeofstruct(HITTESTINFO))
+--  -- define HITTESTINFO structure for ListViews
+--  -- can also be used for TreeViews, with iSubItem unused.
+--  HITTESTINFO                     = new_struct(),
+--  LVHITTESTINFO_ptX               = struc(C_LONG),
+--  LVHITTESTINFO_ptY               = struc(C_LONG),
+--  LVHITTESTINFO_flags             = struc(C_UINT),
+--  LVHITTESTINFO_iItem             = struc(C_LONG),
+--  LVHITTESTINFO_iSubItem          = struc(C_LONG),
+
+
+                -- get the mouse position in *Screen* coords
+                msg_pos = c_func(xGetMessagePos, {})
+                x = and_bits(msg_pos, #FFFF)
+                y = floor(msg_pos / #10000) 
+--?{msg_pos,x,y}
+                void = c_func(xTrackPopupMenu, {cmHwnd,
+                                                TPM_LEFTALIGN+TPM_RIGHTBUTTON,
+                                                x, y, 0, mainHwnd, NULL} )
+--trace(1)
+--DEV no help...
+--              return {0}  -- seems to be needed to prevent the listview going
+                            -- into some wierd selection mode...
+--return {-1}
+            end if
+        end if
+
+    elsif id=LV then
+--      if msg=WM_CHAR and wParam=VK_RETURN then
+--          msg = WM_NOTIFY
+--          wParam = LVN_ITEMACTIVATE
+--      end if
+        if msg=WM_NOTIFY then
+            if wParam=LVN_COLUMNCLICK then
+                SortColumn = lParam[1]
+                Sign = lParam[2]
+                sortstart = 1
+                LVlen = length(LVdata)
+                if LVlen and equal(LVdata[1][D_Name],"..") then
+                    sortstart = 2
+                end if
+                if SortColumn!=1 then
+                    dirSL = 0
+                end if
+                dirS = dirSL
+--setText(Main,sprintf("sort: SortColumn is %d, dirS is %d, Sign is %d",{SortColumn,dirS,Sign}))
+                LVdata[sortstart..LVlen] = custom_sort(routine_id("CompareSortColumn"),
+                                                       LVdata[sortstart..LVlen])
+                if SortColumn=1 and Sign=-1 then
+                    dirSL = not dirSL
+                end if
+                setIndex(id,-1) -- remove any selection
+                void = sendMessage(id, LVM_UPDATE, 0, 0)
+
+--          elsif wParam=LVN_ITEMCHANGED then  
+--              k = getLVSelectedCount(id)
+--              if k=0
+--              or (k=1
+--                  and id = LV and equal(LVdata[1][D_Name],"..")
+--                  and equal(getLVSelected(id),{1})) then
+--                  -- no items or '..' alone selected
+--                  k = 2 -- disabled icon
+--              else
+--                  k = 1 -- enabled icon
+--              end if
+            elsif wParam=LVN_ITEMACTIVATE then
+                lvIdx = getIndex(id)
+                selset = getLVSelected(LV)
+                if length(selset) then
+                    if lvIdx!=selset[1] then
+                        trace(1)
+                        lvIdx = getIndex(id)
+                    end if
+                end if
+--setText(Main,sprintf("D_Icon=%d",LVdata[lvIdx][D_Icon]))
+--setText(Main,sprintf("D_Name=%s",LVdata[lvIdx][D_Name]))
+                if LVdata[lvIdx][D_Dir] then                -- change directory
+--trace(1)
+                    setIndex(LV,-1)
+                    loadDir(cleanUpPath(lpath&LVdata[lvIdx][D_Name]))
+                    selectPreviousItem(lastpath)
+--return {1}
+                else
+                    file = LVdata[lvIdx][D_Name]
+                    mem_set(SX,0,SXlen)
+                    poke4(SX + SHELLEXECUTEINFO_cbSize,SXlen)
+--SEE_MASK_INVOKEIDLIST = #C
+--Const SEE_MASK_DOENVSUBST = &H200
+                    poke4(SX + SHELLEXECUTEINFO_fMask,#C)
+--                  poke4(SX + SHELLEXECUTEINFO_fMask,#20C)
+--                  poke4(SX + SHELLEXECUTEINFO_fMask,#44C)
+                    poke4(SX + SHELLEXECUTEINFO_hwnd,mainHwnd)
+                    poke4(SX + SHELLEXECUTEINFO_lpVerb,allocate_StringZ("open"))
+                    poke4(SX + SHELLEXECUTEINFO_lpFile,allocate_StringZ(file))
+--                  poke4(SX + SHELLEXECUTEINFO_lpParameters,mem)
+                    poke4(SX + SHELLEXECUTEINFO_lpParameters,NULL)
+                    poke4(SX + SHELLEXECUTEINFO_lpDirectory,allocate_StringZ(lpath))
+--                  poke4(SX + SHELLEXECUTEINFO_lpParameters,mem)
+--                  poke4(SX + SHELLEXECUTEINFO_lpIDList,mem)
+                    poke4(SX + SHELLEXECUTEINFO_nShow,SW_SHOW)
+                    void = c_func(xShellExecuteEx,{SX})
+--                  free(mem)
+                end if
+--else
+--  if not find(wParam,{0,-12,-121,-155,3,-16,-113,-7,-2,-101,-8}) then
+--  ?wParam
+--  end if
+            end if
+        end if
+    elsif msg=WM_NOTIFY then
+        if wParam=TVN_SELCHANGED        -- selection changed, or
+        or wParam=NM_CUSTOMDRAW then    -- occurs after checkbox toggled (and others)
+            treeIdx = getIndex(TV)
+            if treeIdx then
+--          if treeIdx and wasTreeIdx!=treeIdx then
+--              if wasTreeIdx then
+--                  void = setTVicon(TV, treeItems[wasTreeIdx][tHandle], find(SI_FOLDER_CLOSED,rqdIcons)-1)
+--              end if
+                wasTreeIdx = treeIdx
+--              void = setTVicon(TV, treeItems[treeIdx][tHandle], find(SI_FOLDER_OPEN,rqdIcons)-1)
+                text = getTreeText(treeIdx,1)
+                if not equal(text,lastpath) then
+                    loadDir(text)
+                end if
+                setText(STATUS,sprintf("%s (%d[%d])",{text,
+                                                      isTVChecked(TV,treeItems[treeIdx][tHandle]),
+                                                      treeIdx}))
+--              setText(STATUS,ppf(getTreeText(treeIdx,2))) -- shows path as array
+            end if
+        elsif wParam=TVN_GETDISPINFO then
+            tvItem = lParam + TVDISPINFO_TVITEM
+            if and_bits(peek4s(tvItem + TVITEM_mask),TVIF_TEXT) then
+                treeIdx = peek4s(tvItem + TVITEM_lParam)
+                text = treeItems[treeIdx]
+                if length(text)=dName then
+                    text = text[dName]
+                else
+                    text = text[tText]
+                end if
+                -- check text length does not exceed internal buffer size:
+                len = peek4s(tvItem + TVITEM_cchTextMax)
+                if length(text)>=len then
+                    text = text[1..len]
+                    text[len] = 0
+                else
+                    text &= 0
+                end if
+                    poke(peek4s(tvItem + TVITEM_pszText),text)
+--          end if
+--          if and_bits(peek4s(tvItem + TVITEM_mask),TVIF_IMAGE) then
+--?99
+--              treeIdx = peek4s(tvItem + TVITEM_lParam)
+                if treeIdx=wasTreeIdx then
+                    poke4(tvItem + TVITEM_iImage,SI_FOLDER_OPEN)
+                end if
+            end if
+        elsif wParam=TVN_ITEMEXPANDING then
+--trace(1)
+            newItem = lParam + NMTREEVIEW_itemNew
+            treeIdx = peek4s(newItem + TVITEM_lParam)
+            if treeIdx and not treeItems[treeIdx][tLoaded] then
+                treeItems[treeIdx][tLoaded] = 1
+                void = loadTree(treeIdx,getTreeText(treeIdx,1),0)
+            end if
+--      elsif wParam=TVN_BEGINLABELEDIT then
+--?{id,msg,wParam,lParam,Main,TV}
+            --return {1}    -- prevents edit (eg file already open/in use)
+        elsif wParam=TVN_ENDLABELEDIT then
+            tvItem = lParam + TVDISPINFO_TVITEM
+            treeIdx = peek4s(tvItem + TVITEM_lParam)
+            mem = peek4s(tvItem + TVITEM_pszText)
+            if mem!=0 then  -- 0 means edit cancelled
+                text = peek_string(mem)
+                -- DEV Might want eg moveFile() here.
+                treeItems[treeIdx][tText] = text            
+            end if
+        elsif wParam=TVN_BEGINDRAG
+           or wParam=TVN_BEGINRDRAG then
+
+            -- get the handle and index (to treeItems) of item being dragged
+            --  (these items remain valid until the final update):
+            newItem = lParam + NMTREEVIEW_itemNew
+            hDrag = peek4s(newItem + TVITEM_hItem)
+            dragIdx = peek4s(newItem + TVITEM_lParam)
+
+            if non_sensible(dragIdx) then return 0 end if
+
+            if isChecked(MVtvicons) then
+                -- Let windows create the drag image (see also below)
+                himl2 = sendMessage(TV,TVM_CREATEDRAGIMAGE,0,hDrag) 
+            end if
+
+            -- Get the bounding rectangle of the item being dragged. 
+            pRect = allocate_Rect()
+            poke4(pRect,hDrag)
+            if not sendMessage(TV,TVM_GETITEMRECT,True,pRect) then
+                puts(1,"TVM_GETITEMRECT error\n")
+            end if
+
+            -- height is used for scroll tests (in WM_MOUSEMOVE)
+            tvItemHeight = peek4s(pRect+12)-peek4s(pRect+4)
+
+            if not isChecked(MVtvicons) then
+
+                -- TVM_CREATEDRAGIMAGE cannot be used when the treeview
+                -- does not have an associated imagelist, so create one
+                -- manually (containing a bitmap of the text):
+
+                lpRect = allocate_Rect()
+                text = treeItems[dragIdx][tText]
+                len = length(text)
+                lpText = allocate_StringZ(text)
+                hDC = c_func(xGetDC,{treeHwnd})
+                width = peek4s(pRect+8)-peek4s(pRect)
+
+                hBmp = c_func(xCreateCompatibleBitmap,{hDC,width,tvItemHeight})
+                if hBmp=NULL then
+                    puts(1,"CreateCompatibleBitmap error\n")
+                end if
+                pDC = c_func(xCreateCompatibleDC,{hDC})
+                void = c_func(xSelectObject,{pDC,hBmp})
+                void = c_func(xSelectObject,{pDC,getFont(TV)})
+                poke4(lpRect,{0,0,width,tvItemHeight})
+                if not c_func(xExtTextOut, {pDC,0,0,ETO_OPAQUE,lpRect,lpText,len,NULL}) then
+                    ?c_func(xGetLastError,{})
+                    puts(1,"ExtTextOut error\n")
+                end if
+                void = c_func(xDeleteDC,{pDC})
+
+                himl2 = c_func(xImageList_Create,{width,tvItemHeight,ILC_COLOR8+ILC_MASK,1,1})
+
+                void = c_func(xImageList_AddMasked,{himl2,hBmp,-1})
+                void = deleteObject(hBmp)
+                void = c_func(xReleaseDC,{treeHwnd,hDC})
+            end if
+
+            -- save parent handle for quick testing in WM_MOUSEMOVE
+            -- (you cannot "move" a file into it's current parent!)
+            htiParent = treeItems[dragIdx][tPidx]
+            if htiParent then
+                htiParent = treeItems[htiParent][tHandle]
+            end if
+
+            rect = getClientCoords(TV)
+            x = rect[1]-12
+            y = rect[2]
+
+            if not c_func(xImageList_BeginDrag,{himl2,0,x,y}) then
+                puts(1,"ImageList_BeginDrag error\n")
+            end if
+
+            if not c_func(xImageList_DragEnter,{treeHwnd,x,y}) then
+                puts(1,"ImageList_DragEnter error\n")
+            end if
+
+            captureMouse(Main)
+            g_fDragging = True
+        end if
+
+    elsif msg=WM_MENUSELECT then
+        setText(STATUS,"")
+        if not and_bits(hiWord(wParam),or_bits(MF_SEPARATOR,MF_POPUP)) then
+            k = find({lParam,loWord(wParam)},Mtxtk)
+            if k then
+                setText(STATUS,Mtxt[k])
+            end if
+        end if
+    elsif msg=WM_SIZE then
+        rect = getClientRect(Main)
+        r1 = rect[1]+5
+        r2 = rect[2]+5
+        r3 = rect[3]-r1-5-LVwidth
+        r4 = rect[4]-5
+
+        void = c_func(xMoveWindow, {hw_LV, r3+5, r2, LVwidth, r4-10, 1} )
+        void = c_func(xMoveWindow, {treeHwnd, r1, r2, r3+r1-10, r4-10, 1} )
+
+        --save some coordinates for WM_MOUSEMOVE checks:
+        LVrect = getClientCoords(LV)
+
+    elsif msg=WM_CLOSE then
+        if db_open(pEdb,DB_LOCK_EXCLUSIVE)!=DB_OK then
+            void = messageBox("Warning","Error opening "&pEdb&", window size not saved",0)
+        else
+            if db_select_table("wsize")!=DB_OK then ?9/0 end if
+            dts = db_table_size()
+            sizeinfo = repeat(0,5)  -- see reSizeMain() for use of this
+            sizeinfo[2] = repeat(0,3)
+            if dts then
+                sizeinfo = db_record_data(1)
+            end if
+            sizeinfo[1] = LVwidth
+            if detail=4 then    -- columnwidths meaningless otherwise
+                for i=1 to 3 do
+                    sizeinfo[2][i] = sendMessage(LV,LVM_GETCOLUMNWIDTH,i-1,0)
+                end for
+            end if
+            if isWindowNormal(Main) then
+                sizeinfo[4] = SW_NORMAL
+                sizeinfo[5] = getWindowRect(Main)
+                sizeinfo[5][3] = sizeinfo[5][3]-sizeinfo[5][1]
+                sizeinfo[5][4] = sizeinfo[5][4]-sizeinfo[5][2]
+            else
+                sizeinfo[4] = SW_MAXIMIZE
+                sizeinfo[5] = sizeinfo5 -- saved from reSizeMain()
+            end if
+            tvicons = (isChecked(MVtvicons)!=0)
+            tvcheck = (isChecked(MVtvcheck)!=0)
+            rd2 = {tvicons,detail,tvcheck}
+            if dts then
+--              if detail=4 then    -- BUGFIX! (no, try above)
+                db_replace_data(1,sizeinfo)
+                db_replace_data(2,rd2)
+--              end if
+                if dts>2 then
+                    db_replace_data(3,lpath)
+                else
+                    if db_insert(3,lpath)!=DB_OK then ?9/0 end if
+                end if
+            else
+                if db_insert(1,sizeinfo)!=DB_OK then ?9/0 end if
+                if db_insert(2,rd2)!=DB_OK then ?9/0 end if
+                if db_insert(3,lpath)!=DB_OK then ?9/0 end if
+            end if
+
+            db_close()
+        end if
+--      void = c_func(xCoUnInitialize, {})
+    end if
+    return 0
+end function
+
+setHandler({Main,TV,LV,
+             M_File,M_View,M_Tool,M_Help,M_Cmnu,
+             RN,RNas,RNOK,RNcncl},
+            routine_id("mainHandler"))
+
+
+WinMain(Main, isWindowMaximised)
+
+free(SHFI)
+free(TVI)
+free(ht)
+free(SX)
+free(LVI)
+free(CDS)

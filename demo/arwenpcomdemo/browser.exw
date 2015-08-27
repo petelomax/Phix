@@ -1,0 +1,107 @@
+-- browser.exw
+-- Matt Lewis
+-- Simple web browser demo (requires IE4+)
+with trace
+--/*
+000CFF3C   0040818A  RETURN to p.0040818A from kernel32.HeapFree
+000CFF40   01B80000
+000CFF44   00000000
+000CFF48   01EC88E8
+000CFF4C   022DC0E1  RETURN to 022DC0E1 from 00408158
+000CFF50   0040985A  RETURN to p.0040985A
+000CFF54   00000000
+000CFF58   004C3758  p.004C3758
+000CFF5C   00000000
+000CFF60   01B8F608
+000CFF64   00000000
+000CFF68   01B8F580
+000CFF6C   00000000
+000CFF70   796DD298
+000CFF74   0059F66C  p.0059F66C
+000CFF78   004BA000  p.004BA000
+000CFF7C   01B80868
+000CFF80   004097DD  RETURN to p.004097DD from p.004097DE
+000CFF84   0041004A  RETURN to p.0041004A from p.004097D8
+000CFF88   00409A93  RETURN to p.00409A93 from p.0040E000
+000CFF8C   7670336A  RETURN to kernel32.7670336A
+000CFF90   7EFDE000
+000CFF94  /000CFFD4
+--*/
+
+-- I haven't been able to trap any events yet, but the browser definitely seems to
+-- work, at least for displaying web pages.
+-- When com_err_out( 1 ) is set, you'll see a zillion messages from QueryInterface.
+-- I don't implement IServiceProvider or a bunch of other junk, which may be why
+-- events aren't working.  I'll have to look into this later to figure out what's
+-- going on.
+
+include ..\arwen\arwen.ew
+include eucom.ew
+include shdocvw.ew
+--include win32lib.ew
+
+with trace
+--without warning
+-- Create the parent window, and a text box and button to navigate
+constant
+Win = create( Window, "Browser for Eu", 0, 0, 100, 100, 500, 400, 0 ),
+URL = create( EditText, "http://www.google.com", 0, Win, 5, 10, 450, 25, 0 ),
+Go = create( PushButton, "Go", 0, Win, 460, 10, 35, 25, 0 )
+--SB = create(StatusBar, "", Win, -1,-1,-1,-1,0)
+--  if SB then end if -- suppress warnings [DEV]
+
+--object void
+
+atom Browser
+--, bstr
+
+--trace(1)
+-- create the Browser
+Browser = create_com_control( WebBrowser_clsid_ix , getHwnd(Win), 5, 35, 480, 330 )
+--com_err_out( 1 )
+--void = invoke( Browser, {WebBrowser_p_StatusBar}, {},{}, DISPATCH_PROPERTYGET )
+--void = invoke( Browser, {WebBrowser_p_StatusBar, DISPID_PROPERTYPUT}, {1}, {VT_I4}, DISPATCH_PROPERTYPUT)
+--void = invoke( Browser, {WebBrowser_p_StatusBar}, {},{}, DISPATCH_PROPERTYGET )
+--void = invoke( Browser, {WebBrowser_p_StatusText}, {}, {}, DISPATCH_PROPERTYGET )
+--com_err_out(0)
+-- This does the navigation
+function on_go(integer id, integer msg, atom wParam, object lParam)
+atom bstr
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_COMMAND then
+        bstr = alloc_bstr( getText(URL) )
+
+        -- Note that I didn't use WebBrowser_m_Navigate2.  I did this in order to 
+        -- have invoke call GetIdsOfNames for me to get the dispid of URL.  EuCOM stops
+        -- calling GetIdsOfNames at the first atom it runs into, so you have to look up
+        -- Navigate2 as well, rather than using the constant.
+        void = invoke(Browser, {"Navigate2", "URL"}, {bstr}, {VT_BSTR}, DISPATCH_METHOD)
+
+        free_bstr(bstr)
+    end if
+    return 0
+end function
+setHandler(Go, routine_id("on_go"))
+
+-- resize the browser with the window
+function resize_win(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+integer x,y
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_SIZE then
+        rect = getClientRect(Win)
+        x = rect[3]-rect[1]-15
+        y = rect[4]-rect[2]-35
+
+        -- unfortunately, win32lib's setCtlSize doesn't work on these objects, 
+        -- so we use EuCOM's move_obj
+        move_obj( Browser, {10,35,x, y - 20})
+    end if
+    return 0
+end function
+setHandler(Win, routine_id("resize_win"))
+
+-- start at the initial page
+{} = on_go(1,WM_SIZE,1,{})
+WinMain(Win, Normal )
+

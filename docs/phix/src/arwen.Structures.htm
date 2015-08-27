@@ -1,0 +1,249 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Structures</h1>
+      <div id="mainSection">
+       <br>
+            Many Win32
+            functions require the use of structures and I have developed my
+            own system for creating &amp; accessing structures. It may not be
+            pretty OR safe but it is fast. A necessary part of using
+            structures is allocating &amp; releasing small blocks of memory.
+            This is a (relatively) time consuming exercise. On my P150 I get
+            14.3 seconds using allocate() &amp; free() for 1,000,000 small
+            blocks of memory ~ 70k/s. However, where possible I am directly
+            reusing the structure memory for an associated function within a
+            management routine. This can significantly boost the performance
+            of the routine since the overhead of extra allocate() &amp;
+            free() calls is avoided. I have now started using a permanently
+            allocated RAM scratchpad for some functions which (i) could be
+            called a lot and (ii) I would not expect to be interrupted by
+            another call which would use (therefore corrupt) the same memory.
+            In some instances I am getting 1.26 seconds ~ 790k/s. In the case
+            of allocating &amp; pokeing null terminated text strings the
+            result is 3.42 seconds ~ 290k/s and is 4 times faster than
+            allocate_string() &amp; free() but, of course, without any safety
+            barrier (other than the size of the buffer) to prevent corruption
+            of the referenced memory.
+       <br>
+       <br>
+            Although only a small number of structures (approx. 25) have been
+            defined in structures.ew I think the library is still quite
+            capable for many purposes. I will add more structure definitions
+            as time goes on and the need for them becomes apparent.
+       <br>
+       <br>
+            Structure definitions can ONLY be added to this file since the
+            functions to create them are local to that include file.
+            Additional structures can be defined in 2 easy steps: --
+       <br>
+            step 1) define the name of the structure as a constant. I always
+            use the Win32 API names.eg:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('sos-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="sos-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+constant
+    RECT = new_struct(),
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant
+</font><font color="#000000">    RECT</font><font color="#0000FF"> =</font><font color="#000000"> new_struct</font><font color="#0000FF">(),</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            step 2) define the individual elements of the structure as
+            constants. Note the Structure name is prefixed to the member
+            names. A bit verbose but safe.
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('carving-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="carving-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    RECT_left = struc(C_LONG),
+    RECT_top = struc(C_LONG),
+    RECT_right = struc(C_LONG),
+    RECT_bottom = struc(C_LONG)
+</eucode-->
+<pre>
+<font color="#000000">    RECT_left</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">C_LONG</font><font color="#0000FF">),
+</font><font color="#000000">    RECT_top</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">C_LONG</font><font color="#0000FF">),
+</font><font color="#000000">    RECT_right</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">C_LONG</font><font color="#0000FF">),
+</font><font color="#000000">    RECT_bottom</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">C_LONG</font><font color="#0000FF">)</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            The parameter in the struc() function can be ANY predefined
+            structure name or the usual structure constants as defined in
+            dll.e Now, the structure name (RECT) has become an index to my
+            structure list but the elements are actually displacements
+            relative to the first element. ONLY these displacements can be
+            used later on when accessing the structure.
+       <br>
+       <br>
+            To ascertain the size of the structure in bytes simply call
+            sizeofstruct(STRUCTNAME), eg:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('incredible-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="incredible-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    lpRect = allocate( sizeofstruct( RECT ) )
+</eucode-->
+<pre>
+<font color="#000000">    lpRect</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#000000"> sizeofstruct</font><font color="#800000">(</font><font color="#000000"> RECT</font><font color="#800000"> )</font><font color="#0000FF"> )</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            This size value is needed when allocating memory to poke a
+            structure into memory or alternatively when reserving space for a
+            Win32 API function to use. Later structures may now be defined
+            incorporating the earlier ones, eg:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('gold74-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="gold74-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    -- Define PAINTSTRUCT Structure
+    PAINTSTRUCT = new_struct(),
+    PAINTSTRUCT_hdc = struc(C_LONG),
+    PAINTSTRUCT_fErase = struc(C_SHORT),
+    PAINTSTRUCT_rcPaint = struc(RECT), -- ***** note the use of RECT here!!
+    PAINTSTRUCT_fRestore = struc(C_SHORT),
+    PAINTSTRUCT_rgbReserved = struc(anySize(32)),
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080">    -- Define PAINTSTRUCT Structure
+</font><font color="#000000">    PAINTSTRUCT</font><font color="#0000FF"> =</font><font color="#000000"> new_struct</font><font color="#0000FF">(),
+</font><font color="#000000">    PAINTSTRUCT_hdc</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">C_LONG</font><font color="#0000FF">),
+</font><font color="#000000">    PAINTSTRUCT_fErase</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">C_SHORT</font><font color="#0000FF">),
+</font><font color="#000000">    PAINTSTRUCT_rcPaint</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">RECT</font><font color="#0000FF">),</font><font color="#000080"> -- ***** note the use of RECT here!!
+</font><font color="#000000">    PAINTSTRUCT_fRestore</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">C_SHORT</font><font color="#0000FF">),
+</font><font color="#000000">    PAINTSTRUCT_rgbReserved</font><font color="#0000FF"> =</font><font color="#000000"> struc</font><font color="#0000FF">(</font><font color="#000000">anySize</font><font color="#800000">(</font><font color="#000000">32</font><font color="#800000">)</font><font color="#0000FF">),</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            Please ensure that the minor structures are completed BEFORE
+            incorporating them into a larger structure. You will note a
+            function called anySize() which can be used to reserve an
+            arbitrary number of bytes in the structure; 32 in the example
+            above. Access to structures is simply a matter of peeking or
+            pokeing the desired structure member, eg:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('cfl1600-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="cfl1600-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    ps = allocate(sizeofstruct(PAINTSTRUCT))
+    -- do some code
+    rFlag = peek4u(ps + PAINTSTRUCT_fRestore)
+    -- rFlag now has the value of the Restore flag
+</eucode-->
+<pre>
+<font color="#000000">    ps</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#000000">sizeofstruct</font><font color="#800000">(</font><font color="#000000">PAINTSTRUCT</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#000080">    -- do some code
+</font><font color="#000000">    rFlag</font><font color="#0000FF"> =</font><font color="#7060A8"> peek4u</font><font color="#0000FF">(</font><font color="#000000">ps</font><font color="#0000FF"> +</font><font color="#000000"> PAINTSTRUCT_fRestore</font><font color="#0000FF">)
+</font><font color="#000080">    -- rFlag now has the value of the Restore flag</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            PLEASE NOTE that although the size in bytes of each structure
+            member seems to be recorded in the structure list, in reality no
+            error checking is done on the size of the peeked or poked value
+            so the user is cautioned to be very careful when accessing the
+            structure. Another trap is the fact that where minor structures
+            are incorporated in other structures then the user has to allow
+            for accessing the deeper structure, ie if the user wanted to
+            access the RECT_top member of the RECT structure embedded in
+            PAINTSTRUCT structure then they would have to do so explicitly,
+            eg:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('leopard-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="leopard-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    top = peek4u(ps + PAINTSTRUCT_rcPaint + RECT_top )
+</eucode-->
+<pre>
+<font color="#000000">    top</font><font color="#0000FF"> =</font><font color="#7060A8"> peek4u</font><font color="#0000FF">(</font><font color="#000000">ps</font><font color="#0000FF"> +</font><font color="#000000"> PAINTSTRUCT_rcPaint</font><font color="#0000FF"> +</font><font color="#000000"> RECT_top</font><font color="#0000FF"> )</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            Care must be made when accessing the, by now, somewhat rare WORD
+            (16-bits) fields since Euphoria has no native access to this
+            type. But really, how difficult would it be to add your own
+            peek2() functions. If you use meditor then it is a cinch to
+            allow syntax coluring to make it quite easy to spot typing errors
+            for those new routines that you might make. [Update - I have now
+            added poke2(), peek2s() &amp; peek2u() to structures.ew] There is
+            a distinct lack of error checking in the structures section
+            because I am chiefly concerned (some might say obsessed) with
+            performance. By using verbose member designations I have had
+            little problem accessing the correct elements.
+       <br>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,64 @@
+ 
+-- Demonstrate Progress bars
+--DEV broken (progress bars chug along on their own, no apparent difference between smooth and discrete)
+
+without warning 
+include arwen.ew
+
+constant DEMO = create(Window,  "ProgressBar demo", 0, 0,10,10,350,200,{0,0})
+
+constant DISCRETE = create(PushButton,  "Start Discrete ProgressBar", 0, DEMO, 10, 8, 165, 25, 0 )
+
+constant SMOOTH = create(PushButton,  "Start Smooth ProgressBar", 0, DEMO, 10, 38, 165, 25, 0 )
+
+constant PB_1 = create(ProgressBar,  "", 0, DEMO, 190,13,100, 10, 0)
+constant PB_2 = create(ProgressBar,  "", 0, DEMO, 190,43,100, 10, PBS_SMOOTH)
+
+setScrollInfo(PB_1, {1, 100, 5,0}, 0)
+setScrollInfo(PB_2, {1, 100, 4,0}, 0)
+
+integer TIMER
+TIMER = createTimer()
+--stopTimer(TIMER)
+
+function handler_BUTTON(integer id, integer msg, atom wParam, object lParam)
+
+    if msg = WM_COMMAND then
+
+        if id = DISCRETE then
+--?1
+            stopTimer(TIMER)
+            startTimer(TIMER, PB_1, 5000)
+
+        elsif id = SMOOTH then
+--?2
+            stopTimer(TIMER)
+            startTimer(TIMER, PB_2, 3000)
+
+        end if
+
+    end if
+
+    return 0
+        
+    end function
+
+function handler_PB(integer id, integer msg, atom wParam, object lParam)
+
+    if msg = WM_TIMER then
+--if id=TIMER then
+--?{id,msg,wParam,lParam,TIMER,PB_1,PB_2}
+        void = makeProgress(id)
+--end if
+
+    end if
+
+    return 0
+        
+    end function
+
+setHandler( {PB_1, PB_2}, routine_id("handler_PB"))
+
+setHandler({DISCRETE,SMOOTH}, routine_id("handler_BUTTON"))
+
+WinMain(DEMO, SW_NORMAL)

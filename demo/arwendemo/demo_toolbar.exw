@@ -1,0 +1,65 @@
+--
+-- demo_toolbar.exw
+--
+
+--DEV this poses a bit of a challenge to Edita's Window Painter... (specifically images[4])
+
+include arwen.ew
+include ..\arwen\imagelists.ew
+
+constant bX = 70,
+         bY = 54
+
+constant desc = {"Normal Push Button",
+                 "Toggle Button - Button text is 'wrapped' due to BS_MULTILINE style",
+                 "Picture Button",
+                 "Picture Button - the 'text' you see is actually part of the image",
+                 "Check Box",
+                 "Toggle Picture Button",
+                 "Picture Button",
+                 "Picture Button - clicking this one will close the demo"}
+
+constant images = loadToolImages("demo_toolbar.bmp", 10, 64, 44)
+--DEV not yet supported by Window Painter:
+constant {?,?,?,Zoom,Oscope,Files,Image,New} = images
+
+constant DEMO = create(Window,"Tool Bar demo",0,0,100,100,750,150,0)
+
+constant TOOLBAR = create(ToolBar,              "",             0,        DEMO,   0,0,bY,bY,{TBSTYLE_FLAT,WS_EX_STATICEDGE})
+constant BUTTON1 = create(Button,               "Button",       0,        TOOLBAR,0,0,bX,bY,0)
+constant BUTTON2 = create(ToggleButton,         "Toggle button",0,        TOOLBAR,0,0,bX,bY,BS_MULTILINE)
+constant BUTTON3 = create(PictureButton,        "",             Zoom,     TOOLBAR,0,0,bX,bY,0)
+constant BUTTON4 = create(PictureButton,        "",             Oscope,   TOOLBAR,0,0,bX,bY,0)
+         void    = create(ToolSep,              "-",            0,        TOOLBAR,0,0,0,0,0)
+constant BUTTON5 = create(CheckBox,             "Check box",    0,        TOOLBAR,0,0,bX+30,bY,0)
+constant BUTTON6 = create(TogglePictureButton,  "",             Files,    TOOLBAR,0,0,bX,bY,0)
+constant BUTTON7 = create(PictureButton,        "",             Image,    TOOLBAR,0,0,bX,bY,0)
+constant BUTTON8 = create(PictureButton,        "",             New,      TOOLBAR,0,0,bX,bY,0)
+
+constant STATUS = create(StatusBar,"mouseover a button for description",0,DEMO,0,0,0,0,0)
+
+constant ids = {BUTTON1, BUTTON2, BUTTON3, BUTTON4, BUTTON5, BUTTON6, BUTTON7, BUTTON8}
+
+function buttonHandler(integer id, integer msg, atom wParam, object lParam)
+integer index
+
+    if msg=WM_COMMAND then
+        if id=BUTTON8 then
+            if lParam then end if -- suppress warnings
+            closeWindow(DEMO)
+        end if
+    elsif msg=WM_MOUSEMOVE then
+        index = find(id, ids)
+        if index then
+            setText(STATUS, desc[index])
+        end if
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+
+    return 0
+end function
+setHandler(ids, routine_id("buttonHandler"))
+
+WinMain(DEMO, SW_NORMAL)

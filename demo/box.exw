@@ -1,0 +1,71 @@
+--
+-- box.exw
+--
+--  Ascii box drawing... (press Q to exit)
+--
+--/*
+include ../builtins/misc.e
+include ../builtins/get.e
+--*/
+
+constant TopLeft = #DA,
+         Horizontal = #C4,
+         TopRight = #BF,
+         Vertical = #B3,
+         BtmLeft = #C0,
+         BtmRight = #D9
+
+sequence line   -- for drawing top/bottom of boxes
+integer MaxWidth,MaxHeight, -- max width and height
+        BoxWidth,BoxHeight, -- box width and height
+        TopLine,TopCol, -- top left corner position
+        DirX,DirY       -- directors
+
+    MaxWidth = rand(78)+1
+    MaxHeight = rand(23)+1
+    TopCol = rand(80-MaxWidth)
+    TopLine = rand(25-MaxHeight)
+    BoxWidth = MaxWidth
+    BoxHeight = MaxHeight
+    DirX = 1
+    DirY = 1
+    clear_screen()
+    cursor(NO_CURSOR)
+    while 1 do
+--      BoxWidth = rand(78)+1
+--      BoxHeight = rand(23)+1
+--      TopCol = rand(80-BoxWidth)
+--      TopLine = rand(25-BoxHeight)
+        position(TopLine,TopCol)
+        line = repeat(Horizontal,BoxWidth)
+        line[1] = TopLeft
+        line[BoxWidth] = TopRight
+        puts(1,line)
+        for i=2 to BoxHeight-1 do
+            position(TopLine+i-1,TopCol+BoxWidth-1)
+            puts(1,Vertical)
+--      end for
+--      for i=2 to BoxHeight-1 do
+            position(TopLine+i-1,TopCol)
+            puts(1,Vertical)
+        end for
+        position(TopLine+BoxHeight-1,TopCol)
+        line[1] = BtmLeft
+        line[BoxWidth] = BtmRight
+        puts(1,line)
+
+        if TopCol=79 then DirX = -1 elsif TopCol=1 then DirX = 1 end if
+        TopCol += DirX
+        if TopLine=24 then DirY = -1 elsif TopLine=1 then DirY = 1 end if
+        TopLine += DirY
+        if TopCol+MaxWidth<82 then BoxWidth = MaxWidth else BoxWidth = 81-TopCol end if
+        if TopLine+MaxHeight<26 then BoxHeight = MaxHeight else BoxHeight = 25-TopLine end if
+--      if TopLine+MaxHeight<27 then BoxHeight = MaxHeight else BoxHeight = 26-TopLine end if
+        if BoxWidth=2 then MaxWidth = rand(78)+1 end if
+        if BoxHeight=2 then MaxHeight = rand(23)+1 end if
+
+        if find(get_key(),"qQ") then exit end if
+        sleep(0.04)
+    end while
+    cursor(UNDERLINE_CURSOR)
+

@@ -1,0 +1,385 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Events</h1>
+      <div id="mainSection">
+            Perhaps the most important initial requirement for ARWEN was that the event
+            handling system be close to maximum speed, have fast background
+            processing capability and still be user-friendly. Win32lib is
+            event-based where each event of a control can have it's own
+            handler. EuWinGui uses a large, omni message loop where detected
+            events are fed to it by the library. ARWEN has a control-based
+            message system and is more similar to native Windows programming
+            than these other libraries. These other libraries also use
+            procedures to handle events but since ARWEN 0.90 handlers are
+            functions so that modifying message parameters is intuitive &amp;
+            easy.
+       <br>
+       <br>
+            A single message-handler
+            routine is written for each control and almost all messsages for
+            that particular control are fed into it's handler routine, eg :
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_12a65b96-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_12a65b96-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+-- This is a handler routine for a Window
+function handler_MAINWINDOW(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_PAINT then -- paint the window
+    elsif msg=WM_VSCROLL then -- scroll something
+    elsif msg=WM_HSCROLL then -- scroll something
+    elsif msg=WM_TIMER then moveFish() -- Eh? Whats going on here?
+    end if
+    return 0
+end function
+
+-- This is a handler routine for a Button
+function handler_BUTTON1(integer id,integer msg, atom wParam, object lParam)
+    if msg=WM_COMMAND then -- Button1 was clicked, do something
+    end if
+    return 0
+end function
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080">-- This is a handler routine for a Window
+</font><font color="#008080">function</font><font color="#000000"> handler_MAINWINDOW</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> wParam</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> lParam</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> msg</font><font color="#0000FF">=</font><font color="#000000">WM_PAINT</font><font color="#008080"> then</font><font color="#000080"> -- paint the window
+</font><font color="#008080">    elsif</font><font color="#000000"> msg</font><font color="#0000FF">=</font><font color="#000000">WM_VSCROLL</font><font color="#008080"> then</font><font color="#000080"> -- scroll something
+</font><font color="#008080">    elsif</font><font color="#000000"> msg</font><font color="#0000FF">=</font><font color="#000000">WM_HSCROLL</font><font color="#008080"> then</font><font color="#000080"> -- scroll something
+</font><font color="#008080">    elsif</font><font color="#000000"> msg</font><font color="#0000FF">=</font><font color="#000000">WM_TIMER</font><font color="#008080"> then</font><font color="#000000"> moveFish</font><font color="#0000FF">()</font><font color="#000080"> -- Eh? Whats going on here?
+</font><font color="#008080">    end if
+    return</font><font color="#000000"> 0
+</font><font color="#008080">end function
+
+</font><font color="#000080">-- This is a handler routine for a Button
+</font><font color="#008080">function</font><font color="#000000"> handler_BUTTON1</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080">integer</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> wParam</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> lParam</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> msg</font><font color="#0000FF">=</font><font color="#000000">WM_COMMAND</font><font color="#008080"> then</font><font color="#000080"> -- Button1 was clicked, do something
+</font><font color="#008080">    end if
+    return</font><font color="#000000"> 0
+</font><font color="#008080">end function</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            The handler routine is associated with a control or Window by:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_12a65b96-c3ab-4175-936c-8d2195c82946');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_12a65b96-c3ab-4175-936c-8d2195c82946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    setHandler(MAINWINDOW,routine_id("handler_MAINWINDOW"))
+</eucode-->
+<pre>
+<font color="#000000">    setHandler</font><font color="#0000FF">(</font><font color="#000000">MAINWINDOW</font><font color="#0000FF">,</font><font color="#800080">routine_id</font><font color="#800000">(</font><font color="#008000">"handler_MAINWINDOW"</font><font color="#800000">)</font><font color="#0000FF">)</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            Multiple controls can be associated with the same handler by
+            listing them in a sequence as the first parameter of
+            setHandler(), eg:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_12a65b96-c3ab-4175-936c-8d2195c83946');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_12a65b96-c3ab-4175-936c-8d2195c83946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    setHandler({BUTTON1,BUTTON2}, routine_id("handler_BUTTONS"))
+</eucode-->
+<pre>
+<font color="#000000">    setHandler</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">BUTTON1</font><font color="#0000FF">,</font><font color="#000000">BUTTON2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800080"> routine_id</font><font color="#800000">(</font><font color="#008000">"handler_BUTTONS"</font><font color="#800000">)</font><font color="#0000FF">)</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            Each handler routine is a function and must have the parameters
+            in the following format:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_12a65b96-c3ab-4175-946c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_12a65b96-c3ab-4175-946c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+function handler_CONTROL(integer id, integer msg, atom wParam, object lParam)
+    -- some code
+    return 0
+end function
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> handler_CONTROL</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> wParam</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> lParam</font><font color="#0000FF">)
+</font><font color="#000080">    -- some code
+</font><font color="#008080">    return</font><font color="#000000"> 0
+</font><font color="#008080">end function</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            The default value to return from any handler function must always
+            be 0 but certain messages can have other values and is explained
+            further on. The routine parameters are mostly identical to the
+            native Win32 parameters that are initially passed back to
+            SubProc() &amp; WndProc() by Windows. The first difference is
+            that &quot;atom hWnd&quot; has been replaced with &quot;integer
+            id&quot;. The second difference is that lParam can sometimes be a
+            sequence of parameters so you should probably use &quot;object
+            lParam&quot;. These and other differences are specific to the
+            actual message and are shown later in this document. However,
+            generally speaking, the interpretation of each message parameter
+            is the same as a native Win32 message. Please note that almost
+            all Win32 messages will pass through the user handlers. ARWEN
+            does trap a few of them but, basically, the user has carte
+            blanche. This may be too much of a good thing in some cases and
+            unless you are an experienced Win32 programmer then I suggest you
+            stick to the core Win32 messages. To be honest, I have not mapped
+            out all the core messages myself and this document later shows
+            the ones I have. The advantage of having unrestricted access to
+            all messages sent to a particular control is that specialized
+            message processing can occur.
+       <br>
+       <br>
+            Important Notice: Messages are sent to a control OR the control's
+            parent (usually a Window). Notification messages are sent from a
+            control to it's parent. The library will try to trap this type of
+            message and redirect them to the (child) control's handler
+            routine. Messages redirected in this way should not be
+            (intercepted and) altered since the redirection process alters
+            the Message format. Whoever writes the handler routines must be
+            aware of this.
+       <br>
+       <br>
+            The user can intercept and alter certain messages and thus modify
+            the default Windows processing. This is done by returning a
+            2-element sequence containing your values of {wParam, lParam}.
+            This can be used to advantage when, say, implementing a password
+            window where you do not want the actual characters shown on the
+            screen, eg :
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_12a65b96-d3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_12a65b96-d3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+-- untested password capture code fragment
+sequence passwordstring -- holds the password entered
+passwordstring = ""
+
+function handler_PASSWORD_EDITBOX(integer id, integer msg, atom wParam, object lParam)
+    if msg = WM_CHAR then -- printable key was pressed
+        -- add new character to the string variable
+        passwordstring &= wParam
+        -- return new character to print, in this case it's an asterisk
+        return {'*', lParam}
+    elsif msg = WM_KEYUP then
+        if wParam = '\13' then -- ENTER key pressed
+            processPassword(passwordstring)
+        end if
+    end if
+    return 0
+end function
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080">-- untested password capture code fragment
+</font><font color="#004080">sequence</font><font color="#000000"> passwordstring</font><font color="#000080"> -- holds the password entered
+</font><font color="#000000">passwordstring</font><font color="#0000FF"> =</font><font color="#008000"> ""
+
+</font><font color="#008080">function</font><font color="#000000"> handler_PASSWORD_EDITBOX</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> wParam</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> lParam</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> msg</font><font color="#0000FF"> =</font><font color="#000000"> WM_CHAR</font><font color="#008080"> then</font><font color="#000080"> -- printable key was pressed
+        -- add new character to the string variable
+</font><font color="#000000">        passwordstring</font><font color="#0000FF"> &amp;=</font><font color="#000000"> wParam
+</font><font color="#000080">        -- return new character to print, in this case it's an asterisk
+</font><font color="#008080">        return</font><font color="#0000FF"> {</font><font color="#008000">'*'</font><font color="#0000FF">,</font><font color="#000000"> lParam</font><font color="#0000FF">}
+</font><font color="#008080">    elsif</font><font color="#000000"> msg</font><font color="#0000FF"> =</font><font color="#000000"> WM_KEYUP</font><font color="#008080"> then
+        if</font><font color="#000000"> wParam</font><font color="#0000FF"> =</font><font color="#008000"> '</font><font color="#000000">\13</font><font color="#008000">'</font><font color="#000000"> </font><font color="#008080">then</font><font color="#000080"> -- ENTER key pressed
+</font><font color="#000000">            processPassword</font><font color="#0000FF">(</font><font color="#000000">passwordstring</font><font color="#0000FF">)
+</font><font color="#008080">        end if
+    end if
+    return</font><font color="#000000"> 0
+</font><font color="#008080">end function</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            The return value from the handler function will be ignored if the
+            handler is processing WM_MOUSE, WM_PAINT, WM_COMMAND or
+            WM_*SCROLL messages. The typical messages that can be
+            (intercepted &amp;) modified usually relate to keystrokes, mouse
+            and also the focus but can include things such as the
+            TCN_SELCHANGING message trapped by the handler of a TabItem. This
+            message notifies that the TabItem is about to close and another
+            one will be opened. If the handler returns 1 then the tab change
+            will be aborted. ARWEN uses this capacity to emulate an intuitive
+            behaviour for disabled controls. Please consult the
+       <a href="#WINDOW_MSG">Windows Messages</a>
+            section for details on all 
+            values that can be used with specific messages.
+       <br>
+       <br>
+            Generally speaking, the return values from handlers can be in 3
+            formats:
+       <br>
+       <br>
+            return 0 - this is the default value when you want windows to
+            process the message
+       <br>
+            return {i} - use a 1-element sequence to tell windows to return
+            with the enclosed value immediately
+       <br>
+            return {W, L} - intercept &amp; modify original message for
+            windows to process
+       <p></p>
+            Apart from the specific messages that ARWEN traps, the user has access to all other
+            messages but the user is advised to refer to the API for specific
+            implementation details. In some instances the user may be able to
+            return an atomic value other than 0 for certain messages. These
+            cases are discussed in other sections.
+       <br>
+       <br>
+            If a control has been associated with a particular handler
+            routine and you wish to replace that routine with another then
+            simply call setHandler() again and pass the new routine id. If
+            you wish to disassociate the control from any handler routine
+            then call setHandler() and pass UNDEFINED as the 2nd parameter.
+            Multiple controls may be relinked or disassociated in a single
+            call.
+       <br>
+       <br>
+            The heart of an event-driven Windows program is the Message Loop.
+            In my library this loop resides in the WinMain() routine. Usually
+            it would be something like this:
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_14a65b96-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_14a65b96-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    while c_func(xGetMessage, {msg, NULL, 0, 0})<=0 do
+        c_proc(xTranslateMessage, {msg})
+        c_proc(xDispatchMessage, {msg})
+    end while
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    while</font><font color="#800080"> c_func</font><font color="#0000FF">(</font><font color="#000000">xGetMessage</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> NULL</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#800000">}</font><font color="#0000FF">)&lt;=</font><font color="#000000">0</font><font color="#008080"> do
+</font><font color="#800080">        c_proc</font><font color="#0000FF">(</font><font color="#000000">xTranslateMessage</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">msg</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#800080">        c_proc</font><font color="#0000FF">(</font><font color="#000000">xDispatchMessage</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">msg</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">    end while</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            The problem here is that the xGetMessage{} call will not return
+            until a message (aka event) is placed in the message buffer and
+            control is handed back to the application. This means that the
+            program will sit idly until some event occurs. Now, some
+            applications may need to perform certain background processing
+            tasks but are really unable to do so using this
+            &quot;standard&quot; message loop. I have modified the message
+            loop so that while there are NO pending messages in the buffer
+            the application can run a continuous background task. To set this
+            up the application must include this line (as if setting up a
+            regular handler):
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_15z65b96-c3ab-4175-936c-8d2195c81946');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_15z65b96-c3ab-4175-936c-8d2195c81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+    setHandler(IDLE, routine_id("MyBackgroundRoutine"))
+</eucode-->
+<pre>
+<font color="#000000">    setHandler</font><font color="#0000FF">(</font><font color="#000000">IDLE</font><font color="#0000FF">,</font><font color="#800080"> routine_id</font><font color="#800000">(</font><font color="#008000">"MyBackgroundRoutine"</font><font color="#800000">)</font><font color="#0000FF">)</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+            Now, the background operation may be started or stopped using
+            calls to
+       <code>startIdle()</code> and
+       <code>stopIdle()</code>.
+       <br>
+       <br>
+            Please note that
+       <code>startIdle()</code> must pass a timing 
+            value (in milliseconds) specifying the granularity of calls to the
+       <code>runIdle()</code> manager. The particular timing
+            value is not very important since OS latency etc will mess it up
+            anyway. A value of, say, 50 milliseconds is probably allright.
+       <br>
+       <br>
+       <br>
+            IDLE is a global atom that ARWEN recognizes. Please note about
+            the IDLE handler :
+       <br>
+            1) It is a <em><strong>procedure</strong></em> and NO parameters
+            are passed to it since ARWEN does the calling not Windows.
+       <br>
+            2) The handler should spend only a short time doing any
+            processing before returning.
+       <br>
+            3) The handler will fire when a Common Dialog box is open.
+       <br>
+            4) The handler may be relinked or disassociated in exactly the
+            same way as other control handlers can be but with the
+            restriction of item 1).
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

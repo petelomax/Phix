@@ -1,0 +1,126 @@
+--
+-- easinst.ew
+--
+-- Single instance handling.
+--
+-- See comments above CD_message in edita.exw.
+--
+
+--/* 4.0.2
+include builtins\machine.e
+include builtins\dll.e
+--*/
+
+global constant CD_OPEN=#20050227,  -- open file
+                CD_EDITA=#20050228, -- Are you really Edita?
+                CD_PFTP=#20070421   -- Are you really pFTP?
+
+integer cd_what
+sequence cd_text
+
+constant Edita=xl("Edita")
+--       minlen=length(Edita)
+
+--integer found
+--   found=0
+atom Hwnd
+
+--/*
+include builtins\ppp.e
+--*/
+function EnumWindowsProc(atom hwnd, atom lParam)
+atom mem, CDS
+integer len, len2
+sequence text
+    if lParam then end if   -- suppress warnings
+    len = c_func(xSendMessage, {hwnd, WM_GETTEXTLENGTH, 0, 0})
+--  if len>=minlen then
+    if len>=length(cd_text) then
+        len += 1
+--      mem = allocate_TextSpace(len)
+        mem = allocate(len)
+--      len = c_func(xSendMessage, {hwnd, WM_GETTEXT, len, mem})
+        len2 = c_func(xSendMessage, {hwnd, WM_GETTEXT, len, mem})
+        if len2+1 != len then ?9/0 end if   -- sanity check
+        text = peek({mem, len})
+        free(mem)
+--      if equal(Edita,text[1..minlen]) then
+        if match(cd_text,text)=1 then
+            --
+            -- Edita already running?
+            --
+            CDS = allocate(12)
+--          poke4(CDS,{CD_EDITA,0,0})
+            poke4(CDS,{cd_what,0,0})
+--          if c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})=CD_EDITA then
+--DEV p3 should really be the sending hwnd (mainHwnd?):
+--    (but then again we might just not actually have one yet...)
+--          if c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})=cd_what then
+            if c_func(xSendMessage,{hwnd, WM_COPYDATA, mainHwnd, CDS})=cd_what then
+--              found = 1
+                Hwnd = hwnd
+                if cd_what=CD_EDITA then
+--                  if isDebug then return 0 end if
+                    text = command_line()
+                    if length(text)=3 then
+                        --
+                        -- send the file to open (if any)
+                        --
+                        text=text[3]
+--                      mem = allocate_StringZ(text)
+                        mem = allocate(length(text))
+                        poke(mem,text)
+                        poke4(CDS,{CD_OPEN,length(text),mem})
+--                      void = c_func(xSendMessage, {hwnd, WM_COPYDATA, NULL, CDS})
+                        void = c_func(xSendMessage, {hwnd, WM_COPYDATA, mainHwnd, CDS})
+                        free(mem)
+                    else
+                        if isDebug then
+                            free(CDS)
+                            return 0
+                        end if
+                    end if
+--              else
+--                  found = hwnd
+                end if
+                --
+                -- make existing edita topmost
+                --
+                if c_func(xIsIconic,{hwnd}) then
+                    -- Thanks to Pete Stoner/joel on software
+                    -- If the window is minimised, restore it before 
+                    -- trying to make it the foreground window.
+                    c_proc(xShowWindow,{hwnd,SW_RESTORE})
+                end if
+                c_proc(xSetForegroundWindow,{hwnd})
+                free(CDS)
+                if cd_what=CD_EDITA then
+                    -- .. and terminate.
+                    abort(0)
+                end if
+                return 0    -- cease enumeration
+            end if
+            free(CDS)
+        end if
+    end if  
+    return 1    -- continue enumeration
+end function
+
+constant cb_ewp = call_back(routine_id("EnumWindowsProc"))
+
+global function checkSingleInstance(integer cwhat)  -- now called from eaini.e
+    cd_what=cwhat
+    if cd_what=CD_EDITA then
+        cd_text=Edita
+    elsif cd_what=CD_PFTP then
+        cd_text="pFTP"
+    else
+        ?9/0
+    end if
+    Hwnd = 0
+    void = c_func(xEnumWindows,{cb_ewp,NULL})
+    return Hwnd -- 0 if not found else hwnd of window.
+--  if cd_what=CD_EDITA and not found then
+--      isDebug=0
+--  end if
+end function

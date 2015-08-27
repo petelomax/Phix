@@ -1,0 +1,133 @@
+-- Random dots...
+-- Demo for Win32Lib by Brian K. Broker
+--   Place 'NumberOfDots' on Screen
+--   Mouse cursor should change to crosshair when over a dot
+--   Clicking a dot toggles it's status (filled or empty)
+--   If dot not clicked, place new set of random dots
+
+include win32lib.ew
+include dot_xmp.ew
+without warning
+
+constant
+  Win = create(Window, "Random Dots...", 0, Default, Default, 300, 300, 0),
+  Buffer = create(Pixmap, "", Win, 0, 0, 170, 190, 0)
+
+constant
+  NumberOfDots = 5,
+  DotSize = 50
+
+sequence status -- holds status of dots
+
+constant
+  X	 = 1,
+  Y	 = 2,
+  STATUS = 3
+
+------------------------------------------------------------
+
+function inDot(integer x, integer y)
+  -- returns dot number point is in dot
+    for i = 1 to length(status) do
+	if  x >= status[i][X] and x <= status[i][X] + DotSize
+	and y >= status[i][Y] and y <= status[i][Y] + DotSize then
+	    return i
+	end if
+    end for
+  -- dot not clicked so return 0
+    return 0
+end function
+
+------------------------------------------------------------
+
+procedure initBuffer()
+  -- generate status structure
+  sequence client
+  integer x, y, count
+
+    client = getClientRect(Win)
+
+    setCtlSize(Buffer, client[3], client[4])
+
+  -- clear Buffer
+    setPenColor(Buffer, rgb(#D4,#D0,#C8))
+    drawRectangle(Buffer, True, 0, 0, client[3], client[4])
+
+  -- initialize status structure
+    status = {}
+    count = 0
+    while 1 do
+	-- generate random location
+	x = rand(client[3] - DotSize)
+	y = rand(client[4] - DotSize)
+	-- make sure we don't overlap
+	if not( inDot(x, y) or inDot(x+DotSize, y+DotSize) or
+	       inDot(x+DotSize, y) or inDot(x, y+DotSize)) then
+      -- add to structure
+	    status = append(status, {x,y,FullDot})
+      -- blit Dot to Buffer
+	    copyBlt(Buffer, x, y, FullDot)
+	    count += 1
+	    if count = NumberOfDots then
+		exit
+	    end if
+	end if
+    end while
+end procedure
+
+------------------------------------------------------------
+
+procedure onMouse_Win(integer self, integer event, sequence parms)
+  integer dotclicked
+  integer mouse_event,x,y
+
+    mouse_event = parms[1]
+    x = parms[2]
+    y = parms[3]
+
+    if inDot(x,y) then
+	setMousePointer(Win, CrossPointer)
+    else
+	setMousePointer(Win, NULL)
+    end if
+    if mouse_event = LeftDown then
+	dotclicked = inDot(x, y)
+	if dotclicked then
+      -- change status of dot
+	    if status[dotclicked][STATUS] = FullDot then
+		status[dotclicked][STATUS] = EmptyDot
+	    else
+		status[dotclicked][STATUS] = FullDot
+	    end if
+      -- update Buffer and Window
+	    copyBlt(Buffer, status[dotclicked][X], status[dotclicked][Y], status[dotclicked][STATUS])
+	    copyBlt(Win,    status[dotclicked][X], status[dotclicked][Y], status[dotclicked][STATUS])
+	else
+      -- if no dot clicked then find new random locations
+	    initBuffer()
+	    copyBlt(Win, 0, 0, Buffer)
+	end if
+    end if
+end procedure
+setHandler(Win,w32HMouse,routine_id("onMouse_Win"))
+
+------------------------------------------------------------
+
+procedure onPaint_Win(integer self, integer event, sequence parms)
+  -- copy Buffer into Window for fast repaint
+    copyBlt(Win, 0, 0, Buffer)
+end procedure
+setHandler(Win,w32HPaint,routine_id("onPaint_Win"))
+
+------------------------------------------------------------
+
+procedure onOpen_Win(integer self, integer event, sequence parms)
+  -- initialize Buffer
+    initBuffer()
+end procedure
+setHandler(Win,w32HOpen,routine_id("onOpen_Win"))
+
+-----------------------
+-------- start --------
+WinMain(Win, Normal)
+-----------------------

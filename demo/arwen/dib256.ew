@@ -1,0 +1,811 @@
+
+
+-- This library makes it easy to manage 256 colour "DIB Sections". These are off-screen
+-- bitmaps which are directly accessible to the user - unlike the usual kinds of Windows bitmaps.
+--
+-- Some DIB functions use pointers to different parts of the DIB so dib256.ew keeps
+-- track of these. Only 256 colur DIBs are currently supported even though DIBs can
+-- have several higher colour formats.
+--
+-- Previous versions of this library made an attempt to be compatible with Win32lib but since
+-- this version is now integrated with ARWEN there is no incentive to do so. Besides, Win32lib
+-- has it's own bitmap facilities.
+--
+-- Upon successful DIB creation an id number is returned (similar to controls in ARWEN) which can be
+-- used in various routines.
+--
+-- Window coordinates are given in top-down format AND are 0-based so, for consistency, I have
+-- observed that convention.
+--
+-- Trying to use the native Windows functions to write on DIB Sections is oxymoronically slow
+-- so I have written a few basic graphics primitives:
+--
+-- setDibPixel(dib, x, y, colour)               ; plot a single pixel at point(x,y)
+-- plotDibPixelList(dib, x, y_values, colour)   ; plot a sequence of y-coord pixels along an increasing x-coord
+-- drawDibHorizontalLine(dib, row, colour)      ; draw a level line from one side of the dib to the other
+-- drawDibVerticalLine(dib, coloumn, colour)    ; draw a plumb line from top to bottom
+-- drawDibFrame(dib, thickness, colour)         ; draw a rectangular frame of a particular thickness about the dib
+-- blankDib(dib, colour)                        ; completely paint the dib in a colour - useful for clearing the image
+--
+-- All these routines are optimized for speed. Unfortunately, at the moment this library is really
+-- incomplete so I am happy to add other coders high-performance graphics routines.
+--
+-- vulcan@win.co.nz
+-- December 2003
+
+--include builtins\machine.e
+--DEV:
+--/**/include builtins\image.e
+
+-- COLOURS
+global constant
+    DARKBLACK = 0,
+    DARKRED = 1,
+    DARKGREEN = 2,
+    DARKYELLOW = 3,
+    DARKBLUE = 4,
+    DARKMAGENTA = 5,
+    DARKCYAN = 6,
+    LIGHTGREY = 7,
+    LIGHTGREEN = 8,
+    LIGHTBLUE = 9,
+    LIGHTWHITE = 246,
+    GREY = 247,
+    DARKGREY = 248,
+    BRIGHTRED = 249,
+    BRIGHTGREEN = 250,
+    BRIGHTYELLOW = 251,
+    BRIGHTBLUE = 252,
+    BRIGHTMAGENTA = 253,
+    BRIGHTCYAN = 254,
+    BRIGHTWHITE = 255
+
+--   0      0      0     0    black
+--   1    128      0     0    dark red
+--   2      0    128     0    dark green
+--   3    128    128     0    brown (dark yellow/pea green)
+--   4      0      0   128    dark blue
+--   5    128      0   128    dark magenta (lavender)
+--   6      0    128   128    dark cyan
+--   7    192    192   192    light grey
+--   8    192    220   192    pastel green
+--   9    166    202   240    pastel blue
+--
+-- 246    255    251   240    soft white
+-- 247    160    160   164    medium grey
+-- 248    128    128   128    dark grey
+-- 249    255      0     0    bright red
+-- 250      0    255     0    bright green
+-- 251    255    255     0    yellow
+-- 252      0      0   255    bright blue
+-- 253    255      0   255    magenta
+-- 254      0    255   255    cyan
+-- 255    255    255   255    white
+
+global function makeIdentityPaletteColours()
+sequence pal
+    pal = repeat({0,0,0}, 256)
+    pal[1..10] =
+        {{0,0,0},
+         {0,0,128},
+         {0,128,0},
+         {0,128,128},
+         {128,0,0},
+         {128,0,128},
+         {128,128,0},
+         {192,192,192},
+         {192,220,192},
+         {240,202,166}}
+
+    pal[247..256] =
+        {{240,251,255},
+         {164,160,160},
+         {128,128,128},
+         {0,0,255},
+         {0,255,0},
+         {0,255,255},
+         {255,0,0},
+         {255,0,255},
+         {255,255,0},
+         {255,255,255}}
+
+    return pal
+
+end function
+
+
+sequence
+    DIBLIST,
+    DELETELIST
+
+    DIBLIST = {} -- holds various values associated with each DIB
+    DELETELIST = {} -- holds the id's of any deleted DIBs (FIFO)
+
+constant
+    DIB_HANDLE          = 1,    -- handle of the DIB section
+    DIB_ALLOC           = 2,    -- Address of memory allocated for whole structure
+    DIB_INFO_ADDR       = 3,    -- Address of InfoHeader for the DIB
+    DIB_PAL_ADDR        = 4,    -- Address of palette
+    DIB_IMAGE_ADDR      = 5,    -- Address of image (bottom left corner)
+    DIB_NET_WIDTH       = 6,    -- net width of DIB,ie: the size it was created as
+    DIB_GROSS_WIDTH     = 7,    -- gross width of DIB rounded up to nearest DWORD for performance reasons
+    DIB_HEIGHT          = 8     -- height of DIB
+    -- please note that the last 3 items are all 1-based values but the convention for plotting etc.
+    -- is 0-based.
+
+
+function addDibSection(atom handle, atom pMem, atom pInfo, atom pPalette, atom pImage, integer netwidth, integer grosswidth, integer height)
+integer id
+
+    -- check to see if there are any vacant id's
+    if length(DELETELIST) then
+        id = DELETELIST[1]
+        DELETELIST = DELETELIST[2..length(DELETELIST)]
+    else -- otherwise simply reserve space at the end of the current list
+        DIBLIST = append(DIBLIST, 0)
+        id = length(DIBLIST)
+    end if
+    -- insert the values
+    DIBLIST[id] = {handle, pMem, pInfo, pPalette, pImage, netwidth, grosswidth, height}
+    return id
+end function
+
+
+
+
+
+-- get the memory address of the start of line n
+global function dibLineAddr(integer id, integer line)
+atom addr
+integer grosswidth, height
+
+    addr = DIBLIST[id][DIB_IMAGE_ADDR]
+    grosswidth = DIBLIST[id][DIB_GROSS_WIDTH]
+    height = DIBLIST[id][DIB_HEIGHT]
+
+    if line>=height or line<0 then
+        return -1 -- overflow
+    end if
+
+    addr += ( height-line-1)*grosswidth
+
+    return addr
+end function
+
+
+
+-- get the memory address where the image data starts
+-- this is equivalent to getting the address of the start of the last (lowest) line
+global function dibImageAddr(integer id)
+    return DIBLIST[id][DIB_IMAGE_ADDR]
+end function
+
+global function getDibHeight(integer id)
+    return DIBLIST[id][DIB_HEIGHT]
+end function
+
+global function getDibWidth(integer id)
+    return DIBLIST[id][DIB_NET_WIDTH]
+end function
+
+global function getDibHandle(integer id)
+    return DIBLIST[id][DIB_HANDLE]
+end function
+
+
+global procedure setDibPalette(integer id, integer start, sequence pEntries)
+-- sets up to 256 new palette entries starting from entry 'first'
+-- Any entry can be {b,g,r} or {b,g,r,f} - f being for flags
+-- NB: if the triad form is used then the old flags value is not altered
+atom addr
+integer len
+object d
+
+    len = length(pEntries)
+
+    -- beware overflow
+    if start+len>257 then -- oops, too many entries
+        ?9/0
+    end if
+
+    -- get start address of palette
+    addr = DIBLIST[id][DIB_PAL_ADDR]+start*4-4
+
+    -- update the specified entries
+    for i=1 to len do
+        if atom(pEntries[i]) then
+            d = pEntries[i]
+--          d = {and_bits(d,#FF),and_bits(floor(d/#100),#FF),and_bits(floor(d/#10000),#FF),0}
+            d = {and_bits(floor(d/#10000),#FF),and_bits(floor(d/#100),#FF),and_bits(d,#FF),2}
+            poke(addr,d)
+        --  poke4(addr, pEntries[i])
+        else
+            poke(addr, pEntries[i])
+        end if
+        addr += 4
+    end for
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+
+global function getDibPalette(integer id, integer start, integer finish)
+atom addr
+sequence dibPal
+
+    -- get start address of palette
+    addr = DIBLIST[id][DIB_PAL_ADDR]+start*4-4
+
+    -- prepare return sequence
+    dibPal = repeat(0, finish-start+1)
+
+    -- loop through palette extracting the desired entries
+    for i=start to finish do
+        dibPal[i] = peek({addr, 4})
+        addr += 4
+    end for
+
+    return dibPal
+
+end function
+
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+--  -- Draw Dib functions
+constant
+    msvfw32         = assign_dll("msvfw32.dll"),
+    xDrawDibOpen    = link_c_func(msvfw32, "DrawDibOpen", {}, C_POINTER),
+    xDrawDibClose   = link_c_func(msvfw32, "DrawDibClose", {C_POINTER}, C_UINT),
+    xDrawDibDraw    = link_c_func(msvfw32, "DrawDibDraw",{C_POINTER,C_POINTER,C_INT,C_INT,C_INT,C_INT,C_POINTER,C_POINTER,C_INT,C_INT,C_INT,C_INT,C_UINT}, C_INT)
+
+
+
+global function openCanvas_XXXXXXXX()
+-- returns a handle to a drawdib dc
+-- when this function is called for the first time it opens the library
+-- and does a profile check of the display
+--  When drawing multiple DIBs simultaneously, create a DrawDib DC
+-- for each of the images that will be simultaneously on-screen.
+    return c_func(xDrawDibOpen, {})
+end function
+
+-----------------------------------------------------------------------------
+
+global function closeCanvas_XXXXXXXX(atom drawdib_DC)
+-- closes a drawdib dc & frees resources allocated for it
+-- for each DrawDibOpen there should be a DrawDibClose when the DrawDib DC
+-- is no longer needed
+    return c_func(xDrawDibClose, {drawdib_DC})
+end function
+
+-----------------------------------------------------------------------------
+--
+--global procedure drawDibText(integer iDib, sequence text, integer x, integer y, integer colour)
+--atom lpRect, lpText, hDC
+--
+--  hDC = openCanvas_XXXXXXXX()
+--  lpText = allocate_string("hello")
+--  lpRect = allocate_Rect()
+--  poke4(lpRect, {x , y, x+100 , y+20})
+--
+--  c_proc(xDrawText, {hDC, lpText, -1, lpRect, 0} )
+----    c_proc(xTextOut, {hDC,x,y,lpText,5})
+--  free(lpText)
+--  void = closeCanvas_XXXXXXXX(hDC)
+--end procedure
+global procedure drawDibText(integer id, sequence text, integer x, integer y, atom txt_colour, atom bk_colour, atom hFont)
+
+atom lpText, hDC
+
+    hDC = c_func(xCreateCompatibleDC, {0})
+
+    void = c_func(xSelectObject, {hDC, DIBLIST[id][DIB_HANDLE]})
+    void = c_func(xSelectObject, {hDC, hFont})
+--  void = c_func(xSetBkMode, {hDC, TRANSPARENT})
+    void = c_func(xSetTextColor, {hDC, txt_colour})
+    void = c_func(xSetBkColor, {hDC, bk_colour})
+    lpText = allocate_StringZ(text)
+
+    c_proc(xTextOut, {hDC, x, y, lpText, length(text)})
+
+    void = c_func(xDeleteDC, {hDC})
+
+end procedure
+
+--global procedure drawDisabledText(atom lpText, atom hDC, atom lpRect, atom flags)
+--sequence rect
+--  rect = peek4s( {lpRect, 4} ) + {1,1,1,1}
+--  poke4(lpRect, rect)
+--  void = c_func(xSetTextColor, {hDC,  c_func(xGetSysColor, {COLOR_3DHILIGHT} ) } ) --BGR
+--  c_proc(xDrawText, {hDC, lpText, -1, lpRect, flags} )
+--  rect -= {1,1,1,1}
+--  poke4(lpRect, rect)
+--  void = c_func(xSetBkMode, {hDC, TRANSPARENT} )
+--  void = c_func(xSetTextColor, {hDC,  c_func(xGetSysColor, {COLOR_GRAYTEXT} ) } ) --BGR
+--  c_proc(xDrawText, {hDC, lpText, -1, lpRect, flags} )
+--end procedure
+--
+
+
+-----------------------------------------------------------------------------
+-- draw a DIB to a window. If the quadrilateral coords are not *relatively* the
+-- same then the image will appear stretched/compressed
+-- drawDib (unlike stretchDIB)does not draw inverted dibs even though DIBs can be created
+-- as inverted. 
+global function drawDib(atom Dest_hdc,      -- Handle to destination DC
+                        integer destX,      -- x-coord of dest upper-left corner MM_TEXT client coordinate
+                        integer destY,      -- y-coord of dest upper-left corner  "  "  "   "    "
+                        integer destWidth,  -- width of dest rect in MM_TEXT. If this is -1, the width of the bitmap is used. 
+                        integer destHeight, -- height  "    "   in MM_TEXT. If this is -1, the height of the bitmap is used. 
+                        integer srcID,      -- SRC - id of DIB
+                        integer srcX,       -- x-coord of source upper-left corner
+                        integer srcY,       -- y-coord of source upper-left corner
+                        integer srcWidth,   -- width of source rectangle in pixels
+                        integer srcHeight)  -- height of source rectangle in pixels
+--                      integer wFlags)     -- flags (not be used yet - if at all)
+
+atom hCanvas            -- Handle to a DrawDib DC
+integer bool
+
+    hCanvas = c_func(xDrawDibOpen, {})
+
+    bool = c_func(xDrawDibDraw,
+                  {hCanvas,
+                   Dest_hdc,
+                   destX,
+                   destY,
+                   destWidth,
+                   destHeight,
+                   DIBLIST[srcID][DIB_INFO_ADDR],
+                   DIBLIST[srcID][DIB_IMAGE_ADDR],
+                   srcX,
+                   srcY,
+                   srcWidth,
+                   srcHeight,
+                   NULL})
+
+    if c_func(xDrawDibClose, {hCanvas}) then end if
+
+    return bool
+
+end function
+
+global procedure copyDib(atom hDC, integer destX, integer destY, integer srcID)
+-- copy the complete srcID dib to the destination dc at the point specified
+integer netwidth, height
+    netwidth = DIBLIST[srcID][DIB_NET_WIDTH]
+    height = DIBLIST[srcID][DIB_HEIGHT]
+
+    void = drawDib(hDC, destX, destY, netwidth, height, srcID, 0, 0, netwidth, height)
+end procedure
+
+global procedure copyDibDib(integer srcDib, integer destDib) -- dangerous routine!!!!!
+atom src, dest, len
+
+    src = dibImageAddr(srcDib)
+    dest = dibImageAddr(destDib)
+    len = DIBLIST[srcDib][DIB_GROSS_WIDTH]*DIBLIST[srcDib][DIB_HEIGHT]
+    mem_copy(dest, src, len)
+end procedure
+-----------------------------------------------------------------------------
+
+-- this is much the same as drawDib except that it can handle inverted DIBs
+global function stretchDib(atom Dest_hdc,   -- destination device context
+                           integer DestX,
+                           integer DestY,
+                           integer DestWidth,
+                           integer DestHeight,
+                           integer SrcID,
+                           integer SrcX,
+                           integer SrcY,
+                           integer SrcWidth,
+                           integer SrcHeight,
+                           integer rop)
+
+    return c_func(xStretchDIBits,
+                  {Dest_hdc,
+                   DestX,
+                   DestY,
+                   DestWidth,
+                   DestHeight,
+                   SrcX,
+                   SrcY,
+                   SrcWidth,
+                   SrcHeight,
+                   DIBLIST[SrcID][DIB_IMAGE_ADDR],
+                   DIBLIST[SrcID][DIB_INFO_ADDR],
+                   DIB_RGB_COLORS,
+                   rop})
+
+end function
+
+
+-----------------------------------------------------------------------------
+
+global function createDib(integer netwidth, integer height)
+-- create a memory accessible 256-colour DIB.
+-- Palette and image values are directly written into memory
+-- there are many other combinations where different colour modes etc.. can
+-- be defined but this routine is a simple one to suit my purposes
+-- NB: if width is not a multiple of 4 then this value will be increased to fall
+-- on a DWORD boundary.
+
+atom hdc, hDIB, pMem, pInfo, pImage, pPalette
+integer void, grosswidth
+
+    -- reserve memory for structure AND **pointer (pointer goes first, though..)
+    pMem = allocate(sizeofstruct(BITMAPINFO)+4)
+    pInfo = pMem+4
+
+    -- ensure width is a multiple of 4
+    grosswidth = aggregate(netwidth, 4)
+
+    -- populate structure
+    poke4(pInfo+BIH_biSize, sizeofstruct(BITMAPINFOHEADER))
+    poke4(pInfo+BIH_biWidth, grosswidth)        -- width of BMP in pixels
+    poke4(pInfo+BIH_biHeight, height)       -- height, -ve = topdown, +ve = bottomup NB: drawdib can't draw inverted dibs!!!!
+    poke2(pInfo+BIH_biPlanes, 1)            -- this is always 1
+    poke2(pInfo+BIH_biBitCount, 8)          -- no. of bits per pixel (0, 1, 4, 8, 16, 24, 32)
+    poke4(pInfo+BIH_biCompression, BI_RGB)  -- compression format - none in this case
+    poke4(pInfo+BIH_biSizeImage, 0)         -- size in bytes of image, set to 0 if no compression
+    poke4(pInfo+BIH_biXPelsPerMeter, 0)     --
+    poke4(pInfo+BIH_biYPelsPerMeter, 0)     --
+    poke4(pInfo+BIH_biClrUsed, 256)         -- actual no. colours used by the bitmap
+    poke4(pInfo+BIH_biClrImportant, 0)      -- no. colours needed to display image, 0=all
+
+    -- calc palette addr
+    pPalette = pInfo+sizeofstruct(BITMAPINFOHEADER)
+
+    -- get screen dc, always use 0 here for the Screen
+    hdc = c_func(xGetDC, {0})
+
+    -- call DIB creation routine
+    hDIB = c_func(xCreateDIBSection,
+                  {hdc,             -- handle to DC
+                   pInfo,           -- Pointer to a BITMAPINFO structure
+                   DIB_RGB_COLORS,-- flag to enable user palette
+                   pMem,                -- points to location that gets pointer to bits location
+                   NULL,                -- handle to file mapping object - not needed here
+                   NULL})           -- offset to bitmap bit values - not needed here
+
+    void = c_func(xReleaseDC, {0, hdc}) -- release the screen dc, always use 0 here for the Screen
+
+    -- get pointer to image data location
+    pImage = peek4u(pMem)
+
+    -- was creation of DIB successful?
+    if hDIB=NULL or pImage=NULL then -- error, return NULL
+        free(pMem)
+        return NULL
+    end if
+
+    -- success, return handle of DIB
+    return addDibSection(hDIB, pMem, pInfo, pPalette, pImage, netwidth, grosswidth, height)--MAKE DIM'S 0-BASED
+    -- (note: free(pMem) occurs via deleteDib())
+
+end function
+
+global function loadDibfromBMP(sequence img)
+object pal
+integer width, height, iDib
+
+    pal = img[1]
+    for i=1 to length(pal) do
+        pal[i] = reverse(pal[i])
+    end for
+    img = img[2]
+
+    -- get the dimensions of the image
+    width = length(img[1])
+    height = length(img)
+
+    -- create a dib with the same dimensions
+    iDib = createDib(width, height)
+
+    -- set the palette
+    setDibPalette(iDib, 1, pal)
+
+    -- set the data bits
+    for i=1 to height do
+        poke(dibLineAddr(iDib, i-1), img[i])
+    end for
+    return iDib
+end function
+
+global function loadDibImage(sequence filename)
+object img
+
+    -- read in a Euphoria bitmap
+    img = read_bitmap(filename)
+    if integer(img) then
+        return 0
+    end if
+    return loadDibfromBMP(img)
+end function
+
+
+global procedure setDibPixel(integer id, integer x, integer y, integer colour)
+-- sets the colour index at the specified point
+-- value MUST be between 1 and 256
+atom addr
+
+    addr = dibLineAddr(id, y)
+    if addr!= -1 then
+        if x>=0 and x<DIBLIST[id][DIB_NET_WIDTH] then
+            poke(addr+x, colour-1)
+        end if
+    end if
+end procedure
+
+
+global function getDibPixel(integer id, integer x, integer y)
+-- returns the colour index at the specified point between 1 and 256
+-- if the routine fails then will return 0
+atom addr
+
+    addr = dibLineAddr(id, y)
+    if addr!= -1 then
+        if x>=0 and x<DIBLIST[id][DIB_NET_WIDTH] then
+            return peek(addr+x)+1
+        end if
+    end if
+    return 0
+end function
+
+
+
+---------------------------
+atom
+        asm_plotDibPixelList,
+        params_plotDibPixelList_sDibInfo,
+        params_plotDibPixelList_pValues,
+        params_plotDibPixelList_iCount,
+        params_plotDibPixelList_iColour,
+        params_plotDibPixelList_iInitialX
+
+
+procedure plotDibPixelList_machinecode()
+
+    asm_plotDibPixelList = allocate(120)
+    poke(asm_plotDibPixelList,
+         {#60,                      --    0: open:  pusha
+          #8B,#15,#64,#DD,#AC,#82,  --    1: mov edx, [@DibNetWidth]
+          #BB,#00,#00,#00,#00,      --    7: mov ebx, DWORD iLeftOffset (8)
+          #39,#D3,                  --    C: cmp ebx, edx                       ; if iLeftOffset >= DibNetWidth then "exit"
+          #73,#44,                  --    E: jnb exit
+          #B9,#00,#00,#00,#00,      --   10: mov ecx, DWORD iCount          ; Count variable in ECX (17)
+          #89,#D8,                  --   15: mov eax, ebx                       ; eax = iLeftOffset
+          #01,#C8,                  --   17: add eax, ecx                       ; eax += iCount
+          #39,#D0,                  --   19: cmp eax, edx                       ; compare endpoint - DibNetWidth
+          #76,#04,                  --   1B: jna next
+          #89,#D1,                  --   1D: mov ecx, edx                       ; eax = DibNetWidth
+          #29,#D9,                  --   1F: sub ecx, ebx                       ; ecx = DibNetWidth - iLeftOffset
+          #BE,#00,#00,#00,#00,      --   21: next:  mov esi, DWORD pValues          ; set up data pointer in ESI (34)
+          #8B,#06,                  --   26: spin: mov eax, [esi]
+          #3B,#05,#6C,#DD,#AC,#82,  --   28: cmp eax, [@DibHeight]          ; ensure no excessive values
+          #73,#1D,                  --   2E: jae coun                           ; skip to next iteration
+          #F7,#D8,                  --   30: calc: neg eax          -       ; value = -value
+          #03,#05,#6C,#DD,#AC,#82,  --   32: add eax, [@DibHeight]          ; value = height - value (combined)
+          #48,                      --   38: dec eax                                ; value -= 1
+          #8B,#15,#68,#DD,#AC,#82,  --   39: mov edx, [@DibGrossWidth]
+          #F7,#E2,                  --   3F: mul edx                            ; value *= grosswidth
+          #03,#05,#60,#DD,#AC,#82,  --   41: add eax, [@DibBitsAddress] ; value += dibaddr
+          #01,#D8,                  --   47: add eax, ebx                       ; value += dispX
+          #B2,#00,                  --   49: mov dl, byte Colour            ; poke the value (74)
+          #88,#10,                  --   4B: mov [eax], dl
+          #83,#C6,#04,              --   4D: coun:  add esi, 4
+          #43,                      --   50: inc ebx                                ; inc dispX
+          #49,                      --   51: dec ecx                                ; dec counter
+          #75,#D2,                  --   52: jnz spin                           ; loop
+          #61,                      --   54: exit:  popa
+          #C3,                      --   55: ret
+          #90,                      --   56: pad:   nop                         ; padding to 4-byte boundary
+          #90,                      --   57: nop
+          #00,#00,#00,#00,          --   58: data:  DibHandle: dd 0 (88)
+          #00,#00,#00,#00,          --   5C: DibAlloc: dd 0 (92)
+          #00,#00,#00,#00,          --   60: DibInfoAddress: dd 0 (96)
+          #00,#00,#00,#00,          --   64: DibPalAddress: dd 0 (100)
+          #00,#00,#00,#00,          --   68: DibBitsAddress: dd 0 (104)
+          #00,#00,#00,#00,          --   6C: DibNetWidth:   dd  0 (108)
+          #00,#00,#00,#00,          --   70: DibGrossWidth: dd 0 (112)
+          #00,#00,#00,#00})         --   74: DibHeight: dd 0 (116)
+
+    poke4(asm_plotDibPixelList+3, asm_plotDibPixelList+108) -- @DibNetWidth
+    poke4(asm_plotDibPixelList+42, asm_plotDibPixelList+116) -- @DibHeight
+    poke4(asm_plotDibPixelList+52, asm_plotDibPixelList+116) -- @DibHeight
+    poke4(asm_plotDibPixelList+59, asm_plotDibPixelList+112) -- @DibGrossWidth
+    poke4(asm_plotDibPixelList+67, asm_plotDibPixelList+104) -- @DibBitsAddress
+
+    params_plotDibPixelList_sDibInfo = asm_plotDibPixelList+88
+    params_plotDibPixelList_pValues  = asm_plotDibPixelList+34
+    params_plotDibPixelList_iCount  = asm_plotDibPixelList+17
+    params_plotDibPixelList_iColour  = asm_plotDibPixelList+74
+    params_plotDibPixelList_iInitialX = asm_plotDibPixelList+8
+
+end procedure
+
+plotDibPixelList_machinecode()
+
+global procedure plotDibPixelList(integer id, integer initialX, sequence values, integer colour)
+-- plot a series of Y coordinate values with an incremental X value starting from X=initialX
+-- this is useful for plotting certain functions on a graph
+-- initialX is 0-based
+integer len
+atom pValues
+
+    len = length(values)
+
+    if len=0 then
+        return
+    end if
+
+    -- allocate space to place the y-coord values
+    pValues = allocate(len*4)
+    poke4(pValues, values)
+
+    -- set up the machine code parameters
+    poke4(params_plotDibPixelList_sDibInfo, DIBLIST[id])
+    poke4(params_plotDibPixelList_pValues, pValues)
+    poke4(params_plotDibPixelList_iCount, len)
+    poke4(params_plotDibPixelList_iInitialX, initialX)
+    poke(params_plotDibPixelList_iColour, colour)
+
+    call(asm_plotDibPixelList)
+
+    free(pValues)
+
+end procedure
+
+
+global procedure drawDibHorizontalLine(integer id, integer row, integer colour)
+-- draw a horizontal line right across the dib
+atom addr
+
+    addr = dibLineAddr(id, row)
+    if addr!= -1 then
+        mem_set(addr, colour, DIBLIST[id][DIB_NET_WIDTH]) -- FORGET M/CODE - just use builtin function
+    end if
+
+end procedure
+
+
+-- pointers for "drawVerticalLine" machine code
+atom
+    asm_drawVerticalLine,
+    params_drawVerticalLine_sDibInfo,
+    params_drawVerticalLine_iColumn,
+    params_drawVerticalLine_iColour
+
+procedure drawVerticalLine_machinecode()
+    asm_drawVerticalLine = allocate(92)
+    poke(asm_drawVerticalLine,
+         {#60,                      --    0: init:  pusha                   ; preserve the current register values
+          #A1,#44,#A0,#D0,#82,      --    1: mov eax, [@Column]         ; get the column number (0-based)
+          #8B,#1D,#38,#A0,#D0,#82,  --    6: mov ebx, [@DibNetWidth]    ; get the net width of the dib (1-based)
+          #85,#D8,                  --    C: test eax, ebx                  ; compare the two
+          #7C,#1F,                  --    E: jl exit                            ; abort if the column (eax) >= the width(ebx)
+          #03,#05,#34,#A0,#D0,#82,  --   10: add eax, [@DibBitsAddress]; get very first address to poke
+          #8B,#0D,#40,#A0,#D0,#82,  --   16: mov ecx, [@DibHeight]      ; get loop counter
+          #8A,#15,#48,#A0,#D0,#82,  --   1C: mov dl, [@Colour]          ; get colour index value
+          #8B,#1D,#38,#A0,#D0,#82,  --   22: mov ebx, [@DibNetWidth]    ; get the gross width of the dib (1-based)
+          #88,#10,                  --   28: L1:    mov [eax], dl           ; poke the value into the Dib
+          #01,#D8,                  --   2A: add eax, ebx                   ; add the width displacement to get the next line
+          #49,                      --   2C: dec ecx                            ; decrement the loop counter
+          #75,#F9,                  --   2D: jnz L1                         ; keep looping until counter is 0
+          #61,                      --   2F: exit:  popa                    ; restore all register values
+          #C3,                      --   30: ret                                ; return to calling program
+          #90,                      --   31: nop
+          #90,                      --   32: nop
+          #90,                      --   33: nop
+          #00,#00,#00,#00,          --   34: DibHandle: dd 0 (52)
+          #00,#00,#00,#00,          --   38: DibAlloc: dd 0 (56)
+          #00,#00,#00,#00,          --   3C: DibInfoAddress: dd 0 (60)
+          #00,#00,#00,#00,          --   40: DibPalAddress: dd 0 (64)
+          #00,#00,#00,#00,          --   44: DibBitsAddress: dd 0 (68)
+          #00,#00,#00,#00,          --   48: DibNetWidth:   dd  0       ; 1-based (72)
+          #00,#00,#00,#00,          --   4C: DibGrossWidth: dd 0        ; 1-based (76)
+          #00,#00,#00,#00,          --   50: DibHeight: dd 0            ; 1-based (80)
+          #00,#00,#00,#00,          --   54: Column: dd 0 (84)
+          #00,#00,#00,#00})         --   58: Colour: dd 0 (88)
+
+    poke4(asm_drawVerticalLine+18, asm_drawVerticalLine+68) -- @DibBitsAddress
+    poke4(asm_drawVerticalLine+8, asm_drawVerticalLine+72) -- @DibNetWidth
+    poke4(asm_drawVerticalLine+36, asm_drawVerticalLine+76) -- @DibGrossWidth
+    poke4(asm_drawVerticalLine+24, asm_drawVerticalLine+80) -- @DibHeight
+    poke4(asm_drawVerticalLine+2, asm_drawVerticalLine+84) -- @Column
+    poke4(asm_drawVerticalLine+30, asm_drawVerticalLine+88) -- @Colour
+
+    params_drawVerticalLine_sDibInfo = asm_drawVerticalLine+52
+    params_drawVerticalLine_iColumn = asm_drawVerticalLine+84
+    params_drawVerticalLine_iColour = asm_drawVerticalLine+88
+
+end procedure
+
+drawVerticalLine_machinecode()
+
+
+
+
+global procedure drawDibVerticalLine(integer id, integer column, integer colour)
+    poke4(params_drawVerticalLine_sDibInfo, DIBLIST[id])
+    poke4(params_drawVerticalLine_iColumn, column)
+    poke(params_drawVerticalLine_iColour, colour)
+    call(asm_drawVerticalLine)
+end procedure
+
+global procedure drawDibVerticalLineEu(integer id, integer column, integer colour)
+integer addr, disp, addr_end
+    addr = DIBLIST[id][DIB_IMAGE_ADDR]+column
+    disp = DIBLIST[id][DIB_GROSS_WIDTH]
+    addr_end = addr+(DIBLIST[id][DIB_HEIGHT]-1)*disp
+    for i=addr to addr_end by disp do
+        poke(addr, colour)
+    end for
+end procedure
+
+
+-- a single poke probably takes 276 machine cycles in Euphoria
+-- so the increase in speed using machine code could be 100's of times faster except that
+-- the inefficient parameter system (poking the values) slows it right down. I
+-- suppose that if the number of pokes was kept small or not at all then the code
+-- would be much faster
+
+-- 100,000 calls:
+--43.91s eu, 0.85s asm, 0.13s for the procedure call, actual ratio = 43.91 / (0.85 - 0.13) = 61 times faster
+
+
+global procedure drawDibFrame(integer iDib, integer thickness, integer colour)
+integer width, height
+    width = DIBLIST[iDib][DIB_NET_WIDTH]-1
+    height = DIBLIST[iDib][DIB_HEIGHT]-1
+    for i=0 to thickness-1 do
+        drawDibVerticalLine(iDib, i, colour)
+        drawDibVerticalLine(iDib, width-i, colour)
+        drawDibHorizontalLine(iDib, i, colour)
+        drawDibHorizontalLine(iDib, height-i, colour)
+    end for
+end procedure
+
+
+global procedure blankDib(integer iDib, integer colour)
+atom addr, size
+    addr = DIBLIST[iDib][DIB_IMAGE_ADDR]
+    size = DIBLIST[iDib][DIB_GROSS_WIDTH]*DIBLIST[iDib][DIB_HEIGHT]
+    mem_set(addr, colour, size)
+end procedure
+
+global procedure free_dbi256_machinecode()
+    free(asm_plotDibPixelList)
+    free(asm_drawVerticalLine)
+end procedure
+
+global function deleteDib(integer id) -- remove all resources associated with the DIB
+atom hDIB
+    if id=0 then -- delete all dib sections
+        for i=1 to length(DIBLIST) do
+            if sequence(DIBLIST[i]) then
+                hDIB = DIBLIST[i][DIB_HANDLE]
+                void = c_func(xDeleteObject, {hDIB})
+                free(DIBLIST[i][DIB_ALLOC])
+            end if
+        end for
+        DIBLIST = {}
+        DELETELIST = {}
+        free_dbi256_machinecode()
+        return True
+
+    elsif c_func(xDeleteObject, {DIBLIST[id][DIB_HANDLE]}) then -- delete only specified dib section
+        free(DIBLIST[id][DIB_ALLOC])
+        DIBLIST[id] = 0 -- set all image info values to zero
+        DELETELIST &= id -- store the (now) vacant id
+        return True
+
+    else
+        return False
+
+    end if
+
+end function
+
+-----------------------------------------------------------------------------

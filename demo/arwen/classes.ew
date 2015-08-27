@@ -1,0 +1,798 @@
+-----------------------------------------------------------------------------
+-- Classes of Windows: Base Classes
+-----------------------------------------------------------------------------
+global constant                 
+    WINDOW          = 0,        -- window
+    BUTTON          = 1,        -- button
+    MENU            = 2,        -- menu entities
+    EDIT            = 3,        -- edit
+    COMBO           = 4,        -- combo box
+    LIST            = 5,        -- list box
+    STATIC          = 6,        -- static
+    PIXMAP          = 7,        -- pixmap,
+    STATUS          = 8,        -- StatusBars & StatusFields
+    -- NB: previous classes of Common Controls included the scroll bars & track bars
+    SCROLLBAR       = 9,        -- scroll bar
+    TRACKBAR        = 10,       -- Track bar
+    PROGRESSBAR     = 11,
+    COMMON_CONTROL  = 12,       -- common controls  
+    HYPERTEXT       = 13,       -- custom flat button mimics url control style
+    UP_DOWN         = 14
+
+-----------------------------------------------------------------------------
+-- Classes of Windows: Used for internal identification of window type
+-----------------------------------------------------------------------------
+global integer
+    NUMCLASSES      -- this is the number of classes registered by the library
+    NUMCLASSES = 0
+
+
+global sequence
+    AppClassName            -- name with which to register the window classes
+    AppClassName = "ARWEN Win32"
+
+    
+global integer 
+    Screen,         -- id of screen
+    Printer         -- id of printer
+
+-- names of indexes for window_change
+--constant
+--  MY_SMALLCHANGE      = 1,        -- scroll bar line up/down amount
+--  MY_LARGECHANGE      = 2         -- scroll bar page up/down amount
+    
+
+sequence
+    
+    className,      -- class name
+    classBase,      -- message class
+    classStyle,     -- attributes
+    classStyleEx,   -- extended class attributes
+    classDefaults,
+    classAttr,      -- Attributes used internally by win32lib
+    classBGColor   -- Default background color
+
+global constant
+    -- The styles used in registering a Window class.
+    vWindowClassStyle = or_all({CS_DBLCLKS, CS_HREDRAW, CS_VREDRAW, CS_OWNDC})
+       
+constant ColourOfWindow = c_func(xGetSysColor, {COLOR_WINDOW})
+--
+--
+---- win32lib class attribute flags.    
+constant
+    w32BGTransparent = -1,  -- Takes on the parent's BG color.
+--  w32Clickable  = #0001,  -- Can allow mouseup detection to fire onClick handler
+--  w32NoConv     = #0002,  -- Must not allow relative dimension conversions
+    w32PictCtrl   = #0004   -- Controls that present bitmaps instead of text
+--  w32CtrlTab    = #0008   -- CTRL-tabkey must be used to move tabstops
+
+
+function newClass() -- increment the count of NUMCLASSES, return count
+    NUMCLASSES += 1
+    return NUMCLASSES
+    end function
+    
+global constant
+
+    -- window type
+    Window              = newClass(),
+    -- button types
+    Button              = newClass(), PushButton = Button,
+    PictureButton       = newClass(),
+    ToggleButton        = newClass(),
+    TogglePictureButton = newClass(),
+    -- mark box types
+    RadioButton         = newClass(),
+    CheckBox            = newClass(),    
+    TriCheckBox         = newClass(),
+    -- group
+    Group               = newClass(),
+    -- lists
+    ListBox             = newClass(),
+    ComboDropDownList   = newClass(),
+    ComboBox            = newClass(),
+    ComboDropDown       = newClass(),
+    -- editable
+    EditText            = newClass(),
+    MultiEditText       = newClass(),
+    -- static text label
+    Label               = newClass(),
+    -- scroll bars
+    HScroll             = newClass(),
+    VScroll             = newClass(),
+    -- static image types
+    StaticBitmap        = newClass(),
+    -- menus
+    Menu                = newClass(),
+    MenuItem            = newClass(),
+    MenuSep             = newClass(),
+    -- tool bar
+    ToolBar             = newClass(),
+    ToolSep             = newClass(),
+--13/5:
+    ReBar               = newClass(),
+    ReBarBand           = newClass(),
+
+    -- status bar
+    StatusBar           = newClass(),
+    StatusField         = newClass(),
+    -- track bars
+    HTrackBar           = newClass(),
+    VTrackBar           = newClass(),
+    -- tab controls
+    TabControl          = newClass(),
+    TabItem             = newClass(),
+    -- progress bar
+    ProgressBar         = newClass(),
+
+-- special class, Timers
+    Timer               = newClass(),
+
+-- custom class, HyperText
+    HyperText           = newClass(),
+
+    --ListViews PLlv
+    ListView            = newClass(),
+    
+    --TreeViews PLtv
+    TreeView            = newClass(),
+
+--13/5:
+--  MonthCalendar       = newClass(),
+    UpDown              = newClass(),
+
+    ToolTip             = newClass(),
+    Virtual             = newClass()    -- PL 30/12 for Screen and possibly Printer
+
+
+    className     = repeat(0,NUMCLASSES)
+    classBase     = repeat(0,NUMCLASSES)
+    classStyle    = repeat(0,NUMCLASSES)
+    classStyleEx  = repeat(0,NUMCLASSES)
+    classDefaults = repeat(0,NUMCLASSES)
+    classAttr     = repeat(0,NUMCLASSES)
+    classBGColor  = repeat(c_func(xGetSysColor,{COLOR_BTNFACE}),NUMCLASSES)
+
+global function getClassBase(integer objType)
+    return classBase[objType]
+end function
+
+global function getClassBackColour(integer objType)
+    return classBGColor[objType]
+end function
+
+global function isPictCtrl(integer objType)
+    return and_bits(classAttr[objType], w32PictCtrl)
+end function
+
+global function hasWS_TABSTOP(integer objType)
+    -- Test if control type would normally have the WS_TABSTOP flag set.
+    -- NB: this is not used by Windows via ARWEN but I can use it to emulate tabbing between controls.
+    return and_bits(classStyle[objType], WS_TABSTOP)
+end function
+
+global procedure resetClassDefaults(integer ControlType)
+    classDefaults[ControlType] = 0
+end procedure
+
+
+global procedure setClassDefaults(integer ControlType, object style, object ex_style)
+
+    -- make into atoms if not already
+    if sequence(style) then
+        style = or_all(style)
+    end if
+    if sequence(ex_style) then
+        ex_style = or_all(ex_style)
+    end if
+    
+    -- set default class styles with new values
+    classDefaults[ControlType] = {style, ex_style}
+    
+end procedure
+
+
+
+--with trace
+global function getClassStyles(integer ControlType)
+--DEV object cd... return cd[1..2]
+    -- can merge with new default values?
+    if sequence(classDefaults[ControlType]) then
+        return {classDefaults[ControlType][1], classDefaults[ControlType][2]}
+
+    else -- merge with standard values
+        return {classStyle[ControlType],classStyleEx[ControlType]}
+
+    end if
+end function
+
+global procedure RemoveOwnerDrawnTabs()
+    classStyle[TabControl] -= and_bits(classStyle[TabControl],TCS_OWNERDRAWFIXED)
+end procedure
+
+global function getClassName(integer controltype)
+    if controltype = Window then
+        return AppClassName
+    end if
+    return className[controltype]
+end function
+    
+
+-----------------------------------------------------------------------------
+--/desc A Window is a normal Win32 window.
+
+    className[Window]       = "" -- To be determined at creation time.
+    classBase[Window]       = WINDOW
+    classStyle[Window]      = WS_OVERLAPPEDWINDOW --+ WS_CLIPCHILDREN
+    classStyleEx[Window]    = WS_EX_ACCEPTFILES --+ WS_EX_CONTROLPARENT
+--  classAttr[Window]       = w32Clickable
+
+-----------------------------------------------------------------------------
+--/topic Controls
+--/const PushButton
+--/desc Command button control.
+-- A Button is a normal push button (sometimes called command button)
+
+    className[Button] = "button"
+    classBase[Button] = BUTTON
+    classStyle[Button] = or_all({WS_CHILD, 
+                                 WS_VISIBLE,
+                                 BS_PUSHBUTTON,
+--                               BS_NOTIFY,
+--                               BS_FLAT,
+                                 WS_TABSTOP
+                                })
+--  classAttr[Button] = 0
+
+------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+--/topic Controls
+--/const PictureButton
+--/desc Command button with graphic control.
+-- A PictureButton is a Button with a graphic instead
+-- of text. The graphic can be specified by passing the name or address of 
+-- a bitmap control in the /i flags parameter, or with /setBitmap,
+-- /setIcon or /setPixmap.
+--
+-- A PictureButton is typically used in a /ToolBar.
+
+    className[PictureButton] = "button"
+    classBase[PictureButton] = BUTTON
+    classStyle[PictureButton] = or_all({WS_CHILD, 
+                                        WS_VISIBLE,
+                                        BS_PUSHBUTTON,
+                                        BS_BITMAP,
+--                                      BS_TEXT,
+--                                      BS_BOTTOM,
+--                                      BS_FLAT,
+                                        BS_VCENTER,
+                                        BS_CENTER
+--                                      WS_TABSTOP
+                                       })
+    classAttr[PictureButton] = w32PictCtrl
+
+-----------------------------------------------------------------------------
+--/topic Controls
+--/const ToggleButton
+--/desc Toggle button control.
+-- A ToggleButton is a /PushButton that behaves like a
+-- /CheckBox - clicking it toggles it down, clicking again toggles
+-- it back up. It is typically used in a /ToolBar.
+--
+--
+-- /li /b WS_CHILD: child control of the parent
+-- /li /b WS_VISIBLE: it is visible
+-- /li /b BS_PUSHBUTTON: button style is pushbutton
+-- /li /b WS_TABSTOP: the control can be tabbed to
+
+    className[ToggleButton] = "button"
+    classBase[ToggleButton] = BUTTON
+    classStyle[ToggleButton] = or_all({WS_CHILD, 
+                                       WS_VISIBLE,
+                                       BS_PUSHLIKE,                                        
+                                       BS_AUTOCHECKBOX,
+                                       WS_TABSTOP})
+--  classAttr[ToggleButton] = 0
+
+-----------------------------------------------------------------------------
+
+-- A TogglePictureButton is a combination of a /ToggleButton
+-- and a /PictureButton. The graphic can be specified by passing the 
+-- name or address of a bitmap in the /i flags parameter, or with 
+-- /setBitmap, /setIcon or /setPixmap.
+
+    className[TogglePictureButton] = "button"
+    classBase[TogglePictureButton] = BUTTON
+    classStyle[TogglePictureButton] = or_all({WS_CHILD, 
+                                              WS_VISIBLE,
+                                              BS_PUSHLIKE,                                         
+                                              BS_AUTOCHECKBOX,
+                                              BS_BITMAP,
+                                              WS_TABSTOP})
+    classAttr[TogglePictureButton] = w32PictCtrl
+    
+-----------------------------------------------------------------------------
+
+-- A CheckBox is a button that can be toggled on or off.
+-- It appears as a box with a label to the side. Clicking the
+-- checkbox causes an 'X' to be toggled in the box.
+
+    className[CheckBox] = "button"
+    classBase[CheckBox] = BUTTON
+    classStyle[CheckBox] = or_all({WS_CHILD, 
+                                   WS_VISIBLE,
+                                   BS_AUTOCHECKBOX,
+                                   WS_TABSTOP})
+    classBGColor[CheckBox] = w32BGTransparent
+
+-----------------------------------------------------------------------------
+
+-- A TriCheckBox is similar to a /CheckBox, but it
+-- has three states: on, off, or dim.
+
+    className[TriCheckBox] = "button"
+    classBase[TriCheckBox] = BUTTON 
+    classStyle[TriCheckBox] = or_all({WS_CHILD, 
+                                      WS_VISIBLE,
+                                      BS_AUTO3STATE,
+                                      WS_TABSTOP})
+
+-----------------------------------------------------------------------------
+
+-- A Radio is similar to a /CheckBox, in functionality.
+-- Like a checkbox, it can be toggled on and off. However, radio buttons 
+-- are grouped controls - if one is toggled on, the rest in the group are 
+-- toggled off.
+--
+
+    className[RadioButton] = "button"
+    classBase[RadioButton] = BUTTON
+    classStyle[RadioButton] = or_all({WS_CHILD, 
+                                      WS_VISIBLE,
+                                      BS_AUTORADIOBUTTON,
+                                      WS_TABSTOP})
+    classStyleEx[RadioButton] = WS_EX_TRANSPARENT
+
+-----------------------------------------------------------------------------
+--/topic Controls
+--/const Group
+--/desc Group control.
+-- A Group is a static control, and recieves no events. It's
+-- main function is to seperate other controls into groups.
+--
+-- In addition to providing a visual cue, the group alters the behavior of 
+-- the /Radio control; all the radio buttons within a single group are 
+-- considered to belong to the same group.
+--
+-- When placing controls in groups, it's a good idea to make them 
+-- children of the Group, instead of children of the Window. If you
+-- don't, the Group may end up routing events meant for the control to
+-- itself. For example, /onDragAndDrop events will be routed to the
+-- Group instead of the child.
+--
+    className[Group] = "button"
+    classBase[Group] = BUTTON
+    classStyle[Group] = or_all({WS_CHILD,
+                                WS_VISIBLE,
+                                BS_GROUPBOX})
+--  classAttr[Group] = w32Clickable
+
+-----------------------------------------------------------------------------
+
+-- A List contains a list of items, arranged in the order that
+-- they were placed into the list. To have a sorted list use
+-- LBS_SORT in the class style upon creation. To have a drop down
+-- list use control DropDownCombo instead
+
+    className[ListBox] = "listbox"
+    classBase[ListBox] = LIST
+    classStyle[ListBox] = or_all({WS_CHILD, 
+                                  WS_VISIBLE,
+                                  LBS_NOTIFY,
+--                                LBS_SORT,
+                                  WS_VSCROLL, 
+                                  WS_BORDER,
+                                  WS_TABSTOP
+--                                LBS_DISABLENOSCROLL
+                                 })
+    classStyleEx[ListBox] = or_all({WS_EX_CLIENTEDGE, WS_EX_ACCEPTFILES})
+--  classAttr[ListBox] = w32Clickable
+    classBGColor[ListBox] = ColourOfWindow
+-----------------------------------------------------------------------------
+--/topic Controls
+--/const ComboDropDownList
+--/desc Drop down list control.
+-- A ComboDropDownList is a ComboBox disguised as a DropDown ListBox. I think MS did
+-- this because they neglected to have the DropDown option available for ListBoxes when
+-- they were first formulated. The edit control is not accessible and so most of the
+-- creation flags are not relevant except CBS_SORT.
+
+    className[ComboDropDownList] = "combobox"
+    classBase[ComboDropDownList] = COMBO
+    classStyle[ComboDropDownList] = or_all({WS_CHILD, 
+                                            WS_VISIBLE,
+                                            WS_VSCROLL,
+                                            CBS_DROPDOWNLIST,
+--                                          CBS_HASSTRINGS,
+--                                          CBS_SORT
+                                            WS_TABSTOP})
+    classStyleEx[ComboDropDownList] = WS_EX_CLIENTEDGE
+--  classAttr[ComboDropDownList] = w32Clickable
+    classBGColor[ComboDropDownList] = ColourOfWindow
+-----------------------------------------------------------------------------
+
+-- A ComboBox comprises a ListBox and an edit control.
+-- The list does not drop-down but remains permanently displayed.
+
+    className[ComboBox] = "combobox"
+    classBase[ComboBox] = COMBO
+    classStyle[ComboBox] = or_all({WS_CHILD, 
+                                   WS_VISIBLE,
+                                   WS_VSCROLL,
+--                                 CBS_HASSTRINGS,
+                                   CBS_SIMPLE,
+--                                 CBS_SORT
+                                   WS_TABSTOP})
+    classStyleEx[ComboBox] = WS_EX_CLIENTEDGE
+--  classAttr[ComboBox] = w32Clickable
+    classBGColor[ComboBox] = ColourOfWindow
+
+-----------------------------------------------------------------------------
+
+-- A ComboDropDown is a combo box with a dropdown list.
+-- If you need the items in the combo to be sorted then
+-- assert CBS_SORT in the style flags at creation.
+
+    className[ComboDropDown] = "combobox"
+    classBase[ComboDropDown] = COMBO
+    classStyle[ComboDropDown] = or_all({WS_CHILD, 
+                                        WS_VISIBLE,
+                                        WS_VSCROLL,
+                                        CBS_DROPDOWN,
+                                        CBS_AUTOHSCROLL,
+--                                      CBS_HASSTRINGS,
+--                                      CBS_SORT
+                                        WS_TABSTOP})
+    classStyleEx[ComboDropDown] = WS_EX_CLIENTEDGE
+--  classAttr[ComboDropDown] = w32Clickable
+    classBGColor[ComboDropDown] = ColourOfWindow
+
+-----------------------------------------------------------------------------
+
+-- An EditText allows the user to enter text values into a single line control.
+-- Unfortunately you cannot assert ES_RIGHT or ES_CENTER for text justification.
+-- The default is always ES_LEFT. This is yet another instance of the shortsightedness
+-- that plagues their system.
+
+-- single line edit, left justified
+    className[EditText] = "edit"
+    classBase[EditText] = EDIT
+    classStyle[EditText] = or_all({WS_CHILD, 
+                                   WS_VISIBLE,
+                                   WS_TABSTOP,
+                                   WS_BORDER,
+                                   ES_AUTOHSCROLL,
+--                                 ES_RIGHT,
+--                                 ES_CENTER,
+                                   ES_LEFT
+                                  })
+    classStyleEx[EditText] = or_all({WS_EX_CLIENTEDGE, WS_EX_ACCEPTFILES})
+    classBGColor[EditText] = ColourOfWindow
+
+-----------------------------------------------------------------------------
+
+-- A MultiEditText control is like a mini-text editor.
+-- The user can enter in multiple lines of text.
+-- Since the Tab key is accepted as input into the MLE, the user has to press
+-- Control+Tab to move to the next control, instead of the standard Tab key.
+   
+    className[MultiEditText] = "edit"
+    classBase[MultiEditText] = EDIT
+    classStyle[MultiEditText] = or_all({WS_CHILD, 
+                                        WS_VISIBLE,
+                                        WS_TABSTOP,
+                                        WS_VSCROLL,
+                                        WS_HSCROLL,
+                                        WS_BORDER,
+                                        ES_LEFT,
+--                                      ES_RIGHT, -- don't know if these will work
+--                                      ES_CENTER,-- "		"       "		"        "
+                                        ES_AUTOHSCROLL,
+                                        ES_AUTOVSCROLL,
+                                        ES_MULTILINE})
+    classStyleEx[MultiEditText] = or_all({WS_EX_CLIENTEDGE, WS_EX_ACCEPTFILES})
+--  classAttr[MultiEditText] = w32CtrlTab
+    classBGColor[MultiEditText] = ColourOfWindow
+-----------------------------------------------------------------------------
+
+-- A Label is a static text box which does not respond to events.
+-- Asserting ES_RIGHT or ES_CENTER will justify text
+
+    className[Label] = "static"
+    classBase[Label] = STATIC
+    classStyle[Label] = or_all({WS_CHILD, 
+                                WS_VISIBLE,
+--                              SS_NOTIFY, -- causes a few notification message sent to parent window
+--                              ES_RIGHT,
+--                              ES_CENTER,
+                                ES_LEFT})
+--  classAttr[Label] = 0
+    classBGColor[Label] = w32BGTransparent
+
+-----------------------------------------------------------------------------
+
+-- Horizontal scrollbar control.
+
+    className[HScroll] = "scrollbar"
+    classBase[HScroll] = SCROLLBAR
+    classStyle[HScroll] = or_all({WS_CHILD, 
+                                  WS_VISIBLE,
+                                  WS_TABSTOP,
+                                  SBS_HORZ})
+
+-----------------------------------------------------------------------------
+
+-- Vertical scrollbar control.
+
+    className[VScroll] = "scrollbar"
+    classBase[VScroll] = SCROLLBAR
+    classStyle[VScroll] = or_all({WS_CHILD, 
+                                  WS_VISIBLE,
+                                  WS_TABSTOP,
+                                  SBS_VERT})
+
+-----------------------------------------------------------------------------
+
+-- A StaticBitmap is a static graphic. It could be an icon or a Bitmap.
+-- As a static control, it does not respond to events.
+
+    className[StaticBitmap] = "static"
+    classBase[StaticBitmap] = STATIC
+    classStyle[StaticBitmap] = or_all({WS_CHILD, 
+                                       WS_VISIBLE,
+                                       SS_BITMAP})
+    classAttr[StaticBitmap] = w32PictCtrl
+
+-----------------------------------------------------------------------------
+
+-- Menu bar item control.
+-- A Menu is an item in a window's menubar. There is no need to
+-- declare a menubar for a window; if a Menu is created, the menubar
+-- will automatically be created for it.
+
+    className[Menu] = ""
+    classBase[Menu] = MENU
+--  classAttr[Menu] = w32NoConv
+
+
+
+-- A MenuItem is an item in a window's Menu. Menu items are
+-- placed sequentially into menus.
+
+    className[MenuItem] = ""
+    classBase[MenuItem] = MENU
+--  classAttr[MenuItem] = w32NoConv
+
+
+    className[MenuSep] = ""
+    classBase[MenuSep] = MENU
+
+-----------------------------------------------------------------------------
+
+-- Window toolbar control.
+-- A ToolBar is a container at the top of a window that can hold
+-- other controls - typically /PushButtons or /ToggleButtons.
+-- Toolbars are implemented using the Win32 common control toolbar.
+--
+-- When the parent window is resized, ARWEN automatically repositions
+-- the ToolBar.
+--
+-- Note that the toolbar occupies space like any other control. To determine
+-- what portion of the window's client area is not occupied by the toolbar
+-- (and statusbar), use the /getClientRect function.
+
+    className[ToolBar] = TOOLBARCLASSNAMEA
+    classBase[ToolBar] = COMMON_CONTROL
+    classStyle[ToolBar] = or_all({
+--                                TBSTYLE_TOOLTIPS,
+--                                TBSTYLE_ALTDRAG,
+--                                TBSTYLE_WRAPABLE,
+                                  CCS_TOP,
+--removed 26/04/2010:
+--                                CCS_NORESIZE,
+--                                CCS_NODIVIDER,
+--                                #10,--CCS_NOHILITE,
+                                  WS_CHILD,
+                                  WS_VISIBLE,
+--                                WS_TABSTOP, -- does not seem to have any effect
+                                  WS_BORDER,
+                                  WS_CLIPSIBLINGS})
+                        
+--  classAttr[ToolBar] = w32NoConv + w32Clickable
+    className[ToolSep] = ""
+
+-----------------------------------------------------------------------------
+--13/5:
+-- ReBar controls
+--  Rebars are similar to toolbars, but can do some fancier things, such as
+--  drag and drop reordering, like the menu/toolbar/addressbar in Explorer.
+--  You can put any sort of control into a rebar.
+--
+-- See also: /addToBand(), /ReBarBand
+
+    className[ReBar] = REBARCLASSNAME
+    classBase[ReBar] = COMMON_CONTROL
+    classStyle[ReBar] = or_all({WS_CLIPPINGCHILD,
+                                WS_VISIBLE,
+                                WS_TABSTOP,
+                                WS_CLIPCHILDREN,
+                                CCS_ADJUSTABLE,
+                                WS_BORDER})
+    classStyleEx[ReBar] = WS_EX_CLIENTEDGE
+--  classAttr[ReBar] = w32NoConv + w32OwnerId + w32Toolbar
+    className[ReBarBand] = ""
+
+--13/5 ends
+-----------------------------------------------------------------------------
+
+-- A StatusBar is a control placed at the bottom of the window
+-- that status messages can be written into.
+
+-- Note that the status bar occupies space like any other control. To 
+-- determine what portion of the window's client area is not occupied by 
+-- the statusbar (and toolbar), use the /getClientRect function.
+
+    className[StatusBar] = STATUSCLASSNAMEA
+    classBase[StatusBar] = STATUS
+    classStyle[StatusBar] = or_all({WS_CHILD,
+                                    WS_VISIBLE,
+--                                  WS_DLGFRAME,
+                                    SBARS_SIZEGRIP,
+--                                  WS_CLIPSIBLINGS,
+                                    CCS_BOTTOM})
+--  classAttr[StatusBar] = w32Clickable
+
+
+    className[StatusField] = "StatusField" -- this is largely not applicable to anything with ARWEN
+    classBase[StatusField] = STATUS
+    
+-----------------------------------------------------------------------------
+
+-- Horizontal track bar control.
+
+    className[HTrackBar] = TRACKBAR_CLASSA
+    classBase[HTrackBar] = TRACKBAR
+    classStyle[HTrackBar] = or_all({WS_CHILD, 
+                                    WS_VISIBLE,
+                                    TBS_HORZ,
+--                                  TBS_AUTOTICKS,
+--                                  TBS_ENABLESELRANGE,
+                                    WS_TABSTOP})
+--  classAttr[HTrackBar] = w32Clickable
+
+-----------------------------------------------------------------------------
+
+--/desc Vertical track bar control.
+
+    className[VTrackBar] = TRACKBAR_CLASSA
+    classBase[VTrackBar] = TRACKBAR
+    classStyle[VTrackBar] = or_all({WS_CHILD, 
+                                    WS_VISIBLE,
+                                    TBS_VERT,
+--                                  TBS_AUTOTICKS,
+--                                  TBS_ENABLESELRANGE,
+                                    WS_TABSTOP})
+--  classAttr[VTrackBar] = w32Clickable
+
+-----------------------------------------------------------------------------
+
+-- A TabControl is a container control. It can have one or more /TabItems.
+-- Selecting a /TabItem in a TabControl activates it, and displays any
+-- controls that are associated with it.
+--
+-- Since the TabControl is a container, controls can be placed into it,
+-- just like placing them into a window. However, it becomes the developers's
+-- responsibility to show and hide various controls as different /TabItems
+-- are selected. It is easier to associate controls with /TabItems, since
+-- ARWEN will automatically take care of those details.
+
+    className[TabControl] = WC_TABCONTROLA
+    classBase[TabControl] = COMMON_CONTROL
+    classStyle[TabControl] = or_all({WS_CHILD, 
+                                     WS_VISIBLE,
+                                     WS_CLIPCHILDREN,
+--                                   WS_SIZEBOX,
+--                                   WS_TABSTOP,
+                                     TCS_FOCUSONBUTTONDOWN,
+-- the TCS_OWNERDRAWFIXED flag means that disabled text can be drawn on the TabItem
+                                     TCS_OWNERDRAWFIXED
+                                    })
+    classStyleEx[TabControl] = WS_EX_CONTROLPARENT  
+                        
+--  classAttr[TabControl] = w32Clickable
+
+-----------------------------------------------------------------------------
+
+    className[TabItem] = ""
+--  classBase[TabItem] = COMMON_CONTROL
+    classStyle[TabItem] = WS_TABSTOP
+
+
+-----------------------------------------------------------------------------
+
+         
+
+    className[ProgressBar] = PROGRESS_CLASSA
+    classBase[ProgressBar] = PROGRESSBAR
+    classStyle[ProgressBar] = or_all({WS_CHILD,
+                                      WS_VISIBLE})
+--  classAttr[ProgressBar] = w32Clickable
+
+-----------------------------------------------------------------------------
+
+
+    className[HyperText] = "button"
+    classBase[HyperText] = HYPERTEXT
+    classStyle[HyperText] = or_all({WS_CHILD, 
+                                    WS_VISIBLE,
+--                                  BS_PUSHBUTTON,
+--                                  BS_BITMAP,
+                                    BS_TEXT,
+--                                  BS_BOTTOM,
+                                    BS_FLAT,
+                                    BS_OWNERDRAW,
+                                    BS_VCENTER,
+                                    BS_CENTER,
+                                    WS_TABSTOP})
+
+-----------------------------------------------------------------------------
+-- PLlv
+    className[ListView] = WC_LISTVIEWA
+    classBase[ListView] = COMMON_CONTROL
+    classStyle[ListView] = or_all({WS_CHILD,
+                                   WS_VISIBLE,
+                                   WS_TABSTOP,
+                                   LVS_REPORT,
+                                   LVS_SHAREIMAGELISTS})
+    classStyleEx[ListView] = WS_EX_CLIENTEDGE
+--  classAttr[ListView] = w32Clickable
+    classBGColor[ListView] = ColourOfWindow
+-----------------------------------------------------------------------------
+
+-- PLtv
+    className[TreeView] = WC_TREEVIEWA
+    classBase[TreeView] = COMMON_CONTROL
+    classStyle[TreeView] = or_all({WS_CHILD,
+                                   WS_VISIBLE,
+                                   WS_TABSTOP,
+                                   TVS_HASLINES,
+                                   TVS_LINESATROOT,
+--                                 TVS_SINGLEEXPAND,    -- removed 26/11 PL
+                                   TVS_HASBUTTONS})
+    classStyleEx[TreeView] = WS_EX_CLIENTEDGE
+--  classAttr[TreeView] = w32Clickable
+    classBGColor[TreeView] = ColourOfWindow
+
+-----------------------------------------------------------------------------
+
+    className[UpDown] = UPDOWN_CLASSA
+--  classBase[UpDown] = COMMON_CONTROL
+    classBase[UpDown] = UP_DOWN
+    classStyle[UpDown] = or_all({WS_CLIPPINGCHILD,
+                                 WS_VISIBLE})
+--  classStyleEx[UpDown] = WS_EX_CLIENTEDGE
+    classStyleEx[UpDown] = or_all({WS_EX_LEFT,WS_EX_LTRREADING})
+    classBGColor[UpDown] = ColourOfWindow
+--  classAttr[UpDown] = w32OwnerId
+--  classKbdInput[UpDown] = DLGC_WANTARROWS
+
+-----------------------------------------------------------------------------
+
+    className[ToolTip] = TOOLTIPS_CLASSA
+    classBase[ToolTip] = COMMON_CONTROL
+    classStyle[ToolTip] = TTS_ALWAYSTIP
+    classStyleEx[ToolTip] = WS_EX_TOPMOST
+    classBGColor[ToolTip] = ColourOfWindow
+--  classAttr[ToolTip] = w32NoConv
+

@@ -1,0 +1,59 @@
+--/topic Constant
+--/const advapi32
+--/desc Windows Library: Advanced API
+include w32support.e
+global constant
+    advapi32    = registerw32Library("advapi32.dll"),  -- common dialogs
+
+-- common dialogs
+    xCryptAcquireContext    = registerw32Function(advapi32, "CryptAcquireContextA", {C_POINTER,C_POINTER,C_POINTER,C_LONG,C_UINT}, C_LONG),
+    xCryptReleaseContext    = registerw32Function(advapi32, "CryptReleaseContext", {C_POINTER, C_UINT}, C_LONG),
+    xCryptGenRandom         = registerw32Function(advapi32, "CryptGenRandom",{C_POINTER, C_LONG, C_POINTER}, C_UINT),
+    xGetUserName            = registerw32Function(advapi32, "GetUserNameA", {C_POINTER, C_POINTER}, C_INT),
+
+    PROV_RSA_FULL          = 1,
+    PROV_RSA_SIG           = 2,
+    PROV_DSS               = 3,
+    PROV_FORTEZZA          = 4,
+    PROV_MS_EXCHANGE       = 5,
+    PROV_SSL               = 6,
+    PROV_RSA_SCHANNEL      = 12,
+    PROV_DSS_DH            = 13,
+    PROV_EC_ECDSA_SIG      = 14,
+    PROV_EC_ECNRA_SIG      = 15,
+    PROV_EC_ECDSA_FULL     = 16,
+    PROV_EC_ECNRA_FULL     = 17,
+    PROV_DH_SCHANNEL       = 18,
+    PROV_SPYRUS_LYNKS      = 20,
+    PROV_RNG               = 21,
+    PROV_INTEL_SEC         = 22,
+    PROV_REPLACE_OWF       = 23,
+    PROV_RSA_AES           = 24
+
+
+--/topic System Attributes
+--/func getUserName()
+--/Desc Fetches the id of the currently logged in user.
+--/ret SEQUENCE: The user ID
+--
+--Example:
+--/code
+--      sequence lUser
+--      lUser  = getUserName()
+--/endcode
+global function getUserName()
+    sequence lUserId
+    atom lBufferAddress, lResultCode
+
+    lBufferAddress = w32acquire_mem(0, 4 + 256 + 1)
+    poke4(lBufferAddress, 256)
+    lResultCode = w32Func(xGetUserName, {lBufferAddress+4, lBufferAddress})
+    if lResultCode then
+        lUserId = w32peek_string(lBufferAddress+4)
+    else
+        lUserId = {}
+    end if
+    w32release_mem(lBufferAddress)
+    return lUserId
+end function
+

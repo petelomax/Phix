@@ -1,0 +1,196 @@
+--
+-- t57masgn.exw
+--
+-- Phix tests for multiple assignment
+--
+
+function fn(sequence x)
+--  return x*x + 2*x + length(x) -- (RDSEu/OpenEuphoria style)
+    return sq_add(sq_mul(x,x),sq_add(sq_mul(2,x),length(x)))
+end function 
+ 
+object a,b,c,d,e,f
+sequence t
+ 
+constant testemitONis0 = 0  -- (also serves to show "longhand" equivalents)
+                            -- (we should test emitON=0 to ensure it (pmain.e) 
+                            --  is cleaning up opstack/opsidx properly, and 
+                            --  obviously not emitting any code it should not)
+    
+constant verbose = 0
+
+if testemitONis0 then
+    a = 1
+    b = 2
+    c = 3
+else
+    {a,b,c} = {1,2,3}  -- Assign literal values to each of 'a', 'b', and 'c' 
+end if
+ 
+if verbose then ?{a,b,c} end if
+
+if {a,b,c}!={1,2,3} then ?9/0 end if
+
+if testemitONis0 then
+    t = fn({a,b,c})
+    if verbose then ?t end if
+    c = t[1]
+    b = t[3]
+else
+    {c,?,b} = fn({a,b,c})   -- Assign function return elements. 
+end if                      -- But note the '?' means skip respective element. 
+if verbose then ?{a,b,c} end if
+if {a,b,c}!={1,18,6} then ?9/0 end if
+ 
+if testemitONis0 then
+    t = {b,a}
+    a = t[1]
+    b = t[2]
+else
+    {a,b} = {b,a} -- swap two items. 
+end if
+ 
+if verbose then ? {a,b,c} end if
+
+if {a,b,c}!={18,1,6} then ?9/0 end if
+ 
+if testemitONis0 then
+    t = fn({a,b,c})
+    a = t[1]
+else
+    {a} = fn({a,b,c}) -- Also handles unmatched number of elements  
+end if
+ 
+if verbose then ?{a,b,c} end if
+
+if {a,b,c}!={363,1,6} then ?9/0 end if
+
+if testemitONis0 then
+    c = 1
+    b = 1
+    a = 1
+else    
+    {a,b,c} @= 1
+end if
+if verbose then ?{a,b,c} end if
+
+if {a,b,c}!={1,1,1} then ?9/0 end if
+
+{} = fn({a,b,c})
+
+object names,dates,sizes
+
+if testemitONis0 then
+    names = {}
+    dates = {}
+    sizes = {}
+else
+    {names,dates,sizes} @= {}
+end if
+
+if verbose then ?{names,dates,sizes} end if
+
+if {names,dates,sizes}!={{},{},{}} then ?9/0 end if
+
+
+if testemitONis0 then
+    a = 1
+    b = 2
+    c = 3
+    d = 4
+else
+    {{a,b},{c,d}} := {{1,2},{3,4}}  -- (becomes equal to)
+end if
+
+if verbose then ?{a,b,c,d} end if
+
+if {a,b,c,d}!={1,2,3,4} then ?9/0 end if
+
+if testemitONis0 then
+    a = {1,2}
+    b = {3,4}
+    c = {1,2}
+    d = {3,4}
+else
+    {{a,b},{c,d}} @= {{1,2},{3,4}}  -- (all become equal to)
+end if
+
+if verbose then ?{a,b,c,d} end if
+
+if {a,b,c,d}!={{1,2},{3,4},{1,2},{3,4}} then ?9/0 end if
+
+sequence s
+    s = {1,2,3,4}
+
+if testemitONis0 then
+    a = s[$]
+    s = s[1..$-1]
+    s = prepend(s,a)
+else
+    {s[1],s[2..$]} = {s[$],s[1..$-1]}
+end if
+
+if verbose then ?s end if
+
+if s!={4,1,2,3} then ?9/0 end if
+
+    s = {1,2,3,4}
+
+if testemitONis0 then
+    a = s[1]
+    s[1] = s[$]
+    s[$] = a
+else
+    {s[1],s[$]} = {s[$],s[1]}
+end if
+if verbose then ?s end if
+
+if s!={4,2,3,1} then ?9/0 end if
+
+    {a,{},c} = {1,2,3}
+
+if {a,c}!={1,3} then ?9/0 end if
+
+if testemitONis0 then
+    a = 1
+    b = 2
+    c = 1
+    d = 2
+else
+    {{a,b},{c,d}} @= {1,2}
+end if
+
+if verbose then ?{a,b,c,d} end if
+
+if {a,b,c,d}!={1,2,1,2} then ?9/0 end if
+
+--{a,b,c} = 1     -- illegal/error [DEV add to terror]
+{d,e,f} = {'d','e','f'}
+if {d,e,f}!={'d','e','f'} then ?9/0 end if
+{a,b,c} = {d,e,f} -- a=d, b=e, c=f 
+if {a,b,c}!={'d','e','f'} then ?9/0 end if
+{a,b,c} @= {d,e,f} -- a={d,e,f}, b={d,e,f}, c={d,e,f} 
+if {a,b,c}!={{'d','e','f'},{'d','e','f'},{'d','e','f'}} then ?9/0 end if
+
+s = {{1,2},{3,4}}
+{{a,b},{c,d}} = s 
+
+if verbose then ?{a,b,c,d} end if
+
+if {a,b,c,d}!={1,2,3,4} then ?9/0 end if
+
+s = { 1, 2, 3, $ }                      -- \  (these tests don't 
+if s!={1,2,3} then ?9/0 end if          --  }  quite belong here, 
+if s!={1,2,3,$} then ?9/0 end if        -- /   but what the hey)
+
+-- Added 17/11/2013
+s = {{1,{2,{3},4}}}
+    {s[1][2][3]} = {9}
+if s!={{1,{2,{3},9}}} then ?9/0 end if
+s = {{1,{2,{3},4}}}
+    s[1][2][3] = 9
+if s!={{1,{2,{3},9}}} then ?9/0 end if
+
+-- Added 2/6/14:
+constant {{F},D} = {{"f1"},"d1"}
+    if {F,D}!={"f1","d1"} then ?9/0 end if

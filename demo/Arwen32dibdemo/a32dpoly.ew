@@ -1,0 +1,326 @@
+-- Arwen32Dib : Fast bitmap manipulation for Arwen (24-bit graphics).
+-- POLYGON LIBRARY
+
+-- Copyright (C) 2004 Tommy Carlier
+-- tommy.carlier@telenet.be
+-- http://users.telenet.be/tommycarlier
+--  Ported to Arwen by Pete Lomax
+
+include a32dcore.ew
+
+global procedure drawDibTransformedPolygon(sequence dib_dest, sequence dib_src, sequence coords_dest, sequence coords_src)
+-- Draws the polygon with coordinates coords_src from bitmap dib_src on bitmap dib_dest, transformed to the polygon
+--  with coordinates coords_dest. coords_dest and coords_src look like {{x1, y1}, {x2, y2}, ...} and need to have an equal
+--  amount of points. If you pass an empty sequence {} for coords_dest or coords_src, then the bounding rectangle of
+--  that bitmap will be used. Both polygons need to be convex.
+atom src_memory, dest_memory, dest_addr, src_height, src_width
+integer dest_width, dest_height, ymin, ymax, rows, src_bytes_per_line, dest_bytes_per_line
+integer x1, x2, y1, y2, u1, u2, v1, v2, points, len, yi, y, i1, i2, j1, j2
+integer m, f, ex, eu, ev, dx, du, dv, dx2, du2, dv2
+integer no_clip_src, no_clip_dest
+sequence xx, xs, xs1, xs2
+
+    src_memory = dib_src[DibMemory]
+    src_bytes_per_line = dib_src[DibBytesPerLine]
+    dest_memory = dib_dest[DibMemory]
+    dest_bytes_per_line = dib_dest[DibBytesPerLine]
+
+    dest_width = dib_dest[DibWidth]
+    dest_height = dib_dest[DibHeight]
+    if length(coords_dest)=0 then
+        coords_dest = {{0, 0}, {dest_width-1, 0}, {dest_width-1, dest_height-1}, {0, dest_height-1}}
+    end if
+
+    src_width = dib_src[DibWidth]
+    src_height = dib_src[DibHeight]
+    if length(coords_src)=0 then
+        coords_src = {{1, 1}, {src_width-1, 1}, {src_width-1, src_height-1}, {1, src_height-1}}
+    end if
+
+    if length(coords_dest)<length(coords_src) then coords_src = coords_src[1..length(coords_dest)]
+    elsif length(coords_dest)>length(coords_src) then coords_dest = coords_dest[1..length(coords_src)]
+    end if
+    points = length(coords_dest)
+
+--/**/  coords_dest = sq_floor(coords_dest) --/* -- Phix
+        coords_dest = floor(coords_dest)    --*/ -- RDS
+--/**/  coords_src = sq_floor(coords_src)   --/* -- Phix
+        coords_src = floor(coords_src)      --*/ -- RDS
+    ymin = coords_dest[1][2]  ymax = ymin
+    for i=2 to points do
+        y = coords_dest[i][2]
+        if y<ymin then ymin = y end if
+        if y>ymax then ymax = y end if
+    end for
+
+    if ymin>=dest_height or ymax<0 then return end if
+
+    no_clip_src = 1
+    if ymin<0 or ymax>=dest_height then no_clip_dest = 0 else no_clip_dest = 1 end if
+
+    rows = ymax-ymin+1
+    xx = repeat({0, 0}, rows)
+
+    x2 = coords_dest[points][1]  y2 = coords_dest[points][2]-ymin+1
+    u2 = coords_src[points][1]  v2 = coords_src[points][2]
+    for i=1 to points do
+        x1 = x2
+        y1 = y2
+        u1 = u2
+        v1 = v2
+        if x1<0 or x1>=dest_width then no_clip_dest = 0 end if
+        if u1<0 or u1>=src_width then no_clip_src = 0 end if
+        if v1<0 or v1>=src_height then no_clip_src = 0 end if
+        x2 = coords_dest[i][1]
+        y2 = coords_dest[i][2]-ymin+1
+        u2 = coords_src[i][1]
+        v2 = coords_src[i][2]
+        if y1=y2 then
+            xs = xx[y1]
+            if atom(xs[1]) then xs[1] = {x1, u1, v1}  xs[2] = xs[1]
+            elsif xs[1][1]>x1 then xs[1] = {x1, u1, v1}
+            else xs[2] = {x1, u1, v1}
+            end if
+            xx[y1] = xs
+        else
+            if y1>y2 then
+                len = y1-y2+1
+                yi  = -1
+            else
+                len = y2-y1+1
+                yi  = 1
+            end if
+            dx = 1  du = 1  dv = 1
+            dx2 = 2*(x2-x1)  du2 = 2*(u2-u1)  dv2 = 2*(v2-v1)
+            m = len-1
+            f = m+m
+            ex = -m  eu = -m  ev = -m
+            if x1>x2 then dx = -1  dx2 = -dx2 end if
+            if u1>u2 then du = -1  du2 = -du2 end if
+            if v1>v2 then dv = -1  dv2 = -dv2 end if
+            for j=y1 to y2-yi by yi do
+                ex += dx2  eu += du2  ev += dv2
+                while ex>=0 do ex -= f  x1 += dx end while
+                while eu>=0 do eu -= f  u1 += du end while
+                while ev>=0 do ev -= f  v1 += dv end while
+                xs = xx[j]
+                if atom(xs[1]) then xs[1] = {x1, u1, v1}  xs[2] = xs[1]
+                elsif xs[1][1]>x1 then xs[1] = {x1, u1, v1}
+                else xs[2] = {x1, u1, v1}
+                end if
+                xx[j] = xs
+            end for
+        end if
+    end for
+
+    y = ymin  i1 = 1  i2 = rows
+    if ymin<0 then i1 -= ymin  y = 0 end if
+    if ymin+rows>dest_height then i2 -= ymin+rows-dest_height end if
+    dest_memory += y*dest_bytes_per_line
+    for i=i1 to i2 do
+        xs = xx[i]  xs1 = xs[1]  xs2 = xs[2]
+        x1 = xs1[1]
+        x2 = xs2[1]
+        dx = x2-x1
+        len = dx+1
+        u1 = xs1[2]  u2 = xs2[2]
+        v1 = xs1[3]  v2 = xs2[3]
+        if x1<dest_width and x2>=0 then
+            j1 = 1  j2 = len
+            if no_clip_dest=0 then
+                if x1+len>dest_width then
+                    du = x2-dest_width+1
+                    u2 -= floor(du*(u2-u1)/dx)
+                    v2 -= floor(du*(v2-v1)/dx)
+                    j2 -= x1+len-dest_width
+                end if
+                if x1<0 then
+                    u1 += floor(x1*(u1-u2)/dx)
+                    v1 += floor(x1*(v1-v2)/dx)
+                    j1 -= x1  x1 = 0
+                end if
+            end if
+            dest_addr = dest_memory+x1*3
+            du = 1  dv = 1
+            du2 = 2*(u2-u1)  dv2 = 2*(v2-v1)
+            m = j2-j1+1
+            f = m+m
+            eu = -m  ev = -m
+            if u1>u2 then du = -1  du2 = -du2 end if
+            if v1>v2 then dv = -1  dv2 = -dv2 end if
+            if no_clip_src then
+                u1 += u1+u1  v1 *= src_bytes_per_line
+                du += du+du  dv *= src_bytes_per_line
+                for j=j1 to j2 do
+                    eu += du2  while eu>=0 do eu -= f  u1 += du end while
+                    ev += dv2  while ev>=0 do ev -= f  v1 += dv end while
+                    mem_copy(dest_addr, src_memory+u1+v1, 3)
+                    dest_addr += 3
+                end for
+            else
+                u1 += u1+u1  v1 *= src_bytes_per_line  src_height *= src_bytes_per_line
+                du += du+du  dv *= src_bytes_per_line
+                src_width += src_width+src_width
+                for j=j1 to j2 do
+                    eu += du2  while eu>=0 do eu -= f  u1 += du end while
+                    ev += dv2  while ev>=0 do ev -= f  v1 += dv end while
+                    if u1>=0 and u1<src_width and v1>=0 and v1<src_height then
+                        mem_copy(dest_addr, src_memory+u1+v1, 3)
+                    end if
+                    dest_addr += 3
+                end for
+            end if
+        end if
+        dest_memory += dest_bytes_per_line
+    end for
+end procedure
+
+global procedure drawShadedPolygonToDib(sequence dib_dest, sequence coords_dest, sequence colors_dest)
+-- Draws a shaded polygon on bitmap dib_dest, with coordinates coords_dest {{x1, y1}, {x2, y2}, ...}
+--  and colors colors_dest {{b1, g1, r1}, {b2, g2, r2}, ...}. Each color in colors_dest corresponds to
+--  a coordinate in coords_dest. The polygon defined by coords_dest must be convex.
+--  If you pass an empty sequence {} for coords_dest, then the bounding rectangle of the bitmap will be used.
+atom dest_memory, dest_addr
+integer dest_width, dest_height, ymin, ymax, rows, dest_bytes_per_line
+integer x1, x2, y1, y2, b1, b2, g1, g2, r1, r2, points, len, yi, y, i1, i2, j1, j2
+integer m, f, ex, eb, eg, er, dx, db, dg, dr, dx2, db2, dg2, dr2
+integer no_clip_dest
+sequence xx, xs, xs1, xs2
+
+    dest_memory = dib_dest[DibMemory]
+    dest_bytes_per_line = dib_dest[DibBytesPerLine]
+
+    dest_width = dib_dest[DibWidth]
+    dest_height = dib_dest[DibHeight]
+    if length(coords_dest)=0 then
+        coords_dest = {{0, 0}, {dest_width-1, 0}, {dest_width-1, dest_height-1}, {0, dest_height-1}}
+    end if
+
+    if length(coords_dest)<length(colors_dest) then colors_dest = colors_dest[1..length(coords_dest)]
+    elsif length(coords_dest)>length(colors_dest) then coords_dest = coords_dest[1..length(colors_dest)]
+    end if
+    points = length(coords_dest)
+
+--/**/  coords_dest = sq_floor(coords_dest)     --/* -- Phix
+        coords_dest = floor(coords_dest)        --*/ -- RDS
+--/**/  colors_dest = sq_floor(colors_dest)     --/* -- Phix
+        colors_dest = floor(colors_dest)        --*/ -- RDS
+    ymin = coords_dest[1][2]  ymax = ymin
+    for i=2 to points do
+        y = coords_dest[i][2]
+        if y<ymin then ymin = y end if
+        if y>ymax then ymax = y end if
+    end for
+
+    if ymin>=dest_height or ymax<0 then return end if
+
+    if ymin<0 or ymax>=dest_height then no_clip_dest = 0 else no_clip_dest = 1 end if
+
+    rows = ymax-ymin+1
+    xx = repeat({0, 0}, rows)
+
+    x2 = coords_dest[points][1]  y2 = coords_dest[points][2]-ymin+1
+    b2 = colors_dest[points][1]  g2 = colors_dest[points][2]  r2 = colors_dest[points][3]
+--  {b2,g2,r2} = colors_dest[points]
+    for i=1 to points do
+        x1 = x2
+        y1 = y2
+        b1 = b2
+        g1 = g2
+        r1 = r2
+        if x1<0 or x1>=dest_width then no_clip_dest = 0 end if
+        x2 = coords_dest[i][1]
+        y2 = coords_dest[i][2]-ymin+1
+        b2 = colors_dest[i][1]
+        g2 = colors_dest[i][2]
+        r2 = colors_dest[i][3]
+        if y1=y2 then
+            xs = xx[y1]
+            if atom(xs[1]) then xs[1] = {x1, b1, g1, r1}  xs[2] = xs[1]
+            elsif xs[1][1]>x1 then xs[1] = {x1, b1, g1, r1}
+            else xs[2] = {x1, b1, g1, r1}
+            end if
+            xx[y1] = xs
+        else
+            if y1>y2 then
+                len = y1-y2+1
+                yi  = -1
+            else
+                len = y2-y1+1
+                yi  = 1
+            end if
+            dx = 1  db = 1  dg = 1  dr = 1
+            dx2 = 2*(x2-x1)  db2 = 2*(b2-b1)  dg2 = 2*(g2-g1)  dr2 = 2*(r2-r1)
+            m = len-1
+            f = m+m
+            ex = -m  eb = -m  eg = -m  er = -m
+            if x1>x2 then dx = -1  dx2 = -dx2 end if
+            if b1>b2 then db = -1  db2 = -db2 end if
+            if g1>g2 then dg = -1  dg2 = -dg2 end if
+            if r1>r2 then dr = -1  dr2 = -dr2 end if
+            for j=y1 to y2-yi by yi do
+                ex += dx2  eb += db2  eg += dg2  er += dr2
+                while ex>=0 do ex -= f  x1 += dx end while
+                while eb>=0 do eb -= f  b1 += db end while
+                while eg>=0 do eg -= f  g1 += dg end while
+                while er>=0 do er -= f  r1 += dr end while
+                xs = xx[j]
+                if atom(xs[1]) then xs[1] = {x1, b1, g1, r1}  xs[2] = xs[1]
+                elsif xs[1][1]>x1 then xs[1] = {x1, b1, g1, r1}
+                else xs[2] = {x1, b1, g1, r1}
+                end if
+                xx[j] = xs
+            end for
+        end if
+    end for
+
+    y = ymin  i1 = 1  i2 = rows
+    if ymin<0 then i1 -= ymin  y = 0 end if
+    if ymin+rows>dest_height then i2 -= ymin+rows-dest_height end if
+    dest_memory += y*dest_bytes_per_line
+    for i=i1 to i2 do
+        xs = xx[i]  xs1 = xs[1]  xs2 = xs[2]
+        x1 = xs1[1]
+        x2 = xs2[1]
+        dx = x2-x1
+        len = dx+1
+        b1 = xs1[2]  b2 = xs2[2]
+        g1 = xs1[3]  g2 = xs2[3]
+        r1 = xs1[4]  r2 = xs2[4]
+        if x1<dest_width and x2>=0 then
+            j1 = 1  j2 = len
+            if no_clip_dest=0 then
+                if x1+len>dest_width then
+                    db = x2-dest_width+1
+                    b2 -= floor(db*(b2-b1)/dx)
+                    g2 -= floor(db*(g2-g1)/dx)
+                    r2 -= floor(db*(r2-r1)/dx)
+                    j2 -= x1+len-dest_width
+                end if
+                if x1<0 then
+                    b1 += floor(x1*(b1-b2)/dx)
+                    g1 += floor(x1*(g1-g2)/dx)
+                    r1 += floor(x1*(r1-r2)/dx)
+                    j1 -= x1  x1 = 0
+                end if
+            end if
+            dest_addr = dest_memory+x1*3
+            db = 1  dg = 1  dr = 1
+            db2 = 2*(b2-b1)  dg2 = 2*(g2-g1)  dr2 = 2*(r2-r1)
+            m = j2-j1+1
+            f = m+m
+            eb = -m  eg = -m  er = -m
+            if b1>b2 then db = -1  db2 = -db2 end if
+            if g1>g2 then dg = -1  dg2 = -dg2 end if
+            if r1>r2 then dr = -1  dr2 = -dr2 end if
+            for j=j1 to j2 do
+                eb += db2  while eb>=0 do eb -= f  b1 += db end while
+                eg += dg2  while eg>=0 do eg -= f  g1 += dg end while
+                er += dr2  while er>=0 do er -= f  r1 += dr end while
+                poke(dest_addr, {b1, g1, r1})
+                dest_addr += 3
+            end for
+        end if
+        dest_memory += dest_bytes_per_line
+    end for
+end procedure

@@ -1,0 +1,47 @@
+-- Win32Dib demo: captures the screen and saves it to a file
+
+--without warning
+include w32dcore.ew  -- only the core library is necessary
+
+object dib
+sequence size
+
+size = getCtlSize(Screen)        -- get the size of the screen
+dib  = newDib(size[1], size[2])  -- create the bitmap
+if atom(dib) then
+    abortErr( "Couldn't create a bitmap." )
+end if
+
+constant window = createEx(Window, "Win32Dib Screenshot Saver", 0, Default, Default, 300, 200, {WS_DLGFRAME, WS_SYSMENU}, WS_EX_DLGMODALFRAME)
+constant ltxt   = "Click the button below to save a screenshot\n\rto a bitmap-file.\n\r" &
+                  "\n\rThis window and the file-dialog\n\rwill not be on the screenshot.\n\r\n\rCreated by: Tommy Carlier."
+constant label  = create(CText, ltxt, window, 5, 5, {0.99, -5}, {0.99, -55}, 0)
+    if label then end if -- suppress warnings
+constant button = create(DefPushButton, "[Click]", window, 5, {0.99, -50}, {0.99, -5}, 50, 0)
+
+procedure click(integer id, integer event, sequence params)
+sequence fileName
+    if id or event or sequence(params) then end if -- suppress warnings
+        
+    fileName = getSaveFileName(window, "screen.bmp", {"Bitmap Files(*.BMP)", "*.BMP"}) -- get a filename
+    if length(fileName) = 0 then return end if -- no filename
+        
+    if not find('.', fileName) then fileName &= ".bmp" end if -- append the BMP-extension if necessary
+        
+    showWindow(window, SW_HIDE) -- hide the window
+    sleep(1)
+    for i = 1 to 10000 do
+        doEvents(0) -- make sure the screen refreshes right
+    end for
+    copyToDib(dib, Screen, 0, 0, 0, 0, size[1] - 1, size[2] - 1) -- copy the screen to the bitmap
+    showWindow(window, SW_SHOW) -- make the window visible
+        
+    if saveDib(dib, fileName, 0, 0, size[1] - 1, size[2] - 1) then -- save the bitmap to the file
+        VOID = message_box("Couldn't save the screenshot.", "Error", MB_OK + MB_ICONERROR)
+    end if
+end procedure
+setHandler(button, w32HClick, routine_id("click"))
+
+WinMain(window, Normal)
+killDib(dib) -- delete the bitmap
+freeDib()   -- free the memory containing the machine code

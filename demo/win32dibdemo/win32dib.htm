@@ -1,0 +1,329 @@
+<html>
+<head><title>Win32Dib</title>
+<style>
+	body { font-family: Arial, sans-serif; }
+	pre { padding: 2ex 2em 2ex 2em; background-color: #FF0; }
+	a { color: #900; text-decoration: none; }
+	a:hover { color: #F00; text-decoration: underline; }
+	dt { margin-top: 1ex; }
+</style>
+</head>
+<body>
+<h1>Win32Dib 0.5.3</h1>
+<ul>
+	<li>Copyright &copy; 2004 - 2005 Tommy Carlier
+	<li><a href="mailto:tommy.carlier@telenet.be">tommy.carlier@telenet.be</a>
+	<li><a href="http://users.telenet.be/tommycarlier">http://users.telenet.be/tommycarlier</a>
+</ul>
+<p>
+	Win32Dib is a Euphoria-library that provides fast bitmap manipulation (24-bit graphics) to Win32Lib-applications.
+</p>
+<p>
+Win32Dib is derived from my Shibby-library. I will no longer continue development of Shibby, so if  you were using Shibby, I suggest you stop using it and start using Win32Dib, which is a lot faster and uses memory more efficiently. The names of constants, procedures and functions have changed to follow the naming convention used by Win32Lib. This makes sure that the code of your programs will look more consistent. Shibby used 32-bit graphics, which is silly because only 24 bits are really used. So Win32Dib now uses 24-bit graphics.
+</p>
+<p>
+To use Win32Dib, you need <a href="http://www.users.bigpond.com/ddparnell/euphoria/euphoria.htm">Win32Lib</a> 0.60 or a more recent version, but I don't think this is a problem, right?
+</p>
+<p>
+	Thanks go to:
+	<ul>
+		<li><b>Derek Parnell</b>, for <a href="http://www.users.bigpond.com/ddparnell/euphoria/euphoria.htm">Win32Lib</a>.
+		<li><b>Jiri Babor</b>, for creating a texture mapping method that I used in the original drawDibTransformedPolygon.
+		<li><b>Renzo Beggia</b>, for testing and suggestions.
+		<li><b>Robert Craig</b>, for <a href="http://www.rapideuphoria.com">Euphoria</a> and for helping to fix a bug.
+		<li><b>CoJaBo</b>, <b>Alon Bar-noy</b> and <b>OtterDad</b>, for reporting bugs.
+	</ul>
+	Known bugs:
+	<ul>
+		<li>the getDibFromClipboard-function still has bugs: sometimes it corrupts the clipboard when the application is closed.
+	</ul>
+</p>
+<p>
+Content: <a href="#version_info">Reading version info</a>, <a href="#create_delete">creating and deleting bitmaps</a>, <a href="#pixels_colors">pixels and colors</a>, <a href="#load_save">loading and save bitmaps</a>, <a href="#copying">copying bitmaps</a>, <a href="#manip">bitmap manipulation</a>, <a href="#optimization">optimization</a>.
+</p>
+<a name="version_info"></a><h2>Reading version info</h2>
+<p>
+	Win32Dib has a constant that contains information about the version: <code>Win32DibVersion</code>,
+	which is a sequence of length 4:
+	<ul>
+		<li><code>Win32DibVersion[1]</code> is the Major version (integer).
+		<li><code>Win32DibVersion[2]</code> is the Minor version (integer).
+		<li><code>Win32DibVersion[3]</code> is the Patch/Revision (integer).
+		<li><code>Win32DibVersion[4]</code> is the release date (string sequence).
+	</ul>
+</p>
+
+<a name="create_delete"></a><h2>Creating and deleting a bitmap</h2>
+<p>
+	A Win32Dib-bitmap is a sequence of length 7:
+	<ul>
+		<li><code>dib[DibHandle]</code> is the bitmap handle (integer) you can use in Win32Lib-routines.
+		<li><code>dib[DibMemory]</code> is the address (atom) of the memory block of the bitmap.
+		<li><code>dib[DibWidth]</code> is the width of the bitmap in pixels.
+		<li><code>dib[DibHeight]</code> is the height of the bitmap in pixels.
+		<li><code>dib[DibBytesPerLine]</code> is the amount of bytes per line of the bitmap.
+		<li><code>dib[DibBytesTotal]</code> is the total amount of bytes of the bitmap.
+		<li><code>dib[DibPadding]</code> is the amount of bytes of padding after each scanline.
+	</ul>
+</p>
+<p>
+	To create a new bitmap, you use the <b>newDib</b>-function. After you don't need the bitmap anymore, you have to delete it by calling the <b>killDib</b>-procedure. You can also create a copy of an existing bitmap by calling the <b>copyDib</b>-function.
+</p>
+<p>
+	Example:
+	<pre>sequence dib, dib2
+
+dib = newDib(width, height) -- create a new bitmap with the specified width and height
+
+if integer(dib) then -- the bitmap couldn't be created
+end if
+
+dib2 = copyDib(dib) -- creates a copy of the first bitmap
+
+... -- some code
+
+killDib(dib)
+killDib(dib2) -- delete the bitmaps. YOU HAVE TO DO THIS.</pre>
+</p>
+
+<a name="pixels_colors"></a><h2>Pixels and colors</h2>
+<p>
+	One thing you should really know is that colors in Win32Dib-bitmaps are not stored as RGB, but as BGR. What does this mean? Every pixel is 3 bytes. Each byte represents the intensity of a primary color component: 1 byte red, 1 byte green and 1 byte blue. 0 means no intensity, 255 means full intensity. BGR means that for each pixel, the color is stored as {blue, green, red} instead of {red, green, blue}. To create a color, just create a sequence {blue, green, red}. If you're used to working with RGB-colors and you miss a lot, you can use the <b>dibColor</b>-function, which returns the right sequence.
+</p>
+<p>
+	Example:
+	<pre>sequence color
+
+color = dibColor(255,   0,   0) -- full red, no green, no blue     => bright red
+color = dibColor(255, 255,   0) -- full red, full green, no blue   => bright yellow
+color = dibColor(  0,   0,   0) -- no red, no green, no blue       => black
+color = dibColor(255, 255, 255) -- full red, full green, full blue => bright white
+color = dibColor(  0, 127, 255) -- no red, half green, full blue   => some kind of cyan</pre>
+	To put a pixel on the bitmap, use the <b>putDibPixel</b>-procedure. To get the color of a pixel on the bitmap, use the <b>getDibPixel</b>-function. To clear the bitmap, use the <b>clearDib</b>-procedure. Instead of putDibPixel and getDibPixel, you can also use the faster <b>fastPutDibPixel</b> and <b>fastGetDibPixel</b>, but these don't check if the coordinates of the pixel are within the boundaries of the bitmap, so only use them if you're sure the coordinates are valid (0 &lt;= x &lt; width and 0 &lt;= y &lt; height).
+</p>
+<p>
+	Example:
+	<pre>sequence dib, white, black, color
+
+dib = newDib(300, 200)             -- create a bitmap
+
+white = dibColor(255, 255, 255)    -- create the color white
+black = dibColor(  0,   0,   0)    -- create the color black
+
+clearDib(dib, white)               -- clear the bitmap with the color white
+putDibPixel(dib, 100, 100, black)  -- make the pixel at position (100, 100) black
+color = getDibPixel(dib, 200, 150) -- get the color of the pixel at position (200, 150)
+
+killDib(dib)                       -- delete the bitmap</pre>
+</p>
+<p>
+	If you have to put or get a lot of pixels, there is a much faster way than using putDibPixel and getDibPixel: poke and peek. The 2nd element of the bitmap-sequence is the address of the memory block allocated by the bitmap. To calculate the address of the pixel (x, y), use the formula:
+	<pre>integer bytes_per_line
+atom memory, address
+memory = dib[DibMemory]
+bytes_per_line = dib[DibBytesPerLine]
+address = memory + 3 * x + y * bytes_per_line</pre>
+	To get the color of the pixel:
+	<pre>sequence color
+color = peek({address, 3}) -- each pixel is 3 bytes</pre>
+	To set the color of the pixel:
+	<pre>poke(address, color)</pre>
+A very fast way to loop over the entire bitmap goes like this:
+<pre>atom address
+address = dib[DibMemory]
+for y = 0 to height - 1 do
+	for x = 0 to width - 1 do
+		-- do something with the current pixel:
+		-- address is the address, x and y are the coordinates.
+
+		address += 3 -- 1 pixel = 3 bytes
+	end for
+	address += padding -- padding is the integer dib[DibPadding]
+end for</pre>
+	If you only want to loop over a region (x1, y1) -> (x2, y2), you can try:
+<pre>atom address
+integer line_jump
+address = dib[DibMemory] + x1 * 3 + y1 * bytes_per_line
+line_jump = bytes_per_line + (x1 - x2) * 3 + 3
+for y = y1 to y2 do
+	for x = x1 to x2 do
+		-- do something with the current pixel:
+		-- address is the address, x and y are the coordinates.
+
+		address += 3
+	end for
+	address += line_jump -- line_jump is the amount of bytes to jump forward after each line
+end for</pre>
+</p>
+<a name="load_save"></a><h2>Loading and saving bitmaps from and to BMP-files</h2>
+<p>
+	You can load a bitmap from a BMP-file with the <b>loadDib</b>-function. You can save (a region of) the bitmap to a 24-bit BMP-file with the <b>saveDib</b>-function. This function returns 0 if successful, or 1 if the bitmap couldn't be saved. You can also save (a region of) the bitmap as an 8-bit grayscale BMP-file with the <b>saveDibGray</b>-function (same parameters and return value like saveDib), or as an 8-bit websafe color BMP-file with the <b>saveDibReduced</b>-function.
+<pre>integer result
+object dib
+
+dib = loadDib("bitmap1.bmp") -- loads the bitmap
+if integer(dib) then
+	-- couldn't load the bitmap
+	abort(0)
+end if
+
+result = saveDib(dib, "bitmap2.bmp", 10, 10, 100, 75)
+	               -- saves the rectangular region (10, 10) -> (100, 75)
+	               -- to the file "bitmap2.bmp".
+
+if result then
+...                    -- the bitmap couldn't be saved
+end if</pre>
+</p>
+<a name="copying"></a><h2>Copying bitmaps</h2>
+<p>
+The <b>drawDib</b>-procedure draws (a region of) the bitmap to a Win32Lib control or window:
+<pre>drawDib(control, dib, x, y, x1, y1, x2, y2)
+-- draws the rectangular region (x1, y1) -> (x2, y2) from the dib on the control at
+-- position (x, y).</pre>
+</p>
+<p>
+The <b>copyToDib</b>-procedure draws (a region of) a Win32Lib control or window to the bitmap:
+<pre>copyToDib(dib, control, x, y, x1, y1, x2, y2)
+-- draws the rectangular region (x1, y1) -> (x2, y2) from the control on the dib at
+-- position (x, y)</pre>
+</p>
+<p>
+The <b>drawDibToDib</b>-procedure draws (a region of) a bitmap to a different bitmap:
+<pre>drawDibToDib(dest, src, x, y, x1, y1, x2, y2, trans_color, alpha)
+-- draws the rectangular region (x1, y1) -> (x2, y2) from bitmap src on the bitmap dest
+-- at position (x, y) with a translucency of alpha (0 = transparent, 255 = opaque).
+-- The pixels from src that have a color equal to trans_color are not drawn.
+-- If trans_color is an empty sequence, no transparency is used.</pre>
+</p>
+<p>
+<i>(The drawTransDibToDib-procedure doesn't exist anymore: the transparency-functionality has been
+implemented in drawDibToDib).</i>
+</p>
+<p>
+The <b>applyDibBrightnessToDib</b>-procedure applies the brightness of (a region of) a bitmap
+to a different bitmap:
+<pre>applyDibBrightnessToDib(dest, src, x, y, x1, y1, x2, y2, pct)
+-- applies the brightness of the rectangular region (x1, y1) -> (x2, y2) from bitmap src
+-- on the bitmap dest at position (x, y). pct is a percentage (0-100): 0 = don't apply
+-- any brightness, 100 = apply full brightness, 50 = apply half the brightness, ...</pre>
+</p>
+<p>
+The <b>tileDibToDib</b>-procedure fills a bitmap with another bitmap as pattern (tile):
+<pre>tileDibToDib(dest, src, x, y, x1, y1, x2, y2, trans_color, alpha)
+-- fills the bitmap dest with the rectangular region (x1, y1) -> (x2, y2) from bitmap
+-- src as a pattern, using point (x, y) as a starting point. See drawDibToDib for
+-- trans_color and alpha.</pre>
+</p>
+<p>
+The <b>drawDibTransformedPolygon</b>-procedure draws a polygonal region from a bitmap onto a
+different polygonal region from a different bitmap.
+<pre>drawDibTransformedPolygon(dest, src, pol_dest, pol_src)
+-- draws the region inside polygon pol_src from bitmap src onto the region inside
+-- polygon pol_dest from bitmap dest. pol_src and pol_dest are sequences that look like
+-- {{x1, y1}, {x2, y2}, ...}. If you pass an empty sequence, the bounding rectangle of
+-- the bitmap will be used. Both polygons must be convex.</pre>
+</p>
+<p>
+The <b>copyDibToDib</b>-procedure copies a bitmap to another bitmap. Both bitmaps need to have
+the same size:
+<pre>copyDibToDib(dib_dest, dib_source)
+-- copies the bitmap dib_source to the bitmap dib_dest</pre>
+</p>
+<p>
+The <b>extractDib</b>-function extracts a bitmap from another bitmap or control, and returns it:
+<pre>sequence dib
+dib = extractDib(src, x1, y1, x2, y2)
+-- extracts the rectangular region (x1, y1) -> (x2, y2) from bitmap or control src and
+-- returns it as a bitmap</pre>
+</p>
+<p>
+The <b>copyDibToClipboard</b>-procedure copies a bitmap to the clipboard:
+<pre>copyDibToClipboard(dib)
+-- copies the bitmap dib to the clipboard</pre>
+</p>
+<p>
+The <b>getDibFromClipboard</b>-function gets a bitmap from the clipboard and returns it:
+<pre>object dib
+dib = getDibFromClipboard()
+-- copies a bitmap from the clipboard and puts it in dib
+-- dib will be 0 if a bitmap couldn't be copied from the clipboard</pre>
+</p>
+<p>
+Example: you can use a bitmap to save a screenshot to a bitmap:
+<pre>sequence dib
+integer result
+
+dib = newDib(screen_width, screen_height) -- create the bitmap
+
+copyToDib(dib, Screen, 0, 0, 0, 0, screen_width - 1, screen_height - 1)
+-- copy the screen to the bitmap
+
+result = saveDib(dib, "screen.bmp", 0, 0, screen_width - 1, screen_height - 1)
+-- save the bitmap to a file
+
+killDib(dib) -- delete the bitmap</pre>
+</p>
+
+<a name="manip"></a><h2>Bitmap manipulation</h2>
+<p>
+The following routines can be used to manipulate a bitmap:
+<ol>
+<li>routines that change geometric properties of the bitmap:
+<dl>
+<dt><b>flipDibHor</b>(dib)</dt><dd>flips the bitmap horizontally (left <-> right)</dd>
+<dt><b>flipDibVert</b>(dib)</dt><dd>flips the bitmap vertically (top <-> bottom)</dd>
+<dt>new_dib = <b>scaleDib</b>(dib, width, height, kill_old)</dt><dd>returns a copy of the bitmap, scaled to the new width and height. if kill_old is not zero, the old bitmap dib will be deleted.</dd>
+<dt>new_dib = <b>scaleDibPct</b>(dib, pct, kill_old)</dt><dd>returns a copy of the bitmap, scaled by pct %. if kill_old is not zero, the old bitmap dib will be deleted.</dd>
+<dt>new_dib = <b>rotateDib</b>(dib, angle, kill_old)</dt><dd>returns a copy of the bitmap, rotated by angle degrees. angle will be rounded to the closest straight angle, so only 0, 90, 180, 270, -90, -180 and -270 degrees will be used (negative angle rotates to the left, positive angles to the right). if kill_old is not zero, the old bitmap dib will be deleted.</dd>
+<dt>new_dib = <b>rotateDibFree</b>(dib, angle, bgcolor, kill_old)</dt><dd>returns a copy of the bitmap, rotated by angle degrees. angle will NOT be rounded (free angle rotation). if bgcolor is a color-sequence, that color will be used to fill the region that is not part of the original bitmap. If bgcolor is an atom, then the original bitmap will be wrapped. if kill_old is not zero, the old bitmap dib will be deleted.</dd>
+</dl>
+<li>routines that change the colors of the bitmap:
+<dl>
+<dt><b>invertDib</b>(dib)</dt><dd>inverts the colors of the bitmap</dd>
+<dt><b>makeDibGray</b>(dib)</dt><dd>makes the bitmap gray</dd>
+<dt><b>replaceDibColor</b>(dib, color1, color2)</dt><dd>replaces color1 in the bitmap with color2.</dd>
+<dt><b>replaceDibColors</b>(dib, colors1, colors2)</dt><dd>replaces all the colors from colors1 in the bitmap with the same color from colors2. colors1 and colors2 are sequences of colors and need to have the same length.</dd>
+<dt><b>adjustDibColors</b>(dib, delta)</dt><dd>adds delta to the colors of the bitmap. delta should be a sequence of length 3: delta = {delta_blue, delta_green, delta_red}</dd>
+<dt><b>colorizeDib</b>(dib, color1)</dt><dd>changes all the colors of the bitmap to color1, without changing the brightness.</dd>
+<dt><b>adjustDibBrightness</b>(dib, brightness)</dt><dd>adjusts the brightness of the bitmap. brightness should be an integer between -255 (total black) and +255 (total white).</dd>
+<dt><b>adjustDibContrast</b>(dib, contrast)</dt><dd>adjusts the contrast of the bitmap. contrast should be an atom between -1 and +1.</dd>
+<dt><b>adjustBrightnessAndContrast</b>(dib, brightness, contrast)</dt><dd>adjusts the brightness and the contrast of the bitmap in one pass. If you need to change both brightness and contrast, use adjustBrightnessAndContrast. If you only need to change brightness, use adjustBrightness. If you only need to change contrast, use adjustContrast.</dd>
+</dl>
+<li>routines that filter the bitmap:
+<dl>
+<dt><b>filterDib</b>(dib, matrix, div, bias)</dt><dd>applies a filter to the bitmap. matrix is a 7x7 sequence of integers, containing the multiplicative values. div is the integer value by which the result is divided. bias is the integer value that is added to the result. What does it do?<pre>for each pixel[y, x] in the bitmap do
+	pixel[y, x] = sum(pixel[y-4+i, x-4+j]; i = 1 to 7, j = 1 to 7) / div + bias
+end for</pre></dd>
+<dt><b>filterDibGray</b>(dib, matrix, div, bias)</dt><dd>does the same as filterDib, but first makes the bitmap gray, and is more than twice as fast.</dd>
+<dt><b>filterDib3x3</b>(dib, matrix, div, bias)</dt><dd>applies a filter to the bitmap, but with a 3x3 matrix instead of 7x7. Is about 3 to 4 times faster than filterDib.</dd>
+<dt><b>filterDibGray3x3</b>(dib, matrix, div, bias)</dt><dd>does the same as filterDib3x3, but first makes the bitmap gray, and is more than twice as fast. Is about 3 to 4 times faster than filterDibGray.</dd>
+<dt><b>detectDibEdges</b>(dib)</dt><dd>applies an edge detection-filter to the bitmap.</dd>
+<dt><b>sharpenDib</b>(dib)</dt><dd>makes the bitmap a bit sharper.</dd>
+<dt><b>subtleSharpenDib</b>(dib)</dt><dd>makes the bitmap a bit sharper (faster than sharpenDib, but not as sharp).</dd>
+<dt><b>blurDib</b>(dib)</dt><dd>makes the bitmap a bit less sharp.</dd>
+<dt><b>subtleBlurDib</b>(dib)</dt><dd>makes the bitmap a bit less sharp (faster than blurDib, but not as blurry).</dd>
+<dt><b>embossDib</b>(dib, bgcolor)</dt><dd>embosses the bitmap, using bgcolor as background color.</dd>
+</dl>
+<i>(the filter-routines are quite slow because they require a lot of calculations per pixel)</i>
+<li>routines that draw things on the bitmap:
+<dl>
+<dt><b>drawShadedPolygonToDib</b>(dib, coords, colors)</dt><dd>draws a shaded polygon to the bitmap. coords is a sequence with the coordinates of the polygon {{x1, y1}, {x2, y2}, ...}. If you pass an empty sequence, the bounding rectangle of the bitmap will be used. colors is a sequence with the colors of the polygon {{b1, g1, r1}, {b2, g2, r2}, ...}. Each color matches a coordinate in the coords-sequence.</dd>
+</dl>
+</ol>
+</p>
+<a name="optimization"></a><h2>Optimization</h2>
+<dl>
+<dt><b>killDib</b></dt><dd>Always call killDib as soon as you don't need a certain bitmap anymore. This deletes the bitmap from memory.</dd>
+<dt>Putting/getting pixels</dt><dd>If you want to put or get some pixels on or from a bitmap, and you're sure that the point (x, y) is inside the bitmap area, use <b>fastPutDibPixel</b> and <b>fastGetDibPixel</b> instead of <b>putDibPixel</b> or <b>getDibPixel</b>. If you have to put or get a lot of pixels, it's better to use <b>poke</b> and <b>peek</b>: see <a href="#pixels_colors">pixels and colors</a>.</dd>
+<dt><b>clearDib</b></dt><dd>Clearing the bitmap with a gray color (blue = green = red) is a lot faster than clearing the bitmap with a color that is not gray.</dd>
+<dt><b>drawDibToDib</b> and translucency</dt><dd>If you want to use translucency as an effect, and don't really care about how translucent it is, use an alpha of 127 or 128, which is a lot faster than a different alpha.</dd>
+<dt><b>copyDibToDib</b></dt><dd>If you have 2 bitmaps that have the same size, and you need to copy one of the bitmaps onto the other, use copyDibToDib instead of drawDibToDib.</dd>
+<dt>Adjusting brightness and contrast</dt><dd>If you need to adjust both brightness and contrast, use adjustDibBrightnessAndContrast instead of adjustDibBrightness and adjustDibContrast.</dd>
+<dt>Filtering</dt><dd>If your matrix is only 3 by 3, use filterDib3x3 or filterDibGray3x3. Filters with a matrix that has a lot of zeros in it will be a lot faster. filterDibGray and filterDibGray3x3 are a lot faster than filterDib and filterDib3x3, but will make the bitmap gray first.</dd>
+<dt>Sharpening and blurring</dt><dd>subtleSharpenDib and subtleBlurDib are a lot faster than sharpenDib and blurDib. They are however more subtle: the result is less sharp/blurry than sharpenDib and blurDib.</dd>
+<dt><b>embossDib</b></dt><dd>embossDib is a lot faster if the passed color is a gray color (blue = green = red).</dd>
+<dt><b>drawDibTransformedPolygon</b></dt><dd>drawDibTransformedPolygon is a lot faster if both source- and destination-polygon are inside the area of their bitmap. Source-clipping slows down the routine a lot. Destination-clipping is less expensive, but still a slowdown-factor.</dd>
+</dl>
+</body>
+</html>

@@ -1,0 +1,73 @@
+-- pFreg.ew
+-- ========
+--
+--DEV: currently only used by demo\treeview.exw; might be better renamed as arreg.ew, does not belong here!!
+--
+-- Greatly simplified registry access (see Davi Figueiredo's reg.ew for a
+--  more complete method of accessing the Windows registry; this is a very
+--  cut-down version/hack of that [673 lines -->> 70 lines]).
+--
+-- implements global regIconInfo()
+--
+constant
+    HKEY_CLASSES_ROOT = #80000000,
+    KEY_ALL_ACCESS = #1F003F,   -- was #F003F
+    REG_SZ = 1,
+    advapi32 = assign_dll("advapi32.dll"),
+    RegOpenKeyExA = link_c_func(advapi32,"RegOpenKeyExA",
+                                {C_LONG,    --  HKEY  hKey (HKEY_CLASSES_ROOT) 
+                                 C_POINTER, --  LPCTSTR lpSubKey (eg ".bat", "batfile\\DefaultIcon")
+                                 C_LONG,    --  DWORD  ulOptions (must be 0)
+                                 C_LONG,    --  REGSAM  samDesired (KEY_ALL_ACCESS)
+                                 C_LONG},   --  PHKEY  phkResult
+                                C_LONG),    -- LONG 0=success, else error code.
+
+    RegQueryValueExA = link_c_func(advapi32,"RegQueryValueExA",
+                                   {C_LONG,     --  HKEY  hKey (from phkResult)
+                                    C_POINTER,  --  LPCTSTR lpValueName (NULL)
+                                    C_LONG,     --  LPDWORD lpReserved (must be 0)
+                                    C_LONG,     --  LPDWORD lpType (checked for REG_SZ)
+                                    C_POINTER,  --  LPBYTE  lpData (result buffer ptr)
+                                    C_LONG},    --  LPDWORD lpcbData (sizeof lpData)
+                                   C_LONG),     -- LONG 0=success, else error code.
+
+    RegCloseKey = link_c_func(advapi32,"RegCloseKey",
+                              {C_LONG}, --  HKEY  hKey
+                              C_LONG)   -- LONG 0=success, else error code.
+
+global function regIconInfo(sequence subkey)
+--
+-- Get default icon info from registry.
+-- Called once with eg ".bat", to return "batfile", then with (eg)
+--  "batfile\\DefaultIcon" to return "C:\Windows\System\shell32.dll,-153".
+--
+atom key_id
+object res
+integer DataLen
+atom lpData
+atom phkResult = allocate(4),
+     lpType = allocate(4),
+     lpcbData = allocate(4)
+
+    res = -1
+    if c_func(RegOpenKeyExA,{HKEY_CLASSES_ROOT,allocate_StringZ(subkey),
+                             0,KEY_ALL_ACCESS,phkResult})=0 then
+        key_id = peek4u(phkResult)
+        -- first just get size of buffer required:
+        if c_func(RegQueryValueExA,{key_id,NULL,0,lpType,0,lpcbData})=0
+        and peek4u(lpType)=REG_SZ then
+            DataLen = peek4u(lpcbData)
+            lpData = allocate(DataLen)
+            -- then get actual data:
+            if c_func(RegQueryValueExA,{key_id,NULL,0,lpType,lpData,lpcbData})=0 then
+                res = peek({lpData,DataLen-1})
+            end if
+            free(lpData)
+        end if
+        void = c_func(RegCloseKey,{key_id})
+    end if
+    free(phkResult)
+    free(lpType)
+    free(lpcbData)
+    return res  -- -1 on failure
+end function

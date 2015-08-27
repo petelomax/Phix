@@ -1,0 +1,190 @@
+--
+-- GraphR.exw
+-- ==========
+--
+-- Displays a simple staggered rainbow graph. 
+--
+-- Uses the clipboard text if it begins with "GraphR:{" and ends with "}":
+--  between those it should contain a comma-separated list of elements,
+--  each of which is a sub-sequence of "{description,start,size}", all of 
+--  which is processed using value() (from builtins\get.e). For an example
+--  see default_text. Note that eg "red" is a description not a colour in 
+--  constant default_text, whereas it is a colour in constant rainbow.
+--
+-- Pressing F9 in filedump.exw, when it is showing a PE executable, invokes
+--  this program to show a simple memory (erm, actually a file) map. While
+--  not exactly pretty, it helped quickly resolve some issues with "strange"
+--  (albeit perfectly legal) format files, such as the import RVA lying slap
+--  in the middle of the data section, rather than occupying a separate one.
+--  Seeing a visual representation is far easier than studying 10 or 15 sets
+--  of numbers in no particular order, especially with not only different
+--  file and virtual addresses, but also those tricky RVA offset thingies.
+--
+
+constant default_text = "GraphR:{{\"red\",0,20},"&
+                                "{\"orange\",10,30},"&
+                                "{\"yellow\",20,40},"&
+                                "{\"green\",30,50},"&
+                                "{\"blue\",40,60},"&
+                                "{\"indigo\",50,70},"&
+                                "{\"violet\",60,80}}"
+
+constant rainbow = {"red","orange","yellow","green","blue","indigo","violet"}
+                    -- (see axtra.ew for other named colours you could use)
+
+--with trace
+include arwen.ew
+include axtra.ew    -- GetNamedColour
+
+constant main = create(Window,"GraphR",0,0,50,50,600,400,0),
+--       mainHwnd = getWindowHwnd(main),
+         mainDC = getPrivateDC(main),
+         NullBrushID = c_func(xGetStockObject,{NULL_BRUSH})
+
+sequence vShapes -- {x1,y1,x1,y2,text,pixelwidth,pen,brush}
+         vShapes = {}
+
+integer maxright    -- The highest (start+size) found.
+
+procedure setShape1()
+-- vShapes[1] is a containing box (one pixel wider/higher than any contents).
+-- vShapes[1][pixelwidth] is actually a height (of an "X").
+-- (this routine is called from both SetShapes() and WM_SIZE)
+integer left,top,right,bottom
+atom hPen, lpRect, lpText
+integer width,height
+    width = 1
+    hPen = c_func(xCreatePen, {PS_SOLID,width,BLACK})
+    {left,top,right,bottom} = getWindowRect(main)
+    right -= left+43
+    bottom -= top+53
+    lpRect = allocate_Rect()
+    lpText = allocate_StringZ("X")
+    if not c_func(xGetTextExtentPoint32,{mainDC,lpText,1,lpRect}) then ?9/0 end if
+    height = peek4s(lpRect+4)+6
+    vShapes[1] = {19,19,right,bottom,"",height,hPen,NullBrushID}
+end procedure
+
+procedure setShapes(string text)
+integer error_status
+sequence v
+integer cidx
+integer b, g, r
+sequence pens, brushes
+integer x, y, width, right, height, colour
+atom lpRect, lpText
+integer len
+
+    text = text[8..$] -- strip the "GraphR:", leaving "{...}"
+    {error_status,v} = value(text)
+    if error_status!=GET_SUCCESS then
+        void = messageBox("error",text,MB_OK)
+        abort(0)
+    end if
+    pens = repeat(0,length(rainbow))
+    brushes = repeat(0,length(rainbow))
+    for i=1 to length(rainbow) do
+        {b,g,r} = GetNamedColour(rainbow[i])
+        colour = rgb(r,g,b)
+        width = 1
+        pens[i] = c_func(xCreatePen,{PS_SOLID,width,colour})
+        brushes[i] = c_func(xCreateSolidBrush,{colour})
+    end for
+    cidx = 1
+    y = 20
+    height = 40
+    maxright = 0
+    vShapes = repeat(0,length(v)+1)
+    setShape1()
+    lpRect = allocate_Rect()
+    for i=1 to length(v) do
+        {text,x,width} = v[i]
+        right = x+width
+        if right>maxright then maxright = right end if
+        len = length(text)
+        lpText = allocate_StringZ(text)
+        if not c_func(xGetTextExtentPoint32,{mainDC,lpText,len,lpRect}) then ?9/0 end if
+        len = peek4s(lpRect)
+        vShapes[i+1] = {x,y,right,y+height,text,len,pens[cidx],brushes[cidx]}
+        y += 20
+        cidx += 1
+        if cidx>length(rainbow) then cidx = 1 end if
+    end for
+end procedure
+
+function mHandler(integer id, integer msg, atom wParam, object lParam)
+integer left,width,bottom
+integer x1, y1, x2, y2, l, ht
+atom hBrush
+atom hPen
+string text
+sequence vText
+
+    if msg=WM_SIZE then
+        setShape1()
+        repaintWindow(main,False)
+--      void = c_func(xInvalidateRect,{mainHwnd,NULL,0})    -- w/o erase...
+--      void = c_func(xSendMessage,{mainHwnd,WM_PAINT,0,0})
+    elsif msg=WM_PAINT then
+        vText = repeat(0,length(vShapes))
+        for i=1 to length(vShapes) do
+            {x1,y1,x2,y2,text,l,hPen,hBrush} = vShapes[i]
+            if i=1 then -- containing box
+                left = x1+1
+                width = x2-left-1
+                bottom = y2-1
+                ht = l
+            else
+                x1 = floor(x1/maxright*width)+left
+                x2 = floor(x2/maxright*width)+left
+                y2 = bottom-(length(vShapes)-i)*20
+                if y2<y1+20 then
+                    y2 = y1+20
+                end if
+            end if
+            void = c_func(xSelectObject,{mainDC,hPen})
+            void = c_func(xSelectObject,{mainDC,hBrush})
+            void = c_func(xRectangle, {mainDC, x1, y1, x2, y2})
+            vText[i] = {x1,y1,text,l}
+        end for
+        -- draw all text after all rectangles to avoid hiding it:
+        for i=1 to length(vShapes) do
+            {x1,y1,text,l} = vText[i]
+            if length(text) then
+                setFont(main,"Tahoma",8,0)
+                wPuts(main,x1+3,y1,text)
+                setFont(main,"Tahoma",8,{0,0,900,900,ANSI_CHARSET,0,0,0,0})
+                wPuts(main,x1-3,y1+l+ht-5,text)
+            end if
+        end for
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(main)
+        end if
+    elsif msg=WM_CLOSE then
+        releaseDC(id,mainDC)
+        if lParam then end if   -- suppress warnings
+    end if
+    return 0
+end function
+setHandler(main, routine_id("mHandler"))
+
+procedure Main()
+sequence text -- (note that getClipboardText returns {}, as opposed to "",
+              --  in the absence of CF_TEXT, but text should definitely be
+              --  a string by the time it gets passed to setShapes().)
+    text = getClipboardText()
+    if not string(text)
+    or length(text)=0
+    or match("GraphR:{",text)!=1
+    or text[$]!='}' then
+        text = default_text
+    end if
+    setFont(main,"Tahoma",8,0)
+    setShapes(text)
+    setBackColour(main, BrightWhite)
+    WinMain(main,SW_NORMAL)
+end procedure
+Main()
+
+

@@ -1,0 +1,74 @@
+-- browser.exw
+-- Matt Lewis
+-- Simple web browser demo (requires IE4+)
+
+-- I haven't been able to trap any events yet, but the browser definitely seems to
+-- work, at least for displaying web pages.
+-- When com_err_out( 1 ) is set, you'll see a zillion messages from QueryInterface.
+-- I don't implement IServiceProvider or a bunch of other junk, which may be why
+-- events aren't working.  I'll have to look into this later to figure out what's
+-- going on.
+
+include win32lib.ew
+include eucom.ew
+include shdocvw.ew
+
+with trace
+--without warning
+-- Create the parent window, and a text box and button to navigate
+constant
+Win = create( Window, "Browser for Eu", 0, 100, 100, 500, 400, 0 ),
+URL = create( EditText, "http://www.google.com", Win, 5, 10, 450, 25, 0 ),
+Go = create( PushButton, "Go", Win, 460, 10, 35, 25, 0 )
+--SB = create(StatusBar, "", Win, -1,-1,-1,-1,0)
+--  if SB then end if -- suppress warnings [DEV]
+
+object void
+
+atom Browser
+--, bstr
+
+-- create the Browser
+Browser = create_com_control( WebBrowser_clsid_ix , getHandle( Win ), 5, 35, 480, 330 )
+--com_err_out( 1 )
+--void = invoke( Browser, {WebBrowser_p_StatusBar}, {},{}, DISPATCH_PROPERTYGET )
+--void = invoke( Browser, {WebBrowser_p_StatusBar, DISPID_PROPERTYPUT}, {1}, {VT_I4}, DISPATCH_PROPERTYPUT)
+--void = invoke( Browser, {WebBrowser_p_StatusBar}, {},{}, DISPATCH_PROPERTYGET )
+--void = invoke( Browser, {WebBrowser_p_StatusText}, {}, {}, DISPATCH_PROPERTYGET )
+--com_err_out(0)
+-- This does the navigation
+procedure on_go( atom id, atom msg, sequence params )
+    atom bstr
+    if id or msg or sequence(params) then end if -- suppress warnings
+    bstr = alloc_bstr( getText(URL) )
+
+    -- Note that I didn't use WebBrowser_m_Navigate2.  I did this in order to 
+    -- have invoke call GetIdsOfNames for me to get the dispid of URL.  EuCOM stops
+    -- calling GetIdsOfNames at the first atom it runs into, so you have to look up
+    -- Navigate2 as well, rather than using the constant.
+    void = invoke( Browser, {"Navigate2", "URL"}, {bstr}, {VT_BSTR}, DISPATCH_METHOD )
+
+    free_bstr(bstr)
+end procedure
+setHandler( Go, w32HClick, routine_id("on_go") )
+
+-- resize the browser with the window
+procedure resize_win( integer self, atom msg, sequence params )
+    integer x,y
+
+    if self or msg then end if -- suppress warnings
+
+    x = params[2]-15
+    y = params[3]-35
+
+    -- unfortunately, win32lib's setCtlSize doesn't work on these objects, 
+    -- so we use EuCOM's move_obj
+    move_obj( Browser, {10,35,x, y - 20})
+    
+end procedure
+setHandler( Win, w32HResize, routine_id("resize_win"))
+
+-- start at the initial page
+on_go(1,1,{})
+WinMain(Win, Normal )
+

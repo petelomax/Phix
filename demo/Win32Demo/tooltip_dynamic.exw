@@ -1,0 +1,137 @@
+------------------------------------------------
+-- Tooltip_Dynamic   Version: 1.0
+--
+-- This demonstrates the ability to set the tooltip text
+-- dynamically at runtime.
+------------------------------------------------
+without warning
+include ..\win32lib\win32lib.ew
+object VOID
+------------------------------------------------
+-- Controls IDs
+------------------------------------------------
+
+sequence AccountRecord
+constant fAcctNo = 1,
+         fCurBal = 2
+sequence accdb
+sequence Points
+
+------------------------------------------------
+-- Event Handlers
+------------------------------------------------
+
+------------------------------------------------
+global procedure Paint_MainWin(integer self, integer event, sequence parms)
+------------------------------------------------
+    -- Draw the polygon shape with dots at the corners.
+    for i = 1 to length(Points)-1 do
+        drawLine(self, Points[i][1], Points[i][2], Points[i+1][1], Points[i+1][2])
+        drawEllipse(self, 1, Points[i][1]-3, Points[i][2]-3, Points[i][1]+3, Points[i][2]+3)
+    end for
+
+end procedure
+registerRoutine("Paint_MainWin", routine_id("Paint_MainWin"))
+------------------------------------------------
+function GetAccountFromName( sequence pName)
+------------------------------------------------
+    integer lPos
+
+    if length(pName) < 8 then
+        return {}
+    end if
+    lPos = find(' ', pName)
+    if lPos = 0 then
+        return {}
+    end if
+    pName = upper(pName)
+
+    lPos = 0
+    for i = 1 to length(accdb[1]) do
+        if length(accdb[1][i]) >= length(pName) then
+            if compare(pName, accdb[1][i][1..length(pName)]) = 0 then
+                lPos = i
+                exit
+            end if
+        end if
+    end for
+
+    if lPos = 0 then
+        accdb[1] = append(accdb[1], pName)
+        accdb[2] = append(accdb[2], {rand(999) + 1000, rand(40000) / 100})
+        lPos = length(accdb[1])
+    end if
+
+    return accdb[2][lPos]
+
+end function
+
+------------------------------------------------
+function GetAcctTip( integer id, integer width)
+------------------------------------------------
+    sequence newtext
+    sequence AccountRecord
+
+    newtext = getText(id)
+    AccountRecord = GetAccountFromName(newtext)
+    if length(AccountRecord) > 0 then
+        newtext = {sprintf("Account %d has a balance of %12.2f",
+                           {AccountRecord[fAcctNo],
+                            AccountRecord[fCurBal]}), 400}
+    else
+        if length(newtext) = 0 then
+            newtext = "Enter an Account Name in the form 'first surname', eg. Derek Parnell"
+        else
+            newtext = {"No account found for this name.",100}
+        end if
+    end if
+
+    return newtext
+end function
+
+------------------------------------------------
+function GetPointTip( integer id, integer width)
+------------------------------------------------
+    sequence newtext
+    sequence mpos
+
+    newtext = "Move over the tooltip note then move to a dot."
+    mpos = getPointerRelPos(id)
+
+    for i = 1 to length(Points) do
+        if mpos[1] < Points[i][1] - 3 or
+           mpos[1] > Points[i][1] + 3 or
+           mpos[2] < Points[i][2] - 3 or
+           mpos[2] > Points[i][2] + 3 then
+        else
+            newtext = sprintf("%d,%d", Points[i])
+            showMessage(newtext)
+            exit
+        end if
+    end for
+
+    return newtext
+end function
+
+------------------------------------------------
+-- Application Initiation
+------------------------------------------------
+global function main(sequence pArgs)
+
+    accdb = {{},{}}
+    Points = {{20,50},{300,55},{250, 210}, {290, 300}, {120, 310}, {20, 50}}
+
+    createForm({
+                "Window, name=MainWin, Dynamic Tooltip Demonstration, size=(600, 400), bar=status," &
+                sprintf("hint=%d", routine_id("GetPointTip")),
+                "Button, &Close,at=(540,20), size=(50,25), flags=autoclose, hint=Closes the window,",
+                "EditText, at=(20, 20), size=(300, 25)," &
+                sprintf("hint=%d",routine_id("GetAcctTip"))
+
+               })
+    return 0    -- All okay.
+end function
+
+include ..\win32lib\w32start.ew
+
+

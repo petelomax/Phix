@@ -1,0 +1,178 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">include</h1>
+      <div id="mainSection">
+        When you write a large program it is often helpful
+        to break it up into logically separate files, by using
+       <b>include statements</b>.
+        Sometimes you will want to reuse some code that you have previously
+        written, or that someone else has written. Rather than copy this code into
+        your main program, you can use an
+       <b>include statement</b>
+        to refer to the file
+        containing the code. The format of the include statement is:
+       <br>
+       <br>
+       <font color="#030303">
+        <b>include</b>
+       </font>
+       <b>
+        <i>&lt;filename&gt;</i>
+       </b>
+          [as
+       <b>
+        <i>&lt;namespace_identifier&gt;</i>
+       </b>]
+       <br>
+       <br>
+          This reads in (compiles) a Phix source file.
+       <br>
+       <br>
+         Any
+       <a href="scope.htm">global symbols</a>
+         that have already been defined will
+         be visible in the included file.
+       <br>
+       <br>
+       <b>
+        <font color="navy">N.B.</font>
+       </b> Only those symbols defined as
+       <a href="scope.htm">
+        <b>global</b>
+       </a>
+         in the included file will be visible (accessible) in the
+         remainder of the program.
+       <br>
+       <br>
+         An included file can include other files. In fact, you can
+         "nest" included files to any depth.
+       <br>
+       <br>
+         The 
+       <b>
+        <i>filename</i>
+       </b>
+         may be absolute (full directory path) or relative. For the latter, Phix maintains a table of active 
+        directories to locate it (see note[1] below). This allows, for example, a "stub" file in demo\arwendemo, 
+        named "arwen.ew", which contains say
+<!--eucode>
+    include ..\arwen\arwen.ew
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    include</font><font color="#000000"> ..\arwen\arwen.ew</font>
+</pre>
+        and when the compiler is processing that file it can use the "..\\arwen" part (or
+        an absolute directory) to locate any sub-includes such as misc_arwen.ew. Of course 
+        you do not
+       <i>have</i> to use a stub file, other apps could equally specify the 
+        absolute/relative directory part, but it allows all other programs in demo\arwendemo 
+        to just use "arwen.ew", and if one day I decide to reorganise the directories, or 
+        perhaps have several different versions that I want to switch between, only one file 
+        needs to be edited. You are perfectly free to "nest" any "stub" files if that helps.
+        When the compiler reaches EOF of "..\\arwen\\arwen.ew", it clears a flag against the 
+        "..\\arwen" to prevent subsequent include statements looking there, unless of course
+        a later include statement (temporarily) re-activates/re-specifies it.
+       <br>
+       <br>
+        This relative directory handling lets you organize your include files according to 
+        application areas, rather than lumping them all into one central directory.
+       <br>
+       <br>
+       Include file names typically end in
+       <b>.e</b>, or sometimes
+       <b>.ew</b> or
+       <b>.eu</b> (when they are intended for use with Windows or Linux).
+         This is just a convention. It is not required.
+       <br>
+       <br>
+        An include statement will be quietly ignored if the file has already been included[2], 
+        except for any optional namespace, which becomes available for subsequent use whether 
+        or not the file has previously been included.
+       <br>
+       <br>
+        If a
+       <b>
+        <i>namespace identifier</i>
+       </b>
+        is specified it declares a local identifier that can be used to explicitly qualify global 
+        symbols in the specific included file that you want to use in the main file. This can be 
+        used to disambiguate references to those symbols, or simply to promote clarity. See also
+       <a href=scope.htm>Scope Rules</a> and note[3] below.
+       <br>
+       <br>
+        An include statement must be written on a line by itself.
+        Only a comment can appear after it on the same line.
+       <br>
+       <br>
+       <blockquote>
+        <b>Compatibility Notes</b>
+        <br>
+        [1] The relative directory handling (see ptok.e/initFilePathSet() for details) is 
+        not supported by
+         either RDS Eu or OpenEuphoria. If you inspect the contents of the above mentioned
+         stub, you will find perhaps a dozen other include statements that pre-load any
+         sub-includes to work around that fact. Also, for compatibility reasons, the table
+         of active directories is initially populated (in ptok.e\initFilePathSet) with
+         content from the environment variables EUINC and EUDIR, but does not complain if 
+         they are not set. Lastly note that Phix makes no attempt whatsoever to use any 
+         OpenEuphoria style eu.cfg files.
+        <br>
+        <br>
+        [2] Phix uses the directory as if it were part of the filename, allowing libX\misc.e, 
+        libY\misc.e, and libZ\misc.e to be simultaneously loaded, whereas RDS Eu\OpenEuphoria 
+        normally just use the filename. In some places I have used a forward 
+         slash trick to fool RDS Eu into including a duplicate filename twice. Another area where
+         compatibility issues have have made a bit of a mess compared to a clean elegant Phix-only
+         style can be found at the top of edita.exw. All frightfully convoluted, I know, in fact
+         includes files are the biggest stumbling block to getting an application to run on more
+         than one of Phix/RDS Eu/OpenEu, entirely down to trial and error, and saying anything 
+         other than "look at the stub files for tips" is beyond the scope of this document.
+        <br>
+        <br>
+        [3] In Phix, a namespace can be used to qualify a global defined either in the specified 
+        file or any files (indirectly) included by it. I think this is
+         now supported by OpenEuphoria, but in RDS Eu no such sub-include handling occurs. Thus 
+         in Phix (and probably OpenEuphoria) you can code
+<!--eucode>
+    include arwen.ew as arwen   -- (includes arwen_misc.ew)
+        ?arwen:hiWord(expr)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    include</font><font color="#000000"> arwen.ew as arwen  </font><font color="#000080"> -- (includes arwen_misc.ew)
+</font><font color="#0000FF">        ?</font><font color="#000000">arwen:hiWord</font><font color="#0000FF">(</font><font color="#000000">expr</font><font color="#0000FF">)</font>
+</pre>
+         whereas to achieve the same effect in RDS Eu you would require
+<!--eucode>
+    include arwen.ew as arwen   -- (includes arwen_misc.ew)
+    include arwen_misc.ew as misc
+        ?misc:hiWord(expr)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    include</font><font color="#000000"> arwen.ew as arwen  </font><font color="#000080"> -- (includes arwen_misc.ew)
+</font><font color="#008080">    include</font><font color="#000000"> arwen_misc.ew as misc
+</font><font color="#0000FF">        ?</font><font color="#000000">misc:hiWord</font><font color="#0000FF">(</font><font color="#000000">expr</font><font color="#0000FF">)</font>
+</pre>
+        [4]OpenEuphoria also permits a "namespace xxx" at the top of a file. Despite several reservations about such an approach,
+        support for this has been added to Phix, however there may be some idiosyncracies, especially with regards to using a
+        local namespace to qualify locally declared identifiers, that I may have missed.
+        <br>
+        <br>
+        [5]OpenEuphoria has implemented a peculiar mixture of export/public/import/public import/public include and other
+        pointless things, that I have long suspected cripple performance and serve little or no useful purpose. Phix just 
+        treats such things as "global", with no apparent ill effects thus far. As noted elsewhere, however, the contents
+        of the OE std/ directory (and for that matter the include/ directory) are not compatible with Phix, and care must
+        be taken to avoid accidentally including them, instead of the (possibly incomplete) ones shipped with Phix.
+       </blockquote>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,101 @@
+-- pFreg.ew
+-- ========
+--
+-- Greatly simplified registry access (see Davi Figueiredo's reg.ew for a
+--  more complete method of accessing the Windows registry; this is a very
+--  cut-down version/hack of that [673 lines -->> 70 lines]).
+--
+-- implements global regIconInfo()
+--
+constant
+    HKEY_CLASSES_ROOT = #80000000,
+    KEY_ALL_ACCESS = #1F003F,	-- was #F003F
+    REG_SZ = 1,
+    advapi32 = assign_dll("advapi32.dll"),
+    RegOpenKeyExA = link_c_func(advapi32,"RegOpenKeyExA",
+				{C_LONG,    --	HKEY  hKey (HKEY_CLASSES_ROOT) 
+				 C_POINTER, --	LPCTSTR lpSubKey (eg ".bat", "batfile\\DefaultIcon")
+				 C_LONG,    --	DWORD  ulOptions (must be 0)
+				 C_LONG,    --	REGSAM	samDesired (KEY_ALL_ACCESS)
+				 C_LONG},   --	PHKEY  phkResult
+				C_LONG),    -- LONG 0=success, else error code.
+
+    RegQueryValueExA = link_c_func(advapi32,"RegQueryValueExA",
+				   {C_LONG,	--  HKEY  hKey (from phkResult)
+				    C_POINTER,	--  LPCTSTR lpValueName (NULL)
+				    C_LONG,	--  LPDWORD lpReserved (must be 0)
+				    C_LONG,	--  LPDWORD lpType (checked for REG_SZ)
+				    C_POINTER,	--  LPBYTE  lpData (result buffer ptr)
+				    C_LONG},	--  LPDWORD lpcbData (sizeof lpData)
+				   C_LONG),	-- LONG 0=success, else error code.
+
+    RegCloseKey = link_c_func(advapi32,"RegCloseKey",
+			      {C_LONG}, --  HKEY  hKey
+			      C_LONG)	-- LONG 0=success, else error code.
+
+constant phkResult = allocate(4),
+	 lpType = allocate(4),
+	 lpcbData = allocate(4)
+
+global function regIconInfo(sequence subkey)
+--
+-- Get default icon info from registry.
+-- Called once with eg ".bat", to return "batfile", then with (eg)
+--  "batfile\\DefaultIcon" to return "C:\Windows\System\shell32.dll,-153".
+--
+atom key_id
+object res
+integer DataLen
+atom lpData
+
+    res = -1
+    if c_func(RegOpenKeyExA,{HKEY_CLASSES_ROOT,allocate_StringZ(subkey),
+			     0,KEY_ALL_ACCESS,phkResult})=0 then
+	key_id = peek4u(phkResult)
+	-- first just get size of buffer required:
+	if c_func(RegQueryValueExA,{key_id,NULL,0,lpType,0,lpcbData})=0
+	and peek4u(lpType)=REG_SZ then
+	    DataLen = peek4u(lpcbData)
+	    lpData = allocate(DataLen)
+	    -- then get actual data:
+	    if c_func(RegQueryValueExA,{key_id,NULL,0,lpType,lpData,lpcbData})=0 then
+		res = peek({lpData,DataLen-1})
+	    end if
+	    free(lpData)
+	end if
+	void = c_func(RegCloseKey,{key_id})
+    end if
+    return res	-- -1 on failure
+end function
+
+global object iconinfo
+global atom icon
+
+global function parseDefaultIcon(object iconin)
+-- This processes eg "batfile" (obtained from ".bat") as well as
+-- the special case (next) of "Folder".
+-- Results left in inconinfo/icon
+integer sign
+    if equal(iconin,-1) then return -1 end if
+    iconinfo = regIconInfo(iconin&"\\DefaultIcon")
+    if equal(iconinfo,-1) then return -1 end if
+    if iconinfo[1]='\"' and iconinfo[length(iconinfo)]='\"' then
+	iconinfo = iconinfo[2..length(iconinfo)-1]
+    end if
+    icon=0
+    for vi=length(iconinfo) to 1 by -1 do
+	if equal(iconinfo[vi],',') then
+	    sign = (iconinfo[vi+1]='-')
+	    for j=vi+1+sign to length(iconinfo) do
+		icon=icon*10+iconinfo[j]-'0'
+	    end for
+	    if sign then
+		icon = -icon
+	    end if
+	    iconinfo = iconinfo[1..vi-1]
+	    exit
+	end if
+    end for
+    return iconinfo
+end function
+

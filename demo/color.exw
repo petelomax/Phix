@@ -1,0 +1,99 @@
+--
+-- color.exw
+-- =========
+--
+-- Test terminal colours
+--
+--/*
+-- Ensure this is compatible with RDS Eu 2.4:
+include ..\builtins\graphics.e
+include ..\builtins\get.e
+include ..\builtins\wildcard.e
+--*/
+
+integer key
+
+sequence colour_names, colour_values
+    colour_names = {"BLACK",
+                    "GREEN",
+                    "MAGENTA",
+                    "WHITE",
+                    "GRAY",
+                    "BRIGHT_GREEN",
+                    "BRIGHT_MAGENTA",
+                    "BRIGHT_WHITE",
+                    "BLUE",
+                    "CYAN",
+                    "RED",
+                    "BROWN",
+                    "BRIGHT_BLUE",
+                    "BRIGHT_CYAN",
+                    "BRIGHT_RED",
+                    "YELLOW"}
+    colour_values = {BLACK,
+                     GREEN,
+                     MAGENTA,
+                     WHITE,
+                     GRAY,
+                     BRIGHT_GREEN,
+                     BRIGHT_MAGENTA,
+                     BRIGHT_WHITE,
+                     BLUE,
+                     CYAN,
+                     RED,
+                     BROWN,
+                     BRIGHT_BLUE,
+                     BRIGHT_CYAN,
+                     BRIGHT_RED,
+                     YELLOW
+                    }
+
+integer fgrnd, bgrnd
+    fgrnd = 0
+    bgrnd = 0
+
+    while 1 do
+        text_color(WHITE)
+        bk_color(BLACK)
+
+        clear_screen()
+        position(1, 1)
+        puts(1, "This tests the screen colour capabilities of the terminal\nPress ...\n")
+        puts(1, "   F  -> next foreground colour\n")
+        puts(1, "   B  -> next background colour\n")
+        puts(1, "   Q or Esc -> quits\n")
+
+        position(7, 1)
+        printf(1, "%-10s %-20s %-10s\n", {"", "Name", "Value"})
+        printf(1, "%-10s %-20s %-10d\n", {"Fore", colour_names[find(fgrnd,colour_values)], fgrnd})
+        printf(1, "%-10s %-20s %-10d\n", {"Back", colour_names[find(bgrnd,colour_values)], bgrnd})
+        position(12, 1)
+
+        text_color(fgrnd)
+        bk_color(bgrnd)
+
+        puts(1, " +------------------------------------------------+ \n")
+        puts(1, " | This is an example of what it would look like! | \n")
+        puts(1, " +------------------------------------------------+ \n")
+
+        key = wait_key()
+        if key=27 then exit end if  -- escape
+        key = upper(key)
+        if key='Q' then exit end if
+
+        if key='B' then
+            bgrnd += 1
+            if bgrnd=16 then bgrnd = 0 end if
+        elsif key='F' then
+            fgrnd += 1
+            if fgrnd=16 then fgrnd = 0 end if
+        end if
+
+    end while
+    text_color(WHITE)
+    bk_color(BLACK)
+    clear_screen()
+--  free_console()
+
+--DEV needed to evade avast FP (reported 17/7/15):
+--/**/include ..\test\t02parms.exw

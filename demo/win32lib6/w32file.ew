@@ -1,0 +1,1226 @@
+-- winfile.ew
+-- Win32 file functions by Jeffrey Fielding (JJProg@cyberbury.net)
+-- All return 1 if success, 0 if not
+-- success = DeleteFile(filename)
+-- success = MoveFile(old, new)
+-- success = CopyFile(old, new, failIfExists)
+-- failIfExists is 1 if you want it to cancel if new already exists
+--                 0 if you want it to overwrite new
+
+--modified by Ray Smith to add CreateDirectory 20-Sept-2000
+--
+
+--/topic File Operations
+--/info 
+-- The basic File I/O routines using Windows API routines. 
+
+object VOID
+constant WM_USER = #400
+constant MAX_PATH = 1024
+
+include w32Shell.ew as shell
+include w32Kernel.ew as kernel
+include w32ole.ew as ole
+
+sequence vSearchPaths vSearchPaths = {}
+
+global constant
+-- open file name common dialog
+    OFN_READONLY = #1,
+    OFN_OVERWRITEPROMPT = #2,
+    OFN_HIDEREADONLY = #4,
+    OFN_NOCHANGEDIR = #8,
+    OFN_SHOWHELP = #10,
+    OFN_ENABLEHOOK = #20,
+    OFN_ENABLETEMPLATE = #40,
+    OFN_ENABLETEMPLATEHANDLE = #80,
+    OFN_NOVALIDATE = #100,
+    OFN_ALLOWMULTISELECT = #200,
+    OFN_EXTENSIONDIFFERENT = #400,
+    OFN_PATHMUSTEXIST = #800,
+    OFN_FILEMUSTEXIST = #1000,
+    OFN_CREATEPROMPT = #2000,
+    OFN_SHAREAWARE = #4000,
+    OFN_NOREADONLYRETURN = #8000,
+    OFN_NOTESTFILECREATE = #10000,
+    OFN_NONETWORKBUTTON = #20000,
+    OFN_NOLONGNAMES = #40000,                      --  force no long names for 4.x modules
+    OFN_EXPLORER = #80000,                         --  new look commdlg
+    OFN_NODEREFERENCELINKS = #100000,
+    OFN_LONGNAMES = #200000,                       --  force long names for 3.x modules
+
+    OFN_SHAREFALLTHROUGH = 2,
+    OFN_SHARENOWARN = 1,
+    OFN_SHAREWARN = 0,
+
+-- Type OPENFILENAME
+    ofnStructSize           = w32allot( Long ),
+    ofnOwner                = w32allot( Long ),
+    ofnInstance             = w32allot( Long ),
+    ofnFilter               = w32allot( Lpsz ),
+    ofnCustomFilter         = w32allot( Lpsz ),
+    ofnMaxCustFilter        = w32allot( DWord ),
+    ofnFilterIndex          = w32allot( DWord ),
+    ofnFile                 = w32allot( Lpsz ),
+    ofnMaxFile              = w32allot( DWord ),
+    ofnFileTitle            = w32allot( Lpsz ),
+    ofnMaxFileTitle         = w32allot( DWord ),
+    ofnInitialDir           = w32allot( Lpsz ),
+    ofnTitle                = w32allot( Lpsz ),
+    ofnFlags                = w32allot( DWord ),
+    ofnFileOffset           = w32allot( Word ),
+    ofnFileExtension        = w32allot( Word ),
+    ofnDefExt               = w32allot( Lpsz ),
+    ofnCustData             = w32allot( DWord ),
+    ofnHook                 = w32allot( Long ),
+    ofnTemplateName         = w32allot( Long ),
+    SIZEOF_OPENFILENAME    = w32allotted_size(),
+
+    FILE_ATTRIBUTE_READONLY             = #00000001,
+    FILE_ATTRIBUTE_HIDDEN               = #00000002,
+    FILE_ATTRIBUTE_SYSTEM               = #00000004,
+    FILE_ATTRIBUTE_DIRECTORY            = #00000010,
+    FILE_ATTRIBUTE_ARCHIVE              = #00000020,
+    FILE_ATTRIBUTE_DEVICE               = #00000040,
+    FILE_ATTRIBUTE_NORMAL               = #00000080,
+    FILE_ATTRIBUTE_TEMPORARY            = #00000100,
+    FILE_ATTRIBUTE_SPARSE_FILE          = #00000200,
+    FILE_ATTRIBUTE_REPARSE_POINT        = #00000400,
+    FILE_ATTRIBUTE_COMPRESSED           = #00000800,
+    FILE_ATTRIBUTE_OFFLINE              = #00001000,
+    FILE_ATTRIBUTE_NOT_CONTENT_INDEXED  = #00002000,
+    FILE_ATTRIBUTE_ENCRYPTED            = #00004000
+
+
+global constant
+-----------------------------------------------------------------------------
+-- Type BROWSEINFO
+    bfOwner         = w32allot( Long ),
+    bfpidlRoot      = w32allot( Long ),
+    bfDisplayName   = w32allot( Lpsz ),
+    bfTitle         = w32allot( Lpsz ),
+    bfFlags         = w32allot( Long ),
+    bfFunction      = w32allot( Long ),
+    bfParam         = w32allot( Long ),
+    bfImage         = w32allot( Long ),
+    SIZEOF_BROWSEINFO = w32allotted_size(),
+
+    -- Flags for BrowseForFolder
+    BIF_RETURNONLYFSDIRS   = #0001, -- For finding a folder to start document searching
+    BIF_DONTGOBELOWDOMAIN  = #0002, -- For starting the Find Computer
+    BIF_STATUSTEXT         = #0004, -- Top of the dialog has 2 lines of text for BROWSEINFO.lpszTitle and one line if
+                                    -- this flag is set.  Passing the message BFFM_SETSTATUSTEXTA to the hwnd can set the
+                                    -- rest of the text.  This is not used with BIF_USENEWUI and BROWSEINFO.lpszTitle gets
+                                    -- all three lines of text.
+    BIF_RETURNFSANCESTORS  = #0008,
+    BIF_EDITBOX            = #0010, -- Add an editbox to the dialog
+    BIF_VALIDATE           = #0020, -- insist on valid result (or CANCEL)
+
+    BIF_NEWDIALOGSTYLE     = #0040, -- Use the new dialog layout with the ability to resize
+                                    -- Caller needs to call OleInitialize() before using this API
+
+    BIF_USENEWUI           = #0050, -- (BIF_NEWDIALOGSTYLE | BIF_EDITBOX)
+
+    BIF_BROWSEINCLUDEURLS  = #0080, -- Allow URLs to be displayed or entered. (Requires BIF_USENEWUI)
+
+    BIF_BROWSEFORCOMPUTER  = #1000, -- Browsing for Computers.
+    BIF_BROWSEFORPRINTER   = #2000, -- Browsing for Printers
+    BIF_BROWSEINCLUDEFILES = #4000, -- Browsing for Everything
+    BIF_SHAREABLE          = #8000, -- sharable resources displayed (remote shares, requires BIF_USENEWUI)
+
+    -- Messages FROM BrowseForFolder
+    BFFM_INITIALIZED       = 1,
+    BFFM_SELCHANGED        = 2,
+    BFFM_VALIDATEFAILEDA   = 3,   -- lParam:szPath ret:1(cont),0(EndDialog)
+    BFFM_VALIDATEFAILEDW   = 4,   -- lParam:wzPath ret:1(cont),0(EndDialog)
+
+    -- Message TO BrowseForFolder
+    BFFM_SETSTATUSTEXTA    = (WM_USER + 100),
+    BFFM_ENABLEOK          = (WM_USER + 101),
+    BFFM_SETSELECTIONA     = (WM_USER + 102),
+    BFFM_SETSELECTIONW     = (WM_USER + 103),
+    BFFM_SETSTATUSTEXTW    = (WM_USER + 104),
+    BFFM_SETSTATUSTEXT     = BFFM_SETSTATUSTEXTA,
+    BFFM_SETSELECTION      = BFFM_SETSELECTIONA,
+    BFFM_VALIDATEFAILED    = BFFM_VALIDATEFAILEDA
+
+
+-----------------------------------------------------------------------------
+-- COMMON DIALOGS: SAVE FILE NAME
+--
+-----------------------------------------------------------------------------
+integer vFileNameBufferSize
+vFileNameBufferSize = 8000
+
+--/topic Dialogs
+--/func buildDefaultOfn( integer window, sequence file, sequence filters, atom flags )
+--/desc Creates a OpenFile structure used by the standard dialog.
+--/ret The address of the structure.
+--Note, you must call w32release_mem() when you have finished with the structure.
+--
+--/code
+--       atom lOfn
+--       lOfn = buildDefaultOfn(0, "newfile.txt", {"Text Files","*.txt"},
+--                OFN_FILEMUSTEXIST)
+--       w32store(lOfn, OfnDefExt, "TXT")
+--       if w32Func(xGetOpenFileName, {lOfn}) then
+--         -- get the name
+--         fName = w32fetch( lOfn, ofnFile )
+--         fNamePtr = w32fetch( lOfn, ofnFileOffset)
+--         fExtPtr = w32fetch( lOfn, ofnFileExtension)
+--       else
+--         fName = ""
+--       end if
+--       w32release_mem(lOfn)
+--/endcode
+global function buildDefaultOfn( integer id, sequence fName, sequence filters, atom exflags)
+-- builds the ofn structure shared by open and save file
+
+-- filters is in the form:
+--     { "Text Files", "*.TXT,*.DOC", ... }
+
+atom ofn, flags, filenamebuffer
+sequence filterList
+integer indx
+
+        -- set up default flags.
+        flags = w32or_all({
+                           exflags,          -- from caller
+                           OFN_EXPLORER,            -- looks like windows explorer
+                           OFN_LONGNAMES           -- use long filenames
+                          })  -- path must exist
+
+        -- Check to see if a directory name was supplied.
+        if length(fName) > 0
+        and fName[length(fName)] = '\\'  then
+            fName &= "*.*"
+        end if
+
+        -- Allocate the structure
+        ofn = w32acquire_mem(0, SIZEOF_OPENFILENAME +
+                             length(fName) + 1 + vFileNameBufferSize )
+        -- Allocate the buffer to hold the returned values.
+        filenamebuffer = ofn + SIZEOF_OPENFILENAME
+        poke(filenamebuffer, fName)
+        poke(filenamebuffer+length(fName), 0)
+
+        -- build the filter list by concatenating the elements
+        -- and ending them with zeros
+        filterList = {}
+        indx = 1
+        while indx <= length( filters ) do
+            if equal(upper(filters[indx]), "DIALOG FLAGS") then
+                indx += 1
+                if indx <= length(filters) then
+                    if sequence(filters[indx]) then
+                        flags = w32or_all(filters[indx] & flags)
+                    else
+                        flags = or_bits(filters[indx], flags)
+                    end if
+                end if
+            else
+                filterList &= filters[indx] & NULL
+            end if
+            indx += 1
+        end while
+
+        -- ends with nulls
+        filterList &= NULL & NULL
+
+        -- size of structure, in bytes
+        w32store( ofn, ofnStructSize, SIZEOF_OPENFILENAME )
+
+        -- window that owns the dialog box
+        w32store( ofn, ofnOwner, call_func(r_getHandle,{ w32iff(id=0, call_func(r_getMainWindow,{}),id)  }))
+
+        -- identifies the data block containing a dialog box template
+        -- specified in ofnTemplateName. not used
+        w32store( ofn, ofnInstance, NULL )
+
+        -- filters
+        w32store( ofn, ofnFilter, filterList )
+
+        w32store( ofn, ofnCustomFilter, NULL )
+        w32store( ofn, ofnMaxCustFilter, NULL )
+
+        -- index of which filter to default to
+        w32store( ofn, ofnFilterIndex, 1 )
+
+
+        w32store( ofn, ofnFile, filenamebuffer )
+        w32store( ofn, ofnMaxFile, vFileNameBufferSize )
+
+        w32store( ofn, ofnFileTitle, NULL )
+        w32store( ofn, ofnMaxFileTitle, NULL )
+        w32store( ofn, ofnInitialDir, NULL )
+        w32store( ofn, ofnTitle, NULL )
+
+-- NEW! 0.43 added 'flags'
+        w32store( ofn, ofnFlags, flags)
+        w32store( ofn, ofnFileOffset, NULL )
+        w32store( ofn, ofnFileExtension, NULL )
+
+        -- default extension
+        w32store( ofn, ofnDefExt, NULL )
+
+        -- custom data
+        w32store( ofn, ofnCustData, NULL )
+
+        w32store( ofn, ofnHook, NULL )
+        w32store( ofn, ofnTemplateName, NULL )
+
+
+        return ofn
+
+
+end function
+
+-----------------------------------------------------------------------------
+--/topic Dialogs
+--/func getOpenFileName( window, file, filters )
+--/desc "Open File" dialog.
+--/ret Selected file name, or empty sequence if cancelled.
+-- Calling this function brings up the modal "Open File" dialog, allowing
+-- the user to select a file name. /i file is a sequence holding the default
+-- file name. /i filters is a list of patterns to limit displayed files to,
+-- in the format:
+--
+--/code
+--      { "text", pattern, "text", pattern ... }
+--/endcode
+--
+-- For example:
+--/code
+--      constant FileTypes = {
+--          "Text File", "*.TXT",
+--          "Euphoria Program", "*.EX;*.EXW;*.E;*.EW",
+--          "All Files", "*.*" }
+--/endcode
+--
+-- Note that a pattern can contain several different values.
+--
+-- Example:
+--
+--/code
+--          -- get file name to open
+--          sequence filename
+--
+--          filename = getOpenFileName(
+--                          TheWindow,                  -- parent window
+--                          "",                         -- no default name
+--                          { "Text File", "*.TXT",     -- text files
+--                            "All Files", "*.*" } )    -- everything else
+--/endcode
+--
+-- It is possible to modify the default flags set for the dialog by
+-- adding a special 'pattern' of "DIALOG FLAGS" followed by the
+-- additional flags required. The usual use of this is to allow
+-- multiple files to be selected.
+--
+-- /b "Multiple Selections" /n
+-- When doing this, the routine returns a sequence of sequences. The first element
+-- is the directory name, which always ends with a '\', and each subsequent
+-- element is a file name selected from that directory.
+--
+--/code
+--          filename = getOpenFileName(
+--                          TheWindow,                  -- parent window
+--                          "",                         -- no default name
+--                          { "Dialog Flags", {OFN_ALLOWMULTISELECT},
+--                            "Text File", "*.TXT",     -- text files
+--                            "All Files", "*.*" } )    -- everything else
+--
+--          if length(filename) > 0 then
+--            theDir = filename[1]
+--            for i = 2 to length(filename) do
+--              ProcessTheFile( theDir, filename[i])
+--            end for
+--          end if
+--/endcode
+
+atom vOpenedFlags vOpenedFlags = 0
+global function getOpenFileName( integer id, sequence fName, sequence filters )
+
+    atom ofn, flags, fadr
+    sequence text
+    integer lPosn
+
+    lPosn = find("DIALOG FLAGS", upper(filters))
+    if lPosn = 0 or lPosn = length(filters) then
+        -- Default setting
+        flags = OFN_FILEMUSTEXIST
+    else
+        flags = 0
+    end if
+    -- build the structure
+    ofn = buildDefaultOfn( id, fName, filters, flags)
+
+    -- call the routine
+    flags = w32fetch( ofn, ofnFlags)
+    if w32Func(xGetOpenFileName, {ofn}) then
+        -- get the name
+        vOpenedFlags = w32fetch( ofn, ofnFlags)
+        if and_bits(vOpenedFlags, OFN_ALLOWMULTISELECT) then
+            -- Posible multiple files selected --
+            -- Get address of first string
+            fadr = peek4u(ofn +ofnFile[1])
+            fName = {}
+
+            -- Get a file string
+            text = w32peek_string(fadr)
+            -- Repeat until no more left
+            while length(text) != 0 do
+                fName = append(fName,text)
+                -- Point to next string
+                fadr += length(text) + 1
+                -- Get it.
+                text = w32peek_string(fadr)
+            end while
+            -- Check for one a single selection.
+            if length(fName) = 1 then
+                fName = fName[1]
+
+                -- Otherwise ensure that the 1st string (the Directory)
+                -- has a trailing '\' character.
+            elsif fName[1][length(fName[1])] != '\\' then
+                fName[1] &= '\\'
+            end if
+        else
+            fName = w32fetch( ofn, ofnFile )
+        end if
+    else
+        -- return blank
+        fName = ""
+    end if
+
+    -- release the structure and strings
+    w32release_mem( ofn )
+
+    return fName
+
+end function
+
+
+-----------------------------------------------------------------------------
+--/topic Dialogs
+--/func getSaveFileName( window, file, filters )
+--/desc "Save File" dialog.
+--/ret Selected file name, or empty sequence if cancelled.
+-- Calling this function brings up the modal "Save File" dialog, allowing
+-- the user to select a file name. /i file is a sequence holding the default
+-- file name. /i filters is a list of patterns to limit displayed files to,
+-- in the format:
+--
+--/code
+--      { "text", pattern, "text", pattern ... }
+--/endcode
+--
+-- For example:
+--/code
+--      constant FileTypes = {
+--          "Text File", "*.TXT",
+--          "Euphoria Program", "*.EX;*.EXW;*.E;*.EW",
+--          "All Files", "*.*" }
+--/endcode
+--
+-- Note that a pattern can contain several different values.
+--
+-- Example:
+--
+--/code
+--          -- get file name to save
+--          filename = getSaveFileName(
+--                          TheWindow,                  -- parent window
+--                          "MyFile.txt",               -- default name
+--                          { "Text File", "*.TXT",     -- text files
+--                            "All Files", "*.*" } )    -- everything else
+--/endcode
+
+global function getSaveFileName( integer id, sequence fName, sequence filters )
+
+    atom ofn, flags
+    integer lPosn
+
+    -- build the structure
+    lPosn = find("DIALOG FLAGS", upper(filters))
+    if lPosn = 0 or lPosn = length(filters) then
+        -- Default setting
+        flags = w32or_all({OFN_OVERWRITEPROMPT, OFN_HIDEREADONLY, OFN_PATHMUSTEXIST})
+    else
+        flags = 0
+    end if
+    ofn = buildDefaultOfn( id, fName, filters, flags)   -- warn if exists
+
+    -- call the routine
+    if w32Func(xGetSaveFileName, {ofn}) then
+        -- get the name
+        fName = w32fetch( ofn, ofnFile )
+    else
+        -- cancelled
+        fName = ""
+    end if
+
+    -- release the structure and strings
+    w32release_mem( ofn )
+
+    -- return result
+    return fName
+
+end function
+
+--/topic File Operations
+--/func deleteFile(sequence Name)
+--/desc Deletes an operating system file.
+--/ret ATOM: w32True if successful, w32False if not.
+--
+--/code
+--        deleteFile("C:\\TEMP\\~xyz.tmp")
+--/endcode
+global function deleteFile(sequence name)
+    atom a
+    atom r
+
+    a = w32acquire_mem(0, name)
+
+    r = w32Func(xDeleteFile,{a})
+
+    w32release_mem(a)
+
+    return r
+end function
+
+
+--/topic File Operations
+--/func moveFile(sequence CurrentName, sequence NewName)
+--/desc Renames or Moves a file.
+--/ret ATOM: w32True if successful, w32False if not.
+--
+--/code
+--        moveFile("C:\\TEMP\\~xyz.tmp", "D:\\PROJECT\\input.txt")
+--/endcode
+global function moveFile(sequence exists, sequence new)
+    atom a, b, mset
+    atom r
+
+    mset = w32new_memset()
+    a = w32acquire_mem(mset, exists)
+
+    b = w32acquire_mem(mset, new)
+
+    r = w32Func(xMoveFile,{a,b})
+
+    w32release_mem(mset)
+
+    return r
+end function
+
+--/topic File Operations
+--/func copyFile(sequence CurrentName, sequence NewName, integer Flag)
+--/desc Copies a file.
+-- If /i Flag is w32True then it will not copy the file if the /i NewName already exists.
+--/ret ATOM: w32True if successful, w32False if not.
+--
+--/code
+--        copyFile("C:\\TEMP\\~xyz.tmp", "D:\\PROJECT\\input.txt")
+--/endcode
+global function copyFile(sequence exists, sequence new, integer failIfExists)
+    atom a, b, mset
+    atom r
+
+    mset = w32new_memset()
+    a = w32acquire_mem(mset, exists)
+
+    b = w32acquire_mem(mset, new)
+
+    r = w32Func(xCopyFile,{a,b,failIfExists})
+
+    w32release_mem(mset)
+
+    return r
+end function
+
+--/topic File Operations
+--/func createDirectory(sequence Name)
+--/desc Creates a new directory
+--/ret ATOM: w32True if successful, w32False if not.
+--/i Name is the name of the directory to create. If you need this routine
+-- to also create all the intervening directories, specify the /i Name
+-- as /b "{w32True, /i Name }"
+--
+--/code
+--      -- Create the PROJECT directory in the D: drive
+--      createDirectory("D:\\PROJECT")
+--      -- Create the 'saves' directory and 'temp' and 'temp\project'
+--      -- if required.
+--      createDirectory({w32True, "C:\\temp\\project\\saves"})
+--/endcode
+constant vAllowableErrs_CrtDir = {6, -- Invalid handle
+                                  52, -- dup name on network
+                                  183 -- Path already exists
+                                 }
+global function createDirectory(sequence pDirPath)
+    integer lForced
+    integer lPosn
+    atom r,e
+
+    if length(pDirPath) = 2 and atom(pDirPath[1]) and sequence(pDirPath[2]) then
+        lForced = (pDirPath[1] != w32False)
+        pDirPath = pDirPath[2]
+    else
+        lForced = w32False
+    end if
+
+    if lForced = w32False then
+        r = w32Func(xCreateDirectory,{pDirPath, NULL})
+        if r = 0 then
+            r = getLastError()
+            r = find(r, vAllowableErrs_CrtDir)
+        end if
+    else
+        -- Create all intervening directories too.
+
+        lPosn = 0
+        while lPosn < length(pDirPath) do
+            lPosn += 1
+            if pDirPath[lPosn] = '\\' then
+                r =  w32Func(xCreateDirectory,{pDirPath[1..lPosn-1], NULL})
+            end if
+        end while
+
+        if pDirPath[length(pDirPath)] != '\\' then
+            r = w32Func(xCreateDirectory,{pDirPath, NULL})
+        end if
+
+        if r = 0 then
+            e = getLastError()
+            lPosn = find(e, vAllowableErrs_CrtDir)
+            if lPosn = 0 then
+                r = w32False
+            else
+                r = w32True
+            end if
+        else
+            r = w32True
+        end if
+    end if
+
+    return r
+end function
+
+--/topic File Operations
+--/func getPathFromIDList(atom idl)
+--/desc
+--/ret SEQUENCE: The folder name
+--
+--/code
+--
+--/endcode
+global function getPathFromIDList(atom pidl)
+    atom memfolder
+    sequence folder
+
+    memfolder = w32acquire_mem(0, 2048)
+    folder = ""
+
+    if w32Func(xSHGetPathFromIDList,{pidl,memfolder}) then
+       --the string pointed to by folder now contains the path
+        folder = w32peek_string(memfolder)
+    end if
+
+    w32release_mem(memfolder)
+
+    return folder
+end function
+
+--/topic File Operations
+--/func selectDirectory(sequence title, object flags, atom callback, atom cbData)
+--/desc Displays a dialog for selecting directories.
+--/ret SEQUENCE: The folder name last selected. "" if dialog is cancelled.
+-- /i title is the Title that will apear on the dialog box. /n
+-- /i flags
+--/code
+--
+--/endcode
+global function selectDirectory(object title, object flags, atom callback, atom cbData)
+    atom memset, binfo, pidl, displayname
+    sequence folder
+    integer res
+    atom hWnd
+
+    if atom(title) then
+        title = "Select a Folder"
+    end if
+
+    folder = ""
+    if sequence(flags) then
+        flags = w32or_all(flags)
+    end if
+
+    memset = w32new_memset()
+    binfo = w32acquire_mem(memset, SIZEOF_BROWSEINFO)
+    displayname = w32acquire_mem(memset, 2048)
+
+    if call_func(r_getMainWindow,{}) != 0 then
+        hWnd = call_func(r_getHandle,{call_func(r_getMainWindow,{})})
+    else
+        hWnd = 0
+    end if
+
+    w32store( binfo, bfOwner, hWnd)
+    w32store( binfo, bfpidlRoot, NULL)
+    w32store( binfo, bfDisplayName, displayname)
+    w32store( binfo, bfTitle, title)
+    w32store( binfo, bfFlags, flags)
+    w32store( binfo, bfParam, cbData)
+    w32store( binfo, bfImage, NULL)
+
+    if callback > 0 then
+        res = call_func(callback, {0, BFFM_INITIALIZED, binfo, cbData})
+        if res != 0 then
+            w32release_mem(memset)
+            return {}
+        end if
+        callback = call_back(callback)
+    else
+        callback = 0
+    end if
+    w32store( binfo, bfFunction, callback)
+
+    pidl = w32Func(xSHBrowseForFolder, {binfo})
+
+    if pidl != 0 then
+        folder = getPathFromIDList(pidl)
+    end if
+
+    w32release_mem(memset)
+
+
+    return folder
+end function
+
+--/topic File Operations
+--/func getTempPath()
+--/desc Used to find out the directory designated for temporary files.
+--/ret Sequence: The name of a directory. It always ends with a '\' character.
+--
+--/code
+--        TempPath = getTempPath()
+--/endcode
+global function getTempPath()
+    atom a
+    sequence temp_path
+    integer l, r
+    l = 255
+
+    a = w32acquire_mem(0, l)
+
+    r = w32Func(xGetTempPath, {l, a})
+
+    if r then
+        temp_path = w32peek_string(a)
+    else
+        temp_path = ".\\"
+    end if
+
+    w32release_mem(a)
+
+    return temp_path
+end function
+
+--/topic File Operations
+--/func getTempFile(object Dir, sequence Prefix)
+--/desc Used to create an empty file, intended to temporary use.
+-- If /i Dir is a number or an empty string, the temporary directory is used. /n
+-- If /i Prefix is less than 3 characters long, it is padded out with underscores.
+-- Only the first three characters are used. /n
+-- The filename created has the form <prefix>nnnn.TMP, where nnnn is a number
+-- used to enforce uniqueness.
+--/ret SEQUENCE: The name of the file created.
+--
+--/code
+--        TempFilename = getTempFile(0, "my")
+--/endcode
+global function getTempFile(object pDir, sequence pPrefix)
+    atom a, l, r
+    sequence temp_path
+
+    l = 1024
+    a = w32acquire_mem(0, l)
+
+    if atom(pDir)
+    or
+       length(pDir) = 0
+    then
+        pDir = getTempPath()
+    end if
+
+
+    pPrefix = pPrefix & repeat(3, '_')
+    pPrefix = pPrefix[1 .. 3]
+
+    r = w32Func(xGetTempFileName, {pDir, pPrefix, 0, a})
+
+    temp_path = w32peek_string(a)
+    w32release_mem(a)
+
+    return temp_path
+end function
+
+--/topic File Operations
+--/func getFileInfo(object pPath, object pAttrib, object pItems)
+--/desc Retrieves various properties of a file.
+--/ret SEQUENCE: {Name, Type, Attrib, hIcon, iIcon, ExeType, ImageList}
+--/i pPath is either a path name (absolute or relative) or a pointer to
+--an ItemIDList
+--
+-- The possbile values for /i pAttrib are ... /n
+--/li FILE_ATTRIBUTE_READONLY
+--/li FILE_ATTRIBUTE_HIDDEN
+--/li FILE_ATTRIBUTE_SYSTEM
+--/li FILE_ATTRIBUTE_DIRECTORY
+--/li FILE_ATTRIBUTE_ARCHIVE
+--/li FILE_ATTRIBUTE_DEVICE
+--/li FILE_ATTRIBUTE_NORMAL
+--/li FILE_ATTRIBUTE_TEMPORARY
+--/li FILE_ATTRIBUTE_SPARSE_FILE
+--/li FILE_ATTRIBUTE_REPARSE_POINT
+--/li FILE_ATTRIBUTE_COMPRESSED
+--/li FILE_ATTRIBUTE_OFFLINE
+--/li FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
+--/li FILE_ATTRIBUTE_ENCRYPTED
+--
+-- These are either given as a sequence or an or'd atom.
+--
+-- The possbile values for /i Items are ... /n
+--  /li SHGFI_LARGEICON         -- get large icon
+--  /li SHGFI_SMALLICON         -- get small icon
+--  /li SHGFI_OPENICON          -- get open icon
+--  /li SHGFI_SHELLICONSIZE     -- get shell size icon
+--  /li SHGFI_PIDL              -- pPath is a pidl
+--  /li SHGFI_USEFILEATTRIBUTES -- use pAttrib
+--  /li SHGFI_ADDOVERLAYS       -- apply the appropriate overlays
+--  /li SHGFI_OVERLAYINDEX      -- Get the index of the overlay
+--  /li SHGFI_ICON              -- get icon
+--  /li SHGFI_DISPLAYNAME       -- get display name
+--  /li SHGFI_TYPENAME          -- get type name
+--  /li SHGFI_ATTRIBUTES        -- get attributes
+--  /li SHGFI_ICONLOCATION      -- get icon location
+--  /li SHGFI_EXETYPE           -- return exe type
+--  /li SHGFI_SYSICONINDEX      -- get system icon index
+--  /li SHGFI_LINKOVERLAY       -- put a link overlay on icon
+--  /li SHGFI_SELECTED          -- show icon in selected state
+--  /li SHGFI_ATTR_SPECIFIED    -- get only specified attributes
+--
+-- These are either given as a sequence or an or'd atom.
+--
+-- This routine returns seven items in a sequence... /n
+--/li Name -- Display name of file.
+--/li Type -- Type of file
+--/li Attrib -- File's properties.
+--/li hIcon -- Handle to file's icon
+--/li iIcon -- Index into the .exe for this icon
+--/li ExeType -- Type of executable
+--/li ImageList -- Pointer to the system's image list
+--
+-- /b Note that if you request the file's icon, you are responsible for
+-- calling /destroyIcon() when you have finished with the icon.
+--
+--Examples:
+--/code
+--    sequence Props
+--    Props = getFileInfo("test.bmp",
+--                  0,
+--                  w32or_all({
+--                        SHGFI_ICON,
+--                        SHGFI_DISPLAYNAME,
+--                        SHGFI_TYPENAME,
+--                        SHGFI_ATTRIBUTES
+--                  }
+--                  )
+--                )
+--
+--/endcode
+--
+-- The returned Attrib value is a combination of these flags... /n
+--/li  SFGAO_CANCOPY
+--/li  SFGAO_CANMOVE
+--/li  SFGAO_CANLINK
+--/li  SFGAO_CANRENAME
+--/li  SFGAO_CANDELETE
+--/li  SFGAO_HASPROPSHEET
+--/li  SFGAO_DROPTARGET
+--/li  SFGAO_LINK
+--/li  SFGAO_SHARE
+--/li  SFGAO_READONLY
+--/li  SFGAO_GHOSTED (also known as SFGAO_HIDDEN)
+--/li  SFGAO_FILESYSANCESTOR
+--/li  SFGAO_FOLDER
+--/li  SFGAO_FILESYSTEM
+--/li  SFGAO_HASSUBFOLDER
+--/li  SFGAO_CONTENTSMASK
+--/li  SFGAO_VALIDATE
+--/li  SFGAO_REMOVABLE
+--/li  SFGAO_COMPRESSED
+--/li  SFGAO_BROWSABLE
+--/li  SFGAO_NONENUMERATED
+--/li  SFGAO_NEWCONTENT
+--/li  SFGAO_CANMONIKER
+
+
+global function getFileInfo(object pPath, object pAttrib, object pItems)
+    sequence lRC
+    atom lReturnValue
+    atom lSHFILEINFO
+    atom lFlags
+    sequence lName
+    sequence lType
+    atom lImageList
+    atom lhIcon
+    atom liIcon
+    sequence lExeType
+    atom lAttrib
+
+
+    lRC = {}
+    ole:OleInitialize()
+
+    lSHFILEINFO = w32acquire_mem(0, SHFILEINFO_SIZEOF)
+    if sequence(pItems) then
+        lFlags = w32or_all(pItems)
+    else
+        lFlags = pItems
+    end if
+
+    lReturnValue = w32Func( xSHGetFileInfo, {
+                                             pPath,
+                                             pAttrib,
+                                             lSHFILEINFO,
+                                             SHFILEINFO_SIZEOF,
+                                             lFlags
+                                            })
+
+    lImageList = 0
+    lExeType = ""
+    if and_bits(lFlags, SHGFI_EXETYPE) then
+
+        lExeType = int_to_bytes(lReturnValue)
+        if lReturnValue = 0 then
+            lExeType = ""
+        elsif equal(lExeType[1..2],"MZ") then
+            lExeType = "MSDOS"
+
+        elsif equal(lExeType[1..2],"NE") then
+            lExeType = "WinApp"
+        elsif  equal(lExeType[1..2],"PE") then
+            if equal(lExeType[3..4],{0,0}) then
+                lExeType = "WinCon"
+            else
+                lExeType = "Win:" & sprintf("%d.%d", {lExeType[4], lExeType[3]})
+            end if
+        else
+            lExeType = "NotExe"
+        end if
+    else
+        if and_bits(lFlags, SHGFI_SYSICONINDEX) then
+            lImageList = lReturnValue
+        end if
+    end if
+
+    lhIcon = w32fetch(lSHFILEINFO, SHFILEINFO_hIcon)
+    liIcon = w32fetch(lSHFILEINFO, SHFILEINFO_iIcon)
+    lAttrib = w32fetch(lSHFILEINFO, SHFILEINFO_dwAttributes)
+    lName = w32peek_string(lSHFILEINFO + SHFILEINFO_szDisplayName[1])
+    lType = w32peek_string(lSHFILEINFO + SHFILEINFO_szTypeName[1])
+
+    w32release_mem(lSHFILEINFO)
+    ole:OleUninitialize()
+
+    return {lName, lType, lAttrib, lhIcon, liIcon, lExeType, lImageList}
+end function
+
+
+--/topic File Operations
+--/func setFileAttr(sequence pPath, object pAttribs)
+--/desc Sets one or more attibutes for the specified file.
+--/ret: ATOM: 0 if this fails.
+--/i pPath is a file's path and name /n
+--/i pAttribs is either an /b atom that contains all the required attributes,
+-- or a sequence containing a list of required attrbutes. /n
+--<ul>
+--/li FILE_ATTRIBUTE_NORMAL is valid only if used alone.
+--/li FILE_ATTRIBUTE_READONLY
+--/li FILE_ATTRIBUTE_HIDDEN
+--/li FILE_ATTRIBUTE_SYSTEM
+--/li FILE_ATTRIBUTE_ARCHIVE
+--/li FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
+--/li FILE_ATTRIBUTE_OFFLNE
+--/li FILE_ATTRIBUTE_TEMPORARY
+--</ul>
+--
+--Examples:
+--/code
+--      if setFileAttr("C:\\spec.fil", FILE_ATTRIBUTE_READONLY) = 0 then
+--          errmsg("Failed to set file to read only")
+--      end if
+--/endcode
+global function setFileAttr (sequence name, atom attr)
+    return w32Func(xSetFileAttributes, {name, attr})
+end function
+
+
+
+
+--/topic File Operations
+--/func getCurrentDirectory()
+--/desc Gets the current directory
+--/ret SEQUENCE: Name of current directory path
+--
+--Example
+--/code
+--      sequence lPath
+--      lPath = getCurrentDirectory()
+--/endcode
+global function getCurrentDirectory()
+sequence lPath
+atom lBuffer
+atom lSize
+
+        lBuffer = w32acquire_mem(0, MAX_PATH+1)
+
+        lSize = w32Func(xGetCurrentDirectory, {MAX_PATH, lBuffer})
+
+        lPath = peek({lBuffer,lSize})
+
+        w32release_mem(lBuffer)
+
+        return lPath
+end function
+
+--/topic File Operations
+--/func setCurrentDirectory(sequence Path)
+--/desc Sets the current directory
+--/i Path is the name of directory path you wish to set as the new
+-- current directory.
+--
+--Example
+--/code
+--      -- set the new directory to current dirs parent.
+--      setCurrentDirectory("..")
+--      -- set directory to BIN folder
+--      setCurrentDirectory("BIN")
+--/endcode
+global procedure setCurrentDirectory(sequence pPath)
+    VOID = w32Func(xSetCurrentDirectory, {pPath})
+end procedure
+
+
+--/topic File Operations
+--/func getFullPathName(sequence File, integer Option)
+--/desc Returns the path and long file name that /i File refers to.
+--/ret SEQUENCE: {PathName, FileName}
+--/i File is a reference to a file. /n
+--/i Option is w32True if the file must exist, w32False if it doesn't have to exist.
+--
+--/b Note that the /i Path value returned always ends with a '/' character.
+--
+-- If /i Option is w32True and the file does not exist, then empty strings
+-- are returned. If /i Option is w32False and the file does not exist then
+-- the returned Path value is prefixed with '?'.
+--
+--Example
+--/code
+--      sequence lPaths
+--      lNames = getFullPathName("D:..\\demosa~1.fil")
+--/endcode
+--
+-- Given that the current directory for D: drive is "\windows\system" and
+-- the short name of "demosample.fil" is "demosa~1.fil" then
+-- this example would return ... /n
+-- {"D:\windows\", "demosample.fil"}
+
+global function getFullPathName(sequence pFile, integer pOption)
+atom lBuffer
+atom lRC
+atom lFP
+sequence lPath
+sequence lLongFile
+
+        lRC = w32Func(xGetFullPathName, {pFile, 0, 0, 0})
+        if lRC <= 1 then
+            return {"",""}
+        end if
+
+        lBuffer = w32acquire_mem(0, lRC + 4 + MAX_PATH)
+
+        lRC = w32Func(xGetFullPathName, {pFile, lRC, lBuffer+4, lBuffer})
+
+        lFP = peek4u(lBuffer)
+        lLongFile = w32peek_string(lFP)
+        lPath = peek({lBuffer+4, lRC - length(lLongFile)})
+
+        lRC = w32Func(xGetLongPathName,{lPath & lLongFile, lBuffer, MAX_PATH})
+        if lRC = 0 then
+            if pOption then
+                lLongFile = ""
+                lPath = ""
+            else
+                lPath = '?' & lPath
+            end if
+        else
+            lLongFile = peek({lBuffer+length(lPath),lRC-length(lPath)})
+        end if
+
+        w32release_mem(lBuffer)
+
+        return {lPath, lLongFile}
+
+end function
+
+
+--/topic File Operations
+--/func setSearchPaths(sequence Paths)
+--/desc Sets the file system paths to use when searching for files
+--/ret SEQUENCE: The previously set paths.
+--The initial search path is empty. /n
+--/i Paths is a list of one or more directory paths, separated by either commas or semi-colons.
+--
+--These paths are used by any of the library routines that take a file name, to search for the file.
+--
+--For example: /setBitmap() /setIcon() /loadBitmapFromFile() /loadForm()
+--
+--Example:
+--/code
+--      sequence old
+--      old = setSearchPaths("..\\images\\;..\\sounds\\")
+--/endcode
+global function setSearchPaths(sequence pPaths)
+    sequence lOldPaths
+
+    lOldPaths = vSearchPaths
+    if w32string(pPaths) then
+        if find(';', pPaths) then
+            vSearchPaths = w32split(pPaths,';')
+        else
+            vSearchPaths = w32split(pPaths,',')
+        end if
+--  elsif sequence(pPaths) then
+    else
+        vSearchPaths = pPaths
+    end if
+    for i = 1 to length(vSearchPaths) do
+        if vSearchPaths[i][length(vSearchPaths[i])] != '\\' then
+            vSearchPaths[i] &= '\\'
+        end if
+    end for
+
+    return lOldPaths
+end function
+
+--/topic File Operations
+--/func w32FileOpen(sequence Path, sequence Mode)
+--/desc Search the set 'searchpaths' for the file then opens it.
+--/ret INTEGER: File Handle.
+--This operates just like the standard open() routine except that
+-- when opening a file for reading or appending, it
+-- searchs the paths defined by /setSearchPaths() for the file.
+--
+-- Note 1: If the /i Path contains an explicit drive value (eg. C:) or
+-- the path starts with a slash, the defined search paths are /b not used as
+-- the library believes you are specifying a non-relative path.
+--
+-- Note 2: If the Mode is set for output ("w" or "wb") then the search
+-- paths are not used.
+--
+--Example:
+--/code
+--      VOID = setSearchPaths(".\\images\\;.\\sounds\\")
+--      fh1 = w32FileOpen("welcome.bmp", "r") -- looks in the search paths
+--      fh2 = w32FileOPen("welcome.wav", "r") -- looks in the search paths
+--      fh3 = w32FileOpen("C:\\autoexec.bat", "r") -- does not look in the search paths
+--/endcode
+global function w32FileOpen(sequence pPath, sequence pMode)
+    integer lFH
+    sequence lPath
+
+    if w32string(pPath) = 0 or w32string(pMode) = 0 then
+        return -1
+    end if
+
+    if find(pMode, {"r", "rb", "w", "wb", "a", "ab"} ) = 0 then
+        return -1
+    end if
+
+    if length(pPath) = 0 then
+        return -1
+    end if
+
+    lFH = open(pPath, pMode)
+    if lFH >= 0 then
+        return lFH
+    end if
+
+    -- Don't use search paths if a drive specified or an absolute path used, or its a 'write' mode.
+    if find(':', pPath) or pPath[1] = '\\' or find('w', pMode) then
+        return -1
+    end if
+
+    -- Begin searching...
+    lPath = ""
+    for i = 1 to length(vSearchPaths) do
+        lPath = vSearchPaths[i] & pPath
+        lFH = open(lPath, pMode)
+        if lFH >= 0 then
+            exit
+        end if
+    end for
+
+    return lFH
+end function
+
+--/topic File Operations
+--/func w32FindFile(sequence File)
+--/desc Search the set 'searchpaths' for the file and returns its path specification.
+--/ret SEQUENCE: Path name and file name.
+--This searchs the current directory and then the paths defined by /setSearchPaths()
+-- for the /i File. If it finds the file, it returns the path-file specification.
+--
+--Example:
+--/code
+--      VOID = setSearchPaths(".\\images\\;.\\sounds\\")
+--      fh1 = w32FindFile("welcome.bmp", "r") -- returns .\images\welcome.bmp
+--      fh2 = w32FindFile("welcome.wav", "r") -- returns .\sounds\welcome.wav
+--      fh3 = w32FindFile("C:\\autoexec.bat", "r") -- returns C:\\autoexec.bat
+--/endcode
+global function w32FindFile(sequence pPath)
+    integer lFH
+    sequence lPath
+
+    if w32string(pPath) = 0 then
+        return {}
+    end if
+
+    lFH = open(pPath, "r")
+    if lFH >= 0 then
+        close(lFH)
+        return pPath
+    end if
+
+    -- Don't use seach paths if a drive specified or an absolute path used.
+    if find(':', pPath) or pPath[1] = '\\' then
+        return pPath
+    end if
+
+    -- Begin searching...
+    lPath = ""
+    for i = 1 to length(vSearchPaths) do
+        lPath = vSearchPaths[i] & pPath
+        lFH = open(lPath, "r")
+        if lFH >= 0 then
+            close(lFH)
+            return lPath
+        end if
+    end for
+
+    return ""
+end function
+

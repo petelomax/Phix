@@ -1,0 +1,67 @@
+--
+-- dirc.exw
+-- ========
+--
+--  Simple recursive directory compare
+--  (quick ditty written to expediate the release, contains some code specific to that task)
+--
+--/* temp:
+    initialConstant("D_NAME",           1)
+    initialConstant("D_ATTRIBUTES",     2)
+    initialConstant("D_SIZE",           3)
+--*/
+
+function binary_equal(string fullpath1, string fullpath2)
+-- Check that fullpath1 and fullpath2 are binary identical
+integer fn1, fn2, c, c2, res = 1
+    fn1 = open(fullpath1,"rb")
+    fn2 = open(fullpath2,"rb")
+    if fn1=-1 or fn2=-1 then ?9/0 end if
+    while 1 do
+        c = getc(fn1)
+        c2 = getc(fn2)
+        if c!=c2 then res = 0 exit end if
+        if c=-1 then exit end if
+    end while
+    close(fn1)
+    close(fn2)
+    return res
+end function
+
+procedure dirc(string dira, string dirb)
+sequence da,db,dai,dbi
+string dai1
+    da = dir(dira)
+    db = dir(dirb)
+    for i=1 to length(da) do
+        dai = da[i]
+        dai1 = dai[D_NAME]
+        if find('d',dai[D_ATTRIBUTES]) then
+            if not find(dai1,{".",".."}) then
+                dai1 = '\\'&dai1
+                dirc(dira&dai1,dirb&dai1)
+            end if
+        elsif not find(dai,db)
+          and not find(dira,{"C:\\Program Files (x86)\\Phix6\\docs\\phix\\html"}) then
+            if not find(dai1,{"ex.err","list.asm","p.exe","pw.exe","t00.exe","t00.exw",
+                              "makephix.exe","t58tmp.txt","terror.edb","test.dat",
+                              "pgui.edb","scowel.edb","edita.edb","edita.ini",
+                              "phix.chm","phix.chw","phix.hhc","phix.hhk",
+                              "p.ini"}) then
+                dbi = dir(dirb&'\\'&dai1)
+                if length(dbi)!=1 then ?9/0 end if
+                dbi = dbi[1]
+                if dai[D_NAME]!=dbi[D_NAME] then ?9/0 end if
+                if dai[D_SIZE]!=dbi[D_SIZE]
+                or not binary_equal(dira&'\\'&dai1,dirb&'\\'&dai1) then
+                    puts(1,dira&":\n")
+                    ?{dai,dbi}
+                end if
+            end if
+        end if
+    end for
+end procedure
+
+dirc("C:\\Program Files (x86)\\Phix6","C:\\Program Files (x86)\\Phix")
+
+if getc(0) then end if

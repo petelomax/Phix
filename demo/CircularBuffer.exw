@@ -1,0 +1,59 @@
+--
+-- CircularBuffer.exw
+--
+-- Simple implementation of a circular buffer, to show up to the last <LIMIT> entries.
+--  When the buffer is full, add() discards/overwrites the oldest entry.
+--
+-- The two remainder(,LIMIT) lines are equivalent to the commented out code above them.
+--  Personally I prefer the longhand/commented out style of coding myself.
+--
+
+constant LIMIT = 10
+sequence cbuf = {}
+integer nFirst = 0
+
+procedure add(integer i)
+    if length(cbuf)<LIMIT then
+        cbuf &= i
+    else
+--      nFirst += 1
+--      if nFirst>LIMIT then
+--          nFirst = 1
+--      end if
+        nFirst = remainder(nFirst,LIMIT)+1
+        cbuf[nFirst] = i
+    end if
+end procedure
+
+string comma = ""
+procedure put1(integer i)
+    printf(1,"%s%d",{comma,cbuf[i]})
+    comma = ", "
+end procedure
+
+procedure dump()
+--  for i=nFirst+1 to length(cbuf) do
+--      put1(i)
+--  end for
+--  for i=1 to nFirst do
+--      put1(i)
+--  end for
+    for i=nFirst to nFirst+length(cbuf)-1 do
+        put1(remainder(i,LIMIT)+1)
+    end for
+    
+    puts(1,"}\n")
+end procedure
+
+procedure main()
+    for i=1 to rand(175) do
+        add(i)
+    end for
+    puts(1,"dump: {");
+    dump()
+    puts(1,"actual buffer: ")
+    ?cbuf
+    if getc(0) then end if
+end procedure
+
+main()

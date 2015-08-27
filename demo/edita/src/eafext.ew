@@ -1,0 +1,778 @@
+--
+-- eafext.ew
+--
+--  Setup File Extensions
+--  Author: Pete Lomax
+--
+--  Allows you to specify exactly how to run each file extension, and allows
+--  the tab colour to be set.
+--
+--  Invoked via Options/File Extensions
+--
+without trace
+--with trace
+
+--/* 4.0.2
+include builtins\sort.e
+include builtins\file.e
+--*/
+
+include builtins\ppp.e
+--      ppOpt({pp_Maxlen,9999999})  -- stop ppf() putting \n in results.
+
+constant FXwin = create(Window,xlna("File Extensions"),0,Main,86,178,610,368,0)
+constant LVstyle = or_all({LVS_OWNERDATA, LVS_SINGLESEL, LVS_SHOWSELALWAYS})
+constant LVxstyle = or_all({LVS_EX_FULLROWSELECT,LVS_EX_GRIDLINES,LVS_EX_HEADERDRAGDROP})
+constant FXlvw = create(ListView,
+                        {{xlna("Extension"),80},
+                         {xlna("Run With"),440},
+                         {xlna("Tab Colour"),124}},
+                        0,FXwin,2,44,516,660,LVstyle)
+
+void = sendMessage(FXlvw, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
+
+constant FXhelp = create(Button,xl("Help"),0,FXwin,0,0,0,0,0)
+constant FXNew  = create(Button,xl("New"),0,FXwin,0,0,0,0,0)
+constant FXEdit = create(Button,xl("Edit"),0,FXwin,0,0,0,0,0)
+constant FXDel  = create(Button,xl("Delete"),0,FXwin,0,0,0,0,0)
+constant FXok   = create(Button,xl("OK"),0,FXwin,0,0,0,0,0)
+
+constant FXw2   = create(Window,xl("Extension"),0,FXwin,241, 336,411,174,0)
+constant FXextl = create(Label,xl("Extension"), 0,FXw2, 10, 11, 52, 15,SS_OWNERDRAW)
+setTextColour(FXextl,Black)
+
+constant FXextt = create(EditText,"",           0,FXw2, 65,  7, 48, 20,0)
+constant FXrwl  = create(Label,xl("Run With"),  0,FXw2,  9, 35, 51, 15,0)
+constant FXrwb  = create(Button,xl("Browse"),   0,FXw2,345, 26, 53, 20,0)
+constant FXrwt  = create(EditText,"",           0,FXw2,  8, 49,392, 22,0)
+constant FXtcl  = create(Label,xl("Tab Colour"),0,FXw2, 10, 80, 64, 20,0)
+constant FXtce  = create(EditText,"",           0,FXw2, 88, 76, 86, 22,0)
+constant FXtcc  = create(Button,xl("Custom"),   0,FXw2,345, 76, 53, 20,0)
+constant FXok2  = create(Button,xl("OK"),       0,FXw2,269,112, 44, 26,0)
+constant FXcncl = create(Button,xl("Cancel"),   0,FXw2,322,112, 75, 26,0)
+if FXextl or FXrwl or FXtcl then end if -- suppress warnings
+
+fixWindow(FXw2)
+
+-- used by eacons.ew:
+global sequence extset
+    extset = {}
+
+constant X_ext = 1,     -- extension
+         X_rw  = 2,     -- run with
+         X_clr = 3      -- colour
+
+--global 
+function getExtClr(sequence ext)
+-- NB ext must be lower case, eg "exw" not "EXW"
+    for i=1 to length(extset) do
+        if equal(ext,extset[i][X_ext]) then
+            return extset[i][X_clr]
+        end if
+    end for
+    return {}
+end function
+
+global procedure setTabColour(integer id, sequence name)
+sequence ext
+integer c
+    ext = getFileExtension(name)
+    if length(ext) then
+        for i=1 to length(extset) do
+            if equal(ext,extset[i][X_ext]) then
+                c = extset[i][X_clr]
+-- 5/7/2013:
+--              if c then
+                if c and isTabsOwnerDrawn then
+                    setBackColour(id,c)
+                end if
+                exit
+            end if
+        end for
+    end if
+end procedure
+
+
+global function getExtRunWith(sequence ext)
+-- NB ext must be lower case, eg "exw" not "EXW"
+sequence tried
+    tried = {ext}
+    while 1 do
+        for i=1 to length(extset) do
+            if equal(ext,extset[i][X_ext]) then
+                ext = extset[i][X_rw]
+                if not length(ext) 
+                or ext[1]!='=' then
+                    return ext
+                end if
+                ext = ext[2..length(ext)]
+                exit
+            end if
+        end for
+        if find(ext,tried) then exit end if
+        tried = append(tried,ext)
+    end while
+    return {}
+end function
+
+sequence prevext
+integer prevclr, newpclr
+
+sequence t
+
+integer a_init
+procedure apply(sequence ext, atom clr)
+    if isVisible(FXw2) or a_init then
+-- 5/7/2013:
+        if isTabsOwnerDrawn then
+            if not equal(ext,prevext) then
+                newpclr = UNDEFINED
+                for j=1 to length(filenames) do
+                    t = getFileExtension(filenames[j])
+                    if equal(t,prevext) then
+                        setBackColour(tabs[j],prevclr)
+                    elsif equal(t,ext) then
+                        newpclr = getBackColour(tabs[j])
+                        setBackColour(tabs[j],clr)
+                    end if
+                end for
+                prevclr = newpclr
+                prevext = ext
+    --      elsif not equal(clr,prevclr) then
+            else
+    --          newpclr = UNDEFINED
+                for j=1 to length(filenames) do
+                    t = getFileExtension(filenames[j])
+                    if equal(t,ext) then
+    --                  newpclr = getBackColour(tabs[j])
+                        setBackColour(tabs[j],clr)
+                    end if
+                end for
+    --          prevclr = newpclr
+            end if
+        end if
+        setEnable(FXok2,length(ext)!=0)
+    end if
+end procedure
+
+procedure select()
+integer k
+    k = getIndex(FXlvw)
+    if k then
+        setEnable(FXextt,False)
+        setText(FXrwt,extset[k][X_rw])
+        prevext = extset[k][X_ext]
+        prevclr = extset[k][X_clr]
+        if prevclr then
+--if prevclr=UNDEFINED then ?9/(1-isDebug) end if
+            setText(FXtce,sprintf("#%06x",prevclr))
+        else
+            setText(FXtce,"")
+        end if
+        setText(FXextt,prevext)
+        addFocus(FXw2)
+        openWindow(FXw2,SW_NORMAL)
+--      setVisible(FXwin,False)
+    end if
+end procedure
+
+function flattentxt(sequence txtlines)
+sequence res
+    res = ""
+    for i=1 to length(txtlines) do
+        res &= txtlines[i]&'\n'
+    end for
+    return res
+end function
+
+procedure showFXhelp()
+    void = messageBox(xlna("File Extensions"),flattentxt(xl("_FXHELP")),0)
+    setFocus(FXlvw)
+end procedure
+
+integer SortColumn, Sign
+
+function CompareSortColumn(sequence s1,sequence s2)
+    if SortColumn>length(s1) then return -Sign end if
+    if SortColumn>length(s2) then return  Sign end if
+    if SortColumn<=2 then
+        return Sign*compare(LowerCase(s1[SortColumn]),LowerCase(s2[SortColumn]))
+    end if
+    return Sign*compare(s1[SortColumn],s2[SortColumn])
+end function
+constant rCSC = routine_id("CompareSortColumn")
+
+--integer switchDBfocus
+--      switchDBfocus=0
+
+
+function FXlvwFormat(integer lRow, integer lColumn)
+integer c
+    if lRow>length(extset) then return "??" end if
+    if lColumn=0 then   -- no icon
+        return 0
+    elsif lColumn=X_clr then
+        c = extset[lRow][X_clr]
+        if c then
+            return sprintf("#%06x",c)
+        end if
+        return ""
+    else
+        return extset[lRow][lColumn]
+    end if
+end function
+setLVFormatRoutine(FXlvw, routine_id("FXlvwFormat"))
+
+
+sequence c0
+         c0 = {}
+integer ctot
+object o
+
+function FXwinHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+integer c1, c2, cnew, crem, k
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+--      or (id=TLcncl and wParam=VK_RETURN) then
+            removeFocus(FXwin)
+            closeWindow(FXwin)
+        elsif wParam=VK_RETURN then
+            if id=FXhelp then
+                showFXhelp()
+            else
+                select()
+            end if
+        end if
+    elsif id=FXlvw then
+        if msg=WM_NOTIFY then
+            if wParam=LVN_COLUMNCLICK then
+                SortColumn = lParam[1]
+                Sign = lParam[2]
+                extset = custom_sort(rCSC,extset)
+                void = sendMessage(id, LVM_UPDATE, 0, 0)
+            elsif wParam=LVN_ITEMCHANGED then
+                setEnable({FXEdit,FXDel},getIndex(FXlvw)!=0)
+            end if
+        elsif msg=WM_LBUTTONDBLCLK then
+            select()
+--      elsif msg=WM_VSCROLL then   -- added 20/2/2011
+--          repaintWindow(id,False)
+        end if
+    elsif msg=WM_SIZE then
+        rect = getClientRect(FXwin)
+        void = c_func( xMoveWindow, {getHwnd(FXlvw),  rect[1]+  2, rect[2]+2, rect[3]-4, rect[4]-39, 1} )
+        void = c_func( xMoveWindow, {getHwnd(FXhelp), rect[1]+  5, rect[4]-30, 60,25,1})
+        void = c_func( xMoveWindow, {getHwnd(FXNew),  rect[1]+ 75, rect[4]-30, 60,25,1})
+        void = c_func( xMoveWindow, {getHwnd(FXEdit), rect[1]+145, rect[4]-30, 60,25,1})
+        void = c_func( xMoveWindow, {getHwnd(FXDel),  rect[1]+215, rect[4]-30, 60,25,1})
+        void = c_func( xMoveWindow, {getHwnd(FXok),   rect[3]- 65, rect[4]-30, 60,25,1})
+--      void = c_func( xMoveWindow, {getHwnd(TLcncl), rect[3]- 65, rect[4]-30, 60,25,1})
+        --
+        -- Resize the columns to fit, proportionally, leaving 29 pixels for 
+        -- the vertical scrollbar (which may not be present)
+        --
+        if not getKeyState(VK_MENU) then    -- Alt key not depressed
+            if not length(c0) then
+                c0 = repeat(0,3)
+                ctot = 0
+                for i=1 to length(c0) do
+                    c1 = sendMessage(FXlvw,LVM_GETCOLUMNWIDTH,i-1,0)
+                    c0[i] = c1
+                    ctot += c1
+                end for
+            end if
+            cnew = rect[3]-8-13
+            crem = ctot
+            void = c_func(xSendMessage, {getHwnd(FXlvw), WM_SETREDRAW, 0, 0} )
+            for i=1 to length(c0) do
+                c1 = c0[i]
+                c2 = floor((c1/crem)*cnew)
+                void = sendMessage(FXlvw,LVM_SETCOLUMNWIDTH,i-1,c2)
+                crem -= c1
+                cnew -= c2
+            end for
+            void = c_func(xSendMessage, {getHwnd(FXlvw), WM_SETREDRAW, 1, 0} )
+        end if
+    end if
+    if msg=WM_COMMAND then
+        if id=FXhelp then
+            showFXhelp()
+        elsif id=FXNew then
+            setEnable(FXextt,True)
+            setText(FXrwt,"")
+            prevext = ""
+            prevclr = UNDEFINED
+            setText(FXtce,"")
+            setText(FXextt,"")
+            addFocus(FXw2)
+            openWindow(FXw2,SW_NORMAL)
+--          setVisible(FXwin,False)
+        elsif id=FXEdit then
+            select()
+        elsif id=FXDel then
+            k = getIndex(FXlvw)
+            if k then
+                if proemh(xl("Delete"),xl("Confirm deletion"),MB_OKCANCEL)=IDOK then
+                    for i=1 to length(filenames) do
+                        t = getFileExtension(filenames[i])
+                        if equal(t,extset[k][X_ext]) then
+                            o = getExtClr(t)
+                            if atom(o) then
+                                a_init = 1
+                                prevclr = o
+                                prevext = ""
+                                apply(t,UNDEFINED)
+                                a_init = 0
+                            end if
+                        end if
+                    end for
+                    extset = extset[1..k-1]&extset[k+1..length(extset)]
+                    setLVItemCount(FXlvw,length(extset))
+                    setEnable({FXEdit,FXDel},False)     -- as setLVItemCount clears current record
+                end if
+            end if
+        elsif id=FXok then
+            removeFocus(FXwin)
+            closeWindow(FXwin)
+        end if
+--  elsif msg=WM_SETFOCUS and switchDBfocus then    -- only on startup
+--      switchDBfocus = 0
+--      SortColumn = F_rec
+--      Sign = 1
+--      extset = custom_sort(rCSC,extset)
+--      setIndex(FXlvw,1)
+--      setFocus(FXlvw)
+--      return {0}
+--  elsif msg=WM_SYSKEYDOWN then
+    elsif msg=WM_SYSCHAR then
+        wParam -= '0'
+        if wParam>=X_ext and wParam<=X_clr then
+            SortColumn = wParam
+            Sign = 1
+            extset = custom_sort(rCSC,extset)
+            setIndex(FXlvw,1)
+            setFocus(FXlvw)
+            void = sendMessage(id, LVM_UPDATE, 0, 0)
+            return {0}
+        end if
+    elsif msg=WM_CLOSE then
+        removeFocus(FXwin)
+        SaveExtSet(extset)
+    end if
+    return 0
+end function
+--setHandler({FXwin,FXlvw,FXok,TLcncl}, routine_id("FXwinHandler"))
+setHandler({FXwin,FXlvw,FXhelp,FXok}, routine_id("FXwinHandler"))
+
+function hexToInt(sequence txt, integer default_value)
+--DEV default may be unecc.
+integer newcolour, l
+--  if msg=WM_COMMAND and wParam=EN_CHANGE then
+    if length(txt)=7 and txt[1]='#' then
+        txt = UpperCase(txt)
+        newcolour = 0
+        for i=2 to 7 do
+            l = find(txt[i],"0123456789ABCDEF")
+            if not l then return default_value end if
+            newcolour = newcolour*16+l-1
+        end for
+        return newcolour
+    end if
+    return default_value
+end function
+
+integer forceEdit
+        forceEdit = 0
+
+function FXw2Handler(integer id, integer msg, atom wParam, object lParam)
+--integer clr
+    if msg=WM_CLOSE then
+        t = getText(FXextt)
+        if length(t) then
+            t = LowerCase(t)
+            for i=1 to length(extset) do
+                if equal(extset[i][X_ext],t) then
+                    extset[i][X_rw] = getText(FXrwt)
+                    extset[i][X_clr] = hexToInt(getText(FXtce),0)
+                    void = sendMessage(FXlvw, LVM_UPDATE, 0, 0)
+                    t = {}
+                    exit
+                end if
+            end for
+            if length(t) then
+                o = {t,getText(FXrwt),hexToInt(getText(FXtce),0)}
+                extset = append(extset,o)
+                setLVItemCount(FXlvw,length(extset))
+                setEnable({FXEdit,FXDel},False)     -- as setLVItemCount clears current record
+--              void = sendMessage(FXlvw, LVM_UPDATE, 0, 0)
+            end if
+        end if
+        removeFocus(FXw2)
+--      setVisible(FXwin,True)
+        setFocus(FXlvw)
+    elsif (msg=WM_CHAR and wParam=VK_ESCAPE)
+       or (msg=WM_COMMAND and id=FXcncl) then
+        t = getText(FXextt)
+--trace(1)
+        prevclr = UNDEFINED
+        if length(t) then
+            t = LowerCase(t)
+            for i=1 to length(extset) do
+                if equal(extset[i][X_ext],t) then
+--                  prevext = ""
+                    prevclr = extset[i][X_clr]
+--                  prevclr = clr-1
+                    if prevclr=0 then
+                        prevclr = UNDEFINED
+                    end if
+--                  apply(t,clr)
+--                  t = {}
+                    exit
+                end if
+            end for
+        end if
+        --          if length(t) then
+        setText(FXtce,"")
+        --              prevext = ""
+        --              prevclr = 0
+        --              apply(t,UNDEFINED)
+        --          end if
+        --      end if
+
+        setText(FXextt,"")
+        closeWindow(FXw2)
+        return {0}
+    elsif msg=WM_COMMAND then
+        if id=FXrwb then
+            lParam = getOpenFileName(FXw2, getText(FXrwt),
+                                     {xl("Executable Files"),"*.exe;*.bat",xl("All Files"), "*.*"}, 0, NULL)
+            if sequence(lParam) and length(lParam)=1 then
+                setText(FXrwt,lParam[1])
+            end if
+        elsif id=FXtcc then
+            lParam = getChooseColour(FXw2,hexToInt(getText(FXtce),0),CC_RFS)
+            if lParam then
+                setText(FXtce,sprintf("#%06x",lParam))
+            else
+                setText(FXtce,"")   --DEV test
+                lParam = UNDEFINED
+            end if
+            apply(LowerCase(getText(FXextt)),lParam)
+        elsif (id=FXtce or id=FXextt)
+          and wParam=EN_CHANGE then
+            t = getText(FXtce)
+            lParam = hexToInt(t,0)
+            if (lParam or length(t)=0) then
+--trace(1)
+                if not lParam then
+                    lParam = UNDEFINED
+                end if
+                t = LowerCase(getText(FXextt))
+                forceEdit = 0
+                setTextColour(FXextl,Black)
+                setEnable(FXok2,True)
+                if isEnabled(FXextt) then       -- New
+                    for i=1 to length(extset) do
+                        if equal(t,extset[i][X_ext]) then
+                            forceEdit = i
+                            setTextColour(FXextl,BrightRed)
+                            setEnable(FXok2,False)
+                            exit
+                        end if
+                    end for
+                end if
+--              setTextColour(FXextl,Black)
+                apply(t,lParam)
+--          and length(te) then
+--              setEnable(FXok2,True)
+            else
+                setEnable(FXok2,False)
+            end if
+        elsif id=FXok2 then
+            closeWindow(FXw2)
+        end if
+    elsif msg=WM_KILLFOCUS and id=FXextt and forceEdit then
+        if not equal(LowerCase(getText(FXextt)),extset[forceEdit][X_ext]) then ?9/0 end if
+        setTextColour(FXextl,Black)
+        setEnable(FXok2,True)
+        setEnable(FXextt,False)
+        setText(FXrwt,extset[forceEdit][X_rw])
+        prevext = extset[forceEdit][X_ext]
+        prevclr = extset[forceEdit][X_clr]
+        if prevclr then
+--if prevclr=UNDEFINED then ?9/(1-isDebug) end if
+            setText(FXtce,sprintf("#%06x",prevclr))
+        else
+            setText(FXtce,"")
+        end if
+        setText(FXextt,prevext)
+        forceEdit = 0
+    end if
+    return 0
+end function
+setHandler({FXw2,FXextt,FXrwb,FXrwt,FXtce,FXtcc,FXok2,FXcncl}, routine_id("FXw2Handler"))
+
+
+--global procedure InitExtList()
+--end procedure
+sequence EX, EXW, EXWC, EXE
+integer EXWP, EXWCP -- 1 if EXW or EXWC set as p.exe or pw.exe
+        EXWP = 0 EXWCP = 0
+integer eaconsOK
+
+function try(sequence pathname)
+-- return pathname if it exists else ""
+object v
+--DEV could do an open(pathname,"rb") here? (Might be quite a bit faster)
+    v = dir(pathname)
+    if atom(v) or length(v)!=1 then return "" end if
+    return pathname
+end function
+
+--with trace
+procedure scan(object path, sequence bin)
+integer k
+sequence d
+    if sequence(path) then
+        path &= bin -- getenv(EUDIR)&"\\bin" or getenv(PATH)&""
+        while 1 do
+            k = find(';',path)
+            if k then
+                d = path[1..k-1]
+                path = path[k+1..length(path)]
+            else
+                d = path
+                path = ""
+            end if
+            if not length(EXW) then
+                EXW = try(d & "\\pw.exe")
+                if not length(EXW) then
+                    EXW = try(d & "\\exw.exe")
+                    EXWP = length(EXW)
+                end if
+            end if
+            if not length(EXWC) then
+                EXWC = try(d & "\\p.exe")
+                if not length(EXWC) then
+                    EXWC = try(d & "\\exwc.exe")
+                    EXWCP = length(EXWC)
+                end if
+            end if
+            if not length(EX) then
+                EX = try(d & "\\ex.exe")
+            end if
+            if not length(path) then exit end if
+        end while
+    end if
+end procedure
+
+procedure Ferror(sequence msg, integer gle)
+    if gle then
+        msg = sprintf("%s failed [%d]",{msg,getLastError()})
+    end if
+--  void = messageBox(xl("Error"),msg,0)
+    void = proemh(xl("Error"),msg,0)
+end procedure
+
+procedure initCons()
+sequence commandline
+integer cll
+--trace(1)
+
+    EXWC = ""
+    EXW = ""
+    EX = ""
+
+    --
+    -- figure out the full path to edita.exw/e
+    --
+    commandline = command_line()
+    commandline = commandline[2]
+    cll = length(commandline)
+    -- Basic sanity check:
+    if cll<9
+    or not equal(LowerCase(commandline[cll-8..cll-1]),"edita.ex") then
+        if cll>=5 and equal(LowerCase(commandline[cll-4..cll]),"edita") then
+            commandline &= ".exw"
+            cll += 4
+        else
+            Ferror("command_line[2] not edita.exw[e]:\n"&ppf(command_line()),1)
+            return
+        end if
+    end if
+    if cll=9 then -- just "edita.exw" (or "edita.exe")
+        EXE = initialcurrentdir
+    else
+        EXE = commandline[1..cll-9]
+    end if
+
+    --
+    -- Figure out the full paths to ex, exw, and exwc.
+    --  9/2/07: and p.exe, pw.exe.
+    --
+    -- GB 23/05/07 Do this first (was last):
+    --
+    --
+    -- Try EUDIR
+    --
+    if not length(EXW) or not length(EXWC) or not length(EX) then
+        scan(getenv("EUDIR"),"\\bin")
+        --
+        -- Last resort: scan PATH
+        --
+        if not length(EXW) or not length(EXWC) or not length(EX) then
+            scan(getenv("PATH"),"")
+        end if      
+    end if
+
+    if not length(EXW) or not length(EXWC) or not length(EX) then
+        --
+        -- Then by using the method edita is being run by,
+        --
+        commandline = command_line()
+        commandline = commandline[1]
+
+--DEV Pete's test for running 2.5 (on C:) not 2.4 (on E:):
+-- (obviously you should comment this out if testing/similar setup)
+
+--  if equal(commandline[1..2],"E:") then
+--      commandline[1] = 'C'
+--      void = dir(commandline)
+--      if atom(void) or length(void)!=1 then
+--          commandline[1] = 'E' -- Not Pete's setup, then ;-)
+--      end if
+--  end if
+
+        cll = length(commandline)
+        if cll>7 and equal(LowerCase(commandline[cll-6..cll]),"exw.exe") then
+            EXW = commandline               -- we've definitely found exw.exe!
+            commandline = commandline[1..cll-7]
+            EXWC = try(commandline&"exwc.exe")      -- so try exwc.exe in same place
+            if not length(EXWC) then
+                EXWC = try(commandline&"p.exe")     -- then p.exe in same place?
+                EXWCP = length(EXWC)
+            end if
+            EX = try(commandline&"ex.exe")      -- and ex.exe in same place
+        elsif cll>6 and equal(LowerCase(commandline[cll-5..cll]),"pw.exe") then
+            EXW = commandline               -- we've definitely found pw.exe!
+            EXWP = 1
+            commandline = commandline[1..cll-6]
+            EXWC = try(commandline&"p.exe")     -- so try p.exe in same place
+            if length(EXWC) then
+                EXWCP = 1
+            else
+                EXWC = try(commandline&"exwc.exe")  -- then exwc.exe in same place?
+            end if
+            EX = try(commandline&"ex.exe")      -- and ex.exe in same place
+        elsif cll>8 and equal(LowerCase(commandline[cll-7..cll]),"exwc.exe") then
+            EXWC = commandline              -- we've definitely found exwc.exe!
+            commandline = commandline[1..cll-8]
+            EXW = try(commandline&"exw.exe")        -- so try exw.exe in same place
+            if not length(EXW) then
+                EXW = try(commandline&"pw.exe")     -- then pw.exe in same place?
+                EXWP = length(EXW)
+            end if
+            EX = try(commandline&"ex.exe")      -- and ex.exe in same place
+        elsif cll>5 and equal(LowerCase(commandline[cll-4..cll]),"p.exe") then
+            EXWC = commandline              -- we've definitely found p.exe!
+            EXWCP = 1
+            commandline = commandline[1..cll-5]
+            EXW = try(commandline&"pw.exe")     -- so try pw.exe in same place
+            if length(EXW) then
+                EXWP = 1
+            else
+                EXW = try(commandline&"exw.exe")    -- then exw.exe in same place?
+            end if
+            EX = try(commandline&"ex.exe")      -- and ex.exe in same place
+--  else
+----        Ferror("command_line[1] not exw.exe ")
+----        return
+--      -- note that edita.exw will not run under ex.exe, so
+--      -- there is no point checking for it here...
+--      EXWC= ""
+--      EXW= ""
+--      EX= ""
+        end if
+        --
+        -- Use exw.exe, exwc.exe or ex.exe in the main dir?
+        -- Or p.exe, pw.exe 9/2/07:
+        --
+        if not length(EXW) then
+            EXW = try(EXE & "pw.exe")
+            if not length(EXW) then
+                EXW = try(EXE & "exw.exe")
+                EXWP = length(EXW)
+            end if
+        end if
+        if not length(EXWC) then
+            EXWC = try(EXE & "p.exe")
+            if not length(EXWC) then
+                EXWC = try(EXE & "exwc.exe")
+                EXWCP = length(EXWC)
+            end if
+        end if
+        if not length(EX) then
+            EX = try(EXE & "ex.exe")
+        end if
+    end if
+    --
+    if length(EXWC) then
+        eaconsOK = not atom(dir(EXWC[1..length(EXWC)-7]&"eacons.exw"))
+--DEV: this might now be better:
+--  eaconsOK = not atom(dir(EXE&"eacons.exw"))
+    end if
+--  initCONS = 1
+    if length(EXW) then
+        extset = append(extset,{"exw",EXW,0})
+    end if
+    if length(EXWC) then
+        extset = append(extset,{"exwc",EXWC,0})
+    end if
+    if length(EX) then
+        extset = append(extset,{"ex",EX,0})
+    end if
+    extset = append(extset,{"bat","open",0})
+    extset = append(extset,{"htm","open",0})
+    extset = append(extset,{"html","open",0})
+end procedure
+
+global procedure InitExt()
+    extset = GetExtSet()            -- read from edita.edb
+    if not length(extset) then
+        initCons()
+--DEV
+--extset=append(extset,{"e","",#E0F088})
+    end if
+end procedure
+InitExt()
+
+
+procedure FileExt()
+integer clr
+    --
+    -- Make doubly sure everything is kosher:
+    --
+    a_init = 1
+--  a_init = 0
+    for i=1 to length(extset) do
+        prevext = ""
+        clr = extset[i][X_clr]
+        prevclr = clr-1
+        if clr=0 then
+            clr = UNDEFINED
+        end if
+        apply(extset[i][X_ext],clr)
+    end for
+    a_init = 0
+
+    setLVItemCount(FXlvw,length(extset))
+--  setVisible(FXhelp,True)
+    setEnable({FXEdit,FXDel},False)
+--  switchDBfocus = 1
+    addFocus(FXwin)
+    openWindow(FXwin,SW_NORMAL)
+end procedure
+global constant r_FileExt=routine_id("FileExt")
+

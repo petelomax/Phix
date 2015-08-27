@@ -1,0 +1,126 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">call_back</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+             atom a = call_back(integer rid)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>Get a machine address for the Phix routine with the 
+          <font color="#030303">
+           <b>routine id</b>
+          </font> rid.
+             The resulting address can be used by Windows, or an external 
+             C routine in a Windows .dll or Linux shared library (.so), as
+             a "call-back" address for calling your Phix routine.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>You can set up as many call-back functions as you like.
+          <br>
+          <br>
+            When your routine is called, the argument values will all be
+             machine-sized unsigned (positive) values. You should declare each
+             parameter of your routine as
+           <font color="#030303">
+            <b>atom</b>
+           </font>,
+            unless you want to impose tighter checking. Your routine must return 
+            a machine-sized integer value.
+          <br>
+          <br>
+            Theoretically call-backs are not thread safe, see Technicalia for details.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example Program:</b>
+         </td>
+         <td>
+          <font color="#5500FF">
+           <b>demo\win32\window.exw,
+              demo\linux\qsort.exu
+           </b>
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="routine_id.htm">routine_id</a>,
+          <a href="cffi.htm">Calling C Functions</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+          There is a theoretical thread-safety issue with (hll) call_backs, that may be <i>genuinely impossible to solve</i>,
+          although #ilASM may offer a workable alternative.
+          <br>
+          <br>
+          First, the Phix <a href="create_thread.htm">create_thread</a>() function (see builtins\VM\pthreadN.e) is responsible 
+          for creating the virtual stack (see builtins\VM\pStack.e) in which the Phix hll code of that thread will run. Should
+          the c_func() code invoke CreateThread() or sys_fork() or whatever, there will be no virtual stack in which to run the 
+          Phix hll code. One example I read of is socket.connect(callback), which the article pointed out was asynchronous. In 
+          such cases you may have to resort to using a low-level #ilASM{} label/code rather than a hll call_back().
+          <br>
+          <br>
+          As far as I know, there are no genuinely asynchronous call_backs in OS-level calls, such as Windows API and Linux 
+          syscalls, for instance the Windows API ReadFile in OVERLAPPED mode expects you to call GetOverlappedResult at your 
+          convenience, rather than rudely interrupt you, and it is probably done that way for somewhat similar reasons.
+          <br>
+          <br>
+          Secondly consider the simple single-threaded case: <code> c_func(xXXX,{...,cbYyyy,...})</code>. c_func saves a copy
+          of ebp(/rbp), in a single static variable, which cbYyyy restores before executing the hll code (and saves/restores
+          ebp etc as needed). It may be possible to modify builtins\VM\pcfuncN.e to use a sequence of {dwThreadId,ebp_save}
+          instead of the single static variable, however as things stand, steps must be taken to ensure that only a single
+          c_func/cbYyyy is "active" at any one point, either by placing any such calls inside a critical section or perhaps
+          better ensuring that all call_backs are performed by the same (background worker) thread. Apart from the article
+          mentioned above I have not seen such problems in any real code, but you should bear that single static variable 
+          for ebp(/rbp) issue in mind, that is when pushing at the boundaries with call_backs. And of course as above the
+          whole single static variable issue goes away if you use low-level #ilASM labels rather than hll call_backs.
+          <br>
+          <br>
+          I suppose it <i>might</i> be possible to create a special stack/context for the exclusive use of call-backs, and
+          apply a suitable lock to prevent more than one call_back from using said stack simultaneously, and that might need
+          something really clever to release/re-apply said lock around any nested/recursive use of call_backs. It might even
+          be possible for the call back handler to create/destroy a virtual stack every time it is called, but that seems
+          rather excessive. Also, either of those solutions would almost certainly make some error reports much shorter in a 
+          less than helpful way, with all clues of the who/when/why variety missing.
+         </td>
+        </tr>
+       </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

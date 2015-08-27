@@ -1,0 +1,137 @@
+--
+-- t43tchk.exw
+--
+constant showprogress=0
+integer error
+        error = 0
+type positive_int(integer pi)
+    if showprogress then printf(1,"positive_int(%d)\n",pi) end if
+    return pi>=0
+end type
+type minute(positive_int m)
+    if showprogress then printf(1,"minute(%d)\n",m) end if
+    return m<=59
+end type
+type even_min(minute em)
+    if showprogress then printf(1,"even_min(%d)\n",em) end if
+    return and_bits(em,1)=0
+end type
+type odd_min(minute om)
+    if showprogress then printf(1,"odd_min(%d)\n",om) end if
+    return and_bits(om,1)
+end type
+odd_min z
+    z=1
+object O
+O=z
+--  if odd_min(1) then  -- ple
+    if odd_min(O) then
+        if showprogress then puts(1,"OK\n") end if
+    else
+        puts(1,"odd_min(1) is FALSE\n")
+        error = 1
+    end if
+even_min y
+    y=2
+O=y
+--  if even_min(2) then -- ple
+    if even_min(O) then
+        if showprogress then puts(1,"OK2\n") end if
+    else
+        puts(1,"even_min(2) is FALSE\n")
+        error = 1
+    end if
+
+--abort(1)
+integer i
+atom n
+--/*
+type string(object x) return sequence(x) end type
+--*/
+string s
+sequence p
+procedure check(object o, integer do_i, integer do_n, integer do_s, integer do_p)
+    if showprogress then ?o end if
+    if do_i then
+        if showprogress then puts(1,"i ") end if
+        i=o
+    end if
+    if do_n then
+        if showprogress then puts(1,"n ") end if
+        n=o
+    end if
+    if do_s then
+        if showprogress then puts(1,"s ") end if
+        s=o
+    end if
+    if do_p then
+        if showprogress then puts(1,"p ") end if
+        p=o
+    end if
+    if showprogress then puts(1,"OK\n") end if
+end procedure
+constant Y=1, N=0
+--    o  do_i n s p
+check(1,    Y,Y,N,N)
+check(1.5,  N,Y,N,N)
+check("hi", N,N,Y,Y)
+check({{}}, N,N,N,Y)
+
+type i5(object i)
+    if showprogress then printf(1,"i5(%d)\n",i) end if
+    return integer(i) and i=5
+end type
+i5 j6
+    if i5(5) then
+        if showprogress then puts(1,"i5(5) is true\n") end if
+    else
+        puts(1,"i5(5) is FALSE\n")
+        error = 1
+    end if
+    if i5(7) then
+        puts(1,"i5(7) is TRUE\n")
+        error = 1
+    else
+        if showprogress then puts(1,"i5(7) is false\n") end if
+    end if
+    j6=5
+    if showprogress then puts(1,"ok\n") end if
+--j6=7
+--puts(1,"ok?\n")
+
+--DEV This is approx 3 times slower than it ought to be...
+--  If a routine is a "leaf node", (or only calls "leaf nodes") then 
+--  you don't need to bother with parameter save/restore.
+--  You still need to dealloc/reset to h4 though.
+--  Ditto if the routine is not currently "active".
+--  
+type hour(integer h)
+    return (h>=0 and h<=10000000)
+end type
+object o
+hour h
+--include builtins\misc.e
+--
+integer LIMIT
+    if showprogress then 
+        LIMIT=1000000-0
+    else
+        LIMIT=10000-000
+    end if
+atom t,t1,t2
+t = time()
+for i2=1 to LIMIT do
+    o=i2
+end for
+t1 = time()
+for i3=1 to LIMIT do
+    h=i3
+end for
+t2 = time() - t1
+t1 = t1-t
+if showprogress then
+    printf(1,"object:%3.2f, hour:%3.2f, ratio:%3.2f\n",{t1,t2,t2/t1})
+end if
+if error then abort(1) end if
+--if getc(0) then end if
+

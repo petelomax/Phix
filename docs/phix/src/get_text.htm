@@ -1,0 +1,129 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">get_text</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <code>
+             sequence r = get_text(integer fn, integer option=-2)
+          </code>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Reads an entire file into memory. Suitable for relatively small text files, for
+            example configuration (ini) files, and most of the files used by editors and
+            compilers, at least the text ones that is. It is not suitable for large files, 
+            over say 5MB, or any form of binary file (database, video, executable etc).
+            <br>
+            <br>
+            This routine is deliberately limited to 1GB - the absolute maximum string length 
+            is 1,610,612,711 characters, on 32-bit, see pHeap.e, so that is about 66% of the 
+            maximum possible theoretical limit.
+            <br>
+            <br>
+            Larger files should be processed [one char/byte/line at a time] by 
+            getc/gets/seek/puts, which have a (predicted) limit of 8192 TB, thousands 
+            of times larger than the biggest currently available hard drives.
+          <br>
+          <br>
+            fn should be an open file with read access (it does not actually matter whether 
+            it was opened in binary or text mode)
+          <br>
+          <br>
+            The following constants are automatically defined in psym.e/syminit():
+          <br>
+          <br>
+          <table>
+           <col style="width: 5%"/>
+           <tr>
+            <th>Constant</th>
+            <th>Value</th>
+            <th>Description</th>
+           </tr>
+           <tr>
+            <td>GT_WHOLE_FILE</td>
+            <td>-2</td>
+            <td>get whole file as one long string, plus final '\n' if missing.</td>
+           </tr>
+           <tr>
+            <td>GT_LF_STRIPPED</td>
+            <td>-1</td>
+            <td>returns an array of '\n'-stripped lines.</td>
+           </tr>
+           <tr>
+            <td>GT_LF_LEFT</td>
+            <td>0</td>
+            <td>'\n' left on lines.</td>
+           </tr>
+           <tr>
+            <td>GT_LF_LAST</td>
+            <td>+1</td>
+            <td>'\n' left on lines, and put on last line if missing.</td>
+           </tr>
+          </table>
+          <br>
+            &nbsp;
+          <br>
+            GT_WHOLE_FILE (-2) leaves any embedded CR,LF,CRLF,LFCR as-is, whereas 
+            no CR are returned from the other options. GT_WHOLE_FILE is however the
+            fastest way to read a large file (GT_WHOLE_FILE is what p.exw uses).
+          <br>
+          <br>
+            GT_LF_LEFT is the only way to tell if the original file had a trailing 
+            blank line, should that be in any way important.
+          <br>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+fn = open("myapp.ini","r")
+r = get_text(fn,GT_LF_STRIPPED)  -- r is eg {"debug=1", "Font=Courier","Window Position=960,0"}
+close(fn)
+</eucode-->
+<pre>
+<font color="#000000">fn</font><font color="#0000FF"> =</font><font color="#7060A8"> open</font><font color="#0000FF">(</font><font color="#008000">"myapp.ini"</font><font color="#0000FF">,</font><font color="#008000">"r"</font><font color="#0000FF">)
+</font><font color="#000000">r</font><font color="#0000FF"> =</font><font color="#7060A8"> get_text</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">,</font><font color="#000000">GT_LF_STRIPPED</font><font color="#0000FF">) </font><font color="#000080"> -- r is eg {"debug=1", "Font=Courier","Window Position=960,0"}
+</font><font color="#7060A8">close</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Compatibility:</b>
+         </td>
+         <td>
+            There is no equivalent routine in RDS Eu.
+          <br>
+            OpenEuphoria has a read_lines() routine offering somewhat similar functionality.
+          <br>
+          <br>
+            Should you require a routine that is compatible across Phix, RDS Eu, and OpenEuphoria, may I 
+            suggest that you might want to copy/rename/adapt the older builtins\pfileio.e\h_get_text(), 
+            in a new and separate file, and probably accept a filename rather than a filenumber. <!--DEV-->
+         </td>
+        </tr>
+       </table>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

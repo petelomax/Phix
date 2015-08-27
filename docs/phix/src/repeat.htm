@@ -1,0 +1,130 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">repeat</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica"> sequence s = repeat(object x, integer i)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>  Create a sequence of length i where each element is x.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            When you repeat a sequence or a floating-point number the interpreter does not actually make multiple copies in memory.
+            Rather, a single copy is "pointed to" a number of times.
+          <br>
+          <br>
+            For efficiency reasons, if the item to be repeated appears to be a character, ie is an integer in the range 7 to 255, 
+            a string is created, otherwise a dword-sequence is created. Better overall performance was also observed by making 
+            repeat(0,N) create a dword-sequence rather than a string of nulls which was very likely to be auto-expanded to a
+            dword sequence in the near future. Generally speaking, all further handling of the result is completely transparent 
+            whether a string or dword-sequence is created, with the following exceptions: performance gains, explicit tests with 
+            the string() builtin, #isginfo directives, accessing it using inline assembly, and lastly holding raw binary can be
+            done in a string as one byte per element, rather than 4 or 8, which might need a secondary poke() before use.
+          <br>
+          <br>
+            Compatibility note: RDS Eu/OpenEuphoria allow an atom length/count, whereas Phix requires an integer, since I believe
+            that deliberately trapping say 11.99 (which RDS Eu/OpenEuphoria truncate to 11) may help to expose the occasional 
+            programming error at source, rather than ten minutes later when the sequence turns out to be one element too short.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+repeat(0, 10)       -- {0,0,0,0,0,0,0,0,0,0}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">repeat</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000"> 10</font><font color="#0000FF">)      </font><font color="#000080"> -- {0,0,0,0,0,0,0,0,0,0}</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+repeat("JOHN", 4)   -- {"JOHN", "JOHN", "JOHN", "JOHN"}
+-- The interpreter creates only one copy of "JOHN" in memory,
+--  and increases the reference count of that one item by 4.
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">repeat</font><font color="#0000FF">(</font><font color="#008000">"JOHN"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">)  </font><font color="#000080"> -- {"JOHN", "JOHN", "JOHN", "JOHN"}
+-- The interpreter creates only one copy of "JOHN" in memory,
+--  and increases the reference count of that one item by 4.</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+repeat('=', 10)     -- "=========="  (a string)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">repeat</font><font color="#0000FF">(</font><font color="#008000">'='</font><font color="#0000FF">,</font><font color="#000000"> 10</font><font color="#0000FF">)    </font><font color="#000080"> -- "=========="  (a string)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="append.htm">append</a>,
+          <a href="prepend.htm">prepend</a>,
+          <a href="seqformation.htm">sequence-formation operator</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Internally, when the compiler spots an obvious character, it maps repeat() to repeatch(), which can be called explicitly
+            and has the advantage of yielding type string, rather than sequence (string|dword_sequence), and in so doing may permit
+            subsequent optimisations (via type inference). There are in fact a couple of places in the compiler itself that take 
+            advantage of the fact that repeat(0,i) and repeat(&rsquo;\0&rsquo;,i) are treated differently, and specifically there are
+            #isginfo{code/data_section,T_String.. directives to ensure that interpretation can use them in-situ rather than allocate
+            and poke every time we run anything. Note that explicitly calling repeatch, which is not available on RDS Eu/OpenEuphoria, 
+            performs an implicit "non-integer agnostic" and_bits(x,#FF), and hence yields incorrect results if x is not an integer or 
+            outside the range 0..255, as opposed to terminating in error, so if you must use repeatch, do so sparingly and carefully. 
+            See builtins/VM/pRepeatN.e for details of the actual implementation.
+         </td>
+        </tr>
+       </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,414 @@
+constant START = time()
+--with profile
+--
+-- Pete Eberlein's winning contest entry.
+-- Modified/commented by Pete Lomax 2/12/2004:
+--
+-- I have renamed just about /everything/, not to imply that Pete E's naming
+-- convertions were bad, but so that I could recognise what I had and had not 
+-- reviewed. Likewise, I've moved things about and wantonly changed code to 
+-- something more familiar to me 1) so I can concentrate on the few missing 
+-- bits of logic that still escape me, and 2) to see if I get a performance 
+-- hit doing it my way.
+--
+-- Please note the following is meant to be fact not criticism.
+-- If I thought anything was worth changing I would change it, the 
+-- nit-picking is just my way of explaining things.
+-- If there is anything wrong, misleading, missing, or inflammatory in
+-- the following, please let me know and I will change it.
+--
+
+--
+-- As I now understand it:
+-- The first part of the ternary tree (1911 entries) is pre-allocated,
+-- with entries for each possible starting character (up to 'Z'), in all
+-- 20 wordlength buckets. 1911 is possibly slightly over-allocated, as
+-- it is from 21*91, whereas there are actually only 20 word lengths,
+-- and as well as the highest character, 'Z', being 90, not 91, only 37
+-- characters are actually legal. But the unused 1371 entries will not
+-- hurt anyone (and if it ain't broke don't fix it). It is of course
+-- highly likely that attempts to save these 1371 bytes by packing and
+-- unpacking '-'(45)..'Z'(90) into 1..37, or removing the 21st word length
+-- chunk by +/-1's would only succeed in making it slower. Anyway, there's 
+-- a block of 91 entries for one-character tokens, followed by a block of 
+-- 91 entries for two-character tokens, and so on up to twenty (all, I 
+-- think, preceded by an unused block for zero-length tokens).
+--
+-- If the token length is 1, these entries hold the frequency count,
+-- otherwise they are node pointers to the second letter tree, if any.
+-- In both cases the first character is implied from the slot position,
+-- it is not actually stored anywhere.
+--
+-- Past the first 1911 entries, there are "nodes" of 4 entries:
+--  +0: a character value
+--  +1: next node if the character value is equal to oneToken[n]
+--  +2: next node if                      less than
+--  +3: next node if                     greater than
+--
+-- If the next character in the token is equal to the current node character,
+-- then we move down the link and onto the next node. Otherwise searching 
+-- continues on the current token character down either the less than or
+-- greater than subtree.
+--
+-- On the last character, the equal to pointer [+1] holds a frequency count
+-- for the word, instead of a subtree.
+--
+-- If "AND" and "ANDREW" were in the same tree, this would not work, since the
+-- [+1] entry at 'D' would need to hold a frequency count for "AND" but point
+-- to a subtree for the remainder of "ANDREW". However the initial part (1911 
+-- bytes) is divided by word length, so this case never arises.
+--
+-- It is not explicitly enforced anywhere in this program, but as a sanity 
+-- check the three next pointers should always be divisible by 4 (or zero).
+--
+-- Since the token characters are left like a trail of breadcrumbs on the
+-- path down the tree, full tokens are not permanently stored anywhere.
+--
+-- The first part of the table then has a different content altogether
+-- to the remainder, and could theoretically be kept in a different
+-- table. But again, it ain't broke so don't fix it. While there is some
+-- additional code to set the initial insertion pointer during add, and 
+-- set the first character during scan, it is trivial and probably less
+-- code than would be required if the initial buckets and the tree nodes
+-- were kept in separate tables (especially so with the count increment).
+-- 
+-- One thing worth saying however is that the initial 1911 byte table is
+-- something of an optimisation, avoiding any searching on the first letter.
+-- In the more general case, if for some reason there should not be a hard
+-- limit on word length, then the table would need to be split, and in that
+-- case the first letter(s) /should/ be stored in the tree in the same
+-- manner as all the other characters. You would still require a "root"
+-- pointer for each word length, however.
+
+-- I have added a charMap table to perform case conversion (which made
+-- no noticeable improvement) and factored out skip() [see below], which
+-- possibily adds a few tenths of a percent overhead. Otherwise this
+-- program runs at the same speed as the original competition entry, as 
+-- far as I can tell.
+
+without warning
+without type_check
+
+constant MAXTOKLEN = 20, -- maximum token length
+         MAXRANK = 20, -- maximum number of ranked words
+         IB = ('Z'+1), -- initial letter buckets    --91
+         ITLEN = (MAXTOKLEN+1)*IB -- initial tree length    -- 91*21=1911
+
+integer ternarySearchTreeLen,
+        ternarySearchTreeUsed
+
+sequence ternarySearchTree,
+         oneToken,  -- one token (max 20 characters)
+         charMap
+
+    oneToken = repeat(0, MAXTOKLEN) -- token buffer
+    ternarySearchTreeLen = 4096 -- ternary search tree allocated length,
+                                -- which is doubled every time it gets full.
+    ternarySearchTreeUsed = ITLEN -- ternary search tree used length
+    ternarySearchTree = repeat(0, ternarySearchTreeLen)
+
+    charMap = repeat(0, 257)
+    charMap[1] = -1                 -- eof
+    charMap['\'' + 2] = '\''
+    charMap['-'  + 2] = '-'
+    for i = '0' to '9' do
+        charMap[i + 2] = i
+    end for
+    for i = 'A' to 'Z' do
+        charMap[i + 2] = i
+        charMap[i + 34] = i
+    end for
+
+integer c,
+        fn,
+        tokenLength
+
+procedure skip()
+--
+-- Skip token beginning with -, or remainder of token longer than MAXTOKLEN
+-- This routine is only called when it is known that one of the above is true.
+-- (slightly slower than duplicating inline, but it's not called too often)
+--
+    while charMap[getc(fn) + 2] >= '\'' do
+    end while
+    tokenLength = 0     -- make sure it is not a valid token
+    c=0                 --  ""
+end procedure
+
+procedure ScanFile()
+sequence cl
+integer nextNode,       -- next ternary tree node or zero.
+        tokIndex,       -- index to oneToken when scanning ternary tree
+        currNodeChar,   -- character at the current node in the ternary search tree.
+        currTokChar,    -- equiv to oneToken[tokIndex]
+        nodeIndex
+
+    cl = command_line()
+    if length(cl) = 2 then 
+--      printf(2, "usage: %s %s <filename>\n\n", cl)
+--      abort(1)
+--      cl="bible.txt"
+        cl="pewe.exw"
+    else
+        cl = cl[3]
+    end if
+    fn = open(cl, "rb") -- open file
+    if fn=-1 then
+        printf(2, "Could not open file: %s\n", {cl})
+        abort(1)
+    end if
+    printf(1, "Pete Eberlein %s\n", {cl})   -- though as above, modified by Pete Lomax
+
+--  c = charMap[getc(fn) + 2]
+    tokenLength = 0
+--  while c != -1 do -- loop until EOF
+    while 1 do
+        c = charMap[getc(fn) + 2]
+--      if c >= '\'' then
+        if c then   --PL this is now "branch straightened" to the top of the loop.
+            -- perform first character tests
+            if c >= 'A' then
+                tokenLength = 1
+                oneToken[tokenLength] = c
+                c = charMap[getc(fn) + 2]
+
+            elsif c >= '-' then -- digits or hyphens
+                if c = '-' then -- tokens starting with hyphen are delimiters
+                    skip()
+                else
+                    -- tokens composed completely of digits and hyphens are delimiters
+                    while c >= '-' and c <= '9' do
+                        tokenLength += 1
+                        if tokenLength > MAXTOKLEN then -- token too long
+                            skip()
+                            exit
+                        end if
+                        oneToken[tokenLength] = c
+                        c = charMap[getc(fn) + 2]
+                    end while
+                    if c < '\'' then -- if next char isn't a token char,
+                        tokenLength = 0 -- then it must have been all digits/hyphens
+                    end if
+                end if
+--          else         -- QUOTE
+            elsif c = '\'' then      -- QUOTE
+                c = charMap[getc(fn) + 2]
+            else 
+                if c=-1 then exit end if
+                c = 0
+            end if
+
+--          while c >= '\'' do
+while 1 do
+                if c >= 'A' then
+                    tokenLength += 1
+                    if tokenLength > MAXTOKLEN then -- token too long
+                        skip()
+                        exit
+                    end if
+                    oneToken[tokenLength] = c
+                    c = charMap[getc(fn) + 2]
+
+                elsif c >= '-' then -- number or hyphen
+                    tokenLength += 1
+                    if tokenLength > MAXTOKLEN then -- token too long
+                        skip()
+                        exit
+                    end if
+
+                    oneToken[tokenLength] = c -- put the char in the token buffer
+                    if c = '-' then -- tokens ending with hypen are delimiters
+                        c = charMap[getc(fn) + 2]
+                        if c < '\'' then -- next char is delimiter
+                            tokenLength = 0
+                            exit
+                        end if
+                    else 
+                        c = charMap[getc(fn) + 2]
+                    end if
+
+                elsif c = '\'' then
+                    c = charMap[getc(fn) + 2]
+
+                else
+                    exit -- otherwise it's a delmiter char
+
+                end if
+            end while
+
+            if tokenLength then -- token length not zero, so we got valid token
+
+                -- ternary search tree algorithm
+                -- three branches at each node: char equal, less, or greater than
+
+                -- starting node index is based on token length and first char
+                nodeIndex = tokenLength*IB + oneToken[1]
+                if tokenLength > 1 then
+                    tokIndex = 2 -- start on the 2nd char since the first is in the node index
+                    currTokChar = oneToken[tokIndex] -- read the second character
+                    while 1 do
+                        nextNode = ternarySearchTree[nodeIndex] -- does the next node have a pointer?
+
+                        if nextNode then
+                            currNodeChar = ternarySearchTree[nextNode] -- get the char of this tree node
+--                          if currNodeChar < currTokChar then
+--                              nodeIndex = nextNode + 2 -- next index points to "less than" pointer
+--                          elsif currNodeChar > currTokChar then
+--                              nodeIndex = nextNode + 3 -- next index points to "greater than" pointer
+--                          else
+--                              nodeIndex = nextNode + 1 -- next index points to "equal" pointer
+                            if currNodeChar = currTokChar then
+                                nodeIndex = nextNode + 1 -- next index points to "equal" pointer
+                                if tokIndex = tokenLength then -- at the end of the token?
+                                    exit -- we're done
+                                end if
+                                tokIndex += 1
+                                currTokChar = oneToken[tokIndex] -- get the next token char
+                            elsif currNodeChar < currTokChar then
+                                nodeIndex = nextNode + 2 -- next index points to "less than" pointer
+                            else
+                                nodeIndex = nextNode + 3 -- next index points to "greater than" pointer
+                            end if
+
+                        else    -- token is unique; add char nodes for remainder of token.
+
+                            while tokIndex <= tokenLength do -- read the rest of the token
+
+                                -- if tree too small double its size
+                                if ternarySearchTreeUsed+4 > ternarySearchTreeLen then 
+                                    ternarySearchTree &= repeat(0,ternarySearchTreeLen) 
+                                    ternarySearchTreeLen += ternarySearchTreeLen
+                                end if
+
+                                ternarySearchTree[ternarySearchTreeUsed] = oneToken[tokIndex]
+                                -- write the token char to the node
+                                ternarySearchTree[nodeIndex] = ternarySearchTreeUsed 
+                                -- current index points to new node
+                                nodeIndex = ternarySearchTreeUsed+1 
+                                -- next index points to "equal" pointer
+                                ternarySearchTreeUsed += 4 
+                                -- increase the tree by amount used by node
+                                tokIndex += 1
+
+                            end while
+                            exit -- we're done
+                        end if
+                    end while
+                end if
+                ternarySearchTree[nodeIndex] += 1 -- increment its count
+                tokenLength = 0 -- reset the token length
+            end if
+        end if
+--      c = charMap[getc(fn) + 2] -- read char from file
+    end while
+    close(fn) -- close the file
+end procedure
+
+--
+-- I've just moved these down here so I don't think about them
+-- when figuring out the above.
+--
+integer Unique_Count
+        Unique_Count = 0
+
+integer scanLength      -- length of nodes being scanned
+
+sequence tokenLengthFreq, -- token length frequency counters (times 20)
+         topTwentyCounts,
+         topTwentyTokens
+
+-- recursively look for leaf nodes that have the highest count
+procedure node(integer i, integer tokenIndex)
+integer c
+    while tokenIndex < scanLength do
+        c = ternarySearchTree[i+3]
+        if c then
+            node(c,tokenIndex) -- search less-than nodes, recursively
+        end if
+
+        c = ternarySearchTree[i+2]
+        if c then
+            node(c,tokenIndex) -- search greater-than nodes, recursively
+        end if
+
+        tokenIndex += 1
+        oneToken[tokenIndex] = ternarySearchTree[i] -- store character to token
+
+        i = ternarySearchTree[i+1] -- search equal nodes, tail-recursively
+    end while
+
+-- got a full token
+--printf(1,"%-20s %d\n", {oneToken,i})
+    Unique_Count += 1 -- increment unique count
+    tokenLengthFreq[scanLength] += i -- increment token length frequency 
+
+    if i >= topTwentyCounts[MAXRANK] then -- count greater thank lowest rank count?
+        for Rank = 1 to MAXRANK do
+            if i > topTwentyCounts[Rank] -- count greater, or equal and ascending token order
+            or (i = topTwentyCounts[Rank] and oneToken < topTwentyTokens[Rank]) then
+                -- insert the count into the ranking and update tokens
+--              topTwentyCounts[Rank..MAXRANK] = i & topTwentyCounts[Rank..MAXRANK-1]
+--              topTwentyTokens[Rank..MAXRANK] = {oneToken} & topTwentyTokens[Rank..MAXRANK-1]
+for j=MAXRANK-1 to Rank by -1 do
+    topTwentyCounts[j + 1] = topTwentyCounts[j]
+    topTwentyTokens[j + 1] = topTwentyTokens[j]
+end for
+topTwentyCounts[Rank] = i
+topTwentyTokens[Rank] = oneToken
+                exit
+            end if
+        end for
+    end if
+end procedure
+
+procedure ShowResults ()
+integer Total_Count
+integer c
+
+    -- It's faster to count Uniques, Totals, and Frequencies during the 
+    -- the rank search, even though we have to use the max ranks initially.
+    tokenLengthFreq = repeat(0, MAXTOKLEN) -- token frequency counters
+    topTwentyTokens = repeat("", MAXRANK)
+    topTwentyCounts = repeat(0, MAXRANK)
+
+    -- calculate the ranks
+    scanLength = 0
+    for tokLenSet = IB to MAXTOKLEN*IB by IB do
+        scanLength += 1
+        oneToken = repeat(0,scanLength)     -- avoids slice.
+        for startChar = '-' to 'Z' do
+            c = ternarySearchTree[tokLenSet+startChar]
+            if c then
+                oneToken[1] = startChar
+                node(c,1)
+            end if
+        end for
+    end for
+
+    Total_Count = 0
+    for i = 1 to MAXTOKLEN do
+        Total_Count += tokenLengthFreq[i] -- increment total count
+    end for
+
+    -- show some statistics
+    printf(1, "Total: %7d, Unique: %7d\n", {Total_Count, Unique_Count})
+
+    -- show the ranks
+    for rank = 1 to floor(Unique_Count/1000)+1 do
+        if rank > MAXRANK then exit end if
+        printf(1, "%02d %-20s %d\n" , {rank, topTwentyTokens[rank], topTwentyCounts[rank]})
+    end for
+
+    -- show the length frequencies
+    for rank = 1 to MAXTOKLEN do
+        if tokenLengthFreq[rank] then
+            printf(1,"%02d %d\n", {rank, tokenLengthFreq[rank]})
+        end if
+    end for
+end procedure
+
+ScanFile()
+ShowResults()
+
+printf(2, "Elapsed time: %f\n", time() - START)
+if getc(0) then end if

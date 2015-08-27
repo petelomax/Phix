@@ -1,0 +1,400 @@
+--
+-- eamacro.ew
+--
+-- The macro management window
+
+--global integer MacroLearn -- defined in edita.exw (so it can be cleared)
+--global sequence MacroRtns -- defined in edita.exw (it is set by that and eafind.ew)
+--global sequence MacroKeys -- defined in eaedb.e
+
+global constant MR_CHAR=1, MR_VIRT=2, MR_FIND=3
+
+sequence recs   -- memory copy of db (from readMacroData())
+
+integer mmwin,mmlv,mmLoad,mmOver,mmDel,mmSwap,mmOK
+
+integer mmInit
+        mmInit=0    -- set to 1 when mmwin has been created
+
+sequence mmFset,    -- checkboxes F6 to F9
+         mmFtset    -- text labels for ""
+
+integer ewin, ekey, edata
+integer eInit
+        eInit = 0   -- set to 1 when ewin has been created
+
+integer eWhat       -- item to edit
+
+include src\eamncode.e
+
+function eHandler(integer id, integer msg, atom wParam, object lParam)
+sequence key, result
+sequence rect
+integer eY
+    if id or object(lParam) then end if -- suppress warnings
+    if  msg = WM_CLOSE
+    or (msg = WM_CHAR and wParam = VK_ESCAPE)
+    then
+        result = decode(getText(edata))
+        if valid then
+            key = getText(ekey)
+            eWhat = find(key,{"F6","F7","F8","F9"})
+            if eWhat then
+                MacroKeys[eWhat]=result
+                if length(result)=0 then
+                    setText(mmFtset[eWhat],"")
+                else
+                    setText(mmFtset[eWhat],encode(result,0))
+                end if
+            else
+                eWhat = 0
+                for i=1 to length(recs) do
+                    if equal(recs[i][1],key) then
+                        eWhat = i
+                        exit
+                    end if
+                end for
+                if eWhat = 0 then
+                    recs = append(recs,{key,result})
+                    insertMacroRecord(key,result)
+                    setLVItemCount(mmlv,length(recs))
+                else
+                    recs[eWhat][2] = result
+                    updateMacroRecord(key,result)
+                end if
+                void = sendMessage(mmlv, LVM_UPDATE, 0, 0)
+            end if
+        elsif retryX then
+            setFocus(edata)
+            return{0}
+        end if
+
+        removeFocus(ewin)
+        setVisible(ewin,False)
+        setFocus(mmwin)
+    elsif msg = WM_SIZE then
+        rect=getClientRect(ewin)
+        eY = floor(rect[4]/2)-16
+        void=c_func( xMoveWindow, {getHwnd(ekey), 10, 10,    rect[3]-22, eY, 1} )
+        void=c_func( xMoveWindow, {getHwnd(edata),10, eY+20, rect[3]-22, eY, 1} )
+    end if
+    return 0
+end function
+
+procedure mEdit()
+object txt
+    if not eInit then
+        ewin = create(Window,"Macro Edit",0,mmwin,10,10,600,600,0)
+        ekey = create(MultiEditText,"",0,ewin,10,10,575,270,0)
+        edata = create(MultiEditText,"",0,ewin,10,290,575,270,0)
+        setHandler({ewin,ekey,edata},routine_id("eHandler"))
+        eInit = 1
+    end if
+    if eWhat<0 then
+        setText(ekey,'F'&'5'-eWhat)
+        txt = MacroKeys[-eWhat]
+    else
+        setText(ekey,recs[eWhat][1])
+        txt = recs[eWhat][2]
+    end if
+    setText(edata,encode(txt,1))
+    addFocus(ewin)
+    openWindow(ewin,SW_NORMAL)
+    setFocus(edata)
+end procedure
+
+
+without trace
+
+integer SortColumn, Sign
+
+include builtins\sort.e
+function CompareSortColumn(sequence s1,sequence s2)
+    return Sign*compare(s1[SortColumn],s2[SortColumn])
+end function
+
+integer haveRecord
+        haveRecord=0
+
+integer only
+procedure enableButtons()
+integer thisChecked, numberChecked
+    numberChecked=0
+    for i=1 to 4 do
+        thisChecked = isChecked(mmFset[i])
+        if thisChecked then
+            only = i
+        end if
+        numberChecked += thisChecked
+    end for
+    if numberChecked=1 then
+        setEnable(mmLoad,haveRecord)
+        if length(getText(mmFtset[only])) then
+            setEnable(mmOver,haveRecord)
+        else
+            setEnable(mmOver,False)
+        end if
+        setEnable(mmSwap,False)
+--      setFocus(mmOK)
+    elsif numberChecked=2 then
+        setEnable({mmLoad,mmOver},False)
+        setEnable(mmSwap,True)
+--      setFocus(mmSwap)
+    else
+        setEnable({mmLoad,mmOver,mmSwap},False)
+--      setFocus(mmOK)
+    end if
+    setEnable(mmDel,haveRecord and numberChecked=0)
+end procedure
+
+integer txtWid
+
+integer justDblClick
+        justDblClick=0
+
+function mmwinHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+integer c1, c2, idx
+sequence tmpi, tmpj
+    if object(lParam) then end if   -- suppress warnings
+    if  msg = WM_CLOSE
+    or (msg = WM_CHAR and find(wParam,{VK_RETURN,VK_ESCAPE}))
+    or (id = mmOK and msg=WM_COMMAND) then
+        removeFocus(mmwin)
+        setVisible(mmwin,False)
+        setFocus(Main)
+    elsif msg = WM_SIZE then
+        -- always invoked.
+        rect=getClientRect(mmwin)
+        txtWid = rect[3] - 93
+        for i=1 to 4 do
+            void=c_func( xMoveWindow, {getHwnd(mmFtset[i]), 72, i*30-10, txtWid, 20, 1} )
+        end for
+        void = c_func(xSendMessage, {getHwnd(mmlv), WM_SETREDRAW, 0, 0} )
+        void=c_func( xMoveWindow, {getHwnd(mmlv), 20, 146, rect[3]-40, rect[4]-210, 1} )
+        void=c_func( xMoveWindow, {getHwnd(mmLoad),  20, rect[4]-45, 75, 30, 1} )
+        void=c_func( xMoveWindow, {getHwnd(mmOver), 105, rect[4]-45, 75, 30, 1} )
+        void=c_func( xMoveWindow, {getHwnd(mmDel),  190, rect[4]-45, 75, 30, 1} )
+        void=c_func( xMoveWindow, {getHwnd(mmSwap), 275, rect[4]-45, 75, 30, 1} )
+        void=c_func( xMoveWindow, {getHwnd(mmOK), rect[3]-95, rect[4]-45, 75, 30, 1} )
+
+        --
+        -- Resize the columns, proportionally
+        --
+        c1=sendMessage(mmlv,LVM_GETCOLUMNWIDTH,0,0)
+        c2=sendMessage(mmlv,LVM_GETCOLUMNWIDTH,1,0)
+        c1=floor(c1/(c1+c2)*(rect[3]-44)+0.5)
+        c2=rect[3]-44-c1
+        void=sendMessage(mmlv,LVM_SETCOLUMNWIDTH,0,c1)
+        void=sendMessage(mmlv,LVM_SETCOLUMNWIDTH,1,c2)
+        void = c_func(xSendMessage, {getHwnd(mmlv), WM_SETREDRAW, 1, 0} )
+    elsif msg = WM_GETMINMAXINFO then
+        poke4(lParam + MINMAXINFO_ptMinTrackSize + POINT_x,460)
+        poke4(lParam + MINMAXINFO_ptMinTrackSize + POINT_Y,480)
+--      poke4(lParam + MINMAXINFO_ptMaxTrackSize + POINT_x,475) -- not needed here
+--      poke4(lParam + MINMAXINFO_ptMaxTrackSize + POINT_Y,400) -- ""
+    elsif id = mmlv then
+        if msg = WM_NOTIFY then
+            if wParam = LVN_COLUMNCLICK then
+                SortColumn = lParam[1]
+                Sign = lParam[2]
+                recs = custom_sort(routine_id("CompareSortColumn"),recs)
+                void = sendMessage(id, LVM_UPDATE, 0, 0)
+            elsif wParam = LVN_ITEMCHANGED then
+--              if not haveRecord then
+--                  haveRecord = 1
+                haveRecord = getIndex(mmlv)!=0
+                    enableButtons()
+--              end if
+            end if
+        elsif msg = WM_LBUTTONDBLCLK then
+            justDblClick=1  -- focus issues (see eaqj)
+        elsif msg = WM_LBUTTONUP and justDblClick then
+            justDblClick=0
+            eWhat = getIndex(mmlv)
+            if eWhat then   -- jou can get double clicks off the end of the list!
+                mEdit()
+            end if
+        end if
+    elsif msg = WM_LBUTTONUP and id = mmwin then
+        -- check if left button up over F6..F9 texts
+        if lParam[1]>=72 and lParam[1]<=txtWid+72 then
+            for i=1 to 4 do
+                if lParam[2]>=30*i-10 and lParam[2]<=30*i+10 then
+                    eWhat = -i
+                    mEdit()
+                    exit
+                end if
+            end for
+        end if
+    elsif msg = WM_KEYDOWN then
+        c1 = find(wParam,{VK_F6,VK_F7,VK_F8,VK_F9})
+        if c1 then
+            id = mmFset[c1]
+            setCheck(id,not isChecked(id))
+            msg = WM_COMMAND
+        end if
+    end if
+    if msg = WM_COMMAND then
+        c1 = find(id,mmFset)
+        if c1 then
+--          if not haveRecord then  --DEV??
+                haveRecord = getIndex(mmlv)!=0
+--          end if
+            enableButtons()
+        elsif id = mmLoad then
+            MacroKeys[only] = recs[getIndex(mmlv)][2]
+            setText(mmFtset[only],encode(MacroKeys[only],0))
+        elsif id = mmOver then
+            idx = getIndex(mmlv) 
+            recs[idx][2] = MacroKeys[only]
+            updateMacroRecord(recs[idx][1], recs[idx][2])
+            repaintWindow(mmlv,False)
+        elsif id = mmDel then
+            c1 = getIndex(mmlv)
+            deleteMacroRecord(recs[c1])
+            recs = recs[1..c1-1]&recs[c1+1..length(recs)]
+            void=sendMessage(mmlv,LVM_DELETEITEM,c1-1,0)
+            haveRecord=0
+            enableButtons()
+        elsif id = mmSwap then
+            for i=1 to 4 do
+                if isChecked(mmFset[i]) then
+                    for j = i+1 to 4 do
+                        if isChecked(mmFset[j]) then
+                            tmpi = MacroKeys[i]
+                            tmpj = MacroKeys[j]
+                            setText(mmFtset[i],encode(tmpj,0))
+                            setText(mmFtset[j],encode(tmpi,0))
+                            repaintWindow(mmwin,False)
+                            MacroKeys[i] = tmpj
+                            MacroKeys[j] = tmpi
+                            exit
+                        end if
+                    end for
+                end if
+            end for
+        end if
+    end if
+    return 0
+end function
+
+function mmlvFormat(integer lRow, integer lColumn)
+    if lColumn=0 then   -- no icon
+        return 0
+    elsif lColumn=1 then
+        return recs[lRow][lColumn]
+    else
+        return encode(recs[lRow][lColumn],0)
+    end if
+end function
+
+constant LVstyle=or_all({LVS_OWNERDATA, LVS_SINGLESEL, LVS_SHOWSELALWAYS})
+constant LVxstyle=or_all({LVS_EX_FULLROWSELECT,LVS_EX_HEADERDRAGDROP})
+
+global procedure MacroManagement()
+object data
+    if not mmInit then
+        mmwin=create(Window,"Macro management",0,Main,104,33,475,574,0)
+        mmFset=repeat(0,4)
+        mmFtset=repeat(0,4)
+        for i=1 to 4 do
+            mmFset[i] = create(CheckBox,{'F','5'+i},0,mmwin,20,i*30-10,45,20,0)
+--          mmFtset[i] = create(Label,"",0,mmwin,72,i*30-7,180,20,SS_LEFTNOWORDWRAP)    --DEV hmm...
+            mmFtset[i] = create(Label,"",0,mmwin,72,i*30-10,180,20,SS_SIMPLE)           -- .. does what I want anyway.
+        end for
+        mmlv=create(ListView,{"Name/Description","Data"},0,mmwin,20,146,416,334,LVstyle)
+        void = sendMessage(mmlv, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
+        setLVFormatRoutine(mmlv, routine_id("mmlvFormat"))
+        recs = readMacroData()
+        setLVItemCount(mmlv,length(recs))
+        mmLoad=create(Button,"&Load",0,mmwin,20,496,75,30,0)
+        mmOver=create(Button,"O&verwrite",0,mmwin,106,497,75,30,0)
+        mmDel =create(Button,"&Delete",0,mmwin,195,497,75,30,0)
+        mmSwap=create(Button,"&Swap",0,mmwin,280,497,75,30,0)
+        mmOK=create(Button,"&OK",0,mmwin,362,497,75,30,0)
+
+        setEnable({mmLoad,mmOver,mmDel,mmSwap},False)
+
+        setHandler({mmwin,mmlv,mmLoad,mmOver,mmDel,mmSwap,mmOK},routine_id("mmwinHandler"))
+        setHandler(mmFset,routine_id("mmwinHandler"))
+
+        mmInit = 1
+    end if
+    for i=1 to 4 do
+        data = MacroKeys[i]
+        if find(data,{{},0}) then
+            setText(mmFtset[i],"")
+        else
+            setText(mmFtset[i],encode(data,0))
+        end if
+    end for
+
+    addFocus(mmwin)
+    openWindow(mmwin,SW_NORMAL)
+    setFocus(mmOK)
+end procedure
+
+global procedure PlayMacro(integer vkey)
+integer k, savePlay, saveLearn
+    k = find(vkey,{VK_F6,VK_F7,VK_F8,VK_F9})
+    if MacroPlaying then
+        if k>=MacroPlaying then
+            void = proemh("Error",sprintf("cannot playback F%s from F%s",{'5'+k,'5'+MacroPlaying}),MB_OK)
+            MacroPlaying = 0
+            return
+        end if
+    end if
+    if MacroLearn then
+        if k = MacroLearn then  -- stop recording and play back immediately
+            MacroLearn = 0
+            setText(SB6,"")
+        elsif k>MacroLearn then
+            void = proemh("Error",sprintf("cannot record F%s inside F%s",{'5'+k,'5'+MacroLearn}),MB_OK)
+            MacroLearn = 0
+            setText(SB6,"")
+            return
+        end if
+    end if
+    --
+    -- if eg during recording of F7, the F6 key is pressed, play it back with learn mode off.
+    --
+    saveLearn = MacroLearn
+    MacroLearn = 0
+    --
+    -- Use a simple integer var to detect invalid/infinite looping (see msg above)
+    --
+    savePlay = MacroPlaying
+    MacroPlaying = k
+    
+    for i=1 to length(MacroKeys[k]) do
+        -- call charInput, virtualKey or setFindDefaults:
+        void = call_func(MacroRtns[MacroKeys[k][i][1]],MacroKeys[k][i][2])
+        if MacroPlaying = 0 then exit end if -- error in a nested F key? (also Find)
+    end for
+
+    if MacroPlaying then -- providing no error,
+        MacroPlaying = savePlay
+        --
+        -- If as above, save the F6 key under F7 (rather than all the keys that F6 played)
+        --
+        MacroLearn = saveLearn
+    end if
+end procedure
+
+global procedure RecordMacro(integer vkey)
+integer k
+    k = find(vkey,{VK_F6,VK_F7,VK_F8,VK_F9})
+    if MacroLearn then  -- recording in progress
+        if k!=MacroLearn then
+            void = proemh("Error",sprintf("cannot record F%s and F%s at the same time",
+                                          {'5'+k,'5'+MacroLearn}),MB_OK)
+        end if
+        MacroLearn=0    -- stop recording
+        setText(SB6,"")
+    else
+        MacroLearn = k  -- start recording
+        setText(SB6,sprintf("Press Ctrl F%s to stop recording macro",'5'+k))
+        MacroKeys[MacroLearn]={}
+    end if
+end procedure

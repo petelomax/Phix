@@ -1,0 +1,1710 @@
+--
+-- pgsetup.ew
+-- ==========
+--
+--  Part of pgui.exw; as much code as possible for the setup (registry settings) tab should reside in here.
+--
+--  Of course I realise this is somewhat over-engineered (and then some) for the average home user, but if
+--  we are to do it at all, may as well do it right. Trust me when I say that I now understand why so many
+--  compiler/development environments make you configure these things by hand. Since Windows Vista most of
+--  the registry is read-only to standard applications, so I have elected to do everything via .reg files,
+--  or at least use regedit commands to import them.
+--
+--  For more information about .reg files, see (eg) http://support.microsoft.com/kb/310516
+--                                              or  http://en.wikipedia.org/wiki/Windows_Registry
+--
+--  Tip/general principle:  Avoid caching registry settings, instead re-fetch them whenever you feel like
+--                          using/testing them (without worrying about any performance implications). You 
+--                          should be able to modify various settings in regedit.exe, and Alt-Tab back to 
+--                          here and see the gui magically update itself.
+--
+
+constant htxt = 
+        "Note: These settings are all assumed to be ineffective on old and unsupported versions of Windows, prior to XP (which "&
+        "was, after all, first released on the 24th of August way back in 2001).\n\n"&
+
+        "Items in error are coloured red (and start with \"error\"), those that need applying are amber, and current settings "&
+        "green. Note that unticking a box may leave items green, if current settings match those in undo.reg (see below). "&
+        "On your first visit, all recommended settings should be pre-selected, so after a quick scan for anything red, you can "&
+        "just click on the OK button (disabled when there is nothing to do) and exit. Appropriate care has been taken to ensure "&
+        "this program can restore things to their original state, however for complete peace of mind you might want to make a "&
+        "backup of the windows registry before proceeding.\n\n"&
+
+        "The path only needs to be set to allow Phix to be run from any command prompt. The path is not needed by Edita, and "&
+        "double-clicking on a Phix source is taken care of by the (Run) file associations below. As detailed next, there are "&
+        "potential reboot/login issues with modifying the path, and it may also adversely affect other applications on your "&
+        "system, unlike the file associations (Run/Edit) which are technically speaking much safer, and stand a much better "&
+        "chance of taking effect instantly, without any restart of any kind.\n\n"&
+
+        "Changes to the path will not affect any already-open consoles. I trust the choice of HKCU or HKLM is self explanatory "&
+        "- if not, open the Control Panel, search for \"path\", and select/click on \"Edit the System Environment Variables\" "& 
+        "and then the \"Environment Variables\" button, and you should get the same User/System choice for setting \"Path\" "&
+        "(any \"User\" settings are appended to \"System\").\n\n"&
+
+        "The text \"Phix\" may not (by my choice here) occur in both HKCU and HKLM, hence options may be disabled to prevent that. "&
+        "It may need the user to re-login (if HKCU chosen) or the computer restarting (if HKLM chosen) before the path settings "&
+        "take full effect, hopefully not. A proper broadcast is sent, so all compliant running applications should be fine (and "&
+        "that broadcast definitely helps, particularly with opening new consoles).  Note that the path checkbox (on the third line) "&
+        "is deliberately left unchecked by default, and I would recommend you leave it so unless/until you start to miss it "&
+        "(without overly implying that setting it is in any way \"bad\", just that it is sometimes potentially troublesome). "&
+        "You can of course manually set or vet any path changes via Control Panel, should this program fail in any way.\n\n"&
+
+        "Perceived Type (\"text\") is fairly harmless (unless it mullers something else) and simply ensures that Windows Explorer "&
+        "can display a sensible preview. Of course, .bat, .css, .inc, and .js are not really anything to do with Phix, nor is .asm "&
+        "(though Phix does create .asm listing files), however said preview is quite useful for me, for example when updating help "&
+        "and generating new releases, or testing on a freshly created virtual machine, so while I'm here...\n\n"&
+
+        "Likewise the DefaultIcon for source and error files really only affects Explorer (and therefore the standard file "&
+        "open dialogue). Note that icons for executable files are stored in the files themselves, rather than set here.\n\n"&
+
+        "Edit with Edita and Run with Phix are assumed to be self-explanatory. The locations of Phix and Edita are initially "&
+        "deduced from the command line used to run pgui. Normally Type/Icon/Edit show the full set of \".e,.err,.ex,.exw\", "&
+        "unless only some of them need applying or in the case of undo, the first value that will be restored, see next.\n\n"&
+
+        "The action drop-down allows detailed step-by-step control of the program (not normally required):\n"&
+        "* create undo.reg  -- allows you to deliberately overwrite an existing file to make a fresh restore point.\n"&
+        "* edit undo.reg    -- using Edita, or if that this not available, Notepad.\n"&
+        "* reload undo.reg  -- ensure (hidden) copies of various values are brought back up to date.\n"&
+        "* merge undo.reg   -- restore the registry to the original settings/last restore point/as just edited.\n"&
+        "* create setup.reg -- allows you to vet and/or edit the file, and manually apply it (r/click merge).\n"&
+        "* edit setup.reg   -- using Edita, or if that this not available, Notepad.\n"&
+        "* merge setup.reg  -- applies a manually modified file.\n"&
+        "* apply (default)  -- creates an undo.reg if one does not already exist, and a setup.reg, and merges it.\n\n"&
+
+        "Generally the last (default) action is all that is required, unless something does not seem to work properly. "&
+        "Clicking on OK for merge/apply usually triggers several further system-level confirmation prompts.\n\n"&
+        
+        "After selecting an option from the drop-down, OK must be clicked to perform it. Note that the OK button is "&
+        "normally enabled/disabled depending on whether there is anything to do (something above is being shown in "&
+        "amber), but changing the action drop-down enables it. This program holds (hidden) copies of values from the "&
+        "undo.reg file (which may have been present from a previous run), so if you modify it externally you may "&
+        "want to reload it to ensure the display is fully up to date. In contrast, there is no way to show any of "&
+        "the contents of an externally modified setup.reg within this screen, rather it shows the values it would "&
+        "put into setup.reg if you performed the default apply action (or obviously, create setup). The display should "&
+        "automatically update with any external modifications to these settings, on Alt-Tabbing back to it.\n\n"&
+        
+        "Both undo.reg and setup.reg are created in Phix\\demo\\arwendemo\\pgui. For more information about .reg files, "&
+        "see (eg) http://support.microsoft.com/kb/310516 or http://en.wikipedia.org/wiki/Windows_Registry\n\n"&
+
+        "Warning: merging .reg files created on a completely different machine is fraught with danger, for example Phix "&
+        "might be installed in C:\\Program Files\\Phix or C:\\Program Files (x86)\\Phix or somewhere else entirely. "&
+        "There may be cases where it is perfectly sensible, but do such at your own risk."
+
+                
+global procedure Help()
+    void = messageBox("Registry Settings",htxt,MB_OK)
+end procedure
+
+--enum ACUNDO, AEUNDO, ARUNDO, AMUNDO, ACSETUP, AESETUP, AMSETUP, AAPPLY
+constant ACUNDO=1, AEUNDO=2, ARUNDO=3, AMUNDO=4, ACSETUP=5, AESETUP=6, AMSETUP=7, AAPPLY=8
+constant actset = {"create undo.reg",
+                   "edit undo.reg",
+                   "reload undo.reg",
+                   "merge undo.reg",
+                   "create setup.reg",
+                   "edit setup.reg",
+                   "merge setup.reg",
+                   "apply (default)"}
+
+constant HKCR = "HKEY_CLASSES_ROOT\\",
+         HKLM = "HKEY_LOCAL_MACHINE\\",
+         HKCU = "HKEY_CURRENT_USER\\",
+         PHKLM = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",        -- Path in HKEY_LOCAL_MACHINE
+         PHKCU = "Environment",                                                             -- Path in HKEY_CURRENT_USER
+         PerceivedType = "PerceivedType",
+         PerceivedTypeEqText = "\"PerceivedType\"=\"text\"",
+         DefaultIcon = "DefaultIcon",
+
+         -- NB: "ew" is a "slave" to "e", not separately settable.
+         --     See also "desired" in setButtonStates() before/when modifying.
+         --     And, obviously, keep EXTS/amap/ewmap/ksmap in step (amap just
+        --      converts to knownSubkeys, ksmap back, and ewmap "ew" to "e").
+         EXTS = {"e","err","ex","exw","asm","bat","css","inc","js","ew"},
+         amap = { 3,  1,    2,   4,    0,    0,    0,    0,    0,   3},
+         ewmap = {1,  2,    3,   4,    5,    6,    7,    8,    9,   1},
+         kErr = 1 -- aka amap[find("err",EXTS)]==idx for knownSubkeys
+
+sequence exti   -- {PT,ICON,EDIT,RUN[,KEY]}, for each EXTS[i], from undo.reg
+                -- (KEY (==EXTS[i]) is [sometimes] present for debugging only)
+                -- Note that [PT] is a 0|1 flag, whereas the rest are 0|value.
+constant PT = 1, ICON = 2, EDIT = 3, RUN = 4 --,KEY = 5
+
+-- (in the order we want them in the .reg files)
+constant knownSubkeys = {"PhixErrorFile",       -- (err)
+                         "PhixConsoleSource",   -- (ex)
+                         "PhixIncludeFile",     -- (e and ew)
+                         "PhixSource"}          -- (exw)
+constant ksmap = {2,3,1,4} -- map knownSubkeys to EXTS/desired[1..4]
+constant knownDescs = {"Phix Error File",
+                       "Phix Console Program Source",
+                       "Phix Include File",
+                       "Phix Program Source"}
+
+sequence desired
+--  desired = {{1,Icon,EditWithEdita},          -- e/ew
+--             {1,ErrorIcon,EditWithEdita},     -- err
+--             {1,Icon,EditWithEdita,RunEx},    -- ex
+--             {1,Icon,EditWithEdita,RunExw},   -- exw
+
+-- saves from undo.reg, for showing "restore to xxx" when a box is unchecked:
+--enum UHKLMPATH, UHKCUPATH
+constant UHKLMPATH=1, UHKCUPATH=2
+sequence undo
+         undo = {0,     -- UHKLMPATH
+                 0}     -- UHKCUPATH
+
+constant
+    HWND_BROADCAST = #0000FFFF,
+    HKEY_CLASSES_ROOT = #80000000,
+    HKEY_CURRENT_USER = #80000001,
+    HKEY_LOCAL_MACHINE = #80000002,
+    KEY_READ = #20019,
+    ERROR_ACCESS_DENIED = 5,
+    ERROR_INVALID_PARAMETER = 87,
+    RRF_RT_REG_SZ = #00000002,
+    RRF_RT_REG_EXPAND_SZ = #00000004,
+    RRF_NOEXPAND = #10000000
+
+atom advapi32,
+     RegOpenKeyExA,
+     RegGetValueA,
+     RegCloseKey,
+     phkResult,
+     lpType,
+     lpcbData
+
+--
+-- The following items are set by setButtonStates(), used by Undo(), Apply(), and CreateDotReg():
+--
+string basedir      -- eg C:\Program Files (x86)\Phix   (PATHREPLACE)
+string restdir      -- "", but from undo.reg            (PATHRESTORE)
+string Edita, EditWithEdita
+
+integer pathmode    -- one of the following constants:
+constant PATHADD = 1,       -- append  \ HKLM / depending on
+         PATHREPLACE = 2,   -- replace  } or {   rbMachine
+         PATHRESTORE = 3,   -- restore  }    {      or 
+         PATHREMOVE = 4     -- remove  / HKCU \   rbUser
+
+constant kPath1 = find(lPath1,colourids),
+         kPath2 = find(lPath2,colourids),
+         kPath3 = find(lPath3,colourids),
+         kType1 = find(lType1,colourids),
+         kType2 = find(lType2,colourids),
+         kIcon  = find(lIcon, colourids),
+         kEIcon = find(lEIcon,colourids),
+         kEdit  = find(lEdit, colourids),
+         kEdit1 = find(edit1, colourids),
+         kRun   = find(run1,  colourids),
+         kRunW  = find(run2,  colourids)
+
+integer applyrqd
+        applyrqd = 0
+
+procedure erm(object title, string msg)
+    if atom(title) then
+        if title=ERROR_ACCESS_DENIED then
+            title = "Access Denied"
+        elsif title=ERROR_INVALID_PARAMETER then
+            title = "Invalid Parameter"
+--      elsif title=?? then -- (add any others rqd)
+        else
+            title = sprintf("Error code %d",title)
+        end if
+    end if
+    void = messageBox(title,msg,MB_OK)
+end procedure
+
+--DEV why no warning?
+--function ZKeyValue(atom key_id, string SubKey, object Value, integer RRF_TYPE)
+--object data = 0
+--integer res
+--integer data_len
+--atom lpData
+--
+--  -- first just get size
+--  res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,NULL,lpcbData})
+--  if res=0 then
+--      -- then get actual data
+--      data_len = peek4u(lpcbData)
+--      lpData = allocate(data_len)
+--      res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
+--      if res!=0 then ?9/0 end if
+--      -- (not really sure why RegGetValueA says we need 6 bytes for "text\0",
+--      --  but it does, however, it is easy enough to skip any extra nulls.)
+--      while 1 do
+--          data_len -= 1
+--          if peek(lpData+data_len-1)!=0 then exit end if
+--      end while
+--      data = peek({lpData,data_len})
+--      free(lpData)
+--  elsif res!=ERROR_FILE_NOT_FOUND then
+--      erm(res,"KeyValue")
+--  end if
+--  return data
+--end function
+
+function KeyValue2(string key, atom key_id, string SubKey, object Value, integer RRF_TYPE)
+integer res
+integer data_len
+atom lpData
+atom lpSubKey = allocate_StringZ(SubKey)
+object data
+    data = 0
+    -- first just get size
+--  res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,NULL,lpcbData})
+    if string(Value) then
+        Value = allocate_StringZ(Value)
+    end if
+    res = c_func(RegGetValueA,{key_id,lpSubKey,Value,RRF_TYPE,NULL,NULL,lpcbData})
+    if res=0 then
+        -- then get actual data
+        data_len = peek4u(lpcbData)
+if 0 then -- replaced 5/8/15
+        lpData = allocate(data_len)
+--      res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
+        res = c_func(RegGetValueA,{key_id,lpSubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
+else
+        while 1 do
+            lpData = allocate(data_len)
+            res = c_func(RegGetValueA,{key_id,lpSubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
+            if res!=ERROR_MORE_DATA then exit end if
+            free(lpData)
+            data_len += 100
+            poke4(lpcbData,data_len)
+        end while
+end if
+        if res!=0 then ?9/0 end if
+        data_len = peek4u(lpcbData)
+--  key = "HKEY_CURRENT_USER\\" 
+--  key_id = #80000001
+--  SubKey = "Environment" 
+--  Value = 39807340 
+--  RRF_TYPE = 2 
+--  res = 234
+--  data_len = 36
+--  lpData = 34655248 
+--  data = 0 
+        -- (not really sure why RegGetValueA says we need 6 bytes for "text\0",
+        --  but it does, however, it is easy enough to skip any extra nulls.)
+        while 1 do
+            data_len -= 1
+            if peek(lpData+data_len-1)!=0 then exit end if
+        end while
+        data = peek({lpData,data_len})
+        free(lpData)
+    elsif res!=ERROR_FILE_NOT_FOUND then
+        erm(res,key&SubKey)
+    end if
+    return data
+end function
+
+function splitpath(string path)
+sequence parts, phixes
+string part
+integer k
+    parts = {}
+    phixes = {}
+    while 1 do
+        k = find(';',path)
+        if k=0 then
+            if length(path) then
+                parts = append(parts,path)
+                if match("Phix",path) then
+                    phixes = append(phixes,length(parts))
+                end if
+            end if
+            exit
+        end if
+        part = path[1..k-1]
+        path = path[k+1..length(path)]
+        parts = append(parts,part)
+        if match("Phix",part) then
+            phixes = append(phixes,length(parts))
+        end if
+    end while
+    return {parts,phixes}
+end function
+
+function joinpath(sequence parts)
+string res
+    res = ""
+    if length(parts) then
+        res = parts[1]
+        for i=2 to length(parts) do
+            res &= ';'&parts[i]
+        end for
+    end if
+    return res
+end function
+
+function appendexts(string exts, string ext)
+-- for building strings such as ".e,.ex,.exw", one entry at a time
+    if length(exts) then exts &= ',' end if
+    exts &= '.'&ext
+    return exts
+end function
+
+--procedure setOptions(sequence eset, integer checked, integer idx, sequence actual, integer id, integer kid, integer vid=0)
+procedure setOptions(sequence eset, integer checked, integer idx, sequence actual, integer id, integer kid, integer vid)
+string ambers, greens
+object what, firstgwhat, firstawhat
+string ei
+integer k, c
+--  ({"e","err","ex","exw"},isChecked(cbPerceivedType),?,actual,lType1,kType1,?)
+    ambers = ""
+    greens = ""
+    what = repeat(0,length(eset))
+    for i=1 to length(what) do
+        ei = eset[i]
+        k = find(ei,EXTS)
+        if checked then
+            what = desired[k][idx]
+        else
+            what = exti[k][idx]
+            desired[k][idx] = what
+        end if
+--      if actual[k][idx]=what then
+        if equal(actual[k][idx],what) then
+--          if length(greens)=0 or what=firstgwhat then
+            if length(greens)=0 or equal(what,firstgwhat) then
+                greens = appendexts(greens,ei)
+                firstgwhat = what
+            end if
+        else
+--          if length(ambers)=0 or what=firstawhat then
+            if length(ambers)=0 or equal(what,firstawhat) then
+                ambers = appendexts(ambers,ei)
+                firstawhat = what
+            end if
+        end if
+    end for
+    if length(ambers) then
+        setText(id,ambers)
+        c = Amber
+        applyrqd = 1
+        what = firstawhat   -- (for vid, iff!=0)
+--?     ewhat[idx] = what   -- for Apply (and what is wroing with desired? now done above) [DEV]
+    else
+        if length(greens)=0 then ?9/0 end if -- (sanity check)
+        setText(id,greens)
+        c = Green
+        what = firstgwhat   -- (for vid, iff!=0)
+    end if
+    colours[kid] = c
+    repaintWindow(id,False)
+    if vid!=0 then -- set associated label
+        if idx=PT then ?9/0 end if -- (sanity check/[PT] is [0|1], not useable text)
+        setText(vid,what)
+        colours[find(vid,colourids)] = c
+        repaintWindow(vid,False)
+    end if
+end procedure
+
+procedure setRun(string ext, integer checked, sequence actual, integer id, integer kid)
+integer k
+string runw
+integer c
+    k = find(ext,EXTS)
+    if checked then
+        runw = desired[k][RUN]
+    else
+        runw = exti[k][RUN]
+        desired[k][RUN] = runw
+    end if
+    setText(id,runw)
+--  if actual[k][RUN]=runw then
+    if equal(actual[k][RUN],runw) then
+        c = Green
+    else
+        c = Amber
+        applyrqd = 1
+    end if
+    colours[kid] = c
+    repaintWindow(id,False)
+end procedure
+
+procedure setError(string msg)
+    setText(lPath1,"")
+    setText(lPath2,msg)
+    setText(lPath3,"")
+    applyrqd = 0
+    colours[kPath1] = Black
+    colours[kPath2] = BrightRed
+    colours[kPath3] = Black
+    repaintWindow({lPath1,lPath2,lPath3},False)
+end procedure
+
+global procedure setButtonStates()
+--
+-- Invoked whenever a button is clicked or the psettings tab gets focus (including Alt-Tab)
+-- NB: that means often, no messageBoxes or similar can arise from invoking this routine!
+--
+string subkey, verb
+object subname
+atom key_id
+sequence subkeys
+sequence subkeyidx
+sequence actual
+integer res
+integer k
+--/**/sequence cl
+object d
+--string Icon, ErrorIcon, RunEx, RunExw, Edita, EditWithEdita
+string Icon, ErrorIcon, RunEx, RunExw
+object HKLMPath, HKCUPath
+sequence parts,phixes
+sequence uparts,uphixes
+integer c
+sequence lPaths
+integer firsttime
+integer pt,ptO
+--sequence desiredi
+integer wasFocus
+
+    -- first, locate p[w].exe, Psrc.ico, and edita.ex(w|e):
+-- note: this relies on Phix/command_line() returning full paths, which RDS Eu/OpenEuphoria do not...
+--/**/  cl = command_line()
+--/**/  cl = cl[2]
+--/**/  for i=length(cl) to 1 by -1 do
+--/**/      if cl[i]='\\' then
+--/**/          basedir = cl[1..i]
+--/**/          exit
+--/**/      end if
+--/**/  end for
+--/**/  if match("Phix",basedir)=0 then setError("error: \"Phix\" does not occur in "&basedir) return end if
+--/*
+    basedir = "C:\\Program Files (x86)\\Phix\\"
+--*/
+--  Icon = basedir&"Psrc.ico"
+    Icon = basedir&"ptick.ico"
+    d = dir(Icon)
+    if atom(d) or length(d)!=1 then setError("error: "&Icon&" not found.") return end if
+    Icon = "\""&Icon&"\",0"
+--  ErrorIcon = "C:\\Windows\\system32\\shell32.dll"
+    ErrorIcon = basedir&"pcross.ico"
+    d = dir(ErrorIcon)
+    if atom(d) or length(d)!=1 then setError("error: "&ErrorIcon&" not found.") return end if
+--  ErrorIcon &= ",78"
+--  ErrorIcon &= ",65"
+--  ErrorIcon &= ",271"
+    ErrorIcon = "\""&ErrorIcon&"\",0"
+    RunEx = basedir&"p.exe"
+    d = dir(RunEx)
+    if atom(d) or length(d)!=1 then setError("error: "&RunEx&" not found.") return end if
+    RunEx = "\""&RunEx&"\" \"%1\""
+    RunExw = basedir&"pw.exe"
+    d = dir(RunExw)
+    if atom(d) or length(d)!=1 then setError("error: "&RunExw&" not found.") return end if
+    EditWithEdita = RunExw
+    RunExw = "\""&RunExw&"\" \"%1\""
+    if length(basedir)<6 then setError("error: length("&basedir&")<6") return end if
+--  if basedir[-6..-1]!="\\Phix\\" then setError("error: "&basedir&" does not end with \"Phix\".") return end if
+    if not equal(basedir[length(basedir)-5..length(basedir)],"\\Phix\\") then setError("error: "&basedir&" does not end with \"Phix\".") return end if
+--  Edita = basedir[1..-6]&"Edita\\edita.exw"
+--  Edita = basedir[1..length(basedir)-5]&"Edita\\edita.exw"    -- replaced 11/8/15
+    Edita = basedir&"demo\\edita\\edita.exw"
+    d = dir(Edita)
+    if atom(d) or length(d)!=1 then
+        Edita[length(Edita)] = 'e'
+        d = dir(Edita)
+--DEV bit draconian innit? (can we set EditWithEdita to ""?)
+--      if atom(d) or length(d)!=1 then Edita[$] = 'w' setError("error: "&Edita&" not found.") return end if
+        if atom(d) or length(d)!=1 then
+            EditWithEdita = ""
+        else
+            EditWithEdita = "\""&Edita&"\" \"%1\""
+        end if
+    else
+        EditWithEdita = "\""&EditWithEdita&"\" \""&Edita&"\" \"%1\""
+    end if
+
+    HKLMPath = KeyValue2(HKLM,HKEY_LOCAL_MACHINE,PHKLM,"Path",RRF_RT_REG_EXPAND_SZ+RRF_NOEXPAND)
+    pathmode = 0
+    lPaths = repeat("",3)
+    firsttime = length(getText(cbPath))!=0
+    setText(cbPath,"")
+    applyrqd = 0
+    if not string(HKLMPath) then
+        lPaths[1] = "error reading "&HKLM&PHKLM&"\\Path"
+        c = BrightRed
+    else
+        HKCUPath = KeyValue2(HKCU,HKEY_CURRENT_USER,PHKCU,"Path",RRF_RT_REG_SZ)
+        if not string(HKCUPath) then HKCUPath="" end if
+        if match("Phix",HKLMPath)=0 then
+            if match("Phix",HKCUPath)=0 then
+                -- (This is the only way the user gets a choice)
+                setEnable({rbMachine,rbUser},True)
+                if not isChecked(rbMachine) then
+                    setCheck(rbUser,True)
+                end if
+                lPaths[1] = "add "&basedir
+                if isChecked(cbPath) then
+                    c = Amber   -- amber
+                    pathmode = PATHADD
+                else
+                    c = Black
+                end if
+            else
+                setEnable(rbMachine,False)
+                setCheck(rbMachine,False)
+                setEnable(rbUser,True)
+                setCheck(rbUser,True)
+--/**/          {parts,phixes} = splitpath(HKCUPath)
+--/*
+                phixes = splitpath(HKCUPath)
+                parts = phixes[1]
+                phixes = phixes[2]
+--*/
+                if length(phixes)>1 then
+                    lPaths[1] = "error: \"Phix\" already occurs more than once in HKCU:"
+                    lPaths[2] = parts[phixes[1]]
+                    lPaths[3] = parts[phixes[2]]
+                    setEnable(cbPath,False)
+                    c = BrightRed
+                elsif parts[phixes[1]]=basedir then
+                    if firsttime then
+                        setCheck(cbPath,True)
+                    end if
+                    if isChecked(cbPath) then
+                        lPaths[1] = "HKCU already contains "&basedir
+                        c = Green
+                    else
+                        c = Black
+                        if undo[UHKCUPATH]=0 then ?9/0 end if  --DEV tryme
+--/**/                  {uparts,uphixes} = splitpath(undo[UHKCUPATH])
+--/*
+                        uphixes = splitpath(undo[UHKCUPATH])
+                        uparts = uphixes[1]
+                        uphixes = uphixes[2]
+--*/
+                        if length(uphixes)=0 then
+                            if length(uparts)=length(parts)-1
+                            and phixes[1]=length(parts)
+--                          and uparts=parts[1..-2] then
+                            and equal(uparts,parts[1..length(parts)-1]) then
+                                lPaths[1] = "remove "&basedir
+                                c = Amber
+                                pathmode = PATHREMOVE
+                            end if
+--                      elsif uphixes=phixes then
+                        elsif equal(uphixes,phixes) then
+                            restdir = uparts[uphixes[1]]
+                            parts[phixes[1]] = restdir
+                            if parts=uparts then
+                                lPaths[1] = "restore "&basedir
+                                lPaths[2] = "back to "&restdir
+                                c = Amber
+                                pathmode = PATHRESTORE
+                            end if
+                        end if
+                    end if
+                else
+                    lPaths[1] = "replace "&parts[phixes[1]]
+                    lPaths[2] = "with "&basedir
+                    if firsttime then
+                        setCheck(cbPath,True)
+                    end if
+                    if isChecked(cbPath) then
+                        c = Amber   -- amber
+                        pathmode = PATHREPLACE
+                    else
+                        c = Black
+                    end if
+                end if
+            end if
+        else
+--/**/      {parts,phixes} = splitpath(HKLMPath)
+--/*
+            phixes = splitpath(HKLMPath)
+            parts = phixes[1]
+            phixes = phixes[2]
+--*/
+            if match("Phix",HKCUPath)!=0 then
+                setEnable({rbMachine,rbUser},False)
+                lPaths[1] = "error: \"Phix\" already occurs more than once in PATH:"
+                lPaths[2] = "HKLM "&parts[phixes[1]]
+--/**/          {parts,phixes} = splitpath(HKCUPath)
+--/*
+            phixes = splitpath(HKCUPath)
+            parts = phixes[1]
+            phixes = phixes[2]
+--*/
+                lPaths[3] = "HKCU "&parts[phixes[1]]
+                c = BrightRed
+            else
+                setEnable(rbMachine,True)
+                setCheck(rbMachine,True)
+                setEnable(rbUser,False)
+                setCheck(rbUser,False)
+                if length(phixes)>1 then
+                    lPaths[1] = "error: \"Phix\" already occurs more than once in HKLM:"
+                    lPaths[2] = parts[phixes[1]]
+                    lPaths[3] = parts[phixes[2]]
+                    c = BrightRed
+                elsif parts[phixes[1]]=basedir then
+                    if firsttime then
+                        setCheck(cbPath,True)
+                    end if
+                    if isChecked(cbPath) then
+                        lPaths[1] = "HKLM already contains "&basedir
+                        c = Green
+                    else
+                        c = Black
+                        if undo[UHKLMPATH]=0 then ?9/0 end if
+--/**/                  {uparts,uphixes} = splitpath(undo[UHKLMPATH])
+--/*
+                        uphixes = splitpath(undo[UHKLMPATH])
+                        uparts = uphixes[1]
+                        uphixes = uphixes[2]
+--*/
+                        if length(uphixes)=0 then
+                            if length(uparts)=length(parts)-1
+                            and phixes[1]=length(parts)
+--                          and uparts=parts[1..-2] then
+                            and equal(uparts,parts[1..length(parts)-1]) then
+                                lPaths[1] = "remove "&basedir
+                                c = Amber
+                                pathmode = PATHREMOVE
+                            end if
+--                      elsif uphixes=phixes then
+                        elsif equal(uphixes,phixes) then
+                            restdir = uparts[uphixes[1]]
+                            parts[phixes[1]] = restdir
+                            if parts=uparts then
+                                lPaths[1] = "restore "&basedir
+                                lPaths[2] = "back to "&restdir
+                                c = Amber
+                                pathmode = PATHRESTORE
+                            end if
+                        end if
+                    end if
+                else
+                    lPaths[1] = "replace "&parts[phixes[1]]
+                    lPaths[2] = "with "&basedir
+                    if firsttime then
+                        setCheck(cbPath,True)
+                    end if
+                    if isChecked(cbPath) then
+                        c = Amber   -- amber
+                        pathmode = PATHREPLACE
+                    else
+                        c = Black
+                    end if
+                end if
+            end if
+        end if
+    end if
+    setText(lPath1,lPaths[1])
+    setText(lPath2,lPaths[2])
+    setText(lPath3,lPaths[3])
+    if c=Amber
+    or pathmode!=0 then
+        if c!=Amber then ?9/0 end if
+        if pathmode=0 then ?9/0 end if
+        applyrqd = 1
+    end if
+    colours[kPath1] = c
+    colours[kPath2] = c
+    colours[kPath3] = c
+    repaintWindow({lPath1,lPath2,lPath3},False)
+
+--trace(1)
+    actual = repeat({0,0,0,0,0},length(EXTS))
+    subkeys = {}
+    subkeyidx = repeat(0,length(EXTS))
+    for i=1 to length(EXTS) do
+--  for i=2 to length(EXTS) do
+        actual[i][5] = EXTS[i] -- (debug aid, otherwise not used)
+        subkey = "."&EXTS[i]
+        subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL, RRF_RT_REG_SZ)
+        if string(subname) then -- and find(subname,knownTypes)?
+            k = find(subname,subkeys)
+            if k=0 then
+                subkeys = append(subkeys,subname)
+                k = length(subkeys)
+            end if
+            subkeyidx[i] = k
+        end if
+        subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT, subkey, PerceivedType, RRF_RT_REG_SZ)
+--      if subname="text" then
+        if equal(subname,"text") then
+            actual[i][PT] = 1
+        end if
+    end for
+
+    for i=1 to length(subkeys) do
+        subkey = subkeys[i]
+--      res = c_func(RegOpenKeyExA,{HKEY_CLASSES_ROOT,subkey,0,KEY_READ,phkResult})
+        res = c_func(RegOpenKeyExA,{HKEY_CLASSES_ROOT,allocate_StringZ(subkey),0,KEY_READ,phkResult})
+        if res=0 then
+            key_id = peek4u(phkResult)
+            subname = KeyValue2(HKCR&subkey,key_id,DefaultIcon,NULL,RRF_RT_REG_SZ)
+            if string(subname) then
+                for j=1 to length(subkeyidx) do
+--                  if EXTS[j][1]='e'
+                    if amap[j]!=0
+                    and subkeyidx[j]=i then
+                        actual[j][ICON] = subname
+                        exit
+                    end if
+                end for
+            end if
+            for dix=EDIT to RUN do  -- (2 iterations)
+                if dix=EDIT then
+--                  if subkey=knownSubkeys[kErr] then   -- ie "PhixErrorFile"
+                    if equal(subkey,knownSubkeys[kErr]) then    -- ie "PhixErrorFile"
+                        verb = "debug"
+                    else
+                        verb = "edit"
+                    end if
+                else -- dix=RUN
+                    verb = "open"
+                end if
+                subname = KeyValue2(HKCR&subkey,key_id,"shell\\"&verb&"\\command",NULL,RRF_RT_REG_SZ)
+                if string(subname) then
+                    for j=1 to length(subkeyidx) do
+--                      if EXTS[j][1]='e'
+                        if amap[j]!=0
+                        and subkeyidx[j]=i then
+                            actual[j][dix] = subname
+                            exit
+                        end if
+                    end for
+                end if
+            end for
+            res = c_func(RegCloseKey,{key_id})
+        end if
+    end for
+
+    -- NB: implicit correspondence with EXTS (and PT..RUN), and, of course, "actual":
+    pt = isChecked(cbPerceivedType)
+    ptO = isChecked(cbPTOther)
+--/* sug:
+--  desired = {Icon,ErrorIcon,EditWithEdita,RunEx,RunExw}
+--  if not isChecked(cbDefaultIcon) then desired[1] = 0 end if
+--  if not isChecked(cbErrorIcon)   then desired[2] = 0 end if
+--  if not isChecked(cbEdita)       then desired[3] = 0 end if
+--  if not isChecked(cbRun)         then desired[4] = 0 end if
+--  if not isChecked(cbRunW)        then desired[5] = 0 end if
+--  desired = {{pt,desired[1],desired[3]},              -- e/ew
+--             {pt,desired[2],desired[3]},              -- err
+--             {pt,desired[1],desired[3],desired[4]},   -- ex
+--             {pt,desired[1],desired[3],desired[5]},   -- exw
+--             {ptO}, {ptO}, {ptO}, {ptO}, {ptO}}       -- asm/bat/css/inc/js (no sep. ew)
+----or (better?)
+--  if isChecked(cbDefaultIcon) then dIcon          = Icon          else dIcon          = 0 end if
+--  if isChecked(cbErrorIcon)   then dErrorIcon     = ErrorIcon     else dErrorIcon     = 0 end if
+--  if isChecked(cbEdita)       then dEditWithEdita = EditWithEdita else dEditWithEdita = 0 end if
+--  if isChecked(cbRun)         then dRunEx         = RunEx         else dRunEx         = 0 end if
+--  if isChecked(cbRunW)        then dRunExW        = RunExW        else dRunExW        = 0 end if
+---- or
+--  {dIcon,dErrorIcon,dEditWithEdita,dRunEx,dRunExW} = {Icon,ErrorIcon,EditWithEdita,RunEx,RunExW}
+--  if not isChecked(cbDefaultIcon) then dIcon          = 0 end if
+--  if not isChecked(cbErrorIcon)   then dErrorIcon     = 0 end if
+--  if not isChecked(cbEdita)       then dEditWithEdita = 0 end if
+--  if not isChecked(cbRun)         then dRunEx         = 0 end if
+--  if not isChecked(cbRunW)        then dRunExW        = 0 end if
+--
+--  desired = {{pt,dIcon,     dEditWithEdita},          -- e/ew
+--             {pt,dErrorIcon,dEditWithEdita},          -- err
+--             {pt,dIcon,     dEditWithEdita,dRunEx},   -- ex
+--             {pt,dIcon,     dEditWithEdita,dRunExw},  -- exw
+--             {ptO}, {ptO}, {ptO}, {ptO}, {ptO}}       -- asm/bat/css/inc/js (no sep. ew)
+---- or (best? [if it works, it should, I think...])
+--*/
+--  if not isChecked(cbDefaultIcon) then Icon           = "" end if
+--  if not isChecked(cbErrorIcon)   then ErrorIcon      = "" end if
+--  if not isChecked(cbEdita)       then EditWithEdita  = "" end if
+--  if not isChecked(cbRun)         then RunEx          = "" end if
+--  if not isChecked(cbRunW)        then RunExw         = "" end if
+--* /
+    desired = {{pt,Icon,EditWithEdita},             -- e/ew
+               {pt,ErrorIcon,EditWithEdita},        -- err
+               {pt,Icon,EditWithEdita,RunEx},       -- ex
+               {pt,Icon,EditWithEdita,RunExw},      -- exw
+               {ptO}, {ptO}, {ptO}, {ptO}, {ptO}}   -- asm/bat/css/inc/js (no sep. ew)
+
+    --
+    -- And now, the tricky part(!)
+    -- Update all the labels/colours to reflect current settings.
+    -- we have: actual, from the registry,
+    --          exti, from undo.reg, or all 0/1's
+    --          desired, needs yet to be cropped (here and now) with unchecked flags [DEV]
+    --
+    setOptions({"e","err","ex","exw"},isChecked(cbPerceivedType),PT,actual,lType1,kType1,0)
+    setOptions({"asm","bat","css","inc","js"},isChecked(cbPTOther),PT,actual,lType2,kType2,0)
+    setOptions({"e","ex","exw"},isChecked(cbDefaultIcon),ICON,actual,lIcon,kIcon,icon1)
+    setOptions({"err"},isChecked(cbErrorIcon),ICON,actual,lEIcon,kEIcon,icon2)
+-- draconian(cont, not tried):
+    if length(EditWithEdita)=0 then
+        setCheck(cbEdita,BST_UNCHECKED)
+        setEnable(cbEdita,False)
+        setText(edit1,"error: "&Edita&" not found")
+        colours[kEdit] = BrightRed
+        colours[kEdit1] = BrightRed
+        repaintWindow({cbEdita,lEdit,edit1},False)
+    else
+        setEnable(cbEdita,True)
+        setOptions({"e","err","ex","exw"},isChecked(cbEdita),EDIT,actual,lEdit,kEdit,edit1)
+    end if
+
+    setRun("ex",isChecked(cbRun),actual,run1,kRun)
+    setRun("exw",isChecked(cbRunW),actual,run2,kRunW)
+
+    if firsttime then
+        deleteItem(cddAct,0) -- empty list
+        for i=1 to length(actset) do
+            void = insertItem(cddAct,actset[i],0)
+        end for
+        setIndex(cddAct,AAPPLY)
+    else
+        if getIndex(cddAct)!=AAPPLY then
+            applyrqd = 1
+        end if
+    end if
+
+    wasFocus = getFocus()
+    setEnable(sbOK,applyrqd)
+--?{wasFocus,sbOK,psettings}
+    if wasFocus=sbOK then
+        setFocus(psettings)
+    end if
+
+end procedure
+
+integer unicodeflag -- (one of the following four constants)
+constant ANSI    = 0,
+         UTF8    = 1,
+         UTF16LE = 2,
+         UTF16BE = 3
+
+function get_unicode_char(integer fn)
+integer ch, ch2
+    ch = getc(fn)
+    if ch!=-1 then
+        ch2 = getc(fn)
+        if unicodeflag=UTF16LE then
+            if ch2 then -- (speedwise)
+                ch += ch2*#100
+            end if
+        else -- UTF16BE
+            ch = ch2+ch*#100
+        end if
+    end if
+    return ch
+end function
+
+function get_unicode_line(integer fn)
+integer ch
+object res
+integer nLen
+atom pBuff
+    if unicodeflag=UTF8 then
+        res = gets(fn)
+        if not atom(res) then
+--          nLen = c_func(xMultiByteToWideChar,{CP_UTF8,0,res,length(res),NULL,0})
+            nLen = c_func(xMultiByteToWideChar,{CP_UTF8,0,allocate_StringZ(res),length(res),NULL,0})
+            pBuff = allocate(nLen*2)
+--          nLen = c_func(xMultiByteToWideChar,{CP_UTF8,0,res,length(res),pBuff,nLen})
+            nLen = c_func(xMultiByteToWideChar,{CP_UTF8,0,allocate_StringZ(res),length(res),pBuff,nLen})
+            res = peek2u({pBuff,nLen})
+            free(pBuff)
+        end if
+    else        -- UTF16(LE|BE)
+        ch = get_unicode_char(fn)
+        if ch = -1 then
+            res = -1
+        else
+            res = ""
+            while ch!=-1 do
+                if ch!='\r' then
+                    res &= ch
+                    if ch='\n' then exit end if
+                end if
+                ch = get_unicode_char(fn)
+            end while
+        end if
+    end if
+    return res
+end function
+
+function readFile(sequence name)
+-- open and read contents of specified file.
+-- Also sets unicodeflag (except on failure)
+sequence file
+integer fn
+object line
+integer uniskip
+
+    file = {}
+    fn = open(name,"r")
+    if fn!=-1 then
+        unicodeflag = ANSI
+--/**/  line = trim(gets(fn))
+--/*
+        line = trim(gets(fn)," \t\r\n",0)
+--*/
+        if not atom(line)
+        and length(line)>=2 then
+            if equal(line[1..2],{#FF,#FE}) then
+                unicodeflag = UTF16LE
+                uniskip = 2
+            elsif equal(line[1..2],{#FE,#FF}) then
+                unicodeflag = UTF16BE
+                uniskip = 2
+            elsif length(line)>=3
+              and equal(line[1..3],{#EF,#BB,#BF}) then
+                unicodeflag = UTF8
+                uniskip = 3
+            end if
+        end if
+        if unicodeflag then
+            -- gets() returns L"Hello" as "H\0e\0l\0l\0o\0" and makes a complete mess 
+            -- of \r\0\n\0 handling, iyswim. So read things one (wide)char at a time.
+            -- likewise getc() will not process "\r\0\n\0" as one might like, so close
+            -- and re-open the file in binary mode (not strictly necessary for UTF8,
+            -- but the uniskip is).
+            close(fn)
+            fn = open(name,"rb")
+            if seek(fn,uniskip) then
+                puts(1,"error seeking in readFile")
+            end if
+--/**/      line = trim(get_unicode_line(fn))
+--/*
+            line = trim(get_unicode_line(fn)," \t\r\n",0)
+--*/
+        end if
+        while not atom(line) do
+            if length(line)!=0 and line[1]!=';' then -- not blank/comment lines
+                file = append(file,line)
+            end if
+            if unicodeflag then
+                line = get_unicode_line(fn)
+            else
+                line = gets(fn)
+            end if
+--/**/      line = trim(line)
+--/*
+            line = trim(line," \t\r\n",0)
+--*/
+        end while
+        close(fn)
+    end if
+    return file
+end function
+
+function dequote(string s)
+string res
+integer ch, skip
+    res = ""
+    skip = 0
+    for i=1 to length(s) do
+        ch = s[i]
+        if ch='\\' and skip=0 then
+            skip = 1
+            if not find(s[i+1],"\\\"") then ?9/0 end if -- (more code rqd?)
+        else
+            res &= ch
+            skip = 0
+        end if
+    end for
+    return res
+end function
+
+procedure readUndo()
+-- perform a quick and dirty parse of undo.reg
+-- note: no proper attempt is made to validate the content
+-- populates exti (defined above)
+sequence text
+sequence line, subkey
+string key
+integer lno
+integer ext, k
+sequence subkeys
+sequence subkeyidx
+integer setting
+integer lidx, odd, ch, ch2
+
+    text = readFile("demo\\arwendemo\\pgui\\undo.reg")
+    if length(text) then
+        lno = 1
+--      if text[lno]!="Windows Registry Editor Version 5.00" then ?9/0 end if
+        if not equal(text[lno],"Windows Registry Editor Version 5.00") then ?9/0 end if
+        exti = repeat({0,0,0,0},length(EXTS))
+        subkeys = {}
+        subkeyidx = repeat(0,length(EXTS))
+        while lno<=length(text) do
+            while lno<length(text) and text[lno+1][1]='[' do
+                -- (skips over eg shell/edit/command, where neither shell 
+                --  nor edit contain any useful content, and any [- lines.)
+                lno += 1
+                line = text[lno] 
+            end while
+            if line[1]!='[' then ?9/0 end if
+            if line[length(line)]!=']' then ?9/0 end if
+--          key = line[2..-2]
+            key = line[2..length(line)-1]
+            if match(HKLM,key)=1 then
+                key = key[length(HKLM)+1..length(key)]
+--              if key!=PHKLM then ?9/0 end if
+                if not equal(key,PHKLM) then ?9/0 end if
+                lno += 1
+                line = text[lno]
+                key = "\"Path\"=hex(2):"
+                if match(key,line)!=1 then ?9/0 end if
+                line = line[length(key)+1..length(line)]
+                key = ""
+                lidx = 1
+                odd = 1
+                while lidx<=length(line) do
+                    ch = line[lidx]
+                    if ch='\\' then
+                        lno += 1
+                        line = text[lno]
+                        lidx = 1
+                        ch = line[1]
+                    end if
+                    if odd then
+                        if ch>='0' and ch<='9' then
+                            ch = ch-'0'
+                        elsif ch>='a' and ch<='f' then
+                            ch = ch-'a'+10
+                        else
+                            ?9/0
+                        end if
+                        ch *= 16
+                        lidx += 1
+                        ch2 = line[lidx]
+                        if ch2>='0' and ch2<='9' then
+                            ch += ch2-'0'
+                        elsif ch2>='a' and ch2<='f' then
+                            ch += ch2-'a'+10
+                        else
+                            ?9/0
+                        end if
+                        key &= ch
+                        odd = 0
+                    else
+                        if ch!='0' then ?9/0 end if
+                        lidx += 1
+                        ch = line[lidx]
+                        if ch!='0' then ?9/0 end if
+                        odd = 1
+                    end if
+                    lidx += 1
+                    if lidx>length(line) then exit end if
+                    ch = line[lidx]
+                    if ch!=',' then ?9/0 end if
+                    lidx += 1
+                end while
+                lno += 1
+                line = text[lno] 
+--              if key[length(key)]!='\0' then ?9/0 end if
+                if key[length(key)]!=0 then ?9/0 end if
+--              key = key[1..-2]
+                key = key[1..length(key)-1]
+                undo[UHKLMPATH] = key
+            elsif match(HKCU,key)=1 then
+                key = key[length(HKCU)+1..length(key)]
+--              if key!=PHKCU then ?9/0 end if
+                if not equal(key,PHKCU) then ?9/0 end if
+                lno += 1
+                line = text[lno] 
+                key = "\"Path\"=\""
+                if match(key,line)!=1 then ?9/0 end if
+                if line[length(line)]!='"' then ?9/0 end if
+--              key = dequote(line[length(key)+1..-2])
+                key = dequote(line[length(key)+1..length(line)-1])
+                lno += 1
+                line = text[lno] 
+                undo[UHKCUPATH] = key
+            elsif match(HKCR,key)=1 then
+                key = key[length(HKCR)+1..length(key)]
+                ext = 0
+                if key[1]='.' then
+                    ext = find(key[2..length(key)],EXTS)
+                    exti[ext] = {0,0,0,0,key}   -- (key is just for debugging, exti[i] always corresponds to EXTS[i])
+                else
+                    k = find('\\',key)
+--/**/              ext = find(key[1..k-1],subkeys)
+--/*
+                    if k=0 then
+                        ext = find(key,subkeys)
+                    else
+                        ext = find(key[1..k-1],subkeys)
+                    end if
+--*/
+                    if ext=0 then ?9/0 end if
+                    key = key[k+1..length(key)]
+                    k = find('\\',key)
+                    if k!=0 then
+--                      if key[1..k]!="shell\\" then ?9/0 end if
+                        if not equal(key[1..k],"shell\\") then ?9/0 end if
+                        key = key[k+1..length(key)]
+                    end if
+                end if
+                while 1 do
+                    lno += 1
+                    if lno>length(text) then exit end if
+                    line = text[lno]
+                    if line[1]='[' then exit end if
+                    if line[1]='@' then
+                        if line[2]!='=' then ?9/0 end if
+--                      if line="@=-" then
+                        if equal(line,"@=-") then
+                            if key[1]!='.' then ?9/0 end if -- (more code rqd?)
+                            subkey = ""
+                        else
+                            if line[3]!='\"' then ?9/0 end if
+                            if line[length(line)]!='\"' then ?9/0 end if
+--                          subkey = line[4..-2]
+                            subkey = line[4..length(line)-1]
+                        end if
+                        if key[1]='.' then
+                            if length(subkey) then
+                                k = find(subkey,subkeys)
+                                if k=0 then
+                                    subkeys = append(subkeys,subkey)
+                                    k = length(subkeys)
+                                end if
+                                subkeyidx[ext] = k
+                            end if
+                        else
+                            setting = 0
+--                          if key=DefaultIcon then
+                            if equal(key,DefaultIcon) then
+                                setting = ICON
+--                          elsif key="edit\\command"
+                            elsif equal(key,"edit\\command")
+--                             or key="debug\\command" then
+                               or equal(key,"debug\\command") then
+                                setting = EDIT
+--                          elsif key="open\\command" then
+                            elsif equal(key,"open\\command") then
+                                setting = RUN
+                            end if
+                            if setting!=0 then
+                                for i=1 to length(exti) do
+--                                  if subkeyidx[i]=ext then
+                                    if equal(subkeyidx[i],ext) then
+                                        exti[i][setting] = dequote(subkey)
+                                    end if
+                                end for
+                            end if
+                        end if
+--                  elsif line=PerceivedTypeEqText then
+                    elsif equal(line,PerceivedTypeEqText) then
+                        if key[1]!='.' then ?9/0 end if
+                        exti[ext][PT] = 1
+                    else
+                    end if
+                end while
+            else ?9/0
+            end if
+
+        end while
+    else
+--      exti = repeat({1,1,1,1},length(EXTS)) --DEV...
+--      exti = repeat({1,1,0,0},length(EXTS)) --DEV...
+        exti = repeat({1},length(EXTS))     -- (untried)
+    end if
+end procedure
+
+integer sinit
+        sinit = 0
+
+global procedure Setup()
+    if sinit=0 then
+        sinit = 1
+        setCheck({cbPerceivedType,cbPTOther,cbDefaultIcon,cbErrorIcon,cbEdita,cbRun,cbRunW},BST_CHECKED)
+        readUndo() -- (result in exti)
+        advapi32 = assign_dll("advapi32.dll")
+        RegOpenKeyExA = link_c_func(advapi32,"RegOpenKeyExA",
+                                    {C_LONG,    --  HKEY  hKey (HKEY_CLASSES_ROOT) 
+                                     C_POINTER, --  LPCTSTR lpSubKey (eg ".bat", "batfile\\DefaultIcon")
+                                     C_LONG,    --  DWORD  ulOptions (must be 0)
+                                     C_LONG,    --  REGSAM  samDesired (KEY_ALL_ACCESS)
+                                     C_LONG},   --  PHKEY  phkResult
+                                    C_LONG)     -- LONG 0=success, else error code.
+        RegGetValueA = link_c_func(advapi32,"RegGetValueA",
+                                   {C_LONG,     --  _In_        HKEY hkey
+                                    C_PTR,      --  _In_opt_    LPCTSTR lpSubKey,
+                                    C_PTR,      --  _In_opt_    LPCTSTR lpValue,
+                                    C_INT,      --  _In_opt_    DWORD dwFlags,
+                                    C_PTR,      --  _Out_opt_   LPDWORD pdwType,
+                                    C_PTR,      --  _Out_opt_   PVOID pvData,
+                                    C_PTR},     --  _Inout_opt_ LPDWORD pcbData
+                                   C_LONG)      -- LONG 0=success, else error code.
+        RegCloseKey = link_c_func(advapi32,"RegCloseKey",
+                                  {C_LONG}, --  HKEY  hKey
+                                  C_LONG)   -- LONG 0=success, else error code.
+        phkResult = allocate(4)
+        lpType = allocate(4)
+        lpcbData = allocate(4)
+    end if
+    -- refresh using current registry settings
+    setButtonStates()
+end procedure
+
+function enquote(string s)
+-- backslash-escape " and \ in (ansi) string s
+integer ch
+string res
+    res = ""
+    for i=1 to length(s) do
+        ch = s[i]
+        if ch='\"' then
+            res &= "\\\""
+        elsif ch='\\' then
+            res &= "\\\\"
+        else
+            res &= ch
+        end if
+    end for
+    return res
+end function
+
+procedure putw(integer fn, string s)
+-- write an ansi string in WideString format
+-- fn should be open in binary mode
+integer ch
+    for i=1 to length(s) do
+        ch = s[i]
+        if ch='\n' then
+            puts(fn,'\r')
+            puts(fn,0)
+        end if
+        puts(fn,ch)
+        puts(fn,0)
+    end for
+end procedure
+
+function addline(string line, string hex2, integer fn)
+-- append a hex2 word (REG_EXPAND_SZ) with line breaks
+-- hex2 should be eg ",25" for '%', though it will be
+-- just "25" for the very first character
+    for byte=1 to 2 do
+        if length(line)>=76 then
+            line &=",\\\n"
+            putw(fn,line)
+            line = "  "
+            hex2 = hex2[2..length(hex2)]
+        end if
+        line &= hex2
+        hex2 = ",00"
+    end for
+    return line
+end function
+
+function updatePath(string path)
+sequence parts,phixes
+integer k
+    if pathmode=PATHADD then
+        path &= ";"&basedir
+    else
+--/**/  {parts,phixes} = splitpath(path)
+--/*
+        phixes = splitpath(path)
+        parts = phixes[1]
+        phixes = phixes[2]
+--*/
+        if length(phixes)!=1 then ?9/0 end if
+        k = phixes[1]
+        if pathmode=PATHREPLACE then
+            parts[k] = basedir
+        elsif pathmode=PATHRESTORE then
+            parts[k] = restdir
+        elsif pathmode=PATHREMOVE then
+            parts[k..k] = {}
+        end if
+        path = joinpath(parts)
+    end if
+    return path
+end function
+
+constant UNDO=1,    -- create undo.reg from registry
+         CREATE=2   -- create setup.reg from desired
+
+--procedure createDotReg(integer flag, integer prompt=1)
+procedure createDotReg(integer flag, integer prompt)
+-- flag is one of UNDO, AUNDO, CREATE, ACREATE  --DEV bluff!
+--  Note that, for example, if HKCR\.exw's original default value was "EuFile", which we intend
+--  to redirect to "PhixSource", an undo will (create a file that can) restore HKCR\.exw in its 
+--  entirety, including the "EuFile", and likewise reset/remove all of HKCR\PhixSource. Neither 
+--  this, nor anything else in this program, goes anywhere near HKCR\EuFile, it is simply left 
+--  completely untouched, however and of course, an earlier Apply/setup might (nb I said might) 
+--  mean that nothing is actually using it any more.
+string filename
+integer fn
+string subkey, verb
+object subname
+integer shelldone
+integer res
+atom key_id
+sequence desiredi
+object HKLMPath, HKCUPath
+string line
+
+    filename = basedir&"demo\\arwendemo\\pgui\\"
+--  switch flag do
+--    case UNDO:        filename &= "undo.reg"
+--    case CREATE:      filename &= "setup.reg"
+--  end switch
+    if flag=UNDO then       filename &= "undo.reg"
+    elsif flag=CREATE then  filename &= "setup.reg"
+    end if
+
+    fn = open(filename,"r")
+    if fn!=-1 then
+        close(fn)
+        if not prompt then
+            if flag=UNDO then return end if
+        else
+--DEV getSaveFileName()
+            res = messageBox("File Already Exists","Overwrite "&filename&"?",MB_YESNO)
+            if res=IDNO then return end if
+        end if
+    end if
+
+    HKLMPath = KeyValue2(HKLM,HKEY_LOCAL_MACHINE,PHKLM,"Path",RRF_RT_REG_EXPAND_SZ+RRF_NOEXPAND)
+    if flag=CREATE and pathmode!=0 then
+        if isChecked(rbMachine) then
+            HKLMPath = updatePath(HKLMPath)
+        end if
+    end if
+
+    if not string(HKLMPath) then
+        for i=length(filename) to 1 by -1 do
+            if filename[i]='\\' then
+                filename = filename[i+1..length(filename)]
+                exit
+            end if
+        end for
+--DEV/SUG: (general)
+--      filename = filename[rfind('\\',filename)+1..length(filename)]
+--      filename[1..rfind('\\',filename)] = ""
+        res = messageBox("Error","error reading "&HKLM&PHKLM&"\\Path, "&filename&" *NOT* created",MB_OK)
+        return
+    end if
+    -- (output in UTF16LE, to match regedit/Export)
+    fn = open(filename,"wb")
+    puts(fn,{#FF,#FE})
+    putw(fn,"Windows Registry Editor Version 5.00\n\n")
+
+    putw(fn,sprintf("[%s%s]\n",{HKLM,PHKLM}))
+    putw(fn,sprintf(";(Path=%s)\n",{HKLMPath})) -- (a comment)
+    line = addline("\"Path\"=hex(2):",sprintf("%02X",HKLMPath[1]),fn)
+    for i=2 to length(HKLMPath) do
+        line = addline(line,sprintf(",%02X",HKLMPath[i]),fn)
+    end for
+    line = addline(line,",00",fn)
+    line &= "\n\n"
+    putw(fn,line)
+
+    HKCUPath = KeyValue2(HKCU,HKEY_CURRENT_USER,PHKCU,"Path",RRF_RT_REG_SZ)
+    if flag=CREATE and pathmode!=0 then
+        if isChecked(rbUser) then
+            HKCUPath = updatePath(HKCUPath)
+        end if
+    end if
+    if string(HKCUPath) then
+        if length(HKCUPath)=0 then
+            putw(fn,sprintf("[-%s%s]\n\n",{HKCU,PHKCU}))
+        else
+            putw(fn,sprintf("[%s%s]\n",{HKCU,PHKCU}))
+            putw(fn,sprintf("\"Path\"=\"%s\"\n\n",{enquote(HKCUPath)}))
+        end if
+    end if
+
+    for i=1 to length(EXTS) do
+        subkey = "."&EXTS[i]
+        putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s]\n",{subkey}))
+        if flag!=CREATE
+        or amap[i]!=0 then
+            if flag=CREATE then
+                subname = knownSubkeys[amap[i]]
+            else
+                subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL,RRF_RT_REG_SZ)
+            end if
+            if string(subname) then
+                putw(fn,sprintf("@=\"%s\"\n",{subname}))
+            else
+                putw(fn,"@=-\n")
+            end if
+        end if
+        if flag=CREATE then
+            if desired[ewmap[i]][PT] then
+                subname = "text"
+            else
+                subname = 0
+            end if
+--          subname = desired[ewmap[i]][PT]
+        else
+            subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT, subkey, PerceivedType,RRF_RT_REG_SZ)
+        end if
+        if string(subname) then
+            putw(fn,sprintf("\"PerceivedType\"=\"%s\"\n",{subname}))
+        else
+            putw(fn,"\"PerceivedType\"=-\n")
+        end if
+        putw(fn,"\n")
+    end for
+
+    for i=1 to length(knownSubkeys) do
+        subkey = knownSubkeys[i]
+--      res = c_func(RegOpenKeyExA,{HKEY_CLASSES_ROOT,subkey,0,KEY_READ,phkResult})
+        res = c_func(RegOpenKeyExA,{HKEY_CLASSES_ROOT,allocate_StringZ(subkey),0,KEY_READ,phkResult})
+        if res=0 then
+            putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s]\n",{subkey}))
+            if flag=CREATE then
+                desiredi = desired[ksmap[i]]
+                subname = knownDescs[i]
+            else
+                subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL,RRF_RT_REG_SZ)
+            end if
+            if string(subname) then
+                putw(fn,sprintf("@=\"%s\"\n\n",{subname}))
+            else
+                putw(fn,"@=-\n\n")
+            end if
+            if flag=CREATE then
+                subname = desiredi[ICON]
+            else
+                key_id = peek4u(phkResult)
+                subname = KeyValue2(HKCR&subkey,key_id,DefaultIcon,NULL,RRF_RT_REG_SZ)
+            end if
+            if string(subname) then
+                putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s\\%s]\n",{subkey,DefaultIcon}))
+                putw(fn,sprintf("@=\"%s\"\n\n",{enquote(subname)}))
+            else
+                putw(fn,sprintf("[-HKEY_CLASSES_ROOT\\%s\\%s]\n\n",{subkey,DefaultIcon}))
+            end if
+            shelldone = 0
+            for dix=EDIT to RUN do  -- (2 iterations)
+                if dix=EDIT then
+                    if subkey=knownSubkeys[kErr] then   -- ie "PhixErrorFile"
+--                  if i=1 then
+                        verb = "debug"
+                    else
+                        verb = "edit"
+                    end if
+                else -- dix=RUN
+                    verb = "open"
+                end if
+                if flag=CREATE then
+                    if length(desiredi)<dix then
+                        subname = 0
+                    else
+                        subname = desiredi[dix]
+                    end if
+                else
+                    subname = KeyValue2(HKCR&subkey,key_id,"shell\\"&verb&"\\command",NULL,RRF_RT_REG_SZ)
+                end if
+                if string(subname) and length(subname)>0 then
+                    if not shelldone then
+                        putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s\\shell]\n\n",{subkey}))
+                        shelldone = 1
+                    end if
+                    putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s\\shell\\%s]\n\n",{subkey,verb}))
+                    putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s\\shell\\%s\\command]\n",{subkey,verb}))
+                    putw(fn,sprintf("@=\"%s\"\n\n",{enquote(subname)}))
+                else
+                    putw(fn,sprintf("[-HKEY_CLASSES_ROOT\\%s\\shell\\%s]\n\n",{subkey,verb}))
+                end if
+                verb = "open"
+            end for
+            if not shelldone then
+                putw(fn,sprintf("[-HKEY_CLASSES_ROOT\\%s\\shell]\n\n",{subkey}))
+            end if
+            if flag!=CREATE then
+                res = c_func(RegCloseKey,{key_id})
+            end if
+            putw(fn,"\n")
+        elsif res=ERROR_FILE_NOT_FOUND then
+            putw(fn,sprintf("[-HKEY_CLASSES_ROOT\\%s]\n\n",{subkey}))
+        elsif res!=0 then
+            erm(res,"HKEY_CLASSES_ROOT\\"&subkey)
+        end if
+    end for
+    close(fn)
+    if prompt then
+        void = messageBox("File Created",filename,MB_OK)
+    end if
+end procedure
+
+include builtins\syswait.ew
+
+procedure merge(string filename)
+-- (bugfix: using 64-bit regedit stopped a pointless system32->syswow64 on a shell icon)
+--string cmd = sprintf("regedit \"%sdemo\\arwendemo\\pgui\\%s\"",{basedir,filename})
+string cmd
+    cmd = sprintf("C:\\windows\\regedit \"%sdemo\\arwendemo\\pgui\\%s\"",{basedir,filename})
+    void = sysexec(cmd)
+    setButtonStates()
+    -- (note: will likely make the program become unresponsive for 10s or more)
+--  void = c_func(xSendMessage,{HWND_BROADCAST,WM_SETTINGCHANGE,0,"Environment"})
+    void = c_func(xSendMessage,{HWND_BROADCAST,WM_SETTINGCHANGE,0,allocate_StringZ("Environment")})
+end procedure
+
+procedure edit(string filename)
+string fmt, cmd
+object d
+
+    filename = basedir&"demo\\arwendemo\\pgui\\"&filename
+    d = dir(filename)
+    if atom(d) or length(d)!=1 then
+        void = messageBox("Error",filename&" not found.",MB_OK)
+    else
+--      d = dir(Edita) -- (may be .exe or .exw, see setButtonStates)
+--      if atom(d) or length(d)!=1 then
+        if length(EditWithEdita)=0 then
+            fmt = "notepad \"%s\""
+        else
+            fmt = EditWithEdita
+--          if fmt[-3]!='%' then ?9/0 end if
+            if fmt[length(fmt)-2]!='%' then ?9/0 end if
+--          if fmt[-2]!='1' then ?9/0 end if
+            if fmt[length(fmt)-1]!='1' then ?9/0 end if
+--          fmt[-2] = 's' -- replace %1 with %s
+            fmt[length(fmt)-1] = 's' -- replace %1 with %s
+        end if
+        cmd = sprintf(fmt,{filename})
+        sysproc(cmd)
+    end if
+end procedure
+
+global procedure Apply()
+integer action
+    action = getIndex(cddAct)
+--  switch action do
+--      case ACUNDO:
+--          createDotReg(UNDO,1)
+--          readUndo()
+--      case AEUNDO:
+--          edit("undo.reg")
+--      case ARUNDO:
+--          readUndo()
+--      case AMUNDO:
+--          merge("undo.reg")
+--      case ACSETUP:
+--          createDotReg(CREATE,1)
+--      case AESETUP:
+--          edit("setup.reg")
+--      case AMSETUP:
+--          merge("setup.reg")
+--      case AAPPLY:
+--          createDotReg(UNDO,0)
+--          createDotReg(CREATE,0)
+--          merge("setup.reg")
+--  end switch
+    if action=ACUNDO then
+            createDotReg(UNDO,1)
+            readUndo()
+    elsif action=AEUNDO then
+            edit("undo.reg")
+    elsif action=ARUNDO then
+            readUndo()
+    elsif action=AMUNDO then
+            merge("undo.reg")
+    elsif action=ACSETUP then
+            createDotReg(CREATE,1)
+    elsif action=AESETUP then
+            edit("setup.reg")
+    elsif action=AMSETUP then
+            merge("setup.reg")
+    elsif action=AAPPLY then
+            createDotReg(UNDO,0)
+            createDotReg(CREATE,0)
+            merge("setup.reg")
+    end if
+
+end procedure
+
+--/*
+--                  "Perceived Type (\"text\") is fairly harmless and simply ensures that Windows Explorer can "&
+--                  "display a sensible preview. Of course, .bat, .css, .inc, and .js aren't really "&
+--                  "Phix at all, nor is .asm (but Phix does create .asm listing files), however they are "&
+--                  "useful for me (via .reg files) when setting up a new/test machine, in particular within "&
+--                  "the standard Windows open file dialogue (which is itself an instance of Explorer).\n\n"&
+--
+--                  "Default Icon is likewise fairly harmless and just changes the display in Explorer.\n\n"&
+--
+--                  "Edit with Edita should be fairly self explanatory, disable if you want to carry on "&
+--                  "using a different editor.\n\n"&
+--
+--                  "You can also disable Run if you don't want Phix source files to be runnable by "&
+--                  "double clicking on them, though doing so does beg the question: why, exactly, "&
+--                  "are you here?\n\n"&
+--
+--                  "The top four column checkboxes disable the entire column, or more accurately toggle "&
+--                  "the TriCheckBoxes below them between on and (on). Toggling anything in a column "&
+--                  "automatically re-enables the corresponding column header if it is disabled.\n\n"&
+--
+--  >
+--                  "Initial settings are derived from the contents of the registry and setup.reg\n"&
+--                  "It should be clearly apparent that you cannot set .e and .ew independently.\n\n"&
+--                  
+--                  "Apply (disabled if nothing needs doing) creates an undo.reg if one does not already "&
+--                  "exist, and then modifies the registry directly. Note that it is always going to be "&
+--                  "safer to create a setup.reg and vet the contents before manually applying it, not "&
+--                  "that this is (deliberately) doing anything particularly dangerous to your machine. "&
+--                  "As above, I find .reg files useful, however you may not have any need for them, "&
+--                  "execpt that creating a setup.reg acts as \"save my defaults\". In many respects "&
+--                  "it is fair to say this dialogue is somewhat over-engineered for my personal use.\n\n"&
+--
+--  >               
+--                  "Create undo.reg creates demo\\arwendemo\\undo.reg, prompting if the file already "&
+--                  "exists before overwriting it. Obviously that file contains instructions to return "&
+--                  "the registry to the state before any modifications were made. Naturally, after an "&
+--                  "overwrite or two the undo.reg will be indistinguishable from a setup.reg file. In "&
+--  X               "fact, creating an undo.reg is actually a better way to transfer the exact settings "&
+--                  "from the current machine to another, rather than creating setup.reg, which might "&
+--                  "add in a few extra tweaks you don't actually want. Admittedly such a low-level "&
+--                  "transfer only makes sense when working with virtual machines, that you know will "&
+--                  "all have the exact same configuration, and (in my case) logging into 32 machines "&
+--                  "and running pgui on each (as part of the monthly rollout) takes quite a bit longer "&
+--                  "that writing a quick powershell (or similar) script to automate it. "&
+--                  "Note that to (manually) apply such a .reg file, you should right click on it in "&
+--                  "Windows Explorer and select Merge.\n\n"&
+--
+--  X-- See demo\\arwendemo\\setup.reg for (example) details of the actual settings this makes.
+--  >?              "Create setup.reg (re-)creates demo\\arwendemo\\setup.reg, but does not prompt before "&
+--                  "overwriting it. As above, said file would normally be used via Windows Explorer. Note "&
+--  X               "that the setup.reg distributed with Phix is for 32-bit Phix on a 64-bit box (if you "&
+--                  "should need to, remove a few \" (x86)\" from it manually). If the setup.reg does not "&
+--                  "exist, or the one distributed with Phix is never overwritten, the defaults will always "&
+--                  "be \"turn everything on\". Of course, if you have no idea what .reg files are, right "&
+--                  "now is as good a time as any to learn about them!\n\n"&
+--  >
+--                  "Finally, the Help button (or F1), of course, displays this very message."
+--*/
+--/*
+--  Black           = rgb(  0,   0,   0),
+--  Blue            = rgb(  0,   0, 128),
+--  Green           = rgb(  0, 128,   0),
+--  Cyan            = rgb(  0, 128, 128),
+--  Red             = rgb(128,   0,   0),
+--  Orange          = rgb(128,  64,   0),
+--  Amber           = rgb(255, 160,   0),
+--  Magenta         = rgb(128,   0, 128),
+--  DarkBrown       = rgb( 64,  64,   0),
+--  Brown           = rgb(128, 128,   0),
+--  DarkGray        = rgb( 64,  64,  64),
+--  Gray            = rgb(128, 128, 128),
+--  LightGray       = rgb(192, 192, 192),
+--  BrightBlue      = rgb(  0,   0, 255),
+--  BrightGreen     = rgb(  0, 255,   0),
+--  BrightCyan      = rgb(  0, 255, 255),
+--  BrightRed       = rgb(255,   0,   0),
+--  Pink            = rgb(255, 176, 176),
+--  BrightMagenta   = rgb(255,   0, 255),
+--  Purple          = rgb(208, 128, 208),
+--  Yellow          = rgb(255, 255,   0),
+--  White           = rgb(224, 224, 224),
+--  Parchment       = rgb(255, 255, 224),
+--  BrightWhite     = rgb(255, 255, 255)
+--
+--*/
+
+

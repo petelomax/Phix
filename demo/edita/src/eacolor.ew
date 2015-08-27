@@ -1,0 +1,568 @@
+--
+-- eacolor.ew
+--
+-- SetSyntaxColours() routine
+--
+without trace
+
+--/* 4.0.2
+include builtins\file.e
+--*/
+
+integer Chosen,nColours,bl
+        Chosen = 0
+
+integer SCwin
+integer initC
+        initC = 0
+
+global function isSCwinVisible()
+-- still used by eamenus.ew, in enableMenuToolBar().
+    if initC then return isVisible(SCwin) end if
+    return 0
+end function
+
+integer SCgrp,SCedit,SCbold,SCital,SCcbtn,SCOK,SCcncl
+atom SCwinDC
+
+constant StdSet={Background,Highlight,HighLine,URLs,Other,Marginbg,Linenos,BookMarks}
+
+
+
+sequence InitColourTab, -- save for cancel operation
+         InitStyleTab
+
+sequence radios,        -- radio selection button-ids
+         sampleRgn,     -- Screen regions to display samples in
+         standardRgn,   -- Screen regions to display standard colours in
+         standardBrush, -- standard brushes
+         standardLabels,
+         obl,           -- open brace labels
+         cbl            -- close brace labels
+
+constant blackBrush=c_func(xCreateSolidBrush, {Black})
+
+global procedure enableBoldItal()   -- also used by eafonts.ew
+    if initC then
+        if Chosen and sequence(hFont)
+        and not find(Chosen,{Background,Highlight,HighLine,URLs,Marginbg}) then
+            if hFont[1]!=hFont[4] then
+                setEnable(SCbold,True)
+            else
+                setEnable(SCbold,False)
+            end if
+            setEnable(SCital,True)
+        else
+            setEnable({SCbold,SCital},False)
+        end if
+    end if
+end procedure
+
+procedure updateChosen(integer id, integer newcolour)
+-- apply the selected colour to the checked radiobutton (aka "Chosen")
+-- id should be SCedit if called because of an EN_CHANGE event
+integer l
+atom Brush
+sequence newtext
+    if Chosen then  -- 15/11 idx 0 if custom, cancel colour, close custom.
+        ColourTab[Chosen] = newcolour
+        Brush = sampleBrush[Chosen]
+        if Brush then void = c_func(xDeleteObject,{Brush}) end if
+        Brush = c_func(xCreateSolidBrush, {newcolour})
+        sampleBrush[Chosen] = Brush
+        sampleBrushClr[Chosen] = newcolour
+        if Chosen=1 then
+            backBrush = Brush
+        end if
+        if sampleRgn[Chosen]!=-1 then
+            void = c_func(xFillRgn,{SCwinDC,sampleRgn[Chosen],Brush})
+            void = c_func(xFrameRgn,{SCwinDC,sampleRgn[Chosen],blackBrush,1,1})
+        else
+            setTextColour(obl[Chosen-BookMarks], newcolour)
+            setTextColour(cbl[BookMarks+bl+1-Chosen], newcolour)
+        end if
+        enableBoldItal()
+
+        l = find(newcolour,standardColours)
+        if id!=SCedit then -- not from EN_CHANGE
+            if l then
+                newtext = xl(standardColourNames[l])
+            else
+                newtext = sprintf("#%06x",ColourTab[Chosen])
+            end if
+            if not equal(newtext,getText(SCedit)) then
+                setText(SCedit,newtext)
+                paintall()
+            end if
+        else
+            paintall()
+        end if
+    end if
+end procedure
+
+procedure unCheckRadio()
+-- clear checked radio button, if any
+    if Chosen then
+        setCheck(radios[Chosen],False)
+        -- get rid of any dotted box around text
+        setEnable(radios[Chosen],False)
+        setEnable(radios[Chosen],True)
+        Chosen = 0
+    end if
+end procedure
+
+procedure saveClrFile()
+--
+-- Write out a new .clr file
+--
+sequence synfile
+integer f, k
+    synfile = initialcurrentdir&"syn\\"&SynNames[newSyntax]&".clr"
+    f = open(synfile,"w")
+    if f=-1 then
+        void = messageBox(xl("Cannot save colour scheme"),synfile,0)
+    else
+        -- Not to be translated:
+        printf(f,"%s colour scheme\n",{SynNames[newSyntax]})
+        for i=1 to length(Sections[newSyntax]) do
+            if newSyntax!=1 or find(i,StdSet) then
+                printf(f," %s",{despace(Sections[newSyntax][i])})
+                k = find(ColourTab[i],standardColours)
+                if k then
+                    printf(f," %s",{standardColourNames[k]})
+                else
+                    printf(f," #%06x",ColourTab[i])
+                end if
+                if and_bits(StyleTab[i],EA_Bold) then
+                    puts(f," Bold")
+                end if
+                if and_bits(StyleTab[i],EA_Italic) then
+                    puts(f," Italic")
+                end if
+                puts(f,"\n")
+            end if
+        end for
+        close(f)
+    end if
+end procedure
+
+integer ignoreCommand
+        ignoreCommand = 0
+
+function SCwinHandler(integer id, integer msg, atom wParam, object lParam)
+integer x,y
+integer l,c
+
+    if wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            id = SCcncl
+            msg = WM_COMMAND
+        elsif wParam=VK_RETURN then
+            msg = WM_COMMAND
+        end if
+    end if
+    if msg=WM_COMMAND then
+        if find(id,radios) then
+            if not ignoreCommand then
+                setEnable({SCedit,SCcbtn},True)
+                setEnable(standardLabels,True)
+                if lParam=1 then
+                    setCheck(radios,False)
+                    setCheck(id,True)
+                end if
+                setFocus(id)
+                Chosen = find(id,radios)
+                enableBoldItal()
+                l = find(ColourTab[Chosen],standardColours)
+                if l then
+                    setText(SCedit,xl(standardColourNames[l]))
+                else
+                    setText(SCedit,sprintf("#%06x",ColourTab[Chosen]))
+                end if
+                if find(Chosen,{Background,Highlight,HighLine,URLs,Marginbg}) then
+                    setCheck(SCbold,False)
+                    setCheck(SCital,False)
+                else
+                    setCheck(SCbold,and_bits(StyleTab[Chosen],EA_Bold))
+                    setCheck(SCital,and_bits(StyleTab[Chosen],EA_Italic))
+                end if
+            end if
+            return 0
+        elsif id=SCcncl then    -- cancel
+            ColourTab = reBrush(ColourTab,InitColourTab)
+            StyleTab = InitStyleTab
+            unCheckRadio()
+            setText(SCedit,"")
+            setEnable({SCedit,SCcbtn,SCbold,SCital},False)
+            setEnable(standardLabels,False)
+            paintall()
+        elsif id=SCcbtn then
+            updateChosen(SCcbtn,getChooseColour(Main,ColourTab[Chosen],CC_RFS))
+            setFocus(SCwin)
+            return 0
+        -- else assume SCOK
+        end if
+        msg = WM_CLOSE
+--      elsif msg = WM_DRAWITEM then
+--?99
+----        return_value = proc_DrawItemMessage(wParam, lParam)
+----        if return_value then
+----            return True
+----        end if
+--
+----        if id then --and ObjectTextColour[id] != UNDEFINED then -- PL 7/11/2005
+--          hDC = peek4u(lParam + DIS_hDC)
+--          void = c_func(xSetTextColor, {hDC,  getTextColour(id)} )
+--          c_proc(xDrawText, {hDC, allocate_StringZ( getText(-id) ), -1, lParam + DIS_rcItem, 0} )
+----            return True
+----        end if
+--
+    end if
+    if msg=WM_CLOSE then
+
+        for j=Background to HighLine do
+            if j!=Comments then
+                c = ColourTab[j]
+                for i=2 to length(Sections[newSyntax]) do
+                    if c=ColourTab[i] and (i=Comments or i>HighLine) and (i<Marginbg or i>BookMarks)
+                    and (newSyntax!=1 or find(i,StdSet)) then
+                        void = proemh(xl("Error"),Sections[newSyntax][j]&" = "&Sections[newSyntax][i],0)
+                        return 1
+                    end if
+                end for
+            end if
+        end for
+        c = ColourTab[Marginbg]
+        for i=Linenos to BookMarks do
+            if c=ColourTab[i] then
+                void = proemh(xl("Error"),Sections[newSyntax][Marginbg]&" = "&Sections[newSyntax][i],0)
+                return 1
+            end if
+        end for
+
+        removeFocus(SCwin)
+        setVisible(SCwin,False)
+        -- re-enable tab switching now this is closed.
+        setEnable(TC,True)
+        setFocus(Main)
+        call_proc(r_enableMenuToolBar,{})
+        if id!=SCcncl then
+            saveClrFile()
+        end if
+        return 1
+    end if
+--  if id = SCcbtn then
+--      updateChosen(SCcbtn,ChooseColour(ColourTab[Chosen],Main))
+--  els
+    if id=SCwin then
+        if msg=WM_PAINT then
+            for i=1 to nColours do
+                if newSyntax!=1 or find(i,StdSet) then
+                    if sampleRgn[i]!=-1 then
+                        void = c_func(xFillRgn,{SCwinDC,sampleRgn[i],sampleBrush[i]})
+                        void = c_func(xFrameRgn,{SCwinDC,sampleRgn[i],blackBrush,1,1})
+                    end if
+                end if
+            end for
+            for i=1 to length(standardRgn) do
+                void = c_func(xFillRgn,{SCwinDC,standardRgn[i],standardBrush[i]})
+                void = c_func(xFrameRgn,{SCwinDC,standardRgn[i],blackBrush,1,1})
+            end for
+        elsif msg=WM_LBUTTONDOWN then
+            x = lParam[1]
+            y = lParam[2]
+            -- if a sample is clicked, set the corresponding radio button
+            for i=1 to nColours do
+                if c_func(xPtInRegion,{sampleRgn[i],x,y})
+                and (newSyntax!=1 or find(i,StdSet)) then
+                    unCheckRadio()
+                    setCheck(radios[i],True)
+--!!                void=radioHandler(radios[i],WM_COMMAND,0,0)
+                    void = SCwinHandler(radios[i],WM_COMMAND,0,0)
+                    exit
+                end if
+            end for
+            -- if a rado is enabled,
+            if Chosen then
+                -- and a standard colour swatch is clicked...
+                for i=1 to length(standardRgn) do
+                    if c_func(xPtInRegion,{standardRgn[i],x,y}) then
+                        updateChosen(SCcbtn,standardColours[i])
+                        exit
+                    end if
+                end for
+            end if
+-- now done in eafonts.ew ;-)
+--      elsif msg = WM_SETFOCUS then
+--          if initC then
+--              setEnable({SCital,SCbold},False)
+--              if Chosen and sequence(hFont) then
+--                  setEnable(SCital,True)
+--                  if hFont[1]!=hFont[4] then
+--                      setEnable(SCbold,True)          
+--                  end if
+--              end if
+--          end if
+--      elsif msg = WM_KILLFOCUS then
+--          setFocus(SCwin)
+--          return {1}
+        end if
+    end if
+    return 0
+end function
+
+function newHandler(integer id, integer msg, atom wParam, object lParam)
+--
+-- handle the edittext input, user creating new colour.
+--
+sequence newtext
+integer newcolour, l
+    if id then end if -- suppress warnings  
+    if msg=WM_COMMAND and wParam=EN_CHANGE then
+        newtext = getText(SCedit)
+        if length(newtext) and newtext[1]='#' then
+            newtext = newtext[2..length(newtext)]
+        end if
+        newtext = LowerCase(newtext)
+        for i=1 to length(standardColourNames) do
+            if equal(newtext,LowerCase(xl(standardColourNames[i]))) then
+                updateChosen(SCedit,standardColours[i])
+                return 0
+            end if
+        end for
+        if length(newtext)=6 then
+            newcolour = 0
+            for i=1 to 6 do
+                l = find(newtext[i],"0123456789ABCDEF")
+                if not l then exit end if
+                newcolour = newcolour*16+l-1
+                if i=6 then -- all were valid
+                    updateChosen(SCedit,newcolour)
+                end if
+            end for
+        end if
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then return SCwinHandler(SCcncl,WM_COMMAND,wParam,lParam) end if
+        if wParam=VK_RETURN then return SCwinHandler(SCwin,WM_CLOSE,wParam,lParam) end if
+    end if
+    return 0
+end function
+
+
+--with trace
+function bolditalHandler(integer id, integer msg, atom wParam, object lParam)
+integer v, flag
+
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_COMMAND and Chosen!=URLs then
+        v = StyleTab[Chosen]
+        if lParam=1 then    -- accelerator key
+            flag = not isChecked(id)
+        else                -- space bar or mouse click
+            flag = isChecked(id)
+        end if
+        setCheck(id,flag)
+        if id=SCbold then
+            v = and_bits(v,#02) -- binary 0010 (preserve SCital bit)
+            if flag then
+                v += EA_Bold        -- binary 0001
+            end if
+        elsif id=SCital then
+            v = and_bits(v,#01) -- binary 0001 (preserve SCbold bit)
+            if flag then
+                v += EA_Italic      -- binary 0010
+            end if
+        end if
+        if v=0 then
+            v = EA_Normal
+        end if
+        StyleTab[Chosen] = v
+        paintall()
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then return SCwinHandler(SCcncl,WM_COMMAND,wParam,lParam) end if
+        if wParam=VK_RETURN then return SCwinHandler(SCwin,WM_CLOSE,wParam,lParam) end if
+    end if
+    return 0
+end function
+
+
+--include ppp.e
+procedure SetSyntaxColours()
+integer x, y, z
+sequence text
+sequence ColouredThings
+object dirlist
+sequence screensize
+integer ctl
+
+    ColouredThings = Sections[newSyntax]
+--pp(ColouredThings)
+    bl = BraceLevels[newSyntax]
+--ColouredThings[1]=prepend(ColouredThings[1],'&')  --DEV test
+    nColours = length(ColouredThings)
+    InitColourTab = ColourTab
+    InitStyleTab = StyleTab
+    if not initC then
+        --
+        -- display a warning if syn does not exist or is empty
+        --
+        dirlist = dir(initialcurrentdir&"syn")
+        if sequence(dirlist) then
+            for i=length(dirlist) to 1 by -1 do
+                if find('d',dirlist[i][2]) then
+                    dirlist = dirlist[1..i-1]&dirlist[i+1..length(dirlist)]
+                end if
+            end for
+        end if
+        if atom(dirlist) or not length(dirlist) then
+            void = messageBox(xl("Warning"),xl("syn subdirectory is missing or empty"),0)
+        end if
+        dirlist = 0
+
+        y = Max(MAXnColours-4,18)*20+95
+        screensize = getScreenSize()
+        if screensize[2]<y+8 then
+            screensize[2] = 0 -- what little help we can give for 800x600 dinosaurs
+        else
+            screensize[2] = 10
+        end if
+        SCwin = create(Window, "", 0, Main,screensize[1]-375,screensize[2],375,y+8,0)
+        SCwinDC = getPrivateDC(SCwin)
+        SCgrp = create(Group,"", 0, SCwin, 50,0,310,y-65,0)
+        SCedit = create(EditText," ", 0, SCgrp, 180,15,120, 20, WS_TABSTOP)
+        setHandler(SCedit,routine_id("newHandler"))
+        x = 10
+        y = 15
+        radios = repeat(0,MAXnColours)
+        sampleRgn = repeat(0,MAXnColours)
+        obl = repeat(0,7)
+        cbl = repeat(0,7)
+        for i=1 to MAXnColours do
+            if i>nColours then
+                text = ""
+            else
+                text = xlQ(ColouredThings[i])
+            end if
+            if i>BookMarks and i<=BookMarks+7 then
+                ctl = create(Label, "(", 0, SCgrp, x, y, 5, 20, SS_OWNERDRAW)
+                setTextColour(ctl, ColourTab[i])
+                obl[i-BookMarks] = ctl
+                radios[i] = create(RadioButton, "", 0, SCgrp, x+5, y, 14, 20, WS_TABSTOP)
+            else
+                radios[i] = create(RadioButton, text, 0, SCgrp, x, y, 150, 20, WS_TABSTOP)
+            end if
+            if i=length(sampleBrush)+1 then
+                sampleBrush &= c_func(xCreateSolidBrush, {ColourTab[i]})
+                sampleBrushClr &= ColourTab[i]
+            else
+                sampleBrush[i] = c_func(xCreateSolidBrush, {ColourTab[i]})
+                sampleBrushClr[i] = ColourTab[i]
+            end if
+            if i=1 then
+                backBrush = sampleBrush[1]
+            end if
+            if i>BookMarks and i<=BookMarks+7 then -- brace colours...
+                sampleRgn[i] = -1
+                if i<BookMarks+7 then
+                    x += 19
+                else
+                    x += 19
+                    for j=7 to 1 by -1 do
+                        ctl = create(Label, ")", 0, SCgrp, x, y, 5, 20, SS_OWNERDRAW)
+                        if j>bl then
+                            setVisible(ctl,False)
+                        else
+                            setTextColour(ctl, ColourTab[BookMarks+j])
+                        end if
+                        cbl[8-j] = ctl
+                        x += 5
+                    end for
+                    x = 10
+                    y += 20
+                end if
+            else
+                sampleRgn[i] = c_func(xCreateRectRgn, {20,y,38,y+18})
+                x = 10
+                y += 20
+            end if
+            if i>BookMarks and i<=BookMarks+7 then
+                if i>BookMarks+bl then
+                    setVisible(radios[i],False)
+                    setVisible(obl[i-BookMarks],False)
+                end if
+            elsif i>nColours or (newSyntax=1 and not find(i,StdSet)) then
+                setVisible(radios[i],False)
+            end if
+        end for
+        setHandler(radios, routine_id("SCwinHandler"))
+        setHandler(obl, routine_id("SCwinHandler"))
+        setHandler(cbl, routine_id("SCwinHandler"))
+
+        y += Max(0,16-MAXnColours)*20+40
+
+        SCbold = create(CheckBox,  xl("Bold"),   0, SCgrp,10,y-35,130,20,BS_RIGHT+BS_RIGHTBUTTON+WS_TABSTOP)
+        SCital = create(CheckBox,  xl("Italic"), 0, SCgrp,10,y-15,130,20,BS_RIGHT+BS_RIGHTBUTTON+WS_TABSTOP)
+        setHandler({SCbold,SCital}, routine_id("bolditalHandler"))
+
+        standardRgn = {}
+        standardBrush = {}
+        standardLabels = {}
+        for i=1 to length(standardColourNames) do -- NB 16 is assumed.
+            z = length(standardRgn)*20+40
+            standardRgn = append(standardRgn,c_func(xCreateRectRgn, {235,z,276,z+18}))
+            standardBrush = append(standardBrush,c_func(xCreateSolidBrush, {standardColours[i]}))
+            standardLabels = append(standardLabels,create(Label,xl(standardColourNames[i]),0,SCgrp,230,z,75,25,0))
+        end for
+
+
+        y += 23
+
+        SCcbtn = create(Button,xl("Custom"), 0, SCwin,  65,y,80,25,WS_TABSTOP)
+        SCOK = create(Button,  xl("OK"),      0, SCwin, 175,y,60,25,WS_TABSTOP)
+        SCcncl = create(Button,xl("Cancel"), 0, SCwin, 265,y,80,25,WS_TABSTOP)
+        setEnable({SCedit,SCcbtn,SCbold,SCital},False)
+        setEnable(standardLabels,False)
+
+        setHandler({SCwin,SCcbtn,SCOK,SCcncl}, routine_id("SCwinHandler"))
+
+--      setFocus(radios[1])
+
+        initC = 1
+    else
+        for i=1 to MAXnColours do
+            if i>nColours or (newSyntax=1 and not find(i,StdSet)) then
+                setVisible(radios[i],False)
+            else
+                setText(radios[i],ColouredThings[i])
+                setVisible(radios[i],True)
+            end if
+            if i>BookMarks and i<=BookMarks+7 then
+                if i>BookMarks+bl then
+                    setVisible(radios[i],False)
+                    setVisible(obl[i-BookMarks],False)
+                    setVisible(cbl[i-BookMarks],False)  -- make rhs cbl vanish...
+                else
+                    ctl = obl[i-BookMarks]
+                    setTextColour(ctl, ColourTab[i])
+                    setVisible(ctl,True)
+                    ctl = cbl[bl+1-i+BookMarks]     -- colourise lhs cbl (eg if bl=1 and i=Other+1, then cbl[1] not [7])
+                    setTextColour(ctl, ColourTab[i])
+                    setVisible(ctl,True)
+                end if
+            end if
+        end for
+        --DEV should be done elsewhere...
+        sampleBrushClr = reBrush(sampleBrushClr,ColourTab)
+    end if
+    setText(SCwin,sprintf(xl("Syntax Colouring (%s)"),{SynNames[newSyntax]}))
+    -- disable tab switching while this is open
+    setEnable(TC,False)
+    addFocus(SCwin)
+    ignoreCommand = 1   --DEV openWindow invokes setFocus which triggers a WM_COMMAND...
+    openWindow(SCwin, SW_NORMAL)
+    ignoreCommand = 0
+    call_proc(r_enableMenuToolBar,{})
+    setFocus(SCcncl)
+end procedure
+global constant r_SetSyntaxColours=routine_id("SetSyntaxColours")

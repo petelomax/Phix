@@ -1,0 +1,381 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Windows Messages</h1>
+      <div id="mainSection">
+       <br>
+            The interpretation of the parameters, sent along with the message to
+            the control handler, varies. Please see the Win32 API doc's for
+            details. I have copied the comments directly from the API
+            documentation and have edited them as necessary to account for
+            any alterations to the native format.
+       <p>
+        <font color="#800000" face="Courier New">
+WM_CHAR
+        </font>
+        <br>
+            The WM_CHAR message is posted to the window with the keyboard
+            focus when a WM_KEYDOWN message is translated by the
+            TranslateMessage() function.
+        <br>
+        <br>
+            wParam - the character code
+        <br>
+            lParam - the key data - see API documentation for details
+        <br>
+        <br>
+            WM_KEYDOWN (&amp; WM_KEYUP) messages in connection with
+            KEYBOARD_DELAYS are used to generate WM_CHAR messages. This and
+            the other key messages can be intercepted as shown in one of the
+            demo programs. If you need to get the ASCII value of a key then
+            trap this message.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_KEYDOWN
+        </font>
+        <br>
+            The WM_KEYDOWN message is posted to the window with the keyboard focus when a
+            nonsystem key is pressed. A nonsystem key is a key that is
+            pressed when the ALT key is not pressed. This message and
+            WM_KEYUP are often used complementarily and it may be that trap
+            one of these messages you can ignore the other. I think that if
+            you need to get the ASCII value of a key then trap WM_CHAR
+            otherwise use WM_KEYDOWN or WM_KEYUP. Please note that the values
+            of the key constants used for these messages are defined in the
+            constants.ew file.
+        <br>
+        <br>
+            wParam - the virtual-key code
+        <br>
+            lParam - the key data - see API documentation for details
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_KEYUP
+        </font>
+        <br>
+            The WM_KEYUP message is posted to the window with the keyboard focus when a nonsystem
+            key is released. A nonsystem key is a key that is pressed when
+            the ALT key is not pressed, or a keyboard key that is pressed
+            when a window has the keyboard focus.
+        <br>
+        <br>
+            wParam - the virtual-key code
+        <br>
+            lParam - the key data - see API documentation for details
+       </p>
+       <p>
+        MOUSE MESSAGES
+        <br>
+        <font color="#800000" face="Courier New">
+WM_LBUTTONDBLCLK
+        </font>
+        Left mouse button has been doubleclicked
+        <br>
+        <font color="#800000" face="Courier New">
+WM_LBUTTONDOWN
+        </font>
+        Left mouse button has been pressed down
+        <br>
+        <font color="#800000" face="Courier New">
+WM_LBUTTONUP
+        </font>
+        Left mouse button has been released
+        <br>
+        <font color="#800000" face="Courier New">
+WM_MBUTTONDBLCLK
+        </font>
+        Middle mouse button blah, blah, blah
+        <br>
+        <font color="#800000" face="Courier New">
+WM_MBUTTONDOWN
+        </font>
+        <br>
+        <font color="#800000" face="Courier New">
+WM_MBUTTONUP
+        </font>
+        <br>
+        <font color="#800000" face="Courier New">
+WM_RBUTTONDBLCLK
+        </font>
+        Right mouse button blah, blah, blah
+        <br>
+        <font color="#800000" face="Courier New">
+WM_RBUTTONDOWN
+        </font>
+        <br>
+        <font color="#800000" face="Courier New">
+WM_RBUTTONUP
+        </font>
+        <br>
+        <br>
+            wParam - key flags which can be combinations of any of the following:
+        <br>
+MK_CONTROL Set if the CTRL key is down.
+        <br>
+MK_LBUTTON Set if the left mouse button is down.
+        <br>
+MK_MBUTTON Set if the middle mouse button is down.
+        <br>
+MK_RBUTTON Set if the right mouse button is down.
+        <br>
+MK_SHIFT Set if the SHIFT key is down.
+        <br>
+        <br>
+            lParam is a sequence of the X &amp; Y coordinates of the mouse
+            point relative to the Client area of a window or control. Note:
+            These values could be negative if the mouse is above or left of
+            the window boundary. Double Clicking a mouse will actually
+            generate 4 messages: BUTTONDOWN, BUTTONUP, BUTTONDBLCLK, and
+            BUTTONUP. Mouse messages occur when the user has moved the mouse
+            or pressed (or unpressed) a mouse button. These messages are
+            usually sent to the controls that the mouse is directly over so
+            you may be surprised that you can trap the movements of the mouse
+            over, say, Push Buttons for example. The return value is ignored.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_COMMAND
+        </font>
+        <br>
+            This message is sent
+            to the parent to indicate some action taken by the child, eg a
+            button is clicked or menuitem is selected or an Accelerator key
+            was fired. Use WM_COMMAND instead of WM_LBUTTONUP to detect click
+            events for buttons. Although the message is sent to the parent,
+            ARWEN will redirect it to the child's handler routine.
+        <br>
+        <br>
+            id - ID of the control that was clicked, Menu that was selected etc..
+        <br>
+            wParam - Notification code if id refers to a control (not a menu)
+        <br>
+            lParam - Acceleration flags, 1 for yes, 0 for no.
+        <br>
+        <br>
+            The notification code from the initial WndProc call is usually in
+            the Hi-Word of wParam but ARWEN converts it prior to invoking the
+            handler routine so the user can directly test for specific codes.
+            The return value is ignored except when for accelerator generated
+            WM_COMMANDs. In this case returning any value other than 0 will
+            prevent the focus from being placed on the control associated
+            with the Accelerator. NB: If that particular control is not a
+            focussable one then the next available focus position will be
+            sought.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_CLOSE
+         <br>
+        </font>
+            Sent to the Primary Window. Application is closing,
+        <br>
+        <br>
+            wParam - NULL
+        <br>
+            lParam - NULL
+        <br>
+        <br>
+            The window is about to close because the user has clicked the x
+            button in the corner of the window (or something). You should run
+            any clean up code at this point. If the return value is 1 then
+            the close action will be aborted. Please do not return anything
+            other than an integer from the handler because ARWEN will crash
+            if a sequence is returned.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_HSCROLL/WM_VSCROLL
+         <br>
+        </font>
+            A horizontal/vertical scroll event has been triggered.
+        <br>
+        <br>
+            wParam - Position of Scroll box or Track Bar pointer
+        <br>
+            lParam - NULL
+        <br>
+        <br>
+            If this message was triggered by a Scroll bar builtin into a
+            Window then the message will be sent to that Window's handler
+            otherwise it is sent to the control's handler. TrackBars will
+            also cause Scroll events to happen. The return value is ignored.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_SIZE
+         <br>
+        </font>
+            Window size has changed.
+        <br>
+        <br>
+            wParam - Size flag which is one of the following:
+        <br>
+SIZE_MAXHIDE Message is sent to all pop-up windows when some
+other window is maximized.
+        <br>
+SIZE_MAXIMIZED Window has been maximized.
+        <br>
+SIZE_MAXSHOW Message is sent to all pop-up windows when some
+other window has been restored to its former size.
+        <br>
+SIZE_MINIMIZED Window has been minimized.
+        <br>
+SIZE_RESTORED Window has been resized, but neither the
+SIZE_MINIMIZED nor SIZE_MAXIMIZED value applies.
+        <br>
+        <br>
+            lParam - A sequence containing the Top_Left and Bottom_Right
+            coordinates of the Client area, ie: {left, top, right, bottom}.
+            Please note that these coordinates may not always start at (0,0)
+            since Windows doesn't exclude items such as ToolBars from what it
+            thinks the Client area is.
+        <br>
+        <br>
+            This message is sent after the window has changed. It is
+            recommended that WM_SIZE messages only be handled for actual
+            windows. If Toolbars, StatusBars or managed Scroll bars exist and
+            are visible then ARWEN will automatically resize &amp; reposition
+            these. The return value is ignored.
+        <br>
+        <br>
+        <font color="#800000" face="Courier New">
+WM_SIZING
+        </font>
+        <br>
+            Window is being resized by the user dragging a border (or size_box).
+        <br>
+        <br>
+            wParam - Resizing flag which indicates which border element the mouse is dragging.
+        <br>
+WMSZ_BOTTOM Bottom edge
+        <br>
+WMSZ_BOTTOMLEFT Bottom-left corner
+        <br>
+WMSZ_BOTTOMRIGHT Bottom-right corner
+        <br>
+WMSZ_LEFT Left edge
+        <br>
+WMSZ_RIGHT Right edge
+        <br>
+WMSZ_TOP Top edge
+        <br>
+WMSZ_TOPLEFT Top-left corner
+        <br>
+WMSZ_TOPRIGHT Top-right corner
+        <br>
+        <br>
+            lParam - A sequence that contains the screen coordinates of the drag rectangle.
+        <br>
+        <br>
+            The WM_SIZING message is sent to a window that the user is
+            currently resizing. By processing this message, an application
+            can monitor the size and position of the drag rectangle and, if
+            needed, change its size or position. This could be useful if the
+            user wishes to impose a minimum or maximum size of the Window
+            dimensions. Another possibility is that the position of the
+            window could be changed so the operation would, in effect, be
+            moving the window as the border is being dragged. Please note
+            that the user can still maximize or minimize a window. If the
+            user returns a sequence then ARWEN will cause the new position
+            and/or dimensions contained therein to be reflected in the
+            Window. If no action is to be taken then the user should return
+            0.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_MOVING
+        </font>
+        <br>
+            Window is being moved
+            by the user dragging the title bar. Please refer to the WM_SIZING
+            message for specific details since both messages are identical in
+            behaviour &amp; form.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_TIMER
+        </font>
+        <br>
+            A timer event has occurred.
+        <br>
+        <br>
+            wParam - NULL
+        <br>
+            lParam - NULL
+        <br>
+        <br>
+            The return value is ignored.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_PAINT
+        </font>
+        <br>
+            Windows wants to repaint some part of the window.
+        <br>
+        <br>
+            wParam - hDC of the window to repaint
+        <br>
+            lParam - A sequence containing the top-left &amp; bottom-right
+            coords of the bounding rectangle.
+        <br>
+        <br>
+            User is responsible for repainting the rectangle to maintain any
+            persistent graphics. It is recommended that WM_PAINT events only
+            be handled for actual windows. The return value is ignored.
+       </p>
+       <p>
+        <font color="#800000" face="Courier New">
+WM_NOTIFY
+         <br>
+        </font>
+            Parent window is informed that an event has occurred in a child control or that
+            the control requires some kind of information.
+        <br>
+        <br>
+            wParam - Notification code -- See API for details
+        <br>
+            lParam - Pointer to an NMHDR structure
+        <br>
+        <br>
+            This message is currently only trapped for TabControls where one
+            of the TabItems is clicked. If the notification code is
+            TCN_SELCHANGING then returning 1 from ther handler will have the
+            effect of aborting the tab change otherwise the routine will have
+            no effect.
+        <br>
+        <br>
+        <font color="#800000" face="Courier New">
+WM_CTLCOLOREDIT
+         <br>
+        </font>
+            Windows wants to
+            paint the background colour on an edit control and the user has
+            an opportunity to change it from the default colors.
+        <br>
+        <br>
+            wParam - handle of display context
+        <br>
+            lParam - handle of static control.
+        <br>
+        <br>
+            If an application processes this message, it must return the
+            handle of a brush. Windows uses the brush to paint the background
+            of the edit control. A return value of 0 ignored and the default
+            colours are used. Please note that only integers/atoms should be
+            returned from this message.
+        <br>
+       </p>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

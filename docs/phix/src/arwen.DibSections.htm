@@ -1,0 +1,442 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">DibSection Library for Arwen</h1>
+      <div id="mainSection">
+
+            The DibSection library used by
+       <font color="blue">ARWEN</font> has been upgraded to accomodate 8-bit & 32-bit graphics. 
+            I started developing the library because I need a
+       <b>
+        <i>lightweight, fast, simple</i>
+       </b> graphics system for my programming projects. There certainly are other graphics libraries for Windows 
+            available to Euphoria programmers but this one is much easier to use and is written entirely in Euphoria.
+            [PL: Arwen was originally written for/in RDS Euphoria but it also works just fine on Phix.]
+       <p>
+            DibSections are bitmaps which are held in system memory and are directly accessible to the user. 
+            The Windows GDI system can certainly draw to bitmaps but direct pixel memory access is not permitted. 
+            With this library the user has complete freedom over what & how the image is written to.
+       </p>
+       <p>
+            A recent addition to the library is the line drawing routine based on Kenny Hoff's Bresenham derivation 
+            which plots from both ends and is optimized for a linear framebuffer. It is unlikely that there is a 
+            faster way of drawing lines for this library. The algorithm is extremely fast and it should be easy for 
+            a programmer to develop a wire-frame model that has top speed.
+       </p>
+       <p>
+            Window coordinates are given in top-down format AND are 0-based so, for consistency, I have observed that convention. 
+            Please note that where a colour is required for an 8-bit DIB the value passed will be treated as 0-based index into the palette. 
+            For 32-bit DIBs the value will be treated as an RGB colour.
+       </p>
+       <p>
+            Any suggestions as to future development or renaming of routines will be appreciated. 
+            There are still deficiencies in the library so it should be considered, for the time being, a Work-in-Progress.
+       </p>
+       <p>
+       </p>
+            Mike
+       <br>
+            vulcan@win.co.nz
+       <p>
+            June 2007
+       </p>
+       <h4>
+        <font color="blue">WHAT ABOUT DirectX?</font>
+       </h4>
+
+            The following (edited) explanation of DirectX was found at
+       <a id="ext091" style="color:#9B5565" href="javascript:ExternalLink('ext091','http://www.puremeta.com/directx/directdraw.html');">http://www.puremeta.com/directx/directdraw.html</a>
+       <h2>1. What is DirectX</h2>
+            DirectX is the suite of Microsoft's DirectX API's designed to give the programmer direct access to the hardware, eg:
+       <ul>
+        <li>DirectDraw - Direct access to video memory
+        </li>
+        <li>Direct3D - Support for 3d graphics
+        </li>
+        <li>DirectSound - Direct access to Sound hardware
+        </li>
+        <li>DirectPlay - Support for networked multiplayer gaming
+        </li>
+        <li>DirectInput - Support for gaming input devices such as joysticks 
+            etc. (there are new DirectX groups popping up all the time)
+        </li>
+       </ul>
+       <h2>2. What is DirectDraw</h2>
+            DirectDraw is essentially a video memory manager that allows a programmer to store and manipulate bitmaps directly in
+       <i>video</i> memory. 
+            Blitting from video memory to video memory using the video hardware's 
+            blitter is much faster than blitting from system memory to video memory. 
+            This is especially true with today's 64 bit video cards that provide a 64 bit data path within video memory. 
+            Also, the hardware blit operates independently of the CPU and therefore frees up the CPU to continue working. 
+            Additionally, DirectDraw supports other hardware acceleration features of the video card, such as hardware support for sprites and z-buffering.
+       <h2>3. Relationship to WinG</h2>
+            Up until now programmers have used the WinG or CreateDIBSection technology to do fast animation in Windows. 
+            This approach gave the programmer direct access to the bitmap in system memory so that one can use optimized routines for drawing to the bitmap. 
+            WinG is better than using GDI for all operations that draw to the bitmap, because GDI could never be as fast as the optimized routines used by game programmers. 
+            Once the WinG scene is composed on the bitmap, it is blitted from system memory to video memory, which causes it to be displayed. 
+            This technique is not as fast as DirectDraw .. Both the DirectDraw and WinG techniques can and will coexist in many complex games or applications 
+            since video memory is a limited resource.
+       <h2>4. DirectDraw surfaces - how you access video memory</h2>
+            In DirectDraw, the goal is to put as many bitmaps in video memory as possible. With DirectDraw, all of video memory is available to you. 
+            You can use it both to store various bitmaps, and for the primary and offscreen video buffers. 
+            All of these pieces of video memory are referred to as
+       <b>
+        <i>surfaces</i>
+       </b> in Direct Draw. 
+            When you load a bitmap that will represent a sprite, and store it in video memory, you first create a surface, which is a piece of video memory, 
+            and then blit the bitmap into this surface, thereby effectively copying the bitmap into video memory. 
+            This bitmap can now live in video memory for you to use, for as long as you like. 
+            The video memory that is currently displaying something onscreen is .. the primary surface. 
+            This surface is as big as the amount of memory needed for the current display mode... 
+            You usually also create at least one offscreen surface that is the same size as the primary surface for page flipping. 
+            So, one of the most important hardware requirements for fast DirectDraw games is lots of video memory. 
+            When you run out of video memory, your DirectDraw surfaces will get created in system memory, and all the benefits of the hardware blits will not be available to these surfaces.
+       <p></p>
+       <h4>
+        <font color="blue">SO, WHY NOT USE DirectX?</font>
+       </h4>
+       <p></p>
+            The main benefit for DirectX is that fast hardware blitting is possible.  It can also take advantage of certain hardware acceleration features of the video card. 
+            But if an application does not absolutely require maximum blitting speed then DibSections are definitely easier to use.
+       <p></p>
+       <h4>
+        <font color="blue">Global Routines - please consult the source code for other routines and more detail</font>
+       </h4>
+
+        <br>
+        <a name="createDib"></a>
+<!--eucode>
+function createDib(integer width, integer height, integer bit_depth)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> createDib</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> width</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> height</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> bit_depth</font><font color="#0000FF">)</font>
+</pre>
+            Create a DibSection with the supplied dimensions and at the specified colour depth (which can only be 8 or 32). 
+            Upon successful DIB creation an ID number is returned (similar to controls in ARWEN) which can be used in various routines. 
+            If an error occurs then NULL is returned.
+
+        <br>
+        <a name="deleteDib"></a>
+<!--eucode>
+function deleteDib(integer id)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> deleteDib</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">)</font>
+</pre>
+            Deletes a DibSection removing all allocated resources for it. Please note that the ID slot is simply tagged as empty to enable recycling later.
+
+        <br>
+        <a name="loadDibImage"></a>
+<!--eucode>
+function loadDibImage(sequence file)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> loadDibImage</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> file</font><font color="#0000FF">)</font>
+</pre>
+            Loads a bitmap file and creates a DIBsection from it. The ID is returned similar to
+       <code>createDib()</code>. The colour depth will be either 8 or 32 bits even if the original image was saved differently.
+
+        <br>
+        <a name="loadDibFromClipboard"></a>
+<!--eucode>
+function loadDibFromClipboard(integer id)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> loadDibFromClipboard</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">)</font>
+</pre>
+            Creates a DIBsection from whatever bitmap is currently in the ClipBoard. The argument is the Window ID of the program - for some reason Windows needs this. 
+            The routine will return an ID similar to
+       <code>createDib()</code>. The colour depth will be either 8 or 32 bits depending on the bitmap colour depth in the ClipBoard.
+
+        <br>
+        <a name="saveDibImage"></a>
+<!--eucode>
+function saveDibImage(integer id, sequence file)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> saveDibImage</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> file</font><font color="#0000FF">)</font>
+</pre>
+            Save the DibSection onto disk using the target specified.
+
+        <br>
+        <a name="copyDibToClipboard"></a>
+<!--eucode>
+function copyDibToClipboard(integer id)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> copyDibToClipboard</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">)</font>
+</pre>
+            Copies the DibSection into the Windows Clipboard.
+
+        <br>
+        <a name="setDibPixel"></a>
+<!--eucode>
+procedure setDibPixel(integer id, integer x, integer y, integer colour)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> setDibPixel</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> colour</font><font color="#0000FF">)</font>
+</pre>
+            Set pixel at coordinates x,y to the colour index.
+       <code>colour</code> is the 0-based palette index number for 8-bit images or an RGB value for 32-bit images.
+
+        <br>
+        <a name="getDibPixel"></a>
+<!--eucode>
+function getDibPixel(integer id, integer x, integer y)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> getDibPixel</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> y</font><font color="#0000FF">)</font>
+</pre>
+            Retrieve 0-based colour index or RGB value at coordinates x,y
+
+        <br>
+        <a name="setDibPaletteEntries"></a>
+<!--eucode>
+procedure setDibPaletteEntries(integer id, integer start, sequence RGB_values)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> setDibPaletteEntries</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> start</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> RGB_values</font><font color="#0000FF">)</font>
+</pre>
+            Set up to 256 new palette entries from entry "start".
+       <code>RGB_values</code> is a sequence of integers being RGB-ised values. Note: you can use
+       <code>setDibPaletteEntry()</code> to set a single entry (the third param is an integer).
+
+        <br>
+        <a name="getDibPaletteEntries"></a>
+<!--eucode>
+function getDibPaletteEntries(integer id, integer start, integer finish)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> getDibPaletteEntries</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> start</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> finish</font><font color="#0000FF">)</font>
+</pre>
+            Get sequence of palette entries from index "start" to index "finish" as a sequence of RGB integers. 
+            Note: you can use getDibPaletteEntry() to get a single entry.
+
+        <br>
+        <a name="drawDibText"></a>
+<!--eucode>
+procedure drawDibText(integer id, sequence text, integer x, integer y, atom rgb)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> drawDibText</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> text</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> rgb</font><font color="#0000FF">)</font>
+</pre>
+            Draw the string of text on the DIB at the coordinates supplied using specified colour. 
+            If the DIB is 32-bit the colour will be treated as an RGB value; if the DIB is 8-bit the colour will be treated as a 0-based index into the DIB palette.
+
+        <br>
+        <a name="drawDib"></a>
+<!--eucode>
+function drawDib(
+  atom Dest_hdc,      -- Handle to destination DC
+  integer destX,      -- x-coord of dest upper-left corner MM_TEXT client coordinate
+  integer destY,      -- y-coord of dest upper-left corner  "  "  "   "    "
+  integer destWidth,  -- width of dest rect in MM_TEXT. If this is -1, the width of the bitmap is used. 
+  integer destHeight, -- height  "    "   in MM_TEXT. If this is -1, the height of the bitmap is used. 
+  integer srcID,      -- SRC id of DIB
+  integer srcX,       -- x-coord of source upper-left corner
+  integer srcY,       -- y-coord of source upper-left corner
+  integer srcWidth,   -- width of source rectangle in pixels
+  integer srcHeight)  -- height of source rectangle in pixels
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> drawDib</font><font color="#0000FF">(
+</font><font color="#004080">  atom</font><font color="#000000"> Dest_hdc</font><font color="#0000FF">,     </font><font color="#000080"> -- Handle to destination DC
+</font><font color="#004080">  integer</font><font color="#000000"> destX</font><font color="#0000FF">,     </font><font color="#000080"> -- x-coord of dest upper-left corner MM_TEXT client coordinate
+</font><font color="#004080">  integer</font><font color="#000000"> destY</font><font color="#0000FF">,     </font><font color="#000080"> -- y-coord of dest upper-left corner  "  "  "   "    "
+</font><font color="#004080">  integer</font><font color="#000000"> destWidth</font><font color="#0000FF">, </font><font color="#000080"> -- width of dest rect in MM_TEXT. If this is -1, the width of the bitmap is used. 
+</font><font color="#004080">  integer</font><font color="#000000"> destHeight</font><font color="#0000FF">,</font><font color="#000080"> -- height  "    "   in MM_TEXT. If this is -1, the height of the bitmap is used. 
+</font><font color="#004080">  integer</font><font color="#000000"> srcID</font><font color="#0000FF">,     </font><font color="#000080"> -- SRC id of DIB
+</font><font color="#004080">  integer</font><font color="#000000"> srcX</font><font color="#0000FF">,      </font><font color="#000080"> -- x-coord of source upper-left corner
+</font><font color="#004080">  integer</font><font color="#000000"> srcY</font><font color="#0000FF">,      </font><font color="#000080"> -- y-coord of source upper-left corner
+</font><font color="#004080">  integer</font><font color="#000000"> srcWidth</font><font color="#0000FF">,  </font><font color="#000080"> -- width of source rectangle in pixels
+</font><font color="#004080">  integer</font><font color="#000000"> srcHeight</font><font color="#0000FF">) </font><font color="#000080"> -- height of source rectangle in pixels</font>
+</pre>
+
+            Draw a DIB to a window DC. Is likely to be useful when handling WM_PAINT messages. 
+            If the quadrilateral coords of the destination and source are not dimensionally relative then the image will appear stretched/compressed.
+       <code>drawDib()</code> does not draw inverted DIBs even though DIBs can be created as inverted. The function returns
+       <code>True</code> on success and
+       <code>False</code> on failure. 
+            An interesting parameter is the destination DC (
+       <code>Dest_hdc</code>). 
+            In ARWEN each window has its own private DC which is opened at window creation and always remains active and thus can quickly be retrieved using
+       <code>getPrivateDC()</code>. 
+            This is useful when rendering the screen at times
+       <b>
+        <i>other than</i>
+       </b> handling WM_PAINT messages (since, during that msg, the DC destination is already open and is passed via wParam).
+
+        <br>
+        <a name="copyDibToDC"></a>
+<!--eucode>
+procedure copyDibToDC(atom hDC, integer destX, integer destY, integer id)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> copyDibToDC</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> hDC</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> destX</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> destY</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> id</font><font color="#0000FF">)</font>
+</pre>
+            Copy the complete dib to the destination dc at the point specified. Is similar to
+       <code>drawDib()</code> except it is simpler and it uses the faster BitBlt.
+
+        <br>
+        <a name="copyDibToDib"></a>
+<!--eucode>
+procedure copyDibToDib(integer dest, integer destX, integer destY, integer src)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> copyDibToDib</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> dest</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> destX</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> destY</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> src</font><font color="#0000FF">)</font>
+</pre>
+            Copy the complete dib to the destination dib at the point specified. Is similar to
+       <code>drawDib()</code> except it is simpler and it uses the faster BitBlt.
+
+        <br>
+        <a name="stretchDibToDib"></a>
+<!--eucode>
+procedure stretchDibToDib
+        (integer dest, integer destX, integer destY, integer destW, integer destH,
+         integer src, integer srcX, integer srcY, integer srcW, integer srcH)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> stretchDibToDib
+</font><font color="#0000FF">        (</font><font color="#004080">integer</font><font color="#000000"> dest</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> destX</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> destY</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> destW</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> destH</font><font color="#0000FF">,
+</font><font color="#004080">         integer</font><font color="#000000"> src</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> srcX</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> srcY</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> srcW</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> srcH</font><font color="#0000FF">)</font>
+</pre>
+            Copy the specified source reference to the destination reference. 
+            Will stretch/compress the image if it has to. 
+            Uses drawDib() so it tries to perform dithering during the operation. 
+            It gives a better result than stretchDibBits().
+
+        <br>
+        <a name="drawDibLine"></a>
+<!--eucode>
+procedure drawDibLine(integer id, integer Ax, integer Ay, integer Bx, integer By, integer colour)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> drawDibLine</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> Ax</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> Ay</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> Bx</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> By</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> colour</font><font color="#0000FF">)</font>
+</pre>
+            Draw a level line from {Ax,Ay} to {Bx,By} using colour or index specified. 
+            If the line is not entirely within the frame the operation will be aborted (this really needs to be corrected sometime in the future).
+
+        <br>
+        <a name="drawDibHorizontalLine"></a>
+<!--eucode>
+procedure drawDibHorizontalLine(integer id, integer row, integer colour)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> drawDibHorizontalLine</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> row</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> colour</font><font color="#0000FF">)</font>
+</pre>
+            Draw a level line from one side of the dib to the other.
+
+        <br>
+        <a name="drawDibVerticalLine"></a>
+<!--eucode>
+procedure drawDibVerticalLine(integer id, integer coloumn, integer colour)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> drawDibVerticalLine</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> coloumn</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> colour</font><font color="#0000FF">)</font>
+</pre>
+            Draw a plumb line from top to bottom.
+
+        <br>
+        <a name="drawDibFrame"></a>
+<!--eucode>
+procedure drawDibFrame(integer id, integer thickness, integer colour)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> drawDibFrame</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> thickness</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> colour</font><font color="#0000FF">)</font>
+</pre>
+            Draw a rectangular frame of a particular thickness on the border of the dib.
+
+        <br>
+        <a name="blankDib"></a>
+<!--eucode>
+procedure blankDib(integer id, integer colour)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> blankDib</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> colour</font><font color="#0000FF">)</font>
+</pre>
+            Completely paint the dib in a single colour - useful for clearing the image.
+
+        <br>
+        <a name="rotateDib90"></a>
+        <a name="rotateDib180"></a>
+        <a name="rotateDib270"></a>
+        <a name="mirrorDib"></a>
+        <a name="flipDib"></a>
+<!--eucode>
+procedure rotateDib90(integer id)
+procedure rotateDib180(integer id)
+procedure rotateDib270(integer id)
+procedure mirrorDib(integer id)
+procedure flipDib(integer id)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> rotateDib90</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">)
+</font><font color="#008080">procedure</font><font color="#000000"> rotateDib180</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">)
+</font><font color="#008080">procedure</font><font color="#000000"> rotateDib270</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">)
+</font><font color="#008080">procedure</font><font color="#000000"> mirrorDib</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">)
+</font><font color="#008080">procedure</font><font color="#000000"> flipDib</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">)</font>
+</pre>
+
+            These routines manipulate the DIB exactly as their names suggest.
+       <p></p>
+       <h4>
+        <font color="blue">BLITTING PERFORMANCE</font>
+       </h4>
+       <p></p>
+
+            As can be seen from the table below, 256 colour has the best blitting performance as indicated from having the lowest times.
+
+ <pre>
+Screen          8-bit           16-bit          24-bit          32-bit
+
+256               28              39              87              57
+2^32             209              94              92              75
+
+relative 256
+performance      7.46            2.41           1.057            1.31
+ </pre>
+            However, this advantage is only significant for 8-bit colour mode. In 32-bit colour mode the excess is only 31% (simply reducing the linear dimensions 
+            (width, height) of a DIB by 14.4% will reduce the BW requirements as much). Although 256 colour uses only a quarter of the memory the performance benefit 
+            is almost entirely offset by having to perform a lookup in the colour table. Nevertheless, the memory saving and other advantages make 256 colour in 32-bit 
+            mode a viable option.
+       <p></p>
+       <h4>
+        <font color="blue">IDENTITY PALETTES FOR 8-bit DIBs</font>
+       </h4>
+       <p></p>
+            In order to maximize performance, 8-bit DIBs are created with an Identity Palette which is a palette containing key colours that 
+            are identical in RGB value and position with the System Palette - the actual palette entries affected are the first 10 and the last 10. 
+            So, up to 236 are free for your use. As colour indexes are 0-based, this means that you can use entries
+       <code>10</code> to
+       <code>245</code> without restrictions. 
+            Windows treats Identity Palettes more efficiently when rendering to DIBs or windows so if you can operate with this restriction the DIB performance of your app 
+            can be better when using operations that are based on GDI functions. Eg, the drawDibText() function is 20-30% faster when using an Identity Palette.
+       <p></p>
+       <h4>
+        <font color="blue">PERFORMANCE OF drawDibText()</font>
+       </h4>
+       <p></p>
+            In a test of this function it was found that simply calling it externally resulted in 2000 lines being printed in 2.3 seconds but 
+            when the core operation - TextOut() - was called in a loop within that function the time was reduced to 0.3 seconds. 
+            The reason for this is that there is a lot of overhead involved in setting up the MemDC prior to calling TextOut(). 
+            Therefore, for an application that needs to display a lot of text (such as an editor) it is better to send multiple lines to this function. 
+            However, this would require copying & modifying drawDibText() to accomodate such a possibility.
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

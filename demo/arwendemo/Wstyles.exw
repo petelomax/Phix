@@ -1,0 +1,294 @@
+--
+--  Wstyles.exw --  Styles of Windows
+--
+-- This example shows windows in a variety of styles.
+
+-- It also shows the styles which create them in a tooltip hint,
+-- and also in a status bar as you move the mouse over the demo windows;
+
+-- LEFT DOUBLE CLICK MOUSE IN ANY WINDOW TO COPY THE STYLE TO CLIPBOARD,
+-- that way you can just paste the desired style into your application.
+
+--  by Dan Moyer 5/8/02
+--  first version 09/20/00
+--  amemded for v54.5 11/25/00
+--  amended to show & output style info 3/29/02
+--  amended to let left-dbl-click copy to clipboard, for consistency with
+--   RunDemos, so made right click exit from some non-exit windows 5/8/02
+------------------------------------------------------------------------
+include arwen.ew
+
+constant wtxt = {"POPUP WINDOW",            -- #01
+                 "NO EXIT ROUTINE!",        -- #02
+                 "NO BORDER",               -- #04
+                 "NO CAPTION, NO EXIT",     -- #08
+                 "RIGHT CLICK TO EXIT",     -- #10
+                 "CHILD WINDOW",            -- #20  \
+                 "MOVES WITH PARENT",       -- #40   } applied together (#E0)
+                 " (yx posn is different)", -- #80  /
+                $}
+
+-------------------------------------------------------------------------
+constant X = 700
+-- THE WINDOWS:
+-- MAIN WINDOW:
+constant WinStyles = create(Window, "Some STYLES of Windows: Left-dbl-clk to copy style to clipboard", 0, 0, X+0, 0, 640, 530, 0)
+
+--  DEMO WINDOWS:
+constant /*W_Title = 1, W_style = 2, W_rstyle = 3,*/ W_wtxt=4
+constant windowdata = {
+            -- {title, style, removestyle, wtxt}
+            {"Normal",0,0,0},
+            {"No Resize",0,WS_THICKFRAME+WS_MINIMIZEBOX+WS_MAXIMIZEBOX,0},
+            {"No Resize, Thin Border Window", {0,WS_EX_TOOLWINDOW},WS_THICKFRAME,0},
+
+            {"No Exit Window", 0,WS_SYSMENU,#10},
+            {"?No Exit, Thin border", {0,WS_EX_TOOLWINDOW},WS_SYSMENU+WS_THICKFRAME,#2},
+            {"child window, 3d border", WS_CHILD,WS_BORDER+WS_THICKFRAME,#E0},
+
+            {"no caption, no exit", WS_DLGFRAME,WS_BORDER+WS_THICKFRAME,#18},
+--          {"no caption, thin border, no exit", 0,WS_CAPTION+WS_BORDER+WS_THICKFRAME,#2},
+--          {"no caption, thin border, no exit", 0,WS_DLGFRAME+WS_BORDER+WS_BORDER+WS_THICKFRAME,#2},
+            {"no caption, thin border, no exit", 0,WS_DLGFRAME+WS_MAXIMIZE+WS_THICKFRAME,#2},
+--          {"child window, thin border", or_bits(WS_CHILD, WS_BORDER),WS_CAPTION+WS_BORDER+WS_THICKFRAME,#E0},
+--          {"child window, thin border", or_bits(WS_CHILD, WS_BORDER),WS_DLGFRAME+WS_BORDER+WS_BORDER+WS_THICKFRAME,#E0},
+            {"child window, thin border", or_bits(WS_CHILD, WS_BORDER),WS_DLGFRAME+WS_MAXIMIZE+WS_THICKFRAME,#E0},
+
+--          {"regular popup", WS_POPUP,WS_CAPTION+WS_BORDER+WS_THICKFRAME,#3},
+--          {"regular popup", WS_POPUP,WS_DLGFRAME+WS_BORDER+WS_BORDER+WS_THICKFRAME,#3},
+            {"regular popup", WS_POPUP,WS_DLGFRAME+WS_MAXIMIZE+WS_THICKFRAME,#3},
+            {"no border, no caption, no exit", WS_POPUP,WS_SYSMENU+WS_CAPTION+WS_THICKFRAME,#16},
+            {"child window, no border, no caption, no exit", WS_CHILD,WS_CAPTION+WS_THICKFRAME,#E0},
+            $}
+
+constant NWINDOWS = length(windowdata)
+
+constant styleSet = {{WS_POPUP,"WS_POPUP"},                     -- #80000000,
+                     {WS_DLGFRAME,"WS_DLGFRAME"},               -- #00400000,
+                     {WS_BORDER,"WS_BORDER"},                   -- #00800000,
+                     {WS_CHILD,"WS_CHILD"}}                     -- #40000000,
+
+constant estyleSet = {{WS_EX_TOOLWINDOW,"WS_EX_TOOLWINDOW"}}    -- #00000080,
+
+constant rstyleSet = {{WS_THICKFRAME,"WS_THICKFRAME"},          -- #00040000,
+--                    {WS_CAPTION,"WS_CAPTION"},                -- #00C00000,   -- = WS_BORDER+WS_DLGFRAME
+                      {WS_DLGFRAME,"WS_DLGFRAME"},              -- #00400000,
+                      {WS_BORDER,"WS_BORDER"},                  -- #00800000,
+                      {WS_MAXIMIZE,"WS_MAXIMIZE"},              -- #01000000,
+                      {WS_MINIMIZEBOX,"WS_MINIMIZEBOX"},        -- #00020000,
+                      {WS_MAXIMIZEBOX,"WS_MAXIMIZEBOX"},        -- #00010000,
+                      {WS_SYSMENU,"WS_SYSMENU"}}                -- #00080000,
+--with trace
+include builtins\pdecodeflags.e
+
+function decode_style(integer i)
+object style
+atom rstyle
+string hint
+    {?,style,rstyle} = windowdata[i]
+    if style=0 then
+        if rstyle=0 then
+            hint = "style is 0"
+        else
+            hint = sprintf("0, removeStyle(%s)",{decode_flags(rstyleSet,rstyle)})
+        end if
+    else
+        if sequence(style) then
+            hint = decode_flags(estyleSet,style[2])
+            if style[1]=0 then
+                hint = sprintf("{0,%s}",{hint})
+            else
+                hint = sprintf("{%s,%s}",{decode_flags(styleSet,style[1]),hint})
+            end if
+        else
+            hint = decode_flags(styleSet,style)
+        end if
+        if rstyle!=0 then
+            hint = sprintf("%s, removeStyle(%s)",{hint,decode_flags(rstyleSet,rstyle)})
+        end if
+    end if
+    return hint
+end function
+                    
+sequence wids = repeat(0,NWINDOWS)
+
+procedure create_windows()
+string title
+object style
+atom rstyle
+string hint
+integer x, y
+integer id
+
+    for i=1 to NWINDOWS do
+        {title,style,rstyle} = windowdata[i]
+        hint = decode_style(i)
+        x = remainder(i-1,3)*205 + 30
+        y = floor((i-1)/3)*120 + 30
+        if not atom(style) or not and_bits(style,WS_CHILD) then
+            x += X
+        else
+            y -= 20
+        end if
+        id = create(Window,title,0,WinStyles, x, y, 175, 100, style)
+        if rstyle!=0 then removeStyle(id,rstyle) end if
+        setHint(id,hint)
+        wids[i] = id
+    end for
+end procedure
+create_windows()            
+
+--constant SimpleWindow = create(Window, "Normal", 0, WinStyles, x+30, 30, 175, 100, 0)
+--       setHint(SimpleWindow, "style is 0")
+--constant NoResizeWindow = create(Window, "No Resize", 0, WinStyles, x+235, 30, 175, 100, 0)
+--       removeStyle(NoResizeWindow, WS_THICKFRAME+WS_MINIMIZEBOX+WS_MAXIMIZEBOX)
+--       setHint(NoResizeWindow, "0, removeStyle(w, WS_THICKFRAME+WS_MINIMIZEBOX+WS_MAXIMIZEBOX)")
+--constant ThinWindow = create(Window, "No Resize, Thin Border Window", 0, WinStyles, x+440, 30, 175, 100, {0,WS_EX_TOOLWINDOW})
+--       removeStyle(ThinWindow, WS_THICKFRAME)
+--       setHint(ThinWindow, "{0,WS_EX_TOOLWINDOW}, removeStyle(w, WS_THICKFRAME)")
+--
+--constant NoExitWindow = create(Window, "No Exit Window", 0, WinStyles, x+30, 150, 175, 100, 0)
+--       removeStyle(NoExitWindow, WS_SYSMENU)
+--       setHint(NoExitWindow, "removeStyle(NoExitWindow, WS_SYSMENU)")
+--constant NoExit2 = create(Window, "?No Exit, Thin border", 0, WinStyles, x+235, 150, 175, 100, {0,WS_EX_TOOLWINDOW})
+--       removeStyle(NoExit2, WS_SYSMENU+WS_THICKFRAME)
+--       setHint(NoExit2, "{0,WS_EX_TOOLWINDOW}, removeStyle(w, WS_SYSMENU+WS_THICKFRAME)")
+--constant Child1 = create(Window, "child window, 3d border", 0, WinStyles, 437, 122, 175, 100, WS_CHILD)
+--       removeStyle(Child1, WS_BORDER+WS_THICKFRAME)
+--       setHint(Child1, "WS_CHILD, removeStyle(w, WS_BORDER+WS_THICKFRAME)")
+--
+--constant NoCaptionWindow = create(Window, "no caption, no exit", 0, WinStyles, x+30, 270, 175, 100, WS_DLGFRAME)
+--       removeStyle(NoCaptionWindow, WS_BORDER+WS_THICKFRAME)
+--       setHint(NoCaptionWindow, "WS_DLGFRAME, removeStyle(w, WS_BORDER+WS_THICKFRAME)")
+--constant ThinNoCaptionWindow = create(Window, "no caption, thin border, no exit", 0, WinStyles, x+235, 270, 175, 100, 0)
+--       removeStyle(ThinNoCaptionWindow, WS_CAPTION+WS_BORDER+WS_THICKFRAME)
+--       setHint(ThinNoCaptionWindow, "0, removeStyle(ThinNoCaptionWindow, WS_CAPTION+WS_BORDER+WS_THICKFRAME)")
+--constant Child2 = create(Window, "child window, thin border", 0, WinStyles, 437, 243, 175, 100, or_bits(WS_CHILD, WS_BORDER))
+--       removeStyle(Child2, WS_CAPTION+WS_BORDER+WS_THICKFRAME)
+--       setHint(Child2, "or_bits(WS_CHILD, WS_BORDER), removeStyle(Child2, WS_CAPTION+WS_BORDER+WS_THICKFRAME)")
+--
+--constant NormPopup = create(Window, "regular popup", 0, WinStyles, x+30, 375, 175, 100, WS_POPUP)
+--       removeStyle(NormPopup, WS_CAPTION+WS_BORDER+WS_THICKFRAME)
+--       setHint(NormPopup, "WS_POPUP, removeStyle(NormPopup, WS_CAPTION+WS_BORDER+WS_THICKFRAME)")
+--constant NoBorderWindow = create(Window, "no border, no caption, no exit", 0, WinStyles, x+235, 375, 175, 100, WS_POPUP)
+--       removeStyle(NoBorderWindow, WS_SYSMENU+WS_CAPTION+WS_THICKFRAME)
+--       setHint(NoBorderWindow, "WS_POPUP, removeStyle(NoBorderWindow, WS_SYSMENU+WS_CAPTION+WS_THICKFRAME)")
+--constant Child3 = create(Window, "child window, no border, no caption, no exit", 0, WinStyles, 438, 347, 175, 100, WS_CHILD)
+--       removeStyle(Child3, WS_CAPTION+WS_THICKFRAME)
+--       setHint(Child3, "WS_CHILD, removeStyle(Child3, WS_CAPTION+WS_THICKFRAME)")
+
+
+----    WS_TILED            =  #00000000,
+----    WS_OVERLAPPED       =  #00000000,
+----    WS_VISIBLE          =  #10000000,
+----    WS_MINIMIZE         =  #20000000,
+----    WS_CHILD            =  #40000000,
+--  WS_POPUP            =  #80000000,
+--- WS_MAXIMIZE         =  #01000000,
+--  WS_CLIPCHILDREN     =  #02000000,
+--  WS_CLIPSIBLINGS     =  #04000000,
+--  WS_DISABLED         =  #08000000,
+--  WS_HSCROLL          =  #00100000,
+--  WS_VSCROLL          =  #00200000,
+--  WS_DLGFRAME         =  #00400000,
+--  WS_BORDER           =  #00800000,
+--  WS_TABSTOP          =  #00010000,
+--  WS_MAXIMIZEBOX      =  #00010000,
+--  WS_MINIMIZEBOX      =  #00020000,
+--  WS_GROUP            =  #00020000,
+--  WS_SIZEBOX          =  #00040000,
+--  WS_SYSMENU          =  #00080000,
+--
+--  CW_USEDEFAULT       =  #80000000,
+--  WS_POPUPWINDOW      =  #80880000,   -- = WS_POPUP+WS+BORDER+WS_SYSMENU
+--  WS_CLIPPINGCHILD    =  #44000000,
+--  WS_THICKFRAME       =  #00040000,
+--  WS_CAPTION          =  #00C00000,   -- = WS_BORDER+WS_DLGFRAME
+--  WS_OVERLAPPEDWINDOW =  #00CF0000,   --= WS_BORDER+WS_DLGFRAME+WS_SYSMENU+WS_SIZEBOX+WS_MINIMISEBOX+WS_MAXIMISEBOX
+--  WS_TILEDWINDOW      =  #00CF0000,
+--
+--  -- Extended Windows Styles
+--  WS_EX_ACCEPTFILES       =  #00000010,
+--  WS_EX_APPWINDOW         =  #00040000,
+--  WS_EX_CLIENTEDGE        =  #00000200,
+--  WS_EX_CONTEXTHELP       =  #00000400,
+--  WS_EX_CONTROLPARENT     =  #00010000,
+--  WS_EX_DLGMODALFRAME     =  #00000001,
+--  WS_EX_LEFT              =  0,
+--  WS_EX_LEFTSCROLLBAR     =  #00004000,
+--  WS_EX_LTRREADING        = 0,
+--  WS_EX_MDICHILD          =  #00000040,
+--  WS_EX_NOPARENTNOTIFY    =  #00000004,
+--  WS_EX_OVERLAPPEDWINDOW  =  #00000300,
+--  WS_EX_PALETTEWINDOW     =  #00000188,
+--  WS_EX_RIGHT             =  #00001000,
+--  WS_EX_RIGHTSCROLLBAR    = 0,
+--  WS_EX_RTLREADING        =  #00002000,
+--  WS_EX_STATICEDGE        =  #00020000,
+--  WS_EX_TOOLWINDOW        =  #00000080,
+--  WS_EX_TOPMOST           =  #00000008,
+--  WS_EX_TRANSPARENT       =  #00000020,
+--  WS_EX_WINDOWEDGE        =  #00000100,
+--  WS_EX_LAYERED           =  #00080000,
+--  WS_EX_NOINHERITLAYOUT   =  #00100000, -- Disable inheritence of mirroring by children
+--  WS_EX_LAYOUTRTL         =  #00400000, --Right to left mirroring
+--  WS_EX_NOACTIVATE        =  #08000000,
+--
+constant aStatusBar = create(StatusBar, "", 0, WinStyles, 0, 25, 20, 20, 0)
+setFont(aStatusBar, "Arial", 12,Bold)
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+integer k
+string hint
+    if wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_CHAR 
+    and wParam=VK_ESCAPE then
+        closeWindow(WinStyles)
+    elsif id=WinStyles then
+        if msg=WM_SHOWWINDOW then
+            for i=1 to length(wids) do
+                openWindow(wids[i],SW_NORMAL)
+            end for
+        elsif msg=WM_MOUSEMOVE then
+            setText(aStatusBar,"")
+        end if
+    elsif msg=WM_PAINT then
+        k = find(id,wids)
+        if k!=0 then
+            msg = windowdata[k][W_wtxt]
+            k = 0
+            for i=1 to length(wtxt) do
+                if and_bits(msg,power(2,i-1)) then
+                    wPuts(id,1,k,wtxt[i])
+                    k += 20
+                end if
+            end for
+        end if
+    elsif msg=WM_MOUSEMOVE 
+       or msg=WM_LBUTTONDBLCLK then
+        k = find(id,wids)
+        if k!=0 then
+            hint = decode_style(k)
+            if msg=WM_LBUTTONDBLCLK then
+                setClipboardText(hint)
+                hint &= " :  COPIED"
+            end if
+            setText(aStatusBar, "style is:  " & hint)
+        end if
+    elsif msg=WM_RBUTTONDOWN then
+        k = find(id,wids)
+        if k!=0 then
+            msg = windowdata[k][W_wtxt]
+            if and_bits(msg,#10) then
+                closeWindow(id)
+            end if
+        end if
+    end if
+    return 0
+end function
+setHandler(WinStyles,routine_id("mainHandler"))
+setHandler(wids,routine_id("mainHandler"))
+
+WinMain(WinStyles, SW_NORMAL)
+
+

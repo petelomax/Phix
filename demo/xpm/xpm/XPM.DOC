@@ -1,0 +1,211 @@
+ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
+º XPM - XPM File Library                                       Version 1.1  º
+º     (c) 1998 David Cuny                                                   º
+º     May 30, 1999                                                          º
+º     Internet:  dcuny@lanset.com                                           º
+ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
+
+  XPM stands for "X Windows Portable Pixmap".
+
+  XMP files are a portable (non-binary) file format developed for X Windows.
+  This library can read and write XPM files, as well as embedded XPM data.
+  With XPMs, you can embed bitmaps into your application code.
+
+  This library works both under DOS and WIN32.
+
+ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
+º Standard Disclaimer                                                       º
+ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
+
+  This program is distributed in the hope that it will be useful, but 
+  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+  or FITNESS FOR A PARTICULAR PURPOSE.
+  
+  I do not accept responsibility for any effects, adverse or otherwise,
+  that this code may have on you, your computer, your sanity, your dog,
+  and anything else that you can think of. Use it at your own risk.
+
+  If you have any comments, suggestions or gripes, please send me e-mail
+  at:
+            dcuny@lanset.com
+
+
+ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+³ What's an XMP?                                                           ³
+ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+ An XMP is a file format developed in X Windows that specifies a "portable"
+ file format. Here is an example file:
+
+        /* XPM */
+        static char * win95_computer[] = {
+        "36 35 11 1",
+        "         c None   ",
+        "#        c #000000",
+        "=        c #008000",
+        "%        c #000080",
+        "         c #008080",
+        "+        c #C0C0C0",
+        ".        c #808080",
+        "*        c #00FF00",
+        "&        c #0000FF",
+        "$        c #00FFFF",
+        "@        c #FFFFFF",
+        "                                    ",
+        "           ..................       ",
+        "          .++++++++++++++++@.#      ",
+        "         .@@@@@@@@@@@@@@@@@..#      ",
+        "        .@+++++++++++++++++..#      ",
+        "        .@+..............@+..#      ",
+        "        .@+#############.@+..#      ",
+        "        .@+#------------.@+..#      ",
+        "        .@+#-$######----.@+..#      ",
+        "        .@+#-$.@@@@#----.@+..#      ",
+        "        .@+#--.@%&&&&#--.@+..#      ",
+        "        .@+#--.@.@@@@#--.@+..#      ",
+        "        .@+#--##.@@@@#--.@+..#      ",
+        "        .@+#----.@@@@#--.@+..#      ",
+        "        .@+#--- ######--.@+..#      ",
+        "        .@+..............@+..#      ",
+        "        .@+@@@@@@@@@@@@@@@+..#      ",
+        "        .@+++++++++++++++++..#..    ",
+        "        ....................#..+#   ",
+        "        ####################..+.#   ",
+        "      .......................+..#   ",
+        "     .@@@@@@@@@@@@@@@@@@@@@@@...#   ",
+        "     .@++++++++++++++++++++++...#   ",
+        "     .@++++++++++..........++...#   ",
+        "     .@++**++++++##########++...#   ",
+        "     .@++==++++++++++++.+++++...#   ",
+        "     .@++++++++++++++++++++++...#   ",
+        "     ...#@.#@.#@.#@.#@.#@.#@#..#    ",
+        "    .@.#@.#@.#@.#@.#@.#@.#@..##     ",
+        "   .@.#..#..#..#..#..#..#....#      ",
+        "  .@@@@@@@@@@@@@@@@@@@@@@@+.#       ",
+        "  .+++++++++++++++++++++++.#        ",
+        "   ########################         ",
+        "                                    ",
+        "                                    "};
+
+    XPM data can be declared in a Euphoria application by ignoring the
+    'C' language comments, and replacing the assignment:
+
+        constant XPM_FLAG = {
+            "16 16 5 1",
+            ".        c #000000",
+            "+        c #C0C0C0",
+            "@        c #808080",
+            "#        c #FF0000",
+            "         c #FFFFFF",
+            "               .",
+            " ++++++++++++++.",
+            " +++++++++++++@.",
+            " +++++###.++++@.",
+            " +++#####.++++@.",
+            " +#######.++++@.",
+            " +#######.++++@.",
+            " +++#####.++++@.",
+            " +++++###.++++@.",
+            " ++++++...++++@.",
+            " ++++++...++++@.",
+            " ++++++...++++@.",
+            " +++++......++@.",
+            " +++.........+@.",
+            " +++++++++++++@.",
+            " @@@@@@@@@@@@@@."} )
+                        
+
+
+ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+³ XPM Library Functions                                                    ³
+ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+   The library defines the following functions:
+
+    readXpm( sequence fName, sequence clearRGB )
+    ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
+    This routine reads an XPM file, and returns a Euphoria-compatible
+    bitmap.
+    
+    XPMs allow a transparent color ("None"). The second parameter passed
+    indicates the color to use in place of the transparent color. For
+    example:
+    
+        result = readXpm( "tile.xpm", {255, 255, 255} )
+        
+    would replace the transparent color in TILE.XPM with bright white.
+    
+
+    XpmToBmp( sequence xpm, sequence clearRGB )
+    ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
+    This is similar to readXpb, but is passed the data of an XPM instead of
+    a filename. An error condition results in an integer result code (see
+    below) being returned instead of a bitmap.
+    
+    Example:
+    
+        result = XpmToBmp( XPM_FLAG, {255,255,255} )    
+    
+    
+    createXpm( sequence outFile, sequence bmp, sequence pal )
+    ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
+    Creates an XPM file from "raw" bitmap data. Usage:
+    
+        result = createXpm( "tile.xpm", bmp, pal )
+        
+
+    createXpmFromBmp( sequence inFile, sequence outFile )
+    ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
+    Create a XPM file from a bitmap. Typical usage is:
+    
+        result = createXpmFromBmp( "tile.bmp", "tile.xpm" )
+
+ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+³ Return Codes                                                             ³
+ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+    
+    A result code of zero indicated there was no error. The following
+    error codes can be returned:
+        
+        Constant        Value   Meaning
+        ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
+        XPM_OK          0       No error
+        XPM_ERR_FILE    -1      File related error
+        XPM_ERR_HEADER  -2      Error in XPM header
+        XPM_ERR_COLOR   -3      Couldn't translate color code
+
+
+ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+³ Running the Demos                                                        ³
+ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+  The demos displays all the XPM files in the current directory. To run the
+  DOS demo, enter:
+
+     ex xpmdemo.ex
+
+  The program will display the XPMs, and then wait for a key press before
+  exiting. It takes a few seconds to load, because it has to convert each
+  XPM to the current palette.
+
+  I've include a bunch of XPM files in the file ICONS.ZIP. These were taken
+  from the GNOME project.
+
+
+  The WIN32 demo requires Win32Lib to run, available at the RDS page. Copy
+  Win32Lib into the directory, or just change the include line to point to
+  the location of Win32Lib:
+
+    include \euphoria\win32\win32lib.ew     -- win32 library
+
+  and then type:
+
+    exw xpmdemo.exw
+    
+
+ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+³ Additional Demos                                                         ³
+ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+  I've updated my Mines demo to use embedded XPMs. The demo runs under
+  both Win32Lib and Dos32Lib.

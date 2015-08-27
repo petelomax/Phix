@@ -1,0 +1,73 @@
+--
+-- demo\rosetta\DerangedAnagrams.exw
+-- =================================
+--
+-- Two or more words are said to be anagrams if they have the same characters, but in a different order. 
+-- By analogy with derangements we define a deranged anagram as two words with the same characters, but 
+-- in which the same character does not appear in the same position in both words.
+--
+-- The task is to use the word list at http://www.puzzlers.org/pub/wordlists/unixdict.txt to find and show 
+-- the longest deranged anagram.
+--
+
+procedure fatal(string msg)
+    printf(1,"unixdict.txt %s. download it from http://www.puzzlers.org/pub/wordlists/unixdict.txt\n",{msg})
+    if getc(0) then end if
+    abort(1)
+end procedure
+
+function deranged(string word1, string word2)
+    if length(word1)!=length(word2) then ?9/0 end if -- sanity check
+    for i=1 to length(word1) do
+        if word1[i]==word2[i] then return 0 end if
+    end for
+    return 1
+end function
+
+integer fn
+sequence words = {}, anagrams = {}, last="", letters
+object word
+integer maxlen = 1
+
+    fn = open("unixdict.txt","r")
+    if fn=-1 then fatal("not found") end if
+    while 1 do
+        word = trim(gets(fn))
+        if atom(word) then exit end if
+        if length(word) then
+            letters = sort(word)
+            words = append(words, {letters, word})
+        end if
+    end while
+    close(fn)
+    if length(words)=0 then fatal("is empty") end if
+
+    words = sort(words)
+    for i=1 to length(words) do
+        {letters,word} = words[i]
+        if letters=last then
+            anagrams[$] = append(anagrams[$],word)
+            anagrams[$][1] = length(word)
+        else
+            last = letters
+            anagrams = append(anagrams,{0,word})
+        end if
+    end for
+     
+    anagrams = sort(anagrams)
+    puts(1,"\nLongest deranged anagrams:\n")
+    for i=length(anagrams) to 1 by -1 do
+        last = anagrams[i]
+        if last[1]<maxlen then exit end if
+        for j=2 to length(last) do
+            for k=j+1 to length(last) do
+                if deranged(last[j],last[k]) then
+                    puts(1,last[j]&", "&last[k]&"\n")
+                    maxlen = last[1]
+                end if
+            end for
+        end for
+    end for
+
+    if getc(0) then end if
+

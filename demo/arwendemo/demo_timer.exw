@@ -1,0 +1,47 @@
+without warning
+--/* Not required for Phix:
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+--*/
+
+include arwen.ew
+
+--constant xGetTickCount    = link_c_func(kernel32, "GetTickCount",{},C_LONG)
+
+constant DEMO = create(Window,  "Timer Demo - 2 timers will tick over", 0, 0, 50,50,400,100,WS_OVERLAPPEDWINDOW)
+--constant LBL = create(Label,"",0,DEMO,10,10,100,25,0)
+constant TIMER = createTimer()
+constant TIMERDECI = createTimer()
+constant STATUS = create(StatusBar, "", 0, DEMO, 0, 0, 150, 0, 0)
+constant STATUS2 = create(StatusField, "", 0, STATUS, 0, 0, 150, 0, 0)
+
+
+integer sec, deci
+sec = 0
+deci = 0
+
+startTimer(TIMER, DEMO, 1000) -- one full second
+startTimer(TIMERDECI, DEMO, 100) -- 1/10 second
+
+function handler_DEMO(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_TIMER then
+        if wParam=TIMER then
+            sec += 1
+            deci = -1 wParam = TIMERDECI -- force synchronisation of this one
+            setText(STATUS, sprintf("seconds : %d",sec))
+--setText(LBL,sprintf("gtc : %d",c_func(xGetTickCount,{})))
+        end if
+        if wParam=TIMERDECI then
+            deci += 1
+            setText(STATUS2, sprintf("deci-seconds : %d", remainder(deci, 10)))
+        end if
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+end function
+
+setHandler(DEMO, routine_id("handler_DEMO"))
+
+WinMain(DEMO, SW_NORMAL)

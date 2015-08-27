@@ -1,0 +1,329 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Using Types</h1>
+      <div id="mainSection">
+         So far you have already seen some examples of variable types but now we will
+         define types more precisely.
+       <br>
+       <br>
+         Variable declarations have a type name followed by a list of the variables
+         being declared. For example,
+<!--eucode>
+    object a
+    global integer x, y, z
+    procedure fred(sequence q, sequence r)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    object</font><font color="#000000"> a
+</font><font color="#008080">    global</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> z
+</font><font color="#008080">    procedure</font><font color="#000000"> fred</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> q</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> r</font><font color="#0000FF">)</font>
+</pre>
+         The types:
+       <font color="#030303">
+        <b>object</b>
+       </font>,
+       <font color="#030303">
+        <b>sequence</b>
+       </font>,
+       <font color="#030303">
+        <b>string</b>
+       </font>,
+       <font color="#030303">
+        <b>atom</b>
+       </font>
+         and
+       <font color="#030303">
+        <b>integer</b>
+       </font> are
+       <a href="language.htm">
+        <b>predefined</b>.
+       </a>
+         Variables of type
+       <font color="#030303">
+        <b>object</b>
+       </font> may take on
+       <font color="#020202">
+        <b>
+         <i>any</i>
+        </b>
+       </font> value.
+         Those declared with type
+       <font color="#030303">
+        <b>sequence</b>
+       </font>
+         must always be sequences.
+         Those declared with type
+       <font color="#030303">
+        <b>string</b>
+       </font>
+         must always be strings (with every element fitting in a byte).
+         Those declared with type
+       <font color="#030303">
+        <b>atom</b>
+       </font> must always be atoms.
+       <br>
+       <br>
+       <a name=integer></a>
+         Those declared with type
+       <font color="#030303">
+        <b>integer</b>
+       </font> must be atoms with integer values from -1073741824
+         to +1073741823 inclusive. You can perform exact calculations on larger integer
+         values, up to about 15 decimal digits, but declare them as
+       <font color="#030303">
+        <b>atom</b>
+       </font>, rather than integer.
+       <dl>
+        <dt>
+         <b>
+          <font color="navy">Note:</font>
+         </b>
+        </dt>
+        <dd>
+DEV
+         <br>
+         In a procedure or function parameter list like the one for fred() above,
+         a type name may only be followed by a single parameter name.
+        </dd>
+       </dl>
+       <a name=type></a>
+         To augment the
+       <a href="usingtypes.htm">predefined types</a>, you can create
+       <font color="#030303">
+        <b>user-defined types</b>.
+       </font> All you have to
+         do is define a single-parameter function, but declare it with
+       <font color="#030303">
+        <b>type ... end type</b>
+       </font> instead of
+       <font color="#030303">
+        <b>function ... end function</b>.
+       </font>
+         For example,
+<!--eucode>
+    type hour(integer x)
+        return x >= 0 and x <= 23
+    end type
+    hour h1, h2
+    h1 = 10      -- ok
+    h2 = 25      -- error! program aborts with a message
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    type</font><font color="#000000"> hour</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">)
+</font><font color="#008080">        return</font><font color="#000000"> x</font><font color="#0000FF"> &gt;=</font><font color="#000000"> 0</font><font color="#008080"> and</font><font color="#000000"> x</font><font color="#0000FF"> &lt;=</font><font color="#000000"> 23
+</font><font color="#008080">    end type
+</font><font color="#000000">    hour h1</font><font color="#0000FF">,</font><font color="#000000"> h2
+    h1</font><font color="#0000FF"> =</font><font color="#000000"> 10     </font><font color="#000080"> -- ok
+</font><font color="#000000">    h2</font><font color="#0000FF"> =</font><font color="#000000"> 25     </font><font color="#000080"> -- error! program aborts with a message</font>
+</pre>
+         Variables h1 and h2 can only be assigned integer values in the range 0 to 23
+         inclusive. After each assignment to h1 or h2 the interpreter will call hour(),
+         passing the new value. The value will first be checked to see if it is an
+         integer (because of "integer x"). If it is, the return statement will be
+         executed to test the value of x (i.e. the new value of h1 or h2). If hour()
+         returns true, execution continues normally. If hour() returns false then the
+         program is aborted with a suitable diagnostic message.
+       <br>
+       <br>
+         "hour" can be used to declare subroutine parameters as well:
+<!--eucode>
+     procedure set_time(hour h)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">     procedure</font><font color="#000000"> set_time</font><font color="#0000FF">(</font><font color="#000000">hour h</font><font color="#0000FF">)</font>
+</pre>
+         set_time() can only be called with a reasonable value for parameter h,
+         otherwise the program will abort with a message.
+       <br>
+       <br>
+         A variable&rsquo;s type will be checked after each assignment to the variable
+         (except where the compiler can predetermine that a check will not be
+         necessary), and the program will terminate immediately if the type function
+         returns false. Subroutine parameter types are checked each time that the
+         subroutine is called. This checking guarantees that a variable can never have
+         a value that does not belong to the type of that variable.
+       <br>
+       <br>
+       <a name=typechk></a>
+         Unlike other languages, the type of a variable does not affect any
+         calculations on the variable. Only the value of the variable matters in an
+         expression. The type just serves as an error check to prevent any "corruption"
+         of the variable.
+       <blockquote>
+        Of course C and C-derived languages force the programmer to specify the exact
+        low-level type of every value over and over and over again, and astonishingly
+        as soon as they make the slightest mistake the compiler quietly "fixes" it for
+        them using something called type coercion, which almost inevitably leads to a
+        catastrophic failure that is extremely difficult to track down. Obviously a
+        programmer with decades of experience handles such things with ease, but that
+        is clearly not the case for newcomers. Phix turns the whole notion of types on 
+        it&rsquo;s head: they are here to help the programmer, not punish them, and in
+        no cases whatsoever, under any circumstances, do Phix types alter the meaning
+        of a value by discarding precision or treating a slightly negative number as
+        a massive positive number, or any other such nonsense.
+       </blockquote>
+         Type checking can be turned off or on between subroutines using the
+       <font color="#2C5C2C">
+        <b>with type_check</b>
+       </font> or
+       <font color="#2C5C2C">
+        <b>without type_check</b>
+       </font>
+       <a href="specialtop.htm">special statements</a>.
+         It is initially on by default.
+       <dl>
+        <dt>
+         <b>
+          <font color="navy">Note to Benchmarkers:</font>
+         </b>
+         <dd>
+            When comparing the speed of Phix programs against
+            programs written in other languages, you should specify
+          <font color="#2C5C2C">
+           <b>without type_check</b>
+          </font> at the top of the file.
+             This gives Phix permission to skip run-time
+             type checks, thereby saving some execution time. All other checks are still
+             performed, e.g. subscript checking, uninitialized variable checking etc.
+             Even when you turn off type checking, Phix reserves the right to make
+             checks at strategic places, since this can actually allow it to run your
+             program
+          <font color="#020202">
+           <b>
+            <i>faster</i>
+           </b>
+          </font> in many cases.
+             So you may still get a type check failure
+             even when you have turned off type checking. Whether type checking is
+             on or off, you will never get a
+          <b>
+           <i>machine-level</i>
+          </b> exception.
+          <font color="#020202">
+           <b>You will always get a
+             meaningful message from Phix when something goes wrong.
+           </b>
+          </font>
+             (
+          <i>This might not be the case when you
+           <a href="poke.htm">poke</a>
+             directly into memory, or call routines written in C or machine code.
+          </i>)
+         </dd>
+        </dt>
+       </dl>
+         The Phix method of defining types is much simpler than what you will 
+         find in most other languages, yet it provides the programmer with
+       <font color="#020202">
+        <b>
+         <i>greater</i>
+        </b>
+       </font> flexibility in
+         defining the legal values for a type of data. Any algorithm
+         can be used to include or exclude values. You can even declare a variable
+         to be of type
+       <font color="#030303">
+        <b>object</b>
+       </font> which will allow it to take on
+       <font color="#020202">
+        <b>
+         <i>any</i>
+        </b>
+       </font>
+         value. Routines can
+         be written to work with very specific types, or very general types.
+       <br>
+       <br>
+         For small programs, there is little advantage to defining new types, and
+         beginners may wish to stick with the five
+       <a href="usingtypes.htm">predefined types</a>, or even
+         declare all variables as
+       <font color="#030303">
+        <b>object</b>
+       </font>.
+       <br>
+       <br>
+         For larger programs, strict type definitions can greatly aid the process
+         of debugging. Logic errors are caught close to their source and are not
+         allowed to propagate in subtle ways through the rest of the program.
+         Furthermore, it is much easier to reason about the misbehavior of a
+         section of code when you are guaranteed that the variables involved
+         always have a legal value, if not the desired value.
+       <br>
+       <br>
+         Types also provide meaningful, machine-checkable documentation about your
+         program, making it easier for you or others to understand your code at a
+         later date. Combined with the
+       <a href="subscripts.htm">subscript checking</a>, uninitialized variable
+         checking, and other checking that is always present, strict run-time type
+         checking makes debugging much easier in Phix than in most other
+         languages. It also increases the reliability of the final program since
+         many latent bugs that would have survived the testing phase in other
+         languages will have been caught by Phix.
+       <dl>
+        <dt>
+         <b>
+          <font color="navy">Anecdote 1:</font>
+         </b>
+        </dt>
+        <dd>
+         In porting a large C program to Euphoria (on which Phix is based), a number
+         of latent bugs were discovered. Although this C program was believed to be
+         totally "correct", Rob found: a situation where an uninitialized variable
+         was being read; a place where element number "-1" of an array was routinely
+         written and read; and a situation where something was written just off the
+         screen. These problems resulted in errors that were not easily visible to a
+         casual observer, so they had survived testing of the C code.
+        </dd>
+        <dt>
+         <b>
+          <font color="navy">Anecdote 2:</font>
+         </b>
+        </dt>
+        <dd>
+         The Quick Sort algorithm presented on page 117 of
+         <i>Writing Efficient Programs
+         </i> by Jon Bentley has a subscript error! The algorithm will
+         sometimes read the element just
+         <i>before</i> the beginning of the array
+         to be sorted, and will sometimes read the element just
+         <i>after</i>
+         the end of the array.
+         Whatever garbage is read, the algorithm will still work - this is probably
+         why the bug was never caught. But what if there isn&rsquo;t any (virtual) 
+         memory just before or just after the array? Bentley later modifies the 
+         algorithm such that this bug goes away -- but he presented this version as 
+         being correct.
+         <b>
+          <i>
+           <font color="navy">Even the experts need subscript checking!
+           </font>
+          </i>
+         </b>
+        </dd>
+        <dt>
+         <b>
+          <font color="navy">Performance Note:</font>
+         </b>
+         <dd>
+          When typical user-defined types are used extensively, type
+         checking adds only 20 to 40 percent to execution time. Leave it on unless
+         you really need the extra speed. You might also consider turning it off for
+         just a few heavily-executed routines.
+          <a href="debugging.htm#2">Profiling</a> can help with this decision.
+         </dd>
+        </dt>
+       </dl>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

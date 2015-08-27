@@ -1,0 +1,307 @@
+--
+-- eaxutil.ew
+--
+-- The Tools/Translation Assistant option
+
+--with trace
+
+constant help1 = "Performs a custom compare of lang\\elng_ENG.txt with elng_XXX.txt, "&
+                 "where XXX is the language code entered below. Use F4 to find differences.",
+         help2 = "For more details, see lang/locales.txt",
+         help3 = "If \"ENG\" (UK English) is shown, then a new code must be entered."
+
+integer trWin, trLang, trOK, trCancel, trInit
+        trInit=0
+
+sequence ten,   -- the english text
+         tenr, txx, txxr
+
+integer ch, line, col
+integer firsterror  firsterror=1
+
+function getch()
+integer ch
+    if line>length(txx) then return -1 end if
+    if col>length(txx[line]) then col=1 return '\n' end if
+    ch = txx[line][col]
+    col+=1
+    return ch
+end function
+
+--include builtins\file.e
+procedure Xerr(sequence msg)
+    if firsterror then
+        void = messageBox("Translation file error",
+                sprintf("%s line %d: %s",{filenames[currfile],line,msg}),0)
+        firsterror=0
+--      void=seek(tf,-1)
+        line=length(txx)+1
+    end if
+end procedure
+
+procedure skip()
+    while 1 do
+        if ch='-' then
+            if col<=2 then
+                txxr[line]=txx[line]
+            end if
+            while 1 do
+                ch = getch()
+                if find(ch,{'\r','\n',-1}) then exit end if
+            end while
+        elsif ch = '[' then -- versioning
+            while 1 do
+                ch = getch()
+                if find(ch,{'\r','\n',-1,']'}) then exit end if
+            end while
+        elsif ch = '\\' then -- line continuation
+        elsif not find(ch,{' ','\r','\n','\t','='}) then
+            exit
+        end if
+        if ch = '\n' then
+            line+=1
+        end if
+        ch = getch()
+    end while
+end procedure
+
+constant Escapes="\\trn\'\"",
+         EscBytes="\\\t\r\n\'\""
+
+function getString()
+-- called when a double quote has been found.
+sequence res, oneline
+integer k
+    res={}
+    while 1 do
+        ch=getch()
+        if ch = '\"' then exit end if
+        if ch = '\\' then
+            ch = getch()
+            k = find(ch,Escapes)
+            if k=0 then
+                Xerr("unknown escape sequence \\"&ch)
+                return ""
+            end if
+            ch = EscBytes[k]
+        elsif ch = '\t' then
+            Xerr("tab char illegal")
+            return ""
+        elsif find(ch,{'\r','\n',-1}) then
+            Xerr("missing closing quote")
+            return ""
+        end if
+        res&=ch
+    end while
+    ch = getch()    -- discard trailing quote
+    if ch = '\"' and length(res)=0 then -- triple quote handling (""")
+        ch=getch()
+        if ch = '\n' then
+            line+=1
+        end if
+--      ch = getch()
+        while 1 do
+--          oneline=gets(tf)
+--          if atom(oneline) then
+            if line>length(txx) then
+                Xerr("missing closing triplequote")
+                return ""
+            end if
+            oneline = txx[line]
+            line += 1
+            if col > 1 then
+                oneline = oneline[col..length(oneline)]
+                col = 1
+            end if
+            k = length(oneline)
+            if k and oneline[k]='\n' then
+                k -= 1
+                oneline=oneline[1..k]
+            end if
+            if k or length(res) then
+                k = match("\"\"\"",oneline)
+                if k then
+                    if k>1 then
+                        res=append(res,oneline[1..k-1])
+                    end if
+                    exit
+                end if
+                res=append(res,oneline)
+            end if
+        end while
+        col = 1
+        ch=getch()
+    end if
+    return res
+end function
+
+procedure split_txx()
+    line=1
+    col=1
+    ch=getch()
+    txxr=repeat({},length(txx))
+    while 1 do
+        skip()
+        if ch = '\"' then   -- error next, then
+--          english=append(english,getString())
+            txxr[line]=getString()
+            skip()
+        elsif ch = -1 then
+            exit    -- end of file
+        end if
+        if ch = '\"' then   -- error next, then
+--          foreign=append(foreign,getString())
+            void=getString()
+        else
+            -- both english & foreign strings required!
+            Xerr("quote expected")
+--          foreign=append(foreign,"???")
+            exit
+        end if
+    end while
+--  close(tf)
+end procedure
+
+function trWinHandler(integer id, integer msg, atom wParam, object lParam)
+sequence result
+integer linelength
+
+    if object(lParam) then end if
+    if msg = WM_CHAR then
+        if wParam = VK_ESCAPE or (id=trCancel and wParam=VK_RETURN) then
+            msg = WM_CLOSE
+        elsif wParam = VK_RETURN then
+            id = trOK
+            msg = WM_COMMAND
+        end if
+    end if
+    if msg = WM_COMMAND then
+--      if id=flab then
+--          setFocus(findiftext)
+        if id = trOK then
+--          onclick_GO()
+            lParam = UpperCase(getText(trLang))
+            if length(lParam)!=3 or equal(lParam,"ENG") then
+                void = messageBox("Error","Invalid language code",0)
+                setFocus(trLang)
+            else
+                lParam=initialcurrentdir&"lang\\elng_"&lParam&".txt"
+                if not openFile(lParam,0,isLegacyTabHandling) then
+                    newFile(lParam,{""},{1},0)
+                    -- Just paste elng_ENG.txt over it
+                    result = ten
+                else
+                    txx = filetext[currfile]
+                    split_txx()
+                    result=diff(txxr,tenr)
+                    result = outdiff(result,txx,ten)
+                    ten={} tenr={} txx={} txxr={} -- release memory
+                end if
+--              selectAll()
+----                Paste()
+--              void = deleteSelection()
+--              selON=0
+--              addAction(INSERTBLOCK,result)
+--              InsertBlock(result)
+--              result={} -- release memory
+--              TopLine = 0
+--              CursorY = 0
+--              paintall()
+
+-- copied from eacca.e 15/5/07:
+                --
+                -- lastly, build a new linelengths table for edita
+                --
+                linelengths=repeat(0,80)
+                for i=1 to length(result) do
+                    linelength=ExpLength(result[i])
+                    if linelength>=length(linelengths) then
+                        linelengths&=repeat(0,linelength-length(linelengths)+1)
+                    end if
+                    linelengths[linelength+1] = linelengths[linelength+1] + 1
+                end for
+                filelinelengths[currfile] = linelengths
+                filetext[currfile]=result
+                bookmarks[currfile]=repeat(0,length(result))    -- added 5/6/7
+                actions[currfile]={}
+                actionptr[currfile]=0
+                actionsave[currfile]=0
+
+                void = saveFile(0)
+
+                TopLine = 0
+                CursorY = 0
+                CursorX = 0
+                selON=0
+                forceCursorOnscreen()
+                paintall()
+-- end of copy 15/5/07
+
+                msg = WM_CLOSE
+            end if
+        elsif id = trCancel then
+            msg = WM_CLOSE
+        end if
+    end if
+    if msg = WM_CLOSE then
+        terminate=1
+        setVisible(trWin, False)
+        setFocus(Main)
+        removeFocus(trWin)
+    end if
+    return 0
+end function
+
+procedure xutil()
+object tfname
+--integer LANG
+integer old, oldmax
+    old=currfile
+    oldmax=length(filetext)
+    if openFile(initialcurrentdir&"lang\\elng_ENG.txt",1,1) then    -- shows error if not found
+        txx = filetext[currfile]
+        txx[1]="-- Translation file for Edita "&eaversion
+        split_txx()
+        ten=txx
+        tenr=txxr
+        if oldmax<length(filetext) then -- file was opened
+            if old>currfile then
+                old-=1
+            end if
+            closeFile()
+        end if
+        if old then changeTo(old) end if
+--      tfname = getxlatename() -- -2, "", or ealng_XX.txt
+        tfname = getxlstatus()
+--global function getxlstatus()
+--  return {tf,tfname,LANG}
+--      LANG=tfname[2]
+--      LANG=tfname[3]
+--      tfname=tfname[1]
+        tfname=tfname[2]
+        if not trInit then
+            trWin = create(Window,"Translation Assistant",0,0,139,157,490,289,0)
+            void = create(Label,help1,0,trWin,10,15,455,37,0)
+            void = create(Label,help2,0,trWin,10,58,455,66,0)
+            void = create(Label,help3,0,trWin,10,130,455,25,0)
+--          void = create(Label,sprintf("Language Code (#%04x)",LANG),0,trWin,14,170,154,20,0)
+            void = create(Label,"Language Code",0,trWin,14,170,154,20,0)
+            trLang = create(EditText,"",0,trWin,171,166,34,22,0)
+            trOK = create(Button,"OK",0,trWin,105,204,75,30,BS_DEFPUSHBUTTON)
+            trCancel = create(Button,"Cancel",0,trWin,208,204,75,30,0)
+            setHandler({trWin,trLang,trOK,trCancel},routine_id("trWinHandler"))
+            trInit=1
+        end if
+--      if sequence(tfname) and length(tfname) then
+--          tfname=tfname[7..8]
+--      else
+--          tfname=""
+--      end if
+        setText(trLang,tfname)
+        void=sendMessage(trLang,EM_SETSEL,0,-1)
+        openWindow(trWin,SW_NORMAL)
+        setFocus(trLang)
+        addFocus(trWin)
+    end if
+end procedure
+global constant r_xutil=routine_id("xutil")

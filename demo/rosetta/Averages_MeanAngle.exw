@@ -1,0 +1,63 @@
+--
+-- demo\rosetta\Averages_MeanAngle.exw
+-- ===================================
+--
+--  When calculating the average or mean of an angle one has to take into account how angles wrap around 
+--  so that any angle in degrees plus any integer multiple of 360 degrees is a measure of the same angle.
+--
+--  If one wanted an average direction of the wind over two readings where the first reading was of 350 
+--  degrees and the second was of 10 degrees then the average of the numbers is 180 degrees, whereas if 
+--  you can note that 350 degrees is equivalent to -10 degrees and so you have two readings at 10 degrees 
+--  either side of zero degrees leading to a more fitting mean angle of zero degrees.
+--
+--  To calculate the mean angle of several angles:
+--  Assume all angles are on the unit circle and convert them to complex numbers expressed in real and imaginary form. 
+--  Compute the mean of the complex numbers. 
+--  Convert the complex mean to polar coordinates whereupon the phase of the complex mean is the required angular mean. 
+--
+--  (Note that, since the mean is the sum divided by the number of numbers, and division by a positive 
+--   real number does not affect the angle, you can also simply compute the sum for step 2.) 
+--
+--  You can alternatively use this formula:
+--  Given the angles a1..aN  the mean is computed by |a| = atan2(sum(sin(a1..aN))/N,sum(cos(a1..aN))/N)
+--
+--  The task is to:
+--  write a function/method/subroutine/... that given a list of angles in degrees returns their mean angle. 
+--  (You should use a built-in function if you have one that does this for degrees or radians). 
+--  Use the function to compute the means of these lists of angles (in degrees): [350, 10], [90, 180, 270, 360], [10, 20, 30]; and show your output here.
+--
+-- Copied from Euphoria, and slightly improved 
+--
+
+function atan2(atom y, atom x)
+    return 2*arctan((sqrt(power(x,2)+power(y,2))-x)/y)
+end function
+ 
+function MeanAngle(sequence angles)
+atom x=0, y=0, ai_rad
+integer l=length(angles)
+ 
+    for i=1 to l do
+        ai_rad = angles[i]*PI/180
+        x += cos(ai_rad)
+        y += sin(ai_rad)
+    end for
+--  return atan2(y,x)*180/PI
+    if abs(x)<1e-16 then return "not meaningful" end if
+    return sprintf("%9.5f",atan2(y,x)*180/PI)
+end function
+ 
+constant AngleLists = {{350,10},{90,180,270,360},{10,20,30},{180},{0,180}}
+sequence ai
+for i=1 to length(AngleLists) do
+    ai = AngleLists[i]
+    printf(1,"%+16s: Mean Angle is %s\n",{sprint(ai),MeanAngle(ai)})
+end for
+{} = wait_key()
+
+--Output:
+--          {350,10}: Mean Angle is   0.00000
+--  {90,180,270,360}: Mean Angle is not meaningful
+--        {10,20,30}: Mean Angle is  20.00000
+--             {180}: Mean Angle is 180.00000
+--           {0,180}: Mean Angle is not meaningful

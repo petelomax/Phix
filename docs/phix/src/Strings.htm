@@ -1,0 +1,207 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Strings</h1>
+      <div id="mainSection">
+        A character is really just an integer. Individual characters may be specified using
+        <i>single</i> quotes, e.g:
+<!--eucode>
+     'B'
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008000">     'B'</font>
+</pre>
+        which is completely indistinguishable from the (4 or 8 byte) integer 66, the 
+        equivalent ASCII code.
+       <br>
+       <br>
+        Just as integers can be considered an optimised form of atom, strings can be
+        considered an optimised form of sequence of character. Strings may be specified
+        using
+        <i>double quotes</i>, e.g:
+<!--eucode>
+     "ABCDEFG"
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008000">     "ABCDEFG"</font>
+</pre>
+        Character strings may be manipulated and operated upon just like any other 
+        sequences. For example the above string is equivalent to the 
+        <a href="html/glossary.htm#dwordseq">dword-sequence</a>:
+<!--eucode>
+     {65, 66, 67, 68, 69, 70, 71}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">     {</font><font color="#000000">65</font><font color="#0000FF">,</font><font color="#000000"> 66</font><font color="#0000FF">,</font><font color="#000000"> 67</font><font color="#0000FF">,</font><font color="#000000"> 68</font><font color="#0000FF">,</font><font color="#000000"> 69</font><font color="#0000FF">,</font><font color="#000000"> 70</font><font color="#0000FF">,</font><font color="#000000"> 71</font><font color="#0000FF">}</font>
+</pre>
+        which contains the corresponding ASCII codes (see technical note below).
+       <br>
+       <br>
+        <a name=empty_seq></a>
+        It follows that "" is equivalent to {}. Both represent a sequence of length
+        zero, also known as the
+        <font color="#030303">
+         <b>empty sequence</b>
+        </font>. 
+        As a matter of programming style, it is natural to use "" to suggest a length
+        zero string, and {} to suggest some other kind of sequence.
+       <br>
+       <br>
+        While you can store any string value in a variable declared as a sequence, 
+        the reverse is not true.
+       <br>
+       <br>
+        <a name=char></a>
+        An
+        <b>individual character</b>
+        is an
+        <b>integer</b>. It must be entered using single 
+        quotes. There is a difference between an individual character (which is an 
+        integer), and a character string of length 1 (which is a sequence), e.g.
+<!--eucode>
+    'B'   -- equivalent to the integer 66 - the ASCII code for B
+    "B"   -- equivalent to the sequence {66}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008000">    'B'  </font><font color="#000080"> -- equivalent to the integer 66 - the ASCII code for B
+</font><font color="#008000">    "B"  </font><font color="#000080"> -- equivalent to the sequence {66}</font>
+</pre>
+        Again, 'B' is just a notation that is equivalent to typing 66. There isn&rsquo;t
+        really a "character" in Phix, except as part of a string, otherwise individual
+        characters are stored as 4 (or 8) byte integers.
+       <br>
+       <br>
+        Keep in mind that an atom is
+        <b>
+         <i>not</i>
+        </b>
+        equivalent to a one-element sequence containing the same value, although there 
+        are a few built-in routines that choose to treat them similarly.
+       <br>
+       <br>
+        Special characters may be entered (between quotes) using a back-slash:
+ <pre>
+       Code     Value   Meaning
+        \n       #10     newline
+        \r       #13     carriage return
+        \b       #08     backspace (Phix-only)
+        \t       #09     tab
+        \\       #5C     backslash
+        \"       #22	 double quote
+        \'       #27	 single quote
+        \0       #00     null
+        \#HH     #HH     any hexadecimal byte (Phix-only)
+        \xHH     #HH     any hexadecimal byte
+ </pre>
+        For example, "Hello, World!\n", or '\\'. By default Edita displays character strings in green. Just as with 
+        fractional results converting to floating-point automatically, setting a string element to a non-character 
+        value automatically expands it to a <a href="html/glossary.htm#dwordseq">dword-sequence</a>, and if that is
+        not desired you are immediately notified in a clear and no-nonsense, human-readable manner.
+       <blockquote>
+        <b>Technical note</b>:
+        Internally that string data example ("ABCDEFG") occupies 24 bytes whereas the sequence of (4-byte) integers 
+        occupies 48 bytes. On 64-bit, it is 39 vs 96 bytes (see builtins\VM\pHeap.e if you must). On very long 
+        strings, the space savings approach 75% (32-bit) or 87.5% (64-bit) and that <i>can</i> lead, in extreme 
+        cases such as pointless benchmarks, to a 4 or 8-fold performance improvement.
+        Despite such differences, they compare as equal and display the same, and in fact 
+        pretty much the only way to tell them apart is with the <a href="string.htm">string</a>() builtin.
+        <br>
+        <br>
+        Note that strings are byte-subscripted; while theoretically you may store UTF16
+        data in a string, it is usually much easier to store and manipulate such in 
+        <a href="html/glossary.htm#dwordseq">dword-sequences</a>. The handling is however completely transparent; 
+        you quite simply should not care.
+        <br>
+        <br>
+        This (the "quite simply should not care" part) was hammered home to me when I added 
+        Unicode file support to Edita, which I knew made heavy use of 8-bit strings. Obviously 
+        I had to change readFile() to detect the unicode BOM (Byte Order Mark) and then read a 
+        word instead of a byte for each character, and similar for saveFile(). Of course program 
+        source files should (must) be ansi or UTF8, not UTF16, it was .reg files that prompted
+        me to support the latter (UTF16LE/BE).
+        <br>
+        <br>
+        All the other code, be that display/edit/find/replace/cut/copy/paste/whatever, 
+        that had only ever been asked to manipulate 8-bit strings, some of which was 
+        7 or 8 years old by then, all worked seamlessly when I started throwing dword
+        sequences at it, without a single change.
+        <br>
+        <br>
+        Just to avoid being accused of misleading anyone, full unicode support
+        required several other changes, what "worked seamlessly" was ansi in dword
+        sequences. In particular, further changes were needed to use the widestring 
+        rather than the ansistring versions of certain windows API routines. Even
+        so, the total number of changes was substantially less than first feared.
+       </blockquote>
+       <blockquote>
+        <b>Compatibility Note</b> OpenEuphoria allows "\uHHHH" and "\UHHHHHHHH" to specify word and dword
+        unicode characters respectively, presumably someone felt they needed that dirty little hack because 
+        unlike Phix it does not support UTF8 source code files. Phix does not currently support this, but 
+        it may be added at some future date, for compatibility reasons. (Note that currently my knowledge
+        is limited to Windows WideString/UTF16LE, and I have no idea what to do with a 32-bit character.)
+        <br>
+        <br>
+        Also, \b is used in Phix for backspace, whereas (very oddly imo) OpenEuphoria uses it to declare
+        a mid-string binary value, eg "\b01010101" is the same as {#55} or "U", erm, hmmm. I have never
+        seen this used, but if it was byte-sized I would immediately convert it to \xHH form (by putting
+        in a leading 0 to make it 0b01010101 and then using Edita\Case\Show as Hex (Ctrl H)). Obviously,
+        on the compatibility front, you should use \x08 instead of \b, and likewise \xHH not \#HH. Lastly,
+        OpenEuphoria allows \e and \E for escape, which I have also never seen, and suggest \x1B instead.
+       </blockquote>
+        <a name=triple></a>
+        Strings can also be entered by using triple quotes or backticks intead of double quotes to include 
+        linebreaks and avoid any backslash interpretation. If the literal begins with a newline, it is
+        discarded and any immediately following leading underscores specify a (maximum) trimming that should
+        be applied to all subsequent lines. Examples:
+<!--eucode>
+ts = """
+this
+string\thing"""
+
+ts = """
+_____this
+     string\thing"""
+
+ts = 'this
+string\thing'
+
+ts = "this\nstring\\thing"
+
+</eucode-->
+<pre>
+<font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> """
+this
+string\thing"""
+
+</font><font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> """
+_____this
+     string\thing"""
+
+</font><font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> '</font><font color="#000000">this
+</font><font color="#004080">string</font><font color="#000000">\thing'
+
+ts</font><font color="#0000FF"> =</font><font color="#008000"> "this\nstring\\thing"
+</font>
+</pre>
+       which are all equivalent.
+       <br>
+       <br>
+        On a practical note, as long as you have at least 2GB of physical memory, you 
+        should experience no problems whatsoever constructing a string with 400 million
+        characters, and you could more than triple that by allocating things up front,
+        however deliberately hogging the biggest block of memory the system will allow is
+        generally considered bad programming practice, and may lead to disk thrashing.
+        On 64-bit systems such limits can theoretically be multiplied by several billion. 
+        As previously mentioned, pHeap.e contains the full and very scary low-down.
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

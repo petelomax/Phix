@@ -1,0 +1,39 @@
+-- Win32Dib : Fast bitmap manipulation for Win32Lib (24-bit graphics).
+-- CLIPBOARD LIBRARY
+
+-- Copyright (C) 2004 Tommy Carlier
+-- tommy.carlier@telenet.be
+-- http://users.telenet.be/tommycarlier
+
+include w32dcore.ew
+
+global procedure copyDibToClipboard(sequence dib)
+-- Copies the bitmap to the Windows clipboard.
+object new_dib
+    if not w32Func(xOpenClipboard, {getHandle(getActiveWindow())}) then return end if
+    if w32Func(xEmptyClipboard, {}) then
+	new_dib = copyDib(dib)
+	if sequence(new_dib) then
+	    VOID = w32Func(xSetClipboardData, {CF_BITMAP, new_dib[DibHandle]})
+	end if
+    end if
+    w32Proc(xCloseClipboard, {})
+end procedure
+
+global function getDibFromClipboard()
+-- Gets a bitmap from the clipboard and returns it.
+-- Returns 0 if no bitmap could be copied from the clipboard.
+atom handle
+object dib
+sequence size
+    dib = 0
+    if w32Func(xIsClipboardFormatAvailable, {CF_BITMAP}) then
+	if not w32Func(xOpenClipboard, {getHandle(getActiveWindow())}) then return 0 end if
+	handle = w32Func(xGetClipboardData, {CF_BITMAP})
+	size = getCtlSize(handle)
+	dib = newDib(size[1], size[2])
+	if sequence(dib) then copyToDib(dib, handle, 0, 0, 0, 0, size[1] - 1, size[2] - 1) end if
+	w32Proc(xCloseClipboard, {})
+    end if
+    return dib
+end function

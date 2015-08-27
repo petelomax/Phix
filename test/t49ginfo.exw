@@ -1,0 +1,883 @@
+--
+-- t49ginfo.exw
+--
+--  This started life as a quick ditty to figure out min/max on remainder(int,int).
+--  I quickly realised that the union-jack-like box of numbers I was printing were
+--  not the small clue I was expecting, but actually the full-blown answer, and I
+--  soon re-used the idea for multiplication, and/or/xor_bits, power.... (tbc?)
+--
+--  After many cycles of editing the test program and inspecting the list.asm, I
+--  realised more serious/permanent testing was warranted and #isginfo was born.
+--
+--  The tests contained in this file can be treated as deeply technical; stuff
+--  that you just really don't need to know - unless of course it goes wrong!!
+--  Actually, they are all pretty trivial, at least if examined individually,
+--  and once you accept that "--/**/ #isginfo{}" stuff is just a simple test,
+--  albeit one performed at compile-time that generates no run-time code.
+--   (And yes, #isginfo is a tad ugly, but it is something I expect should 
+--    almost never appear in real-world applications.)
+--
+--  Run "p -d -nodiag t49" (you may want to double-check that dumpSymtab in 
+--  plist.e is set to 1, it should be, and the -nodiag is just to make reading
+--  easier) and examine the resulting list.asm file. The contents of the symtab 
+--  should be reasonably self-explanatory. Let me know if you find any other 
+--  tests which fail, can be improved on, or are missing. Note that "p t49" is
+--  a bit of a non-test, you need -c or -d to fully exercise this.
+--
+--  This is about *valid integer results only*. Ignore any thoughts about say
+--  division by zero, i=1/3 -> type check error, i is 0.333333. If it crashes,
+--  then execution stops, and whatever white lie we told here does not matter;
+--  we only need to be truthful about all cases that carry on running. Hence
+--  for example we can confidently state that (1..2)/(2..10) gives the answer 
+--  (1..1). Perhaps there ought to be a mechanism whereby we can also state
+--  that both i and j must be 2 at that point, since 1/2..1/10, and 2/3..2/10 
+--  are of course all going to crash. Plus, of course, never forget the idiom
+--      "if <some test fails> then ?9/0 end if"
+--  and similar variations, which must compile cleanly, even if any "valid"
+--  range is in fact utterly meaningless. Hence any "white lies" we tell must
+--  not interfere with proper execution; just because the only valid result 
+--  is 1..1 it does not mean we can assume that without actually trying it...
+--
+--  It is also assumed that remainder, +-*/, and_bits, etc all work perfectly
+--  long before we get here (this is t49 after all).
+--
+--  NOTE: As the compiler gets smarter this may need updating. 
+--        For example, originally the code "i=-4 i=3" just left i as -4..3,
+--        it now knows i is exactly 3. Such code has simply been wrapped in
+--(at least when -c/d is in use, see constant NOLT, defined in pglobals.e)
+--        the routines set1/2/3() which is (currently) enough to defeat any
+--        such "temporal logic" (groan). Obviously the human brain is a fair
+--        bit smarter than any 40,000 lines of code, but I cannot rule out
+--        the possibilty that one of those smart brains might be able to 
+--        improve things... (at an acceptable performance cost that is)
+--        One day you may need to replace set1/2/3() with something like:
+--              procedure test(integer im43)
+--                  <some tests>
+--              end procedure
+--              test(-4) test(3)
+--        which clearly forces the tests to deal with both -4 and 3.
+--
+constant showprogress = 0
+
+
+constant drawbox = 0
+--constant m9 = -9, p9 = 9
+--constant m9 = -19, p9 = -2    -- for and_bits closer look, see below
+constant m9 = -4, p9 = 4    -- for power
+if drawbox then
+    puts(1,"    ")
+    for j=m9 to p9 do
+--      if j!=0 then            -- not for power
+--          printf(1,"%3d ",j)
+            printf(1,"%7d ",j)  -- for power
+--      end if
+    end for
+    puts(1,"\n")
+    for i=m9 to p9 do
+        printf(1,"%3d ",i)
+        for j=m9 to p9 do
+--          if j!=0 then
+--              printf(1,"%3d ",remainder(i,j))
+--              printf(1,"%3d ",i*j)
+--              printf(1,"%3d ",and_bits(i,j))
+--              printf(1,"%3d ",or_bits(i,j))
+--              printf(1,"%3d ",xor_bits(i,j))
+if i!=0 or j>0 then -- avoid "attempt to raise 0 to power <=0" error
+                printf(1,"%7.3g ",power(i,j))
+else
+                puts(1,"--n/a-- ")
+end if
+--          end if
+        end for
+        puts(1,"\n")
+    end for
+    if getc(0) then end if
+end if
+
+-- remainder table (ie remainder(-8,-7) is -1, and rmdr(-7,-8) is -7, plus
+--                     of course the remainder(x,0) column is omitted.):
+--
+--       -9  -8  -7  -6  -5  -4  -3  -2  -1   1   2   3   4   5   6   7   8   9
+--   -9   0  -1  -2  -3  -4  -1   0  -1   0   0  -1   0  -1  -4  -3  -2  -1   0
+--   -8  -8   0  -1  -2  -3   0  -2   0   0   0   0  -2   0  -3  -2  -1   0  -8
+--   -7  -7  -7   0  -1  -2  -3  -1  -1   0   0  -1  -1  -3  -2  -1   0  -7  -7
+--   -6  -6  -6  -6   0  -1  -2   0   0   0   0   0   0  -2  -1   0  -6  -6  -6
+--   -5  -5  -5  -5  -5   0  -1  -2  -1   0   0  -1  -2  -1   0  -5  -5  -5  -5
+--   -4  -4  -4  -4  -4  -4   0  -1   0   0   0   0  -1   0  -4  -4  -4  -4  -4
+--   -3  -3  -3  -3  -3  -3  -3   0  -1   0   0  -1   0  -3  -3  -3  -3  -3  -3
+--   -2  -2  -2  -2  -2  -2  -2  -2   0   0   0   0  -2  -2  -2  -2  -2  -2  -2
+--   -1  -1  -1  -1  -1  -1  -1  -1  -1   0   0  -1  -1  -1  -1  -1  -1  -1  -1
+--    0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+--    1   1   1   1   1   1   1   1   1   0   0   1   1   1   1   1   1   1   1
+--    2   2   2   2   2   2   2   2   0   0   0   0   2   2   2   2   2   2   2
+--    3   3   3   3   3   3   3   0   1   0   0   1   0   3   3   3   3   3   3
+--    4   4   4   4   4   4   0   1   0   0   0   0   1   0   4   4   4   4   4
+--    5   5   5   5   5   0   1   2   1   0   0   1   2   1   0   5   5   5   5
+--    6   6   6   6   0   1   2   0   0   0   0   0   0   2   1   0   6   6   6
+--    7   7   7   0   1   2   3   1   1   0   0   1   1   3   2   1   0   7   7
+--    8   8   0   1   2   3   0   2   0   0   0   0   2   0   3   2   1   0   8
+--    9   0   1   2   3   4   1   0   1   0   0   1   0   1   4   3   2   1   0
+--
+-- 1) for any two positive numbers, remainder(i,j)<=j-1 and <=i and >=0
+-- 2) remainder(i,-j) = remainder(i,j) [vertical symmetry around the two columns of 0s]
+--      ignoring sign issues, we can also see "max" of mod(j)-1 just above/below the 0-X.
+-- 3) remainder(-i,j) = -remainder(i,j), [horizontal -ve symmetry around the row of 0s]
+--      ie if i<0 then remainder(i,j)<=0 and >=-i and >=-(|j|-1)
+--
+-- (reading boxes:)
+--remainder(-8..-6,-9..-5) is -8..0 (km80)
+--remainder(-8..-6,-7..-5) is -6..0 (km60)
+--remainder(-5..7,-6..-5) is -5..5  (km55)
+--remainder(-5..3,-5..5) is -4..3   (km43)
+--remainder(8..9,5..9) is 0..8      (k08)
+-- (reading columns:)
+-- remainder(unk,-7..-5) is -6..6   (km66)
+-- remainder(unk,-4..3) is -3..3    (km33)
+-- remainder(unk,-2..5) is -4..4    (km44)
+-- (reading rows:)
+-- remainder(5..9,unk) is 0..9      (k09)
+-- remainder(-6..-5,unk) is -6..0   (km6a)
+-- remainder(-6..5,unk) is -6..5    (km65)
+-- remainder(-5..5,unk) is -5..5    (km5a)
+-- remainder(-4..3,unk) is -4..3    (km4a)
+function f(integer i)
+    --/**/  #isginfo{i,integer,0,1,object,-1}
+    return i
+end function
+
+integer im8m6,im57,im53,i89,jm9m5,jm7m5,jm6m5,j56,jm55,j59,unk,km80,km60,km55,kn55,km43,k08,k22,
+        km66,jm43,km33,jm25,km44,k09,km6a,jm65,km65,km5a,km4a
+
+-- 1) set lower bounds (and [nb] flag all as Init)
+    im8m6 = -8
+    im57 = -5
+    im53 = -5
+    i89 = 8
+    jm9m5 = -9
+    jm7m5 = -7
+    jm6m5 = -6
+    j56 = 5
+    jm55 = -5
+    j59 = 5
+    jm43 = -4
+    jm25 = -2
+    jm65 = -6
+procedure set1()
+-- 2) set upper bounds (using a routine avoids setting min=max=upper)
+    im8m6 = -6
+    im57 = 7
+    im53 = 3
+    i89 = 9
+    jm9m5 = -5
+    jm7m5 = -5
+    jm6m5 = -5
+    j56 = 6
+    jm55 = 5
+    j59 = 9
+    jm43 = 3
+    jm25 = 5
+    jm65 = 5
+end procedure
+
+    set1()
+
+    km80=remainder(im8m6,jm9m5)     --/**/  #isginfo{km80,integer,-8,0,object,-1}
+    km60=remainder(im8m6,jm7m5)     --/**/  #isginfo{km60,integer,-6,0,object,-1}
+    km55=remainder(im57,jm6m5)      --/**/  #isginfo{km55,integer,-5,5,object,-1}
+    kn55=remainder(im57,j56)        --/**/  #isginfo{kn55,integer,-5,5,object,-1}
+    km43=remainder(im53,jm55)       --/**/  #isginfo{km43,integer,-4,3,object,-1}
+    k08=remainder(i89,j59)          --/**/  #isginfo{k08 ,integer, 0,8,object,-1}
+if f(1) then
+    k22=remainder(5,3)              --/**/  #isginfo{k22 ,integer, 2,2,object,-1}
+end if
+--  if 1=2 then
+    if f(0) then
+        km66 = remainder(unk,jm7m5) --/**/  #isginfo{km66,integer,-6,6,object,-1}
+        km33 = remainder(unk,jm43)  --/**/  #isginfo{km33,integer,-3,3,object,-1}
+        km44 = remainder(unk,jm25)  --/**/  #isginfo{km44,integer,-4,4,object,-1}
+        k09 = remainder(j59,unk)    --/**/  #isginfo{k09 ,integer, 0,9,object,-1}
+        km6a = remainder(jm6m5,unk) --/**/  #isginfo{km6a,integer,-6,0,object,-1}
+        km65 = remainder(jm65,unk)  --/**/  #isginfo{km65,integer,-6,5,object,-1}
+        km5a = remainder(km55,unk)  --/**/  #isginfo{km5a,integer,-5,5,object,-1}
+        km4a = remainder(km43,unk)  --/**/  #isginfo{km4a,integer,-4,3,object,-1}
+    end if
+if 0 then   -- emitON=0, so no impact on gvar_scan, suppresses unassigned warning
+    unk=0
+end if
+
+if showprogress then puts(1,"206\n") end if
+
+-- The same tests for remainder() as above, coded in a more debuggable manner:
+--  (in the new useSrc style)
+--constant rtest = 01
+constant MININT = -#40000000,
+         MAXINT =  #3FFFFFFF
+procedure rt(integer smin, integer smax, integer smin2, integer smax2, integer rmin, integer rmax)
+integer nmax
+    if smin=smax and smin2=smax2 and smin2!=0 then
+        smin = remainder(smin,smin2)
+        smax = smin
+    else
+        -- 1) for any two positive numbers, remainder(i,j)<=j-1 and <=i and >=0
+        -- 2) remainder(i,-j) = remainder(i,j)
+        -- 3) remainder(-i,j) = -remainder(i,j), 
+        --  ie if i<0 then remainder(i,j)<=0 and >=-i and >=-(|j|-1)
+        --
+        -- First: calculate |j|-1 (in smax2)
+        --  (aka smax2 = max(abs(smin2),abs(smax2))-1)
+        --
+        if smax2<0 then
+            if smax2 = MININT then
+                smax2 = MAXINT
+            else
+                smax2 = -smax2
+            end if
+        end if
+        if smin2<0 then
+            if smin2=MININT then
+                smin2 = MAXINT
+            else
+                smin2 = -smin2
+            end if
+        end if
+        if smin2>smax2 then
+            smax2 = smin2
+        end if
+        smax2 -= 1  -- (mod j)-1
+        --
+        -- Then apply |j|-1, i rules:
+        --
+        if smax<0 then
+            if smax=MININT then
+                smax = MAXINT
+            else
+                smax = -smax
+            end if
+            nmax = 0
+        else
+--          nmax = min(smax,smax2)          -- (yes, I mean min())
+            if smax<smax2 then
+                nmax = smax
+            else
+                nmax = smax2
+            end if
+        end if
+        if smin<-1 then
+            if smin=MININT then
+                smin = MAXINT
+            else
+                smin = -smin
+            end if
+--          if smin>smax then
+--              smax = smin
+--          end if
+--          if smax<0 then smax = 0 end if
+            if smin<smax2 then
+                smin = -smin
+            else
+                smin = -smax2
+            end if
+        else
+            smin = 0
+        end if
+        smax = nmax
+    end if
+    if smin!=rmin then ?9/0 end if
+    if smax!=rmax then ?9/0 end if
+--  puts(1,"ok ")
+end procedure
+
+--if rtest then
+    rt(-8,-6,-9,-5,-8,0)
+    rt(-8,-6,-7,-5,-6,0)
+    rt(-5, 7,-6,-5,-5,5)
+    rt(-5, 7, 5, 6,-5,5)
+    rt(-5, 3,-5, 5,-4,3)
+    rt( 8, 9, 5, 9, 0,8)
+    rt( 5, 5, 3, 3, 2,2)
+    rt(MININT,MAXINT,-7,-5,-6,6)
+    rt(MININT,MAXINT,-4, 3,-3,3)
+    rt(MININT,MAXINT,-2, 5,-4,4)
+    rt( 5, 9,MININT,MAXINT, 0,9)
+    rt(-6,-5,MININT,MAXINT,-6,0)
+    rt(-6, 5,MININT,MAXINT,-6,5)
+    rt(-5, 5,MININT,MAXINT,-5,5)
+    rt(-4, 3,MININT,MAXINT,-4,3)
+    rt(-23,-30,4,5,-4,0)
+    rt(-23,-23,4,4,-3,-3)
+    rt(-23,-23,5,5,-3,-3)
+    rt(-29,-29,4,4,-1,-1)
+    rt(-29,-29,5,5,-4,-4)
+--  if getc(0) then end if
+--end if
+
+
+integer i15, j37, i459, jm27
+
+-- 1) set lower bounds (and [nb] flag all as Init)
+    i15=1
+    j37=3
+    i459=45
+    jm27=-2
+
+procedure set2()
+-- 2) set upper bounds (using a routine avoids setting min=max=upper)
+    i15=5
+    j37=7
+    j37=5
+    i459=49
+    jm27=7
+end procedure
+
+    set2()
+
+integer k412,km62,k335,k01,km49,k01a
+    k412=i15+j37        --/**/  #isginfo{k412,integer,  4,12,object,-1}
+    km62=i15-j37        --/**/  #isginfo{km62,integer, -6, 2,object,-1}
+    k335=i15*j37        --/**/  #isginfo{k335,integer,  3,35,object,-1}
+    k01=i15/j37         --/**/  #isginfo{k01 ,integer,  0, 1,object,-1}
+    -- nb: 23/10/09. i459 & jm27 must be flagged as Init for this to work.
+    km49=i459/jm27      --/**/  #isginfo{km49,integer,-49,49,object,-1}
+    k01a=i15<j37        --/**/  #isginfo{k01a,integer,  0, 1,object,-1}
+--Div:
+--      -5..4   -2..-1      -4..5   \
+--      -5..4   1..2        -5..4    \  so many variations seem to be
+--      -5..4   -2..-2      -5..5    /  evident, it is quite scary...
+--      4..10   2..4        1..5    /
+--Mul:
+--      -5..4   -2..-1      -8..10
+--      -5..4   1..2        -10..8
+--      -5..4   -2..-2      -8..10
+--      4..10   2..4        8..40
+--      -5..4   -3..7       -35..28
+--      -5..1   -3..7       -35..15
+
+integer im54,i410,jm2m1,j12,jm2,j24,km45,km54,km5b,k15,
+        km810,km108,km81a,k840,jm37,km3528,im51,km3515
+
+-- 1) set lower bounds (and [nb] flag all as Init)
+    im54 = -5
+    i410 = 4
+    jm2m1 = -2
+    j12 = 1
+    jm2 = -2
+    j24 = 4
+    jm37 = -3
+    im51 = -5
+
+procedure set3()
+-- 2) set upper bounds (using a routine avoids setting min=max=upper)
+    im54 = 4
+    i410 = 10
+    jm2m1 = -1
+    j12 = 2
+    jm2 = -2
+    j24 = 2
+    jm37 = 7
+    im51 = 1
+end procedure
+
+    set3()
+
+    km45 = im54/jm2m1       -- -4..5 really, -5..5 acceptable:
+                            --/**/ #isginfo{km45,integer,   -5, 5,object,-1}
+    km54 = im54/j12         --/**/ #isginfo{km54,integer,   -5, 4,object,-1}
+    km5b = im54/jm2         --/**/ #isginfo{km5b,integer,   -5, 5,object,-1}
+    k15 = i410/j24          --/**/ #isginfo{k15 ,integer,    1, 5,object,-1}
+    km810 = im54*jm2m1      --/**/  #isginfo{km810,integer, -8,10,object,-1}
+    km108 = im54*j12        --/**/  #isginfo{km108,integer,-10, 8,object,-1}
+    km81a = im54*jm2        --/**/  #isginfo{km81a,integer, -8,10,object,-1}
+    k840 = i410*j24         --/**/  #isginfo{k840 ,integer,  8,40,object,-1}
+    km3528 = im54*jm37      --/**/  #isginfo{km3528,integer,-35,28,object,-1}
+    km3515 = im51*jm37      --/**/  #isginfo{km3515,integer,-35,15,object,-1}
+
+if showprogress then puts(1,"390\n") end if
+-- Multiplication table: what this shows is that take any rectangle (ie the
+--  min/max ranges of src/src2) and the min/max of the result will /always/ 
+--  be on (any two of) the four corners. No obvious rules spring to mind re
+--  which two, but calculating and testing all four is easy enough.
+--       -9  -8  -7  -6  -5  -4  -3  -2  -1   0   1   2   3   4   5   6   7   8   9
+--   -9  81  72  63  54  45  36  27  18   9   0  -9 -18 -27 -36 -45 -54 -63 -72 -81
+--   -8  72  64  56  48  40  32  24  16   8   0  -8 -16 -24 -32 -40 -48 -56 -64 -72
+--   -7  63  56  49  42  35  28  21  14   7   0  -7 -14 -21 -28 -35 -42 -49 -56 -63
+--   -6  54  48  42  36  30  24  18  12   6   0  -6 -12 -18 -24 -30 -36 -42 -48 -54
+--   -5  45  40  35  30  25  20  15  10   5   0  -5 -10 -15 -20 -25 -30 -35 -40 -45
+--   -4  36  32  28  24  20  16  12   8   4   0  -4  -8 -12 -16 -20 -24 -28 -32 -36
+--   -3  27  24  21  18  15  12   9   6   3   0  -3  -6  -9 -12 -15 -18 -21 -24 -27
+--   -2  18  16  14  12  10   8   6   4   2   0  -2  -4  -6  -8 -10 -12 -14 -16 -18
+--   -1   9   8   7   6   5   4   3   2   1   0  -1  -2  -3  -4  -5  -6  -7  -8  -9
+--    0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+--    1  -9  -8  -7  -6  -5  -4  -3  -2  -1   0   1   2   3   4   5   6   7   8   9
+--    2 -18 -16 -14 -12 -10  -8  -6  -4  -2   0   2   4   6   8  10  12  14  16  18
+--    3 -27 -24 -21 -18 -15 -12  -9  -6  -3   0   3   6   9  12  15  18  21  24  27
+--    4 -36 -32 -28 -24 -20 -16 -12  -8  -4   0   4   8  12  16  20  24  28  32  36
+--    5 -45 -40 -35 -30 -25 -20 -15 -10  -5   0   5  10  15  20  25  30  35  40  45
+--    6 -54 -48 -42 -36 -30 -24 -18 -12  -6   0   6  12  18  24  30  36  42  48  54
+--    7 -63 -56 -49 -42 -35 -28 -21 -14  -7   0   7  14  21  28  35  42  49  56  63
+--    8 -72 -64 -56 -48 -40 -32 -24 -16  -8   0   8  16  24  32  40  48  56  64  72
+--    9 -81 -72 -63 -54 -45 -36 -27 -18  -9   0   9  18  27  36  45  54  63  72  81
+--
+
+if showprogress then puts(1,"421\n") end if
+integer km1
+atom n,m,n4,n6,nm7,nm7a
+    km1 = jm2/2         --/**/  #isginfo{km1,integer,-1,-1, object,-1}
+    n = jm2/2           --/**/  #isginfo{n  ,integer,-1,-1, object,-1}
+--DEV this should really be     #isginfo{m  ,atom, -1.5,3.5,object,-1}
+    m = jm37/2          --/**/  #isginfo{m  ,atom,  MIN,MAX,object,-1}
+    n4 = 64/16          --/**/  #isginfo{n4 ,integer, 4,4,  object,-1}
+--DEV fixme! (mods to Expr 19/2/2012 make these now MIN,MAX)
+    n6 = floor(197/32)  --!/**/ #isginfo{n6 ,integer, 6,6,  object,-1}
+    nm7 = floor(-97/16) 
+                        --!/**/ #isginfo{nm7,integer,-7,-7,object,-1}
+    nm7a = floor(-(70+42-15)/16)
+                        --!/**/ #isginfo{nm7a,integer,-7,-7,object,-1}
+if showprogress then puts(1,"435\n") end if
+atom n412,nm62,n335,n01,nm49,nm45,nm54,nm55,n15,
+     nm810,nm108,nm81a,n840,nm3528,nm3515
+    n412=i15+j37        --/**/  #isginfo{n412 ,integer, 4,12,object,-1}
+    nm62=i15-j37        --/**/  #isginfo{nm62 ,integer,-6, 2,object,-1}
+    n335=i15*j37        --/**/  #isginfo{n335 ,integer, 3,35,object,-1}
+--DEV these should really be... (???)
+    n01=i15/j37         --/**/  #isginfo{n01  ,atom,MIN,MAX,object,-1}      -- {0.1428571429,1.666666667}
+    nm49=i459/jm27      --/**/  #isginfo{nm49 ,atom,MIN,MAX,object,-1}      -- {-49,49}
+    nm45 = im54/jm2m1   --/**/  #isginfo{nm45 ,atom,MIN,MAX,object,-1}      -- {-4,5}
+    nm54 = im54/j12     --/**/  #isginfo{nm54 ,atom,MIN,MAX,object,-1}      -- {-5,4}
+    nm55 = im54/jm2     --/**/  #isginfo{nm55 ,atom,MIN,MAX,object,-1}      -- {-2,2.5}
+    n15 = i410/j24      --/**/  #isginfo{n15  ,atom,MIN,MAX,object,-1}      -- {1,5}
+    nm810 = im54*jm2m1  --/**/  #isginfo{nm810,integer, -8,10,object,-1}
+    nm108 = im54*j12    --/**/  #isginfo{nm108,integer,-10,8,object,-1}
+    nm81a = im54*jm2    --/**/  #isginfo{nm81a,integer, -8,10,object,-1}
+    n840 = i410*j24     --/**/  #isginfo{n840 ,integer,  8,40,object,-1}
+    nm3528 = im54*jm37  --/**/  #isginfo{nm3528,integer,-35,28,object,-1}
+    nm3515 = im51*jm37  --/**/  #isginfo{nm3515,integer,-35,15,object,-1}
+if showprogress then puts(1,"453\n") end if
+
+sequence s,t
+    s={1,2,3,4,5}
+    t=s[2..4]   -- get a length of 3
+
+--/**/  #isginfo{s,0b0100,MIN,MAX,integer,5}
+--/**/  #isginfo{t,0b0100,MIN,MAX,integer,3}    
+
+-- Bitwise tests
+-- =============
+-- This bit-stuff is highly non-scientific, well at least not proper maths,
+--  though arguably -3..+3 should actually cover all binary permutations...
+
+--and_bits:
+--       -9  -8  -7  -6  -5  -4  -3  -2  -1   0   1   2   3   4   5   6   7   8   9
+--   -9  -9 -16 -15 -14 -13 -12 -11 -10  -9   0   1   2   3   4   5   6   7   0   1
+--   -8 -16  -8  -8  -8  -8  -8  -8  -8  -8   0   0   0   0   0   0   0   0   8   8
+--   -7 -15  -8  -7  -8  -7  -8  -7  -8  -7   0   1   0   1   0   1   0   1   8   9
+--   -6 -14  -8  -8  -6  -6  -8  -8  -6  -6   0   0   2   2   0   0   2   2   8   8
+--   -5 -13  -8  -7  -6  -5  -8  -7  -6  -5   0   1   2   3   0   1   2   3   8   9
+--   -4 -12  -8  -8  -8  -8  -4  -4  -4  -4   0   0   0   0   4   4   4   4   8   8
+--   -3 -11  -8  -7  -8  -7  -4  -3  -4  -3   0   1   0   1   4   5   4   5   8   9
+--   -2 -10  -8  -8  -6  -6  -4  -4  -2  -2   0   0   2   2   4   4   6   6   8   8
+--   -1  -9  -8  -7  -6  -5  -4  -3  -2  -1   0   1   2   3   4   5   6   7   8   9
+--    0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+--    1   1   0   1   0   1   0   1   0   1   0   1   0   1   0   1   0   1   0   1
+--    2   2   0   0   2   2   0   0   2   2   0   0   2   2   0   0   2   2   0   0
+--    3   3   0   1   2   3   0   1   2   3   0   1   2   3   0   1   2   3   0   1
+--    4   4   0   0   0   0   4   4   4   4   0   0   0   0   4   4   4   4   0   0
+--    5   5   0   1   0   1   4   5   4   5   0   1   0   1   4   5   4   5   0   1
+--    6   6   0   0   2   2   4   4   6   6   0   0   2   2   4   4   6   6   0   0
+--    7   7   0   1   2   3   4   5   6   7   0   1   2   3   4   5   6   7   0   1
+--    8   0   8   8   8   8   8   8   8   8   0   0   0   0   0   0   0   0   8   8
+--    9   1   8   9   8   9   8   9   8   9   0   1   0   1   0   1   0   1   8   9
+-- (that slightly worrying negative quadrant is re-examined below)
+--
+--  For any rectangle on that diagram, we first consider where the top left is.
+--  If it is in the both +ve quadrant, then smax = min(smax,smax2), else
+--  smax = max(smax,smax2). If it is on the RHS or on/below the 0 row, then
+--  smin = 0 else smin = smin+smin2 (both being -ve) seems to be sufficient.
+--  See pgscan.e for the final algorithm (search for opAndBits)
+
+atom a05,am17m5,am15m5,am117,am105,a09,a11,a049,
+     amm1,amm2,amm3,a09a,a09b,amm4,amm5,amm6,amm7,amm8,a01a,a01b
+
+if showprogress then puts(1,"498\n") end if
+    a05 = and_bits(i15,j37)         --/**/  #isginfo{a05,   integer,  0, 5,object,-1}
+    am17m5=and_bits(im8m6,jm9m5)    --/**/  #isginfo{am17m5,integer,-17,-5,object,-1}   --  -16..-6 really
+    am15m5=and_bits(im8m6,jm7m5)    --/**/  #isginfo{am15m5,integer,-15,-5,object,-1}   --  -8..-6 really
+    am117=and_bits(im57,jm6m5)      --/**/  #isginfo{am117 ,integer,-11, 7,object,-1}   --  -8..3 really
+    am105=and_bits(im53,jm55)       --/**/  #isginfo{am105 ,integer,-10, 5,object,-1}   --  -8..5 really
+    a09=and_bits(i89,j59)           --/**/  #isginfo{a09   ,integer,  0, 9,object,-1}       --  spot on
+    a11=and_bits(5,3)               --/**/  #isginfo{a11   ,integer,  1, 1,object,-1}       --  spot on
+    a049=and_bits(i459,jm27)        --/**/  #isginfo{a049  ,integer,  0,49,object,-1}       --  spot on
+--  if 1=2 then
+    if f(0) then
+        amm1 = and_bits(unk,jm7m5) --/**/   #isginfo{amm1,integer,MIN,MAX,object,-1}
+        amm2 = and_bits(unk,jm43)   --/**/  #isginfo{amm2,integer,MIN,MAX,object,-1}
+        amm3 = and_bits(unk,jm25)   --/**/  #isginfo{amm3,integer,MIN,MAX,object,-1}
+        a09a = and_bits(j59,unk)    --/**/  #isginfo{a09a,integer,  0,  9,object,-1}
+        a09b = and_bits(unk,j59)    --/**/  #isginfo{a09b,integer,  0,  9,object,-1}
+        amm4 = and_bits(jm6m5,unk) --/**/   #isginfo{amm4,integer,MIN,MAX,object,-1}
+        amm5 = and_bits(jm65,unk)   --/**/  #isginfo{amm5,integer,MIN,MAX,object,-1}
+        amm6 = and_bits(km55,unk)   --/**/  #isginfo{amm6,integer,MIN,MAX,object,-1}
+        amm7 = and_bits(km43,unk)   --/**/  #isginfo{amm7,integer,MIN,MAX,object,-1}
+        amm8 = and_bits(-1,unk)     --/**/  #isginfo{amm8,integer,MIN,MAX,object,-1}
+        a01a = and_bits(1,unk)      --/**/  #isginfo{a01a,integer,  0,  1,object,-1}
+        a01b = and_bits(unk,1)      --/**/  #isginfo{a01b,integer,  0,  1,object,-1}
+    end if
+integer am74,a02,am74a,a04,am87,am87a
+    am74 = and_bits(im54,jm2m1)     --/**/  #isginfo{am74, integer,-7,4,object,-1}  -- -6..4 really
+    a02 = and_bits(im54,j12)        --/**/  #isginfo{a02,  integer, 0,2,object,-1}  --  spot on
+    am74a = and_bits(im54,jm2)      --/**/  #isginfo{am74a,integer,-7,4,object,-1}  -- -6..4 really
+    a04 = and_bits(i410,j24)        --/**/  #isginfo{a04 , integer, 0,4,object,-1}  --  spot on
+    am87 = and_bits(im54,jm37)      --/**/  #isginfo{am87, integer,-8,7,object,-1}  -- -7..7 really
+    am87a = and_bits(im51,jm37)     --/**/  #isginfo{am87a,integer,-8,7,object,-1}  -- -7..7 really
+
+-- As promised, a closer look at the negative quadrant, in particular that sudden leap
+--  at -9. If you study this carefully, the same jump can be found at 4-5 and 16-17,
+--  and above the exact same pattern exists along the 2-3 line (the -8 "box" sticks out 
+--  half a mile, look carefully & you'll see similar -4 and -16 "boxes", with everything
+--  just outside it quite a bit bigger. The -2 "box" is only visible above):
+--      -19 -18 -17 -16 -15 -14 -13 -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2
+--  -19 -19 -20 -19 -32 -31 -32 -31 -28 -27 -28 -27 -24 -23 -24 -23 -20 -19 -20
+--  -18 -20 -18 -18 -32 -32 -30 -30 -28 -28 -26 -26 -24 -24 -22 -22 -20 -20 -18
+--  -17 -19 -18 -17 -32 -31 -30 -29 -28 -27 -26 -25 -24 -23 -22 -21 -20 -19 -18
+--  -16 -32 -32 -32 -16 -16 -16 -16 -16 -16 -16 -16 -16 -16 -16 -16 -16 -16 -16
+--  -15 -31 -32 -31 -16 -15 -16 -15 -16 -15 -16 -15 -16 -15 -16 -15 -16 -15 -16
+--  -14 -32 -30 -30 -16 -16 -14 -14 -16 -16 -14 -14 -16 -16 -14 -14 -16 -16 -14
+--  -13 -31 -30 -29 -16 -15 -14 -13 -16 -15 -14 -13 -16 -15 -14 -13 -16 -15 -14
+--  -12 -28 -28 -28 -16 -16 -16 -16 -12 -12 -12 -12 -16 -16 -16 -16 -12 -12 -12
+--  -11 -27 -28 -27 -16 -15 -16 -15 -12 -11 -12 -11 -16 -15 -16 -15 -12 -11 -12
+--  -10 -28 -26 -26 -16 -16 -14 -14 -12 -12 -10 -10 -16 -16 -14 -14 -12 -12 -10
+--   -9 -27 -26 -25 -16 -15 -14 -13 -12 -11 -10  -9 -16 -15 -14 -13 -12 -11 -10
+--   -8 -24 -24 -24 -16 -16 -16 -16 -16 -16 -16 -16  -8  -8  -8  -8  -8  -8  -8
+--   -7 -23 -24 -23 -16 -15 -16 -15 -16 -15 -16 -15  -8  -7  -8  -7  -8  -7  -8
+--   -6 -24 -22 -22 -16 -16 -14 -14 -16 -16 -14 -14  -8  -8  -6  -6  -8  -8  -6
+--   -5 -23 -22 -21 -16 -15 -14 -13 -16 -15 -14 -13  -8  -7  -6  -5  -8  -7  -6
+--   -4 -20 -20 -20 -16 -16 -16 -16 -12 -12 -12 -12  -8  -8  -8  -8  -4  -4  -4
+--   -3 -19 -20 -19 -16 -15 -16 -15 -12 -11 -12 -11  -8  -7  -8  -7  -4  -3  -4
+--   -2 -20 -18 -18 -16 -16 -14 -14 -12 -12 -10 -10  -8  -8  -6  -6  -4  -4  -2
+-- The -8 row/column suggests a proof of the min+min2 theory. The latter clearly
+--  works for all bit positions with a 0 in either. If they are both 1 then we
+--  get a carry, eg -8 + -8 = -16, whereas of course and(1,1) is 1 not 2; hence
+--  min+min2 is always going to be either correct or with a generous margin.
+-- Not exactly a formal proof, but it feels right.
+-- 
+
+-- or_bits: min is min(smin,smin2), max is both+ve: max+max2 else min(smax,smax2)??
+--       -9  -8  -7  -6  -5  -4  -3  -2  -1   0   1   2   3   4   5   6   7   8   9
+--   -9  -9  -1  -1  -1  -1  -1  -1  -1  -1  -9  -9  -9  -9  -9  -9  -9  -9  -1  -1
+--   -8  -1  -8  -7  -6  -5  -4  -3  -2  -1  -8  -7  -6  -5  -4  -3  -2  -1  -8  -7
+--   -7  -1  -7  -7  -5  -5  -3  -3  -1  -1  -7  -7  -5  -5  -3  -3  -1  -1  -7  -7
+--   -6  -1  -6  -5  -6  -5  -2  -1  -2  -1  -6  -5  -6  -5  -2  -1  -2  -1  -6  -5
+--   -5  -1  -5  -5  -5  -5  -1  -1  -1  -1  -5  -5  -5  -5  -1  -1  -1  -1  -5  -5
+--   -4  -1  -4  -3  -2  -1  -4  -3  -2  -1  -4  -3  -2  -1  -4  -3  -2  -1  -4  -3
+--   -3  -1  -3  -3  -1  -1  -3  -3  -1  -1  -3  -3  -1  -1  -3  -3  -1  -1  -3  -3
+--   -2  -1  -2  -1  -2  -1  -2  -1  -2  -1  -2  -1  -2  -1  -2  -1  -2  -1  -2  -1
+--   -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1
+--    0  -9  -8  -7  -6  -5  -4  -3  -2  -1   0   1   2   3   4   5   6   7   8   9
+--    1  -9  -7  -7  -5  -5  -3  -3  -1  -1   1   1   3   3   5   5   7   7   9   9
+--    2  -9  -6  -5  -6  -5  -2  -1  -2  -1   2   3   2   3   6   7   6   7  10  11
+--    3  -9  -5  -5  -5  -5  -1  -1  -1  -1   3   3   3   3   7   7   7   7  11  11
+--    4  -9  -4  -3  -2  -1  -4  -3  -2  -1   4   5   6   7   4   5   6   7  12  13
+--    5  -9  -3  -3  -1  -1  -3  -3  -1  -1   5   5   7   7   5   5   7   7  13  13
+--    6  -9  -2  -1  -2  -1  -2  -1  -2  -1   6   7   6   7   6   7   6   7  14  15
+--    7  -9  -1  -1  -1  -1  -1  -1  -1  -1   7   7   7   7   7   7   7   7  15  15
+--    8  -1  -8  -7  -6  -5  -4  -3  -2  -1   8   9  10  11  12  13  14  15   8   9
+--    9  -1  -7  -7  -5  -5  -3  -3  -1  -1   9   9  11  11  13  13  15  15   9   9
+-- 1) or_bits of a negative number will not yield anything lower, hence
+--  min = min(smin,smin2). If both numbers are positive, then min = max(smin,smin2)
+-- 2) or_bits of a negative number will not yield a positive integer, for two
+--  positive integers max+max2 should suffice (similar to and_bits above):
+--  if smax<0 or smax2<0 then smax = -1 else smax=smax+smax2
+
+atom o312,om9m1,om8m1,om6m1,om58,o818,o77,om255,
+     Omm1,Omm2,Omm3,Omm4,Omm5,Omm6,Omm7,Omm8,Omm9,Omma,Ommb,Ommc
+
+    o312 = or_bits(i15,j37)         --/**/  #isginfo{o312, integer, 3,12,object,-1} -- actually 3..7
+    om9m1=or_bits(im8m6,jm9m5)      --/**/  #isginfo{om9m1,integer,-9,-1,object,-1} -- actually -8..-1
+    om8m1=or_bits(im8m6,jm7m5)      --/**/  #isginfo{om8m1,integer,-8,-1,object,-1} -- actually -7..-5
+    om6m1=or_bits(im57,jm6m5)       --/**/  #isginfo{om6m1,integer,-6,-1,object,-1} -- spot on
+    om58=or_bits(im53,jm55)         --/**/  #isginfo{om58, integer,-5, 8,object,-1} -- actually -5..7
+    o818=or_bits(i89,j59)           --/**/  #isginfo{o818, integer, 8,18,object,-1} -- actually 8..15
+    o77=or_bits(5,3)                --/**/  #isginfo{o77,  integer, 7, 7,object,-1} -- spot on
+    om255=or_bits(i459,jm27)        --/**/  #isginfo{om255,integer,-2,56,object,-1} -- actually -2..55
+--  if 1=2 then
+if showprogress then puts(1,"599\n") end if
+    if f(0) then
+        Omm1 = or_bits(unk,jm7m5)   --/**/  #isginfo{Omm1,integer,MIN, -1,object,-1}
+        Omm2 = or_bits(unk,jm43)    --/**/  #isginfo{Omm2,integer,MIN,MAX,object,-1}
+        Omm3 = or_bits(unk,jm25)    --/**/  #isginfo{Omm3,integer,MIN,MAX,object,-1}
+        Omm4 = or_bits(j59,unk)     --/**/  #isginfo{Omm4,integer,MIN,MAX,object,-1}
+        Omm5 = or_bits(unk,j59)     --/**/  #isginfo{Omm5,integer,MIN,MAX,object,-1}
+        Omm6 = or_bits(jm6m5,unk)   --/**/  #isginfo{Omm6,integer,MIN, -1,object,-1}
+        Omm7 = or_bits(jm65,unk)    --/**/  #isginfo{Omm7,integer,MIN,MAX,object,-1}
+        Omm8 = or_bits(km55,unk)    --/**/  #isginfo{Omm8,integer,MIN,MAX,object,-1}
+        Omm9 = or_bits(km43,unk)    --/**/  #isginfo{Omm9,integer,MIN,MAX,object,-1}
+        Omma = or_bits(-1,unk)      --/**/  #isginfo{Omma,integer,MIN, -1,object,-1}
+        Ommb = or_bits(1,unk)       --/**/  #isginfo{Ommb,integer,MIN,MAX,object,-1}
+        Ommc = or_bits(unk,1)       --/**/  #isginfo{Ommc,integer,MIN,MAX,object,-1}
+    end if
+integer om5m1,om56,om5m1a,o414,om511,om58a
+    om5m1 = or_bits(im54,jm2m1)     --/**/  #isginfo{om5m1, integer,-5,-1,object,-1}    -- actually -2..-1
+    om56 = or_bits(im54,j12)        --/**/  #isginfo{om56,  integer,-5, 6,object,-1}    -- spot on
+    om5m1a = or_bits(im54,jm2)      --/**/  #isginfo{om5m1a,integer,-5,-1,object,-1}    -- actually -2..-1
+    o414 = or_bits(i410,j24)        --/**/  #isginfo{o414,  integer, 4,14,object,-1}    -- spot on
+    om511 = or_bits(im54,jm37)      --/**/  #isginfo{om511, integer,-5,11,object,-1}    -- actually -5..7
+    om58a = or_bits(im51,jm37)      --/**/  #isginfo{om58a, integer,-5, 8,object,-1}    -- actually -5..7
+
+--xor_bits: min/max of +/-(|a|+|b|)??   <<-- YUP, nuff said.
+--       -9  -8  -7  -6  -5  -4  -3  -2  -1   1   2   3   4   5   6   7   8   9
+--   -9   0  15  14  13  12  11  10   9   8 -10 -11 -12 -13 -14 -15 -16  -1  -2
+--   -8  15   0   1   2   3   4   5   6   7  -7  -6  -5  -4  -3  -2  -1 -16 -15
+--   -7  14   1   0   3   2   5   4   7   6  -8  -5  -6  -3  -4  -1  -2 -15 -16
+--   -6  13   2   3   0   1   6   7   4   5  -5  -8  -7  -2  -1  -4  -3 -14 -13
+--   -5  12   3   2   1   0   7   6   5   4  -6  -7  -8  -1  -2  -3  -4 -13 -14
+--   -4  11   4   5   6   7   0   1   2   3  -3  -2  -1  -8  -7  -6  -5 -12 -11
+--   -3  10   5   4   7   6   1   0   3   2  -4  -1  -2  -7  -8  -5  -6 -11 -12
+--   -2   9   6   7   4   5   2   3   0   1  -1  -4  -3  -6  -5  -8  -7 -10  -9
+--   -1   8   7   6   5   4   3   2   1   0  -2  -3  -4  -5  -6  -7  -8  -9 -10
+--    0  -9  -8  -7  -6  -5  -4  -3  -2  -1   1   2   3   4   5   6   7   8   9
+--    1 -10  -7  -8  -5  -6  -3  -4  -1  -2   0   3   2   5   4   7   6   9   8
+--    2 -11  -6  -5  -8  -7  -2  -1  -4  -3   3   0   1   6   7   4   5  10  11
+--    3 -12  -5  -6  -7  -8  -1  -2  -3  -4   2   1   0   7   6   5   4  11  10
+--    4 -13  -4  -3  -2  -1  -8  -7  -6  -5   5   6   7   0   1   2   3  12  13
+--    5 -14  -3  -4  -1  -2  -7  -8  -5  -6   4   7   6   1   0   3   2  13  12
+--    6 -15  -2  -1  -4  -3  -6  -5  -8  -7   7   4   5   2   3   0   1  14  15
+--    7 -16  -1  -2  -3  -4  -5  -6  -7  -8   6   5   4   3   2   1   0  15  14
+--    8  -1 -16 -15 -14 -13 -12 -11 -10  -9   9  10  11  12  13  14  15   0   1
+--    9  -2 -15 -16 -13 -14 -11 -12  -9 -10   8  11  10  13  12  15  14   1   0
+
+integer k08a
+        k08a = 8
+        k08a = floor(k08a/2)    --/**/  #isginfo{k08a,integer,0,8,object,-1}    --[DEV]
+        -- explanation: gvar_scan does not know/care whether the instructions 
+        --  it is processing are in a loop, or in a routine called from a loop,
+        --  or whether they won't be called at all. Hence while k08a might be
+        --  4..4 in a later/better version (doubtful), for now it *IS* 0..8.
+
+-- one from pmain.e (useSrc) 4/4/9, another to follow rsn:
+sequence opstack
+         opstack = repeat(0,4)
+
+--/**/  #isginfo{opstack,0b0100,MIN,MAX,integer,-2}
+
+    opstack &= repeat(0,4)
+
+-- as promised, the second one from pmain.e (useSrc) 4/4/9:
+sequence paramNames
+         paramNames={}
+
+-- verify the compiler is setting these as "sequence of integer":
+--/**/  #isginfo{paramNames,0b0100,MIN,MAX,integer,-2}
+
+        paramNames = append(paramNames,0)
+
+-- oh, a third one, (useSrc/fixed by forceSeq in pilx86.e) 5/4/9:
+sequence s2
+--/**/  #isginfo{s2,0b0100,MIN,MAX,integer,-2}
+for i=1 to 2 do
+    if i=2 then
+        s2 = append(s2,0)
+    else
+        s2 = {}
+    end if
+end for
+
+-- power(x,y):
+--
+--           -4      -3      -2      -1       0       1       2       3       4
+--   -4   0.004  -0.016   0.062   -0.25       1      -4      16     -64     256
+--   -3   0.012  -0.037   0.111  -0.333       1      -3       9     -27      81
+--   -2   0.062  -0.125    0.25    -0.5       1      -2       4      -8      16
+--   -1       1      -1       1      -1       1      -1       1      -1       1
+--    0 --n/a-- --n/a-- --n/a-- --n/a-- --n/a--       0       0       0       0
+--    1       1       1       1       1       1       1       1       1       1
+--    2   0.062   0.125    0.25     0.5       1       2       4       8      16
+--    3   0.012   0.037   0.111   0.333       1       3       9      27      81
+--    4   0.004   0.016   0.062    0.25       1       4      16      64     256
+--
+--  1) There is a symmetry of sorts for +ve/-ve x. (in the end not used)
+--  2) We are ONLY interested in generating INTEGER ranges, so if x can be <-1
+--      or >1 and y can be <1 then T_atom the result, otherwise just blank all
+--      those fractions out of your mind. Likewise anything that can hit those
+--      n/a must yield an atom for things to operate correctly.
+--      DEV: it strikes me that better would be to check for nextop of opTchk/
+--           T_integer; if it is then generate our best integer result range,
+--           but set a special flag in pilx86.e to force the opTchk, that is 
+--           rather than just T_atom it...
+--  3) As usual, for power(smin..smax,smin2..smax2) we are going to use at most
+--      the four "corners" of power(smin,smin2), power(smin,smax2), power (smax,
+--      smin2), and power(smax,smax2) - but this time with some odd/even fudges.
+--      Of course the most important thing is to get eg power(2,29) == #20000000,
+--      but use a generic approach that also limits as many others as possible.
+--  3) It would be acceptable to assume the min of power(-4..?, ?..4) is -256, but
+--      there should be no problem clipping the max to be odd and getting the -64.
+--      Likewise the max of power(-4,1..3) is +16 rather than +64.
+--      (update: I leave this in as it was part of the thinking process, but in
+--               fact it never came close to being difficult or done un-signed.)
+--  4) It seems reasonable to suggest that for range purposes, power(0,<=0) is 1.
+--      IE power(0..1,-4..-2) would either fail or yield 1, whereas in the wider
+--       power(0..1,-4..3) we can assume power(0,3) gets our 0 lower bound.
+--       (DEV I capitulated and T_atom'd it; see note above... In the i11 case
+--            below, ideally we would try/do the calculation, but still set the
+--            min/max to 1,1 and the type to integer: of course I went back to
+--            T_atoms on realising it quietly succeeded when it should not.)
+--
+--  Pseudo-code:
+--      if smin2<0 and (smin<-1 or smax>1) then T_atom
+--      else
+--          upper bound := power(smax,smax2)
+--          if smin<0 then --x can be negative
+--              y = smax2
+--              if smin2<smax2 then
+--                  if not and_bits(y,1) then y-=1 end if   -- odd-ize
+--              end if
+--              lower bound is power(smin,y)
+--              y = smax2
+--              if smin2<smax2 then
+--                  if and_bits(y,1) then y-=1 end if       -- even-ize
+--              end if
+--              tmp = power(smin,y)
+--              if tmp>upper bound then
+--                  upper bound := tmp
+--              end if
+--          elsif smin=0 then   --x can be 0
+--              if smax2>0 then lower bound is 0 else lower bound is 1
+--          else    -- x is positive
+--              lower bound is power(smin,smin2)
+--          end if
+--          if not integer(upper_bound)
+--          or not integer(lower_bound) then
+--              T_atom
+--          end if
+--      end if
+--
+
+integer nse
+
+procedure power_tests(integer flag)
+integer im4m2, i14, i13, i12, i01, im43, im11, i23, i58, i2045, im3m1, im3m2, im21
+atom im64256, im6416, im416, i11, i01a, im11a, h20, i326561, ia, i11a, ia2, i11b, 
+     i16256, i0256, i19, im8m27, im89, im39, im81, i19a
+        if flag then
+            im4m2 = -4
+            i14 = 1
+            i13 = 1
+            i12 = 1
+            i01 = 0
+            im43 = -4
+            im11 = -1
+            i23 = 2
+            i58 = 5
+            i2045 = 20
+            im3m1 = -3
+            im3m2 = -3
+            im21 = -2
+        else
+            im4m2 = -2
+            i14 = 4
+            i13 = 3
+            i12 = 2
+            i01 = 1
+            im43 = 3
+            im11 = 1
+            i23 = 3
+            i58 = 8
+            i2045 = 45
+            im3m1 = -1
+            im3m2 = -2
+            im21 = 1
+        end if
+--/**/  #isginfo{im4m2,     integer, -4, -2,object,-1}
+--/**/  #isginfo{i14,       integer,  1,  4,object,-1}
+--/**/  #isginfo{i13,       integer,  1,  3,object,-1}
+--/**/  #isginfo{i12,       integer,  1,  2,object,-1}
+--/**/  #isginfo{i23,       integer,  2,  3,object,-1}
+--/**/  #isginfo{i58,       integer,  5,  8,object,-1}
+--/**/  #isginfo{i2045,     integer, 20, 45,object,-1}
+--/**/  #isginfo{i01,       integer,  0,  1,object,-1}
+--/**/  #isginfo{im43,      integer, -4,  3,object,-1}
+--/**/  #isginfo{im11,      integer, -1,  1,object,-1}
+
+        im64256 = power(im4m2,i14)      --/**/  #isginfo{im64256,   integer,-64,256,object,-1}
+        im6416 = power(-4,i13)          --/**/  #isginfo{im6416,    integer,-64, 16,object,-1}
+        im416 = power(-4,i12)           --/**/  #isginfo{im416,     integer, -4, 16,object,-1}
+
+    if i01 then -- not ideal, but...
+--      i11 = power(i01,im4m2)          --/**/ #isginfo{i11,        integer,  1,  1,object,-1}
+        i11 = power(i01,im4m2)          --/**/  #isginfo{i11,       atom,   MIN,MAX,object,-1}
+    end if
+
+    if i01 or im43>-2 then -- ditto...
+--      i01a = power(i01,im43)          --/**/ #isginfo{i01a,       integer,  0,  1,object,-1}
+        i01a = power(i01,im43)          --/**/  #isginfo{i01a,      atom,   MIN,MAX,object,-1}
+    end if
+
+--      im11a = power(im11,im4m2)       --/**/  #isginfo{im11a,     integer, -1,  1,object,-1}
+        im11a = power(im11,im4m2)       --/**/  #isginfo{im11a,     atom,   MIN,MAX,object,-1}
+
+        h20 = power(2,5)                --/**/  #isginfo{h20,       integer,#20,#20,object,-1}
+        i326561 = power(i23,i58)        --/**/  #isginfo{i326561,   integer,32,6561,object,-1}
+        ia = power(2,i2045)             --/**/  #isginfo{ia,        atom,   MIN,MAX,object,-1}
+        i11a = power(im4m2,0)           --/**/  #isginfo{i11a,      integer,  1,  1,object,-1}
+        ia2 = power(im64256,0)          --/**/  #isginfo{ia2,       atom,   MIN,MAX,object,-1}
+        i11b = power(i2045,0)           --/**/  #isginfo{i11b,      integer,  1,  1,object,-1}
+        i16256 = power(im4m2,4)         --/**/  #isginfo{i16256,    integer, 16,256,object,-1}
+        i0256 = power(im43,4)           --/**/  #isginfo{i0256,     integer,  0,256,object,-1}
+        i19 = power(im3m1,2)            --/**/  #isginfo{i19,       integer,  1,  9,object,-1}
+        im8m27 = power(im3m2,3)         --/**/  #isginfo{im8m27,    integer,-27, -8,object,-1}
+        im89 = power(im3m2,i23)         --/**/  #isginfo{im89,      integer,-27,  9,object,-1}
+        im39 = power(im3m2,i12)         --/**/  #isginfo{im39,      integer, -3,  9,object,-1}
+        im81 = power(im21,3)            --/**/  #isginfo{im81,      integer, -8,  1,object,-1}
+        i19a = power(i13,2)             --/**/  #isginfo{i19a,      integer,  1,  9,object,-1}
+
+        nse = 1     -- prevent no side effects warning
+end procedure
+power_tests(0)
+power_tests(1)
+
+--8/6/10 (caused a massive memory leak, as bookmarks[1]=0 was using opRepe1ip, 
+--        even though bookmarks was correctly marked as T_Dsq of 0b1101 [but
+--        opRepe1ip should only ever be used on T_Dsq of T_integer!].)
+--       (The problem vanished if you replaced the call to newFile, because
+--        the order of analysis in pilx86.e changes, meaning that sdgn[gEtyp] 
+--        got T_sequence bits set before the bookmarks[1]=0, not after it;
+--        it now uses [the new] vetyp, from sdgi where possible.)
+--       (The problem appears to have been around since the dawn of time, no
+--        idea how it managed to stay hidden for quite so long...)
+
+sequence bookmarks
+         bookmarks = {}
+
+
+procedure newFile()
+    bookmarks = append(bookmarks,repeat(0,500))
+end procedure
+
+    newFile()
+--  bookmarks = append(bookmarks,repeat(0,500))
+
+sequence BookMarkSet
+    BookMarkSet = bookmarks[1]
+    bookmarks[1] = 0 -- reduce ref count
+    bookmarks[1] = BookMarkSet
+
+-- Some test code you may (or more likely may not) find useful
+--atom n01, nmin, nmax
+--integer first=1
+----    n15 = i410/j24      --/**/  #isginfo{n15  ,atom,MIN,MAX,object,-1}
+--  for i=4 to 10 do
+--      for j=2 to 4 do
+--if j!=0 then
+--          n01=i/j
+--          if first then
+--              nmin = n01
+--              nmax = n01
+--              first = 0
+--          else
+--              if n01<nmin then nmin = n01 end if
+--              if n01>nmax then nmax = n01 end if
+--          end if
+--end if
+--      end for
+--  end for
+--? {nmin,nmax}
+--
+if showprogress then puts(1,"874\n") end if

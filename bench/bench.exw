@@ -1,0 +1,1801 @@
+--
+-- bench.exw
+-- =========
+--
+-- This program maintains performance stats for some trivial benchmarks,
+-- and compares the performance of Phix against Euphoria if installed.
+--
+-- NOTE: this is, at heart, a Phix program ;-) :
+
+with console
+--global type string(object s) return sequence(s) end type
+--include ..\builtins\graphics.e
+
+-- (You may be able to run it on exw, but the above is meant to make
+--  it clear I will offer no apologies for using variable length slice 
+--  assignment, direct string comparison, negative subscripts, relative 
+--  directory includes, pass strings to c_funcs, automatic includes such 
+--  as lower() and dir(), and all the other goodies I wrote Phix for 
+--  in the first place.
+--  In truth, I have often run this on exw, but I am not promising it
+--  will work every release. It is difficult to say for certain, and I
+--  know that I am biased, but the results/timings seem a bit more 
+--  consistent on p.exe than they do on exw.exe, ymmv.)
+--
+
+--
+-- Introduction
+-- ============
+-- When you first run this program, it will copy a bunch of files 
+--  into the bench directory, to avoid 2.4/3.0 include issues.
+-- It will then create bench.edb and start running all the tests.
+--   (Which may take a while, so go and put the kettle on!)
+-- Once finished, it will list the results, allow paging up and
+--  down, sorting, and manual re-running of individual tests.
+-- If you quit the program and run it again, it uses the results
+--  stored in bench.edb and displays the table immediately.
+--
+-- To run, open a DOS window in the Phix directory (ie where p.exe  
+--  has been installed, which will typically be either C:\p5 or 
+--  C:\Program Files\Phix) and enter "p b", which the compiler 
+--  treats as shorthand for "p bench\bench.exw", provided that b.exw 
+--  does not exist. You may need to amend the following constants.
+-- (The program will normally run fine, albeit with limited output, 
+--  when one or both of these cannot be found:
+--      2.4 3.0
+--      No  Yes -- OK (6 columns)
+--      Yes Yes -- OK (12 columns)
+--      No  No  -- OK (2 columns)
+--      Yes No  -- Not officially supported)
+--
+constant Eu30 = "\"C:\\Program Files\\Phix\\rdseu\\eu3\\",
+         Eu30Exw = Eu30&"exw.exe\"",
+         Eu30ExwNQ = Eu30Exw[2..-2],
+         Eu30Bnd = Eu30&"source\\bind.ex\"",
+         Eu30BndNQ = Eu30Bnd[2..-2]
+
+--Version 4.0 failed: after binding, it just hangs...
+--constant Eu30 = "C:\\Program Files\\Phix\\rdseu\\eu4\\",
+--       Eu30Exw = Eu30&"exw.exe",
+--       Eu30Bnd = Eu30&"source\\bind.ex"
+
+--constant Eu24 = "\"C:\\Program Files\\Phix\\rdseu\\eu24\\",
+constant Eu24 = "\"C:\\Program Files (x86)\\Phix\\rdseu\\eu24\\",
+         Eu24Exw = Eu24&"bin\\exw.exe\"",
+         Eu24ExwNQ = Eu24Exw[2..-2],
+         Eu24Bnd = Eu24&"bind.ex\"",
+         Eu24BndNQ = Eu24Bnd[2..-2]
+
+--  Later versions may be substituted for 3.0, however 2.4 is a special
+--  case: it is closed source C, rather than self-hosted, also you must
+--  manually copy exw.exe and bind.ex to C:\p5 (or wherever p.exe is
+--  installed) and pdexw.exe to C:\Euphoria\bin[?].
+--      Update: I think you also need backendw.exe in C\Euphoria\bin.
+--
+--  As noted above, "2.4 but not 3.0" is not officially supported (the
+--  colours are all wrong, though I doubt it would be particularly hard
+--  to fix). Likewise a pairing of say 3.1.2 and 4.0.3 (vs Phx) may 
+--  cause minor problems, mostly over there being only one EUDIR 
+--  environment variable, which again is probably easily fixable, just 
+--  not by me. If either of the above are not installed, either leave 
+--  the above constants alone or set to any non-existant directory; a 
+--  result of -1 from dir() acts as you would expect, ie "not found" 
+--  and the relevant columns are not shown. Lastly, if you really want
+--  "2.4 and 3.0 and 4.0" compared against Phix, I'd suggest a rewrite
+--  in the form of a GUI front-end, rather than fiddle here.
+--
+-- Sample output
+-- =============
+--
+--  Eu 2.4 not found
+--            - Interpreted -  -- Compiled --
+--    [ desc ] 3.0  p+  30:p+  3.0  p+  30:p+
+--                      =====           =====
+--  1 [arwen ] 2.5, 3.6, 1.43* 0.6, 0.2, 0.29,
+--  2 [getc  ] 2.7, 2.3, 0.82, 2.5, 2.2, 0.86,
+--  Enter item to re-test, - for previous page, Enter to quit, ? for help:
+--
+-- If neither 2.4 nor 3.0 can be found, it will only show "Int" vs "Exe",
+--  with no ratios, not much of interest to see then. If both 2.4 and 3.0
+--  are found, there will be a total of twelve columns, eg:
+--           - Interpreted - ---- Ratios ----  -- Compiled -- ---- Ratios ----
+--    [ desc ] 2.4  3.0  p+  24:30 24:p+ 30:p+  2.4  3.0  p+  24:30 24:p+ 30:p+
+--                                       =====                            =====
+--  1 [arwen ] 0.6, 2.7, 3.7, 4.56, 6.33, 1.39* 0.3, 0.6, 0.2, 1.78, 0.48, 0.27,
+--  2 [euex  ] 4.3, 6.2, 6.3, 1.44, 1.46, 1.02, 4.3, 4.7, 2.8, 1.09, 0.64, 0.58,
+--
+-- The key column is the "30:p+" one (underlined).
+--  
+-- Word of caution: There are, in order, lies, damn lies, statistics, and
+--  benchmark results. Always run a test a few times to make sure it is not 
+--  a glitch. Never assume a trivial benchmark means similar things will 
+--  happen on real-world programs, instead you must test them.
+--
+-- Note that compiled times do not include the time to bind/create the
+-- ".exe" file; just the time to run it. Otherwise the table should be
+-- pretty much self-explanatory.
+--
+-- After running a test, you can copy and edit benchtst.exw.
+--
+-- See also the help text shown when "?" is entered at the prompt.
+--
+-- If the following flag is set to 0 (the default) then the ratios
+-- are shown as Phix/RDS, so values greater than 1 are bad news 
+-- for Phx, less than 1 good news; if set to 1 then vice-versa.
+-- A message in the ? for help option confirms which it is showing.
+--
+integer inverseRatio        -- flippable by i/I
+        inverseRatio=0
+constant showGains=0,       -- if 1 then put a "+" next to better than 0.80 (iR=0) or 1.2 (iR=1)
+         showLosses=1       -- if 1 then put a "*" next to worse than 1.2 (iR=0) or 0.8 (iR=1)
+                            -- ie if inverseRatio is 0 and showLosses is 1, then show a * next
+                            --    to ratios above 1.2, to indicate where most work is needed.
+
+constant maxRetries=0       -- number of times to re-time test if compiled is slower than
+                            -- interpreted (which strongly suggests some kind of cache or
+                            -- background processing interference with the results).
+
+--
+-- For details of individual tests, see the constant Tests below.
+-- Some of the examples may be easier to read if you manually run
+-- them (eg as above by running bench.exw and entering say 41),
+-- quit bench.exw, and then examine benchtst.exw.
+--
+-- To quickly force a complete re-run of all tests, delete bench.edb.
+--  (and go make a pot of tea ;-))
+
+-- Hidden features [DEV now listed under ? for help]
+-- ===============
+-- 'r' lists the results sorted by interpreted ratio (middle column)
+-- 'R' lists the results sorted by compiled ratio (right hand column)
+-- ' ' lists the results in the original [Tests] order.
+
+constant pagedepth=20
+
+--
+--  *BUG: running under p[.exe] does not save anything to bench.edb*
+--   (found: see end)
+--
+--**b05fori takes longer to run .exe than compile & run! (/must/ be a bug!)
+--  same for most things now!
+
+
+
+--Comments (also for webpage):
+
+-- Release Notes [DEV]
+-- =============
+-- Version 0.0.2. I've been playing hard with the back end performance
+-- over the past couple of months and gotten a fair few things to show 
+-- better than twice the performance of the RDS backend. In fact, most,
+-- as in 40 out of 64 better with only 7 (badly) more than 20% worse.
+--
+-- I will add that Rob was apparently right in that adding 8-bit string
+-- support inevitably adds 10-20% overhead for a few ops, especially
+-- the a[i]=x and x=a[i] cases. The reality is we are comparing apples
+-- and oranges: Phix will fare much better on some tests because it is
+-- only moving/copying a quarter of the data, whereas RDS Eu will win in
+-- other cases simply because it does not have to ask the question "Is
+-- this an 8-bit string or a dword-sequence?", which on some things gets
+-- to be surprisingly significant. In fact, the more optimised the code 
+-- gets, the more noticeable becomes the impact of the extra instruction.
+-- Not that I'm seriously suggesting getting rid of 8-bit strings; a 20%
+-- hit on a highly optimised op is really insignificant in real time.
+--
+-- Please feel free to add extra tests and email me updates to the Tests
+-- table (see below).
+--
+-- Some of the gains here no doubt arise from the fact that the backend
+-- does not support sequence ops (the front end lets you call anything 
+-- in psqops.e, eg sq_add()). Also the upper and lower tests (in hll
+-- for both RDS and Phx) further demonstrate this point.
+--
+-- Lastly, it is also clear that many functions exhibit quite complex
+-- "performance curves" and some of the loop counts chosen below may
+-- happen upon a "sweet spot" for one and a "worse case" for the other.
+-- There will be an obvious bias in that I will tend to leave loop
+-- counts at settings that met targets, and often not bother to check
+-- what happens when counts are changed, just start on my next task.
+-- I have no doubt that RDS currently fares better with tiny numbers.
+-- Some differences no doubt depend on obscure design choices in the 
+-- il code format and chasing a 20% hit in one place may just lose a
+-- 20% gain somewhere else. This is not a competition, the only aim 
+-- here is to get within an acceptable margin, of say 20%. Of course 
+-- if you compare against 2.4, it will beat the pants off Phix the 
+-- same way that 2.4 will beat 3.0 by a fair margin, no matter how
+-- many times Rob denies that is the case...
+--
+
+--
+-- If any of the numbers below cause concern or meet with derision, 
+--  please email me privately, with a target if you like, requesting
+--  a notice to revisit this page once your needs are met.
+--
+--            E-Mail template:
+--              let me know if/when you compile arwen in
+--                  a) 120% of Eu
+--                  b) 110% of Eu
+--                  c) 100% or less of Eu
+--                (delete, or edit, as applicable)
+--
+--
+-- Notes:
+--  b00arwen highlights compilation overhead mainly, obviously in the 
+--           fullness of time I seek 2.4ish times (a later task).
+--  b02puts highlights the awful performance of RDS console output ;-)
+--
+
+
+--
+-- This program has the following four goals:
+--  1) highlight backend weaknesses (rightmost column)
+--  2) highlight worst-case compile times (central column)
+--  3) test whether a modification to the compiler affects performance.
+--  4) no-quibble comparison of actual performance on your machine.
+--
+-- To do: save best-ever ratios for each test and highlight sudden drops[?]
+
+
+sequence initialcurrentdir,     -- NB unquoted
+         benchdir,              -- NB opening but no closing quote
+         benchdirNQ,
+         benchexw,
+         benchexwNQ,
+         benchexe,
+         benche24,
+         pexe,
+         pwexe
+
+-- To get things working, lots of files need to be copied into bench...
+--  (While Phix can include ..\demo\arwen\arwen.ew no problem, 
+--   under 2.4/3.0 you have to set EUINC or rely on EUDIR\include,
+--   it is just far easier to move a few files about for this.)
+
+constant CopySet = {
+"..\\builtins\\dll.e",
+"..\\builtins\\file.e",
+"..\\builtins\\machine.e",
+"..\\builtins\\misc.e",
+"..\\builtins\\sort.e",
+"..\\builtins\\wildcard.e",
+"..\\demo\\arwen\\misc_arwen.e",
+"..\\demo\\arwen\\message_box.ew",
+"..\\demo\\arwen\\constants.ew",
+"..\\demo\\arwen\\dll_links.ew",
+"..\\demo\\arwen\\structures.ew",
+"..\\demo\\arwen\\Quick_Allocations.ew",
+"..\\demo\\arwen\\classes.ew",
+"..\\demo\\arwen\\arwen.ew",
+"..\\demo\\arwen\\imagelists.ew",
+-1}
+
+
+constant T_Name=1, T_Pre=2, T_body=3, T_count=4
+
+--
+-- The tests. First item is a short (4 or 5 character) name.
+--            Most test cases follow the pattern:
+--              <pre>
+--              for i=1 to <count> do
+--                  <body>
+--              end for
+--            in which case the {..pre,body,count} should be
+--             self-explanatory.
+--            If a test has no need of a for loop (or needs
+--             say step -1), then you can put everything into
+--             <pre>, leaving body "" and count 0, or you can
+--             write code fragment file(s): in the case of say
+--             b00open, this is easier than writing it inline,
+--             putting everything in quotes with trailing \n"&
+--             and changing all " to \", \\ to \\\\, etc.
+--            Note that code fragment files must begin "bNN"
+--             where N is 0..9, and are very simple, with no
+--             frills such as macros or other preprocessing.
+--            To examine a specific test, run bench.exw, enter
+--             the corresponding number (eg 2 for getc), quit,
+--             and then examine benchtst.exw.
+--            If count is 0, neither a for loop construct or
+--             <body> is written.
+--            In most cases the count is set to get timings
+--             over one second and less than ten, on a fast
+--             machine you may need to add zeroes. Counts of
+--             the form 10000-0-00 are just my way of showing
+--             how many zeroes I took off the integer i=1 case,
+--             which is obviously somewhat faster than an
+--             exponentially-degrading-non-optimisable append!
+--
+
+--
+-- Code fragments, only used for tests that do not fit
+--  the usual for i=1 to <count> do <body> form.
+--
+
+
+sequence SetTextTable
+         SetTextTable={}
+function AddSetText(sequence stuff)
+    SetTextTable=append(SetTextTable,stuff)
+    return length(SetTextTable)
+end function
+constant n00open = "integer fn\n"&
+--                 "fn = open(\"..\\edita\\arconst.e\",\"r\")\n"&
+                   "fn = open(\"bench.exw\",\"r\")\n"&
+                   "if fn=-1 then\n"&
+--                 "    puts(1,\"error opening arconst.e\\n\")\n"&
+                   "    puts(1,\"error opening bench.exw\\n\")\n"&
+                   "    abort(1)\n"&
+                   "end if\n"
+
+constant b01getc = AddSetText(n00open&
+                              "--/* Not Phix (seek defined as opSeek)\n"&
+                              "include sort.e\n"&
+                              "include file.e\n"&
+                              "--*/\n"&
+                              "integer ch\n"&
+                              "    for i=1 to 3000 do\n"&
+                              "        while 1 do\n"&
+                              "            ch = getc(fn)\n"&
+                              "            if ch=-1 then exit end if\n"&
+                              "        end while\n"&
+                              "        if seek(fn,0)!=0 then fn=1/0 end if\n"&
+                              "    end for\n"&
+                              "    close(fn)\n"),
+
+         b02gets = AddSetText(n00open&
+                              "--/* Not Phix (seek defined as opSeek)\n"&
+                              "include sort.e\n"&
+                              "include file.e\n"&
+                              "--*/\n"&
+                              "object line\n"&
+                              "    for i=1 to 3000 do\n"&
+                              "        while 1 do\n"&
+                              "            line = gets(fn)\n"&
+                              "            if atom(line) then exit end if\n"&
+                              "--          puts(1,line)\n"&
+                              "        end while\n"&
+                              "        if seek(fn,0)!=0 then fn=1/0 end if\n"&
+                              "    end for\n"&
+                              "    close(fn)\n"),
+
+         b03puts = AddSetText(n00open&
+                              "object line\n"&
+                              "    for i=1 to 2 do\n"&
+                              "        while 1 do\n"&
+                              "            line = gets(fn)\n"&
+                              "            if atom(line) then exit end if\n"&
+                              "            puts(1,line)\n"&
+                              "        end while\n"&
+                              "--/**/  line = seek(fn,0)                  --/*\n"&
+                              "        line = machine_func(19, {fn, 0})   --*/\n"&
+                              "    end for\n"&
+                              "    close(fn)\n"),
+
+
+         b04forn3= AddSetText("for i=1 to 2000 do\n"&
+                              "    for j=1 to 1000 do\n"&
+                              "        for k=1 to 300 do\n"&
+                              "        end for\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b05while= AddSetText("without type_check\n"&
+                              "integer j\n"&
+                              "j=0\n"&
+                              "while j<400000000 do\n"&
+                              "    j=j+1\n"&
+                              "end while\n"),
+
+         -- aside: while abs() is now defined in the auto-include builtins\pabs.e,
+         --         these are still required to compare against RDS Eu 2.4 (etc).
+         b06abs  = AddSetText("--without type_check\n"&
+                              "function abs(atom x)\n"&
+                              "    if x<0 then x=-x end if\n"&
+                              "--  if x<0 then return -x end if\n"&
+                              "    return x\n"&
+                              "end function\n"&
+                              "integer j\n"),
+
+         b07abs  = AddSetText("--without type_check\n"&
+                              "function abs(atom x)\n"&
+                              "    if x<0 then x=-x end if\n"&
+                              "--  if x<0 then return -x end if\n"&
+                              "    return x\n"&
+                              "end function\n"&
+                              "atom a\n"),
+
+         b08wild = AddSetText("--/* Not Phix (pcase.e is auto-include)\n"&
+                              "include wildcard.e\n"&
+                              "--*/\n"&
+                              "sequence s s=\"ABC\"\n"),    -- (for lower)
+
+         b09wild = AddSetText("--/* Not Phix (pcase.e is auto-include)\n"&
+                              "include wildcard.e\n"&
+                              "--*/\n"&
+                              "sequence s s=\"abc\"\n"),    -- (for upper)
+
+         b10func = AddSetText("integer j j=0\n"&
+                              "function f()\n"&
+                              "    return j\n"&
+                              "end function\n"),
+
+         b11proc = AddSetText("integer nse\n"&
+                              "procedure p()\n"&
+                              "    nse = 1\n"&
+                              "end procedure\n"),
+
+         b12func = AddSetText("sequence s\n"&
+                              "function f(integer i, integer j, integer k, integer l, integer m,\n"&
+                              "           integer n, integer o, integer p, integer q, integer r)\n"&
+                              "    return {i,j,k,l,m,n,o,p,q,r}\n"&
+                              "end function\n"),
+
+         b13proc = AddSetText("integer s\n"&
+                              "procedure p(integer i, integer j, integer k, integer l, integer m,\n"&
+                              "            integer n, integer o, integer p, integer q, integer r)\n"&
+                              "    s=i+j+k+l+m+n+o+p+q+r\n"&
+                              "end procedure\n"),
+
+         b14slcn = AddSetText("object o\n"&
+                              "sequence s\n"&
+                              "s={1,2,3}\n"&
+                              "\n"&
+                              "for i=1 to 4000000 do\n"&
+                              "    for j=1 to 3 do\n"&
+                              "        o=s[1..j]\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b15peek = AddSetText("integer j\n"&
+                              "atom a\n"&
+                              "--/*\n"&
+                              "include machine.e\n"&
+                              "--*/\n"&
+                              "a=allocate(10000)\n"&
+                              "for k=1 to 1000 do\n"&
+                              "    for i=0 to 10000-1 do\n"&
+                              "        j=peek(a+i)\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b15peeks = AddSetText("atom a,b\n"&
+                              "--/*\n"&
+                              "include machine.e\n"&
+                              "--*/\n"&
+                              "a=allocate(10000)\n"&
+                              "for k=1 to 10000 do\n"&
+                              "    for i=0 to 10000-5 do\n"&
+                              "        b=peek4s(a+i)\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b15peeku = AddSetText("atom a,b\n"&
+                              "--/*\n"&
+                              "include machine.e\n"&
+                              "--*/\n"&
+                              "a=allocate(10000)\n"&
+                              "for k=1 to 10000 do\n"&
+                              "    for i=0 to 10000-5 do\n"&
+                              "        b=peek4u(a+i)\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b15peeki = AddSetText("integer a,b,c\n"&
+                              "--/*\n"&
+                              "include machine.e\n"&
+                              "--*/\n"&
+                              "a=allocate(10000)\n"&
+                              "for k=1 to 10000 do\n"&
+                              "    for i=0 to 10000-5 do\n"&
+                              "        c = a+i\n"&
+                              "        b = peek(c)\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b15poke = AddSetText("atom a\n"&
+                              "--/*\n"&
+                              "include machine.e\n"&
+                              "--*/\n"&
+                              "a=allocate(10000)\n"&
+                              "for k=1 to 20000 do\n"&
+                              "    for i=0 to 10000-1 do\n"&
+                              "        poke(a+i,i)\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b15poke4 = AddSetText("atom a\n"&
+                              "--/*\n"&
+                              "include machine.e\n"&
+                              "--*/\n"&
+                              "a=allocate(10000)\n"&
+                              "for k=1 to 10000 do\n"&
+                              "    for i=0 to 10000-5 do\n"&
+                              "        poke4(a+i,i)\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b16tchk = AddSetText("type hour(integer h)\n"&
+                              "    return h>=0 and h<=24\n"&
+                              "end type\n"&
+                              "hour h\n"&
+                              "for k=1 to 1000000 do\n"&
+                              "    for i=0 to 24 do\n"&
+                              "        h = i\n"&
+                              "    end for\n"&
+                              "end for\n"),
+
+         b16tchkn = AddSetText("type positive_int(integer pi)\n"&
+                              "    return pi>=0\n"&
+                              "end type\n"&
+                              "type minute(positive_int m)\n"&
+                              "    return m<=59\n"&
+                              "end type\n"&
+                              "type odd_min(minute om)\n"&
+                              "    return and_bits(om,1)\n"&
+                              "end type\n"&
+                              "odd_min z\n"&
+                              "--  z=1\n"&
+                              "for k=1 to 400000 do\n"&
+                              "    for i=1 to 59 by 2 do\n"&
+                              "        z = i\n"&
+                              "    end for\n"&
+                              "end for\n")
+
+
+constant Z=0    -- marker for problematic tests (on a P4)
+--DEV add a sprintf() test
+constant Tests={
+-- {name, pre, loop body, count}
+ {"arwen","include arwen.ew","",0}
+-- A single file eu.ex (3.0) hacked to run on 2.4 and compile arwen:
+,{"euex","include euex.exw","",0}
+,{"w32lib",0,0,0}
+,{"getc",b01getc,"",0}
+,{"gets",b02gets,"",0}
+,{"puts",b03puts,"",0}
+,{"fori","","",800000000}
+,{"forit","with trace","",80000000}
+,{"fori2","for i=1 to 1000000000 by 2 do end for","",0}
+,{"form1","for i=400000000 to 1 by -1 do end for","",0}
+,{"forn3",b04forn3,"",Z}
+,{"while",b05while,"",0}
+,{"asgno","object o","o=3",400000000}
+,{"asgni","integer j","j=3",200000000-0}
+,{"asgna","atom a","a=3.5",120000000-0}
+,{"asgna2","atom a","a=3.5 a=4.5",100000000}
+,{"asgns","sequence s, t\nt={1,2,3}","s=t",200000000}
+,{"asnif","integer j","if i then j=3 end if",    400000000}
+,{"asneq","integer j","if i=i then j=3 end if",  400000000}
+,{"asnne","integer j","if i!=i then j=3 end if", 400000000}
+,{"asnlt","integer j","if i<i then j=3 end if",  400000000}
+,{"asnle","integer j","if i<=i then j=3 end if", 400000000}
+,{"asnge","integer j","if i>=i then j=3 end if", 400000000}
+,{"asngt","integer j","if i>i then j=3 end if",  400000000}
+,{"ifnil","","if i then end if",400000000}
+,{"subse1","object o\nsequence s\ns={1,2,3}","o=s[2]",200000000}
+--,{"subsei","integer j\nsequence s\ns={1,2,3}","j=s[2]",20000000}
+,{"subsei","integer j\nconstant s={1,2,3}","j=s[2]",300000000}
+--,{"subsis","integer ch\n--/**/string s /*\nsequence s --*/\ns=\"abc\"","ch=s[2]",20000000}
+,{"subsis","integer ch\nsequence s\ns=\"abc\"","ch=s[2]",300000000}
+--DEV subse is 30% slower, subse4 25% faster. I'd trade them!
+,{"subse","object o\nsequence s\ns={{1},{1,2}}","o=s[2][2]",200000000}
+,{"subse4","object o\nsequence s\ns={{1,{2,3,{4,5,6,7}}}}","o=s[1][2][3][4]",200000000}
+,{"repe1","sequence s\ns={1,2,-3}","s[2]=3",200000000}
+,{"repe1s","--/**/string s /*\nsequence s --*/\ns=\"abc\"","s[2]='c'",200000000}
+--,{"repe1s","sequence s\ns=\"abc\"","s[2]='c'",10000000}
+,{"repe ","sequence s\ns={1,{1,2}}","s[2][2]=3",100000000}
+,{"repe4","sequence s\ns={{1,{2,3,{4,5,6,7}}}}","s[1][2][3][4]=5",100000000}
+,{"subss","object o\nsequence s\ns={1,2,3}","o=s[1..2]",20000000-0}
+,{"subss3",b14slcn,"",0}
+,{"subss2","object o\nsequence s\ns={1,{2,3}}","o=s[2][1..2]",10000000} -- NB: 3.0? problem
+,{"reps ","sequence s,t\ns={1,2,3} t={4,5}","s[1..2]=t",100000000}
+,{"reps2","sequence s,t\ns={1,{1,2}} t={4,5}","s[2][1..2]=t",40000000-0}
+,{"inc","integer j j=0","j+=1",200000000-Z}
+,{"dec","integer j j=0","j-=1",200000000-Z}
+,{"addii","integer j","j=2+2",40000000-Z}
+,{"addff","atom a","a=2.3+3.4",40000000}
+,{"add3","integer j,k,l,m","j=i k=i l=i m=j+k+l",20000000}
+,{"muli2","integer j","j=5*2",40000000-Z}
+,{"muli3","integer j","j=5*3",20000000-Z}
+,{"mulff","atom a","a=2.5*3.5",80000000-0}
+,{"divi2","integer j","j=256/2",20000000-Z}
+,{"divi4","integer j","j=256/4",100000000}
+,{"divf2","integer j","j=floor(255/2)",400000000}
+,{"divf4","integer j","j=floor(255/4)",80000000}
+,{"div52","atom a","a=5/2",10000000}
+,{"div53","atom a","a=5/3",50000000}
+,{"divff","atom a","a=2.5/1.2",50000000}
+,{"floor","integer j","j=floor(3.5)",8000000-0}
+,{"floorb","atom j","j=floor(1e308)",8000000-0}
+--,{"rmdri","integer j","j=remainder(5,3)",6000000}
+,{"rmdri","integer j,k k=4","j=remainder(k,3) k=5",150000000} -- fairer test!
+,{"rmdr2","integer j,k k=4","j=remainder(k,2) k=5",150000000}   -- \ these should give similar
+,{"rmab1","integer j,k k=4","j=and_bits(k,1) k=5",150000000}    -- / results (done, 11/10/09)
+,{"rmdra","atom a","a=remainder(5.3,3)",40000000-0}
+,{"pmask","integer mask","mask = power(2,remainder(i,29))",40000000}
+,{"absmi",b06abs,"j=abs(-5)",50000000-0}
+,{"absma",b07abs,"a=abs(-5.5)",20000000-0}
+,{"a_b53","atom a","a=and_bits(5,3)",200000000}
+,{"lower",b08wild,"s=lower(\"ABC\")",4000000-00}
+,{"lowers",b08wild,"s=lower(s)",4000000-00}
+,{"upper",b09wild,"s=upper(\"abc\")",4000000-00}
+,{"uppers",b09wild,"s=upper(s)",4000000-00}
+,{"apndc","sequence s s=\"\"","s=append(s,'a')",40000000-0}     -- append char (to string)
+,{"apndo","sequence s,t s={} t={1,2,3}","s=append(s,t)",40000000-0} -- append object (to sequence)
+,{"apndu","sequence s,t s={} t={1}","s=append(t,1) t=s",100000-0-00} -- (unoptimised/able case)
+--Note: I would accept a ten-fold hit on prepend for a 5% gain on append, and it seems I have.
+--,{"ppndc","sequence s s=\"\"","s=prepend(s,'a')",10000-00-0} -- NB cf apndc!! -- newBase!
+-- Fudge, see below
+,{"ppndc","sequence s s={}","s=prepend(s,'a')",20000000-0}
+,{"ppndo","sequence s,t s={} t={1,2,3}","s=prepend(s,t)",20000000-0}
+,{"ppndu","sequence s,t s={} t={1}","s=prepend(t,1) t=s",80000-000} -- (unoptimised/able case)
+-- booyah! better than 400 times faster!! (tee hee):
+,{"apnd1","sequence s s={{}}", "s[1]=append(s[1],-1)",100000-0-0}
+,{"ppnd1","sequence s s={{}}", "s[1]=prepend(s[1],-1)",100000-0-0}
+,{"apnd1c","sequence s s={\"\"}", "s[1]=append(s[1],'a')",100000-0-0}
+-- not quite such a trouncing 'cos of the string=prepend(string,char) thing, a mere 200* faster ;-)
+,{"ppnd1c","sequence s s={\"\"}", "s[1]=prepend(s[1],'a')",100000-0-0}
+,{"find","constant r0=repeat(0,1000)&1 integer k","k = find(1,r0)",2000000-00}
+,{"match","constant r0=repeat(0,1000)","if match({1},r0) then end if",1000000-00}
+,{"length","sequence s s={1} integer j","j=length(s)",200000000}
+--DEV more variants, and see if insitu possible...
+,{"concat","sequence s","s=\"abc\"&\"def\"",10000000-0}
+,{"catstr","sequence s s=\"abc\"","s&=\"def\"",10000000-0}
+,{"catseq","sequence s s={-1}","s&={-1,0,1}",10000000-0}
+,{"catN3","sequence a","a = {1,2}&1.5&1",8000000-0}
+,{"catabc","sequence a","a = \"abc\"&\"def\"&\"ghi\"",8000000-0}
+,{"conrep","sequence s s={}","s&=repeat(0,1024)",40000-0-0-0-00}
+,{"constr","sequence s s=\"\"","s&=\"abcd\"",10000000-00}
+,{"reptc","sequence s","s=repeat('a',10000)",40000-0-000}
+,{"repto","sequence s","s=repeat({},10000)",40000-0-000}
+,{"mksq","sequence s","s={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,i}",10000000-0}
+,{"cmpare","integer c sequence s,t s={1,2,3} t={1,2,4}","c=compare(s,t)",50000000-0}
+--NB: 2.4 does not recognise {1,2,3} as constant, so is about 8* slower than 3.0
+--,{"cmpri","integer c","c=compare({1,2,3},{1,2,4})",2000000-0}
+,{"cmpari","constant a={1,2,3}, b={1,2,4} integer c","c=compare(a,b)",50000000-0}
+,{"uminsi","integer c c=5","c=-c",50000000-Z}
+,{"uminsa","atom a a=5.5","a=-a",500000000-0}
+,{"func",b10func,"j=i j=f()",50000000}
+,{"proc",b11proc,"p()",50000000}
+,{"funcn",b12func,"s=f(1,2,3,4,5,6,7,8,9,0)",8000000-00}
+,{"procn",b13proc,"p(1,2,3,4,5,6,7,8,9,0)",8000000-00}
+,{"rept0i","sequence s","s=repeat(0,i)",100000-000}
+,{"big_e","include big_e/big_e.ex","",0}
+,{"peek",b15peek,"",Z}
+,{"peeks",b15peeks,"",0}
+,{"peeku",b15peeku,"",0}
+,{"peeki",b15peeki,"",0}
+,{"poke",b15poke,"",0}
+,{"poke4",b15poke4,"",0}
+,{"tchk",b16tchk,"",0}
+,{"tchkn",b16tchkn,"",0}
+-- benchmarks   
+,{"ack","include shootout/ackermann.ex","",0}
+,{"btree","include shootout/binary-trees.ex","",0}
+,{"fannku","include shootout/fannkuch.ex","",0}
+,{"fasta","include shootout/fasta.ex","",0}
+,{"harmon","include shootout/harmonic.ex","",0}
+,{"nsieve","include shootout/nsieve.ex","",0}
+,{"psums","include shootout/partial-sums.ex","",0}
+,{"random","include shootout/random.ex","",0}
+,{"sum","include shootout/sumfile.ex","",0}
+,{"wc","include shootout/wc.ex","",0}
+
+,{"fibr","include cf/fibr.exw","",0}
+,{"fibi","include cf/fibi.exw","",0}
+
+--DEV peek, poke?
+}
+
+--TIP: if an entry above is modified it will be re-run automatically
+--     the next time bench.exw is run. (Not true for code fragment
+--     files, as listed in SetTextTable, however.) 
+--     Or just key in the number (shown on screen) like it says.
+
+integer runCF   -- run C & Fasm versions?
+
+procedure createTestFile(integer idx)
+integer fn
+object o
+
+    fn=open(benchexwNQ,"w")
+    if fn=-1 then
+        puts(1,"error opening "&benchexwNQ&" for write\n")
+        if getc(0) then end if
+        abort(0)
+    end if
+
+    printf(fn,"--\n-- benchtst.exw, test %s [%d]\n--\n",{Tests[idx][T_Name],idx})
+    puts(fn,"-- This file is automatically created/overwritten by bench.exw\n--\n\n")
+
+    o = Tests[idx][T_Pre]
+    if atom(o) then
+        o = SetTextTable[o]
+    end if
+    puts(fn,o)
+    runCF = match("include cf/",o)  -- run C & Fasm versions?
+    
+    if Tests[idx][T_count] then
+        printf(fn,"\nfor i=1 to %d do\n    ",{Tests[idx][T_count]})
+        puts(fn,Tests[idx][T_body])
+--if idx=8 then
+--      puts(fn,"\n --/--/ #ilASM{ nop }")
+--      puts(fn,"\n --/**/ #ilASM{ nop nop nop }")
+--end if
+        puts(fn,"\nend for\n")
+    end if
+    close(fn)
+end procedure
+
+
+procedure Abort(sequence msg)
+    puts(1,msg)
+    if getc(0) then end if
+    abort(1)
+end procedure
+
+--DEV:
+--/* Not Phix:
+include ..\builtins\misc.e
+include ..\builtins\sort.e
+include ..\builtins\file.e
+include ..\builtins\machine.e
+include ..\builtins\get.e
+include ..\builtins\wildcard.e
+--*/
+
+--with trace
+function cleanUpPath(sequence name)
+integer k   
+    --
+    -- Replace any / in filepath with \\
+    --
+    while 1 do
+        k = find('/',name)
+        if k=0 then exit end if
+        name[k]='\\'
+    end while
+    --
+    -- remove any \\
+    --
+    while 1 do
+        k = match("\\\\",name)
+        if not k then exit end if
+--DEV:
+--      name[k..k] = "" -- remove "\"
+        name = name[1..k] & name[k+2..length(name)]
+    end while
+    --
+    -- repeat for any \.\
+    --
+    while 1 do
+        k = match("\\.\\",name)
+        if not k then exit end if
+--DEV
+--      name[k..k+1] = ""   -- remove "\."
+        name = name[1..k] & name[k+3..length(name)]
+    end while
+    --
+    -- check for and remove any \..\ in filepath
+    --
+    while 1 do
+        k=match("\\..\\",name)
+        if k=0 then exit end if
+        for j=k-1 to 1 by -1 do
+            if name[j]='\\' then
+--DEV (testing rqd):
+--              name[j..k+3]="" -- remove eg "\fred\.."
+                name=name[1..j]&name[k+4..length(name)]
+                k=0 -- signal found
+                exit
+            end if
+        end for
+        if k!=0 then
+            if length(name)>2 and name[2]!=':' then
+                name=initialcurrentdir&name
+                if name[2]!=':' then ?9/0 end if    -- sanity check
+            else
+                puts(1,"Warning, cannot cleanup path "&name&'\n')
+                exit
+            end if
+        end if
+    end while
+    --
+    -- Make sure there is a proper path.
+    --
+    if not find('\\',name) and (length(name)<2 or name[2]!=':') then
+        name=initialcurrentdir&name
+    end if
+    return name
+end function
+
+function getInitialCurrentDir()
+-- based (partly) on Greg Haberek's posting to EUforum, 2005 May 28
+sequence res
+integer lr, found
+    res = command_line()
+    res = res[2]
+    found = 0
+    -- res may be 1) D:\Edita\Edita.exw     (perfect!)
+    --            2) D:progs\Edita.exw      (? partial path ? NB: odd case, not handled)
+    --            3) D:Edita.exw            (Not enuf info; rely on current_dir instead)
+    --            4) Edita.exw              (Zero info given; rely on current_dir instead)
+    if length(res)<2 or res[2]!=':' then
+        res = current_dir()&'\\'&res
+        res = cleanUpPath(res)
+    elsif length(res)>3 and res[2]=':' and not find(res[3],"\\/") then
+--      res = current_dir()&'\\'&res[4..length(res)]
+        res = current_dir()&'\\'&res[3..length(res)]    --DEV 6/10/06 (untested)
+        res = cleanUpPath(res)
+    end if
+    for i = length(res) to 1 by -1 do
+        if find(res[i],"\\/") then
+            found = i
+            exit
+        end if
+    end for
+    if found then
+        res = res[1..found]
+    else
+        res = current_dir()&'\\'
+    end if
+    res = lower(res)
+    lr = length(res)
+--DEV:
+--  if length(res)>5 and res[-6..-1]="bench\\" then
+    if lr>5 and equal(res[lr-5..lr],"bench\\") then
+--      res=res[1..-7]
+        res=res[1..lr-6]
+    end if
+
+    return res
+end function
+
+--trace(1)
+
+    initialcurrentdir = getInitialCurrentDir()
+    benchdir = "\""&initialcurrentdir&"bench\\"     -- nb no closing quote on this
+    benchdirNQ = benchdir[2..-1]
+    benchexw = benchdir&"benchtst.exw\""
+    benchexwNQ = benchexw[2..-2]
+    benchexe = benchdir&"benchtst.exe\""
+    benche24 = benchdir&"benche24.exe\""
+    pexe = "\""&initialcurrentdir&"p.exe\" "
+    pwexe = "\""&initialcurrentdir&"pw.exe\" "
+
+--if not chdir(benchdir&"\"") then ?9/0 end if
+if not chdir(initialcurrentdir&"bench\\") then ?9/0 end if
+--^ argument to chdir cannot be quoted, apparently.
+--  ie: chdir("C:\\Program Files\\Phix\\") is fine, but
+--      chdir("\"C:\\Program Files\\Phix\\\"") is fine, but errors out
+--      (This is a feature of SetCurrentDirectory in kernel32.dll)
+
+--DEV:
+--/* Not required for Phix:
+include ..\builtins\dll.e as dll
+--include ..\builtins\ppp.e
+--*/
+--pp(initialcurrentdir)
+
+constant k32 = open_dll("kernel32.dll"),
+         xCopyFile = define_c_func(k32,"CopyFileA",
+            {C_POINTER, --  LPCTSTR  lpExistingFileName,    // address of name of an existing file
+             C_POINTER, --  LPCTSTR  lpNewFileName, // address of filename to copy to
+             C_LONG},   --  BOOL  bFailIfExists     // flag for operation if file exists
+            C_INT),     -- BOOL
+--       xDeleteFile = define_c_func(k32,"DeleteFileA",
+--          {C_POINTER},--  LPCTSTR  lpFileName     // address of name of file to delete
+--          C_INT),     -- BOOL
+         xSleep = define_c_proc(k32,"Sleep",
+            {C_LONG})   --  DWORD cMilliseconds // sleep time in milliseconds
+
+procedure Copy()
+sequence f1, f2
+object d1, d2
+    for i=1 to length(CopySet)-1 do
+        f1 = cleanUpPath(initialcurrentdir&"bench\\"&CopySet[i])
+        d1 = dir(f1)
+        f2 = CopySet[i]
+        for j=length(f2) to 1 by -1 do
+            if f2[j]='\\' then
+                f2 = cleanUpPath(initialcurrentdir&"bench"&f2[j..length(f2)])
+--              f2 = cleanUpPath(initialcurrentdir&"bench"&f2[j..-1])
+                exit
+            end if
+        end for
+        d2 = dir(f2)
+        if not equal(d1,d2) then
+            -- but check for eg series.e vs. SERIES.E or Series.e
+            if sequence(d1) and sequence(d2)
+            and equal(lower(d1[1]),lower(d2[1])) then
+                d2[1] = d1[1]
+            end if
+            if not equal(d1,d2) then
+                puts(1,"copy \""&f1&"\" \""&f2&"\"\n")
+                while not c_func(xCopyFile,{f1,f2,0}) do
+                    puts(1,"Error copying file - retry?")
+                    if find(wait_key(),"nN") then abort(1) end if
+                    puts(1,"\n")
+                end while
+            end if
+        end if
+    end for
+end procedure
+Copy()
+
+--with trace
+--procedure DeleteFile(sequence path)
+--atom lpFile
+--trace(1) --DEV remove this routine completely.
+--  lpFile = allocate_string(path)
+--  if not c_func(xDeleteFile,{lpFile}) then
+----    if not c_func(xDeleteFile,{path}) then
+--      -- may still be locked by the os as just run,
+--      --  so give it a quick chance to release it.
+--      sleep(1)
+--      if not c_func(xDeleteFile,{lpFile}) then
+----        if not c_func(xDeleteFile,{path}) then
+--          puts(1,"\n\nerror deleting file: "&path&"\n\n")
+--      end if
+--  end if
+--  free(lpFile)
+--end procedure
+
+
+--DEV:
+include ..\builtins\database.e
+
+include ..\builtins\pcase.e
+
+--DEV add get_ku_time to psym.e!
+--/* Not required for Phix
+include ..\builtins\syswait.ew
+--*/
+
+
+sequence logrec, testres
+
+--constants for indexing logrecs, interpreted and bound times,
+-- plus a copy of Tests[i] so we know when to auto-re-run.
+
+constant L_24RDS=1, L_30RDS=2, L_Phx=3, L_24Rb=4, L_30Rb=5, L_Pb=6, L_Details=7, L_tC=8, L_tFASM=9
+
+sequence details
+
+integer db_idx
+function run_needed(integer idx)
+object d
+    details=Tests[idx]
+--  if idx>db_table_size() then
+--      if db_insert(idx,0)!=DB_OK then
+--constant T_Name=1, T_Pre=2, T_body=3, T_count=4
+    db_idx = db_find_key(details[T_Name])
+    if db_idx<0 then
+        if db_insert(details[T_Name],0)!=DB_OK then
+            Abort("error inserting record\n")
+        end if
+        db_idx = -db_idx
+        return 1
+    end if
+    d = db_record_data(db_idx)
+    --
+    -- force individual re-runs here?:
+    --
+--  if idx=4 then return 1 end if
+--  return 1
+    --
+--DEV:
+--  if atom(d) or d[R_Details]!=details then
+    if atom(d)
+    or length(d)<L_Details
+    or not equal(d[L_Details],details) then
+--  or d[L_Details]!=details then
+--      if atom(d) then
+--          pp(d)
+--      else
+--          pp(d[L_Details])
+--      end if
+--      pp(details)
+        return 1
+    end if
+    logrec = d
+    return 0
+end function
+
+atom stime  -- run start time
+
+--constant rtypes={"RDS","Rb","Phx","Pb"}
+constant rtypes={"Phx","2.4","3.0","C","FASM"}
+function run(sequence cmd, integer timed, integer tidx, integer rtyp)
+object void
+    if timed then
+        void = " ["&Tests[tidx][T_Name]&","&rtypes[rtyp]&" timed]\n"
+    else
+        void = '\n'
+    end if
+    puts(1,cmd&void)
+    c_proc(xSleep,{100})
+    stime=time()
+    return system_wait(cmd)
+--return 1
+end function
+
+atom t24RDS, t30RDS, tPhx, t24Rb, t30Rb, tPb, ratio
+atom tC, tFASM
+integer any_qu, this_qu
+
+integer do24RDS, do24Rbind, do30RDS, do30Rbind
+
+--procedure start_time()    -- now done in run()
+--  stime=time()
+--end procedure
+
+function end_time()
+--atom kutime
+--  -- see syswait.ew. GetProcessTimes is only supported on
+--  -- 2000, XP, and later. Returns a negative error code
+--  -- (usually -120) on earlier systems.
+--  kutime = get_ku_time()
+--  if kutime<0 then
+--?9393
+        return time()-stime
+--  else
+--      return kutime
+--  end if
+end function
+
+--with trace
+procedure do_run(integer idx)
+-- compile first, then interpret, to reduce "source cached" gains anywhere
+integer delete, retryCount
+sequence name
+sequence wasbenchexw, wasbenchexe, porw
+if idx=3 then
+    wasbenchexw = benchexw
+    wasbenchexe = benchexe
+    benchexw = "\""&initialcurrentdir&"demo\\win32lib\\win32lib.ewx\""
+--  benchexw = "\""&initialcurrentdir&"builtins\\win32lib.ewx\""
+    benchexe = "\""&initialcurrentdir&"demo\\win32lib\\win32lib.exe\""
+    runCF = 0
+else
+    createTestFile(idx)
+    name = Tests[idx][T_Name]
+    printf(1,"test %d [%s]\n",{idx,name})
+end if
+    t24RDS = -1
+    t24Rb = -1
+    if do24RDS then
+        retryCount=0
+        while 1 do      -- maxRetries loop
+            if do24Rbind then
+                if run(Eu24Exw&" "&Eu24Bnd&" -w32 -quiet "&benchexw,0,0,0)=0 then
+                    delete = 1
+                end if
+            end if
+            if run(Eu24Exw&" "&benchexw,1,idx,2)=0 then
+                t24RDS = end_time()
+--              if idx=3 then exit end if
+                if do24Rbind then
+if idx=3 then
+--dunno why 2.4 puts it here but it does...
+                    if run("\""&initialcurrentdir&"bench\\win32lib.exe\"",1,idx,2)=0 then end if
+                    t24Rb = end_time()
+                    exit
+end if
+                    if run(benchexe,1,idx,2)=0 then
+                        t24Rb = end_time()
+--if not c_func(xCopyFile,{benchexe,benche24,0}) then puts(1,"copy failed\n") end if
+if not c_func(xCopyFile,{benchexe[2..-2],benche24[2..-2],0}) then
+    puts(1,"copy failed\n")
+end if
+                        if t24Rb<=t24RDS then exit end if   -- quit maxRetries loop
+                    else
+                        t24Rb = -1
+                        exit
+                    end if
+                end if
+            else
+                t24RDS = -1
+                exit
+            end if
+            retryCount+=1
+            if retryCount>maxRetries then exit end if
+            puts(1,"uh? [2.4] compiled slower than interpreted!? retry...\n")
+        end while
+    end if
+
+    t30RDS = -1
+    t30Rb = -1
+    delete = 0
+    if do30RDS then
+        retryCount=0
+        while 1 do      -- maxRetries loop
+            if do30Rbind then
+                if run(Eu30Exw&" "&Eu30Bnd&" -w32 -quiet "&benchexw,0,0,0)=0 then
+                    delete = 1
+                end if
+            end if
+            if run(Eu30Exw&" "&benchexw,1,idx,3)=0 then
+                t30RDS = end_time()
+                if do30Rbind then
+                    if run(benchexe,1,idx,3)=0 then
+                        t30Rb = end_time()
+                        if t30Rb<=t30RDS then exit end if   -- quit maxRetries loop
+                    else
+                        t30Rb = -1
+                        exit
+                    end if
+                end if
+            else
+                t30RDS = -1
+                exit
+            end if
+            retryCount+=1
+            if retryCount>maxRetries then exit end if
+            puts(1,"uh? [3.0] compiled slower than interpreted!? retry...\n")
+        end while
+    end if
+--trace(1)
+    tPhx = -1
+    tPb = -1
+    retryCount=0
+    while 1 do      -- maxRetries loop
+--if idx!=3 then
+        if run(pexe&"-c -norun "&benchexw,0,0,0)=0 then
+--          if run("\""&initialcurrentdir&"exw.exe\" \""&initialcurrentdir&"diss.exw\"",0,0,0)!=0 then ?9/0 end if
+--          if run("\""&initialcurrentdir&"exwc.exe\" \""&initialcurrentdir&"diss.exw\"",0,0,0)!=0 then ?9/0 end if
+            delete = 1
+        end if
+--end if
+        if idx=6 then   -- fairer to compare exw.exe with pw.exe...
+            porw = pwexe
+        else
+            porw = pexe
+        end if
+        if run(porw&benchexw,1,idx,1)=0 then
+--      if run(pexe&benchexw,1,idx,1)=0 then
+            tPhx = end_time()
+--DEV
+--          if idx=3 then exit end if
+            if run(benchexe,1,idx,1)=0 then
+--          if run("\""&initialcurrentdir&"px.exe\"",1,idx,1)=0 then
+--          if run(benchdir&"bt2.exe\"",1,idx,1)=0 then
+                tPb = end_time()
+                if tPb<=tPhx then exit end if   -- quit maxRetries loop
+            else
+                tPb = -1
+                exit
+            end if
+        else
+            tPhx = -1
+            exit
+        end if
+        retryCount+=1
+        if retryCount>maxRetries then exit end if
+        puts(1,"uh? [Phx] compiled slower than interpreted!? retry...\n")
+    end while
+    tC=-1
+    tFASM=-1
+    if runCF then
+        if run(benchdir&"cf\\"&Tests[idx][T_Name]&"C.EXE\"",1,idx,4)=0 then
+            tC = end_time()
+        end if
+        if run(benchdir&"cf\\"&Tests[idx][T_Name]&"F.EXE\"",1,idx,5)=0 then
+            tFASM = end_time()
+        end if
+    end if
+    logrec = {t24RDS,t30RDS,tPhx,t24Rb,t30Rb,tPb,details,tC,tFASM}
+    db_replace_data(db_idx,logrec)
+if idx=3 then
+    benchexw = wasbenchexw
+    benchexe = wasbenchexe
+else
+    if equal(name,"euex") then
+        puts(1,"\n **NB**  euex is a gleefully hacked copy of eu.ex which only serves")
+        puts(1,"\n         to test relative performance on a reasonably chunky program.")
+        puts(1,"\n         In no way is it meant to verify or imply correct operation:")
+        puts(1,"\n         that would be an altogether completely separate endeavour.\n\n")
+    elsif equal(name,"subse1") then
+        puts(1,"\n **NB**  subse1 is ~10% slower than RDS Eu for a simple reason:")
+        puts(1,"\n         in o=s[i], Phix has to test/cope with getting a dword")
+        puts(1,"\n         or a byte-sized character, whereas RDS Eu does not support")
+        puts(1,"\n         8-bit strings, so it can just always get a dword. Probably")
+        puts(1,"\n         the only way to narrow the gap is to remove string support.\n\n")
+    elsif equal(name,"repe1") then
+        puts(1,"\n **NB**  repe1 is ~5% slower than RDS Eu for a simple reason:")
+        puts(1,"\n         in s[i]=o, Phix has to test/cope with storing a dword")
+        puts(1,"\n         or a byte-sized character, or even expanding an 8-bit")
+        puts(1,"\n         ascii string into a dword sequence, whereas RDS Eu does not")
+        puts(1,"\n         support 8-bit strings, so it can just store a dword. Probably")
+        puts(1,"\n         the only way to narrow the gap is to remove string support.\n\n")
+    elsif find(name,{"apndu","ppndu"}) then
+        puts(1,"\n **NB**  ") puts(1,name)
+        puts(1,                 " is the unoptimisable case, whereby a full clone is")
+        puts(1,"\n         forced every time. The other cases represent more common use")
+        puts(1,"\n         and their results speak for themselves. While a rewrite might")
+        puts(1,"\n         narrow the gap, it is not considered critical at this time.\n\n")
+    elsif equal(name,"ppndc") then
+        puts(1,"\n **NB**  A fudge is in place for this test. This is sequence s={} rather")
+--      The performance of ppndc [ stringA = prepend(stringA,char) ]")
+--      puts(1,"\n         has been deliberately sacrificed for gains elsewhere. This is")
+--      puts(1,"\n         not expected to be a problem in real-world applications.")
+        puts(1,"\n         than string s=\"\", followed by lots of s=prepend(s,char). The string")
+        puts(1,"\n         case exhibits exponential memory copy overhead, in relative terms,")
+        puts(1,"\n         however this is not expected to occur in real-world applications.")
+        puts(1,"\n         More details about the deliberate sacrifice of performance in this")
+        puts(1,"\n         matter can be found in the documentation.\n\n")
+--  elsif find(name,{"apnd1","ppnd1","apnd1c","ppnd1c"}) then
+    elsif find(name,{"apnd1","ppnd1","apnd1c"}) then
+        puts(1,"\n **NB**  Perhaps this is slightly unfair because the copy-on-write overhead")
+        puts(1,"\n         has been eliminated, but then again it is over 400 times faster so")
+        puts(1,"\n         can you blame me for including it? ;-)\n\n")
+    end if
+end if
+
+end procedure
+
+integer tidx, kidx, allowsort
+sequence resultsort
+
+integer previdx
+        previdx=0
+sequence prevrec
+    
+--with trace
+function get_number()
+object input
+integer idx,li,ch
+integer r24icount, r24ccount
+integer ricount, rccount
+atom r24itotal, r24ctotal
+atom ritotal, rctotal
+    puts(1,"Enter item to re-test, ")
+    if tidx>pagedepth then
+        puts(1,"- for previous page, ")
+    end if
+    if tidx>=length(testres) then
+        puts(1,"Enter to quit")
+    else
+        puts(1,"Enter for next page")
+    end if
+    puts(1,", ? for help:")
+    while 1 do
+        input = gets(0)
+        if atom(input) then exit end if
+        li = length(input)
+        if li and input[li]='\n' then
+            li-=1
+            input = input[1..li]
+        end if
+        if not li then exit end if
+        if find(input,{"q","Q"}) then
+            tidx=length(testres)+1
+            exit
+        end if
+        if equal(input,"-") and tidx>pagedepth then
+            tidx=floor((tidx-pagedepth-1)/pagedepth)*pagedepth+1
+            puts(1,"\n")
+            return 1
+        end if
+        if equal(input,"r") and allowsort then
+--trace(1)
+            resultsort=repeat(0,length(testres))
+            for i=1 to length(testres) do
+                logrec = testres[i]
+                t30RDS = logrec[L_30RDS]
+                tPhx = logrec[L_Phx]
+--              t30Rb = logrec[L_30Rb]
+--              tPb = logrec[L_Pb]
+                ratio = -1
+                if t30RDS!=-1 and tPhx!=-1 then
+                    if inverseRatio then
+                        ratio = t30RDS/tPhx
+                    else
+                        ratio = tPhx/t30RDS
+                    end if
+                end if
+                resultsort[i]={ratio,i}
+            end for
+            resultsort = sort(resultsort)
+            tidx=floor((tidx-1)/pagedepth)*pagedepth+1
+            puts(1,"\n")
+            return 1
+        elsif equal(input,"R") and allowsort then
+            resultsort=repeat(0,length(testres))
+            for i=1 to length(testres) do
+                logrec = testres[i]
+--              t30RDS = logrec[L_30RDS]
+--              tPhx = logrec[L_Phx]
+                t30Rb = logrec[L_30Rb]
+                tPb = logrec[L_Pb]
+                ratio = -1
+                if t30Rb!=-1 and tPb!=-1 then
+--              if t30Rb!=-1 then
+                    if inverseRatio then
+                        ratio = t30Rb/tPb
+                    else
+                        ratio = tPb/t30Rb
+                    end if
+                end if
+                resultsort[i]={ratio,i}
+            end for
+            resultsort = sort(resultsort)
+            tidx=floor((tidx-1)/pagedepth)*pagedepth+1
+            puts(1,"\n")
+            return 1
+        elsif equal(input," ") then
+            resultsort={}
+            tidx=floor((tidx-1)/pagedepth)*pagedepth+1
+            puts(1,"\n")
+            return 1
+        elsif equal(input,"i") and allowsort then
+            inverseRatio=0
+            tidx=floor((tidx-1)/pagedepth)*pagedepth+1
+            puts(1,"\n")
+            return 1
+        elsif equal(input,"I") and allowsort then
+            inverseRatio=1
+            tidx=floor((tidx-1)/pagedepth)*pagedepth+1
+            puts(1,"\n")
+            return 1
+        elsif equal(input,"?") then
+            puts(1,"\n")
+            if allowsort then
+                if showGains then
+                    puts(1,"+ next to ratio means Phix better\n")
+                end if
+                if showLosses then
+                    puts(1,"* next to ratio means Phix worse\n")
+                end if
+--      if do30RDS  -- else no ratios are shown
+--      and tidx>length(testres) then
+                if inverseRatio then
+                    puts(1," ratios greater than 1 indicate a win for Phix:\n")
+                else
+                    puts(1," ratios less than 1 indicate a win for Phix:\n")
+                end if
+                puts(1,"i disables inverse ratio (ie shows Phx/3.0)")
+                if inverseRatio=0 then
+                    puts(1," [as now]")
+                end if
+                puts(1,"\nI enables inverse ratio (ie shows 3.0/Phx)")
+                if inverseRatio=1 then
+                    puts(1," [as now]")
+                end if
+                puts(1,"\n")
+                puts(1,"r sorts by interpreted ratio (3.0:Phx)\n")
+                puts(1,"R sorts by prebuilt exe ratio (3.0:Phx)\n")
+                puts(1,"<space> removes ratio sort, if any\n")
+            end if
+            puts(1,"q quits the program\n")
+            puts(1,"NN re-runs specified entry\n")
+            puts(1,"<enter> displays next page, if any, else quits\n")
+            puts(1,"- displays previous page, if any\n")
+            if any_qu then
+                puts(1,"? after Compiled time indicates slower than Interpreted[!?]\n")
+                if allowsort then
+                    puts(1,"  when above happens, ratio assumes compiled==interp time\n")
+                end if
+            end if
+            r24icount=0 r24ccount=0
+            ricount=0 rccount=0
+            r24itotal=0 r24ctotal=0
+            ritotal=0 rctotal=0
+            for i=1 to length(testres) do
+                logrec = testres[i]
+                t24RDS = logrec[L_24RDS]
+                t30RDS = logrec[L_30RDS]
+                tPhx = logrec[L_Phx]
+                t24Rb = logrec[L_24Rb]
+                t30Rb = logrec[L_30Rb]
+                tPb = logrec[L_Pb]
+                if t24RDS!=-1 and tPhx!=-1 then
+                    if inverseRatio then
+                        ratio = t24RDS/tPhx
+                    else
+                        ratio = tPhx/t24RDS
+                    end if
+                    r24itotal+=ratio
+                    r24icount+=1
+                end if
+                if t30RDS!=-1 and tPhx!=-1 then
+                    if inverseRatio then
+                        ratio = t30RDS/tPhx
+                    else
+                        ratio = tPhx/t30RDS
+                    end if
+                    ritotal+=ratio
+                    ricount+=1
+                end if
+                if t24Rb!=-1 and tPb!=-1 then
+                    if inverseRatio then
+                        ratio = t24Rb/tPb
+                    else
+                        ratio = tPb/t24Rb
+                    end if
+                    r24ctotal+=ratio
+                    r24ccount+=1
+                end if
+                if t30Rb!=-1 and tPb!=-1 then
+                    if inverseRatio then
+                        ratio = t30Rb/tPb
+                    else
+                        ratio = tPb/t30Rb
+                    end if
+                    rctotal+=ratio
+                    rccount+=1
+                end if
+            end for
+            if r24icount then
+                r24itotal/=r24icount
+            end if
+            if r24ccount then
+                r24ctotal/=r24ccount
+            end if
+            if r24icount or r24ccount then
+                printf(1,"Average (2.4:p+ve) ratios %5.2f, %5.2f\n",{r24itotal,r24ctotal})
+            end if
+            if ricount then
+                ritotal/=ricount
+            end if
+            if rccount then
+                rctotal/=rccount
+            end if
+            if ricount or rccount then
+                printf(1,"Average (3.0:p+ve) ratios %5.2f, %5.2f\n",{ritotal,rctotal})
+            end if
+            puts(1,"\nAs with all benchmarks, run any of interest at least 3")
+            puts(1,"\ntimes to ensure that the results are not a one-off glitch:")
+        else
+            idx=0
+            for i=1 to length(input) do
+                ch = input[i]
+                if ch<'0' or ch>'9' or idx>length(testres) then
+                    idx=0
+                    exit
+                end if
+                idx = idx*10+ch-'0'
+            end for
+            if idx<1 or idx>length(testres) then
+                if equal(input,"0") then
+                    puts(1,"\nRunning all tests\n")
+                    for i=1 to length(Tests) do
+                        details = Tests[i]
+                        db_idx = db_find_key(details[T_Name])
+                        do_run(i)
+                        testres[i] = logrec
+                    end for
+                    tidx=1
+                    return 1
+                end if
+                puts(1,"\ninvalid - re-input:")
+            else
+                puts(1,"\n")
+                details = Tests[idx]
+                db_idx = db_find_key(details[T_Name])
+                do_run(idx)
+previdx=idx
+prevrec=testres[idx]
+                testres[idx] = logrec
+                if length(resultsort) then
+                    tidx=floor((tidx-1)/pagedepth)*pagedepth+1
+                    for i=tidx to length(resultsort) do
+                        if resultsort[i][2]=idx then
+                            tidx=i
+                            exit
+                        end if
+                    end for
+                else
+                    tidx=idx
+                end if
+                return 1
+            end if
+        end if
+
+    end while
+    puts(1,"\n")
+    tidx+=1
+    return 0
+end function
+
+constant True=(1=1), False=(1=0)
+type bool(integer b) return b=True or b=False end type
+procedure put41(bool flag, atom v, atom vi)
+    if flag then
+        if v=-1 then
+            puts(1," N/A,")
+        else
+--          if v>vi then
+--          if (v-vi)>=0.05 then
+            vi = v-vi
+--          if vi>=0.05 and vi/v>0.05 then
+            if vi>=0.10 and vi/v>0.10 then
+--              printf(1,"%4.1f?",v)
+--              printf(1,"%4.1f",v)
+                if vi>=0.10 then
+                    printf(1,"%4.1f",v)
+                    text_color(15)
+                    puts(1,"?")
+                    text_color(7)
+                else
+                    printf(1,"%4.1f?",v)
+                end if
+                any_qu=1
+                this_qu=1
+            else
+                printf(1,"%4.1f,",v)
+            end if
+        end if
+    end if
+end procedure
+
+--integer rmark
+
+procedure put52r(bool flag, bool mark, atom v1, atom v2)
+integer markch
+    if flag then
+        if v1<=0 or v2<=0 then
+            puts(1," N/A ,")
+        else
+            markch=','
+            if inverseRatio then
+                ratio = v2/v1
+                if mark then
+                    if ratio>1.2 and showGains then
+                        markch='+'
+                    elsif ratio<0.8 and showLosses then
+                        markch='*'
+                    end if
+                end if
+            else
+                ratio = v1/v2
+                if mark then
+                    if ratio>1.2 and showLosses then
+                        markch='*'
+                    elsif ratio<0.8 and showGains then
+                        markch='+'
+                    end if
+                end if
+            end if
+            printf(1,"%5.2f",ratio)
+            if markch='*' then
+                text_color(15)
+                puts(1,markch)
+                text_color(7)
+            else
+                puts(1,markch)
+            end if
+            allowsort=1
+        end if
+    end if
+end procedure
+
+procedure showLine(sequence logrec, sequence desc, integer old)
+
+    t24RDS = logrec[L_24RDS]
+    t30RDS = logrec[L_30RDS]
+    tPhx = logrec[L_Phx]
+    t24Rb = logrec[L_24Rb]
+    t30Rb = logrec[L_30Rb]
+    tPb = logrec[L_Pb]
+    if length(logrec)>=L_tFASM then
+        tC=logrec[L_tC]
+        tFASM=logrec[L_tFASM]
+    else
+        tC=-1
+        tFASM=-1
+    end if
+
+--t24RDS = -1
+--t30RDS = -1
+--tPhx   = -1
+--t24Rb  = -1
+--t30Rb  = -1
+--tPb    = -1
+
+--          tQu24R=','
+--          if t24Rb>t24RDS then
+--              tQu24R='?'
+--              any_qu=1
+--          end if
+--          tQu30R=','
+--          if t30Rb>t30RDS then
+--              tQu30R='?'
+--              any_qu=1
+--          end if
+--          tQuP=','
+--          if tPb>tPhx then
+--              tQuP='?'
+--              any_qu=1
+--          end if
+            this_qu=0
+            if old then
+                printf(1,"was [%-6s]",{desc})
+            else
+                printf(1,"%3d [%-6s]",{kidx,desc})
+            end if
+
+            put41(do24RDS,t24RDS,t24RDS)
+            put41(do30RDS,t30RDS,t30RDS)
+            put41(True,tPhx,tPhx)
+            put52r(do24RDS and do30RDS,False,t30RDS,t24RDS)
+            put52r(do24RDS,False,tPhx,t24RDS)
+--   GREEN = 2,
+--   WHITE = 7,
+--   BRIGHT_GREEN = 10,
+--   BRIGHT_WHITE = 15
+            text_color(2)
+            put52r(do30RDS,True,tPhx,t30RDS)
+            text_color(7)
+            put41(do24Rbind,t24Rb,t24RDS)
+            put41(do30Rbind,t30Rb,t30RDS)
+            put41(True,tPb,tPhx)
+            put52r(do24Rbind and do30Rbind,False,t30Rb,t24Rb)
+            put52r(do24Rbind,False,tPb,t24Rb)
+            text_color(10)
+        if t30Rb>t30RDS then
+            put52r(do30Rbind,True,tPb,t30RDS)
+        else
+            put52r(do30Rbind,True,tPb,t30Rb)
+        end if
+            text_color(7)
+
+--          if this_qu then
+--              puts(1,"?\n")
+--          else
+                puts(1,"\n")
+--          end if
+    if tC!=-1 or tFASM!=-1 then
+        puts(1,"   C/FASM   ")
+        if do24RDS then puts(1,"     ") end if
+        if do30RDS then puts(1,"     ") end if
+        put41(True,tC,tC)
+        if do24RDS and do30RDS then puts(1,"      ") end if
+        if do24RDS then puts(1,"      ") end if
+        put52r(True,False,tPb,tC)
+
+        if do24Rbind then puts(1,"     ") end if
+        if do30Rbind then puts(1,"     ") end if
+        put41(True,tFASM,tFASM)
+        if do24Rbind and do30Rbind then puts(1,"      ") end if
+        if do24Rbind then puts(1,"      ") end if
+        put52r(True,False,tPb,tFASM)
+        puts(1,"\n")
+
+    end if
+
+end procedure
+
+
+-- main processing starts here.
+
+
+--  if db_open("\""&initialcurrentdir&"bench\\bench\"",DB_LOCK_NO)!=DB_OK then
+--  if db_open("\""&initialcurrentdir&"bench\"",DB_LOCK_NO)!=DB_OK then
+--  if db_open(benchdir&"bench\"",DB_LOCK_NO)!=DB_OK then
+    if db_open("bench",DB_LOCK_NO)!=DB_OK then
+        if db_create("bench",DB_LOCK_EXCLUSIVE)!=DB_OK then
+            Abort("Error error creating bench.edb\n")
+        end if
+    end if
+    if db_select_table("results")!=DB_OK then
+        if db_create_table("results")!=DB_OK then
+            Abort("Error error creating results table\n")
+        end if
+    end if
+
+    do24RDS = not atom(dir(Eu24ExwNQ))
+--?{    do24RDS, dir(Eu24Exw)}
+--if getc(0) then end if
+    if do24RDS then
+        do24Rbind = not atom(dir(Eu24BndNQ))
+        if not do24Rbind then
+            puts(1,"Eu 2.4 bind.ex not found\n")
+        end if
+    else
+        do24Rbind = 0
+        puts(1,"Eu 2.4 not found\n")
+    end if
+    do30RDS = not atom(dir(Eu30ExwNQ))
+    if do30RDS then
+        do30Rbind = not atom(dir(Eu30BndNQ))
+        if not do30Rbind then
+            puts(1,"Eu 3.0 bind.ex not found\n")
+        end if
+    else
+        do30Rbind = 0
+        puts(1,"Eu 3.0 not found\n")
+    end if
+--  testres = repeat(0,length(tests)-1)
+    testres = repeat(0,length(Tests))
+    for i=1 to length(testres) do
+        if run_needed(i) then
+            do_run(i)
+--      else
+--          logrec = db_record_data(i)  -- now set in run_needed.
+        end if
+        testres[i] = logrec
+    end for
+    tidx=1
+    allowsort=0
+    resultsort={}
+previdx=0
+    while 1 do  -- until quit
+--puts(1,"            - Interpreted - ---- Ratios ----  -- Compiled -- ---- Ratios ----\n")
+if do24RDS or do30RDS then
+puts(1,"            - Interpreted -")
+if do24RDS and do30RDS then
+    puts(1," ---- Ratios ----")
+end if
+puts(1,"  -- Compiled --")
+if do24RDS and do30RDS then
+    puts(1," ---- Ratios ----")
+end if
+puts(1,"\n")
+--puts(1,"    [ desc ] 2.4  3.0  p+  24:30 24:p+ 30:p+  2.4  3.0  p+  24:30 24:p+ 30:p+\n")
+puts(1,"    [ desc ]")
+if do24RDS then
+    puts(1," 2.4 ")
+end if
+if do30RDS then
+    puts(1," 3.0 ")
+end if
+puts(1," p+  ")
+if do24RDS then
+    if do30RDS then
+        puts(1,"24:30 ")
+    end if
+    puts(1,"24:p+ ")
+end if
+if do30RDS then
+    puts(1,"30:p+ ")
+end if
+if do24RDS then
+    puts(1," 2.4 ")
+end if
+if do30RDS then
+    puts(1," 3.0 ")
+end if
+puts(1," p+  ")
+if do24RDS then
+    if do30RDS then
+        puts(1,"24:30 ")
+    end if
+    puts(1,"24:p+ ")
+end if
+if do30RDS then
+    puts(1,"30:p+")
+end if
+puts(1,"\n")
+if do24RDS and do30RDS then
+puts(1,"                                       =====                            =====\n")
+else
+puts(1,"                      =====           =====\n")
+end if
+else
+    puts(1,"    [ desc ] Int  Exe\n")
+end if
+--puts(1,"  1 [arwen ] 2.5, 9.7, 9.0, 3.85* 0.59, 0.43, 2.5, 9.7, 9.0, 3.86* 0.54, 0.48\n")
+        any_qu=0
+        while 1 do
+--      for i=1 to length(testres) do
+            if length(resultsort) then
+                kidx = resultsort[tidx][2]
+            else
+                kidx = tidx
+            end if
+            showLine(testres[kidx],Tests[kidx][T_Name],0)
+            if kidx=previdx then
+                showLine(prevrec,Tests[kidx][T_Name],1)
+                previdx=0
+            end if
+            if remainder(tidx,pagedepth)=0 then exit end if
+            tidx+=1
+            if tidx>length(testres) then exit end if
+        end while
+        if not get_number() then
+            if tidx>length(testres) then exit end if
+        end if
+    end while
+--DEV (BUG) without this, db is not updated!
+-- [probably, the correct solution is to re-code fileio in asm[done] and call close(-1)...]
+db_close()

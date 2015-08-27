@@ -1,0 +1,213 @@
+--
+-- eama.ew
+--
+-- Monitor application. This is a standard include file which allows output 
+-- from an application to be shown in the message area of edita.
+--
+-- After including this file, just call eamsg(text), which returns True on
+-- success or False on failure. text may be any object, however it is
+-- recommended you explicitly use sprint, since eg passing a sequence of 
+-- integers may work as you expect when some or all are <32, but then 
+-- suddenly put out "ABC" instead of the required {65,66,76}.
+--
+-- Using eamsg() instead of "Capture Console Output" is recommended for
+-- GUI programs.
+-- 
+-- Can also be used to integrate a program with edita, returning the current
+-- open file name, etc.
+--
+-- Can also be used to close any existing instance of the application being
+-- developed (provided it is a Windows app). Simply define a global function
+-- closeExisting() which returns a string (eg "Edita") before including this
+-- file and on startup it will send WM_CLOSE messages to any and all windows
+-- that start with that string. This can be helpful when developing an 
+-- application and you want to shut down any previous instance before the new
+-- instance starts (NB: this is not the same as single instance handling, 
+-- which leaves the existing instance running, possibly sends it some messages,
+-- and then shuts down the newly started instance.)
+--
+-- Note that Edita only performs SetForegroundWindow (see eacons.ew) when there
+-- is only one program still running which was originally launched from Edita.
+--
+
+--include arwen.ew -- not needed, can be used in any (exw) program.
+--include dll.e
+--include machine.e
+--include misc.e
+
+constant
+    CDS = allocate(12),
+    CD_CONS=#20050226,  -- text to appear in message area (like Captured console output)
+    CD_EDITA=#20050228, -- Are you really Edita?
+    CD_FILL=#20050329,  -- Get file name length
+    CD_FILC=#20050606,  -- Get file name character
+    IDX=allocate(4),
+    WM_COPYDATA = 74,
+    WM_GETTEXT = 13,
+    WM_GETTEXTLENGTH = 14,
+    WM_CLOSE = 16,
+    user32 = open_dll("user32.dll")
+
+    if user32 = NULL then
+        puts(1,"Error opening user32")
+        if getc(0) then end if abort(0)
+    end if
+
+constant 
+    xSendMessage = define_c_func(user32, "SendMessageA",
+        {C_POINTER, --  HWND  hwnd, // handle of destination window
+         C_UINT,    --  UINT  uMsg, // message to send
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_LONG),    -- LRESULT (depends on whatever processes the message, so use object)
+    xEnumWindows = define_c_func(user32, "EnumWindows",
+        {C_POINTER, --  WNDENUMPROC  lpEnumFunc,    // address of callback function
+         C_LONG},   --  LPARAM  lParam  // application-defined value
+        C_INT)      -- BOOL
+
+if xSendMessage = -1 then
+    puts(1,"Error defining SendMessage")
+    if getc(0) then end if abort(0)
+end if
+if xEnumWindows = -1 then
+    puts(1,"Error defining EnumWindows")
+    if getc(0) then end if abort(0)
+end if
+
+atom mainHwnd
+     mainHwnd=0
+
+object void      
+
+function XL(sequence txt)
+    return txt
+end function
+integer r_xl
+r_xl=routine_id("xl")
+if r_xl=-1 then r_xl=routine_id("XL") end if
+constant Edita=call_func(r_xl,{"Edita"}),
+         minlength=length(Edita)
+
+sequence Me
+constant closeExistingRid=routine_id("closeExisting")
+    Me=""
+    if closeExistingRid!=-1 then
+        Me=call_func(closeExistingRid,{})
+    end if
+integer MeLen
+        MeLen=length(Me)
+
+function EnumWindowsProc(atom hwnd, atom lParam)
+atom mem
+integer len
+sequence text
+    if lParam then end if   -- suppress warnings
+    len = c_func(xSendMessage, {hwnd, WM_GETTEXTLENGTH, 0, 0} )
+    if len>=minlength
+    or (MeLen and len>=MeLen) then
+        len+=1
+        mem = allocate(len)
+        len = c_func(xSendMessage, {hwnd, WM_GETTEXT, len, mem} )
+        text = peek( {mem, len} )
+        free(mem)
+        if match(Edita,text)=1 then
+            poke4(CDS,{CD_EDITA,0,0})
+            if c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})=CD_EDITA then
+                mainHwnd=hwnd
+                if MeLen then return 1 end if
+                return 0    -- cease enumeration
+            end if
+        elsif MeLen and match(Me,text)=1 then
+            void = c_func(xSendMessage,{hwnd,WM_CLOSE,0,0})
+        end if
+    end if  
+    return 1    -- continue enumeration
+end function
+constant cb_EnumWindowsProc = call_back(routine_id("EnumWindowsProc"))
+
+if MeLen then   -- closeExisting defined.
+    -- set mainHwnd and send WM_CLOSE messages now, then
+    mainHwnd = -1
+    void = c_func(xEnumWindows,{cb_EnumWindowsProc,NULL})
+end if
+
+function stringify(object o)
+object c
+sequence x
+    if not sequence(o) then
+        x=sprint(o)
+    else
+        x=o
+        for i=length(x) to 1 by -1 do
+            c=x[i]
+            if not integer(c) or c>#FF then
+                x=sprint(o)
+                exit
+            end if
+            if c<' ' then
+                if c='\n' then
+                    x=x[1..i-1]&"\r\n"&x[i+1..length(x)]    -- being sent to EditText, use CRLF format
+                elsif c='\t' then
+                    x=x[1..i-1]&"\\t"&x[i+1..length(x)]
+                else
+                    x=sprint(o)
+                    exit
+                end if
+            end if
+        end for
+    end if
+
+    if length(x)<2 or not equal(x[length(x)-1..length(x)],"\r\n") then
+        x&="\r\n"
+    end if
+    return x
+end function
+
+function setmainHwnd()
+    if mainHwnd = 0 then
+        mainHwnd = -1
+        void = c_func(xEnumWindows,{cb_EnumWindowsProc,NULL})   -- set mainHwnd
+    end if
+    if mainHwnd = -1 then
+--      puts(1,"Edita not running?")
+        return False
+    end if
+    return True
+end function
+
+global function eamsg(object text)
+-- make the text appear in edita's message area.
+-- returns 1 on success, 0 on failure.
+integer res, lt
+atom mem
+    if not setmainHwnd() then return 0 end if
+    text = stringify(text)
+    lt = length(text)
+    mem = allocate(lt+1)
+    if not mem then return 0 end if
+    poke(mem, text)
+    poke(mem+lt, 0)
+--  poke4(CDS,{CD_CONS,lt,mem})
+    poke4(CDS,{CD_CONS,lt+1,mem})   -- 27/12/09 (copy the null as well else you get garbage)
+    res = (c_func(xSendMessage, {mainHwnd, WM_COPYDATA, NULL, CDS}) = CD_EDITA)
+    free(mem)
+    return res
+end function
+
+global function getCurrentFile()
+-- returns a sequence on success, 0 on failure
+integer len
+sequence filename, mCDnC
+    if not setmainHwnd() then return 0 end if
+    mCDnC={mainHwnd, WM_COPYDATA, NULL, CDS}
+    poke4(CDS,{CD_FILL,0,0})
+    len = c_func(xSendMessage,mCDnC)
+    filename = repeat(0,len)
+    poke4(CDS,{CD_FILC,4,IDX})
+    for i=1 to len do
+        poke4(IDX,i)
+--      poke4(CDS,{CD_FILC,4,IDX})
+        filename[i] = c_func(xSendMessage,mCDnC)
+    end for
+    return filename
+end function

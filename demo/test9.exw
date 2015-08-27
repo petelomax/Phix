@@ -1,0 +1,109 @@
+--
+-- test9.exw
+--
+-- demo of 'SetWindowsHookEx' on a messagebox.
+--
+-- Picked up from EuForum. Adds an input field, though I cannot properly set the
+--  focus to it, I stumbled on a hack (HCBT_KEYSKIPPED) that seems to fool it...
+-- This is about the smallest possible gui demo that does not use a library such 
+--  as arwen, is fully commented, and actually 'does something'.
+--
+include ..\builtins\dll.e
+include ..\builtins\machine.e
+include ..\builtins\misc.e
+include ..\builtins\porall.e
+include ..\builtins\msgbox.e
+
+constant WH_CBT = 5,
+         HCBT_DESTROYWND = 4,
+         HCBT_ACTIVATE = 5,
+         HCBT_KEYSKIPPED = 7,
+         WS_CHILD = #40000000,
+         WS_VISIBLE = #10000000,
+         WS_BORDER = #800000,
+         WS_TABSTOP = #00010000,
+         WM_GETTEXT = #D,
+         WM_SETTEXT = 12,
+         WM_GETTEXTLENGTH = #E,
+         C_PTR = C_POINTER
+
+atom MessageHook, NewEditHWND
+sequence NewEditText
+object void
+
+constant user32 = open_dll("user32.dll"),
+         kernel32 = open_dll("kernel32.dll"),
+         xSetWindowsHookEx = define_c_func(user32,"SetWindowsHookExA",
+            {C_INT,     --  int  idHook,        // type of hook to install
+             C_PTR,     --  HOOKPROC hkprc,   // address of hook procedure
+             C_PTR,     --  HINSTANCE  hMod,    // handle of application instance
+             C_LONG},   --  DWORD  dwThreadID   // identity of thread to install hook for 
+            C_PTR),     -- HHOOK
+         xUnhookWindowsHookEx = define_c_func(user32,"UnhookWindowsHookEx",
+            {C_PTR},    --  HHOOK  hhook        // handle of hook procedure to remove
+            C_INT),     -- BOOL
+         xGetCurrentThreadId = define_c_func(kernel32,"GetCurrentThreadId",
+            {},         --  VOID
+            C_LONG),    -- DWORD
+         xCreateWindowEx = define_c_func(user32,"CreateWindowExA",
+            {C_LONG,    --  DWORD  dwExStyle,   // extended window style
+             C_PTR,     --  LPCTSTR  lpClassName,       // address of registered class name
+             C_PTR,     --  LPCTSTR  lpWindowName,      // address of window name
+             C_LONG,    --  DWORD  dwStyle,     // window style
+             C_INT,     --  int  x,     // horizontal position of window
+             C_INT,     --  int  y,     // vertical position of window
+             C_INT,     --  int  nWidth,        // window width
+             C_INT,     --  int  nHeight,       // window height
+             C_PTR,     --  HWND  hWndParent,   // handle of parent or owner window
+             C_PTR,     --  HMENU  hMenu,       // handle of menu or child-window identifier
+             C_PTR,     --  HANDLE  hInstance,  // handle of application instance
+             C_PTR},    --  LPVOID  lpParam     // address of window-creation data
+            C_PTR),     -- HWND
+        xSendMessage = define_c_func(user32, "SendMessageA",
+            {C_PTR,     --  HWND  hwnd, // handle of destination window
+             C_UINT,    --  UINT  uMsg, // message to send
+             C_LONG,    --  WPARAM  wParam, // first message parameter
+             C_LONG},   --  LPARAM  lParam  // second message parameter
+            C_LONG),    -- LRESULT
+        xSetFocus = define_c_func(user32,"SetFocus",
+            {C_PTR},    --  HWND  hwnd      // handle of window to receive focus
+            C_PTR)      -- HWND
+
+function CBTProc(atom nCode,atom wParam,atom lParam)
+atom buffer,len
+--?{nCode,wParam,lParam,integer(nCode),integer(wParam),integer(lParam)}
+    if nCode = HCBT_ACTIVATE then
+        if lParam then end if   -- suppress warning
+        buffer = allocate_string("EDIT")
+        NewEditHWND = c_func(xCreateWindowEx,{0,buffer,0,or_all({WS_CHILD,WS_VISIBLE,WS_BORDER,WS_TABSTOP}),
+                                               1,4,156,20,wParam,0,instance(),0})
+        void = c_func(xSendMessage,{NewEditHWND,WM_SETTEXT,0,buffer})
+        free(buffer)
+--      void = c_func(xSetFocus,{NewEditHWND})  -- NO! causes gettext problems!
+    elsif nCode = HCBT_DESTROYWND then
+        len = c_func(xSendMessage,{NewEditHWND,WM_GETTEXTLENGTH,0,0}) + 1
+        buffer = allocate(len)
+        len = c_func(xSendMessage,{NewEditHWND,WM_GETTEXT,len,buffer})
+        NewEditText = peek({buffer,len})
+        free(buffer)
+        void = c_func(xUnhookWindowsHookEx,{MessageHook})
+    elsif nCode=HCBT_KEYSKIPPED then
+        -- [DEV] not sure why/how this actually works...
+        void = c_func(xSetFocus,{NewEditHWND})
+    end if
+    return 0
+end function
+
+global function input_box(sequence title)
+    MessageHook = c_func(xSetWindowsHookEx,{WH_CBT,call_back(routine_id("CBTProc")),
+                                           instance(),c_func(xGetCurrentThreadId,{})})
+    if message_box("",title,MB_OKCANCEL)=IDCANCEL then NewEditText &= " (cancelled)" end if
+    return NewEditText
+end function
+
+sequence Text
+         Text = input_box("Input text")
+
+    if message_box('"'&Text&'"',"Entered text was:",MB_OK) then end if
+--  printf(1,"'%s'\n",{Text})
+--  if getc(0) then end if

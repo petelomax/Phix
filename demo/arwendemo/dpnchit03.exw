@@ -1,0 +1,34 @@
+
+-- Description:
+--  Dragging a title-less window anywhere on the client area
+-- Keywords:
+--  setClassDefaults, toggleWindowTitle, WM_NCHITTEST,
+--  WM_GETMINMAXINFO, setBackColour, getSysColor
+-- Credit: translated from Tutorial by Don Phillips (31/12/01)
+
+include arwen.ew
+include axtra.ew
+
+constant Main = create(Window, "Example 03", 0, NULL, 25, 25, 300, 200, 0)
+         void = create(Label, "Click anywhere to drag window", 0, Main, 10, 10, 250, 20, 0)
+constant CloseBtn = create(Button, "Close", 0, Main, 10, 50, 150, 20, 0)
+         toggleWindowTitle(Main)
+
+function MainHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+
+    if msg=WM_NCHITTEST and id=Main then
+        rect = getWindowRect(Main)
+        if  loWord(lParam)<=rect[3] and loWord(lParam)>=rect[1]
+        and hiWord(lParam)<=rect[4] and loWord(lParam)>=rect[2] then
+            return {HTCAPTION}
+        end if
+    elsif (msg=WM_COMMAND and id=CloseBtn) 
+       or (msg=WM_CHAR and wParam=VK_ESCAPE) then
+        closeWindow(Main)
+    end if
+    return 0
+end function
+setHandler({Main,CloseBtn}, routine_id("MainHandler"))
+
+WinMain(Main, SW_NORMAL)

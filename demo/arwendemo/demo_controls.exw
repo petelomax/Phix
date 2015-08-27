@@ -1,0 +1,185 @@
+--/**/with console
+
+--/* Not required for Phix:
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+include ..\..\builtins\misc.e
+--*/
+
+include arwen.ew
+
+constant DEMO = create(Window, "Demo Window with various Controls", 0, 0,23,13,759,347,0)
+--setIcon(DEMO,loadIcon("ok.ico"))
+--void = command_line()
+--global function getHwnd(integer id)
+--  return ObjectHwnd[id]
+--end function
+--      psz_icon = allocate_StringZ("exw")
+--      hIcon = c_func(xLoadIcon, {instance(), psz_icon})
+
+--global procedure setIcon(integer id, atom hIcon)
+--  -- associate the icon to the window
+--atom hWnd
+--  hWnd = ObjectHwnd[id]
+--  void = c_func(xSendMessage,{hWnd, WM_SETICON, ICON_BIG, hIcon} )
+--  void = c_func(xSendMessage,{hWnd, WM_SETICON, ICON_SMALL, hIcon} )
+--end procedure     
+
+--global function loadImage(sequence fName, integer iType, integer iFlags)
+---- load an **INDIVIDUAL** icon or a bitmap from a file.
+---- NB: more operations exist than can be accessed via this function
+--atom lpszName
+----atom hwnd
+--
+----    iType can be one of:
+----        IMAGE_ICON
+----        IMAGE_BITMAP
+----        IMAGE_CURSOR
+--
+---- iFlags can be:
+----        LR_DEFAULTCOLOR (default 0)
+----        LR_LOADFROMFILE
+----        LR_CREATEDIBSECTION
+----        LR_DEFAULTSIZE
+----        LR_LOADFROMFILE
+----        LR_LOADMAP3DCOLORS
+----        LR_LOADTRANSPARENT
+----        LR_MONOCHROME
+----        LR_SHARED
+--
+---- For more info see "LoadImage" in API
+--
+--  -- get pointer to file name
+----    lpszName = allocate_string(fName)
+--  lpszName = allocate_StringZ(fName)
+--
+--  -- ensure that LR_LOADFROMFILE flag is asserted
+--  iFlags = or_bits( iFlags, or_bits(LR_LOADFROMFILE, LR_LOADMAP3DCOLORS) )
+--
+--  -- make the function call to load the image
+----    hwnd = c_func(xLoadImage,
+--  return c_func(xLoadImage,
+--                {NULL,
+--                 lpszName,
+--                 iType,
+--                 0,
+--                 0,
+--                 iFlags} )
+--
+----    free(lpszName)
+--
+----    return hwnd
+--      
+--end function
+
+atom hIcon, hWnd
+    hWnd = getHwnd(DEMO)
+
+--global function getHwnd(integer id)
+--  return ObjectHwnd[id]
+--end function
+----    hIcon=c_func(xLoadIcon, {instance(), allocate_StringZ(void[1])})
+--  hIcon=c_func(xLoadIcon, {instance(), allocate_StringZ("ok.ico")})
+--  hIcon=c_func(xLoadIcon, {instance(), 10})
+    hIcon=c_func(xLoadImage,{instance(), 10,IMAGE_ICON,16,16,NULL})
+    void = c_func(xSendMessage,{hWnd, WM_SETICON, ICON_SMALL, hIcon} )
+    hIcon=c_func(xLoadImage,{instance(), 10,IMAGE_ICON,32,32,NULL})
+--  hIcon=c_func(xLoadImage,{instance(), 10,IMAGE_ICON,72,72,NULL})
+    void = c_func(xSendMessage,{hWnd, WM_SETICON, ICON_BIG, hIcon} )
+--                 iFlags} )
+--if hIcon=NULL then
+--  ?c_func(xGetLastError,{})
+--end if
+----?void[1]
+--?hIcon
+--setIcon(DEMO,hIcon)
+
+constant EDIT = create(MultiEditText,  "MultiEditText ", 0, DEMO,10,30,120, 100,0)
+constant EDIT2 = create(EditText,  "EditText ", 0, DEMO, 140,30,200, 20,ES_CENTER)
+constant LABEL = create(Label,  "static Label ", 0, DEMO, 140,80,100, 20,0)
+
+constant TRACK = create(HTrackBar,  "321 ", 0, DEMO, 150,130,200, 45,0)
+
+constant GROUP = create(Group,  "Group ", 0, DEMO, 374,170,200, 45,0)
+
+constant CHECK = create(CheckBox,  "CheckBox ", 0, DEMO, 369,5,200, 30,0)
+constant TRICHECK = create(TriCheckBox,  "TriCheckBox ", 0, DEMO, 369,40,200, 35,0)
+constant RADIO1 = create(RadioButton,  "RadioButton #1 ", 0, DEMO, 369,80,200, 45,0)
+constant RADIO2 = create(RadioButton,  "RadioButton #2 ", 0, DEMO, 370,120,200, 45,0)
+constant LISTBOX = create(ListBox,  " ", 0, DEMO, 577,9,150, 160, {{LBS_EXTENDEDSEL,LBS_MULTIPLESEL},0} )
+if LABEL or CHECK or TRICHECK or RADIO1 or RADIO2 then end if    -- suppress warnings
+for i = 1 to 25 do
+    void = insertItem(LISTBOX, sprintf("%d ", i), 0)
+end for
+setItem(LISTBOX, "ListBox ",  1)
+setItem(LISTBOX, "capable of ", 3)
+setItem(LISTBOX, "multi-selections ",  5)
+
+
+constant BUTTON = create(Button,  "&PushButton    (ALT + p)", 0, DEMO, 10,190,200, 25,0)
+--constant BUTTON2 = create(ToggleButton,  "&ToggleButton ", 0, DEMO, 130,190,100, 25,0)
+--void = setAccelerator(BUTTON, VK_RETURN)
+constant HHH = create(HScroll,  " ", 0, DEMO, 0,0,0, 0,SBS_BOTTOMALIGN)
+constant VVV = create(VScroll,  " ", 0, DEMO, 0,0,0, 0,SBS_RIGHTALIGN)
+
+setScrollInfo(TRACK, {1, 1000000, 100000, 1}, False)
+
+setScrollInfo(HHH,  {1, 1000000, 100000, 1}, False)
+setScrollInfo(VVV, {1, 1000000, 100000, 1}, False)
+
+constant STATUS = create(StatusBar,  "StatusBar ", 0, DEMO, 0, 0, 250, 25, 0 )
+constant STATUS2 = create(StatusField,  "StatusBar ", 0, STATUS, 0, 0, 100, 0, 0 )
+
+function handler_SCROLL(integer id, integer msg, atom wParam, object lParam)
+    if msg = WM_VSCROLL then
+        if id or object(lParam) then end if     -- suppress warning
+        setText(STATUS2, wParam)
+        setText(GROUP, getText(STATUS2))
+    elsif msg = WM_HSCROLL then
+        setText(STATUS, wParam)
+        setText(GROUP, getText(STATUS))
+    end if
+    return 0
+end function
+
+
+atom hBrush
+hBrush = c_func(xCreateSolidBrush, {Parchment})
+function handler_EDIT(integer id, integer msg, atom wParam, object lParam)
+    if id = EDIT2 then
+        ? msg
+    end if
+    if msg = WM_CTLCOLOREDIT then
+        if object(lParam) then end if       -- suppress warning
+        void = c_func(xSetBkColor, {wParam, Parchment})
+        return hBrush
+    elsif msg = WM_DESTROY then
+        void = deleteObject(hBrush)
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+    end function
+
+function handler_BUTTON(integer id, integer msg, atom wParam, object lParam)
+    if msg = WM_COMMAND then
+        if lParam = 1 then
+            if id or wParam then end if -- suppress warning
+            setText(STATUS, "Accelerated key works!")
+        else
+            setText(STATUS, "Button was pressed or clicked")
+        end if
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+end function
+
+setHandler(BUTTON, routine_id("handler_BUTTON"))
+setHandler({EDIT}, routine_id("handler_EDIT"))
+    
+setHandler({HHH,VVV, TRACK}, routine_id("handler_SCROLL"))
+
+WinMain(DEMO, SW_NORMAL)

@@ -1,0 +1,130 @@
+------------------------------------------------
+-- boxes.exw   Version: 1.0
+--
+-- A demo of some graphics routines.
+------------------------------------------------
+without warning
+include win32lib.ew
+
+--with trace
+------------------------------------------------
+-- Controls IDs
+------------------------------------------------
+integer MainWin
+integer theTimer
+atom wDC
+
+------------------------------------------------
+-- Event Handlers
+------------------------------------------------
+sequence vShapes
+    vShapes = {}
+
+------------------------------------------------
+procedure Paint_MainWin(integer self, integer event, sequence parms)
+------------------------------------------------
+    for i=1 to length(vShapes) do
+        setPenColor(MainWin, vShapes[i][5])
+        drawRectangle(MainWin, rand(2)-1, vShapes[i][1], vShapes[i][2], vShapes[i][3], vShapes[i][4])
+    end for
+end procedure
+
+------------------------------------------------
+procedure Timer_Tick(integer self, integer event, sequence parms)
+------------------------------------------------
+sequence extent
+sequence coords
+integer  color
+sequence colorchart
+integer cnt
+--DEV
+integer fmax, R, G, B, RGB, r210, rlc, tmp
+
+
+    extent = getCtlSize(MainWin)
+    extent &= extent
+    colorchart = {}
+--  for i=1 to 5+rand(40) do
+    fmax = rand(40)
+    fmax += 5
+    for i=1 to fmax do
+--      colorchart &= rgb(rand(255), rand(255), rand(255))
+        R = rand(255)
+        G = rand(255)
+        B = rand(255)
+        RGB = rgb(R,G,B)
+        colorchart &= RGB
+    end for
+
+--  vShapes = repeat({0,0,0,0,0}, rand(200)+10)
+    r210 = rand(200)
+    r210 += 10
+    vShapes = repeat({0,0,0,0,0}, r210)
+    for i=1 to length(vShapes) do
+--/**/  coords = sq_rand(extent)    --/*
+        coords = rand(extent)       --*/
+--      color = colorchart[rand(length(colorchart))]
+        rlc = rand(length(colorchart))
+        color = colorchart[rlc]
+--DEV
+--      vShapes[i][1] = coords[1]
+--      vShapes[i][2] = coords[2]
+--      vShapes[i][3] = coords[3]
+--      vShapes[i][4] = coords[4]
+--      vShapes[i][5] = color
+
+        tmp = coords[1]     vShapes[i][1] = tmp
+        tmp = coords[2]     vShapes[i][2] = tmp
+        tmp = coords[3]     vShapes[i][3] = tmp
+        tmp = coords[4]     vShapes[i][4] = tmp
+        vShapes[i][5] = color
+    end for
+
+    repaintFG(MainWin)
+--DEV
+    parms = {}
+    extent = {}
+    coords = {}
+    colorchart = {}
+
+end procedure
+
+
+------------------------------------------------
+procedure onClose_MainWin(integer self, integer event, sequence parms)
+------------------------------------------------
+    releaseDC(wDC)
+end procedure
+
+------------------------------------------------
+procedure onActivate_MainWin(integer self, integer event, sequence parms)
+------------------------------------------------
+    wDC = getDC(MainWin)
+end procedure
+
+------------------------------------------------
+-- Application Initiation
+------------------------------------------------
+function AppInit()
+integer lRC
+
+    lRC = 0
+    MainWin = createEx(Window, "", 0, 0, 0, 600, 400, 0, 0)
+    theTimer = 1
+
+    setWindowBackColor(MainWin, BrightWhite)
+
+    -- Link in the event handlers.   
+    setHandler(MainWin, w32HPaint, routine_id("Paint_MainWin"))
+    setHandler(theTimer, w32HTimer, routine_id("Timer_Tick"))
+    setHandler(MainWin, w32HClose,    routine_id("onClose_MainWin"))
+    setHandler(MainWin, w32HActivate, routine_id("onActivate_MainWin"))
+
+    setTimer(MainWin, theTimer, 100)
+
+    return lRC
+end function
+
+    if AppInit()=0 then
+        WinMain(MainWin, Normal)
+    end if

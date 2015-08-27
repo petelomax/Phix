@@ -1,0 +1,3288 @@
+--Bind:eawpaint.exe
+--
+-- eawpaint.exw
+--
+constant wpvers = 50408001      -- aka version 0.01 of 8th April 2005
+global
+integer debug_report
+        debug_report = wpvers   -- ensure it shows up in any *.err we might get.
+                                -- (I expect it to be listed as variable "C")
+
+--puts(1,"look")
+constant RunStandAlone = 1
+-- ListViews and TreeViews: ListViews need special handling for the column headings.
+-- Next:
+-- CtrlSet needs an [oPos] entry, marking the original position; [DONE, called oEnt]
+--   ""  needs to be saved immediately after creation, or empty for a new window; [NO, ref to Results]
+--   ""  needs to be compared line-by-line as we update each segment. [DONE]
+-- The docs say it re-parses before writing back?? *** DO A DEMO *** [SKIPPED]
+-- ComboBoxes are off by 4 or 5 pixels. (prolly due to subclassing) [posted query to list 7/4]
+-- Output styles in correct fashion. Run through the arwen demos. [DONE]
+-- Deal with TabItem switching. [DONE]
+-- Rewrite SetCursor et al using xClientToScreen. [DONE!]
+-- BUG: tabitems are off. [FIXED]
+--  Check parents for TabControls/TabItems. [DONE]
+-- This whole deal of "main" being zero is off. [MAYBE...]
+-- SUG: actually run the controls as-is [DONE]
+--  Not all messages are trapped properly for ComboBox (a subclassing issue, I fear).
+--  Extend the mouse handling over Tabs (arrow pointer) and allow tab switching [DONE]
+--
+--  Parse a text file to extract info; paste back (with lots of safety checks) - 
+--    on error, dump (ie without attempting to overwrite original), give an
+--    error message, and let the programmer sort it out.
+--  When a TabControl is resized, update all the TabItems. [FORGET THAT]
+--  When a TabItem is added, repaint the TabControl. [DONE]
+--  Use the "manual" box on all controls? [DONE]
+-- BUG: in test.exw, Rotate window is win32lib, thus only has 8 parameters. [FIXED]
+--  This crashes in SelHandler on flags=Resolve(e[7][9]); instead it should [FIXED]
+--  be rejected with an appropriate message.                                [FIXED]
+--  Focus boxes on labels [in groups] are knackered. Need to keep an explicit flag 
+--  of whether the box is visible or not. [FIXED]
+--  As items are selected, show info in LDwin. [DONE, (yet to be polished)]
+--  Resizing a control in a group via the right/bottom edge jumps well off. [FIXED]
+--  There is a very minor effect of the same if the control is on Virt. [??]
+--  Limit creation size to within boundary. [DONE]
+--  Can't Alt F4 under captureMouse, can't remember the trick to get out. [FIXED]
+-- BUG: opened pgui.exw, used the arrow keys to change to registration tab.
+--      mods to labels etc reparented them to prun (from pregister).
+--  
+-- Steps:
+-- create appropriate cursors for resizing etc. [DONE]
+-- Capture mouse. [DONE]
+-- Fill LDwin with controls. [PART DONE]
+--  Menu bar? [when Window has focus] [SORT OF DONE]
+-- Child window being built is independant and can be moved anywhere. [DONE]
+-- Trap all mouse entry, including the titlebar if possible, esp right click. [DONE]
+--  -- but let windows switch focus for us! [DONE]
+-- show right click menu [DONE]
+-- use maths to determine nearest control point; cursor is never/rarely arrow. [DONE]
+-- send repaint messages [SOME GLITCHES REMAIN]
+-- ?messages to menus to open them? -- no, eamenus is much easier. [SCRATCH THAT]
+-- allow scrolling to full screen size, plus space above for our controls. [Uh?]
+-- intercept all mouse movements bar child window sizing. [DONE]
+-- Menu: File X         ?Tools?         Help
+--       Open X         Colours
+--       Cancel Y           Fonts           View Window Painter Help File
+--       Save as X
+--       Exit (AltF4) Y Properties      About
+--                      Minimise
+--                      Restore
+include builtins\pprntf.e
+--/*
+include builtins\machine.e
+include builtins\misc.e
+include builtins\sort.e
+include builtins\file.e
+include builtins\dll.e
+include builtins\ppp.e
+include builtins\get.e
+include arwen\misc_arwen.e
+include arwen\message_box.ew
+include arwen\constants.ew
+include arwen\dll_links.ew
+include arwen\structures.ew
+include arwen\Quick_Allocations.ew
+include arwen\classes.ew
+include arwen\imagelists.ew
+--*/
+include arwen\arwen.ew
+
+include builtins\wildcard.e
+--include builtins\pdir.e as pdir
+
+--global integer Xtrans -- translate keywords and builtins
+--              Xtrans = 0  -- set by eaxlate.e (on "and")
+
+--global integer isEu,      -- must be set before calls to ExpandTabs/PackTabs.
+--             isTabWidth
+--
+--global sequence wordChar  -- not used...
+--
+--global constant
+-- TokenStart = 1,
+-- TokenChar    = 2,
+-- Illegal  = 9
+--
+--global sequence charMap   -- duplicate, for eatabs.e
+--
+--procedure setCharMap(object charset, integer chartype)
+--  if atom(charset) then
+--      charMap[charset+1] = chartype
+--      return
+--  end if
+--  for i=1 to length(charset) do
+--      charMap[charset[i]+1] = chartype
+--  end for
+--end procedure
+--
+--charMap = repeat(Illegal,256)
+----charMap[128..255] = TokenChar
+--for i=128 to 255 do setCharMap(i,TokenStart) end for
+--setCharMap({#B6,#B7,#BB},Illegal) -- visible space, tab, and paragraph mark. (treat as spaces)
+--setCharMap("ABCDEFGHIJKLMNOPQRSTUVWXYZ",TokenStart)
+--setCharMap("abcdefghijklmnopqrstuvwxyz",TokenStart)
+--setCharMap("_0123456789.",TokenChar)
+
+global integer  isDebug
+
+include src\eamisc.e
+global constant usegpp = 1
+include src\eaxlate.e
+--include src\eatabs.e
+
+--constant expiry_date = {2007-1900,09,23}  -- date() yields 107 for 2007
+--sequence dt
+--  dt = date()
+--  if compare(dt[1..3],expiry_date)=1 then
+----        void = messageBox("Window Painter Expired or Unlicenced","Modifications will NOT be saved.",0)
+----        void = messageBox("Window Painter Expired or Unlicenced",
+----                          " (Just a little friendly reminder.) ",0)
+--  end if
+
+--
+-- Check correct invocation from edita:
+--
+integer OK
+--integer mode
+
+-- See comments before CD_message in edita.exw:
+constant
+        CD_EDITA = #20050228, -- Are you really Edita?
+--      CD_MAGIC=#9B27A575, -- randomly generated
+        CD_WPAINT = #20050417,-- Are you really Window Painter?
+        CD_MAGICW = #606FE58A,--    "": Yes!
+        CD_FILL = #20050329,    -- Get filename length
+        CD_FILC = #20050606 -- Get filename character
+--      CD_ISEU=#20050816,  -- isEu
+--      CD_TABW=#20050817   -- isTabWidth
+
+--      CD_MODE=#20050331  -- layout.exe/pp.exe
+
+constant Edita = xl("Edita"),
+         minlen = length(Edita),
+         WP2 = xlna("Window Painter"),
+         minlen2 = length(WP2)
+
+constant CDS = allocate(12)
+
+atom mem4   -- a bit of 4-byte aligned memory
+integer mem_length
+        mem_length = -1
+
+function mem_str(object text)
+integer lt
+    if sequence(text) then
+        lt = length(text)
+    else
+        lt = text
+    end if
+    if lt>=mem_length then
+        if mem_length>=0 then
+            free(mem4)
+        end if
+        mem_length = and_bits(lt+4,#FFFFFFFC) -- multiple of 4
+        mem4 = allocate(mem_length)
+    end if
+    if sequence(text) then
+        poke(mem4,text)
+        poke(mem4+lt, 0)
+    end if
+    return mem4
+end function
+
+constant IDX = allocate(4)
+
+global sequence FileName
+
+include builtins\ppp.e
+
+atom EditaHwnd
+function EnumWindowsProc(atom hwnd, atom lParam)
+integer len
+sequence text
+    if lParam then end if   -- suppress warnings
+    len = c_func(xSendMessage, {hwnd, WM_GETTEXTLENGTH, 0, 0})
+    if len>=minlen or len>=minlen2 then
+        len += 1
+        len = c_func(xSendMessage, {hwnd, WM_GETTEXT, len, mem_str(len)})
+        text = peek({mem4, len})
+        if len>=minlen and equal(Edita,text[1..minlen]) then
+            --
+            -- Edita already running?
+            --
+            poke4(CDS,{CD_EDITA,0,0})
+--DEV mainHwnd?
+            if c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})=CD_EDITA then
+--          if c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})=CD_MAGIC then
+                -- YES!
+                EditaHwnd = hwnd
+                OK = 1
+--              poke4(CDS,{CD_MODE,0,0})    -- not used
+--              mode = c_func(xSendMessage, {hwnd, WM_COPYDATA, NULL, CDS})
+--              poke4(CDS,{CD_ISEU,0,0})
+--              isEu = c_func(xSendMessage, {hwnd, WM_COPYDATA, NULL, CDS})
+--              poke4(CDS,{CD_TABW,0,0})
+--              isTabWidth = c_func(xSendMessage, {hwnd, WM_COPYDATA, NULL, CDS})
+--              initT()
+
+                poke4(CDS,{CD_FILL,0,0})
+                len = c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})
+--DEV this will not work on XP:
+--              poke4(CDS,{CD_FILE,len,mem_str(len)})
+--              if c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then ?9/0 end if
+--
+--              FileName = peek({mem4,len})
+--              FileName = repeat(0,len)
+                FileName = repeat(' ',len)  -- 1/6/09
+                poke4(CDS,{CD_FILC,4,IDX})
+                for i=1 to len do
+                    poke4(IDX,i)
+                    FileName[i] = c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})
+                end for
+
+--              return 0    -- cease enumeration
+            end if
+        elsif equal(WP2,text) then
+            --
+            -- Window Painter already running?
+            --
+            poke4(CDS,{CD_WPAINT,0,0})
+            if c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})=CD_MAGICW then
+                --
+                -- make existing Window Painter topmost
+                --
+                if c_func(xIsIconic,{hwnd}) then
+                    -- Thanks to Pete Stoner/joel on software
+                    -- If the window is minimised, restore it before 
+                    -- trying to make it the foreground window.
+                    c_proc(xShowWindow,{hwnd,SW_RESTORE})
+                end if
+                c_proc(xSetForegroundWindow,{hwnd})
+                -- .. and terminate.
+                abort(0)
+            end if
+        end if
+    end if
+    return 1    -- continue enumeration
+end function
+
+OK = 0
+void = c_func(xEnumWindows,{call_back(routine_id("EnumWindowsProc")),NULL})
+    --DEV:
+    --if OK then
+    --  if equal(FileName,"C:\\Program Files\\Edita\\eawpaint.exw") then
+    --      FileName = "C:\\p5\\demo\\ArwenDemo\\FlatToolBar.EXW"
+    --  end if
+    --else
+    if not OK then
+        if not RunStandAlone then
+            void = messageBox(xl("Error"),xl("Edita not running!"),0)
+            abort(0)
+        end if
+--  FileName = "eawpaint.exw"
+        FileName = "ealtest.exw"
+    --  puts(1,"running standalone...\n")
+    end if
+
+include src\eascan.e
+
+constant
+--       QUOTE = '\"',
+--       ESCAPE = '\\', 
+         SPACE = ' ',
+         TAB = '\t'
+
+function WpExpandTabs(sequence text)
+-- Replace any tabs with spaces.
+-- Fast (92,000 lines/second or better)
+integer tab
+    while 1 do
+        tab = find(TAB,text)
+        if not tab then exit end if
+        text = text[1..tab-1]&
+               repeat(SPACE,8-remainder(tab-1,8))&
+               text[tab+1..length(text)]
+    end while
+    return text
+end function
+
+procedure readFile(sequence name)
+integer fn, filelen
+integer lineno
+object line
+integer linelength
+    fn = open(name,"r")
+    if fn=-1 then
+        void = messageBox(xl("Error opening file"),name,0)  ?9/0
+--      puts(1,"Error opening file")
+--      errorcount = 1
+--      text = {}
+--      textlen = 0
+--      return
+        abort(0)
+    end if
+    text = repeat(0,200)
+    filelen = 200
+    lineno = 0
+    while 1 do
+        line = gets(fn)
+        if atom(line) then exit end if
+        linelength = length(line)
+        if line[linelength]='\n' then
+            line = line[1..linelength-1]
+        end if
+-- removed: the disk file is in English!!!
+--DEV not 100% certain about tabs though...
+        line = WpExpandTabs(line)
+--      if isEu and Xtrans then
+--          line = PackTabs(line,1)
+--      end if
+        lineno += 1
+        if lineno>filelen then
+            text &= repeat(0,200)
+            filelen += 200
+        end if
+        text[lineno] = line
+    end while
+    close(fn)
+    text = text[1..lineno]
+end procedure
+
+function stringify(object x)
+object t
+    if not sequence(x) then return sprint(x) end if
+    for i=1 to length(x) do
+        t = x[i]
+--DEV (spotted in passing) Unicode...
+        if (not integer(t)) or (t<' ')  or (t>#FF) then
+            return sprint(x)
+        end if
+    end for
+    return x
+end function
+
+procedure invalidate(object This, object err)
+object Parent
+--?{This,err}
+--?9/0
+    err = stringify(err)
+    while atom(This) and This!=0 do
+        Parent = Results[This][7][4]
+        Results[This][7][4] = "Unrecognised :" & err
+        This = Parent
+    end while
+end procedure
+
+global sequence Windows
+
+--with trace
+procedure packResults()
+object debug
+integer isValid
+    for i=1 to length(Results) do
+        --
+        -- Replace the parent link
+        -- (If you can't find it, just ignore it)
+        --
+        if not equal(Results[i][7][1][1..2],{-1,"Window"}) then
+            debug = Results[i][7][4]
+            for j=i-1 to 1 by -1 do
+                if equal(Results[j][6],debug[2]) then
+                    Results[i][7][4] = j
+                    Results[i][8] = debug
+                    exit
+                end if
+            end for
+        end if
+        for j=1 to length(Results[i][7]) do
+            if j=1 then -- the control type
+                --
+                -- Check the type is recognised.
+                --
+                debug = Results[i][7][1]
+                if debug[1]!=-1 or not find(debug[2],
+                                            {"Window","Button","PictureButton","ToggleButton",
+                                             "PushButton",  --==Button
+                                             "TogglePictureButton","RadioButton","CheckBox",
+                                             "TriCheckBox","EditText","Group","HyperText",
+                                             "Label","ComboBox","ListBox","ListView",   -- as too damaging...
+                                             "TreeView",
+                                             "ComboDropDownList",
+                                             "ComboDropDown","Menu","MenuItem","MultiEditText",
+                                             "ProgressBar","StatusBar","StatusField","TabControl",
+                                             "TabItem","ToolBar","ToolSep","HScroll","VScroll",
+                                             "UpDown",
+                                             "HTrackBar","VTrackBar"}) then
+                    invalidate(i,debug[2])
+                    exit
+                end if
+            elsif j!=4 then -- not the Parent
+                debug = Results[i][7][j]
+                if equal(debug[1],FUNC) then    --DEV should we handle or_all specially??
+                    if find(debug[2],{"or_all","or_bits"}) then
+                        --DEV but where do we store it, replace what??
+                        void = Resolve(debug)
+                    else
+                        --
+                        -- Reduce function calls to first inner constant...
+                        --
+                        isValid = False
+                        for k=1 to length(debug[7]) do
+                            if find(debug[7][k][1],{2,6}) then
+                                Results[i][7][j] = debug[7][k]
+                                isValid = True
+                                exit
+                            end if
+                        end for
+                        if not isValid then
+                            invalidate(i,debug[2])
+                            exit
+                        end if
+                    end if
+                elsif find(debug[1],{UNKNOWN,SEQUENCE,BPLUS,DQUOTE,DIGIT,SLICE,SUBSCR,HEXDEC}) then
+                    resolvable = 1
+--if debug[1]=SEQUENCE then trace(1) end if
+                    void = Resolve(debug)
+                    if not resolvable then
+                        if debug[1]=SUBSCR then
+                            invalidate(i,sprintf("Subscript on line %d",debug[2][3]))
+                        else
+                            invalidate(i,debug[2])
+                        end if
+                        exit
+                    end if
+                elsif find(debug[1],{"-","not","&"}) then
+                    invalidate(i,sprintf("unary op on line %d",debug[2][3]))
+                else
+--                  trace(1)
+                    ?9/0
+                end if
+            end if
+        end for
+    end for
+    --
+    -- Extract just the Window lines...
+    --
+    Windows = {}
+    for i=1 to length(Results) do
+        if equal(Results[i][7][1][1..2],{-1,"Window"})
+        or (equal(Results[i][7][1][1..2],{-1,"Menu"}) and
+            sequence(Results[i][7][4]) and
+            equal(Results[i][7][4][2],0)) then
+            Windows &= i
+        end if
+    end for
+end procedure
+
+integer initScan
+        initScan = 0
+--with trace
+sequence path
+
+include builtins\file.e
+procedure getConstantsDir()
+-- locate the installed constants.ew
+object incpath
+integer semicolon
+integer k
+sequence root
+    path = command_line()
+    path = LowerCase(path[2])
+--  k = match("eawpaint.",path)
+    k = match("eawpaint",path)
+    if not k then
+        void = messageBox("Error","Directory Error",0)
+        abort(0)
+    end if
+    root = path[1..k-1] -- save for later...
+    path = root&"constants.ew"
+--  if not atom(pdir:dir(path)) then return end if                      -- FOUND IT!
+    if not atom(dir(path)) then return end if                       -- FOUND IT!
+    path = root&"..\\Phix\\demo\\arwen\\constants.ew"
+    if not atom(dir(path)) then return end if                       -- FOUND IT!
+    path = root&"arwen\\constants.ew"
+    if not atom(dir(path)) then return end if                       -- FOUND IT!
+
+    --
+    -- OK, so try EUINC...
+    --
+    incpath = getenv("EUINC")
+    if not atom(incpath) then
+        while 1 do
+            semicolon = find(';',incpath)
+            if semicolon!=1 then --nulls in path; skip
+                if semicolon then
+                    path = incpath[1..semicolon-1]
+                else
+                    path = incpath
+                end if
+                if path[length(path)]='\\' then
+                    path &= "constants.ew"
+                else
+                    path &= "\\constants.ew"
+                end if
+--              if not atom(pdir:dir(path)) then return end if          -- FOUND IT!
+                if not atom(dir(path)) then return end if           -- FOUND IT!
+            end if
+            if not semicolon then exit end if
+            incpath = incpath[semicolon+1..length(incpath)]
+            if not length(incpath) then exit end if
+        end while
+    end if
+
+    --
+    -- OK, so try EUDIR/include...
+    --
+    incpath = getenv("EUDIR")
+    if not atom(incpath) then
+        path = incpath&"\\include\\constants.ew"
+--      if not atom(pdir:dir(path)) then return end if                  -- FOUND IT!
+        if not atom(dir(path)) then return end if                   -- FOUND IT!
+    end if
+    path = root&"src\\arconst.e" -- use a special cut-down one in emergencies only.
+--?path
+--  if not atom(dir(path)) then
+--      void = messageBox("Warning","Arwen not found (so you probably won't\n"&
+--                                  "be able to run the program after amending it.",0)
+--  end if
+end procedure
+
+
+    if not initScan then    -- I think we'll do this every time...
+        getConstantsDir()
+--?path
+        readFile(path)
+        mode = smCONST
+        Scan()
+        initScan = constidx
+        text = {}
+    end if
+
+    constidx = initScan
+
+--DEV get the file name from edita!
+--readFile("eawpaint.exw")
+--readFile("eafind.ew")
+--readFile("old/eu.exw")
+--readFile("eascan.exw")
+--readFile("eascan.e")  -- Test file
+--readFile("test.exw")  -- Test file
+--readFile("E:\\euphoria\\arwen\\demo\\demo_toolbar.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_idle.exw")  --header??
+--readFile("E:\\euphoria\\arwen\\demo\\demo_lists.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_menus.exw") --win_title??
+--readFile("E:\\euphoria\\arwen\\demo\\demo_messagetrapping.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_resizing.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_tabs.exw")  --""
+--readFile("E:\\euphoria\\arwen\\demo\\demo_timer.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_controls.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_memo.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_viewer.exw")    --""
+--readFile("E:\\euphoria\\arwen\\demo\\demo_sysmenu.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_curve_fit.exw")
+--readFile("E:\\euphoria\\arwen\\demo\\demo_progress.exw")
+
+    readFile(FileName)
+    mode = smWINDOW
+--puts(1,"scanning...\n")
+    Scan()
+--puts(1,"scanned...\n")
+--?Results
+    text = {}
+    packResults()
+
+
+--
+--BUG: ComboBox is not trapping all messages properly.
+--ToolBarSep crashes (removed for now)
+--Does not select tabitems properly, or add controls to the right tabitem. [FIXED]
+--
+
+-- Window styles:
+--constant INVALID=-1,SPECIAL=-2,
+--  StyleSets = {
+--{Window,"WS_",{INVALID,WS_TILED},
+--            {SPECIAL,WS_CAPTION,WS_CHILD,WS_MINIMIZE,WS_THICKFRAME,
+--             WS_TILEDWINDOW,WS_OVERLAPPEDWINDOW,WS_POPUPWINDOW,WS_SYSMENU}},
+--  WS_BORDER =  #800000,
+--  WS_CAPTION =  #C00000,      -- = WS_BORDER + WS_DLGFRAME
+--  WS_CHILD =  #40000000,      -- Parent must not be 0, exclusive with WS_POPUP
+--  WS_CLIPCHILDREN =  #2000000,-- Default to on for Windows
+--  WS_CLIPSIBLINGS =  #4000000,-- Default to on for Windows if parent is not 0
+--  WS_DISABLED =  #8000000,
+--  WS_DLGFRAME =  #400000,
+--  WS_GROUP =  #20000,
+--  WS_HSCROLL =  #100000,
+--  WS_POPUP =  #80000000,      -- Exclusive with WS_CHILD
+--  WS_SYSMENU =  #80000,       -- WS_CAPTION *MUST* also be specified (DEV)
+--  WS_TABSTOP =  #10000,
+--  WS_THICKFRAME =  #40000,    -- (= WS_SIZEBOX)
+--  WS_TILED = 0,               -- = WS_TILED
+--  WS_TILEDWINDOW =  #CF0000, --(= WS_OVERLAPPEDWINDOW)
+--  WS_VISIBLE =  #10000000,
+--  WS_VSCROLL =  #200000,
+--
+procedure invalidateStyle(sequence names)
+sequence thisname
+    for i=1 to length(names) do
+        thisname = names[i]
+        for j=1 to constidx do
+            if equal(thisname,constnames[j]) then
+                constnames[j] = ""
+                exit
+            end if
+        end for
+    end for
+end procedure
+
+invalidateStyle({"BS_3STATE","BS_BITMAP","BS_CHECKBOX","BS_GROUPBOX","BS_PUSHBUTTON",
+                 "BS_PUSHLIKE","BS_RADIOBUTTON","BS_USERBUTTON"})
+-- {SPECIAL,BS_AUTO3STATE,BS_AUTOCHECKBOX,BS_AUTORADIOBUTTON,BS_LEFTTEXT,BS_OWNERDRAW,BS_RIGHTBUTTON}},
+--  BS_3STATE = 5,  == X use TriCheckBox
+--  BS_AUTO3STATE = 6,  (only valid for TriCheckBox)
+--  BS_AUTOCHECKBOX = 3, (only Valid for CheckBox)
+--  BS_AUTORADIOBUTTON = 9, (only Valid for RadioButton)
+--  BS_BITMAP = 128,    == X use PictureButton or TPB instaed
+--  BS_BOTTOM =  #800,
+--  BS_CENTER =  #300,
+--  BS_CHECKBOX = 2,    == X Use CheckBox
+--  BS_DEFPUSHBUTTON = 1,
+--  BS_GROUPBOX = 7,    == X Use Group
+--  BS_ICON = 64,   ?? (need to experiment with this)
+--  BS_LEFT = 256,
+--  BS_LEFTTEXT = 32,   (=BS_RIGHTBUTTON) Valid with TCB,RB,CB only
+--  BS_MULTILINE =  #2000,
+--  BS_NOTIFY =  #4000,
+--  BS_OWNERDRAW =  #B, -- No other button styles allowed.
+--  BS_PUSHBUTTON = 0,  == X Use Button
+--  BS_PUSHLIKE = 4096, == X Use Toggle[Picture]Button instead
+--  BS_RADIOBUTTON = 4, == X Use RadioButton
+--  BS_RIGHT = 512,
+--  BS_RIGHTBUTTON = 32,    == BS_LEFTTEXT
+--  BS_TEXT = 0,
+--  BS_TOP =  #400,
+--  BS_USERBUTTON = 8,  -- obsolete
+--  BS_VCENTER =  #C00,
+--  BS_FLAT =  #8000,
+
+invalidateStyle({"CBS_DROPDOWN","CBS_DROPDOWNLIST","CBS_SIMPLE"})
+-- COMBOBOX STYLES:
+--  CBS_AUTOHSCROLL = 64,
+--  CBS_DISABLENOSCROLL =  #800,
+--  CBS_DROPDOWN = 2,   X use ComboDropDown
+--  CBS_DROPDOWNLIST = 3, X Use ComboDropDownList
+--  CBS_HASSTRINGS = 512,
+--  CBS_LOWERCASE =  #4000,
+--  CBS_NOINTEGRALHEIGHT =  #400,
+--  CBS_OEMCONVERT = 128,
+--  CBS_OWNERDRAWFIXED = 16,
+--  CBS_OWNERDRAWVARIABLE = 32,
+--  CBS_SIMPLE = 1,     X use ComboBox
+--  CBS_SORT = 256,
+--  CBS_UPPERCASE =  #2000,
+--{{EditText,MultiEditText},
+-- "ES_",
+invalidateStyle({"ES_MULTILINE"})
+-- {SPECIAL,ES_AUTOVSCROLL,ES_WANTRETURN}},
+-- EDIT STYLES:
+--  ES_AUTOHSCROLL = 128,
+--  ES_AUTOVSCROLL = 64,    -- only valid on MultiEditText
+--  ES_CENTER = 1,
+--  ES_LEFT = 0,
+--  ES_LOWERCASE = 16,
+--  ES_MULTILINE = 4,   -- X use MultiEditText
+--  ES_NOHIDESEL = 256,
+--  ES_NUMBER =  #2000,
+--  ES_OEMCONVERT =  #400,
+--  ES_PASSWORD = 32,
+--  ES_READONLY =  #800,
+--  ES_RIGHT = 2,
+--  ES_UPPERCASE = 8,
+--  ES_WANTRETURN = 4096,   -- only valid on MultiEditText
+--{ListBox,"LBS_",
+invalidateStyle({"LBS_NODATA","LBS_NOREDRAW"})
+invalidateStyle({"TBS_HORZ","TBS_VERT"})
+
+sequence constsets, scanorder
+procedure getConst(sequence prefixes)
+-- Extract the style constants loaded from constants.ew
+sequence thisname
+atom thisval
+integer l
+    constsets = repeat({},length(prefixes))
+    for i=1 to constidx do
+        if not equal(constvals[i],0) then
+            thisname = constnames[i]
+            for j=1 to length(prefixes) do
+                if match(prefixes[j],thisname)=1 then
+                    constsets[j] = append(constsets[j],{constvals[i],constnames[i],{}})
+                    exit
+                end if
+            end for
+        end if
+    end for
+    scanorder = repeat(0,length(constsets))
+    for i=1 to length(constsets) do
+        -- determine subsets
+        for j=1 to length(constsets[i]) do
+            thisval = constsets[i][j][1]
+            for k=1 to length(constsets[i]) do
+                if j!=k then
+                    if and_bits(thisval,constsets[i][k][1])=constsets[i][k][1] then
+                        -- mark k as a subset (or equivalent) of j
+                        constsets[i][j][3] = constsets[i][j][3] & k
+                    end if
+                end if
+            end for
+        end for
+        -- calculate scan order
+        scanorder[i] = repeat(0,length(constsets[i]))
+        for j=1 to length(constsets[i]) do
+            scanorder[i][j] = j
+            for k=j-1 to 1 by -1 do
+                l = scanorder[i][k]
+                if length(constsets[i][j][3])<=length(constsets[i][l][3]) then exit end if
+                scanorder[i][k] = j
+                scanorder[i][k+1] = l
+            end for
+        end for
+    end for
+--  ppEx(constsets,{pp_IntFmt,"#%x",pp_Nest,1})
+--  pp(scanorder)
+end procedure
+
+constant prefixes = {"WS_EX_","WS_","BS_","CBS_","ES_","LBS_","LVS_","TVS_","SBS_",
+                     "TBS_","PBS_","SBARS_","TCS_","UDS_","SS_","MF_"},
+         prsets  = {{},
+                    {Window},
+                    {Button,PictureButton,ToggleButton,TogglePictureButton,
+                     RadioButton,CheckBox,TriCheckBox,Group},
+                    {ComboBox,ComboDropDownList,ComboDropDown},
+                    {EditText,MultiEditText},
+                    {ListBox},
+                    {ListView},
+                    {TreeView},
+                    {HScroll,VScroll},
+                    {HTrackBar,VTrackBar},
+                    {ProgressBar},
+                    {StatusBar,StatusField},
+                    {TabControl,TabItem},
+                    {UpDown},
+                    {HyperText,Label},
+                    {Menu,MenuItem}},
+-- no point translating these! (given eg WS_CAPTION etc)
+prnames  = {"Extended Window Styles",
+            "Window Styles",
+            "Button Styles",
+            "Combo Styles",
+            "Edit Styles",
+            "ListBox Styles",
+            "ListView Styles",
+            "TreeView Styles",
+            "ScrollBar Styles",
+            "TrackBar Styles",
+            "ProgressBar Styles",
+            "StatusBar Styles",
+            "Tab Control Styles",
+            "UpDown Styles",
+            "Static Styles",
+            "Menu Styles"}
+--ToolBar,ToolSep,
+
+getConst(prefixes)
+
+--with trace
+
+sequence CtrlSet
+         CtrlSet = {}
+
+
+procedure Abort(sequence msg)
+    void = messageBox("Error updating "&FileName,msg,0)
+    abort(0)
+end procedure
+
+constant LDwin = create(Window,xlna("Window Painter"),      0,0,0,0,335,310,0)
+
+constant LDfile  = create(Menu,xl("File"),                  0,LDwin,0,0,0,0,0)
+constant LDcncl  = create(MenuItem,xl("Cancel"),            0,LDfile,0,0,0,0,0)
+constant LDexit  = create(MenuItem,xl("Exit\t(Alt F4)"),    0,LDfile,0,0,0,0,0)
+constant LDtool  = create(Menu,xl("Tools"),                 0,LDwin,0,0,0,0,0)
+constant LDtest  = create(MenuItem,xl("Test"),              0,LDtool,0,0,0,0,0)
+constant LDdump  = create(MenuItem,"Dump CtrlSet",          0,LDtool,0,0,0,0,0)
+constant LDcrsh  = create(MenuItem,xl("Crash (?9/0)"),      0,LDtool,0,0,0,0,0)
+constant LDhmnu  = create(Menu,xl("Help"),                  0,LDwin,0,0,0,0,0)
+constant LDhelp  = create(MenuItem,xl("Manual"),            0,LDhmnu,0,0,0,0,0)
+constant LDlcnc  = create(MenuItem,xl("Licence"),           0,LDhmnu,0,0,0,0,0)
+constant LDabout = create(MenuItem,xl("About"),             0,LDhmnu,0,0,0,0,0)
+constant LDlist  = create(ComboDropDownList,"",             0,LDwin,10, 10,300,225,0)
+constant LDnlbl  = create(Label,xl("Name"),                 0,LDwin,10, 43, 50,20,SS_RIGHT)
+constant LDname  = create(EditText,"",                      0,LDwin,68, 40,243,22,0)
+constant LDtlbl  = create(Label,xl("Type"),                 0,LDwin,10, 70, 50,20,SS_RIGHT)
+constant LDtype  = create(Label,"",                         0,LDwin,65, 70,242,20,0)
+constant LDplbl  = create(Label,xl("Parent"),               0,LDwin,10,100, 50,20,SS_RIGHT)
+constant LDprnt  = create(Label,"",                         0,LDwin,65,100,240,20,0)
+constant LDxlbl  = create(Label,xl("Text"),                 0,LDwin,10,130, 50,20,SS_RIGHT)
+constant LDtext  = create(EditText,"",                      0,LDwin,66,126,243,22,0)
+constant LDblbl  = create(Label,xl("Bitmap"),               0,LDwin,10,160, 50,20,SS_RIGHT)
+constant LDbmap  = create(EditText,"",                      0,LDwin,66,158,243,22,0)
+constant LDslbl  = create(Button,"Style",                   0,LDwin,10,188, 50,24,0)
+constant LDstyl  = create(Label,"",                         0,LDwin,65,190,243,20,0)
+constant LDelbl  = create(Button,"StyleEx",                 0,LDwin, 8,218, 54,24,0)
+constant LDxstl  = create(Label,"",                         0,LDwin,65,220,243,20,0)
+    --=========
+    --  mainDC = getPrivateDC(LDwin),
+    --  mainHwnd = getWindowHwnd(LDwin),
+
+    if sequence({LDnlbl,LDtlbl,LDplbl}) then end if -- suppress warnings (DEV?)
+
+integer Virt
+atom VirtDC, VirtHwnd
+
+constant
+    TMenu = create(Menu,"",0,0,0,0,0,0,0),
+    hMenu = getHwnd(TMenu),
+    TMbtn = create(MenuItem,"Button",0,TMenu,0,0,0,0,0),
+    TMpbn = create(MenuItem,"PictureButton",0,TMenu,0,0,0,0,0),
+    TMtbn = create(MenuItem,"ToggleButton",0,TMenu,0,0,0,0,0),
+    TMtpb = create(MenuItem,"TogglePictureButton",0,TMenu,0,0,0,0,0),
+    TMrdb = create(MenuItem,"RadioButton",0,TMenu,0,0,0,0,0),
+    TMchb = create(MenuItem,"CheckBox",0,TMenu,0,0,0,0,0),
+    TMtcb = create(MenuItem,"TriCheckBox",0,TMenu,0,0,0,0,0),
+    TMedt = create(MenuItem,"EditText",0,TMenu,0,0,0,0,0),
+    TMgrp = create(MenuItem,"Group",0,TMenu,0,0,0,0,0),
+    TMhtx = create(MenuItem,"HyperText",0,TMenu,0,0,0,0,0),
+    TMlbl = create(MenuItem,"Label",0,TMenu,0,0,0,0,0),
+    TMcbx = create(MenuItem,"ComboBox",0,TMenu,0,0,0,0,0),
+    TMlbx = create(MenuItem,"ListBox",0,TMenu,0,0,0,0,0),
+    TMlvw = create(MenuItem,"ListView",0,TMenu,0,0,0,0,0),
+    TMtvw = create(MenuItem,"TreeView",0,TMenu,0,0,0,0,0),
+    TMcdl = create(MenuItem,"ComboDropDownList",0,TMenu,0,0,0,0,0),
+    TMcdd = create(MenuItem,"ComboDropDown",0,TMenu,0,0,0,0,0),
+    TMmnu = create(MenuItem,"Menu",0,TMenu,0,0,0,0,0),
+    TMmni = create(MenuItem,"MenuItem",0,TMenu,0,0,0,0,0),  --DEV if rc on a TMmnu!
+    TMmet = create(MenuItem,"MultiEditText",0,TMenu,0,0,0,0,0),
+    TMprg = create(MenuItem,"ProgressBar",0,TMenu,0,0,0,0,0),
+    TMstb = create(MenuItem,"StatusBar",0,TMenu,0,0,0,0,0),
+    TMstf = create(MenuItem,"StatusField",0,TMenu,0,0,0,0,0),
+    TMtbc = create(MenuItem,"TabControl",0,TMenu,0,0,0,0,0),
+    TMtbi = create(MenuItem,"TabItem",0,TMenu,0,0,0,0,0),   --DEV if rc on a TMtbc!
+--  TMtbr = create(MenuItem,"ToolBar",0,TMenu,0,0,0,0,0),
+--  TMtbs = create(MenuItem,"ToolSep",0,TMenu,0,0,0,0,0),   --DEV if rc on a TMtbr!
+    TMudc = create(MenuItem,"UpDown",0,TMenu,0,0,0,0,0),
+    TMhsc = create(MenuItem,"HScroll",0,TMenu,0,0,0,0,0),
+    TMvsc = create(MenuItem,"VScroll",0,TMenu,0,0,0,0,0),
+    TMhtr = create(MenuItem,"HTrackBar",0,TMenu,0,0,0,0,0),
+    TMvtr = create(MenuItem,"VTrackBar",0,TMenu,0,0,0,0,0),
+--  TMdel = create(MenuItem,"Delete",0,TMenu,0,0,0,0,0),
+
+--DEV create the above from this!
+    TMset = {{TMbtn,Button,             "Button",               0,0,0,0, 75, 30},
+             {TMpbn,PictureButton,      "PictureButton",        0,0,0,0, 75, 30},
+             {TMtbn,ToggleButton,       "ToggleButton",         0,0,0,0, 95, 30},
+             {TMtpb,TogglePictureButton,"TogglePictureButton",  0,0,0,0, 75, 30},
+             {TMrdb,RadioButton,        "RadioButton",          0,0,0,0, 95, 20},
+             {TMchb,CheckBox,           "CheckBox",             0,0,0,0, 85, 20},
+             {TMtcb,TriCheckBox,        "TriCheckBox",          0,0,0,0, 95, 20},
+             {TMedt,EditText,           "EditText",             0,0,0,0,180, 22},
+             {TMgrp,Group,              "Group",                0,0,0,0,200,400},
+             {TMhtx,HyperText,          "HyperText",            0,0,0,0,180, 20},
+             {TMlbl,Label,              "Label",                0,0,0,0,180, 20},
+             {TMcbx,ComboBox,           "ComboBox",             0,0,0,0,200,400},
+             {TMlbx,ListBox,            "ListBox",              0,0,0,0,200,400},
+             {TMlvw,ListView,           "ListView",             0,0,0,0,200,400},
+             {TMtvw,TreeView,           "TreeView",             0,0,0,0,200,400},
+             {TMcdl,ComboDropDownList,  "ComboDropDownList",    0,0,0,0,200,400},
+             {TMcdd,ComboDropDown,      "ComboDropDown",        0,0,0,0,200,400},
+             {TMmnu,Menu,               "Menu",                 0,0,0,0,  0,  0},
+             {TMmni,MenuItem,           "MenuItem",             0,0,0,0,  0,  0},
+             {TMmet,MultiEditText,      "MultiEditText",        0,0,0,0,200,400},
+             {TMprg,ProgressBar,        "ProgressBar",          0,0,0,0,180, 20},
+             {TMstb,StatusBar,          "StatusBar",            0,0,0,0,  0,  0},
+             {TMstf,StatusField,        "StatusField",          0,0,0,0,  0,  0},
+             {TMtbc,TabControl,         "TabControl",           0,0,0,0,200,400},
+             {TMtbi,TabItem,            "TabItem",              0,0,0,0,  0,  0},
+--            {TMtbr,ToolBar,           "ToolBar",              0,0,0,0, 25,  0},
+             {TMudc,UpDown,             "UpDown",               0,0,0,0, 35, 30},
+             {0,ToolBar,                "ToolBar",              0,0,0,0, 25,  0},
+--            {TMtbs,ToolSep,           "ToolSep",              0,0,0,0, 25,  0},
+             {0,ToolSep,                "ToolSep",              0,0,0,0, 25,  0},
+             {TMhsc,HScroll,            "HScroll",              0,0,0,0,200, 20},
+             {TMvsc,VScroll,            "VScroll",              0,0,0,0, 20,200},
+             {TMhtr,HTrackBar,          "HTrackBar",            0,0,0,0,200, 20},
+             {TMvtr,VTrackBar,          "VTrackBar",            0,0,0,0, 20,200}}
+
+constant Id     = 1,
+         Type   = 2,
+         Text   = 3,
+         cHbmap = 4,
+         cPidx  = 5,
+         xPos   = 6,
+         yPos   = 7,
+         Width  = 8,
+         Height = 9,
+         Flags  = 10,
+         cName  = 11,
+         oEnt   = 12
+
+
+function getCtrlTypeString(integer c)
+    for i=1 to length(TMset) do
+        if c=TMset[i][Type] then
+            return TMset[i][Text]
+        end if
+    end for
+    if c=Window then
+        return "Window"
+    end if
+    -- oops!
+end function
+
+function getCtrlType(sequence c)
+    if equal(c,"Window") then return Window end if
+    if equal(c,"PushButton") then return Button end if
+    for i=1 to length(TMset) do
+        if equal(c,TMset[i][Text]) then return TMset[i][Type] end if
+    end for
+    -- oops!
+end function
+
+function manualFocus(integer ctrl)
+--  if ctrl=0 then return 0 end if
+    return find(CtrlSet[ctrl][Type],
+                {Label,ComboDropDownList,ComboDropDown,
+                 PictureButton,TogglePictureButton,
+                 RadioButton,CheckBox,TriCheckBox,
+                 Group,ComboBox,ListBox,MultiEditText,
+                 ProgressBar})
+end function
+
+constant msg = allocate(sizeofstruct(MSG))
+procedure purgeEvents()
+    while c_func(xPeekMessage, {msg, 0, 0, 0, PM_REMOVE}) do
+--      indrag = 1
+        c_proc(xTranslateMessage, {msg})
+        if c_func(xDispatchMessage, {msg}) then end if
+    end while
+--  indrag = 0
+end procedure
+
+constant StyleWin = create(Window,"",0,LDwin,20,20,275,700,0)
+
+sequence StyleCheckBoxes
+         StyleCheckBoxes = {}
+integer tmpId
+
+--  for y=15 to 535 by 20 do
+    for y=15 to 675 by 20 do
+        tmpId = create(CheckBox,"",0,StyleWin,10,y,255,20,0)
+        StyleCheckBoxes = append(StyleCheckBoxes,tmpId)
+    end for
+
+integer StyleOpen
+        StyleOpen = 0
+
+integer StyleIdx, StyleEx
+sequence StyleSet
+atom StyleVal
+
+integer CSidx
+        CSidx = 0
+
+procedure prefer(sequence pref, sequence over)
+-- make sure pref occurs before over in StyleSet, if not swap them.
+object tmp
+    for i=1 to length(StyleSet) do
+        if equal(StyleSet[i][2],pref) then return end if
+        if equal(StyleSet[i][2],over) then
+            for j=i+1 to length(StyleSet) do
+                if equal(StyleSet[j][2],pref) then
+                    tmp = StyleSet[i]
+                    StyleSet[i] = StyleSet[j]
+                    StyleSet[j] = tmp
+                    return
+                end if
+            end for
+            ?9/0    -- pref not found!
+        end if
+    end for
+    ?9/0    -- neither pref nor over found!
+end procedure
+
+procedure StylePreferences(integer cType)
+-- swap the identical constants around to match the type.
+-- eg HScroll use bottom and top align, whereas 
+--    VScroll use left and right align, despite
+--  the fact that bottom=left=4 and top=right=2.
+    if cType=HTrackBar then
+        prefer("TBS_TOP","TBS_LEFT")
+    elsif cType=VTrackBar then
+        prefer("TBS_LEFT","TBS_TOP")
+    elsif cType=HScroll then
+        prefer("SBS_BOTTOMALIGN","SBS_RIGHTALIGN")
+        prefer("SBS_TOPALIGN","SBS_LEFTALIGN")
+    elsif cType=VScroll then
+        prefer("SBS_RIGHTALIGN","SBS_BOTTOMALIGN")
+        prefer("SBS_LEFTALIGN","SBS_TOPALIGN")
+    end if
+end procedure
+
+
+--with trace
+function getStyleText(integer idx)
+-- returns a text string representation of the windows api styles.
+-- idx indicates the entry in CtrlSet
+-- StyleEx is used to select between normal and extended styles
+integer cType
+object cStyles
+sequence text, scanset
+atom this
+object style
+integer k, N
+        text = "{"
+        N = 0
+        style = CtrlSet[idx][Flags]
+        if sequence(style) then
+            if StyleEx then
+                style = style[2]
+            else
+                style = style[1]
+            end if
+            if sequence(style) then
+                style = or_all(style)
+            end if
+        elsif StyleEx then
+--          style = 0
+            return "0"
+        end if
+        cType = CtrlSet[idx][Type]
+        cStyles = getClassStyles(cType)
+        if StyleEx then
+            cStyles = cStyles[2]
+            StyleSet = constsets[1]
+            scanset = scanorder[1]
+        else
+            cStyles = cStyles[1]
+            for i=1 to length(prsets) do
+                if find(cType,prsets[i]) then
+                    StyleSet = constsets[i]
+                    scanset = scanorder[i]
+                    exit
+                end if
+            end for
+            StylePreferences(cType)
+        end if
+        for i=1 to length(scanset) do
+            k = scanset[i]
+            this = StyleSet[k][1]
+            if and_bits(style,this)=and_bits(this,this) then
+--              style -= this
+                style = and_bits(style,not_bits(this))
+                if and_bits(this,cStyles)!=and_bits(this,this) then
+                    text &= StyleSet[k][2]&','
+--if equal(StyleSet[k][2],"LBS_MULTIPLESEL") then trace(1) end if
+                    N += 1
+                end if
+            end if
+        end for
+        if N>1 then
+            text[length(text)] = '}'
+            return text
+        end if
+        if N=1 then
+            return text[2..length(text)-1]
+        end if
+        return "0"
+end function
+
+--global constant 
+--  SWP_NOSIZE          = #0001,
+--  SWP_NOMOVE          = #0002,
+--  SWP_NOZORDER        = #0004,
+--  SWP_NOREDRAW        = #0008,
+--  SWP_NOACTIVATE      = #0010,
+--  SWP_FRAMECHANGED    = #0020,
+--  SWP_SHOWWINDOW      = #0040,
+--  SWP_HIDEWINDOW      = #0080,
+--  SWP_NOCOPYBITS      = #0100,
+--  SWP_NOOWNERZORDER   = #0200,
+--  SWP_NOSENDCHANGING  = #0400,
+--  SWP_DRAWFRAME       = SWP_FRAMECHANGED,
+--  SWP_NOREPOSITION    = SWP_NOOWNERZORDER,
+--  SWP_DEFERERASE      = #2000,
+--  SWP_ASYNCWINDOWPOS  = #4000,
+--  SWP_UPDATECACHE     = SWP_NOSIZE+SWP_NOMOVE+SWP_NOZORDER+SWP_FRAMECHANGED+SWP_NOCOPYBITS
+
+function StyleHandler(integer id, integer msg, atom wParam, object lParam)
+integer StyleBox
+integer newVal, k
+atom val
+atom hwnd
+    if wParam then end if   -- suppress warnings
+    if msg=WM_COMMAND then
+        if lParam=1 then -- accelerator key
+            newVal = not isChecked(id)
+        else -- space bar or mouse click
+            newVal = isChecked(id)
+        end if
+        k = find(id,StyleCheckBoxes)
+        if newVal then
+            StyleVal = or_bits(StyleVal,StyleSet[k][1])
+        else
+--          StyleVal -= StyleSet[k][1]
+            StyleVal = and_bits(StyleVal,not_bits(StyleSet[k][1]))
+        end if
+        if sequence(CtrlSet[CSidx][Flags]) then
+            if StyleEx then
+                CtrlSet[CSidx][Flags][2] = StyleVal
+            else
+                CtrlSet[CSidx][Flags][1] = StyleVal
+            end if
+        else
+            if StyleEx then
+                CtrlSet[CSidx][Flags] = {CtrlSet[CSidx][Flags],StyleVal}
+            else
+                CtrlSet[CSidx][Flags] = StyleVal
+            end if
+        end if
+        for i=1 to length(StyleSet) do
+            StyleBox = StyleCheckBoxes[i]
+            if isEnabled(StyleBox) then
+                val = StyleSet[i][1]
+                setCheck(StyleBox,and_bits(val,StyleVal)=and_bits(val,val))
+            end if
+        end for
+        if StyleEx then
+            setText(LDxstl,getStyleText(CSidx))
+        else
+            setText(LDstyl,getStyleText(CSidx))
+        end if
+        hwnd = getHwnd(CtrlSet[CSidx][Id])
+        if StyleEx then --Extended Styles
+            void = c_func(xSetWindowLong,{hwnd,GWL_EXSTYLE,StyleVal})
+            -- Mess with it enough to force a complete repaint, including
+            -- the frame and background (otherwise windows tries to be 
+            -- smart and just bitblts an old image back onto the screen)
+--if CSidx=1 then
+--          c_proc(xShowWindow,{VirtHwnd,SW_HIDE})
+--          c_proc(xShowWindow,{VirtHwnd,SW_MINIMIZE})
+--          c_proc(xShowWindow,{VirtHwnd,SW_NORMAL})
+            void = c_func(xSetWindowPos, {VirtHwnd, 0, 0, 0, 0, 0, #377})
+--else
+--  setVisible(CtrlSet[CSidx][Id],False)
+--  purgeEvents()
+--          repaintWindow(CtrlSet[CSidx][Id],False)
+--  purgeEvents()
+--setVisible(CtrlSet[CSidx][Id],True)
+--  purgeEvents()
+--end if
+--      elsif StyleIdx=2 then   -- Window Styles
+--          void = c_func(xSetWindowLong,{VirtHwnd,GWL_STYLE,StyleVal})
+--          c_proc(xShowWindow,{VirtHwnd,SW_HIDE})
+--          c_proc(xShowWindow,{VirtHwnd,SW_MINIMIZE})
+--          c_proc(xShowWindow,{VirtHwnd,SW_NORMAL})
+----            repaintWindow(Virt,False)
+        else
+            void = c_func(xSetWindowLong,{hwnd,GWL_STYLE,StyleVal})
+--          c_proc(xShowWindow,{VirtHwnd,SW_HIDE})
+--          c_proc(xShowWindow,{VirtHwnd,SW_MINIMIZE})
+--          c_proc(xShowWindow,{VirtHwnd,SW_NORMAL})
+--          repaintWindow(CtrlSet[CSidx][Id],False)
+--====
+
+--  void = c_func(xSetWindowPos, {hwnd, 0, 0, 0, 0, 0, SWP_UPDATECACHE})
+            void = c_func(xSetWindowPos, {hwnd, 0, 0, 0, 0, 0, #377})
+--  void = c_func(xSetWindowPos, {VirtHwnd, 0, 0, 0, 0, 0, SWP_UPDATECACHE})
+--  void = c_func(xSetWindowPos, {VirtHwnd, 0, 0, 0, 0, 0, #377})
+--====
+--setEnable(Virt,True)
+--setFocus(CtrlSet[CSidx][Id])
+--setEnable(Virt,False)
+--setEnable(CtrlSet[CSidx][Id],False)
+--setEnable(CtrlSet[CSidx][Id],True)
+        end if
+        setFocus(id)
+    elsif msg=WM_CLOSE then
+        setEnable({Virt,LDwin},True)
+        setVisible(StyleWin,False)
+        StyleOpen = 0
+    end if
+    return 0
+end function
+constant rSH = routine_id("StyleHandler")
+setHandler(StyleWin,rSH)
+setHandler(StyleCheckBoxes,rSH)
+
+procedure initStyle(sequence prefix, sequence Title)
+integer StyleBox
+--atom flags
+object flags    --DEV
+integer cType
+object cStyles
+integer enable
+sequence whitelist
+    setText(StyleWin,Title)
+    StyleIdx = find(prefix,prefixes)
+--?{StyleIdx}
+    StyleSet = constsets[StyleIdx]
+    flags = CtrlSet[CSidx][Flags]
+    cType = CtrlSet[CSidx][Type]
+    whitelist = {}
+    cStyles = getClassStyles(cType)
+    if StyleEx then
+        if cType=EditText then
+            whitelist = {WS_EX_RIGHT,WS_EX_DLGMODALFRAME,WS_EX_STATICEDGE}
+        elsif find(cType,{Button,ToggleButton,PictureButton,TogglePictureButton,
+                          RadioButton,CheckBox,TriCheckBox,Group,HyperText,Label,
+                          StatusBar,TabControl,HTrackBar,VTrackBar}) then
+            whitelist = {WS_EX_CLIENTEDGE,WS_EX_DLGMODALFRAME,WS_EX_STATICEDGE}
+        elsif find(cType,{ListBox,ComboBox,ComboDropDownList,ComboDropDown,
+                          MultiEditText,ProgressBar}) then
+            whitelist = {WS_EX_DLGMODALFRAME,WS_EX_STATICEDGE}
+        elsif find(cType,{TabItem,Menu,MenuItem,HScroll,VScroll,UpDown}) then
+            whitelist = {0}
+        end if
+        cStyles = cStyles[2]
+        if sequence(flags) then
+            flags = flags[2]
+        else
+            flags = 0
+        end if
+    else
+        if find(cType,{Button,ToggleButton}) then
+            whitelist = {BS_BOTTOM,BS_DEFPUSHBUTTON,BS_LEFT,BS_MULTILINE,BS_OWNERDRAW,BS_RIGHT,BS_TOP,BS_FLAT}
+        elsif find(cType,{PictureButton,TogglePictureButton}) then
+            whitelist = {BS_DEFPUSHBUTTON,BS_OWNERDRAW,BS_FLAT}
+        elsif find(cType,{RadioButton,CheckBox,TriCheckBox}) then
+            whitelist = {BS_BOTTOM,BS_CENTER,BS_ICON,BS_LEFT,BS_LEFTTEXT,BS_MULTILINE,
+                         BS_OWNERDRAW,BS_RIGHT,BS_RIGHTBUTTON,BS_TOP,BS_FLAT}
+        elsif find(cType,{Group}) then
+            whitelist = {BS_CENTER,BS_ICON,BS_OWNERDRAW,BS_RIGHT,BS_TOP,BS_FLAT}
+        elsif cType=TabItem then
+            whitelist = {0}
+        elsif cType=UpDown then
+            whitelist = {UDS_ALIGNLEFT,UDS_ALIGNRIGHT,UDS_ARROWKEYS,UDS_AUTOBUDDY,
+                         UDS_HORZ,UDS_NOTHOUSANDS,UDS_SETBUDDYINT,UDS_WRAP}
+--                      UDS_HOTTRACK
+        end if
+        cStyles = cStyles[1]
+        if sequence(flags) then
+            flags = flags[1]
+        end if
+        StylePreferences(cType)
+    end if
+    if sequence(flags) then
+        flags = or_all(flags)
+    end if
+    flags = or_bits(flags,cStyles)
+    for i=1 to length(StyleSet) do
+        StyleBox = StyleCheckBoxes[i]
+        setText(StyleBox,StyleSet[i][2])
+        StyleVal = StyleSet[i][1]
+        setCheck(StyleBox,and_bits(StyleVal,flags)=and_bits(StyleVal,StyleVal))
+        setVisible(StyleBox,True)
+--      setEnable(StyleBox,and_bits(StyleVal,cStyles)=0)
+        enable = and_bits(StyleVal,cStyles)!=and_bits(StyleVal,StyleVal)
+        if length(whitelist) and not find(StyleVal,whitelist) then
+            enable = False
+        end if
+        setEnable(StyleBox,enable)
+    end for
+    StyleVal = flags
+    for i=length(StyleSet)+1 to length(StyleCheckBoxes) do
+        setVisible(StyleCheckBoxes[i],False)
+    end for
+    setEnable({Virt,LDwin},False)
+    openWindow(StyleWin,SW_NORMAL)
+    StyleOpen = 1
+end procedure
+
+procedure setLDwin(integer i)
+--
+-- Update the display in LDwin according to the control with focus.
+-- i is an index into CtrlSet.
+--
+integer cType, Parent
+    CSidx = i
+    setIndex(LDlist,i)
+    setText(LDname,CtrlSet[i][cName])
+    void = sendMessage(LDname,EM_SETSEL,0,-1)
+    cType = CtrlSet[i][Type]
+    setText(LDtype,getCtrlTypeString(cType))
+    Parent = CtrlSet[i][cPidx]
+    if Parent then
+        setText(LDprnt,CtrlSet[Parent][cName])
+    else
+--DEV? if 1 then 0 else [1] -- (See final code)
+        setText(LDprnt,"0")
+    end if
+    if find(cType,{Window,Button,ToggleButton,Group,RadioButton,CheckBox,
+                   TriCheckBox,HyperText,EditText,MultiEditText,Label,
+                   Menu,MenuItem,TabItem}) then
+--? StatusBarField
+        setText(LDtext,CtrlSet[i][Text])
+        void = sendMessage(LDtext,EM_SETSEL,0,-1)
+        setVisible({LDxlbl,LDtext},True)
+        setEnable(LDtext,True)
+    elsif find(cType,{ListView}) then
+        setText(LDtext,ppf(CtrlSet[i][Text]))
+        void = sendMessage(LDtext,EM_SETSEL,0,-1)
+        setVisible({LDxlbl,LDtext},True)
+        setEnable(LDtext,False)
+    else
+        setVisible({LDxlbl,LDtext},False)
+    end if
+    if find(cType,{PictureButton,TogglePictureButton}) then
+--? RadioBox, CheckBox, TriCheckBox, MenuItem, TabItem
+        setVisible({LDblbl,LDbmap},True)
+    else
+        setVisible({LDblbl,LDbmap},False)
+    end if
+--  if find(cType,{Menu,MenuItem}) then
+--      setVisible({LDslbl,LDstyl},False)
+--  else
+--      setVisible({LDslbl,LDstyl},True)
+--      if i=1 then
+--          if cType=Window then
+--              setText(LDxstl,getStyleText(1))
+--          end if
+--      else
+--          setText(LDstyl,getStyleText(i))
+--      end if
+--  end if
+--  setVisible({LDelbl,LDxstl},(cType=Window))
+    StyleEx = True
+    setText(LDxstl,getStyleText(i))
+    StyleEx = False
+    setText(LDstyl,getStyleText(i))
+end procedure
+
+
+constant TopLeftCursor = loadCursor(IDC_SIZENWSE),
+         BtmRightCursor = TopLeftCursor,
+         TopRightCursor = loadCursor(IDC_SIZENESW),
+         BtmLeftCursor = TopRightCursor,
+         TopCursor = loadCursor(IDC_SIZENS),
+         BtmCursor = TopCursor,
+         LeftCursor = loadCursor(IDC_SIZEWE),
+         RightCursor = LeftCursor,
+         MoveCursor = loadCursor(IDC_SIZEALL),
+         ArrowCursor = loadCursor(IDC_ARROW)
+
+constant newCursor = {{TopLeftCursor,TopCursor, TopRightCursor},
+                      {LeftCursor,   MoveCursor,RightCursor},
+                      {BtmLeftCursor,BtmCursor, BtmRightCursor}}
+
+integer initV
+        initV = 0
+integer VirtClosed      -- required to prevent infinite loop
+        VirtClosed = 0
+
+without trace
+
+constant pUP    = c_func(xLoadBitmap,{NULL,OBM_UPARROW})
+constant pLEFT  = c_func(xLoadBitmap,{NULL,OBM_LFARROW})
+constant pOVER  = c_func(xLoadBitmap,{NULL,OBM_ZOOM})
+constant pRIGHT = c_func(xLoadBitmap,{NULL,OBM_RGARROW})
+constant pDOWN  = c_func(xLoadBitmap,{NULL,OBM_DNARROW})
+
+constant PoMAIN = create(Window,xl("Test Position"),0,0,40,40,207,213,0)
+--constant PoUP = create(PictureButton,"(&8)",c_func(xLoadBitmap,{NULL,OBM_UPARROW}), PoMAIN,83,08,36,36,0)
+--constant PoLEFT = create(PictureButton,"(&4)",c_func(xLoadBitmap,{NULL,OBM_LFARROW}), PoMAIN,43,48,36,36,0)
+--constant PoOVER = create(PictureButton,"(&5)",c_func(xLoadBitmap,{NULL,OBM_ZOOM}),    PoMAIN,83,48,36,36,0)
+--constant PoRIGHT = create(PictureButton,"(&6)",c_func(xLoadBitmap,{NULL,OBM_RGARROW}),PoMAIN,123,48,36,36,0)
+--constant PoDOWN = create(PictureButton,"(&2)",c_func(xLoadBitmap,{NULL,OBM_DNARROW}), PoMAIN,83,88,36,36,0)
+--constant PoUP = create(PictureButton,"(&8)",pUP,  PoMAIN,83,08,36,36,0)
+--constant PoLEFT = create(PictureButton,"(&4)",pLEFT, PoMAIN,43,48,36,36,0)
+--constant PoOVER = create(PictureButton,"(&5)",pOVER, PoMAIN,83,48,36,36,0)
+--constant PoRIGHT = create(PictureButton,"(&6)",pRIGHT,PoMAIN,123,48,36,36,0)
+--constant PoDOWN = create(PictureButton,"(&2)",pDOWN, PoMAIN,83,88,36,36,0)
+constant PoUP     = create(PictureButton,"(&8)",0, PoMAIN,83,8,36,36,0)
+constant PoLEFT   = create(PictureButton,"(&4)",0, PoMAIN,43,48,36,36,0)
+constant PoOVER   = create(PictureButton,"(&5)",0, PoMAIN,83,48,36,36,0)
+constant PoRIGHT  = create(PictureButton,"(&6)",0, PoMAIN,123,48,36,36,0)
+constant PoDOWN   = create(PictureButton,"(&2)",0, PoMAIN,83,88,36,36,0)
+constant PoCANCEL = create(Button,xl("Cancel"), 0, PoMAIN,64,140,75,30,0)
+constant Po85462 = {PoUP,PoOVER,PoLEFT,PoRIGHT,PoDOWN}
+
+    setImage(PoUP,pUP)
+    setImage(PoLEFT,pLEFT)
+    setImage(PoOVER,pOVER)
+    setImage(PoRIGHT,pRIGHT)
+    setImage(PoDOWN,pDOWN)
+
+integer PoClosed, PoDx,PoDy
+procedure Test()
+    if not initV then
+        void = messageBox(xl("Error"),xl("Select/create a window first!"),0)
+    else
+        PoClosed = 0
+        PoDx = 0
+        PoDy = 0
+        openWindow(PoMAIN, SW_NORMAL)
+        setFocus(PoLEFT)
+    end if
+end procedure
+
+integer whatMenuEntry
+
+function isMenuEntry(integer id)
+    if id then
+        for i=1 to length(TMset) do
+            if id=TMset[i][Id] then
+                whatMenuEntry = i
+                return 1
+            end if
+        end for
+    end if
+    return 0
+end function
+--with trace
+
+integer sX, sY  -- in Screen co-ords
+integer rX, rY, onSizer, dragging, xStart, yStart
+    onSizer = 0
+    dragging = 0
+
+integer defTabParent, defMenuParent, defStatusBar, defToolBar
+    defTabParent = 0 defMenuParent = 0 defStatusBar = 0 defToolBar = 0
+
+
+function curb(integer low, integer val, integer high)
+-- eg curb(1,y,10) returns 1 if y<=1, 10 if y>=10, else y.
+    if val<=low then
+        return low
+    elsif val>=high then
+        return high
+    else
+        return val
+    end if
+end function
+
+function flattenset(sequence set)
+sequence res
+    if find(set[1],{FUNC,UNKNOWN,DQUOTE}) then
+        return set[2]
+    elsif set[1]=DIGIT then
+        return sprint(set[2])
+    elsif set[1]=SEQUENCE then
+        res = "{"
+        for i=1 to length(set[6]) do
+            res &= flattenset(set[6][i])
+        end for
+        return res
+    elsif set[1]=BPLUS then
+        return flattenset(set[6])&'+'&flattenset(set[7])
+    elsif set[1]=HEXDEC then
+        return sprintf("#%x",set[2])
+    end if
+end function
+
+function range(integer coord, integer start, integer extent)
+integer margin
+    if coord<start then return 0 end if
+    margin = curb(1,floor(extent/3),10)
+    if coord<=start+margin then return 1 end if
+    if coord<start+extent-margin then return 2 end if
+    if coord<=start+extent then return 3 end if
+    return 0
+end function
+
+constant lblRect = allocate(16)
+
+integer indrag
+        indrag = 0
+
+integer wasVisible
+        wasVisible = 0
+
+procedure labelFocus(integer id, integer makeVisible)
+    if id then
+        setFocus(id)
+        purgeEvents()
+    end if
+    if makeVisible!=wasVisible then
+        void = c_func(xDrawFocusRect, {VirtDC, lblRect})
+        wasVisible = makeVisible
+    end if
+end procedure
+
+procedure myTrackPopupMenu(integer id)
+atom msg_pos
+
+    if id=Virt then
+        setEnable(TMmnu,True)
+        setEnable(TMmni,defMenuParent!=0)
+        setEnable(TMstb,defStatusBar=0)
+        setEnable(TMstf,defStatusBar!=0)
+--      setEnable(TMtbr,defToolBar=0)
+--      setEnable(TMtbs,defToolBar!=0)
+        setEnable(TMtbi,False)
+    else
+        setEnable({TMmnu,TMmni,TMstb,TMstf,
+--                  TMtbr,TMtbs,
+                   TMtbi},False)
+        for i=1 to length(CtrlSet) do
+            if id=CtrlSet[i][Id] then
+                if CtrlSet[i][Type]=TabControl then
+--DEV use a one-item menu!
+                    defTabParent = i
+                    setEnable(TMtbi,True)
+                    setEnable({TMbtn,TMpbn,TMtbn,TMtpb,TMrdb,TMchb,TMtcb,
+                               TMedt,TMgrp,TMhtx,TMlbl,TMcbx,TMlbx,TMlvw,
+                               TMtvw,TMcdl,TMudc,
+                               TMcdd,TMmet,TMprg,TMtbc,TMhsc,TMvsc,TMhtr,
+                               TMvtr},(CtrlSet[i][cHbmap]!=0))
+                    exit
+                end if
+                setEnable({TMbtn,TMpbn,TMtbn,TMtpb,TMrdb,TMchb,TMtcb,
+                           TMedt,TMgrp,TMhtx,TMlbl,TMcbx,TMlbx,TMlvw,
+                           TMtvw,TMcdl,TMudc,
+                           TMcdd,TMmet,TMprg,TMtbc,TMhsc,TMvsc,TMhtr,
+                           TMvtr},True)
+                if CtrlSet[i][Type]=ToolBar then
+--                  defToolBar = id
+--                  setEnable(TMtbs,True)
+                elsif CtrlSet[i][Type]!=Group then
+                    if onSizer and manualFocus(onSizer) then
+                        labelFocus(0,0) -- remove old
+                        onSizer = 0
+                    end if
+                    setFocus(LDwin)
+                    return
+                end if
+                exit
+            end if
+        end for
+    end if
+
+    -- get the mouse position in *Screen* coords
+    msg_pos = c_func(xGetMessagePos, {})
+    sX = and_bits(msg_pos, #FFFF)
+    sY = floor(msg_pos/#10000)
+
+    void = c_func(xTrackPopupMenu, {hMenu, TPM_LEFTALIGN+TPM_RIGHTBUTTON, sX, sY, 0, VirtHwnd, NULL})
+--  onSizer = 0
+    dragging = 0
+
+end procedure
+
+sequence renumber
+
+procedure markChildren(integer id, integer lim)
+--
+-- mark id and any children, grandchildren, etc of id that occur before lim.
+--
+    renumber[id] = 1
+    for i=id+1 to lim do
+        if CtrlSet[i][cPidx]=id then
+            renumber[i] = 1
+            markChildren(i,lim)
+        end if
+    end for
+end procedure
+
+procedure swap(integer i, integer k)
+sequence tmp
+    --
+    -- swap the two entries
+    --
+    tmp = CtrlSet[i]
+    CtrlSet[i] = CtrlSet[k]
+    CtrlSet[k] = tmp
+    --
+    -- change any reference to i to k, and vice versa
+    --
+    for j=1 to length(CtrlSet) do
+        if CtrlSet[j][cPidx]=i then
+            CtrlSet[j][cPidx] = k
+        elsif CtrlSet[j][cPidx]=k then
+            CtrlSet[j][cPidx] = i
+        end if
+        if CtrlSet[j][Type]=TabControl then -- change ref to active tabitem.
+            if CtrlSet[j][cHbmap]=i then
+                CtrlSet[j][cHbmap] = k
+            elsif CtrlSet[j][cHbmap]=k then
+                CtrlSet[j][cHbmap] = i
+            end if
+        end if
+--      for l=1 to length(CtrlSet[j][3]) do
+--          if CtrlSet[j][3][l]=i then
+--              CtrlSet[j][3][l] = k
+--          elsif CtrlSet[j][3][l]=k then
+--              CtrlSet[j][3][l] = i
+--          end if
+--      end for
+    end for
+    --
+    -- lastly, [i] has been moved to it's final place (always), but
+    -- [k] may or may not be, so check.
+    --
+    if renumber[k]=i then   -- 'perfect' swap
+        renumber[i] = 0
+    else                    -- only 'i' ended up in final home.
+        renumber[i] = renumber[k]
+    end if
+    renumber[k] = 0
+end procedure
+
+--include builtins\sort.e
+function makeChildOf(integer id, integer newPID)
+integer k, oldPID, newID
+--sequence debug
+    oldPID = CtrlSet[id][cPidx]
+--  oldChildren = CtrlSet[oldPID][3]
+--  k = find(id,oldChildren)
+--  oldChildren = oldChildren[1..k-1]&oldChildren[k+1..length(oldChildren)]
+--  CtrlSet[oldPID][3] = oldChildren
+    CtrlSet[id][cPidx] = newPID
+--  CtrlSet[newPID][3] = sort(CtrlSet[newPID][3]&id)
+    if id>=newPID then return id end if
+    --
+    -- create a flag set, 1 for everything which must end up after newPID.
+    --
+    renumber = repeat(0,length(CtrlSet))
+    markChildren(id,newPID)
+    --
+    -- allocate new positions for all marked items in the range
+    --
+    k = newPID
+    for i=newPID to id by -1 do
+        if renumber[i] then
+            renumber[i] = k
+            k -= 1
+        end if
+    end for
+    newID = k+1
+    --
+    -- allocate new positions for unmarked items in the range
+    --
+--  debug = repeat(0,newPID-id+1)
+    for i=newPID to id by -1 do
+        if not renumber[i] then
+            renumber[i] = k
+            k -= 1
+        end if
+--      debug[i-id+1] = i
+    end for
+--  if not equal(debug,sort(renumber[id..newPID])) then ?9/0 end if
+    for i=id to newPID do   -- look for something to swap
+        --
+        -- if renumber[i], then we move it to its final place, by swapping it with
+        -- whatever is there. However whatever we swapped it with might still need 
+        -- moving. This is however guaranteed to terminate since we put at least one
+        -- thing in it's final resting place every iteration.
+        --
+        while renumber[i] do
+            k = renumber[i]
+            if not k then ?9/0 end if
+            if k=i then
+                renumber[i] = 0
+                exit
+            end if
+--              if k then
+            swap(i,k)
+--              end if
+        end while
+    end for
+    return newID
+end function
+
+
+procedure newParent()
+-- Check whether the control has been dragged onto a new parent
+integer x,y, cX, cW, cY, cH
+atom point, hwnd, lpRect
+integer Pidx
+    point = allocate_Point()
+    poke4(point+POINT_x, 0)
+    poke4(point+POINT_Y, 0)
+    void = c_func(xClientToScreen, {getHwnd(CtrlSet[dragging][Id]), point})
+    x = peek4s(point+POINT_x)
+    y = peek4s(point+POINT_Y)
+    for i=length(CtrlSet) to 2 by -1 do
+        if i!=dragging
+        and find(CtrlSet[i][Type],{TabControl,Group}) then
+            if isVisible(CtrlSet[i][Id]) then
+                poke4(point+POINT_x, 0)
+                poke4(point+POINT_Y, 0)
+                hwnd = getHwnd(CtrlSet[i][Id])
+                void = c_func(xClientToScreen, {hwnd, point})
+                cX = peek4s(point+POINT_x)
+                cY = peek4s(point+POINT_Y)
+                if x>=cX and y>=cY then
+                    poke4(point+POINT_x, CtrlSet[i][Width])
+                    poke4(point+POINT_Y, CtrlSet[i][Height])
+                    void = c_func(xClientToScreen, {hwnd, point})
+                    cW = peek4s(point+POINT_x)
+                    cH = peek4s(point+POINT_Y)
+                    if x<=cW and y<=cH then
+                        if CtrlSet[i][Type]=TabControl then
+                            Pidx = CtrlSet[i][cHbmap] -- active TabItem
+                        else
+                            Pidx = i
+                        end if
+                        if CtrlSet[dragging][cPidx]!=Pidx then
+                            poke4(point+POINT_x, x)
+                            poke4(point+POINT_Y, y)
+                            hwnd = getHwnd(CtrlSet[i][Id])
+                            void = c_func(xScreenToClient, {hwnd, point})
+                            cX = peek4s(point+POINT_x)
+                            cY = peek4s(point+POINT_Y)
+                            if CtrlSet[i][Type]=TabControl then
+                                lpRect = allocate_Rect()
+                                hwnd = getHwnd(CtrlSet[i][Id])
+                                void = c_func(xGetClientRect, {hwnd, lpRect})
+                                void = c_func(xSendMessage, {hwnd, TCM_ADJUSTRECT, 0, lpRect})
+                                cX -= peek4s(lpRect)
+                                cY -= peek4s(lpRect+4)
+                            end if
+                            reparentControl(CtrlSet[dragging][Id],CtrlSet[Pidx][Id])
+                            CtrlSet[dragging][xPos] = cX
+                            CtrlSet[dragging][yPos] = cY
+                            dragging = makeChildOf(dragging,Pidx)
+                            setLDwin(dragging)
+                        end if
+                        return
+                    end if
+                end if
+            end if
+        end if
+    end for
+    -- No parent (aka Virt is the Parent)
+    Pidx = CtrlSet[dragging][cPidx]
+    if Pidx then    --DEV !=1
+        poke4(point+POINT_x, x)
+        poke4(point+POINT_Y, y)
+        void = c_func(xScreenToClient, {VirtHwnd, point})
+        cX = peek4s(point+POINT_x)
+        cY = peek4s(point+POINT_Y)
+        reparentControl(CtrlSet[dragging][Id],CtrlSet[1][Id])--Virt)
+        CtrlSet[dragging][xPos] = cX
+        CtrlSet[dragging][yPos] = cY
+        CtrlSet[dragging][cPidx] = 0    --DEV 1
+        setLDwin(dragging)
+    end if
+end procedure
+
+integer VirtHasFocus
+        VirtHasFocus = False
+
+
+procedure SetCursor()
+integer x,y, cX, cW, cY, cH
+atom msg_pos, point, hwnd, lpRect
+integer Pidx
+sequence dbg
+    if indrag then return end if
+    if StyleOpen then return end if
+    msg_pos = c_func(xGetMessagePos, {})
+    x = and_bits(msg_pos, #FFFF)
+    y = floor(msg_pos/#10000)
+
+    if dragging then
+        indrag = 1
+        cX = x-xStart
+        xStart = x
+        if rX=3 then
+            CtrlSet[dragging][Width] = CtrlSet[dragging][Width]+cX
+        else
+            if rX=1 then
+                CtrlSet[dragging][Width] = CtrlSet[dragging][Width]-cX
+            end if
+            CtrlSet[dragging][xPos] = CtrlSet[dragging][xPos]+cX
+        end if
+        cY = y-yStart
+        yStart = y
+        if rY=3 then
+            CtrlSet[dragging][Height] = CtrlSet[dragging][Height]+cY
+        else
+            if rY=1 then
+                CtrlSet[dragging][Height] = CtrlSet[dragging][Height]-cY
+            end if
+            CtrlSet[dragging][yPos] = CtrlSet[dragging][yPos]+cY
+        end if
+        if manualFocus(dragging) then
+            labelFocus(0,0)
+            indrag = 1
+        end if
+        newParent()
+        Pidx = CtrlSet[dragging][cPidx]
+        cX = CtrlSet[dragging][xPos]
+        cW = CtrlSet[dragging][Width]
+        cY = CtrlSet[dragging][yPos]
+        cH = CtrlSet[dragging][Height]
+        if Pidx and CtrlSet[Pidx][Type]=TabItem then
+            hwnd = getHwnd(CtrlSet[CtrlSet[Pidx][cPidx]][Id]) -- get the TabControl
+            lpRect = allocate_Rect()
+            void = c_func(xGetClientRect, {hwnd, lpRect})
+            void = c_func(xSendMessage, {hwnd, TCM_ADJUSTRECT, 0, lpRect})
+            cX += peek4s(lpRect)
+            cY += peek4s(lpRect+4)
+        end if
+        hwnd = getHwnd(CtrlSet[dragging][Id])
+        if manualFocus(dragging) then
+--          labelFocus(0,0) -- Now done before newParent()
+--          indrag = 1      -- ""
+            if (Pidx and CtrlSet[Pidx][Type]=Group)
+            or CtrlSet[dragging][Type]=ListBox then
+                void = c_func(xMoveWindow,{hwnd,cX,cY,cW,cH,0})
+                repaintWindow(Virt,False)
+--              repaintWindow(CtrlSet[Pidx][Id],False)  --NO!
+            else
+                void = c_func(xMoveWindow,{hwnd,cX,cY,cW,cH,1})
+            end if
+--if method2 then --DEV I couldn't get this to work, nevermind...
+--          poke4(lblRect,{cX,cY,cX+cW,cY+cH})
+--          void = c_func(xClientToScreen, {hwnd, lblRect} )
+--          void = c_func(xClientToScreen, {hwnd, lblRect+8} )
+--          void = c_func(xScreenToClient, {VirtHwnd, lblRect})
+--          void = c_func(xScreenToClient, {VirtHwnd, lblRect+8})
+--else
+--          while Pidx>1 do
+--              cX += CtrlSet[Pidx][xPos]
+--              cY += CtrlSet[Pidx][yPos]
+--              Pidx = CtrlSet[Pidx][cPidx]
+--              if Pidx>1 and CtrlSet[Pidx][Type]=TabItem then
+--                  hwnd = getHwnd(CtrlSet[CtrlSet[Pidx][cPidx]][Id]) -- get the TabControl
+--                  lpRect = allocate_Rect()
+--                  void = c_func(xGetClientRect, {hwnd, lpRect})
+--                  void = c_func(xSendMessage, {hwnd, TCM_ADJUSTRECT, 0, lpRect} )
+--                  cX += peek4s(lpRect)
+--                  cY += peek4s(lpRect+4)
+--              end if
+--          end while
+--          poke4(lblRect,{cX,cY,cX+cW,cY+cH})
+            hwnd = getHwnd(CtrlSet[dragging][Id])
+            void = c_func(xGetWindowRect, {hwnd, lblRect})
+            if CtrlSet[dragging][Type]=ComboBox then
+                --
+                -- Fudge as discussed on EUforum ~8/4/2005
+                --
+                dbg = peek4s({lblRect,4})
+--/**/          dbg = sq_add(dbg,{-1,-1,1,-3})  --/* Phics
+                dbg += {-1,-1,1,-3}             -- RDS */
+                poke4(lblRect,dbg)
+            end if
+            void = c_func(xScreenToClient, {VirtHwnd, lblRect})
+            void = c_func(xScreenToClient, {VirtHwnd, lblRect+8})
+--end if
+            labelFocus(CtrlSet[dragging][Id],1)
+            indrag = 1
+        elsif (Pidx and CtrlSet[Pidx][Type]=Group)
+           or CtrlSet[dragging][Type]=ListBox then
+            void = c_func(xMoveWindow,{hwnd,cX,cY,cW,cH,0})
+            repaintWindow(Virt,False)
+        else
+            void = c_func(xMoveWindow,{hwnd,cX,cY,cW,cH,1})
+        end if
+        indrag = 0
+    elsif VirtHasFocus then
+        for i=length(CtrlSet) to 2 by -1 do
+            if isVisible(CtrlSet[i][Id])        -- not eg on a hidden tabitem
+            and CtrlSet[i][Type]!=TabItem then  -- use the tabcontrol instead for this
+                point = allocate_Point()
+                poke4(point+POINT_x, 0)
+                poke4(point+POINT_Y, 0)
+                void = c_func(xClientToScreen, {getHwnd(CtrlSet[i][Id]), point})
+                cX = peek4s(point+POINT_x)
+                cY = peek4s(point+POINT_Y)
+                poke4(point+POINT_x, CtrlSet[i][Width])
+                poke4(point+POINT_Y, CtrlSet[i][Height])
+                void = c_func(xClientToScreen, {getHwnd(CtrlSet[i][Id]), point})
+                cW = peek4s(point+POINT_x)-cX
+                cH = peek4s(point+POINT_Y)-cY
+                rX = range(x,cX,cW)
+                if rX then
+                    rY = range(y,cY,cH)
+                    if rY then
+                        if onSizer!=i then
+                            if onSizer and manualFocus(onSizer) then
+                                labelFocus(0,0) -- remove old
+                            end if
+                            onSizer = i
+                            setLDwin(i)
+                            if manualFocus(i) then
+--                              poke4(lblRect,{cX,cY,cX+cW,cY+cH})
+--                              void = c_func(xScreenToClient,{VirtHwnd,lblRect})
+--                              void = c_func(xScreenToClient,{VirtHwnd,lblRect+8})
+                                hwnd = getHwnd(CtrlSet[i][Id])
+                                void = c_func(xGetWindowRect, {hwnd, lblRect})
+                                if CtrlSet[i][Type]=ComboBox then
+                                    --
+                                    -- Fudge as discussed on EUforum ~8/4/2005
+                                    --
+                                    dbg = peek4s({lblRect,4})
+--/**/                              dbg = sq_add(dbg,{-1,-1,1,-3})  --/* Phics
+                                    dbg += {-1,-1,1,-3}             -- RDS */
+                                    poke4(lblRect,dbg)
+                                end if
+                                void = c_func(xScreenToClient, {VirtHwnd, lblRect})
+                                void = c_func(xScreenToClient, {VirtHwnd, lblRect+8})
+                                labelFocus(CtrlSet[i][Id],1)
+                            else
+                                setFocus(CtrlSet[i][Id])
+                            end if
+                        end if
+                        --DEV crash here (? labelFocus called purgeEvents ? - anyway, rX was 0)
+                        -- is there any reason why rX,rY should not be local?
+                        if rX and rY then
+                            void = setCursor(newCursor[rY][rX])
+                            captureMouse(Virt)
+                            xStart = x
+                            yStart = y
+                        end if
+                        return
+                    end if
+                end if
+            end if
+        end for
+        if onSizer and manualFocus(onSizer) then
+            labelFocus(0,0) -- remove old
+        end if
+        onSizer = 0
+        void = setCursor(ArrowCursor)
+        releaseMouse()
+    end if
+end procedure
+
+
+integer justDblClick
+        justDblClick = 0
+
+without trace
+--with trace
+integer rmH
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+atom point
+sequence tM
+integer newType, newCtrl, Parent, Pidx, width, height
+sequence text, newname
+integer x,y, dx, dy, tab
+sequence rect
+atom hwnd, lpRect, struct
+--if id=Virt and not find(msg,{3,5,6,7,8,12,15,16,20,24,28,32,33,70,71,85,127,131,132,133,134,160,161,257,274,297,512,528,533,641,642,674,799,49297})then
+--  ?{id,msg,wParam,lParam}
+--  sleep(1)
+--end if
+    if wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_SYSKEYDOWN then
+        releaseMouse()      -- (required to allow Alt F4 to close window)
+    elsif msg=WM_KEYDOWN and wParam=VK_F5 then
+        Test()
+    elsif msg=WM_KEYDOWN and wParam=VK_F4 then
+        if onSizer then
+            if manualFocus(onSizer) then
+                labelFocus(0,0) -- remove old
+                onSizer = 0
+            end if
+            setFocus(LDwin)
+        end if
+    elsif id=Virt then
+        if find(msg,{WM_SIZE,WM_MOVE,WM_CLOSE}) then
+            if isWindowNormal(Virt) then
+                rect = getWindowRect(Virt)
+--              rect[3..4] -= rect[1..2]
+                rect[3] = rect[3]-rect[1]
+                rect[4] = rect[4]-rect[2]
+                CtrlSet[1][xPos..Height] = rect
+            end if
+            if msg=WM_CLOSE then
+                VirtClosed = 1
+                closeWindow(LDwin)
+            end if
+        elsif msg=WM_LBUTTONDOWN then
+            if onSizer and CtrlSet[onSizer][Type]=TabControl then
+                struct = allocate_TextSpace(sizeofstruct(TC_HITTESTINFO))
+                poke4(struct+POINT_x, lParam)   -- poke {x,y}
+                void = c_func(xClientToScreen, {VirtHwnd, struct})
+                id = CtrlSet[onSizer][Id]
+                void = c_func(xScreenToClient,{getHwnd(id),struct})
+                tab = sendMessage(id, TCM_HITTEST, 0, struct)+1
+                if tab then
+                    for i=onSizer+1 to length(CtrlSet) do
+                        if CtrlSet[i][Type]=TabItem
+                        and CtrlSet[i][cPidx]=onSizer then
+                            tab -= 1
+                            if tab=0 then
+                                CtrlSet[onSizer][cHbmap] = i
+                                setFocus(CtrlSet[i][Id])
+                                exit
+                            end if
+                        end if
+                    end for
+                end if
+            end if
+            if VirtHasFocus=True then
+                dragging = onSizer
+            else
+                VirtHasFocus = True
+            end if
+        elsif msg=WM_LBUTTONDBLCLK then
+            justDblClick = 1    -- focus issues (see eaqj)
+        elsif msg=WM_LBUTTONUP then
+            dragging = 0
+            if justDblClick then
+                justDblClick = 0
+                VirtHasFocus = False
+                setFocus(LDwin)
+            else
+                if dragging then
+                    dragging = 0
+                    if onSizer then
+                        if manualFocus(onSizer) then
+                            labelFocus(0,0) -- remove it
+                        end if
+                        repaintWindow(Virt,False)
+                        wasVisible = 0
+                        purgeEvents()
+                        onSizer = 0
+                        SetCursor()
+--PL 19/07/2013 messed up display of listview on a tab...
+--                  else
+--                      repaintWindow(Virt,False)
+--                      wasVisible = 0
+--                      purgeEvents()
+                    end if
+                end if
+            end if
+        elsif msg=WM_RBUTTONDOWN then
+        elsif msg=WM_RBUTTONUP then
+            if onSizer then
+                myTrackPopupMenu(CtrlSet[onSizer][Id])
+            else
+                myTrackPopupMenu(Virt)
+            end if
+        elsif msg=WM_SETFOCUS then
+            VirtHasFocus = True
+            onSizer = 0
+--      elsif msg = WM_KILLFOCUS then
+        elsif msg=WM_MOUSEMOVE then
+            SetCursor()
+        end if
+    elsif isMenuEntry(id) then
+        tM = TMset[whatMenuEntry]
+        newType = tM[Type]
+        -- Get position (from right click of popmenu).
+        point = allocate_Point()
+        poke4(point+POINT_x, sX)
+        poke4(point+POINT_Y, sY)
+        -- convert coords
+        void = c_func(xScreenToClient, {VirtHwnd, point})
+        x = peek4u(point+POINT_x)
+        y = peek4u(point+POINT_Y)
+        if newType=TabItem then
+            Pidx = defTabParent
+            -- TabItems are always the size of the TabControl, 
+            -- so clear these to keep things simple.
+            x = 0
+            y = 0
+        elsif newType=StatusField then
+            Pidx = defStatusBar
+        elsif newType=ToolSep then
+            Pidx = defToolBar
+        elsif newType=MenuItem then
+            Pidx = defMenuParent
+--PL 19/07/2013:
+            x = 0
+            y = 0
+        elsif onSizer and find(CtrlSet[onSizer][Type],{Group,TabControl}) then
+            Pidx = onSizer
+            while Pidx>1 do
+                x -= CtrlSet[Pidx][xPos]
+                y -= CtrlSet[Pidx][yPos]
+                Pidx = CtrlSet[Pidx][cPidx]
+            end while
+            Pidx = onSizer
+        else
+            Pidx = 1
+            Parent = Virt
+            rect = getClientRect(Virt)
+        end if
+        dx = 0
+        dy = 0
+        if Pidx>1 then
+            rect = CtrlSet[Pidx][xPos..Height]
+            rect[1..2] = 0
+            if newType!=TabItem
+            and CtrlSet[Pidx][Type]=TabControl then
+                hwnd = getHwnd(CtrlSet[Pidx][Id])
+                lpRect = allocate_Rect()    -- resuable memory
+                void = c_func(xGetClientRect, {hwnd, lpRect})                       -- get TabControl
+                dx = peek4u(lpRect)
+                dy = peek4u(lpRect+4)
+                void = c_func(xSendMessage, {hwnd, TCM_ADJUSTRECT, 0, lpRect})      -- client area
+                dx -= peek4u(lpRect)
+                dy -= peek4u(lpRect+4)
+                Pidx = CtrlSet[Pidx][cHbmap]    -- Get the active TabItem
+            end if
+            Parent = CtrlSet[Pidx][Id]
+        end if
+        width = tM[Width]
+--PL 19/07/2013:
+--      if rect[1]+x+width>rect[3]-5 then
+--      if rect[3]>rect[1] and rect[1]+x+width>rect[3]-5 then
+        if width!=0 and rect[1]+x+width>rect[3]-5 then
+            width = rect[3]-rect[1]-x-5
+        end if
+        height = tM[Height]
+--      if rect[2]+y+height>rect[4]-5 then
+--      if rect[4]>rect[2] and rect[2]+y+height>rect[4]-5 then
+        if height!=0 and rect[2]+y+height>rect[4]-5 then
+            height = rect[4]-rect[2]-y-5
+        end if
+        text = tM[Text]
+--DEV:
+--if newType=ListView then
+--  text = {"col 1"}
+--end if
+        x += dx
+        y += dy
+--setText(Virt,sprint({x,y,width,height}))
+        newCtrl = create(newType,text,0,Parent,x,y,width,height,0)
+--      x -= dx
+--      y -= dy
+        setHandler(newCtrl,rmH)
+        newname = sprintf("%s%02d",{getCtrlTypeString(newType),newCtrl})
+        CtrlSet = append(CtrlSet,{newCtrl,newType,text,0,Pidx,x,y,width,height,0,newname,0})
+        void = insertItem(LDlist,newname,0)
+        setLDwin(length(CtrlSet))
+        if newType=StatusBar then
+            defStatusBar = length(CtrlSet)
+        elsif newType=TabItem then
+            CtrlSet[Pidx][cHbmap] = length(CtrlSet)
+            setFocus(newCtrl)
+            repaintWindow(CtrlSet[Pidx][Id],False)
+        elsif newType=ToolBar then
+            defToolBar = length(CtrlSet)
+        elsif newType=Menu then
+            defMenuParent = length(CtrlSet)
+        end if
+        setFocus(LDname)
+    elsif msg=WM_MOUSEMOVE then
+        SetCursor()
+    else    -- a created control then...
+        if find(msg,{WM_PAINT,WM_NCHITTEST,WM_NCPAINT,WM_ERASEBKGND,
+                     WM_DESTROY,WM_NCDESTROY,WM_MOUSEACTIVATE,
+                     WM_SIZE,WM_CTLCOLOREDIT,WM_NOTIFY,WM_NCCALCSIZE,
+                     WM_CHILDACTIVATE,WM_MOVE,WM_NCMOUSEMOVE,
+                     WM_SHOWWINDOW,WM_PARENTNOTIFY,WM_DRAWITEM,
+                     WM_ENABLE, --DEV?
+                     WM_SETTEXT, -- That'll be us!
+                     61,    --?? resizing treeview ??
+                     77,    --?? F1 help ??
+                     WM_HELP,WM_KEYUP,
+                     WM_STYLECHANGING,WM_STYLECHANGED,
+                     WM_NCLBUTTONDOWN,      -- = 161
+                     WM_NCLBUTTONUP,        -- = 162
+                     WM_NCLBUTTONDBLCLK,    -- = 163
+                     WM_VSCROLL,WM_HSCROLL,
+                     WM_TIMER,280,-- WM_SYSTIMER,
+                     WM_SETFOCUS,WM_KILLFOCUS,
+                     WM_CAPTURECHANGED,WM_CANCELMODE,
+                     WM_COPY,
+                     WM_SYSKEYDOWN,WM_SYSKEYUP,WM_SYSCHAR,
+                     WM_RBUTTONUP,WM_RBUTTONDBLCLK,
+                     WM_MBUTTONDOWN,WM_MBUTTONUP,WM_MBUTTONDBLCLK,
+                     WM_SIZING,WM_GETMINMAXINFO,WM_ENTERSIZEMOVE,WM_EXITSIZEMOVE}) then -- do nowt
+        elsif msg=WM_CHAR and wParam=3 then -- Ctrl C (Copy)
+        elsif msg=WM_KEYDOWN and find(wParam,{VK_PRIOR,VK_NEXT,VK_END,VK_HOME,
+                                              VK_LEFT,VK_UP,VK_RIGHT,VK_DOWN}) then
+--          ?{id,msg,wParam,lParam}
+--return{0}
+        elsif msg=WM_COMMAND then
+            for i=1 to length(CtrlSet) do
+                if id=CtrlSet[i][Id] then
+                    --
+                    -- Actually, we only expect MenuItems to work here
+                    --
+                    if find(CtrlSet[i][Type],{Menu,MenuItem}) then
+                        setLDwin(i)
+                        myTrackPopupMenu(id)
+                        exit
+                    end if
+                end if
+            end for
+            return {0}
+        elsif find(msg,{WM_CHAR,WM_KEYDOWN,WM_COMMAND,
+                        BM_SETSTATE,
+                        SBM_SETSCROLLINFO,SBM_GETSCROLLINFO
+                       }) then -- really do nowt
+            return {0}                              -- (not even default processing)
+        elsif msg=WM_WINDOWPOSCHANGING then -- ToolBar
+        elsif msg=WM_WINDOWPOSCHANGED then  -- ToolBar
+        elsif msg=TCM_GETCURSEL then    -- TabControl
+        elsif msg=TCM_SETCURSEL then
+--?85
+        elsif msg=TCM_HITTEST then  -- TabBar
+        elsif msg=TCM_INSERTITEMA then  -- TabControl
+        elsif msg=TCM_GETITEMCOUNT then -- TabControl
+        elsif msg=TCM_SETITEMA then -- TabControl
+        elsif msg=TCM_ADJUSTRECT then -- TabControl
+        elsif msg=TCM_SETCURFOCUS then  -- TabControl
+--?97
+        elsif msg=295 then  -- ?? change selected tabcontrol ??
+--?96
+        elsif msg=297 then  -- ?? multi-line tabcontrol ??
+        elsif msg=WM_NOTIFYFORMAT then  --""
+        elsif msg=TBM_GETPOS then -- TrackBar
+        elsif msg=WM_CTLCOLORLISTBOX then -- ComboBox
+        elsif msg=SB_SETPARTS then  -- Statusbar
+        elsif msg=1060 then -- ??? ComboBox
+        elsif msg=WM_CTLCOLORBTN then -- button on a Group control.
+        elsif msg=WM_CTLCOLORSTATIC then    -- label on a Group control.
+        elsif msg=WM_CTLCOLORSCROLLBAR then -- scrollbar on a Tab control.
+        elsif msg=WM_SETCURSOR then
+            -- DEV if not from us! [??]
+            return {0}
+        elsif msg=WM_MOUSEMOVE then
+            ?99 --never triggers? (calls setCursor above)
+        elsif msg=WM_LBUTTONDOWN then
+--?98
+            for i=1 to length(CtrlSet) do
+                if id=CtrlSet[i][Id] then
+                    if CtrlSet[i][Type]=TabControl then
+                        return {0}  -- Not for a tabcontrol/item!
+                    end if
+                    exit
+                end if
+            end for
+            -- (definitely needed for a HyperText control, prolly others)
+        elsif msg=WM_LBUTTONUP then
+--          return {0}
+        elsif msg=WM_LBUTTONDBLCLK then
+            justDblClick = 1    -- focus issues (see eaqj)
+            return {0}
+        elsif msg=WM_LBUTTONUP then
+            if justDblClick then
+                justDblClick = 0
+                setFocus(LDwin)
+            end if
+--?     elsif msg = WM_LBUTTONDBLCLK then
+--          setFocus(LDwin)
+--          return {0}
+        elsif msg=WM_RBUTTONDOWN then
+            myTrackPopupMenu(id)    -- only triggered on ToolBar
+        elsif msg=WM_SYSCOMMAND then    -- Alt keys
+        elsif msg=WM_CONTEXTMENU then
+            return {0}
+--      else
+--          ?{id,msg,wParam,lParam}
+--          return {0}
+        end if
+    end if
+    return 0
+end function
+rmH = routine_id("mainHandler")
+--      setHandler({Virt,TMenu}, rmH)
+setHandler(TMenu,rmH)
+
+constant Select = create(Window,xl("Window to amend"),0,0,410,0,361,235,0)
+    if not OK then
+        setText(Select,xl("Edita not running - using ealtest.exw"))
+    end if
+constant SelList = create(ComboDropDownList,"",0,Select,15,13,331,150,0)
+constant Sellbl  = create(Label,"",0,Select,20,90,260,20,0)
+constant SelOK   = create(Button,xl("OK"),0,Select,42,172,80,28,0)
+constant SelNew  = create(Button,xl("New Window"),0,Select,181,173,120,27,0)
+
+integer selClosed       -- required to prevent infinite loop
+        selClosed = 0
+integer initS
+        initS = 0
+
+procedure removeWin(integer i)
+    Results[i] = 0
+    for j=i+1 to length(Results) do
+        if not atom(Results[j]) and equal(Results[j][7][4],i) then
+            removeWin(j)
+        end if
+    end for
+end procedure
+sequence thisWin    -- flags (set to 1 if part of this window)
+procedure markWin(integer i)
+    thisWin[i] = 1
+    for j=i+1 to length(Results) do
+        if not atom(Results[j]) and equal(Results[j][7][4],i) then
+            markWin(j)
+        end if
+    end for
+end procedure
+procedure keepWin(integer i)
+    thisWin = repeat(0,length(Results))
+    markWin(i)
+    for j=1 to length(Results) do
+        if not thisWin[j] then
+            Results[j] = 0
+        end if
+    end for
+end procedure
+
+--procedure killTheme(integer newCtrl)
+---- disable themes on >=XP, we need the "raw" style to see focus, cursors, etc.
+--
+--atom uxdll
+----,xDeactivateWindowTheme
+--,xSetWindowTheme
+----, xEnableTheming
+----, r
+--  uxdll = open_dll("uxtheme.dll")
+--?uxdll
+--  if uxdll!=-1 then
+----        xEnableTheming = define_c_func(uxdll, "EnableTheming", {C_BOOL}, C_POINTER)
+----?xEnableTheming
+----        xDeactivateWindowTheme = define_c_func(uxdll, "DeactivateWindowTheme", {C_BOOL}, C_POINTER)
+--      xSetWindowTheme = define_c_proc(uxdll, "SetWindowTheme", {C_PTR,C_PTR,C_PTR})
+--?xSetWindowTheme
+----        c_proc(xSetWindowTheme,{getHwnd(newCtrl),NULL,NULL})
+----    public extern static Int32 SetWindowTheme (IntPtr hWnd, 
+----                      String textSubAppName, String textSubIdList);
+----
+----        public BaseForm()
+----        {
+----            SetWindowTheme(Handle, "", "");
+----        r = c_func(xEnableTheming,{0})
+----?r
+----Declare Function DeactivateWindowTheme Lib "uxtheme" _
+----         Alias "SetWindowTheme" ( _ 
+----     ByVal hWnd As Long, _ 
+----     Optional ByRef pszSubAppName As String = " ", _ 
+----     Optional ByRef pszSubIdList As String = " ") As Long 
+--  end if
+--end procedure
+
+sequence CtrlMap
+--with trace
+constant CD_SETDEF  = #20050415,    -- eawpaint: set default
+         CD_GETDEFL = #20050416,    -- eawpaint: get default length
+         CD_GETDEFC = #20050603     -- eawpaint: get default char
+
+function SelHandler(integer id, integer msg, atom wParam, object lParam)
+integer newCtrl, newType, Parent, width, height, k
+atom x,y  -- ("Default" is #80000000)
+object Pidx, flags
+sequence text, newname
+sequence e
+
+    if wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+--          msg = WM_CLOSE
+            closeWindow(Select)
+        elsif wParam=VK_RETURN then
+            msg = WM_COMMAND
+            if id!=SelNew and length(Windows) then
+                id = SelOK
+            else
+                id = SelNew
+            end if
+        end if
+    end if
+    if msg=WM_CLOSE then
+        if not selClosed then
+            selClosed = 1
+            closeWindow(LDwin)
+        end if
+    elsif msg=WM_COMMAND then
+        CtrlMap = {}
+        if id=SelOK then
+--          k = getIndex(SelList)
+            --
+            -- Remove all traces of all other windows
+            --
+--          for i=1 to length(Windows) do
+--              if i!=k then
+--                  removeWin(Windows[i])
+--              end if
+--          end for
+            k = getIndex(SelList)
+            keepWin(Windows[k])
+            if OK then  -- EditaHwnd assigned!
+                text = getItem(SelList,k)
+                poke4(CDS,{CD_SETDEF,length(text),mem_str(text)})
+                void = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})
+            end if
+            --
+            -- Create the selected window and all its controls
+            --
+--trace(1)
+            for i=1 to length(Results) do
+                if not atom(Results[i]) then
+                    e = Results[i]
+                    if length(e[7])!=9 then
+                        void = messageBox("Length error in "&e[6],
+                                          "This may be a win32lib control, which\n"&
+                                          "Window Painter does not support",0)
+                        closeWindow(LDwin)
+                        return 0
+                    end if
+                    newType = getCtrlType(e[7][1][2])
+                    if not find(newType,{Window,Button,PictureButton,ToggleButton,
+                                         TogglePictureButton,RadioButton,CheckBox,TriCheckBox,
+                                         EditText,Group,HyperText,Label,ComboBox,ListBox,
+                                         ListView,
+                                         TreeView,ComboDropDownList,ComboDropDown,Menu,MenuItem,
+                                         MultiEditText,ProgressBar,StatusBar,StatusField,
+                                         TabControl,TabItem,ToolBar,ToolSep,HScroll,VScroll,
+                                         UpDown,
+                                         HTrackBar,VTrackBar}) then
+                        ?9/0    -- unknown type!
+                    end if
+                    --if newType!=ListView then
+                    --   trace(1) end if
+                    -- 12/03/11 (hack/DEV)
+                    --                  text = Resolve(e[7][2])
+                    Pidx = Resolve(e[7][2])
+                    if sequence(Pidx) then
+                        text = Pidx
+                    else
+                        text = "???"
+                    end if
+                    --end if
+                    --                  bitMap = 0
+                    Pidx = e[7][4]
+                    if sequence(Pidx) then
+                        if match("Unrecognised :",Pidx)=1 then
+                            void = messageBox("Error",Pidx,0)
+                            closeWindow(LDwin)
+                            return 0
+                        end if
+                        Pidx = Resolve(Pidx)
+                    elsif Pidx then
+                        Pidx = find(Pidx,CtrlMap)
+                    end if
+                    if Pidx then
+                        Parent = CtrlSet[Pidx][Id]
+                    else
+                        Parent = 0
+                    end if
+                    x = Resolve(e[7][5])
+                    y = Resolve(e[7][6])
+                    width = Resolve(e[7][7])
+                    height = Resolve(e[7][8])
+                    flags = Resolve(e[7][9])
+                    newname = e[6]
+                    newCtrl = create(newType,text,0,Parent,x,y,width,height,flags)
+--if newType=Window then
+--  killTheme(newCtrl)
+--end if
+                    if length(CtrlSet)=0 then
+                        Virt = newCtrl
+                        VirtDC = getPrivateDC(Virt)
+                        VirtHwnd = getWindowHwnd(Virt)
+--else
+--  if Pidx=1 then
+--      Pidx = 0
+--  end if
+                    end if
+                    CtrlSet = append(CtrlSet,{newCtrl,newType,text,0,Pidx,x,y,width,height,flags,newname,i})
+                    if newType=TabItem then
+                        if CtrlSet[Pidx][cHbmap]=0 then
+                            CtrlSet[Pidx][cHbmap] = length(CtrlSet)
+                        end if
+                    end if
+                    CtrlMap = append(CtrlMap,i)
+                    void = insertItem(LDlist,newname,0)
+                    setHandler(newCtrl,rmH)
+                    while e[3]>=insertion_points[1][1] do
+                        insertion_points = insertion_points[2..length(insertion_points)]
+                    end while
+                end if
+            end for
+        elsif id=SelNew then
+            Virt = create(Window,xl("Title"), 0, 0, 410,0,400,350,0)
+            CtrlSet = {{Virt,Window,xl("Title"),0,0,410,0,400,350,0,"main",0}}
+            VirtDC = getPrivateDC(Virt)
+            VirtHwnd = getWindowHwnd(Virt)
+--          CtrlMap = {1} --NO!!
+            void = insertItem(LDlist,"main",0)
+            setHandler(Virt,rmH)
+            x = length(insertion_points)
+            if x then
+                insertion_points = insertion_points[x..x]
+            else
+                insertion_points = {{-1,-1}}
+            end if
+        else
+            return 0
+        end if
+        selClosed = 1
+        closeWindow(Select)
+        setLDwin(1) -- Start with Virt itself.
+        initV = 1
+        openWindow(Virt, SW_NORMAL)
+        setFocus(Virt)
+    end if
+    return 0
+end function
+setHandler({Select,SelList,SelOK,SelNew},routine_id("SelHandler"))
+
+integer pullTheOtherOne
+        pullTheOtherOne = 0
+
+--constant IDX = allocate(4)
+
+function LDwinHandler(integer id, integer msg, atom wParam, object lParam)
+sequence text
+--, defaulttext
+object defaulttext
+integer k, defaultindex, len
+integer cType
+--atom mem
+    if wParam or object(lParam) then end if -- suppress warnings
+    if id=LDwin then
+        if msg=WM_PAINT and not initS then
+            for i=length(Windows) to 1 by -1 do
+                k = Windows[i]
+                if not equal(Results[k][7][1][1..2],{-1,"Window"}) then
+                    --
+                    -- Remove any pop-menus (etc)...
+                    --
+                    removeWin(k)
+                    Windows = Windows[1..i-1]&Windows[i+1..length(Windows)]
+                end if
+            end for
+            --
+            -- ... /before/ checking for anything worth listing.
+            --
+            if length(Windows) then
+                defaultindex = 1
+                if OK then  -- EditaHwnd assigned!
+                    poke4(CDS,{CD_GETDEFL,0,0})
+                    len = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})
+                    defaulttext = repeat(0,len)
+                    for i=1 to len do
+                        poke4(IDX,i)
+                        poke4(CDS,{CD_GETDEFC,4,IDX})
+                        defaulttext[i] = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})
+                    end for
+                end if
+                for i=1 to length(Windows) do
+                    k = Windows[i]
+--dev: flattenset or <expr> R[k][7][2][2] here...
+-- 2/1/64 OK:
+                    text = sprintf("%s (\"%s\")",{Results[k][6],Results[k][7][2][2]})
+--                  text = sprintf("%s (\"%s\")",{Results[k][6],flattenset(Results[k][7][2][2])})
+                    void = insertItem(SelList,text,0)
+                    if OK and equal(text,defaulttext) then
+                        defaultindex = i
+                    end if
+                end for
+                setIndex(SelList,defaultindex)
+            else
+                setEnable({SelList,SelOK},False)
+            end if
+            k = length(Windows)
+            if k=1 then
+                setText(Sellbl,xl("1 window found."))
+            else
+                setText(Sellbl,sprintf(xl("%d windows found."),k))
+            end if
+            openWindow(Select, SW_NORMAL)
+            initS = 1
+        elsif msg=WM_CLOSE then
+            if initV then
+--              initV = 0
+                if not VirtClosed then
+                    VirtClosed = 1
+                    closeWindow(Virt)
+                end if
+            else
+                if not selClosed then
+                    selClosed = 1
+                    closeWindow(Select)
+                end if
+            end if
+        elsif msg=WM_SETFOCUS then
+            if pullTheOtherOne then -- single instance; make sure sibling window is on screen.
+                pullTheOtherOne = 0
+                if initV then
+                    if not VirtClosed then
+                        setFocus(Virt)
+                    end if
+                else
+                    if not selClosed then
+                        setFocus(Select)
+                    end if
+                end if
+            end if
+            releaseMouse()      -- (required to allow Alt F4 to close window)
+            setFocus(LDtext)
+            VirtHasFocus = False
+        elsif msg=WM_COPYDATA then
+            if peek4u(lParam)=CD_WPAINT then    -- single instance: are you really Window Painter?
+                pullTheOtherOne = 1
+                return {CD_MAGICW}
+            end if
+        end if
+    elsif id=LDname then
+        if msg=WM_COMMAND then
+            text = getText(LDname)
+            if CSidx and length(text) then
+                if CtrlSet[CSidx][Type]!=ListView then
+                    setItem(LDlist, text, getIndex(LDlist))
+                    CtrlSet[CSidx][cName] = text
+                end if
+            end if
+        end if
+    elsif id=LDtext then
+        if isVisible(LDtext) then
+            text = getText(LDtext)
+            if CSidx then
+                if CtrlSet[CSidx][Type]!=ListView then
+                    setText(CtrlSet[CSidx][Id],text)
+                    CtrlSet[CSidx][Text] = text
+                end if
+            end if
+        end if
+    elsif id=LDlist then
+        k = getIndex(LDlist)
+        if k!=CSidx then
+            setLDwin(k)
+        end if
+    elsif id=LDslbl then
+        if msg=WM_COMMAND and CSidx then
+            cType = CtrlSet[CSidx][Type]
+            for i=1 to length(prsets) do
+                if find(cType,prsets[i]) then
+                    StyleEx = False
+                    initStyle(prefixes[i],prnames[i])
+                    exit
+                end if
+            end for
+        end if
+    elsif id=LDelbl then
+        if msg=WM_COMMAND and CSidx then
+            StyleEx = True
+            initStyle("WS_EX_","Extended Window Styles")
+        end if
+    end if
+    return 0
+end function
+setHandler(LDwin, routine_id("LDwinHandler"))
+
+--with trace
+integer testfn
+function ConvertOne(integer i)
+sequence oneCtrl
+object flags
+    oneCtrl = CtrlSet[i]
+    if i=1 then
+        oneCtrl[xPos] = oneCtrl[xPos]+PoDx
+        oneCtrl[yPos] = oneCtrl[yPos]+PoDy
+    end if
+    oneCtrl[Id] = CtrlSet[i][cName]
+    --DEV something like this, but ...
+    if oneCtrl[Type]=ListView then
+    --  trace(1)
+    --  oneCtrl[Text] = flattenset(oneCtrl[Text])
+        oneCtrl[Text] = ppf(oneCtrl[Text])
+    --?oneCtrl[Text]
+    else
+        oneCtrl[Text] = sprintf("\"%s\"",{oneCtrl[Text]})
+    end if
+    oneCtrl[Type] = getCtrlTypeString(oneCtrl[Type])
+    oneCtrl[cHbmap] = "0" --DEV
+    if oneCtrl[cPidx]=0 then
+        if i=1 then
+            oneCtrl[cPidx] = "0"
+        else
+            oneCtrl[cPidx] = CtrlSet[1][cName]
+        end if
+    else
+        oneCtrl[cPidx] = CtrlSet[oneCtrl[cPidx]][cName]
+    end if
+    for j=6 to 9 do     --xPos=6, yPos=7, Width=8, Height=9
+        oneCtrl[j] = sprint(oneCtrl[j]) -- number to text
+    end for
+    if sequence(oneCtrl[Flags]) then
+--if equal(oneCtrl[Flags],{1,512}) then trace(1) end if
+        StyleEx = True
+        flags = getStyleText(i)
+        StyleEx = False
+        if equal(flags,"0") then
+            flags = getStyleText(i)
+            if flags[1]='{' then
+                flags = '{'&flags&",0}"
+            end if
+        else
+            flags = sprintf("{%s,%s}",{getStyleText(i),flags})
+        end if
+    else
+        StyleEx = False
+        flags = getStyleText(i)
+        if flags[1]='{' then
+            flags = '{'&flags&",0}"
+        end if
+    end if
+    oneCtrl[Flags] = flags
+    return oneCtrl
+end function
+
+procedure dumpControls()
+integer line, lt
+sequence text
+    line = 0
+    for i=1 to length(CtrlSet) do
+    --  text = sprintf("constant %s = create(%s,\"%s\",%s,%s,%s,%s,%s,%s,%s)\n",ConvertOne(i))
+        text = sprintf("constant %s = create(%s,%s,%s,%s,%s,%s,%s,%s,%s)\n",ConvertOne(i))
+        puts(testfn,text)
+        if testfn=1 then
+            lt = floor((length(text)+79)/80)
+            if line+lt>=24 then
+                puts(1,xl("Next Page?"))
+                if getc(0) then end if
+                puts(1,"\n")
+                line = lt
+            else
+                line += lt
+            end if
+        end if
+    end for
+end procedure
+
+include builtins\syswait.ew
+
+--DEV:
+global function max(integer a, integer b)
+    if a>b then return a else return b end if
+end function
+global function min(integer a, integer b)
+    if a<b then return a else return b end if
+end function
+function PoHandler(integer id, integer msg, atom wParam, object lParam)
+integer cX,cY,cW,cH, k
+sequence screenWH
+    if msg=WM_CHAR then
+        if find(wParam,{VK_ESCAPE,'C','c'}) then
+            msg = WM_CLOSE
+        elsif wParam=VK_RETURN then
+            msg = WM_COMMAND
+        else
+            k = find(wParam,"85462")
+            if k then
+                id = Po85462[k]
+                msg = WM_COMMAND
+            end if
+        end if
+    elsif msg=WM_KEYDOWN then
+        k = find(wParam,{VK_UP, VK_LEFT, VK_CLEAR, VK_RIGHT, VK_DOWN})
+        if k then
+            id = Po85462[k]
+            msg = WM_COMMAND
+        end if
+    end if
+    if  msg=WM_CLOSE
+    or (msg=WM_COMMAND and id=PoCANCEL) then
+        if not PoClosed then
+            PoClosed = 1
+            closeWindow(PoMAIN)
+        end if
+        return 0
+    end if
+    if msg=WM_COMMAND then
+        PoDx = 0
+        PoDy = 0
+        cX = CtrlSet[1][xPos]
+        cY = CtrlSet[1][yPos]
+        cW = CtrlSet[1][Width]
+        cH = CtrlSet[1][Height]
+        if id=PoUP then
+            PoDy = max(-cY,-cH)
+        elsif id=PoOVER then
+        elsif id=PoLEFT then
+            PoDx = max(-cX,-cW)
+        else
+            screenWH = getScreenSize()
+            if id=PoRIGHT then
+                PoDx = min(cW,screenWH[1]-cW-cX)
+            elsif id=PoDOWN then
+                PoDy = min(cH,screenWH[2]-cH-cY)
+--              PoDy = cH
+            end if
+        end if
+        PoClosed = 1
+        closeWindow(PoMAIN)
+        testfn = open("ealtest.exw","w")
+        if testfn= -1 then
+            void = messageBox("Error",sprintf(xl("Cannot open %s"),{"ealtest.exw"}),0)
+            return 0
+        end if
+        puts(testfn,
+             "-- ***************************************************************\n"&
+             "-- * WARNING                                                     *\n"&
+             "-- ***************************************************************\n"&
+             "-- *  DO NOT EDIT THIS FILE.                                     *\n"&
+             "-- *  eawpaint destroys this file when Tools/Test is run;        *\n"&
+             "-- *  anything left in this file may be deleted without warning. *\n"&
+             "-- ***************************************************************\n"&
+             "without warning\n"&
+             "include arwen\\arwen.ew\n")
+        dumpControls()
+        printf(testfn,"WinMain(%s,SW_NORMAL)\n",{CtrlSet[1][cName]})
+        close(testfn)
+        if id!=-PoCANCEL then   -- final cleanup call
+--18/07/2013:
+--          void = system_wait("exw ealtest.exw")
+            void = system_wait("pw ealtest.exw")
+            if PoDx or PoDy then
+                -- restore with 0 offset.
+                void = PoHandler(-PoCANCEL, WM_COMMAND, wParam, lParam)
+            end if
+        end if
+        setFocus(Virt)
+    end if
+    return 0
+end function
+setHandler({PoMAIN,PoCANCEL},routine_id("PoHandler"))
+setHandler(Po85462,routine_id("PoHandler"))
+
+function menuHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg or wParam or object(lParam) then end if  -- suppress warnings
+    if id=LDcncl then
+        OK = -1
+        void = postMessage(LDwin,WM_CLOSE,0,0)
+    elsif id=LDexit then
+        void = postMessage(LDwin,WM_CLOSE,0,0)
+    elsif id=LDtest then
+        Test()
+    elsif id=LDcrsh then
+        ?9/0    -- crash option selected!
+    elsif id=LDdump then
+        pp(CtrlSet)
+    elsif id=LDhelp then
+        void = openDocument("WPmanual.htm")
+    elsif id=LDlcnc then
+--      void = messageBox("Licence","Email petelomax@blueyonder.co.uk "&
+--                        "stating ABCDEF123456789 for a free licence",0)
+        void = messageBox("Licence","This version does not require a licence,\n"&
+                          "however that may change in a future release.",0)
+    elsif id=LDabout then
+        void = messageBox("About","Window Painter Version 0.1.\n"&
+                          "Author Pete Lomax March 2005.",0)
+    end if
+    return 0
+end function
+setHandler({LDfile,LDtool,LDhmnu}, routine_id("menuHandler"))
+
+--DEV This killed themes system-wide.... And {1} did not put them back...
+--procedure killThemes()
+---- disable themes on >=XP, we need the "raw" style to see focus, cursors, etc.
+--
+--atom uxdll
+----,xDeactivateWindowTheme
+--,xSetWindowTheme
+----, xEnableTheming
+----, r
+--  uxdll = open_dll("uxtheme.dll")
+--?uxdll
+--  if uxdll!=-1 then
+----        xEnableTheming = define_c_func(uxdll, "EnableTheming", {C_BOOL}, C_POINTER)
+----?xEnableTheming
+----        xDeactivateWindowTheme = define_c_func(uxdll, "DeactivateWindowTheme", {C_BOOL}, C_POINTER)
+--      xSetWindowTheme = define_c_proc(uxdll, "SetWindowTheme", {C_PTR,C_PTR,C_PTR})
+--?xSetWindowTheme
+--      c_proc(xSetWindowTheme,{getHwnd(LDwin),NULL,NULL})
+----  public extern static Int32 SetWindowTheme (IntPtr hWnd, 
+----                      String textSubAppName, String textSubIdList);
+----
+----        public BaseForm()
+----        {
+----            SetWindowTheme(Handle, "", "");
+----        r = c_func(xEnableTheming,{0})
+----?r
+----Declare Function DeactivateWindowTheme Lib "uxtheme" _
+----         Alias "SetWindowTheme" ( _ 
+----     ByVal hWnd As Long, _ 
+----     Optional ByRef pszSubAppName As String = " ", _ 
+----     Optional ByRef pszSubIdList As String = " ") As Long 
+--  end if
+--end procedure
+--killThemes()
+--
+WinMain(LDwin,SW_NORMAL)
+
+--pp(CtrlSet)
+--sequence cType,cText
+
+constant CD_OPEN    = #20050227,    -- must match easinst.ew: open file
+         CD_SETSEL  = #20050401,    -- must match edita.exw: set selection
+         CD_CHKSEL  = #20050604,    -- must match edita.exw: check selection
+         CD_SETPOS  = #20050403,    -- must match edita.exw: set position
+         CD_INSLN   = #20050404,    -- must match edita.exw: insert line
+         CD_INSERT  = #20050405,    -- must match edita.exw: insert
+         CD_DELSEL  = #20050406     -- must match edita.exw: delete selection
+
+constant selData = allocate(12)
+
+procedure check(sequence set)
+sequence text
+integer len
+--18/07/2013
+--  if equal(set[1],DQUOTE) and equal(set[2],"") then return end if -- don't check "", the null string
+    if equal(set[1],DQUOTE) and equal(set[2],"\"\"") then return end if -- don't check "", the null string
+    poke4(selData,set[3..5])    -- {line,colfrom,colto}
+    poke4(CDS,{CD_SETSEL,12,selData})
+    if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+        Abort(sprintf(xl("Cannot block line %d, cols %d to %d"),set[3..5]))
+    end if
+    len = set[5]-set[4]+1
+    if find(set[1],{FUNC,UNKNOWN,DQUOTE}) then
+        text = set[2]
+        poke4(CDS,{CD_CHKSEL,len,mem_str(text)})
+        if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+            Abort(sprintf("Text is not "&text&"\nAt line %d, cols %d to %d",set[3..5]))
+        end if
+    elsif set[1]=DIGIT then
+--      if not equal(text,sprint(set[2])) then ?9/0 end if
+        text = sprint(set[2])
+        poke4(CDS,{CD_CHKSEL,len,mem_str(text)})
+        if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+            Abort(sprintf("Text is not "&text&"\nAt line %d, cols %d to %d",set[3..5]))
+        end if
+    elsif set[1]=SEQUENCE then
+        for i=1 to length(set[6]) do
+            check(set[6][i])
+        end for
+    elsif set[1]=BPLUS then
+        check(set[6])
+        check(set[7])
+    elsif set[1]=HEXDEC then
+--      if length(text)<2 or text[1]!='#' then ?9/0 end if
+--      while 1 do
+--          text = text[2..length(text)]
+--          if length(text)<2 or text[1]!='0' then exit end if
+--      end while
+--      if not equal(text,sprintf("%x",set[2])) then ?9/0 end if
+        text = sprintf("#%x",set[2])
+        poke4(CDS,{CD_CHKSEL,len,mem_str(text)})
+        if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+            Abort(sprintf("Text is not "&text&"\nAt line %d, cols %d to %d",set[3..5]))
+        end if
+    else ?9/0   -- set[1] unrecognised!
+    end if
+end procedure
+
+--with trace
+procedure replace(sequence set, sequence With)
+sequence text
+integer len
+--18/07/2013:
+--  if find(set[1],{FUNC,UNKNOWN,DQUOTE}) then
+    if set[1]=UNKNOWN then
+        if equal(set[2],With) then return end if
+--DEV 26/7/2013??
+        if length(With)=0 then return end if
+        if With[1]='\"' then return end if
+    elsif find(set[1],{FUNC,DQUOTE}) then
+--      if equal(set[2],With) then return end if
+--      if set[1]=UNKNOWN and length(With) then
+--          With = '\"'&With&'\"'
+--      end if
+--18/07/2013:
+--      if set[1]=DQUOTE then
+----trace(1)
+--          if equal('\"'&set[2]&'\"',With) then return end if
+----            set[4..5] += {-1,+1}
+--          set[4] = set[4]-1
+--          set[5] = set[5]+1
+--      elsif equal(set[2],With) then return
+--      end if
+        if equal(set[2],With) then return end if
+--      if set[1]=DQUOTE then
+    elsif set[1]=DIGIT then
+        if equal(sprint(set[2]),With) then return end if
+    elsif set[1]=SEQUENCE then
+--trace(1)
+        if equal(flattenset(set),With) then return end if
+        for i=length(set[6]) to 1 by -1 do
+            replace(set[6][i],"")
+        end for
+    elsif set[1]=BPLUS then
+--trace(1)
+        if equal(flattenset(set),With) then return end if
+        replace(set[7],"")
+    elsif set[1]=HEXDEC then
+        if equal(sprintf("%x",set[2]),With) then return end if
+    else ?9/0   -- set[1] unrecognised!
+    end if
+-- block/getSelection line cola to colb
+--trace(1)
+    poke4(selData,set[3..5])    -- {line,colfrom,colto}
+    poke4(CDS,{CD_SETSEL,12,selData})
+    if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+        ?9/0    -- Edita died?
+    end if
+    len = set[5]-set[4]+1
+--  mem = allocate_TextSpace(len)
+--  mem = allocate(len)
+--  mem = mem_str(len)
+--  poke4(CDS,{CD_DELSEL,len,mem})
+--  poke4(CDS,{CD_DELSEL,len,mem_str(len)})
+--  if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+--      ?9/0
+--  end if
+--  text = peek({mem,len})
+--  text = peek({mem4,len})
+--  free(mem)
+    if find(set[1],{FUNC,UNKNOWN}) then
+--      if not equal(text,set[2]) then ?9/0 end if
+        text = set[2]
+    elsif set[1]=DQUOTE then
+--18/07/2013:
+--      text = '\"'&set[2]&'\"'
+        text = set[2]
+    elsif set[1]=DIGIT then
+--      if not equal(text,sprint(set[2])) then ?9/0 end if
+        text = sprint(set[2])
+    elsif set[1]=SEQUENCE then
+--      if not equal(text,"{") then ?9/0 end if
+        text = "{"
+    elsif set[1]=BPLUS then
+--      if not equal(text,"+") then ?9/0 end if
+        text = "+"
+--      replace(set[6],"")
+    elsif set[1]=HEXDEC then
+--      if length(text)<2 or text[1]!='#' then ?9/0 end if
+--      while 1 do
+--          text = text[2..length(text)]
+--          if length(text)<2 or text[1]!='0' then exit end if
+--      end while
+--      if not equal(text,sprintf("%x",set[2])) then ?9/0 end if
+        text = sprintf("#%x",set[2])
+    end if
+    poke4(CDS,{CD_DELSEL,len,mem_str(text)})
+    if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+        Abort(sprintf("Text is not "&text&"\nAt line %d, cols %d to %d",set[3..5]))
+    end if
+    if set[1]=BPLUS then
+        replace(set[6],"")
+    end if
+
+    len = length(With)
+    if len then
+--DEV this caused a machine crash...
+--      mem = allocate_TextSpace(len)
+--      mem = allocate(len)
+--      mem = mem_str(len)
+--      poke(mem,With)
+--      poke4(CDS,{CD_INSERT,len,mem})
+        poke4(CDS,{CD_INSERT,len,mem_str(With)})
+        if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+            ?9/0    -- Edita died?
+        end if
+--      free(mem)
+    end if
+end procedure
+
+--with trace
+procedure UpdateEdita()
+sequence oneCtrl, oneRes, text
+integer k, len, last
+--atom mem
+sequence reordermsg, CopyCS, workorder
+--trace(1)
+--sequence dbg
+sequence actualFile
+    --
+    -- First check we have the right file
+    --
+    for i=1 to 20 do
+        poke4(CDS,{CD_FILL,0,0})
+        len = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})
+        if len=length(FileName) then
+--          poke4(CDS,{CD_FILE,len,mem_str(len)})
+--          void = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})
+--          if equal(FileName,peek({mem4,len})) then exit end if
+            actualFile = repeat(0,len)
+            for j=1 to len do
+                poke4(IDX,j)
+                poke4(CDS,{CD_FILC,4,IDX})
+                actualFile[j] = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})
+            end for
+            if equal(FileName,actualFile) then exit end if
+        end if
+        if i>1 then
+            if i=20 then
+                puts(1,"Failed on 20 attempts, aborting...\n")
+                puts(1,"Press Enter...")
+                if getc(0) then end if
+                abort(0)
+            end if
+            puts(1,"Re-opening "&FileName)
+            puts(1,"\n(press Ctrl C to abort)\n\n")
+        end if
+        --
+        -- Re-open it...
+        --
+        poke4(CDS,{CD_OPEN,length(FileName),mem_str(FileName)})
+        void = c_func(xSendMessage, {EditaHwnd, WM_COPYDATA, NULL, CDS})
+        sleep(2)
+    end for
+--  free(mem)
+    --
+    -- Then check all text to be replaced is undamaged
+    --
+    for i=length(CtrlSet) to 1 by -1 do
+        k = CtrlSet[i][oEnt]
+        if k then
+            oneRes = Results[k]
+            check(oneRes[1..5])
+            for l=1 to 3 do
+                check(oneRes[7][l])
+            end for
+            for l=5 to 9 do
+                check(oneRes[7][l])
+            end for
+            if not equal(oneRes[7][1][1..2],{-1,"Window"}) then
+                check(oneRes[8])
+            end if
+            check(oneRes[9])
+        end if
+    end for
+    --
+    -- Then add all new controls at the calculated insertion point
+    --
+    poke4(selData,insertion_points[1])
+    poke4(CDS,{CD_SETPOS,8,selData})
+    if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+        Abort(sprintf(xl("Cannot position at %d,%d"),insertion_points[1]))
+    end if
+    last = 0
+    for i=1 to length(CtrlSet) do
+        if CtrlSet[i][oEnt]=0 then
+--          text = sprintf("constant %s = create(%s,\"%s\",%s,%s,%s,%s,%s,%s,%s)",ConvertOne(i))
+            text = sprintf("constant %s = create(%s,%s,%s,%s,%s,%s,%s,%s,%s)",ConvertOne(i))
+--          len = length(text)
+--DEV this caused a machine crash...
+--          mem = allocate_TextSpace(len)
+--          mem = allocate(len)
+--          mem = mem_str(text)
+--          poke(mem,text)
+--          poke4(CDS,{CD_INSLN,len,mem})
+--          poke4(CDS,{CD_INSLN,length(text),mem})
+            poke4(CDS,{CD_INSLN,length(text),mem_str(text)})
+            if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
+                ?9/0    -- Edita died?
+            end if
+--          free(mem)
+            last = i    -- flag something done
+        end if
+    end for
+    --
+    -- Remove new entries to simplify things...
+    --
+    CopyCS = CtrlSet    -- make a copy
+    if last then -- (if there were any)
+        last = 0
+        for i=1 to length(CtrlSet) do
+            if CtrlSet[i][oEnt] then
+                last += 1
+                CtrlSet[last] = CtrlSet[i]
+            end if
+        end for
+        CtrlSet = CtrlSet[1..last]
+    end if
+    --
+    -- Sort into true line order (since we are not yet reordering)
+    --
+    reordermsg = ""
+--setText(LDname,CtrlSet[i][cName])
+--CtrlSet = append(CtrlSet,{newCtrl,newType,text,0,Pidx,x,y,width,height,0,newname,0})
+    for i=2 to length(CtrlSet) do
+        if CtrlSet[i][oEnt]<CtrlSet[i-1][oEnt] then -- idx to Results is same order as line no.
+            oneCtrl = CtrlSet[i]
+            for j=i-1 to 1 by -1 do
+                if CtrlSet[j][oEnt]<oneCtrl[oEnt] then
+                    reordermsg &= xl("Move ")&oneCtrl[cName]&
+                                  xl(" after ")&CopyCS[oneCtrl[cPidx]][cName]&".\n"
+                    CtrlSet[j+1] = oneCtrl
+                    exit
+                end if
+                CtrlSet[j+1] = CtrlSet[j]
+                if j=1 then
+                    ?9/0 -- should never happen!
+--                  CtrlSet[1] = oneCtrl
+--                  reordermsg &= " to start.\n"
+                end if
+            end for
+        end if
+    end for
+    --
+    -- Build ourselves a workset, which lines to process first
+    -- (We have to modify lines from the end of the file back)
+    --
+    workorder = repeat(0,length(CtrlSet))
+    for i=length(CtrlSet) to 1 by -1 do
+        workorder[i] = find(CtrlSet[i],CopyCS)
+    end for
+    --
+    -- Restore the undamaged CtrlSet:
+    -- (since it contains parent links which must be followed)
+    --
+    CtrlSet = CopyCS
+    --
+    -- Now, at last, we can patch in any changed segments.
+    --
+--trace(1)
+    for i=length(workorder) to 1 by -1 do
+        k = CtrlSet[workorder[i]][oEnt]
+        oneRes = Results[k]
+        oneCtrl = ConvertOne(workorder[i])
+        for l=9 to 5 by -1 do
+            replace(oneRes[7][l],oneCtrl[l+1])
+        end for
+        if not equal(oneRes[7][1][1..2],{-1,"Window"}) then
+            replace(oneRes[8],oneCtrl[5])
+        end if
+        if oneRes[7][2][1]=UNKNOWN then
+            oneCtrl[3] = '\"'&oneCtrl[3]&'\"'
+        end if
+        if equal(oneRes[7][1][2],"ListView") then
+            -- Leave the column definitions alone
+            for l=3 to 1 by -2 do
+                replace(oneRes[7][l],oneCtrl[l+1])
+            end for
+        else
+--          oneCtrl[3] = oneCtrl[3][2..length(oneCtrl[3])-1]    -- remove quotes...
+            for l=3 to 1 by -1 do
+                replace(oneRes[7][l],oneCtrl[l+1])
+            end for
+        end if
+        replace(oneRes[9],oneCtrl[1])
+    end for
+
+    --
+    -- Update the default in case the title has been altered...
+    --
+    k = CtrlSet[1][oEnt]
+    if k then
+        text = sprintf("%s (\"%s\")",{Results[k][6],Results[k][7][2][2]})
+    end if
+    poke4(CDS,{CD_SETDEF,length(text),mem_str(text)})
+    void = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})
+
+    if length(reordermsg) then
+        void = messageBox(xl("Reorder"),
+                          xl("The following controls must be reordered manually:\n\n")&reordermsg,MB_OK)
+    end if
+end procedure
+
+
+    if initV and OK!=-1 then
+    --  if compare(dt[1..3],expiry_date-{1900,0,0})=1 then
+    --      void = messageBox("Expired or Unlicenced","Modifications will NOT be saved.",0)
+    --      abort(0)
+    --  end if
+        PoDx = 0
+        PoDy = 0
+        if OK then
+            UpdateEdita()
+        else
+            testfn = 1
+            dumpControls()
+            puts(1,xl("Press Enter"))
+            if getc(0) then end if
+            puts(1,"\n")
+        end if
+    end if

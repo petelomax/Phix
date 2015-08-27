@@ -1,0 +1,462 @@
+--
+-- t36match.exw
+-- ============
+--
+-- Phix tests for match() function. See also pmatch.e
+--
+-- I'm reluctant to "clean this up", "just in case", but the
+-- core part - the calls to pm(), are sound and well thought out,
+-- being a summary of a fairly heated and protracted debate on
+-- EUforum circa 2002.
+--
+constant showprogress = 0
+
+function Match(object s1, sequence s2)
+--
+-- This is the closest way to express the back-end algorithm in hll.
+-- Phix ensures that eg 6.5+6.5 is stored as a short int 13, not
+-- a floating point 13.0. Finding a short int is faster than anything
+-- else, because there is no dereference, hence when we hit a mismatch
+-- and one of the disagreeing values is a shortint, use that to look
+-- for a better place to restart the top-level scan.
+-- In the asm backend, we actually apply the integer() checks before
+-- the deep-equal(), and use quick_equal() in the inner loops.
+-- The asm backend also uses slightly different code for the four
+-- cases match(string,string), match(string,sequence), match(seq,str)
+-- and match(seq,seq) for the obvious reasons of bit size, and not
+-- bothering to check for string[i] as integer, and that the first
+-- three cases do not ever need to invoke deep_equal().
+--
+-- Changes to the functionality of match() noted below arose from a 
+-- protracted discussion on EuForum in 2002.
+--
+integer res, s2idx, ls1, ls2
+object s1i, s2i
+    -- This line, and first parameter being object not sequence, is not RDS compliant.
+    --  (RDS gives error "first argument of match() must be a sequence")
+    if atom(s1) then return find(s1,s2) end if
+    res=1
+    ls1 = length(s1)
+    -- This line is also not RDS compliant
+    --  (RDS gives error "first argument of match() must be a non-empty sequence")
+    if ls1=0 then return 0 end if
+    ls2 = length(s2)
+--  if ls1 > ls2 then return 0 end if -- see below
+    while 1 do
+        if res+ls1-1>ls2 then return 0 end if
+        for i=1 to ls1 do
+            s1i = s1[i]
+            s2idx = i+res-1
+--          if s2idx>ls2 then return 0 end if -- see above
+            s2i = s2[s2idx]
+--          if not quick_equal(sli,s2i) then    -- asm variant
+            if not equal(s1i,s2i) then
+--              if integer(sli) and not integer(s2i) then -- maybe?
+--              if integer(sli) and not equal(s1i,s2i) then -- maybe?
+                if integer(s1i) then
+                    -- scan for sli later on in s2
+                    -- eg s1=13131...,
+                    --    s2=1313x31...
+                    -- with s1[5]=1, scanning fwd two places to s2[7]=1
+                    -- gives the earliest point worth re-starting from.
+                    -- if s1i does not occur anywhere later in s2, then
+                    -- clearly there will be no match anywhere.
+                    for j=s2idx+1 to ls2+1 do
+                        res += 1
+--                      s2idx = i+res-1
+--                      s2idx += 1
+--                      if s2idx>ls2 then return 0 end if
+                        if j>ls2 then return 0 end if
+                        if equal(s1i,s2[j]) then exit end if
+                    end for
+                    exit
+                elsif integer(s2i) then
+                    -- scan for s2i earlier on in s1
+                    -- eg s1=131313x...,
+                    --    s2=1313131...
+                    -- with s2[7]=1, scanning back two places to s1[5]=1
+                    -- gives the earliest point worth re-starting from.
+                    -- if s2[7] does not occur anywhere earlier in s1,
+                    -- then clearly we should restart from s2[8].
+                    for j=i-1 to 0 by -1 do
+                        res += 1
+                        if j=0 then exit end if
+                        if equal(s2i,s1[j]) then exit end if
+                    end for
+                    exit
+--              elsif not equal(s1i,s2i) then   -- deep_equal() here in asm
+                else
+                    res += 1
+                    exit
+                end if
+            end if
+            if i=ls1 then return res end if
+        end for
+    end while
+end function
+
+
+constant RDS=0  -- NB crashes on exw.exe (etc) if this is not 1.
+--/* Not Phix (sprint is auto-include)
+include ..\builtins\misc.e
+--*/
+
+procedure pm(object a, object b, integer exfind, integer exmatch)
+sequence ppfa, ppfb
+integer fres,mres
+--<--   if atom(a) then
+--<--           ppfa=ppf({a})
+--<--           ppfa=ppfa[2..length(ppfa)-1]
+--<--   else
+--<--           ppfa=ppf(a)
+--<--   end if
+--<--   if atom(b) then
+--<--           ppfb=ppf({b})
+--<--           ppfb=ppfb[2..length(ppfb)-1]
+--<--   else
+--<--           ppfb=ppf(b)
+--<--   end if
+        fres=find(a,b)
+--      if fres!=myfind(a,b) then ?9/0 end if -- Verify Derek's routine
+--> if fres!=myfind(a,b,1) then ?9/0 end if -- Verify Derek's routine
+--              if full or exfind!=fres then
+                if exfind!=fres then
+                    ppfa=sprint(a)
+                    ppfb=sprint(b)
+                        printf(1,"find(%s,%s) returns %d\n",{ppfa,ppfb,fres})
+                        puts(1,"find(%s,%s) returns %d,{ppfa,ppfb,fres}\n")
+                        abort(1)
+                end if
+--      if internalmatch=0
+--      and (not sequence(a) or equal(a,"")) then -- errors otherwise
+----<--         if full or exmatch!=-1 then
+----<                   printf(1,"match(%s,%s) crashes in ERROR\n",{ppfa,ppfb})
+----<--         end if
+----!p!                 printf(1,"match(%s,%s) crashes in ERROR\n",{ppfa,ppfb})
+--                      puts(1,"match(%s,%s) crashes in ERROR,{ppfa,ppfb}\n")
+----    end if
+--      else
+--              if internalmatch then
+--                      mres=Match(a,b)
+                        mres=match(a,b)         -- if run on exw (etc), check RDS=1 (!!)
+if mres!=Match(a,b) then ?9/0 end if
+--                      if sequence(a) then
+--                              if mres!=mymatch(a,b) then
+--                               trace(1)
+--                                      ?mymatch(a,b) ?9/0 end if 
+--                              -- Verify Derek's routine
+--                      end if
+--              else
+--                      mres=match(a,b)
+--                      if mres!=mymatch(a,b) then ?9/0 end if -- Verify Derek's routine
+--              end if
+--              if full or exmatch!=mres then
+                if exmatch!=mres then
+                    ppfa=sprint(a)
+                    ppfb=sprint(b)
+                        printf(1,"match(%s,%s) returns %d\n",{ppfa,ppfb,mres})
+                        puts(1,"match(%s,%s) returns %d,{ppfa,ppfb,mres}\n")
+                        abort(1)
+                end if
+--      end if
+
+        if mres then
+                if atom(a) then
+                        a={a}
+                end if
+                if not equal(a,b[mres..mres+length(a)-1]) then ?9/0 end if
+        end if
+end procedure
+
+if showprogress then puts(1,"t36_01\n") end if
+--
+-- First two parameters are, naturally, search item and target.
+-- Third parameter is expected result from find, included for reference
+-- Fourth parameter is the expected result from match.
+-- Condensed from a lengthy discussion on EUforum, circa 2002.
+--
+        pm("abc","",0,0)
+if not RDS then
+        pm("","",0,0)--1)
+        pm("","abc",0,0)--1)
+        pm('a',"abc",1,1)--0)
+        pm('a'&"","abc",0,1)
+end if
+        pm({""},{"k","","at"},0,2)
+        pm({""},{"k","a","t"},0,0)
+        pm({"c"},{"a","","c"},0,3)
+        pm("c",{"a","","c"},3,0)
+        pm("c","axc",0,3)
+        pm("at", {"k","","at"},3,0) -- kat said ,3)
+        pm({"at"}, {"k","","at"},0,3) -- kat said ,0)
+if not RDS then
+        pm('a', "kat",2,2)
+end if
+
+if showprogress then puts(1,"t36_02\n") end if
+
+        pm("b",{"a",'b',"b","c"},3,2) --note!
+        pm("kat", {'k', 'a', 't', "kat"},4,1)
+        pm("at", "kat",0,2)
+        pm({"at"}, {"k","","at"},0,3)
+        pm("at",{"k","at"},2,0) -- kat said ,2)
+        pm({"at"},{"k","at"},0,2)
+if not RDS then
+        pm('k',{"k","at"},0,0)
+end if
+        pm("k",{"k","at"},1,0) -- kat said ,1)
+        pm("b",{"a","b","c"},2,0) -- Al's reply to Kat
+-- kat still thinks ,3)
+        pm({"b"},{"a","b","c"},0,2) -- Al's reply to Kat
+        pm("b",{"abc"},0,0) -- Al said ,2) but I think that was a typo
+        pm("b",{"a","b","c"},2,0)
+        pm("b",{"ab","c","d"},0,0)
+        pm("b",{{"a","b","c"}},0,0)
+if not RDS then
+        pm("","",0,0) -- Juergen adamant it should not be 0
+end if
+
+        pm("b","abc",0,2)
+if not RDS then
+        pm('b',"abc",2,2)
+end if
+        pm("b",{"a", "b", "c"},2,0)
+
+if showprogress then puts(1,"t36_03\n") end if
+
+--puts(1,"All done\n")
+--if getc(0) then end if
+
+        --include misc.e -- sprint()
+        ----include ppp.e
+        --
+        --constant full=0
+        ----constant internalmatch=0
+        --constant internalmatch=1
+        --
+        ---- Derek's routines:
+        --function myfind(object a, sequence b)
+        --      for i = 1 to length(b) do
+        ---->function myfind(object a, sequence b, integer d)
+        ---->integer fromx, tox
+        ---->   if d=1 then
+        ---->           fromx=1
+        ---->           tox=length(b)
+        ---->   else
+        ---->           fromx=length(b)
+        ---->           tox=1
+        ---->   end if
+        ---->-- for i = 1 to length(b) do
+        ---->   for i = fromx to tox by d do
+        --              if equal(b[i], a) then
+        --                      return i
+        --              end if
+        --      end for
+        --      return 0
+        --end function
+        --
+        ---->sequence s
+        ---->   s="abababab"
+        ---->integer ls
+        ---->   ls=length(s)
+        ---->integer k,j
+        ---->   -- search forwards
+        ---->   k=1
+        ---->   while 1 do
+        ---->           j=myfind('b',s[k..ls],1)
+        ---->           if not j then exit end if
+        ---->           ?j+k-1  -- prints 2,4,6,8
+        ---->           k+=j
+        ---->   end while
+        ---->   if getc(0) then
+        ---->   end if
+        ---->   -- search backwards
+        ---->   k=ls
+        ---->   while 1 do
+        ---->           j=myfind('b',s[1..k],-1)
+        ---->           if not j then exit end if
+        ---->           ?j
+        ---->           k=j-1
+        ---->   end while
+        ---->   if getc(0) then
+        ---->   end if
+        ---->
+        --function mymatch(sequence a, sequence b)
+        --integer x,y,z
+        --
+        --      if length(a) = 0 then
+        ----     puts(1,"LHS must not be zero length")
+        ----     abort(1)
+        --              return 0
+        --      end if
+        --
+        --      x = myfind(a[1], b)
+        ---->  x = myfind(a[1], b,1)
+        --      if x = 0 then
+        --              return 0
+        --      end if
+        --
+        --      y = 2
+        --      z = x
+        --      x += 1
+        --      while x <= length(b) do
+        --              if y > length(a) then
+        --                      return z
+        --              end if
+        --              if equal(b[x],a[y]) then
+        --                      y += 1
+        --                      x += 1
+        --              else
+        --                      y = 1
+        --                      z += 1
+        --                      x = z
+        --              end if
+        --      end while
+        --
+        --      if y > length(a) then -- added PL
+        --              return z --
+        --      end if --
+        --      return 0
+        --end function
+        ---- End of Derek's routines
+        --
+        --global function Match(object a, sequence b)
+        --      if atom(a) then
+        ----<           a={a}
+        --              return find(a,b)
+        --      end if
+        --      if not length(a) then return 0 end if
+        --      return match(a,b)
+        --end function
+        --
+        
+-----------------------------------------------------------------------------------------
+--=====================================================================================--
+-----------------------------------------------------------------------------------------
+procedure Abort(sequence msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+        if match("a","abc")!=1 then Abort("match(\"a\",\"abc\")!=1\n") end if
+        if match("abc",{'a','b',{-1},'a','b','c'})!=4 then
+                Abort("match(\"abc\",{'a','b',{-1},'a','b','c'})!=4\n") end if
+        if match("c","c")!=1 then Abort("match(\"c\",\"c\")!=1\n") end if
+        if match("c",{'c'})!=1 then Abort("match(\"c\",{'c'})!=1\n") end if
+        if match("c","abc")!=3 then Abort("match(\"c\",\"abc\")!=3\n") end if
+        if match("cd","abcdef")!=3 then Abort("match(\"cd\",\"abcdef\")!=3\n") end if
+        if match("cd","acbccdef")!=5 then Abort("match(\"cd\",\"acbccdef\")!=5\n") end if
+
+if showprogress then puts(1,"t36_04\n") end if
+
+        if match("cdef","acbccdef")!=5 then
+                Abort("match(\"cdef\",\"acbccdef\")!=5\n") end if
+        if match("c",{'a','b','c'})!=3 then
+                Abort("match(\"c\",{'a','b','c'})!=3\n") end if
+        if match("cd",{'a','b','c','d','e','f'})!=3 then
+                Abort("match(\"cd\",{'a','b','c','d','e','f'})!=3\n") end if
+        if match("cd",{'a','c','b','c','c','d','e','f'})!=5 then
+                Abort("match(\"cd\",{'a','c','b','c','c','d','e','f'})!=5\n") end if
+        if match({'c'},"c")!=1 then
+                Abort("match({'c'},\"c\")!=1\n") end if
+        if match({'c'},"abc")!=3 then
+                Abort("match({'c'},\"abc\")!=3\n") end if
+        if match({'c','d'},"abcdef")!=3 then
+                Abort("match({'c','d'},\"abcdef\")!=3\n") end if
+        if match({'c','d'},"acbccdef")!=5 then
+                Abort("match({'c','d'},\"acbccdef\")!=5\n") end if
+
+if showprogress then puts(1,"t36_05\n") end if
+
+--
+-- Defeat the Compiler constant pooling.
+-- If we just use "one" then the compiler will emit code which
+-- all points at the same shared object. lower("ONE") forces
+-- the run-time to create a new, unique, sequence "one" each
+-- time it is called. (Until the day that the compiler spots
+-- a literal parameter to lower and does it at compile-time)
+--
+sequence one1,one2,one3,one4,
+         two1,two2,two3,two4
+--/* Not Phix (lower is auto-include from pcase.e)
+include ..\builtins\wildcard.e
+--*/
+one1=lower("ONE")
+one2=lower("ONE")
+one3=lower("ONE")
+one4=lower("ONE")
+two1=lower("TWO")
+two2=lower("TWO")
+two3=lower("TWO")
+two4=lower("TWO")
+
+if showprogress then puts(1,"t36_06\n") end if
+
+        if match({one1},{one2})!=1 then
+                Abort("match({one1},{one2})!=1\n") end if
+        if match({one1},{two1,'b',one2})!=3 then
+                Abort("match({one1},{two1,'b',one2})!=3\n") end if
+        if match({one1,two1},{'a','b',one2,two2,'e','f'})!=3 then
+                Abort("match({one1,two1},{'a','b',one2,two2,'e','f'})!=3\n") end if
+        if match({one1,two1},{'a',one2,'b',one3,one4,two2,'e','f'})!=5 then
+                Abort("match({one1,two1},{'a',one2,'b',one3,one4,two2,'e','f'})!=5\n") end if
+        if match({one1,two1,'e','f'},{'a',one2,'b',one3,one4,two2,'e','f'})!=5 then
+                Abort("match({one1,two1,'e','f'},{'a',one2,'b',one3,one4,two2,'e','f'})!=5\n") end if
+        if match("cdec","acbccdec")!=5 then
+                Abort("match(\"cdec\",\"acbccdec\")!=5\n") end if
+        if match({one1,two1,'e',two3},{'a',one2,'b',one3,one4,two2,'e',two4})!=5 then
+                Abort("match({one1,two1,'e',two3},{'a',one2,'b',one3,one4,two2,'e',two4})!=5\n") end if
+        if match({one1},{one2})!=1 then 
+                Abort("match({one1},{one2})!=1\n") end if
+        if match({one1},{two1,'b',one2})!=3 then
+                Abort("match({one1},{two1,'b',one2})!=3\n") end if
+        if match({one1,'d'},{'a','b',one2,'d','e','f'})!=3 then 
+                Abort("match({one1,'d'},{'a','b',one2,'d','e','f'})!=3\n") end if
+
+if showprogress then puts(1,"t36_07\n") end if
+
+        if match({one1,'d'},{'a',one2,'b',one3,one4,'d','e','f'})!=5 then
+                Abort("match({one1,'d'},{'a',one2,'b',one3,one4,'d','e','f'})!=5\n") end if
+        if match({one1,'d','e','f'},{'a',one2,'b',one3,one4,'d','e','f'})!=5 then
+                Abort("match({one1,'d','e','f'},{'a',one2,'b',one3,one4,'d','e','f'})!=5\n") end if
+        if match({one1,'d','e','d'},{'a',one2,'b',one3,one4,'d','e','d'})!=5 then
+                Abort("match({one1,'d','e','d'},{'a',one2,'b',one3,one4,'d','e','d'})!=5\n") end if
+        if match({one1,'d','e',one2},{'a',one2,'b',one3,one4,'d','e',one4})!=5 then
+                Abort("match({one1,'d','e',one2},{'a',one2,'b',one3,one4,'d','e',one4})!=5\n") end if
+        if match({'c',two1},{'a','b','c',two2,'e','f'})!=3 then
+                Abort("match({'c',two1},{'a','b','c',two2,'e','f'})!=3\n") end if
+        if match("cd","accccdef")!=5 then Abort("match(\"cd\",\"accccdef\")!=5\n") end if
+        if match({'c',two1},{'a','c','c','c','c',two2,'e','f'})!=5 then 
+                Abort("match({'c',two1},{'a','c','c','c','c',two2,'e','f'})!=5\n") end if
+        if match("cdef","accccdef")!=5 then Abort("match(\"cdef\",\"accccdef\")!=5\n") end if
+        if match({'c',two1,'e','f'},{'a','c','c','c','c',two2,'e','f'})!=5 then 
+                Abort("match({'c',two1,'e','f'},{'a','c','c','c','c',two2,'e','f'})!=5 \n") end if
+        if match("cded","acdccded")!=5 then Abort("match(\"cded\",\"acdccded\")!=5\n") end if
+        if match({'c',two1,'e',two3},{'a','c','c','c','c',two2,'e',two4})!=5 then
+                Abort("match({'c',two1,'e',two3},{'a','c','c','c','c',two2,'e',two4})!=5\n") end if
+
+if showprogress then puts(1,"t36_08\n") end if
+
+sequence ababc, abababc
+        ababc = "ababc"
+        abababc = "abababc"
+        if match(ababc,abababc)!=3 then Abort("match(ababc,abababc)!=3[1]\n") end if
+        ababc = "ababc"
+        abababc = "abababc"
+        ababc[5]={2}
+        abababc[7]={2}
+        if match(ababc,abababc)!=3 then Abort("match(ababc,abababc)!=3[2]\n") end if
+
+if showprogress then puts(1,"t36_09\n") end if
+
+        ababc[1]={1}
+        ababc[3]={1}
+        abababc[1]={1}
+        abababc[3]={1}
+        abababc[5]={1}
+        if match(ababc,abababc)!=3 then Abort("match(ababc,abababc)!=3[3]\n") end if
+        ababc[5]={2}
+        abababc[7]={2}
+        if match(ababc,abababc)!=3 then Abort("match(ababc,abababc)!=3[4]\n") end if
+
+if showprogress then puts(1,"t36_10\n") end if
+
+--if getc(0) then end if
+

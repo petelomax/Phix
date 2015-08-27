@@ -1,0 +1,58 @@
+--
+-- enumfont.exw
+-- ============
+--
+--  Small demo to show the installed fonts.
+--  Originally created while tracking down a bug (in opPeeki, 16/11/08)
+--
+
+--/**/with console 4.0
+without trace
+
+--/* Not Required for Phix:
+include ..\builtins\dll.e       -- open_dll/define_c_func/C_POINTER/C_LONG/C_INT/call_back
+include ..\builtins\machine.e   -- allocate()
+include ..\builtins\peekstr.e   -- peek_string()
+--*/
+
+constant user32 = open_dll("user32.dll"),
+         gdi32  = open_dll("gdi32.dll")
+
+constant
+    C_PTR = C_POINTER,
+    xGetDC = define_c_func(user32,"GetDC",{C_PTR},C_PTR),
+    xReleaseDC = define_c_func(user32,"ReleaseDC",{C_PTR,C_PTR},C_INT),
+    xEnumFontFamiliesExA = define_c_func(gdi32,"EnumFontFamiliesExA",{C_LONG,C_LONG,C_PTR,C_LONG,C_LONG},C_INT)
+
+constant lfFaceName = 28,
+         sizeofLOGFONT = 60,
+         tmPitchAndFamily = 51
+
+function EnumFontFamExProc(atom logfont, atom textmetric, atom fonttype, atom appdata)
+sequence onefont
+integer pandf
+    if fonttype or appdata then end if -- supppress warnings
+    pandf = peek(textmetric+tmPitchAndFamily)
+--?pandf
+    onefont = peek_string(logfont+lfFaceName)
+    puts(1,onefont&'\n')
+    return 1 -- continue enumerations (0 quits)
+end function
+
+atom lf
+atom hDC
+atom cbid
+object void
+    hDC = c_func(xGetDC,{NULL})
+    lf = allocate(sizeofLOGFONT)
+    mem_set(lf,0,sizeofLOGFONT)
+    cbid = call_back(routine_id("EnumFontFamExProc"))
+    void = c_func(xEnumFontFamiliesExA,{hDC,lf,cbid,0,0})
+--?void
+    free(lf)
+    void = c_func(xReleaseDC,{NULL,hDC})
+
+puts(1,"Press Enter...")
+if getc(0) then end if
+
+

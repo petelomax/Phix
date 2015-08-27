@@ -1,0 +1,312 @@
+-- t60 - testbed for 32/64 win/lnx build
+-- t01: include puts1.e ; getc(0) => getc0() ; puts(1, => puts1(
+--warning: emitHex5call(4=opMovti) skipped for newEmit (pilx86.e line 952)      [VMep[opMovti] is unassigned/TchkFail]
+--warning: emitHex5call(84=opAddiii) skipped for newEmit (pilx86.e line 952)
+
+include puts1.e
+--
+-- t01type.exw
+--
+-- Phix tests: variable declaration and type checking. Trivial stuff.
+--  - modified to avoid the new 'probable logic error (always true/false)'s
+--    (as would occur in eg integer i; if integer(i) then.. )
+--  - modified to avoid the new localtypes handling (similar to above, but
+--    this time in eg object o o=1 if integer(o) then.. )
+--
+without type_check
+constant showprogress=01
+if showprogress then puts1("started\n") end if
+
+--/* Not required for Phix (the string type is builtin):
+type string(object s)
+object c
+    if atom(s) then return 0 end if
+    for k = 1 to length(s) do
+        c=s[k]
+        if not integer(c) then return 0 end if
+        if c<0 then return 0 end if
+        if c>#FF then return 0 end if
+    end for
+    return 1
+end type
+--*/
+
+-- dummy function to thwart localtypes [S_ltype]:
+--  to1type.exw predates the introduction of localtypes, which now does:
+--  After say X="string" the compiler flags X as (currently) a string,
+--  whereas (as long as F gets passed int/atom/string/sequence) if you 
+--  do X=F("string") it will not suspect that the result type of F(),
+--  and hence that X is (now) anything other than object.
+--  NB for this to work proper, you must pass multiple argument types.
+--  All uses of F() below have been added in response to compiler errors.
+function F(object o) return o end function
+
+-- ple(1) comments indicate lines which the compiler (correctly) flags with
+--  "probable logic error (always true)", and ple(0) the false variety.
+-- (btw, after "O=1", both "integer(O)" and "not integer(O)" are ple(1))
+
+integer errorcount
+        errorcount = 0
+procedure ERROR(string s)
+    puts1(s)
+    errorcount += 1
+end procedure
+
+--integer i=1
+--atom ai=1, af=1.5
+--atom f=1.5
+--sequence q={{},{}}
+--string s=""
+--object o
+--RDS Eu variant (Phix will run either this or the above):
+integer i i=1
+atom ai, af
+     ai=F(1) af=1.5
+atom f f=1.5
+sequence q q={{},{}}
+string s s=""
+object o
+
+--  if not integer(i) then ERROR("i is NOT an integer!\n")          -- ple(1)
+    o = F(i)
+    if not integer(o) then ERROR("i is NOT an integer!\n")
+    elsif showprogress then puts1("i is an integer\n") end if
+--  if not atom(i) then ERROR("i is NOT an atom!\n")                -- ple(1)
+    if not atom(o) then ERROR("i is NOT an atom!\n")
+    elsif showprogress then puts1("i is an atom\n") end if
+--  if sequence(i) then ERROR("i IS a sequence!\n")                 -- ple(0)
+--  elsif showprogress then puts1("i is not a sequence\n") end if
+--  if string(i) then ERROR("i IS a string!\n")                     -- ple(0)
+--  elsif showprogress then puts1("i is not a string\n") end if 
+    o=i
+    i=o
+
+    o = F(ai)
+    if not integer(ai) then ERROR("ai is NOT an integer!\n")
+    elsif showprogress then puts1("ai is an integer\n") end if
+    if not integer(o) then ERROR("ai is NOT an integer!\n")
+    elsif showprogress then puts1("ai is an integer\n") end if
+--  if integer(af) then ERROR("af IS an integer!\n")                -- ple(0)
+--  elsif showprogress then puts1("af is not an integer\n") end if
+    if not atom(o) then ERROR("ai is NOT an atom!\n") 
+    elsif showprogress then puts1("ai is an atom\n") end if
+    o = F(af)
+--  if not atom(af) then ERROR("af is NOT an atom!\n")              -- ple(1)
+    if not atom(o) then ERROR("af is NOT an atom!\n") 
+    elsif showprogress then puts1("af is an atom\n") end if
+--  if sequence(ai) then ERROR("ai IS a sequence!\n")               -- ple(0)
+--  elsif showprogress then puts1("ai is not a sequence\n") end if
+--  if sequence(af) then ERROR("af IS a sequence!\n")               -- ple(0)
+--  elsif showprogress then puts1("af is not a sequence\n") end if
+--  if string(ai) then ERROR("ai IS a string!\n")                   -- ple(0)
+--  elsif showprogress then puts1("ai is not a string\n") end if    
+--  if string(af) then ERROR("af IS a string!\n")                   -- ple(0)
+--  elsif showprogress then puts1("af is not a string\n") end if
+    o=ai
+    ai=o
+    o=af
+    af=o
+
+--  if integer(f) then ERROR("f IS an integer!\n")                  -- ple(0)
+--  elsif showprogress then puts1("f is not an integer\n") end if
+    o = F(f)
+    if integer(o) then ERROR("F(f) IS an integer!\n")
+    elsif showprogress then puts1("F(f) is not an integer\n") end if
+--  if not atom(f) then ERROR("f is NOT an atom!\n")                -- ple(1)
+    if not atom(o) then ERROR("F(f) is NOT an atom!\n") 
+    elsif showprogress then puts1("F(f) is an atom\n") end if
+--  if sequence(f) then ERROR("f IS a sequence!\n")                 -- ple(0)
+--  elsif showprogress then puts1("f is not a sequence\n") end if
+--  if string(f) then ERROR("f IS a string!\n")                     -- ple(0)
+--  elsif showprogress then puts1("f is not a string\n") end if 
+    o=f
+    f=o
+
+--  if integer(q) then ERROR("q IS an integer!\n")                  -- ple(0)
+--  elsif showprogress then puts1("q is not an integer\n") end if
+--  if atom(q) then ERROR("q IS an atom!\n")                        -- ple(0)
+--  elsif showprogress then puts1("q is not an atom\n") end if
+    o = F(q)
+--  if not sequence(q) then ERROR("q is NOT a sequence!\n")         -- ple(1)
+    if not sequence(o) then ERROR("q is NOT a sequence!\n")
+    elsif showprogress then puts1("q is a sequence\n") end if
+--  if string(q) then ERROR("q IS a string!\n")                     -- ple(1)
+--  elsif showprogress then puts1("q is not a string\n") end if
+    if string(o) then ERROR("q IS a string!\n")
+    elsif showprogress then puts1("q is not a string\n") end if
+--DEV for qs I was probably thinking of eg q={'f','r','e','d'}
+--  and string qs qs=q (???automatic conversion???)
+-- note that {'f','r','e','d'}="fred" will be true, but that
+-- string({'f','r','e','d'}) false under Phix, that is where 
+-- string() is builtin not that "--/* Not required for Phix" 
+-- user defined type as shown above.
+--  if not string(qs) then ERROR("qs is NOT a string\n") 
+--  elsif showprogress then puts1("qs is not a strin\n") end if 
+    o=q
+    q=o
+
+--  if integer(s) then ERROR("s IS an integer!\n")                  -- ple(0)
+--  elsif showprogress then puts1("s is not an integer\n") end if
+--  if atom(s) then ERROR("s IS an atom!\n")                        -- ple(0)
+--  elsif showprogress then puts1("s is not an atom\n") end if
+    o = F(s)
+--  if not sequence(s) then ERROR("s is NOT a sequence!\n")         -- ple(1)
+    if not sequence(o) then ERROR("s is NOT a sequence!\n")
+    elsif showprogress then puts1("s is a sequence\n") end if
+--  if not string(s) then ERROR("s is NOT a string!\n")             -- ple(1)
+    if not string(o) then ERROR("s is NOT a string!\n")
+    elsif showprogress then puts1("s is a string\n") end if 
+    o=s
+    s=o
+
+integer k
+--  k = integer(i)                                                  -- ple(1)
+--  if not integer(i) then ERROR("i is NOT an integer!\n")          -- ple(1)
+    o = F(i)
+    k = integer(o)
+    if not k then ERROR("i is NOT an integer!\n") 
+    elsif showprogress then puts1("i is an integer\n") end if
+--  k = atom(i)                                                     -- ple(1)
+    k = atom(o)
+    if not k then ERROR("i is NOT an atom!\n") 
+    elsif showprogress then puts1("i is an atom\n") end if
+--  k = sequence(i)                                                 -- ple(0)
+--  if k then ERROR("i IS a sequence!\n") 
+--  elsif showprogress then puts1("i is not a sequence\n") end if
+--  k = string(i)                                                   -- ple(0)
+--  if k then ERROR("i IS a string!\n") 
+--  elsif showprogress then puts1("i is not a string\n") end if 
+    o=i
+    i=o
+
+    o = F(ai)
+    k = integer(ai)
+    if not k then ERROR("ai is NOT an integer!\n")
+    elsif showprogress then puts1("ai is an integer\n") end if
+    k = integer(o)
+    if not k then ERROR("ai is NOT an integer!\n")
+    elsif showprogress then puts1("ai is an integer\n") end if
+--  k = integer(af)                                                 -- ple(0)
+--  if k then ERROR("af IS an integer!\n") 
+--  elsif showprogress then puts1("af is not an integer\n") end if
+    k = atom(o)
+    if not k then ERROR("ai is NOT an atom!\n") 
+    elsif showprogress then puts1("ai is an atom\n") end if
+    o = F(af)
+--  k = atom(af)                                                    -- ple(1)
+--  if not atom(af) then ERROR("af is NOT an atom!\n")              -- ple(1)
+    k = integer(o)
+    if k then ERROR("F(af) IS an integer!\n") 
+    elsif showprogress then puts1("F(af) is not an integer\n") end if
+    k = atom(o)
+    if not k then ERROR("F(af) is NOT an atom!\n") 
+    elsif showprogress then puts1("F(af) is an atom\n") end if
+--  k = sequence(ai)                                                -- ple(0)
+--  if k then ERROR("ai IS a sequence!\n") 
+--  elsif showprogress then puts1("ai is not a sequence\n") end if
+--  k = sequence(af)                                                -- ple(0)
+--  if k then ERROR("af IS a sequence!\n") 
+--  elsif showprogress then puts1("af is not a sequence\n") end if
+--  k = string(ai)                                                  -- ple(0)
+--  if k then ERROR("ai IS a string!\n") 
+--  elsif showprogress then puts1("ai is not a string\n") end if    
+--  k = string(af)                                                  -- ple(0)
+--  if k then ERROR("af IS a string!\n") 
+--  elsif showprogress then puts1("af is not a string\n") end if
+    o=ai
+    ai=o
+    o=af
+    af=o
+
+--  k = integer(f)                                                  -- ple(0)
+--  if k then ERROR("f IS an integer!\n") 
+--  elsif showprogress then puts1("f is not an integer\n") end if
+    o = F(f)
+--  k = atom(f)                                                     -- ple(1)
+--  if not k then ERROR("f is NOT an atom!\n") 
+    k = atom(o)
+    if not k then ERROR("f is NOT an atom!\n") 
+    elsif showprogress then puts1("f is an atom\n") end if
+--  k = sequence(f)                                                 -- ple(0)
+--  if k then ERROR("f IS a sequence!\n") 
+--  elsif showprogress then puts1("f is not a sequence\n") end if
+--  k = string(f)                                                   -- ple(0)
+--  if k then ERROR("f IS a string!\n") 
+--  elsif showprogress then puts1("f is not a string\n") end if 
+    o=f
+    f=o
+
+--  k = integer(q)                                                  -- ple(0)
+--  if k then ERROR("q IS an integer!\n") 
+--  elsif showprogress then puts1("q is not an integer\n") end if
+--  k = atom(q)                                                     -- ple(0)
+--  if k then ERROR("q IS an atom!\n") 
+--  elsif showprogress then puts1("q is not an atom\n") end if
+    o = F(q)
+--  k = sequence(q)                                                 -- ple(1)
+--  if not k then ERROR("q is NOT a sequence!\n") 
+    k = sequence(o)
+    if not k then ERROR("q is NOT a sequence!\n") 
+    elsif showprogress then puts1("q is a sequence\n") end if
+--  k = string(q)                                                   -- ple(0)
+--  if k then ERROR("q IS a string!\n") 
+--  elsif showprogress then puts1("q is not a string\n") end if
+    k = string(o)
+    if k then ERROR("q IS a string!\n") 
+    elsif showprogress then puts1("q is not a string\n") end if
+--DEV for qs I was probably thinking of eg q={'f','r','e','d'}
+--  and string qs qs=q (???automatic conversion???)
+-- note that {'f','r','e','d'}="fred" will be true, but that
+-- string({'f','r','e','d'}) false under Phix, that is where 
+-- string() is builtin not "--/* Not required for Phix" user
+-- defined type as shown above.
+--  k = string(qs)
+--  if not k then ERROR("qs is NOT a string\n") 
+--  elsif showprogress then puts1("qs is not a strin\n") end if 
+    o=q
+    q=o
+
+--  k = integer(s)                                                  -- ple(0)
+--  if k then ERROR("s IS an integer!\n") 
+--  elsif showprogress then puts1("s is not an integer\n") end if
+--  k = atom(s)                                                     -- ple(0)
+--  if k then ERROR("s IS an atom!\n") 
+--  elsif showprogress then puts1("s is not an atom\n") end if
+    o = F(s)
+--  k = sequence(s)                                                 -- ple(1)
+--  if not sequence(s) then ERROR("s is NOT a sequence!\n") 
+    k = sequence(o)
+    if not k then ERROR("s is NOT a sequence!\n") 
+    elsif showprogress then puts1("s is a sequence\n") end if
+--  k = string(s)                                                   -- ple(1)
+--  if not k then ERROR("s is NOT a string!\n") 
+    k = string(o)
+    if not k then ERROR("s is NOT a string!\n") 
+    elsif showprogress then puts1("s is a string\n") end if 
+    o=s
+    s=o
+
+integer I,J,K
+    I=1
+    J=2
+    K=I+J
+    if K!=3 then ERROR("K!=3\n") end if
+    K=I-J
+    if K!=-1 then ERROR("K!=-1\n") end if
+
+    if errorcount then 
+        puts1("some error...\n")
+        getc0()
+        abort(1)
+    end if
+
+-- Added 19/10/09:
+--  (broke in Expr, as new code to spot the <literal int><relop><literal int>
+--   and do it immediately, left emitON=0 and hence opstack[opsidx]=0, it then
+--   "ate" the (inner) lhs but left the "flag" indicating it had done so as 0,
+--   leading to an ioob in cmpcheck() during compilation.)
+    if 1=2 then
+        if 1=4 then
+        end if
+    end if
+

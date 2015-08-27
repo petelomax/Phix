@@ -1,0 +1,145 @@
+--
+-- t51nstc.exw
+--
+--  Tests for an upgrade to Expr, specifically nested condition handling.
+--
+--/**/with console
+
+sequence expected   -- length of 64*5 (2^6, where 6 is no of vars, * no of tests)
+
+-- This pattern is meaningless/computer-generated, it just tests that
+--  nested conditions continue to behave exactly the same all the time.
+
+    expected = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,
+                0,1,0,0,0,0,1,0,1,0,0,1,0,1,0,0,1,1,1,0,
+                0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,
+                0,1,0,0,0,0,1,0,1,0,0,1,0,1,0,0,1,1,1,0,
+                0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,
+                0,1,0,0,0,0,1,0,1,0,0,1,0,1,0,0,1,1,1,0,
+                0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,1,
+                0,1,0,0,1,0,1,0,1,1,0,1,0,1,1,0,1,1,1,1,
+                0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,1,
+                0,1,0,0,1,0,1,0,1,1,0,1,0,1,1,0,1,1,1,1,
+                0,1,0,1,0,0,1,0,1,0,0,1,0,1,0,0,1,0,1,1,
+                0,1,0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,
+                0,1,0,1,0,0,1,0,1,0,0,1,0,1,0,0,1,0,1,1,
+                0,1,0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,
+                0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,
+                0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+
+integer idx
+    idx = 0
+    
+procedure test(integer a, integer b, integer c, integer d, integer e, integer f)
+sequence r,s
+integer t
+    r = repeat(0,5)
+    if a and (b or c) and d and (e or f) then 
+        r[1] = 1
+    end if
+    if a or (b and c) or d or (e and f) then 
+        r[2] = 1
+    end if
+    if (a and b and c) or (d and e and f) then 
+        r[3] = 1
+    end if
+    if (a and (b or c)) or (d and (e or f)) then 
+        r[4] = 1
+    end if
+    if (a or (b and c)) and (d or (e and f)) then 
+        r[5] = 1
+    end if
+
+    s = repeat(0,5)
+    if a=1 and (b=1 or c=1) and d=1 and (e=1 or f=1) then 
+        s[1] = 1
+    end if
+    if a=1 or (b=1 and c=1) or d=1 or (e=1 and f=1) then 
+        s[2] = 1
+    end if
+    if (a=1 and b=1 and c=1) or (d=1 and e=1 and f=1) then 
+        s[3] = 1
+    end if
+    if (a=1 and (b=1 or c=1)) or (d=1 and (e=1 or f=1)) then 
+        s[4] = 1
+    end if
+    if (a=1 or (b=1 and c=1)) and (d=1 or (e=1 and f=1)) then 
+        s[5] = 1
+    end if
+    if not equal(r,s) then
+        puts(1,"some error[1]\n")
+        if getc(0) then end if
+        abort(1)
+    end if
+
+    -- (I'm using t here to check for tmp = toBool(expr) t=tmp;
+    --      instead of just a plain t = toBool(expr), iyswim.)
+
+    t = a and (b or c) and d and (e or f)           s[1] = t
+    t = a or (b and c) or d or (e and f)            s[2] = t
+    t = (a and b and c) or (d and e and f)          s[3] = t
+    t = (a and (b or c)) or (d and (e or f))        s[4] = t
+    t = (a or (b and c)) and (d or (e and f))       s[5] = t
+    if not equal(r,s) then
+        puts(1,"some error[2]\n")
+        if getc(0) then end if
+        abort(1)
+    end if
+
+    t = a=1 and (b=1 or c=1) and d=1 and (e=1 or f=1)       s[1] = t
+    t = a=1 or (b=1 and c=1) or d=1 or (e=1 and f=1)        s[2] = t
+    t = (a=1 and b=1 and c=1) or (d=1 and e=1 and f=1)      s[3] = t
+    t = (a=1 and (b=1 or c=1)) or (d=1 and (e=1 or f=1))    s[4] = t
+    t = (a=1 or (b=1 and c=1)) and (d=1 or (e=1 and f=1))   s[5] = t
+    if not equal(r,s) then
+        puts(1,"some error[3]\n")
+        if getc(0) then end if
+        abort(1)
+    end if
+
+    -- feel free to add anything I missed.
+    for i=1 to 5 do
+        idx += 1
+        if r[i]!=expected[idx] then
+            puts(1,"some error[4]\n")
+            if getc(0) then end if
+            abort(1)
+        end if
+--      expected[idx] = r[i]
+    end for
+end procedure
+
+    -- invoke test with every possible permutation of true/flase parameters:
+    for a=0 to 1 do
+        for b=0 to 1 do
+            for c=0 to 1 do
+                for d=0 to 1 do
+                    for e=0 to 1 do
+                        for f=0 to 1 do
+                            test(a,b,c,d,e,f)
+                        end for
+                    end for
+                end for
+            end for
+        end for
+    end for
+--?expected
+--if getc(0) then end if
+
+-- Added 20/06/2011: (Change to "(",")" handling in Factor().) 
+-- (It was setting k to 0/1, as it was forcing the bool (because of the "and") at the = not the ())
+-- (ps/dev/sug: the compiler is still not quite smart enough to work out that k is always 1024 here,
+--              which I have left as an exercise for the reader...)
+integer k
+k = 1024 * (1 and 1)
+if k=1024 then
+--  puts(1,"1024\n")
+elsif k=1 then
+    puts(1,"1 (BUG!!)\n")
+    k = 9/0
+else
+    k = 9/0
+end if
+--if getc(0) then end if
+--abort(1)
+

@@ -1,0 +1,663 @@
+--
+-- hd.exw
+-- ======
+-- hex dump/binary compare program.
+-- p hd.exw <file1> will dump that file
+-- p hd.exw <file1> <file2> will compare those files, showing binary differences.
+--  Note that text files should not be compared this way, instead use eg Edita.
+--  Also note that two files can be compared faster than formatting the hex and
+--  then comparing the hex strings before display, which is what this does.
+-- If called with no parameters it will either prompt or use hard-coded files,
+--  see below (approx line 70).
+-- hd[.exe] may of course be used instead of p hd.exw if it has been compiled.
+--
+
+--/**/with console
+
+--/* Not required for Phix:
+include ..\builtins\get.e   -- wait_key()
+--function wait_key() return machine_func(26, 0) end function
+
+include ..\builtins\sort.e    -- (as included by file.e)
+include ..\builtins\misc.e    -- (as included by file.e)
+include ..\builtins\file.e    -- current_dir(), seek() and where()
+--function dir(sequence name) return machine_func(22, name) end function
+--function current_dir() return machine_func(23, 0) end function
+--function seek(integer fn, atom pos) return machine_func(19, {fn, pos}) end function
+--function where(integer fn) return machine_func(20, fn) end function
+
+--*/
+
+procedure Abort(sequence msg)
+    puts(1, msg)
+    puts(1, "Press Enter...")
+    if wait_key() then end if
+    abort(1)
+end procedure
+
+--
+-- The character map. Non-printable characters are shown as '.'
+-- As bytes range from 0 to 255, just add 1 & subscript 1..256.
+-- Hence it is cmap['a'+1] which is 'a' rather than cmap['a'].
+--
+--sequence cmap
+--  cmap=repeat('.', 256)
+--  for i=' ' to 255 do
+--      cmap[i+1]=i
+--  end for
+
+integer cord -- 0 = dump, 1 = compare, 2 = compare (file 2 shorter than file 1)
+
+atom dump_from
+     dump_from = 0--#7000--#FE00
+
+
+integer l, fn, flen, fn2, flen2, flen1, umode
+sequence cl3, cl4
+
+    cl3 = command_line()
+    cord = 0
+    fn = -1
+    if length(cl3) < 3 then
+--      while 1 do
+--          puts(1,"Enter file to dump/compare (null to exit):")
+--          cl3 = gets(0)
+--          l = length(cl3)
+--          if l and cl3[l]='\n' then
+--              l -= 1
+--              cl3 = cl3[1..l]
+--          end if
+--          if l=0 then abort(0) end if
+--          fn = open(cl3, "ub")
+--          if fn != -1 then exit end if
+--          puts(1,"\nCannot open "&cl3&'\n')
+--      end while
+--      puts(1,"\nEnter file to compare against (null to dump above):")
+--      cl4 = gets(0)
+--      l = length(cl4)
+--      if l and cl4[l]='\n' then
+--          l -= 1
+--          cl4 = cl4[1..l]
+--      end if
+--      cord = (l!=0)
+--      puts(1,'\n')
+        l = 0   -- avoid warning
+--      --
+--      -- Or you can comment out the above and hard-code files like this:
+--      --
+        cl4 = ""
+--      cl3 = "hd.exw"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\edita.edb"
+--      cl3 = "C:\\Program Files\\Phix\\pd.exe"
+--      cl3 = "C:\\Program Files\\Phix\\e7.exe"
+--?cl3
+--      cl3 = "C:\\Program Files\\Phix\\p.exe"
+--      cl3 = "C:\\Program Files\\Phix\\w32s.txt"
+--      cl3 = "C:\\Program Files\\Phix\\ccaout.e"
+--      cl3 = "C:\\Program Files\\Phix\\g\\lb\\hellomsg.exe"
+--      cl3 = "C:\\Program Files\\Phix\\dll\\lb\\main.exe"
+--      cl3 = "C:\\Program Files\\Phix\\SysTray.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\p.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\ok.ico"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\pw.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\pstub.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\asm\\et\\pe32.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\e01.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\e01.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\demo\\HelloUTF8.exw"
+--      cl3 = "C:\\Users\\Pete\\AppData\\Local\\Temp\\pwy.DMP"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\asm\\et\\e01.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\e01.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\test.edb"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\test\\ex.err"
+        cl3 = "C:\\Users\\Pete\\Documents\\setup.reg"
+        cl4 = "C:\\Users\\Pete\\Documents\\temp.reg"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\test\\t39fio.dat"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\e01"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\good.exe"
+--      cl4 = "C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\bad.exe"
+--      cl3 = "C:\\Program Files\\7-Zip\\7z.exe"
+--      cl3 = "C:\\Program Files\\7-Zip\\7z.dll"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\asm\\of\\pedll.dll"
+--      cl3 = "C:\\Users\\Pete\\Downloads\\qman70\\Share\\hello"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\e02.exw"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\test\\t58tmp.txt"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\test\\t01typeX.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\asm\\fasm\\hello.exe"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\asm\\fasm\\errormsg.dll"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\f01.txt"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\demo\\misc\\unicode\\Hello.UTF8.txt"
+--      cl3 = "E:\\downloads\\webnew\\EvaTalksX\\EvaTalks-231wp.flv"
+--      cl3 = "E:\\downloads\\webnew\\EvaTalksX\\EvaTalks-232.flv"
+--      cl3 = "E:\\downloads\\webnew\\EvaTalksX\\EvaTalks-227.flv"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\demo\\PE_Stuff\\elf\\test"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\ccaout.e"
+--      cl3 = "C:\\Program Files (x86)\\Phix\\official.exe"
+--      cl3 = "C:\\Program Files (x86)\\Edita\\test.reg"
+--      cl3 = "C:\\Program Files\\Edita\\Edita.exe"
+--      cl3 = "C:\\Program Files\\Phix\\t29.exe"
+--      cl3 = "C:\\command.com"
+--      cl3 = "C:\\Program Files\\Phix\\pf.exe"
+--      cl3 = "C:\\Program Files\\Phix\\zz.exe"
+--      cl3 = "C:\\Program Files\\Phix\\demo\\tak.exe"
+--      cl4 = "C:\\Program Files\\Phix\\pf1.exe"
+--      cl3 = "C:\\Program Files\\Phix\\crud\\icons\\mi\\lb32m.bmp"
+--      cl3 = "C:\\Program Files\\Phix\\demo\\arwen\\lightbulb32m.bmp"
+--      cl3 = "C:\\Program Files\\Phix\\t2.exe"
+--      cl3 = "C:\\Program Files\\Phix\\exw.exe"
+--      cl3 = "C:\\Program Files\\Phix\\new\\elink\\elink\\elink.exe"
+--      cl3 = "C:\\Program Files\\Phix\\new\\dss\\deluxss3.exe"
+--      cl3 = "C:\\Program Files\\Phix\\asm\\95.ico"
+--      cl3 = "C:\\Program Files\\Phix\\ok.ico"
+--      cl3 = "C:\\Program Files\\Phix\\bin\\euphoria.ico"
+--      cl3 = "C:\\Program Files\\Phix\\demo\\arwen\\ok.ico"
+--      cl3 = "C:\\Program Files\\Phix\\crud\\icons\\mi\\ok16.bmp"
+--      cl4 = "C:\\Program Files\\Phix\\crud\\icons\\mi\\okzz.ico"
+--      cl3 = "C:\\Program Files\\Phix\\demo\\arwen\\lightbulb.ico"
+--      cl3 = "C:\\Program Files\\Phix\\t3.exw"
+--      cl3 = "C:\\P2\\new\\bind\\esh.exw"
+--      cl3 = "C:\\Program Files\\Phix\\demo\\arwen\\arwen.ew"
+--      cl3 = "C:\\Program Files\\Phix\\demo\\pve\\original.exw"
+--      cl4 = "C:\\Program Files\\Phix\\demo\\pve\\output.exw"
+
+--      cl4 = "C:\\Program Files\\Phix\\p1.exe"
+--      cl3 = "C:\\Program Files\\Phix\\pc.exe"
+--      cl3 = "C:\\Program Files\\Phix\\px.exe"
+--      cl3 = "C:\\Program Files\\Phix\\bench\\benchtst.exe"
+--      cl3 = "C:\\Program Files\\Phix\\test.exe"
+--      cl3 = "C:\\Program Files\\Phix\\exw.exe"
+--      cl3 = "C:\\Euphoria\\bin\\ex.exe"
+--      cl3 = "D:\\Programs\\Agent\\data\\0000FE39.DAT"
+--      cl3 = "C:\\Program Files\\Phix\\pw.exe"
+--      cl3 = "C:\\Program Files\\Phix\\test.exw"
+--      cl3 = "C:\\Program Files\\Phix\\test.dat"
+--      cl4 = "C:\\Program Files\\Phix\\p.err"
+--      cl3 = "C:\\Program Files\\Phix\\demo\\arwen\\pftp.exe"
+--      cl3 = "C:\\Program Files\\Agent\\Data\\0000080F.DAT"
+--      cl3 = "C:\\Program Files\\Edita\\edita.exe"
+--      cl3 = "C:\\P2\\fasmWrapper\\FASM4E\\FASM4E.EW"
+--      cl3 = "C:\\windows\\command\\edit.hlp"          -- 4040
+--      cl3 = "C:\\program files\\agent\\agent.hlp"     -- 3F5F
+--      cl3 = "C:\\program files\\depends\\depends.hlp" -- 3F5F
+--      cl3 = "C:\\temp\\win32\\win32.hlp"              -- 3F5F
+--      cl3 = "C:\\temp\\hlp\\f1j\\f1jockey.hlp"        -- 3F5F
+--      cl3 = edit:"C:\windows\command\edit.hlp"
+--      cl3 = "C:\\P2\\new\\EUCount\\database.e"
+--      cl3 = "C:\\Program Files\\Phix\\bench\\bt2.exe"
+--      cl3 = "C:\\Windows\\system\\kernel32.dll"
+--      cl3 = "C:\\Windows\\system\\user32.dll"
+--      cl3 = "C:\\temp\\wddiag.exe"
+--      cl3 = "C:\\Program Files\\Phix\\docs\\opcodes.htm"
+--      cl3 = "C:\\P2\\seqparse\\dexu"
+--              cl4 = "C:\\temp\\PLnpad.txt"
+--      cl3 = "C:\\temp\\PLwpad.txt"
+--                cl3 = "C:\\Program Files\\Phix\\edita\\epf.exe"
+--      cl4 = "C:\\Program Files\\Phix\\edita\\edita.exe"
+--      cl3 = "C:\\Program Files\\Phix\\edita\\edita.edb"
+--      cl3 = "C:\\windows\\fonts\\monaco_5.1.ttf"
+--      cl3 = "C:\\Program Files\\Phix\\asm\\fasm166\\lasterr.exe"
+--      cl4 = "C:\\Program Files\\Phix\\asm\\fasm166\\examples\\dll\\lasterr.exe"
+--      cl3 = "C:\\program files\\edita\\edita.ini"
+--      cl3 = "C:\\program files\\edita\\pp\\ppmain.ew"
+--      cl3 = "C:\\Program Files\\Phix\\test\\t.exe"
+--      cl4 = "hd.exw"
+        cord = (length(cl4)!=0)
+    else
+        if length(cl3)=4 then
+            cl4=cl3[4]
+            cord = 1
+        end if
+        cl3=cl3[3]
+    end if
+    if fn = -1 then
+        if not cord then
+            fn = open(cl3, "ub")
+        end if
+        if fn = -1 then
+            umode=0
+            fn = open(cl3, "rb")
+        else
+            umode=1
+        end if
+        if fn = -1 then
+            Abort("Cannot open "&cl3&'\n')
+        end if
+        if not umode and not cord then
+            puts(1,"Warning: unable to open in update mode; continuing in read-only mode.\n\n")
+        end if
+    end if
+    if seek(fn,-1) then Abort("seek to end of file failed\n") end if
+    flen = where(fn)
+    if flen=0 then
+        Abort("empty file\n")
+    end if
+    flen1 = flen
+    if dump_from >= flen then
+        dump_from = 0
+    end if
+    if seek(fn, dump_from) then Abort("seek to start of file failed\n") end if
+    if cord then
+        fn2 = open(cl4,"rb")
+        if fn2 = -1 then Abort("Cannot open "&cl4&'\n') end if
+        if seek(fn2,-1) then Abort("seek to end of file[2] failed\n") end if
+        flen2 = where(fn2)
+        if seek(fn2, dump_from) then Abort("seek to start of file[2] failed\n") end if
+        if flen2 < flen then
+            flen1 = flen2
+            flen2 = flen
+            flen = flen1
+            cord = 2
+        end if
+    end if
+
+integer ch,         -- byte from file (either)
+        chix,       -- hex output idx
+        chiy,       -- cmap output idx
+        linesshown  -- for pause
+atom    addr        -- file address for display
+
+constant offi = {1,2,1,0}   -- column spacing/offsets
+
+constant hexch = "0123456789ABCDEF"
+
+atom t
+    t=time()+1
+sequence line
+
+-- from eamisc.e:
+sequence charMapUp
+    charMapUp=repeat(0,256)
+    for i=1 to 256 do
+        charMapUp[i]=i-1
+    end for
+    for i='a' to 'z' do
+        charMapUp[i+1]=i-32
+    end for
+
+function UpperCase(object text)
+    if sequence(text) then
+        for i=1 to length(text) do
+            text[i]=UpperCase(text[i])
+        end for
+    else
+        if integer(text) and text>=0 and text <=255 then
+            return charMapUp[text+1]
+        end if
+    end if
+    return text
+end function
+
+constant qlen={3,4,-1,6}    -- for "b", "ww", "dddd" (byte/word/dword as strings)
+object lastg                    -- last 'G' target
+       lastg=0
+integer lgsize
+     lgsize=0
+
+--with trace
+function get_command()
+-- returns true to terminate loop if 'Q' or Ctrl Z keyed.
+object command
+integer lcm1, c, c2, c3, c4, sq, mg
+atom newaddr
+sequence sdesc
+object sval
+
+    command = gets(0)
+    if atom(command) then return 1 end if   -- (eg) Ctrl Z keyed
+    lcm1 = length(command)-1
+    if lcm1 then
+        command = UpperCase(command[1..lcm1])
+        if equal(command,"Q") then return 1 end if
+        if equal(command,"?") then
+            if addr>=256 then
+                flen+=256
+                addr-=256
+            else
+                flen+=addr
+                addr=0
+            end if
+            if seek(fn,addr) then Abort("seek failure\n") return 1 end if
+            puts(1,"\n")
+            puts(1,"Press Enter to view next page (256 bytes),\n")
+            puts(1,"- to view previous page (256 bytes),\n")
+            puts(1,"<Hex addr> (eg 9A00) to view another part of the file,\n")
+            puts(1,"q or Q to quit,\n")         
+            puts(1,"MB/MW/MD to modify byte/word/dword (at top of 256-byte-block showing),\n")
+            puts(1,"GB/GW/GD to Get (Find) next byte/word/dword (from \"\"+1), with G alone\n")
+            puts(1," defaulting to last. Note it is G not F as FB is valid <Hex addr>, btw.\n")
+            puts(1," The lower case commands, mb/mw/md/gb/gw/gd/g, are also accepted.\n")
+--          puts(1,"Press Enter")
+            return get_command()
+--          if getc(0) then end if
+--          puts(1,"\n")
+        end if
+        if equal(command,"-") then
+--          flen-=(newaddr-addr)
+--          addr=newaddr
+            if addr>=512 then
+                flen+=512
+                addr-=512
+            else
+                flen+=addr
+                addr=0
+            end if
+            if seek(fn,addr) then Abort("seek failure\n") return 1 end if
+            return 0
+        end if
+        if cord=0 then
+--          if command[1]='M' then
+            mg = find(command[1],"MG")
+            if mg then
+                if mg=1 and not umode then
+                    puts(1,"file could not be opened in update mode")
+                    --DEV retry?
+                    return 0
+                end if
+                if addr>=256 then
+                    flen+=256
+                    addr-=256
+                else
+                    flen+=addr
+                    addr=0
+                end if
+                if seek(fn,addr) then Abort("seek failure\n") return 1 end if
+--?             if mg=3 then
+--                  mg=lastg
+--                  if mg=0 then
+--                      puts(1,"\nN command only valid after a previous G or M\n")
+--                      return 0
+--                  end if
+--              end if
+                sq = 0
+                if lcm1=2 then
+                    sq = find(command[2],"BWD")
+                end if
+                if not sq then
+                    if mg=2 and lgsize then
+                        sq=lgsize
+                        mg=3
+                    else
+                        puts(1,"\nSize qualifier must be B/W/D for byte/word/dword\n")
+                        return 0
+                    end if
+                end if
+                if sq=1 then
+                    sdesc="byte"
+if mg=1 then
+                    sval = sprintf("%02x",getc(fn))
+end if
+                elsif sq=2 then
+                    sdesc="word"
+if mg=1 then
+                    sval = sprintf("%02x%02x",{getc(fn),getc(fn)})
+end if
+                elsif sq=3 then
+                    sdesc="dword"
+if mg=1 then
+                    sval = sprintf("%02x%02x%02x%02x",{getc(fn),getc(fn),getc(fn),getc(fn)})
+end if
+                    sq+=1
+                end if
+if mg=1 then
+                if seek(fn,addr) then Abort("seek failure\n") return 1 end if
+                printf(1,"\nReplace %s #%s at %08x with (in hex or \"%s\" format):",
+                         {sdesc,sval,addr,repeat('x',qlen[sq]-2)})
+elsif mg=2 then
+                printf(1,"\nFind %s value after %08x (in hex or \"%s\" format):",
+                         {sdesc,addr+1,repeat('x',qlen[sq]-2)})
+end if
+if mg!=3 then
+                command = gets(0)
+                lcm1 = length(command)-1
+                if lcm1=qlen[sq]
+                and command[1]='\"'
+                and command[lcm1]='\"' then
+                    sval=0
+                    for i=2 to lcm1-1 do
+                        c = command[i]
+                        sval=sval*256+c
+                    end for
+                elsif lcm1=sq*2 then
+                    command = UpperCase(command)
+                    sval=0
+                    for i=1 to lcm1 do
+                        c = command[i]
+                        c = find(c,hexch)
+                        if c=0 then
+                            puts(1,"\nInvalid\n")
+                            return 0
+                        end if
+                        if c>16 then c-=6 end if
+                        sval=sval*16+c-1
+                    end for
+                else
+                    puts(1,"\nInvalid length\n")
+                    return 0
+                end if
+                if sq=2 then
+                    sval = {floor(sval/#100),and_bits(sval,#FF)}
+                elsif sq=4 then
+                    sval = {and_bits(floor(sval/#1000000),#FF),
+                            and_bits(floor(sval/#10000),#FF),
+                            and_bits(floor(sval/#100),#FF),
+                            and_bits(sval,#FF)}
+                end if
+end if
+--              if 'G' then
+--              end if
+if mg=1 then
+                puts(fn,sval)
+                if seek(fn,addr) then Abort("seek failure\n") return 1 end if
+else -- mg=2[3], find[next]:
+    if mg=2 then
+        lgsize=sq
+        lastg=sval
+    end if
+    c=getc(fn)
+    newaddr=addr
+    if atom(lastg) then -- easiest case first, byte:
+        while 1 do
+            newaddr+=1
+            c=getc(fn)
+            if c=-1 then
+                printf(1,"\nNo (more) instances of #%02x found\n",lastg)
+                exit
+            end if
+            if c=lastg then
+                addr = newaddr
+                exit
+            end if
+        end while
+    elsif length(lastg)=2 then  -- word (2 bytes, aka 16 bits):
+        c = getc(fn)
+        while 1 do
+            newaddr+=1
+            if c=-1 then
+                printf(1,"\nNo (more) instances of #%02x%02x found\n",lastg)
+                exit
+            end if
+            if c=lastg[1] then
+                c2=getc(fn)
+                if c2=lastg[2] then
+                    addr = newaddr
+                    exit
+                end if
+                c=c2
+            else
+                c=getc(fn)
+            end if
+        end while
+    else -- length(lastg)=4 (dword, 4 bytes aka 32 bits):
+        c = getc(fn)
+        c2 = getc(fn)
+        c3 = getc(fn)
+        while 1 do
+            newaddr+=1
+            if c=-1 then
+                printf(1,"\nNo (more) instances of #%02x%02x%02x%02x found\n",lastg)
+                exit
+            end if
+            if c=lastg[1] then
+                if c2=lastg[2] then
+                    if c3=lastg[3] then
+                        c4=getc(fn)
+                        if c4=lastg[4] then
+                            addr = newaddr
+                            exit
+                        end if
+                        c=c2
+                        c2=c3
+                        c3=c4
+                    else
+                        c=c2
+                        c2=c3
+                        c3=getc(fn)
+                    end if
+                else
+                    c=c2
+                    c2=c3
+                    c3=getc(fn)
+                end if
+            else
+                c=c2
+                c2=c3
+                c3=getc(fn)
+            end if
+        end while
+    end if
+    if seek(fn,addr) then Abort("seek failure\n") return 1 end if
+end if
+                return 0
+            end if
+        end if
+        newaddr=0
+        for i=1 to length(command) do
+            c = command[i]
+            c = find(c,hexch)
+            if c=0 then newaddr=-1 exit end if
+            if c>16 then c-=6 end if
+            newaddr=newaddr*16+c-1
+        end for
+        if newaddr>=0 and newaddr<=flen1 and (cord=0 or newaddr<=flen2) then
+            if seek(fn,newaddr) then newaddr=-1 end if
+            if cord then
+                if seek(fn2,newaddr) then newaddr=-1 end if
+            end if
+            if newaddr=-1 then
+                Abort("Seek to specified address failed\n")
+            end if
+            flen-=(newaddr-addr)
+            addr=newaddr
+        elsif newaddr=-1 then
+            puts(1,"\nEnter CR for next page, q to quit, or hex address\n")
+        else
+            puts(1,"\ninvalid (hex) address\n")
+        end if
+    end if
+--  return flen=0
+    return 0
+end function
+
+
+    addr = dump_from
+    linesshown = 0
+    flen -= addr
+    while flen do
+        if cord then
+            line=sprintf("%08x                                        *        * *        *\n",addr)
+        else
+            line=sprintf("%08x                                        *                *\n",addr)
+        end if
+        chix = 10
+        chiy = 49
+        for i=1 to 4 do         -- four columns
+            for j=1 to 4 do     -- of 4 bytes each
+                ch=getc(fn)
+--              if ch=-1 then exit end if   -- (relies on flen tests instead, see notes below)
+--              chix+=2
+--              line[chix..chix+1]=sprintf("%02x",ch)
+                chix+=1
+                line[chix]=hexch[floor(ch/16)+1]
+                chix+=1
+                line[chix]=hexch[remainder(ch,16)+1]
+                chiy+=1
+--              line[chiy]=cmap[ch+1]
+                if ch<' ' then
+                    line[chiy]='.'
+                else
+                    line[chiy]=ch
+                end if
+                if cord then
+                    ch=getc(fn2)
+                    line[chix+18]=hexch[floor(ch/16)+1]
+                    line[chix+19]=hexch[remainder(ch,16)+1]
+--                  line[chiy+11]=cmap[ch+1]
+                    if ch<' ' then
+                        line[chiy+11]='.'
+                    else
+                        line[chiy+11]=ch
+                    end if
+                end if
+                addr+=1
+                flen-=1
+                if not flen then exit end if
+            end for
+            if cord and i=2 then exit end if -- compare is 2 columns from each file
+            chix+=offi[i]
+            if not flen then exit end if
+        end for
+        for i=1 to 17 do
+            if cord=0 or line[i+10]!=line[i+29] then
+                puts(1,line)
+                linesshown+=1
+                exit
+            end if
+        end for
+        if linesshown = 16 or flen = 0 then
+            if flen=0 then
+                puts(1,"<eof>\n")
+                if cord then
+                    if flen1!=flen2 then
+                        l=1
+                        while 1 do
+                            if l>length(cl3) then exit end if
+                            if l>length(cl4) then exit end if
+                            if cl3[l]!=cl4[l] then exit end if
+                            if cl3[l]='\\' then
+                                cl3 = cl3[l+1..length(cl3)]
+                                cl4 = cl4[l+1..length(cl4)]
+                                l=1
+                            else
+                                l+=1
+                            end if
+                        end while
+                        if cord=1 then
+                            cl3={cl3,cl4}
+                        else
+                            cl3={cl4,cl3}
+                        end if
+                        printf(1,"file%d[%s] is %d bytes (not shown) larger than file%d[%s]\n",
+                                {3-cord,cl3[3-cord],flen2-flen1,cord,cl3[cord]})
+                    elsif linesshown = 0 then
+                        puts(1,"files are identical")
+                    end if
+                end if
+            end if
+            if get_command() then exit end if
+            puts(1,'\n')
+            linesshown = 0
+            t = time()+1
+        elsif linesshown = 0 and time()>t then
+            printf(1,"%08x <same so far>\n",addr)
+            t = time()+1
+        end if
+    end while
+
+-- Notes:
+-- Above you will find the commented out line:
+----    if ch=-1 then exit end if   -- (relies on flen tests instead, see notes below)
+-- This is an "obvious test" on end of file. By removing this and forcing an 
+-- index-out-of-bounds, the validity of addr calculation is much better assured.
+-- In effect this is design-by-contract, and will give you a debug file to play 
+--  with in a fair few cases in which a ch=-1 test would just silently fail.
+--

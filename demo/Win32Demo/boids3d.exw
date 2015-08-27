@@ -1,0 +1,343 @@
+-- boids3d.exw
+--  See arwendemo\boids3d for an improved version with resizing; this is 
+--  only for comparison purposes and as a guideline for similar porting.
+
+without warning
+include win32lib.ew
+include boids3d.e
+
+
+constant
+win = create( Window, "Boids 3D", 0, 20, 20, 625, 690, {  WS_BORDER,
+                        WS_DLGFRAME,
+                        WS_SYSMENU, 
+--                      WS_THICKFRAME, 
+                        WS_MINIMIZEBOX, 
+                        WS_MAXIMIZEBOX}),
+blank_pix = create( Pixmap, "", win, 0, 0, 600, 600, 0 ),
+pix = create( Pixmap, "", win, 0, 0, 600, 600, 0 ),
+bmp = create( Bitmap, "", win, 10, 10, 600, 600, 0 ),
+restart = create( PushButton, "Restart", win, 10, 625, 70, 25, 0 ),
+spd = create( LText, "Max Speed", win, 90, 611, 65, 15, 0 ),
+max_speed = create( EditText, "15", win, 90, 625, 60, 25, ES_NUMERIC ),
+ud_style = or_all( { UDS_AUTOBUDDY,UDS_ALIGNRIGHT,UDS_SETBUDDYINT,UDS_ARROWKEYS}),
+max_ud = create( UpDown, "", win, 195, 625, 10, 25, ud_style ),
+
+dist_label = create( LText, "Separation", win, 155, 611, 60, 15, 0 ),
+dist_edit = create( EditText, "30", win, 155, 625, 60, 25, ES_NUMERIC ),
+dist_ud = create( UpDown, "", win, 0, 0, 0, 0, ud_style ),
+
+nd_label = create( LText, "Neighbor Radius", win, 220, 611, 80, 15, 0 ),
+n_dist = create( EditText, "100", win, 220, 625, 80, 25, ES_NUMERIC ),
+n_ud = create( UpDown, "", win, 0, 0, 0, 0, ud_style ),
+
+
+boids_label = create( LText, "Boids", win, 305, 611, 60, 15, 0 ),
+boids = create( EditText, "100", win, 305, 625, 60, 25, ES_NUMERIC ),
+boids_ud = create( UpDown, "", win, 0, 0, 0, 0, ud_style ),
+
+shadow_check = create( CheckBox, "Draw Shadows", win, 493, 625, 90, 25, 0 )
+
+
+
+
+constant
+observer = {300, 300, 1200 }
+
+
+
+
+sequence colors, world_points
+colors = {}
+world_points = { {0,0,0}, {600,0,0}, {0,600,0}, {0,0,600} }
+
+integer draw_shadows
+
+function project_point( sequence pt )
+        atom d
+        
+        if pt[3] = observer[3] then
+                d = 0.0001
+        else
+
+                d =  1 - pt[3] / (pt[3] - observer[3])
+        end if
+
+        pt[1] = observer[1] + (observer[1] - pt[1]) / d         
+        pt[2] = observer[2] + (observer[2] - pt[2]) / d
+        
+--/**/  pt = sq_floor(pt[1..2])     --/* -- Phix
+        pt = floor(pt[1..2])        --*/ -- RDS
+        
+        return pt[1..2]
+        
+end function
+
+procedure project_world()
+        sequence pt
+        atom d, x1, x2, z1, z2, y1, y2
+        -- draw a blank rectangle on the pixmap
+        setPenColor( blank_pix, White )
+        drawRectangle( blank_pix, True, 0, 0, 600, 600 )
+        
+        setPenColor( blank_pix, #909090 )
+        drawRectangle( blank_pix, False, 0, 0, 600, 600 )
+
+        
+        setPenColor( blank_pix, Black )
+        x1 = X_MIN -- 100
+        x2 = X_MAX --+ 100
+        z1 = Z_MIN -- 100
+        z2 = Z_MAX --+ 100
+        y1 = 0.0
+        y2 = Y_MAX
+        
+        
+        for z = z1 + 100 to z2 - 100 by 100 do
+                drawLines( blank_pix, {
+                        #808080,
+                        project_point({x2, y2, z}) &
+                        project_point({x2, y1, z}),
+                        project_point({x1, y1, z}),
+                        project_point({x1, y2, z}),
+                        #FFFFFF,
+                        project_point({x1, y2, z}) &
+                        project_point({x2, y2, z})
+                        
+                        })
+
+        end for
+        
+        for y = y1 + 100 to y2 - 100 by 100 do
+                drawLines( blank_pix, {
+                        #808080,
+                        project_point({x1,y,z1}) & 
+                        project_point({x1,y,z2}),
+                        project_point({x2,y,z2}),
+                        project_point({x2,y,z1})})
+        end for
+                
+        for x = x1 + 100 to x2 - 100 by 100 do
+                drawLines( blank_pix, {
+                        #808080,
+                        project_point({x,y2,z2}) &
+                        project_point({x,y1,z2}),
+                        project_point({x,y1,z1}),
+                        #FFFFFF,
+                        project_point({x,y2,z1}) &
+                        project_point({x,y2,z2})
+                        })
+        end for
+
+        drawLines( blank_pix, {
+                Black,
+                project_point({x1, y1, z2}) &
+                project_point({x2, y1, z2}),
+                project_point({x2, y2, z2}),
+                project_point({x1, y2, z2}),
+                project_point({x1, y1, z2}),
+                
+                project_point({x1, y1, z1}) &
+                project_point({x1, y1, z2}),
+                
+                project_point({x2, y1, z1}) &
+                project_point({x2, y1, z2}),
+                
+                project_point({x2, y2, z1}) &
+                project_point({x2, y2, z2}),
+                
+                project_point({x1, y2, z1}) &
+                project_point({x1, y2, z2})
+
+                })
+        
+end procedure
+
+procedure display_proc( integer self, atom event, sequence params )
+        integer dt
+        setup()
+        project_world()
+        
+        dt = floor(1000.0/30.0)
+
+        colors = {}
+        setTimer( win, 1, dt)
+end procedure
+setHandler( win, w32HActivate, routine_id("display_proc"))
+setHandler( restart, w32HClick, routine_id("display_proc"))
+
+constant null_u = {0,0}
+function get_ortho( sequence v )
+        sequence y, yhat, z, u
+        
+        u = v[1..2]
+        if equal(u, null_u) then
+                return {1,1,0}
+        end if
+        y = {1,1}
+--/**/  yhat = sq_mul(sq_div(dot(u,y),dot(u,u)),u)  --/* -- Phix
+        yhat = dot(u,y)/dot(u,u) * u                --*/ -- RDS
+--/**/  z = sq_sub(y,yhat)                          --/* -- Phix
+        z = y - yhat                                --*/ -- RDS
+        if equal(z, null_u) then
+                return {1,1,0}
+        end if
+        return z & 0
+end function
+
+procedure on_timer( integer self, atom event, sequence params )
+        sequence in,boid, pt, v, verts, v1, v2, v3, sv
+        atom d
+        integer r, x, y
+        
+        move_boids()
+
+        in = boidsnp1
+        
+        -- draw a blank rectangle on the pixmap
+        copyBlt( pix, 0, 0, blank_pix )
+        
+        if not length(colors) then
+                colors = repeat( 0, BOIDS )
+                for i = 1 to BOIDS do
+                        colors[i] = rand( #FFFFFF )
+                end for
+
+        end if
+
+
+        -- convert boid location and velocities into
+        -- triangles in 3D and project them onto
+        -- the screen
+        verts = repeat( "", BOIDS )
+        for i = 1 to BOIDS do
+
+                boid = in[i]
+                
+                pt = boid[B_X..B_Z]
+                v = boid[B_XV..B_ZV]
+                
+                if equal(v,{0,0,0}) then
+                        v = {1,0,1}
+                end if
+                
+                -- the 'nose' of the boid
+--/**/          v1 = sq_add(pt,make_length( v, 20 ))    --/* -- Phix
+                v1 = pt + make_length( v, 20 )          --*/ -- RDS
+                
+                -- make the base of the triangle
+                sv = make_length( get_ortho( v ), 4 )
+--/**/          v2 = sq_add(pt,sv)
+--/**/          v3 = sq_sub(pt,sv)      --/* -- Phix
+                v2 = pt + sv
+                v3 = pt - sv            --*/ -- RDS
+
+                verts[i] = { distance3( pt, observer ), v1, v2, v3, i, v1, v2, v3 }
+
+                -- project the 3D points onto a 2D viewing surface
+                for j = 2 to 4 do
+                        verts[i][j] = project_point( verts[i][j] )
+                end for
+                if draw_shadows then
+                
+                        for j = 6 to 8 do
+                                pt = verts[i][j]
+                                pt[2] = 0.0
+                                verts[i][j] = project_point( pt )
+                        end for
+                end if
+
+        end for
+
+        -- this sorts by distance, so nearer boids will
+        -- clip boids that are more distant     
+        verts = sort(verts)
+        
+        if draw_shadows then
+                -- draw shadows...
+                setPenColor( pix, #A0A0A0 )
+                for i = 1 to BOIDS do
+                        drawPolygon( pix, True, verts[i][6..8] )
+                end for
+        end if
+        
+        -- draw the boids as polygons, starting with the 
+        -- farthest from the POV
+        for i = BOIDS to 1 by -1 do
+                v = verts[i]
+                setPenColor( pix, colors[v[5]] )
+                drawPolygon( pix, True, v[2..4] )
+        end for
+
+        copyBlt( bmp, 0, 0, pix )
+
+end procedure
+setHandler( win, w32HTimer, routine_id("on_timer"))
+
+
+-- the user interface 
+procedure values_change( integer self, atom event, sequence params )
+        integer num
+        sequence boid
+
+        num = getNumber( self ) * 1.0
+        if self = max_speed then
+                -- let the boids go faster
+                V_MAX = num
+                
+        elsif self = n_dist then
+                -- this alters how far out the boids look 
+                -- for other boids to change velocities
+                N_DIST = num
+                
+        elsif self = boids then
+                -- change the number of boids
+                boid = repeat( 0, B_ELEMENTS )
+                if num > BOIDS then
+                        for i = BOIDS + 1 to num do
+                                boid[B_X] = rand(X_MAX)
+                                boid[B_Y] = rand(Y_MAX)
+                                boid[B_Z] = rand(Z_MAX)
+                                
+                                boid[B_XV] = floor(V_MAX/2) - rand(V_MAX)
+                                boid[B_YV] = floor(V_MAX/2) - rand(V_MAX)
+                                boid[B_ZV] = floor(V_MAX/2) - rand(V_MAX)
+                                boidsnp1 = append( boidsnp1, boid )
+                                colors &= rand( #FFFFFF )
+                        end for
+                        boidsn = boidsnp1
+                end if
+                BOIDS = num
+        elsif self = shadow_check then
+                draw_shadows = isChecked( shadow_check )
+
+        end if
+end procedure
+setHandler( {max_speed,n_dist, boids}, w32HChange, routine_id("values_change"))
+setHandler( shadow_check, w32HClick, routine_id("values_change"))
+
+procedure win_paint( integer self, atom event, sequence params )
+        copyBlt( bmp, 0, 0, pix )
+end procedure
+setHandler( win, w32HPaint, routine_id("win_paint"))
+
+procedure setup_()
+
+        setScrollRange( max_ud, 1, 100 )
+        setText( max_speed, sprint(V_MAX) )
+        
+        setScrollRange( n_ud, 10, 600 )
+        setText( n_dist, sprint(N_DIST))
+
+        setScrollRange( boids_ud, 0, 200 )
+        setText( boids, sprint(BOIDS))
+
+        setScrollRange( dist_ud, 0, 200 )
+        setText( dist_edit, sprint(DIST))
+
+        setCheck( shadow_check, 1 )
+        draw_shadows = 1
+end procedure
+
+setup_()
+WinMain( win, Normal )

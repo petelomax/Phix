@@ -1,0 +1,155 @@
+--
+-- eaclip.ew
+--
+-- Clipboard processing functions
+--
+-- Unlike the standard versions of these functions in Arwen.ew,
+-- these deal with edita-style chunks, eg {"--","--eaclip.ew","--"}
+-- instead of "--\r\n--eaclip.ew\r\n--".
+--
+-- Updated to handle Unicode files 14/07/2013.
+
+without trace
+
+--constant
+--  CF_TEXT=1,
+--  GMEM_CLIPBOARD=#2002    --GMEM_MOVEABLE(#2) + GMEM_DDESHARE(#2000)
+
+global function copyTextToClipboard(sequence lines, integer fmt)
+--
+-- copy text to the clipboard
+--
+-- lines is usually something like {"--","-- eaclip.ew","--"}
+--  (linebreaks are automatically inserted between lines, so a trailing ""
+--   represents a trailing CR, and {{},{}} means a single CR on its own.)
+-- lines may also be a sequence of length 1 whose only element contains
+--  any required embedded \r\n pairs (not used in this way by Edita)
+--
+-- result is 1 (success),
+--        or 0 (failure [eg clipboard locked, insufficient memory, etc])
+--
+integer len
+atom hGlobal, pData
+
+    if not c_func(xOpenClipboard,{c_func(xGetActiveWindow, {})}) then return 0 end if
+    if not c_func(xEmptyClipboard,{}) then return 0 end if
+
+    len = length(lines[1])+1
+    for i=2 to length(lines) do
+        len += 2+length(lines[i])
+    end for
+
+    if fmt=CF_UNICODETEXT then
+        len *= 2
+    end if
+    hGlobal = c_func(xGlobalAlloc,{GMEM_CLIPBOARD,len})
+    if not hGlobal then return 0 end if
+    pData = c_func(xGlobalLock,{hGlobal})
+    if not pData then
+        void = c_func(xGlobalFree,{hGlobal})
+        return 0
+    end if
+
+    len = length(lines[1])
+    if fmt=CF_TEXT then
+        poke(pData,lines[1])
+        for i=2 to length(lines) do
+            poke(pData+len,"\r\n")
+            len += 2
+            poke(pData+len,lines[i])
+            len += length(lines[i])
+        end for
+        poke(pData+len,0)
+    else -- CF_UNICODETEXT
+        len *= 2
+        poke2(pData,lines[1])
+        for i=2 to length(lines) do
+            poke2(pData+len,"\r\n")
+            len += 4
+            poke2(pData+len,lines[i])
+            len += length(lines[i])*2
+        end for
+        poke2(pData+len,0)
+    end if
+
+    void = c_func(xGlobalUnlock,{hGlobal})
+    void = c_func(xSetClipboardData,{fmt,hGlobal})
+    c_proc(xCloseClipboard,{})
+    --Note that we should NOT GlobalFree hGlobal, since the clipboard now owns it.
+    return 1
+end function
+
+-- also used in eamenus, htmliseEuCode():
+global function lineify(sequence clip)
+integer len, start, p
+sequence res
+    len = length(clip)
+    if len=0 then
+        return clip
+    end if
+    start = 1
+    p = 1
+    res = {}
+    while 1 do
+        if clip[p]='\r' then
+            res = append(res, clip[start..p-1])
+--          p += 2      -- or /maybe/ min(p+2,len+1)
+--1/02/10:
+            p += 1
+            if p<=len and clip[p]='\n' then
+                p += 1
+            end if
+            start = p
+        else
+            p += 1
+        end if
+        if p>len then
+            res = append(res, clip[start..p-1])
+            exit
+        end if
+    end while
+    return res
+end function
+
+global function getTextFromClipboard(integer fmt)
+-- get CF_TEXT or CF_UNICODETEXT data from clipboard, and unpack \r\n.
+-- result is sequence of text lines, eg {"--","-- eaclip.ew","--"}
+-- Note that a result of {{},{}} means a single CR.
+--/*
+--atom hClip, pData
+--object clip
+--integer csize
+--
+--  clip = {}
+--  if c_func(xOpenClipboard,{c_func(xGetActiveWindow, {})}) then
+--      if c_func(xIsClipboardFormatAvailable,{CF_TEXT}) then
+--          hClip = c_func(xGetClipboardData,{CF_TEXT})
+--          pData = c_func(xGlobalLock,{hClip})
+--          if pData then
+--              csize = c_func(xGlobalSize,{hClip})
+--              clip = peek({pData,csize})
+--              void = c_func(xGlobalUnlock,{hClip})
+--              -- "The size of a memory block may be larger than the  
+--              --  size requested when the memory block was allocated"
+--              csize = find(0,clip)
+--              if csize then
+--                  clip = clip[1..csize-1]
+--              end if
+--          end if
+--      end if
+--      c_proc(xCloseClipboard,{})
+--  end if
+--  return lineify(clip)
+--*/
+    return lineify(getClipboardText(fmt))
+end function
+
+global function isClip()
+integer r
+    r = 0
+    if c_func(xOpenClipboard,{c_func(xGetActiveWindow, {})}) then
+        r = c_func(xIsClipboardFormatAvailable,{CF_TEXT})
+        c_proc(xCloseClipboard,{})
+    end if
+    return r
+end function

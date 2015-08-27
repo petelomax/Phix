@@ -1,0 +1,74 @@
+--
+-- greg.exw
+-- ========
+--  From a posting on EuForum, early 2009, by Greg.
+--
+--  Simlulates an icon inside an edit field, by using two windows and
+--  playing around with the border styles.
+--  Translated from win32lib to arwen by Pete Lomax.
+--   (added tabbing and escape to quit)
+--
+include arwen.ew
+
+constant Main	= create(Window, "EditText w/image", 0, 0, 10, 10, 480, 70, 0),
+	 Box	= create(Window, "", 0, Main, 0, 0, 0, 0, WS_CHILD+WS_VISIBLE), -- mind your styles here
+	 Edit	= create(EditText, "", 0, Box, 10, 10, 100, 110, 0),
+	 Btn	= create(Button, "Click", 0, Main, 0, 0, 0, 0, 0),
+
+	 boxDC	= getPrivateDC(Box),
+	 icon = loadImage("..\\DemoResources\\pilcrow.ico", IMAGE_ICON, 0)
+
+    addStyle(Box, {0,WS_EX_CLIENTEDGE})
+    removeStyle(Box, WS_OVERLAPPEDWINDOW)
+    removeStyle(Edit, {WS_BORDER,WS_EX_CLIENTEDGE})
+
+integer notab
+	notab = 0
+integer painted
+	painted = 0
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+
+    if msg = WM_SIZE then
+	if id=Main and sequence(lParam) then
+	    setWindowPos(Box,10,9,lParam[3]-110,22,0)
+	    setWindowPos(Btn,lParam[3]-90,8,80,24,0)
+	    setWindowPos(Edit,18,0,lParam[3]-130,18,0)
+	end if
+
+    elsif msg=WM_PAINT then
+	if id=Edit then
+	    void = c_func(xDrawIconEx,{boxDC,0,0,icon,18,18,0,0,DI_NORMAL})
+	end if
+	painted = 1 -- enables manual tabbing control, see below
+
+    elsif msg=WM_COMMAND then
+	if id=Btn then
+	    void = messageBox("Text", '"' & getText(Edit) & '"', MB_ICONINFORMATION)
+	end if
+
+    -- bit of a kludge going on here: since we have two windows, WS_TABSTOP is out
+    --	of the question, and hence we manage any tabbing ourselves.
+    elsif msg=WM_KEYUP then
+	-- (btw, I had trouble catching WM_KEYDOWN or WM_CHAR,
+	--   if I had managed that, this might not need notab?)
+	if wParam=VK_TAB and not notab then
+	    --DEV oops, this triggers on Alt-tab between apps, and also when clicking
+	    --	on the taskbar to switch apps... still, close enough for now.
+	    setFocus(Btn)
+	elsif wParam=VK_ESCAPE then
+	    closeWindow(Main)
+	end if
+	notab = 0
+    elsif msg=WM_SETFOCUS then
+	if id=Box then
+	    notab = painted
+	    setFocus(Edit)
+	end if
+    end if
+    return 0
+end function
+setHandler({Main,Box,Edit,Btn},routine_id("mainHandler"))
+
+WinMain(Main, SW_NORMAL)
+

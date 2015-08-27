@@ -1,0 +1,460 @@
+--
+-- pFsm.ew
+-- =======
+--
+-- The Site Manager part of pFTP.exw.
+--
+--with trace
+constant
+    -- first some misc text factored out to keep cols lined up:
+    loan = "Lo&gin as anonymous",
+    ppoc = "Prompt pass&word on connect",
+    locp = "&Local Path (optional):",
+    remp = "&Remote Path (optional):",
+
+    SMan = create(Window,"Site Manager", 0,Main, 20, 20, 433, 403, 0),
+    -- menus:
+    SM_File = create(Menu,"&File",  0,SMan, 0,0,0,0,0),
+    SMFexit = create(MenuItem,"E&xit", 0,SM_File, 0,0,0,0,0),
+    SM_Help = create(Menu,"&Help",  0,SMan, 0,0,0,0,0),
+    SMHelpC = create(MenuItem,"&Contents",0,SM_Help, 0,0,0,0,0),
+    -- listview on the left:
+    SMLV = create(ListView,{{"Id",146}},0,SMan, 7,4,150, 289, LVS_OWNERDATA),
+    -- details on the right:
+    SMilbl = create(Label,"&Id",            0,SMan,163,  6,180,14,0),
+    SMid    = create(EditText,"",           0,SMan,163, 23,256,22,0),
+    SMhlbl = create(Label,"Ho&st:",     0,SMan,161, 48, 59,17,0),
+    SMhost = create(EditText, "",           0,SMan,164, 63,220,21,0),
+    SMplbl = create(Label,"Por&t:",     0,SMan,387, 47, 26,16,0),
+    SMport = create(EditText, "21",     0,SMan,387, 63, 33,21,0),
+    SMalog = create(CheckBox,loan,      0,SMan,171, 91,144,20,0),
+    SMppoc = create(CheckBox,ppoc,      0,SMan,171,111,177,20,0),
+    SMnlbl = create(Label,"&Username:", 0,SMan,162,131, 59,16,0),
+    SMname = create(EditText, "",           0,SMan,164,146,256,21,0),
+    SMpwlb = create(Label,"&Password:", 0,SMan,161,171, 59,15,0),
+    SMpass = create(EditText, "",           0,SMan,164,186,256,21,0),
+    SMlplb = create(Label,locp,         0,SMan,162,213,180,16,0),
+    SMlpth = create(EditText,"",            0,SMan,164,228,256,22,0),
+    SMrplb = create(Label,remp,         0,SMan,162,256,180,16,0),
+    SMrpth = create(EditText,"",            0,SMan,164,272,256,22,0),
+    -- buttons down below:
+    SMdele = create(Button,"&Delete",   0,SMan, 33,308, 49,24,0),
+    SMopen = create(Button,"&Open", 0,SMan,171,308, 49,24,0),
+    SMcncl = create(Button,"&Cancel",   0,SMan,311,308, 88,24,0),
+    SMsb    = create(StatusBar,"",      0,SMan,237,277,  0, 0,0)
+
+    setEnable(SMdele,False)
+
+    void = sendMessage(SMLV, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
+
+function SMLVformat(integer lRow, integer lColumn)
+    if lColumn = 0 then return 0 end if
+    if lColumn = 1 then return SMLVdata[lRow][1] end if
+end function
+setLVFormatRoutine(SMLV, routine_id("SMLVformat"))
+
+include builtins\get.e
+include builtins\database.e
+
+global constant pFTPedb = "pFTP.edb"    -- also used by WM_CLOSE
+
+constant Tset = {"sites","wsize"}
+
+integer errCode
+global procedure loadSites()
+integer k
+sequence tlist
+sequence key, data, badset
+
+    errCode = db_open(pFTPedb,DB_LOCK_EXCLUSIVE)
+    if errCode!=DB_OK then
+        if errCode = DB_LOCK_FAIL then
+            void=messageBox("Error","pFTP.edb locked, aborting",0)
+            abort(0)
+        elsif db_create(pFTPedb,DB_LOCK_EXCLUSIVE)!=DB_OK then
+            void=messageBox("Error","error creating "&pFTPedb,0)
+            ?9/0
+        end if
+    end if
+
+    tlist=db_table_list()
+    for i=1 to length(Tset) do
+        if not find(Tset[i],tlist) then
+            if db_create_table(Tset[i]) != DB_OK then
+                void = messageBox("Error","unable to create "&Tset[i]&" table",0)
+                abort(0)
+            end if
+        end if
+    end for
+
+    if db_select_table("sites")!=DB_OK then ?9/0 end if
+    SMLVdata = repeat(0,db_table_size())
+    badset={}
+    for i = 1 to length(SMLVdata) do
+        key = db_record_key(i)
+        data = db_record_data(i)
+        k = data[S_sort-1]
+        if k>length(SMLVdata) or k<1 or not atom(SMLVdata[k]) then
+            badset=append(badset,i)
+        else
+            SMLVdata[k] = prepend(data,key)
+        end if
+    end for
+    if length(badset) then
+        if messageBox("Warning",
+                      "Corruption detected\n(press OK to fix automatically)",
+                      MB_OKCANCEL) = IDCANCEL then
+            abort(0)
+        end if
+-- Faq: "Warning","Corruption detected\n(press OK to fix automatically)"
+-- Obviously this should not occur (often/at all) in released software, but
+--  if it occurs after some other crash, just chalk it down to experience 
+--  and concentrate on the other problem. If you press cancel, the program
+--  aborts before fixing anything, in case you want to investigate it.
+-- Each record holds an index for "most recently opened", so eg if there are
+-- six(6) records, numerically/ideally these indexes are eg {4,3,5,2,1,6}.
+-- If, however, there are two 5's (or a -1, +37 etc), a trivial algorithm
+-- first lists "bad" records and then dumps them into any free slot.
+
+        for i=1 to length(SMLVdata) do
+            if atom(SMLVdata[i]) then
+                k = badset[1]
+                badset = badset[2..length(badset)]
+                data = db_record_data(k)
+                data[S_sort-1] = i  -- -1 as SMLVdata[1] stored as key
+                db_replace_data(k,data)
+                SMLVdata[i] = prepend(data,db_record_key(k))
+            end if
+        end for
+    end if
+
+    if db_select_table("wsize")!=DB_OK then ?9/0 end if
+    if db_table_size()=1 then
+        reSizeMain(db_record_data(1))
+    end if
+
+    db_close()
+end procedure
+
+global procedure saveSites(integer reload)
+sequence key,data
+integer k
+    errCode = db_open(pFTPedb,DB_LOCK_EXCLUSIVE)
+    if errCode!=DB_OK then
+        if errCode = DB_LOCK_FAIL then
+            void=messageBox("Error","pFTP.edb locked, aborting",0)
+            abort(0)
+        else
+            ?9/0
+        end if
+    end if
+    if db_select_table("sites")!=DB_OK then ?9/0 end if
+    for i = 1 to length(SMLVdata) do
+        data = SMLVdata[i]
+        key = data[S_Id]
+        data = data[2..length(data)]
+        k = db_find_key(key)
+        if k<0 then
+            if db_insert(key,data)!=DB_OK then ?9/0 end if
+        else
+            db_replace_data(k,data)
+        end if
+    end for
+    db_close()
+    if reload then
+        resetSdd(getText(SMid))
+    end if
+end procedure
+
+global function smenuHandler(integer id, integer msg, atom wParam, object lParam)
+    if id = SMFexit then
+        if msg or wParam or object(lParam) then end if  -- suppress warnings
+        closeWindow(SMan)
+    elsif id = SMHelpC then
+        void = messageBox("Site Manager - Help",
+                          "Enter a unique name in the Id field, eg \"my homepage\"\n\n"&
+                          "Note that changing an id creates a copy; delete the original later.\n\n"&
+                          "If the id is left blank, the site is not saved to disk/between sessions.\n\n"&
+                          "Typically the host name begins with \"ftp.\" and the port is 21.\n\n"&
+                          "Delete acts immediately and cannot be reversed.\n"&
+                          "Open establishes a connection and automatically closes this window.\n"&
+                          "Cancel does not perform a save, whereas closing the window, via\n"&
+                          "the \"X\", File/Exit, Alt-F4, Escape, or Open button, saves all updates.\n\n"&
+                          "To edit an existing entry, click on it in the listview (on the left), or\n"&
+                          " type the name into the id field (top right).\n"&
+                          "To add a new entry, always change the id first, otherwise it may\n"&
+                          " update an existing record automatically as details are entered.\n\n"&
+                          "The order of the listview is most recently opened first, or click on the\n"&
+                          " heading to sort alphabetically.\n\n"&
+                          "Disabled items indicate currently unsupported features.\n\n"&
+                          "Example: Id:M$, Host:ftp.microsoft.com, Port:21, Username:anonymous,\n"&
+                          "password:w@eworld.com.",0)
+
+    end if
+    return 0
+end function
+setHandler({SM_File,SM_Help},routine_id("smenuHandler"))
+
+function toNumber(sequence txt)
+integer ch, port
+    port = 0
+    for i=1 to length(txt) do
+        ch = txt[i]
+        if ch<'0' or ch>'9' then return 21 end if
+        port = port*10+ch-'0'
+    end for
+    if port=0 then return 21 end if
+    return port
+end function
+
+procedure setSMan(integer k)
+integer check
+sequence Sk
+object o
+--  setText(SMid,SMLVdata[k][S_Id])
+    Sk = SMLVdata[k]
+    setText(SMhost,Sk[S_host])
+    o = Sk[S_port]
+    if sequence(o) then o = toNumber(o) end if
+    setText(SMport,sprintf("%d",o))
+    check = Sk[S_alog]
+    setCheck(SMalog,check)
+    if check then
+        check = False
+        setEnable(SMppoc,False)
+        setEnable(SMname,False)
+    else
+        setEnable(SMppoc,True)
+        setEnable(SMname,True)
+        check = Sk[S_ppoc]
+    end if
+    setCheck(SMppoc,check)
+    setEnable(SMpass,not check)
+    setText(SMname,Sk[S_name])
+    setText(SMpass,Sk[S_pass])
+    setEnable(SMdele,True)
+    if length(Sk)>S_sort then
+        setText(SMlpth,Sk[S_ldir])
+        setText(SMrpth,Sk[S_rdir])
+    else
+        setText(SMlpth,"")
+        setText(SMrpth,"")
+    end if
+end procedure
+
+function CompareSortColumn(sequence s1,sequence s2)
+    return Sign*compare(upper(s1[SortColumn]),upper(s2[SortColumn]))
+end function
+
+
+integer update
+        update = True
+
+function smHandler(integer id, integer msg, atom wParam, object lParam)
+sequence idtxt, name
+--DEV:
+sequence pass, host
+integer port
+sequence localdir, remotedir
+
+integer k, check
+    if msg = WM_COMMAND then
+        if find(id,{SMalog,SMppoc}) then
+            check = isChecked(id)
+            if lParam=1 then check = not check end if   -- accelerator key
+            setCheck(id,check)
+            idtxt = getText(SMid)
+            k = 0
+            if length(idtxt) then
+                for i=1 to length(SMLVdata) do
+                    if equal(SMLVdata[i][S_Id],idtxt) then
+                        k=i
+                        exit
+                    end if
+                end for
+            end if
+            if id = SMalog then
+                if check then
+                    setText(SMname,"anonymous")
+                    if k then
+                        setText(SMpass,SMLVdata[k][S_pass])
+                    end if
+                else
+                    if k then
+                        setText(SMname,SMLVdata[k][S_name])
+                    end if
+                    setText(SMpass,"myemail@mycompany.com")
+                end if
+                setEnable(SMppoc,not check)
+                setEnable(SMname,not check)
+            else -- id = SMppoc
+                if check then
+                    setText(SMpass,"")
+                else
+                    if k then
+                        setText(SMpass,SMLVdata[k][S_pass])
+                    end if
+                end if
+                setEnable(SMpass,not check)
+            end if
+        elsif id = SMid and wParam=EN_CHANGE then
+            idtxt=getText(id)
+            for i=1 to length(SMLVdata) do
+                if equal(SMLVdata[i][S_Id],idtxt) then
+                    setSMan(i)
+                    exit
+                end if
+            end for
+        elsif id=SMilbl then
+            setFocus(SMid)
+        elsif id=SMhlbl then
+            setFocus(SMhost)
+        elsif id=SMplbl then
+            setFocus(SMport)
+        elsif id=SMnlbl then
+            setFocus(SMname)
+        elsif id=SMpwlb then
+            setFocus(SMpass)
+        elsif id=SMlplb then
+            setFocus(SMlpth)
+        elsif id=SMrplb then
+            setFocus(SMrpth)
+        elsif id=SMdele then
+            idtxt = getText(SMid)
+            if messageBox("Confirm","Delete "&idtxt&"?",MB_YESNO)=IDYES then
+                for i=1 to length(SMLVdata) do
+                    if equal(SMLVdata[i][S_Id],idtxt) then
+                        k=SMLVdata[i][S_sort]
+                        SMLVdata = SMLVdata[1..i-1]&SMLVdata[i+1..length(SMLVdata)]
+--                      SMLVdata[i..i]={}
+                        for j=1 to length(SMLVdata) do
+                            if SMLVdata[j][S_sort]>k then
+                                SMLVdata[j][S_sort] = SMLVdata[j][S_sort]-1
+                            end if
+                        end for
+                        exit
+                    end if
+                end for
+                errCode = db_open(pFTPedb,DB_LOCK_EXCLUSIVE)
+                if errCode!=DB_OK then
+                    if errCode = DB_LOCK_FAIL then
+                        void=messageBox("Error","pFTP.edb locked",0)
+                        return 0
+                    else
+                        ?9/0
+                    end if
+                end if
+
+                if db_select_table("sites")!=DB_OK then ?9/0 end if
+                k = db_find_key(idtxt)
+                if k>0 then
+                    db_delete_record(k)
+                end if
+                db_close()
+
+                setText(SMid,"")
+                k=length(SMLVdata)
+                void = sendMessage(SMLV, LVM_SETITEMCOUNT, k, 0)
+                setEnable(SMdele,False)
+            end if
+        elsif id=SMopen then
+            closeWindow(SMan)
+            -- to open, send dummy Alt c to Main 
+            -- (equiv to Sconn, the "Connect" button)
+            void=sendMessage(Main,WM_SYSKEYDOWN,'c',0)
+        elsif id=SMcncl then
+            update = False
+            closeWindow(SMan)
+        end if
+    elsif msg = WM_CHAR and wParam = VK_ESCAPE then
+        closeWindow(SMan)
+        return {0}
+--  elsif msg = WM_CHAR and wParam = '!' then
+--      msg = 1/0
+    elsif msg=WM_SETFOCUS then
+        if id = SMLV then
+            setText(SMsb,"Select existing site or enter new details on right")
+        elsif id = SMid then
+            setText(SMsb,"Enter project, subject, site, or other unique name/memo/desc")
+        else
+            setText(SMsb,"")
+        end if
+    elsif msg=WM_KILLFOCUS
+       or (id = SMLV and msg = WM_NOTIFY and wParam = LVN_ITEMCHANGED)
+       or msg=WM_CLOSE then
+        idtxt = getText(SMid)
+        setEnable(SMdele,length(idtxt)!=0)
+        if length(idtxt) then
+            k = 0
+            for i=1 to length(SMLVdata) do
+                if equal(SMLVdata[i][S_Id],idtxt) then
+                    k=i
+                    exit
+                end if
+            end for
+            if k=0 then
+                SMLVdata = append(SMLVdata,0)
+                k=length(SMLVdata)
+                void = sendMessage(SMLV, LVM_SETITEMCOUNT, k, 0)
+                name = getText(SMname)
+                pass = getText(SMpass)
+            else
+                if isChecked(SMalog) then
+--                  name = "anonymous" on-screen, so:
+                    name = SMLVdata[k][S_name]
+                    pass = getText(SMpass)
+                else
+                    name = getText(SMname)
+                    if isChecked(SMppoc) then
+--                      pass = "" on-screen, so:
+                        pass = SMLVdata[k][S_pass]
+                    else
+                        pass = getText(SMpass)
+                    end if
+                end if
+            end if
+            host = getText(SMhost)
+            port = toNumber(getText(SMport))
+            localdir = getText(SMlpth)
+            remotedir = getText(SMrpth)
+
+            SMLVdata[k] = {idtxt,host,port,
+                                 isChecked(SMalog),isChecked(SMppoc),
+                                 name,pass,k,
+                                 localdir,remotedir}
+        end if
+        if msg = WM_CLOSE then
+--puts(1,"close\n")
+--        or (msg = WM_ENDSESSION and wParam) then return saveAllFilesAndINI()
+--      elsif msg = WM_QUERYENDSESSION then
+--          if saveAllFilesAndINI() then return {0} end if
+--      end if
+            if update then saveSites(1) end if
+            update = True
+        elsif msg = WM_NOTIFY then  
+            k = getIndex(id)
+            if k then
+                setText(SMid,SMLVdata[k][S_Id])
+                setSMan(k)
+            else
+                setEnable(SMdele,False)
+            end if
+        end if
+    elsif id = SMLV and msg = WM_NOTIFY and wParam = LVN_COLUMNCLICK then
+        SortColumn = lParam[1]
+        Sign = lParam[2]
+        SMLVdata = custom_sort(routine_id("CompareSortColumn"),SMLVdata)
+        void = sendMessage(id, LVM_UPDATE, 0, 0)
+        setIndex(id,-1)
+    end if
+    return 0
+end function
+setHandler({SMan,SMLV,SMid,SMname,SMhlbl,SMhost,SMplbl,SMport,
+            SMalog,SMppoc,SMnlbl,SMname,SMpwlb,SMpass,
+            SMlplb,SMlpth,SMrplb,SMrpth,
+            SMdele,SMopen,SMcncl,SMsb}, routine_id("smHandler") )
+
+global procedure SiteManager()
+    void = sendMessage(SMLV, LVM_SETITEMCOUNT, length(SMLVdata), 0)
+    openWindow(SMan, SW_NORMAL)
+end procedure

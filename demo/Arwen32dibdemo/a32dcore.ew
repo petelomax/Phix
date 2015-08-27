@@ -1,0 +1,971 @@
+-- Arwen32Dib : Fast bitmap manipulation for Arwen (24-bit graphics).
+-- CORE LIBRARY
+
+-- Copyright (C) 2004 - 2005 Tommy Carlier
+-- tommy.carlier@telenet.be
+-- http://users.telenet.be/tommycarlier
+--  Ported to Arwen by Pete Lomax
+
+include arwen.ew
+
+global constant Arwen32DibVersion = {0, 5,-3, "08-July-2014"} -- {Major, Minor, Patch, Date}
+
+constant xCreateDIBSection = link_c_func(gdi32, "CreateDIBSection",
+                                         {C_INT,            --  _In_    HDC hdc,
+                                          C_PTR,            --  _In_    const BITMAPINFO *pbmi,
+                                          C_INT,            --  _In_    UINT iUsage,
+                                          C_POINTER,        --  _Out_   VOID **ppvBits,
+                                          C_INT,            --  _In_    HANDLE hSection,
+                                          C_INT},       --  _In_    DWORD dwOffset
+                                         C_POINTER)     -- HBITMAP
+
+global constant DibHandle = 1, DibMemory = 2, DibWidth = 3, DibHeight = 4, DibBytesPerLine = 5, DibBytesTotal = 6, DibPadding = 7
+
+global integer clip_x1, clip_y1, clip_x2, clip_y2, clipped, clip_src_outside -- clipping variables to speed up routines
+clip_x1 = 0  clip_y1 = 0  clip_x2 = 0  clip_y2 = 0  clipped = 0  clip_src_outside = 0
+
+constant
+        A32DIB_ASM = allocate(393),
+        ASM_DRAWDIBTODIBALPHA5050 = A32DIB_ASM,
+        ASM_DRAWDIBTODIBALPHA5050_X = A32DIB_ASM+4,
+        ASM_DRAWDIBTODIBALPHA5050_SRCMEMORY = A32DIB_ASM+9,
+        ASM_DRAWDIBTODIBALPHA5050_DESTMEMORY = A32DIB_ASM+14,
+        ASM_DRAWDIBTODIBALPHA = A32DIB_ASM+#2C,
+        ASM_DRAWDIBTODIBALPHA_X = A32DIB_ASM+49,
+        ASM_DRAWDIBTODIBALPHA_SRCMEMORY = A32DIB_ASM+54,
+        ASM_DRAWDIBTODIBALPHA_DESTMEMORY = A32DIB_ASM+59,
+        ASM_DRAWDIBTODIBALPHA_ALPHA = A32DIB_ASM+64,
+        ASM_DRAWDIBTODIBALPHA_ALPHA2 = A32DIB_ASM+66,
+        ASM_DRAWDIBTODIBTRANS = A32DIB_ASM+#66,
+        ASM_DRAWDIBTODIBTRANS_X = A32DIB_ASM+107,
+        ASM_DRAWDIBTODIBTRANS_SRCMEMORY = A32DIB_ASM+112,
+        ASM_DRAWDIBTODIBTRANS_DESTMEMORY = A32DIB_ASM+117,
+        ASM_DRAWDIBTODIBTRANS_TRANSCOLOR = A32DIB_ASM+122,
+        ASM_DRAWDIBTODIBTRANS5050 = A32DIB_ASM+#A2,
+        ASM_DRAWDIBTODIBTRANS5050_X = A32DIB_ASM+167,
+        ASM_DRAWDIBTODIBTRANS5050_SRCMEMORY = A32DIB_ASM+172,
+        ASM_DRAWDIBTODIBTRANS5050_DESTMEMORY = A32DIB_ASM+177,
+        ASM_DRAWDIBTODIBTRANS5050_TRANSCOLOR = A32DIB_ASM+182,
+        ASM_DRAWDIBTODIBTRANSALPHA = A32DIB_ASM+#107,
+        ASM_DRAWDIBTODIBTRANSALPHA_X = A32DIB_ASM+268,
+        ASM_DRAWDIBTODIBTRANSALPHA_SRCMEMORY = A32DIB_ASM+273,
+        ASM_DRAWDIBTODIBTRANSALPHA_DESTMEMORY = A32DIB_ASM+278,
+        ASM_DRAWDIBTODIBTRANSALPHA_TRANSCOLOR = A32DIB_ASM+283,
+        ASM_DRAWDIBTODIBTRANSALPHA_ALPHA = A32DIB_ASM+316,
+        ASM_DRAWDIBTODIBTRANSALPHA_ALPHA2 = A32DIB_ASM+318
+
+procedure initDib()
+    poke(A32DIB_ASM,
+         {
+--          #56,#57,#51,#B9,#00,#00,#00,#00,#BE,#00,#00,#00,#00,#BF,#00,#00,#00,#00,#66,#31,
+--          #C0,#66,#31,#DB,#8A,#06,#8A,#1F,#66,#01,#D8,#66,#D1,#E8,#88,#07,#47,#46,#E2,#F0,
+--          #59,#5F,#5E,#C3,#56,#57,#51,#52,#B9,#00,#00,#00,#00,#BE,#00,#00,#00,#00,#BF,#00,
+--          #00,#00,#00,#B2,#00,#B6,#00,#66,#31,#C0,#66,#31,#DB,#8A,#06,#F6,#E2,#66,#89,#C3,
+--          #8A,#07,#F6,#E6,#66,#01,#D8,#66,#C1,#E8,#08,#88,#07,#47,#46,#E2,#E8,#5A,#59,#5F,
+--          #5E,#C3,#56,#57,#51,#52,#B9,#00,#00,#00,#00,#BE,#00,#00,#00,#00,#BF,#00,#00,#00,
+--          #00,#BA,#00,#00,#00,#00,#8B,#06,#25,#FF,#FF,#FF,#00,#39,#D0,#74,#0C,#8B,#1F,#81,
+--          #E3,#00,#00,#00,#FF,#09,#C3,#89,#1F,#47,#47,#47,#46,#46,#46,#E2,#E1,#5A,#59,#5F,
+--          #5E,#C3,#56,#57,#51,#52,#B9,#00,#00,#00,#00,#BE,#00,#00,#00,#00,#BF,#00,#00,#00,
+--          #00,#BA,#00,#00,#00,#00,#8B,#06,#25,#FF,#FF,#FF,#00,#39,#D0,#74,#35,#31,#C0,#31,
+--          #DB,#8A,#06,#8A,#1F,#66,#01,#D8,#66,#D1,#E8,#88,#07,#47,#46,#8A,#06,#8A,#1F,#66,
+--          #01,#D8,#66,#D1,#E8,#88,#07,#47,#46,#8A,#06,#8A,#1F,#66,#01,#D8,#66,#D1,#E8,#88,
+--          #07,#47,#46,#E2,#C5,#5A,#59,#5F,#5E,#C3,#47,#47,#47,#46,#46,#46,#E2,#B8,#5A,#59,
+--          #5F,#5E,#C3,#56,#57,#51,#52,#B9,#00,#00,#00,#00,#BE,#00,#00,#00,#00,#BF,#00,#00,
+--          #00,#00,#BA,#00,#00,#00,#00,#8B,#06,#25,#FF,#FF,#FF,#00,#39,#D0,#75,#0D,#47,#47,
+--          #47,#46,#46,#46,#E2,#ED,#5A,#59,#5F,#5E,#C3,#31,#C0,#31,#DB,#B2,#00,#B6,#00,#8A,
+--          #06,#F6,#E2,#66,#89,#C3,#8A,#07,#F6,#E6,#66,#01,#D8,#66,#C1,#E8,#08,#88,#07,#47,
+--          #46,#8A,#06,#F6,#E2,#66,#89,#C3,#8A,#07,#F6,#E6,#66,#01,#D8,#66,#C1,#E8,#08,#88,
+--          #07,#47,#46,#8A,#06,#F6,#E2,#66,#89,#C3,#8A,#07,#F6,#E6,#66,#01,#D8,#66,#C1,#E8,
+--          #08,#88,#07,#47,#46,#8B,#15,#AA,#97,#5A,#84,#E2,#96})
+
+--PL byte[dest]:= floor(([src]+[dest])/2) for all colour bytes in one line.
+          #56,                      --  0000 126                push esi        -- ASM_DRAWDIBTODIBALPHA5050:
+          #57,                      --  0001 127                push edi
+          #51,                      --  0002 121                push ecx
+          #B9, #00,#00,#00,#00,     --  0003 271 00000000       mov ecx,0       -- ASM_DRAWDIBTODIBALPHA5050_X
+          #BE, #00,#00,#00,#00,     --  0008 276 00000000       mov esi,0       -- ASM_DRAWDIBTODIBALPHA5050_SRCMEMORY
+          #BF, #00,#00,#00,#00,     --  000D 277 00000000       mov edi,0       -- ASM_DRAWDIBTODIBALPHA5050_DESTMEMORY
+          #66,#31,#C0,              --  0012 146:061300         xor ax,ax
+          #66,#31,#DB,              --  0015 146:061333         xor bx,bx
+          #8A,#06,                  --  0018 212006             mov al,[esi]
+          #8A,#1F,                  --  001A 212037             mov bl,[edi]
+          #66,#01,#D8,              --  001C 146:001330         add ax,bx
+          #66,#D1,#E8,              --  001F 146:321350         shr ax,1
+          #88,#07,                  --  0022 210007             mov [edi],al
+          #47,                      --  0024 107                inc edi
+          #46,                      --  0025 106                inc esi
+          #E2, #F0,                 --  0026 342 F0             loop #00000018
+          #59,                      --  0028 131                pop ecx
+          #5F,                      --  0029 137                pop edi
+          #5E,                      --  002A 136                pop esi
+          #C3,                      --  002B 303                ret
+
+--PL byte[dest]:= and_bits((floor([src]*alpha+[dest]*alpha2)/#100),#FF) for all colour bytes in one line,
+--      where alpha is 0..#FF and alpha2 is (256-alpha).
+          #56,                      --  002C 126                push esi        -- ASM_DRAWDIBTODIBALPHA
+          #57,                      --  002D 127                push edi
+          #51,                      --  002E 121                push ecx
+          #52,                      --  002F 122                push edx
+          #B9, #00,#00,#00,#00,     --  0030 271 00000000       mov ecx,0       -- ASM_DRAWDIBTODIBALPHA_X
+          #BE, #00,#00,#00,#00,     --  0035 276 00000000       mov esi,0       -- ASM_DRAWDIBTODIBALPHA_SRCMEMORY
+          #BF, #00,#00,#00,#00,     --  003A 277 00000000       mov edi,0       -- ASM_DRAWDIBTODIBALPHA_DESTMEMORY
+          #B2, #00,                 --  003F 262 00             mov dl,0            -- ASM_DRAWDIBTODIBALPHA_ALPHA
+          #B6, #00,                 --  0041 266 00             mov dh,0            -- ASM_DRAWDIBTODIBALPHA_ALPHA2
+          #66,#31,#C0,              --  0043 146:061300         xor ax,ax
+          #66,#31,#DB,              --  0046 146:061333         xor bx,bx
+          #8A,#06,                  --  0049 212006             mov al,[esi]
+          #F6,#E2,                  --  004B 366342             mul dl
+          #66,#89,#C3,              --  004D 146:211303         mov bx,ax
+          #8A,#07,                  --  0050 212007             mov al,[edi]
+          #F6,#E6,                  --  0052 366346             mul dh
+          #66,#01,#D8,              --  0054 146:001330         add ax,bx
+          #66,#C1,#E8, #08,         --  0057 146:301350 08      shr ax,8
+          #88,#07,                  --  005B 210007             mov [edi],al
+          #47,                      --  005D 107                inc edi
+          #46,                      --  005E 106                inc esi
+          #E2, #E8,                 --  005F 342 E8             loop #00000049
+          #5A,                      --  0061 132                pop edx
+          #59,                      --  0062 131                pop ecx
+          #5F,                      --  0063 137                pop edi
+          #5E,                      --  0064 136                pop esi
+          #C3,                      --  0065 303                ret
+
+--PL if triple[src]!=transcolor then triple[dest]:=triple[src] for all colour triples in one line.
+          #56,                      --  0066 126                push esi        -- ASM_DRAWDIBTODIBTRANS:
+          #57,                      --  0067 127                push edi
+          #51,                      --  0068 121                push ecx
+          #52,                      --  0069 122                push edx
+          #B9, #00,#00,#00,#00,     --  006A 271 00000000       mov ecx,0       -- ASM_DRAWDIBTODIBTRANS_X
+          #BE, #00,#00,#00,#00,     --  006F 276 00000000       mov esi,0       -- ASM_DRAWDIBTODIBTRANS_SRCMEMORY
+          #BF, #00,#00,#00,#00,     --  0074 277 00000000       mov edi,0       -- ASM_DRAWDIBTODIBTRANS_DESTMEMORY
+          #BA, #00,#00,#00,#00,     --  0079 272 00000000       mov edx,0       -- ASM_DRAWDIBTODIBTRANS_TRANSCOLOR
+          #8B,#06,                  --  007E 213006             mov eax,[esi]
+          #25, #FF,#FF,#FF,#00,     --  0080 045 FFFFFF00       and eax,#00FFFFFF
+          #39,#D0,                  --  0085 071320             cmp eax,edx
+          #74, #0C,                 --  0087 164 0C             je #00000095
+          #8B,#1F,                  --  0089 213037             mov ebx,[edi]
+          #81,#E3, #00,#00,#00,#FF, --  008B 201343 000000FF    and ebx,#FF000000
+          #09,#C3,                  --  0091 011303             or ebx,eax
+          #89,#1F,                  --  0093 211037             mov [edi],ebx
+          #47,                      --  0095 107                inc edi
+          #47,                      --  0096 107                inc edi
+          #47,                      --  0097 107                inc edi
+          #46,                      --  0098 106                inc esi
+          #46,                      --  0099 106                inc esi
+          #46,                      --  009A 106                inc esi
+          #E2, #E1,                 --  009B 342 E1             loop #0000007E
+          #5A,                      --  009D 132                pop edx
+          #59,                      --  009E 131                pop ecx
+          #5F,                      --  009F 137                pop edi
+          #5E,                      --  00A0 136                pop esi
+          #C3,                      --  00A1 303                ret
+
+--PL if triple[src]!=transcolor then 3* byte[dest]:=floor((byte[src]+byte[dest])/2) for all colour bytes/triples in one line.
+          #56,                      --  00A2 126                push esi        -- ASM_DRAWDIBTODIBTRANS5050:
+          #57,                      --  00A3 127                push edi
+          #51,                      --  00A4 121                push ecx
+          #52,                      --  00A5 122                push edx
+          #B9, #00,#00,#00,#00,     --  00A6 271 00000000       mov ecx,0       -- ASM_DRAWDIBTODIBTRANS5050_X
+          #BE, #00,#00,#00,#00,     --  00AB 276 00000000       mov esi,0       -- ASM_DRAWDIBTODIBTRANS5050_SRCMEMORY
+          #BF, #00,#00,#00,#00,     --  00B0 277 00000000       mov edi,0       -- ASM_DRAWDIBTODIBTRANS5050_DESTMEMORY
+          #BA, #00,#00,#00,#00,     --  00B5 272 00000000       mov edx,0       -- ASM_DRAWDIBTODIBTRANS5050_TRANSCOLOR
+          #8B,#06,                  --  00BA 213006             mov eax,[esi]
+          #25, #FF,#FF,#FF,#00,     --  00BC 045 FFFFFF00       and eax,#00FFFFFF
+          #39,#D0,                  --  00C1 071320             cmp eax,edx
+          #74, #35,                 --  00C3 164 35             je #000000FA
+          #31,#C0,                  --  00C5 061300             xor eax,eax
+          #31,#DB,                  --  00C7 061333             xor ebx,ebx
+          #8A,#06,                  --  00C9 212006             mov al,[esi]
+          #8A,#1F,                  --  00CB 212037             mov bl,[edi]
+          #66,#01,#D8,              --  00CD 146:001330         add ax,bx
+          #66,#D1,#E8,              --  00D0 146:321350         shr ax,1
+          #88,#07,                  --  00D3 210007             mov [edi],al
+          #47,                      --  00D5 107                inc edi
+          #46,                      --  00D6 106                inc esi
+          #8A,#06,                  --  00D7 212006             mov al,[esi]
+          #8A,#1F,                  --  00D9 212037             mov bl,[edi]
+          #66,#01,#D8,              --  00DB 146:001330         add ax,bx
+          #66,#D1,#E8,              --  00DE 146:321350         shr ax,1
+          #88,#07,                  --  00E1 210007             mov [edi],al
+          #47,                      --  00E3 107                inc edi
+          #46,                      --  00E4 106                inc esi
+          #8A,#06,                  --  00E5 212006             mov al,[esi]
+          #8A,#1F,                  --  00E7 212037             mov bl,[edi]
+          #66,#01,#D8,              --  00E9 146:001330         add ax,bx
+          #66,#D1,#E8,              --  00EC 146:321350         shr ax,1
+          #88,#07,                  --  00EF 210007             mov [edi],al
+          #47,                      --  00F1 107                inc edi
+          #46,                      --  00F2 106                inc esi
+          #E2, #C5,                 --  00F3 342 C5             loop #000000BA
+          #5A,                      --  00F5 132                pop edx
+          #59,                      --  00F6 131                pop ecx
+          #5F,                      --  00F7 137                pop edi
+          #5E,                      --  00F8 136                pop esi
+          #C3,                      --  00F9 303                ret
+          #47,                      --  00FA 107                inc edi
+          #47,                      --  00FB 107                inc edi
+          #47,                      --  00FC 107                inc edi
+          #46,                      --  00FD 106                inc esi
+          #46,                      --  00FE 106                inc esi
+          #46,                      --  00FF 106                inc esi
+          #E2, #B8,                 --  0100 342 B8             loop #000000BA
+          #5A,                      --  0102 132                pop edx
+          #59,                      --  0103 131                pop ecx
+          #5F,                      --  0104 137                pop edi
+          #5E,                      --  0105 136                pop esi
+          #C3,                      --  0106 303                ret
+
+--PL if triple[src]!=transcolor then triple[dest]:=and_bits(floor((triple[src]*alpha+triple[dest]*alpha2)/#100),#FF)
+--   for all colour triples in one line.
+          #56,                      --  0107 126                push esi    -- ASM_DRAWDIBTODIBTRANSALPHA:
+          #57,                      --  0108 127                push edi
+          #51,                      --  0109 121                push ecx
+          #52,                      --  010A 122                push edx
+          #B9, #00,#00,#00,#00,     --  010B 271 00000000       mov ecx,0   -- ASM_DRAWDIBTODIBTRANSALPHA_X
+          #BE, #00,#00,#00,#00,     --  0110 276 00000000       mov esi,0   -- ASM_DRAWDIBTODIBTRANSALPHA_SRCMEMORY
+          #BF, #00,#00,#00,#00,     --  0115 277 00000000       mov edi,0   -- ASM_DRAWDIBTODIBTRANSALPHA_DESTMEMORY
+          #BA, #00,#00,#00,#00,     --  011A 272 00000000       mov edx,0   -- ASM_DRAWDIBTODIBTRANSALPHA_TRANSCOLOR
+          #8B,#06,                  --  011F 213006             mov eax,[esi]
+          #25, #FF,#FF,#FF,#00,     --  0121 045 FFFFFF00       and eax,#00FFFFFF
+          #39,#D0,                  --  0126 071320             cmp eax,edx
+          #75, #0D,                 --  0128 165 0D             jne #00000137
+          #47,                      --  012A 107                inc edi
+          #47,                      --  012B 107                inc edi
+          #47,                      --  012C 107                inc edi
+          #46,                      --  012D 106                inc esi
+          #46,                      --  012E 106                inc esi
+          #46,                      --  012F 106                inc esi
+          #E2, #ED,                 --  0130 342 ED             loop #0000011F
+          #5A,                      --  0132 132                pop edx
+          #59,                      --  0133 131                pop ecx
+          #5F,                      --  0134 137                pop edi
+          #5E,                      --  0135 136                pop esi
+          #C3,                      --  0136 303                ret
+          #31,#C0,                  --  0137 061300             xor eax,eax
+          #31,#DB,                  --  0139 061333             xor ebx,ebx
+--PL: push edx
+          #B2, #00,                 --  013B 262 00             mov dl,0        -- ASM_DRAWDIBTODIBTRANSALPHA_ALPHA
+          #B6, #00,                 --  013D 266 00             mov dh,0        -- ASM_DRAWDIBTODIBTRANSALPHA_ALPHA2
+          #8A,#06,                  --  013F 212006             mov al,[esi]
+          #F6,#E2,                  --  0141 366342             mul dl
+          #66,#89,#C3,              --  0143 146:211303         mov bx,ax
+          #8A,#07,                  --  0146 212007             mov al,[edi]
+          #F6,#E6,                  --  0148 366346             mul dh
+          #66,#01,#D8,              --  014A 146:001330         add ax,bx
+          #66,#C1,#E8, #08,         --  014D 146:301350 08      shr ax,8
+          #88,#07,                  --  0151 210007             mov [edi],al
+          #47,                      --  0153 107                inc edi
+          #46,                      --  0154 106                inc esi
+          #8A,#06,                  --  0155 212006             mov al,[esi]
+          #F6,#E2,                  --  0157 366342             mul dl
+          #66,#89,#C3,              --  0159 146:211303         mov bx,ax
+          #8A,#07,                  --  015C 212007             mov al,[edi]
+          #F6,#E6,                  --  015E 366346             mul dh
+          #66,#01,#D8,              --  0160 146:001330         add ax,bx
+          #66,#C1,#E8, #08,         --  0163 146:301350 08      shr ax,8
+          #88,#07,                  --  0167 210007             mov [edi],al
+          #47,                      --  0169 107                inc edi
+          #46,                      --  016A 106                inc esi
+          #8A,#06,                  --  016B 212006             mov al,[esi]
+          #F6,#E2,                  --  016D 366342             mul dl
+          #66,#89,#C3,              --  016F 146:211303         mov bx,ax
+          #8A,#07,                  --  0172 212007             mov al,[edi]
+          #F6,#E6,                  --  0174 366346             mul dh
+          #66,#01,#D8,              --  0176 146:001330         add ax,bx
+          #66,#C1,#E8, #08,         --  0179 146:301350 08      shr ax,8
+          #88,#07,                  --  017D 210007             mov [edi],al
+          #47,                      --  017F 107                inc edi
+          #46,                      --  0180 106                inc esi
+--PL: pop edx
+          #8B,#15, #00,#00,#00,#00, --  0181 213025 00000000    mov edx,[#00000000] -- ASM_DRAWDIBTODIBTRANSALPHA_TRANSCOLOR
+                                                                                    -- [== #11B]
+          #E2, #96})                --  0187 342 96             loop #0000011F
+
+    poke4(A32DIB_ASM+387, ASM_DRAWDIBTODIBTRANSALPHA_TRANSCOLOR) -- @trans_color
+end procedure
+initDib()
+
+--PL does not do anything useful anyway:
+--function finalizeDib(integer errCode, sequence errText, integer controlId, integer lastCleanup)
+---- Finalize Arwen32Dib: free all allocated memory.
+--  if errCode or sequence(errText) or controlId or lastCleanup then end if -- suppress warnings
+--  free(A32DIB_ASM)
+--  return 0
+--end function
+--VOID = attachCleanUp(routine_id("finalizeDib"))
+
+global function newDib(integer width, integer height)
+-- Attempts to create a new 24-bit bitmap of the desired width and height.
+-- returns a sequence s of length 7:
+--      s[1] = handle (use it to communicate with Win32Lib controls)
+--      s[2] = pointer to the memory area where you can poke/peek the bitmap
+--      s[3] = width of the bitmap in pixels
+--      s[4] = height of the bitmap in pixels
+--      s[5] = amount of bytes per line
+--      s[6] = total amount of bytes
+--      s[7] = line padding
+-- returns 0 if the bitmap couldn't be created.
+
+-- To put a pixel with coordinates (x, y) on the bitmap:
+--      address = s[DibMemory] + 3 * x + y * s[DibBytesPerLine]
+--      poke(address, color) -- color = a sequence of length 3 {blue, green, red}
+
+-- To get the color of a pixel with coordinates (x, y) from the bitmap:
+--      address = s[DibMemory] + 3 * x + y * s[DibBytesPerLine])
+--      color = peek({address, 3}) -- color = a sequence of length 3 {blue, green, red}
+
+atom bits, bitmapInfo, hDC, dib, videoMemory
+integer padding, bytesperline, totalbytes
+
+    bitmapInfo = allocate(sizeofstruct(BITMAPINFOHEADER))
+    poke4(bitmapInfo+BIH_biSize, sizeofstruct(BITMAPINFOHEADER))
+    poke4(bitmapInfo+BIH_biWidth, width)
+    poke4(bitmapInfo+BIH_biHeight,  -height)
+    poke2(bitmapInfo+BIH_biPlanes, 1)
+    poke2(bitmapInfo+BIH_biBitCount, 24)
+    poke4(bitmapInfo+BIH_biCompression, 0)
+    poke4(bitmapInfo+BIH_biSizeImage, 0)
+    poke4(bitmapInfo+BIH_biXPelsPerMeter, 0)
+    poke4(bitmapInfo+BIH_biYPelsPerMeter, 0)
+    poke4(bitmapInfo+BIH_biClrUsed, 0)
+    poke4(bitmapInfo+BIH_biClrImportant, 0)
+
+    bits = allocate(4)
+    poke4(bits, 0)
+
+    hDC = c_func(xGetDC,{0})
+    dib = c_func(xCreateDIBSection, {hDC, bitmapInfo, 0, bits, NULL, 0})
+    free(bitmapInfo)
+    if dib=0 then return 0 end if
+    void = c_func(xReleaseDC,{0,hDC})
+
+    videoMemory = peek4u(bits)
+    free(bits)
+
+    padding = floor((width*3+3)/4)*4-width*3
+    bytesperline = width*3+padding
+    totalbytes = bytesperline*height
+    return {dib, videoMemory, width, height, bytesperline, totalbytes, padding}
+end function
+
+global procedure killDib(sequence dib)
+-- Removes a bitmap from memory.
+    if deleteObject(dib[DibHandle]) then end if
+end procedure
+
+global function copyDib(sequence dib)
+-- Returns a copy of the bitmap or 0 if the new bitmap couldn't be created
+object new_dib
+
+    new_dib = newDib(dib[DibWidth], dib[DibHeight])
+    if sequence(new_dib) then
+        mem_copy(new_dib[DibMemory], dib[DibMemory], dib[DibBytesTotal])
+    end if
+
+    return new_dib
+end function
+
+--global function dibColor(integer red, integer green, integer blue)
+---- Converts an RGB-value to a sequence that can be used in a bitmap
+--  return {blue, green, red}
+--end function
+
+global procedure putDibPixel(sequence dib, integer x, integer y, sequence color)
+-- Puts a pixel with the specified color on the bitmap at position (x, y).
+    if x>=0 and x<dib[DibWidth]
+    and y>=0 and y<dib[DibHeight] then
+        poke(dib[DibMemory]+3*x+y*dib[DibBytesPerLine], color)
+    end if
+end procedure
+
+global function getDibPixel(sequence dib, integer x, integer y)
+-- Gets the color of a pixel from the bitmap.
+    if x>=0 and x<dib[DibWidth]
+    and y>=0 and y<dib[DibHeight] then
+        return peek({dib[DibMemory]+3*x+y*dib[DibBytesPerLine], 3})
+    else
+        return 0
+    end if
+end function
+
+global procedure fastPutDibPixel(sequence dib, integer x, integer y, sequence color)
+-- Puts a pixel with the specified color on the bitmap at position (x, y).
+-- Is much faster than putDibPixel, but doesn't check for boundaries.
+-- Only use this procedure if you're absolutely sure that (x, y) is on the bitmap.
+    poke(dib[DibMemory]+y*dib[DibBytesPerLine]+x*3, color)
+end procedure
+
+global function fastGetDibPixel(sequence dib, integer x, integer y)
+-- Gets the color of a pixel from the bitmap.
+-- Is much faster than getDibPixel, but doesn't check for boundaries.
+-- Only use this function if you're absolutely sure that (x, y) is on the bitmap.
+    return peek({dib[DibMemory]+y*dib[DibBytesPerLine]+x*3, 3})
+end function
+
+global procedure clearDib(sequence dib, sequence color)
+-- Clears the bitmap with a certain color
+atom memory, dest, max_dest
+integer c, bytes, bytes_per_line
+sequence line
+    c = color[1]
+    if c=color[2] and c=color[3] then -- gray color, so very fast fill possible
+        mem_set(dib[DibMemory], c, dib[DibBytesTotal])
+    else
+        memory = dib[DibMemory]
+        bytes_per_line = dib[DibBytesPerLine]
+        line = repeat(0, bytes_per_line)
+        for i=1 to dib[DibWidth]*3 by 3 do
+            line[i..i+2] = color
+        end for
+        poke(memory, line) -- fill first line
+        dest = memory+bytes_per_line
+        bytes = bytes_per_line
+        max_dest = memory+dib[DibBytesTotal]
+        while dest+bytes<max_dest do
+            mem_copy(dest, memory, bytes) -- copy block of memory
+            dest += bytes
+            bytes += bytes
+        end while
+        bytes = max_dest-dest+3
+        if bytes>0 then mem_copy(dest, memory, bytes) end if
+    end if
+end procedure
+
+global function loadDib(sequence fileName)
+-- Loads a bitmap from a BMP-file, returns 0 if the bitmap couldn't be read
+atom hBitmap, pBitmap, hDC, hDCb
+integer size, width, height
+object dib
+
+    hBitmap = loadImage(fileName,IMAGE_BITMAP,LR_LOADFROMFILE)
+    if hBitmap=NULL then return 0 end if
+    if c_func(xGetObjectType,{hBitmap})!=OBJ_BITMAP then ?9/0 end if
+    size = c_func(xGetObject, {hBitmap,0,0})
+    if size=0 then ?9/0 end if
+    if size!=sizeofstruct(BITMAP) then ?9/0 end if
+    pBitmap = allocate(size)
+    if c_func(xGetObject, {hBitmap, size, pBitmap})!=size then ?9/0 end if
+    width = peek4u(pBitmap+BITMAP_bmWidth)
+    height = peek4u(pBitmap+BITMAP_bmHeight)
+    free(pBitmap)
+    dib = newDib(width, height)
+    if sequence(dib) then
+--      bitBlt(dib[DibHandle], 0, 0, hBitmap, 0, 0, width, height, SrcCopy)
+        hDC = c_func(xCreateCompatibleDC, {NULL})
+        void = c_func(xSelectObject, {hDC, dib[DibHandle]})
+        hDCb = c_func(xCreateCompatibleDC, {NULL})
+        void = c_func(xSelectObject, {hDCb, hBitmap})
+        void = c_func(xBitBlt,{hDC, 0, 0, width,height,hDCb,0,0,SRCCOPY})
+        void = c_func(xDeleteDC,{hDC})
+        void = c_func(xDeleteDC,{hDCb})
+    end if
+    void = deleteObject(hBitmap)
+
+    return dib
+end function
+
+global function saveDib(sequence dib, sequence fileName, integer x1, integer y1, integer x2, integer y2)
+-- Saves a portion ((x1, y1) -> (x2, y2)) of the bitmap to a BMP-file
+integer fn, cx, cy, width, height, bytes
+atom memory
+
+    width = dib[DibWidth]
+    height = dib[DibHeight]
+
+    if x1<0 then x1 = 0 elsif x1>=width then x1 = width-1 end if -- make sure x1 is within boundaries
+    if x2<0 then x2 = 0 elsif x2>=width then x2 = width-1 end if -- make sure x2 is within boundaries
+    if x2<x1 then -- swap x1 and x2 if x2 < x1
+        cx = x2
+        x2 = x1
+        x1 = cx
+    elsif x1=x2 then -- empty region
+        return 1
+    end if
+    cx = x2-x1+1 -- the width of the region
+
+    if y1<0 then y1 = 0 elsif y1>=height then y1 = height-1 end if -- make sure y1 is within boundaries
+    if y2<0 then y2 = 0 elsif y2>=height then y2 = height-1 end if -- make sure y2 is within boundaries
+    if y2<y1 then -- swap y1 and y2 if y2 < y1
+        cy = y2
+        y2 = y1
+        y1 = cy
+    elsif y1=y2 then -- empty region
+        return 1
+    end if
+    cy = y2-y1+1 -- the height of the region
+
+    fn = open(fileName, "wb") -- open the file for writing
+    if fn= -1 then return 1 end if
+
+    bytes = dib[DibBytesPerLine] -- bytes per line
+
+    puts(fn, "BM" & int_to_bytes(54+cy*bytes)
+         & {0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0}
+         & int_to_bytes(cx) & int_to_bytes(cy)
+         & {1, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 11, 0, 0, 64, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+                        -- write the bitmap-header
+
+    memory = dib[DibMemory]+3*x1+y2*bytes -- reading starts at (x1, y2): bottom to top
+    cx = floor((cx*3+3)/4)*4
+    for i=1 to cy do
+        puts(fn, peek({memory, cx}))
+        memory -= bytes
+    end for
+    close(fn) -- close the file
+    return 0
+end function
+
+global function saveDibGray(sequence dib, sequence fileName, integer x1, integer y1, integer x2, integer y2)
+-- Saves a portion ((x1, y1) -> (x2, y2)) of the bitmap to an 8-bit grayscale BMP-file.
+integer fn, cx, cy, width, height, bytes, index, padding
+atom memory
+sequence line, color
+
+    width = dib[DibWidth]
+    height = dib[DibHeight]
+
+    if x1<0 then x1 = 0 elsif x1>=width then x1 = width-1 end if -- make sure x1 is within boundaries
+    if x2<0 then x2 = 0 elsif x2>=width then x2 = width-1 end if -- make sure x2 is within boundaries
+    if x2<x1 then -- swap x1 and x2 if x2 < x1
+        cx = x2
+        x2 = x1
+        x1 = cx
+    elsif x1=x2 then -- empty region
+        return 1
+    end if
+    cx = x2-x1+1 -- the width of the region
+
+    if y1<0 then y1 = 0 elsif y1>=height then y1 = height-1 end if -- make sure y1 is within boundaries
+    if y2<0 then y2 = 0 elsif y2>=height then y2 = height-1 end if -- make sure y2 is within boundaries
+    if y2<y1 then -- swap y1 and y2 if y2 < y1
+        cy = y2
+        y2 = y1
+        y1 = cy
+    elsif y1=y2 then -- empty region
+        return 1
+    end if
+    cy = y2-y1+1 -- the height of the region
+
+    fn = open(fileName, "wb") -- open the file for writing
+    if fn= -1 then return 1 end if
+
+    padding = floor((cx+3)/4)*4-cx
+
+    puts(fn, "BM" & int_to_bytes(54+cy*(cx+padding))
+         & {0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0}
+         & int_to_bytes(cx) & int_to_bytes(cy)
+         & {1, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 11, 0, 0, 64, 11, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0})
+                        -- write the bitmap-header
+    for i=0 to 255 do
+        puts(fn, repeat(i, 4))
+    end for
+
+    bytes = dib[DibBytesPerLine]
+    line = repeat(0, cx+padding)
+    cx *= 3
+    memory = dib[DibMemory]+3*x1+y2*bytes -- reading starts at (x1, y2): bottom to top
+    for i=1 to cy do
+        index = 1
+        for j=memory to memory+cx-3 by 3 do
+            color = peek({j, 3})
+            line[index] = floor((color[1]*114+color[2]*587+color[3]*299)/1000)
+            index += 1
+        end for
+        puts(fn, line)
+        memory -= bytes
+    end for
+    close(fn) -- close the file
+    return 0
+end function
+
+global function saveDibReduced(sequence dib, sequence fileName, integer x1, integer y1, integer x2, integer y2)
+-- Save a portion ((x1, y1) -> (x2, y2)) of the bitmap to an 8-bit BMP-file (uses websafe palette).
+integer fn, cx, cy, width, height, bytes, index, padding
+atom memory
+sequence line, color
+
+    width = dib[DibWidth]
+    height = dib[DibHeight]
+
+    if x1<0 then x1 = 0 elsif x1>=width then x1 = width-1 end if -- make sure x1 is within boundaries
+    if x2<0 then x2 = 0 elsif x2>=width then x2 = width-1 end if -- make sure x2 is within boundaries
+    if x2<x1 then -- swap x1 and x2 if x2 < x1
+        cx = x2
+        x2 = x1
+        x1 = cx
+    elsif x1=x2 then -- empty region
+        return 1
+    end if
+    cx = x2-x1+1 -- the width of the region
+
+    if y1<0 then y1 = 0 elsif y1>=height then y1 = height-1 end if -- make sure y1 is within boundaries
+    if y2<0 then y2 = 0 elsif y2>=height then y2 = height-1 end if -- make sure y2 is within boundaries
+    if y2<y1 then -- swap y1 and y2 if y2 < y1
+        cy = y2
+        y2 = y1
+        y1 = cy
+    elsif y1=y2 then -- empty region
+        return 1
+    end if
+    cy = y2-y1+1 -- the height of the region
+
+    fn = open(fileName, "wb") -- open the file for writing
+    if fn= -1 then return 1 end if
+
+    padding = floor((cx+3)/4)*4-cx
+
+    puts(fn, "BM" & int_to_bytes(54+cy*(cx+padding))
+         & {0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0}
+         & int_to_bytes(cx) & int_to_bytes(cy)
+         & {1, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 11, 0, 0, 64, 11, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0})
+                        -- write the bitmap-header
+    for i=0 to 255 by 51 do
+        for j=0 to 255 by 51 do
+            for k=0 to 255 by 51 do
+                puts(fn, {i, j, k, 0})
+            end for
+        end for
+    end for
+    puts(fn, repeat(0, 156))
+
+    bytes = dib[DibBytesPerLine]
+    line = repeat(0, cx+padding)
+    cx *= 3
+    memory = dib[DibMemory]+3*x1+y2*bytes -- reading starts at (x1, y2): bottom to top
+    for i=1 to cy do
+        index = 1
+        for j=memory to memory+cx-3 by 3 do
+            color = peek({j, 3})
+            line[index] = (floor(color[1]/51+0.5)*6+floor(color[2]/51+0.5))*6+floor(color[3]/51+0.5)
+            index += 1
+        end for
+        puts(fn, line)
+        memory -= bytes
+    end for
+    close(fn) -- close the file
+    return 0
+end function
+
+global procedure drawDib(integer control, sequence dib, integer cX, integer cY, integer dX1, integer dY1, integer dX2, integer dY2)
+-- Draws a portion ((dX1, dY1)-(dX2, dY2)) of the bitmap to a control at position (cX, cY)
+atom hDC = getDC(control)
+atom hDibDC = c_func(xCreateCompatibleDC, {NULL})
+    void = c_func(xSelectObject, {hDibDC, dib[DibHandle]})
+--  bitBlt(control, cX, cY, dib[DibHandle], dX1, dY1, dX2-dX1+1, dY2-dY1+1, SrcCopy)
+    void = c_func(xBitBlt,{hDC, cX, cY, dX2-dX1+1, dY2-dY1+1, hDibDC, dX1, dY1, SRCCOPY})
+    releaseDC(control, hDC)
+    void = c_func(xDeleteDC,{hDibDC})
+end procedure
+
+global procedure copyToDib(sequence dib, integer control, integer dX, integer dY, integer cX1, integer cY1, integer cX2, integer cY2)
+-- Draws a portion ((cX1, cY1)-(cX2, cY2)) of a control to the bitmap at position (dX, dY)
+atom hDC = getDC(control)
+atom hDibDC = c_func(xCreateCompatibleDC, {NULL})
+    void = c_func(xSelectObject, {hDibDC, dib[DibHandle]})
+--  bitBlt(dib[DibHandle], dX, dY, control, cX1, cY1, cX2 - cX1 + 1, cY2 - cY1 + 1, SrcCopy)
+    void = c_func(xBitBlt,{hDibDC, dX, dY, cX2-cX1+1, cY2-cY1+1, hDC, cX1, cY1, SRCCOPY})
+    releaseDC(control, hDC)
+    void = c_func(xDeleteDC,{hDibDC})
+end procedure
+
+--temp (see tiledb.exw, also a32dclip.ew)
+global procedure copyToDib2(sequence dib, atom hDC, integer dX, integer dY, integer cX1, integer cY1, integer cX2, integer cY2)
+-- Draws a portion ((cX1, cY1)-(cX2, cY2)) of a control to the bitmap at position (dX, dY)
+atom hDibDC = c_func(xCreateCompatibleDC, {NULL})
+    void = c_func(xSelectObject, {hDibDC, dib[DibHandle]})
+    void = c_func(xBitBlt,{hDibDC, dX, dY, cX2-cX1+1, cY2-cY1+1, hDC, cX1, cY1, SRCCOPY})
+    void = c_func(xDeleteDC,{hDibDC})
+end procedure
+
+global procedure clipToSource(integer x1, integer y1, integer x2, integer y2, integer width, integer height)
+integer dummy
+
+    clip_src_outside = 0
+
+    if x1>=width then clip_src_outside = 1  return
+    elsif x1<0 then clip_x1 = 0
+    else clip_x1 = x1 end if
+    if x2<0 then clip_src_outside = 1  return
+    elsif x2>=width then clip_x2 = width-1
+    else clip_x2 = x2 end if
+
+    if clip_x1=clip_x2 then clip_src_outside = 1    return
+    elsif clip_x1>clip_x2 then
+        dummy = clip_x1
+        clip_x1 = clip_x2
+        clip_x2 = dummy
+    end if
+
+    if y1>=height then clip_src_outside = 1  return
+    elsif y1<0 then clip_y1 = 0
+    else clip_y1 = y1 end if
+    if y2<0 then clip_src_outside = 1  return
+    elsif y2>=height then clip_y2 = height-1
+    else clip_y2 = y2 end if
+
+    if clip_y1=clip_y2 then clip_src_outside = 1    return
+    elsif clip_y1>clip_y2 then
+        dummy = clip_y1
+        clip_y1 = clip_y2
+        clip_y2 = dummy
+    end if
+end procedure
+
+global procedure drawDibToDib(sequence dib_dest, sequence dib_src, integer dest_x, integer dest_y, integer src_x1, integer src_y1, integer src_x2, integer src_y2, sequence trans_color, integer alpha)
+-- Draws a portion ((src_x1, src_y1)-(src_x2, src_y2)) of a bitmap dib_src to the bitmap dib_dest
+--  at position (dest_x, dest_y) using the color trans_color as a transparent color
+--  (trans_color = {} => no transparency)
+-- Alpha is the translucency value: 0 = completely transparent, 255 = completely opaque
+integer src_width, src_height, dest_width, dest_height, portion_width, portion_height
+integer src_bytes_per_line, dest_bytes_per_line
+atom src_memory, dest_memory, tc
+
+    if alpha<=0 then return -- no drawing necessary
+    elsif alpha>255 then alpha = 255
+    end if
+
+    src_width = dib_src[DibWidth]
+    src_height = dib_src[DibHeight]
+    dest_width = dib_dest[DibWidth]
+    dest_height = dib_dest[DibHeight]
+
+    -- 1. Clip the source rectangle to the extent of the source bitmap
+    if not clipped then
+        clipToSource(src_x1, src_y1, src_x2, src_y2, src_width, src_height)
+        if clip_src_outside then return end if
+    end if
+    src_x1 = clip_x1  src_y1 = clip_y1
+    src_x2 = clip_x2  src_y2 = clip_y2
+
+    portion_width = src_x2-src_x1+1
+    portion_height = src_y2-src_y1+1
+
+    -- 2. Clip the source rectangle to the extent of the destination bitmap
+    if dest_x>=dest_width or dest_x+portion_width<0 then return end if -- outside destination bitmap
+    if dest_x<0 then src_x1 += -dest_x  portion_width += dest_x  dest_x = 0 end if
+    if dest_x+portion_width>dest_width then src_x2 -= portion_width-dest_width+dest_x end if
+
+    if dest_y>=dest_height or dest_y+portion_height<0 then return end if -- outside destination bitmap
+    if dest_y<0 then src_y1 += -dest_y  portion_height += dest_y    dest_y = 0 end if
+    if dest_y+portion_height>dest_height then src_y2 -= portion_height-dest_height+dest_y end if
+
+    -- 3. Draw the bitmap
+    src_bytes_per_line = dib_src[DibBytesPerLine]
+    src_memory = dib_src[DibMemory]+src_x1*3+src_y1*src_bytes_per_line
+    dest_bytes_per_line = dib_dest[DibBytesPerLine]
+    dest_memory = dib_dest[DibMemory]+dest_x*3+dest_y*dest_bytes_per_line
+    portion_width = (src_x2-src_x1+1)*3
+    if portion_width<=0 then return end if
+
+    if length(trans_color) then
+        tc = 256*(256*trans_color[3]+trans_color[2])+trans_color[1]
+        if alpha=255 then
+            poke4(ASM_DRAWDIBTODIBTRANS_X, src_x2-src_x1+1)
+--          poke4(ASM_DRAWDIBTODIBTRANS_TRANSCOLOR, 256 * (256 * trans_color[3] + trans_color[2]) + trans_color[1])
+            poke4(ASM_DRAWDIBTODIBTRANS_TRANSCOLOR, tc)
+--          for y = src_memory to src_memory + (src_y2 - src_y1) * src_bytes_per_line by src_bytes_per_line do
+            for y=src_y1 to src_y2 do
+--              poke4(ASM_DRAWDIBTODIBTRANS_SRCMEMORY, y)
+                poke4(ASM_DRAWDIBTODIBTRANS_SRCMEMORY, src_memory)
+                poke4(ASM_DRAWDIBTODIBTRANS_DESTMEMORY, dest_memory)
+                call(ASM_DRAWDIBTODIBTRANS)
+                src_memory += src_bytes_per_line
+                dest_memory += dest_bytes_per_line
+            end for
+        elsif alpha=127 or alpha=128 then
+            poke4(ASM_DRAWDIBTODIBTRANS5050_X, src_x2-src_x1+1)
+--          poke4(ASM_DRAWDIBTODIBTRANS5050_TRANSCOLOR, 256 * (256 * trans_color[3] + trans_color[2]) + trans_color[1])
+            poke4(ASM_DRAWDIBTODIBTRANS5050_TRANSCOLOR, tc)
+--          for y = src_memory to src_memory + (src_y2 - src_y1) * src_bytes_per_line by src_bytes_per_line do
+            for y=src_y1 to src_y2 do
+--              poke4(ASM_DRAWDIBTODIBTRANS5050_SRCMEMORY, y)
+                poke4(ASM_DRAWDIBTODIBTRANS5050_SRCMEMORY, src_memory)
+                poke4(ASM_DRAWDIBTODIBTRANS5050_DESTMEMORY, dest_memory)
+                call(ASM_DRAWDIBTODIBTRANS5050)
+                src_memory += src_bytes_per_line
+                dest_memory += dest_bytes_per_line
+            end for
+        else
+            poke4(ASM_DRAWDIBTODIBTRANSALPHA_X, src_x2-src_x1+1)
+--          poke4(ASM_DRAWDIBTODIBTRANSALPHA_TRANSCOLOR, 256 * (256 * trans_color[3] + trans_color[2]) + trans_color[1])
+            poke4(ASM_DRAWDIBTODIBTRANSALPHA_TRANSCOLOR, tc)
+            poke(ASM_DRAWDIBTODIBTRANSALPHA_ALPHA, alpha)
+            poke(ASM_DRAWDIBTODIBTRANSALPHA_ALPHA2, 256-alpha)
+--          for y = src_memory to src_memory + (src_y2 - src_y1) * src_bytes_per_line by src_bytes_per_line do
+            for y=src_y1 to src_y2 do
+--              poke4(ASM_DRAWDIBTODIBTRANSALPHA_SRCMEMORY, y)
+                poke4(ASM_DRAWDIBTODIBTRANSALPHA_SRCMEMORY, src_memory)
+                poke4(ASM_DRAWDIBTODIBTRANSALPHA_DESTMEMORY, dest_memory)
+                call(ASM_DRAWDIBTODIBTRANSALPHA)
+                src_memory += src_bytes_per_line
+                dest_memory += dest_bytes_per_line
+            end for
+        end if
+    else
+        if alpha=255 then
+--          for y = src_memory to src_memory + (src_y2 - src_y1) * src_bytes_per_line by src_bytes_per_line do
+            for y=src_y1 to src_y2 do
+--              mem_copy(dest_memory, y, portion_width)
+                mem_copy(dest_memory, src_memory, portion_width)
+                src_memory += src_bytes_per_line
+                dest_memory += dest_bytes_per_line
+            end for
+        elsif alpha=127 or alpha=128 then
+if 0 then -- new code [DEV Phix 32 bit only]
+            for y=src_y1 to src_y2 do
+                #ilASM{ mov esi,[src_memory]    -- erm... cmp esi,h4...
+                        mov edi,[dest_memory]   -- erm...   ""
+--                      cmp esi,h4
+--                      jl @f
+--                          sub esp,8
+--                          fld qword[ebx+esi*4]
+--                          fistp qword[esp]
+--                          pop esi
+--                          add esp,4
+--                    @@:
+--                      cmp edi,h4
+--                      jl @f
+--                          sub esp,8
+--                          fld qword[ebx+edi*4]
+--                          fistp qword[esp]
+--                          pop edi
+--                          add esp,4
+--                    @@:
+                        xor eax,eax
+                        mov ecx,[portion_width]
+                        xor edx,edx
+                      @@:
+                        mov al,[esi]
+                        mov dl,[edi]
+                        add ax,dx
+                        shr ax,1
+                        mov [edi],al
+                        add esi,1
+                        add edi,1
+                        sub ecx,1
+                        jne @b
+                      }
+                src_memory += src_bytes_per_line
+                dest_memory += dest_bytes_per_line
+            end for
+else -- old code
+            poke4(ASM_DRAWDIBTODIBALPHA5050_X, portion_width)
+--          for y = src_memory to src_memory + (src_y2 - src_y1) * src_bytes_per_line by src_bytes_per_line do
+            for y=src_y1 to src_y2 do
+--              poke4(ASM_DRAWDIBTODIBALPHA5050_SRCMEMORY, y)
+                poke4(ASM_DRAWDIBTODIBALPHA5050_SRCMEMORY, src_memory)
+                poke4(ASM_DRAWDIBTODIBALPHA5050_DESTMEMORY, dest_memory)
+                call(ASM_DRAWDIBTODIBALPHA5050)
+                src_memory += src_bytes_per_line
+                dest_memory += dest_bytes_per_line
+            end for
+end if
+        else
+if 0 then -- new code [DEV Phix 32 bit only]
+            for y=src_y1 to src_y2 do
+                #ilASM{
+                        mov ecx,[portion_width]
+                        mov esi,[src_memory]
+                        xor edx,edx
+                        mov edi,[dest_memory]
+                        mov dl,[alpha]
+                        xor eax,eax
+                        sub dh,dl
+                      @@:
+                        mov al,[esi]
+                        mul dl
+                        mov bx,ax
+                        mov al,[edi]
+                        mul dh
+                        add ax,bx
+--DEV try mov [edi],ah?
+                        shr ax,8
+                        mov [edi],al
+                        add edi,1
+                        add esi,1
+                        sub ecx,1
+                        jne @b
+                        xor ebx,ebx
+                      }
+                src_memory += src_bytes_per_line
+                dest_memory += dest_bytes_per_line
+            end for
+else -- old code
+            poke4(ASM_DRAWDIBTODIBALPHA_X, portion_width)
+            poke(ASM_DRAWDIBTODIBALPHA_ALPHA, alpha)
+            poke(ASM_DRAWDIBTODIBALPHA_ALPHA2, 256-alpha)
+--          for y = src_memory to src_memory + (src_y2 - src_y1) * src_bytes_per_line by src_bytes_per_line do
+            for y=src_y1 to src_y2 do
+--              poke4(ASM_DRAWDIBTODIBALPHA_SRCMEMORY, y)
+                poke4(ASM_DRAWDIBTODIBALPHA_SRCMEMORY, src_memory)
+                poke4(ASM_DRAWDIBTODIBALPHA_DESTMEMORY, dest_memory)
+                call(ASM_DRAWDIBTODIBALPHA)
+                src_memory += src_bytes_per_line
+                dest_memory += dest_bytes_per_line
+            end for
+end if
+        end if
+    end if
+end procedure
+
+global procedure copyDibToDib(sequence dib_dest, sequence dib_source)
+-- Copies bitmap dib_source to dib_dest. Both bitmaps need to have the same size
+    mem_copy(dib_dest[DibMemory], dib_source[DibMemory], dib_source[DibBytesTotal])
+end procedure
+
+global function extractDib(object src, integer x1, integer y1, integer x2, integer y2)
+-- Extracts a bitmap from the rectangular region (x1, y1)-(x2, y2) from source src
+-- src can be a bitmap (sequence) or a control (integer)
+object dib
+integer width, height
+atom hDC
+
+    width = x2-x1+1
+    height = y2-y1+1
+
+    dib = newDib(width, height)
+    if sequence(dib) then
+        if sequence(src) then
+            drawDibToDib(dib, src, 0, 0, x1, y1, x2, y2, {}, 255)
+        else
+--          bitBlt(dib[DibHandle], 0, 0, src, x1, y1, width, height, SrcCopy)
+            hDC = c_func(xCreateCompatibleDC, {NULL})
+            void = c_func(xSelectObject, {hDC, dib[DibHandle]})
+            void = c_func(xBitBlt,{hDC, 0, 0, width, height, src, x1, y1, SRCCOPY})
+            void = c_func(xDeleteDC,{hDC})
+        end if
+    end if
+    return dib
+end function
+
+global procedure tileDibToDib(sequence dest, sequence src, integer dest_x, integer dest_y, integer x1, integer y1, integer x2, integer y2, sequence trans_color, integer alpha)
+-- Tiles (a part of) bitmap src to bitmap dest. {dest_x, dest_y} is the coordinate of a point where tiling begins.
+-- trans_color is the transparent color (empty sequence for no transparency), alpha is the translucency (0-255).
+integer portion_width, portion_height, x, width, height
+    if    x2>x1 then portion_width = x2-x1+1
+    elsif x1>x2 then portion_width = x1-x2+1
+    else return end if
+    if    y2>y1 then portion_height = y2-y1+1
+    elsif y1>y2 then portion_height = y1-y2+1
+    else return end if
+    while dest_x>0 do dest_x -= portion_width end while
+    while dest_y>0 do dest_y -= portion_height end while
+    width = dest[DibWidth]
+    height = dest[DibHeight]
+
+    clipToSource(x1, y1, x2, y2, src[DibWidth], src[DibHeight])
+    clipped = 1
+    while dest_y<height do
+        x = dest_x
+        while x<width do
+            drawDibToDib(dest, src, x, dest_y, x1, y1, x2, y2, trans_color, alpha)
+            x += portion_width
+        end while
+        dest_y += portion_height
+    end while
+    clipped = 0
+end procedure
+
+global procedure freeDib()
+    free(A32DIB_ASM)
+end procedure

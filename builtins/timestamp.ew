@@ -1,0 +1,273 @@
+--
+-- timestamp.ew
+-- ============
+--
+--  Routines for dealing with DateTimeStamps, which are the number of seconds since 1/1/1970.
+--
+--      global function FILETIMEtoDateTimeStamp(atom pFileTime)
+--      global function SYSTEMTIMEtoDateTimeStamp(atom pSYSTEMTIME=NULL)
+--      global function DateTimeStampToString(atom DateTimeStamp)
+--
+--  If needed, DateTimeStampToFILETIME and DateTimeStampToSYSTEMTIME would be trivial to add,
+--  however this is not really the right place for StringToXXX routines (axtra.ew perhaps?).
+--
+-- Example:
+--
+--      include builtins\timestamp.ew
+--      atom ts = SYSTEMTIMEtoDateTimeStamp()   -- gets DateTimeStamp for current date/time
+--      ?DateTimeStampToString(ts)              -- prints eg {"07 February 2014","20:41:23"}
+--
+-- DateTimeStamps are typically stored as 32-bit integers (eg in the PE header), which means they
+--  will overflow sometime on Jan 19, 2038. However these routines (if things are stored as 64-bit 
+--  integer or atom) should be good for another 70-odd million years.
+--
+
+integer tsinit = 0
+
+atom kernel32
+
+integer xFileTimeToSystemTime,
+        xGetDateFormat,
+        xGetTimeFormat,
+        xGetSystemTime,
+        xSystemTimeToFileTime,
+        xCreateFile,
+        xGetFileTime,
+        xSetFileTime,
+        xCloseHandle,
+$
+
+atom GENERIC_READ,          -- #80000000,
+     GENERIC_WRITE,         -- #40000000,
+     INVALID_HANDLE_VALUE   -- #FFFFFFFF,
+
+constant FILE_SHARE_READ = 1,
+         OPEN_EXISTING = 3
+
+procedure initts()
+    tsinit = 1
+
+    kernel32 = open_dll("kernel32.dll")
+
+    xFileTimeToSystemTime = define_c_func(kernel32,"FileTimeToSystemTime",
+        {C_PTR,     --  CONST FILETIME *  lpFileTime,   // pointer to file time to convert
+         C_PTR},    --  LPSYSTEMTIME  lpSystemTime  // pointer to structure to receive system time
+        C_INT)      -- BOOL
+
+    xGetDateFormat = define_c_func(kernel32,"GetDateFormatA",
+        {C_LONG,    --  LCID  Locale,       // locale for which date is to be formatted
+         C_LONG,    --  DWORD  dwFlags,     // flags specifying function options 
+         C_PTR,     --  CONST SYSTEMTIME *lpDate, // date to be formatted (NULL for current date)
+         C_PTR,     --  LPCTSTR  lpFormat,  // date format string (NULL if using locale default)
+         C_PTR,     --  LPTSTR  lpDateStr,  // buffer for storing formatted string
+         C_LONG},   --  int  cchDate        // size of buffer
+        C_LONG)     -- int (number of bytes written to/rqd for lpDateStr)
+
+    xGetTimeFormat = define_c_func(kernel32,"GetTimeFormatA",
+        {C_LONG,    --  LCID  Locale,       // locale for which time is to be formatted
+         C_LONG,    --  DWORD  dwFlags,     // flags specifying function options
+         C_PTR,     --  CONST SYSTEMTIME *  lpTime, // time to be formatted (NULL for current time)
+         C_PTR,     --  LPCTSTR  lpFormat,  // time format string (NULL if using locale default)
+         C_PTR,     --  LPTSTR  lpTimeStr,  // buffer for storing formatted string
+         C_LONG},   --  int  cchTime        // size, in bytes or characters, of the buffer
+        C_LONG)     -- int (number of bytes writtem to/rqd for lpTimeStr)
+
+    xGetSystemTime = define_c_proc(kernel32,"GetSystemTime",
+        {C_PTR})    --  LPSYSTEMTIME lpSystemTime
+
+    xSystemTimeToFileTime = define_c_func(kernel32,"SystemTimeToFileTime",
+        {C_PTR,     --  const SYSTEMTIME *lpSystemTime,
+         C_PTR},    --  LPFILETIME lpFileTime
+        C_INT)      -- BOOL
+
+    xCreateFile = define_c_func(kernel32, "CreateFileA",
+        {C_PTR,     --  LPCTSTR  lpFileName,    // address of name of the file
+         C_LONG,    --  DWORD  dwDesiredAccess, // access (read-write) mode
+         C_LONG,    --  DWORD  dwShareMode, // share mode
+         C_PTR,     --  LPSECURITY_ATTRIBUTES  lpSecurityAttributes,    // address of security descriptor
+         C_LONG,    --  DWORD  dwCreationDistribution,  // how to create
+         C_LONG,    --  DWORD  dwFlagsAndAttributes,    // file attributes
+         C_PTR},    --  HANDLE  hTemplateFile   // handle of file with attributes to copy
+        C_PTR)      -- HANDLE
+
+    xGetFileTime = define_c_func(kernel32,"GetFileTime",
+        {C_PTR,     --  _In_       HANDLE hFile,
+         C_PTR,     --  _Out_opt_  LPFILETIME lpCreationTime,
+         C_PTR,     --  _Out_opt_  LPFILETIME lpLastAccessTime,
+         C_PTR},    --  _Out_opt_  LPFILETIME lpLastWriteTime
+        C_INT)      -- BOOL
+
+    xSetFileTime = define_c_func(kernel32,"SetFileTime",
+        {C_PTR,     --  _In_       HANDLE hFile,
+         C_PTR,     --  _In_opt_  const FILETIME *lpCreationTime,
+         C_PTR,     --  _In_opt_  const FILETIME *lpLastAccessTime,
+         C_PTR},    --  _In_opt_  const FILETIME *lpLastWriteTime
+        C_INT)      -- BOOL
+
+    xCloseHandle = define_c_func(kernel32, "CloseHandle",
+        {C_PTR},    --  HANDLE  hObject // handle of object to close
+        C_INT)      -- BOOL
+
+    GENERIC_READ =  #80000000
+    GENERIC_WRITE =  #40000000
+    INVALID_HANDLE_VALUE = #FFFFFFFF
+
+end procedure
+
+constant FILETIMEdwLow = 0,
+         FILETIMEdwHigh = 4,
+         sizeofFILETIME = 8,
+         sizeofSYSTEMTIME = 16,
+         DATE_LONGDATE = 2,
+         LOCALE_USER_DEFAULT = #400,
+$
+--  SYSTEMTIME              = new_struct(),
+--  SYSTEMTIME_wYear        = struc(C_SHORT), --WORD
+--  SYSTEMTIME_wMonth       = struc(C_SHORT), --WORD
+--  SYSTEMTIME_wDayOfWeek   = struc(C_SHORT), --WORD
+--  SYSTEMTIME_wDay         = struc(C_SHORT), --WORD
+--  SYSTEMTIME_wHour        = struc(C_SHORT), --WORD
+--  SYSTEMTIME_wMinute      = struc(C_SHORT), --WORD
+--  SYSTEMTIME_wSecond      = struc(C_SHORT), --WORD
+--  SYSTEMTIME_wMillisecs   = struc(C_SHORT), --WORD
+
+global function FILETIMEtoDateTimeStamp(atom pFileTime)
+--
+-- A FILETIME is a 64-bit value representing the number of 100-nanosecond intervals since Jan 1, 1601.
+-- A DateTimeStamp is the number of seconds since Jan 1, 1970. There were 11644473600 seconds between
+-- Jan 1,1601 and Jan 1,1970, so just subtract that (in 100-nanosecond intervals) and convert back to 
+-- seconds. The result is an atom (good for another 70-odd million years) but be advised it overflows 
+-- 32 bits (which is how most things store it) sometime on Jan 19, 2038.
+--
+atom hns -- 100-nanosecond intervals
+    if tsinit=0 then initts() end if
+    hns = (peek4u(pFileTime+FILETIMEdwLow)+peek4s(pFileTime+FILETIMEdwHigh)*#100000000)
+    return floor((hns-(11644473600*10000000))/10000000)
+end function
+
+global function SYSTEMTIMEtoDateTimeStamp(atom pSYSTEMTIME=NULL)
+--
+-- Tip: SYSTEMTIMEtoDateTimeStamp() [ie no parameters] returns a timestamp for the current date/time.
+--
+atom res = -1                   -- (may get displayed as 31/12/1969 23:59:59, if not checked for)
+atom pSystemTime = pSYSTEMTIME
+atom pFileTime
+    if tsinit=0 then initts() end if
+    if pSYSTEMTIME=NULL then
+        pSystemTime = allocate(sizeofSYSTEMTIME)
+        c_proc(xGetSystemTime,{pSystemTime})
+    end if
+    pFileTime = allocate(sizeofFILETIME)
+    if c_func(xSystemTimeToFileTime,{pSystemTime,pFileTime}) then
+        res = FILETIMEtoDateTimeStamp(pFileTime)
+    end if
+    free(pFileTime)
+    if pSYSTEMTIME=NULL then
+        free(pSystemTime)
+    end if
+    return res
+end function
+
+global function DateTimeStampToString(atom DateTimeStamp)
+--
+-- Convert a DateTimeStamp (dword, number of seconds since ~Jan 1st 1970*) to a readable string.
+--  * [might be 31/12/1969, midnight/4PM/7PM, depending on who you ask, or where you are[?]]
+--  Results agree with several freely available java/php scripts (search for "convert timestamp"),
+--  however I expected 1360058031 to yield 7/2/2013 not 5/2, though that might be a bug in fasm.
+--  At least the minutes and seconds should be spot-on, if not the hour and day, which is good 
+--  enough for me and significantly better than nothing.
+--
+-- returns {datestring, timestring}, either or both of which may be "#error#".
+--
+atom xLocalFileTime,
+     xSystemTime
+atom hns -- 100-nanosecond intervals
+integer len
+atom ptr
+string datestring, timestring
+
+    if tsinit=0 then initts() end if
+    --
+    -- First: convert the dword DateTimeStamp from number of seconds since ~January 1 1970 to a
+    -- FILETIME, a qword containing the number of 100-nanosecond intervals since January 1 1601.
+    -- There were 11644473600 seconds between Jan 1,1601 and Jan 1,1970, so just add that and
+    -- multiply by 10^7.
+    --
+    xLocalFileTime = allocate(sizeofFILETIME)
+    hns = (DateTimeStamp+11644473600)*10000000
+    poke4(xLocalFileTime,{and_bits(hns,#FFFFFFFF),floor(hns/#100000000)})
+    --
+    -- Then use standard functions to convert that to readable strings, the first step being
+    -- to convert that FILETIME value to a SYSTEMTIME structure.
+    --
+    xSystemTime = allocate(sizeofSYSTEMTIME)
+    if c_func(xFileTimeToSystemTime,{xLocalFileTime,xSystemTime}) then end if
+    free(xLocalFileTime)
+    len = c_func(xGetDateFormat,{LOCALE_USER_DEFAULT,DATE_LONGDATE,xSystemTime,NULL,NULL,0})
+    ptr = allocate(len)
+    if c_func(xGetDateFormat,{LOCALE_USER_DEFAULT,DATE_LONGDATE,xSystemTime,NULL,ptr,len}) then
+        datestring = peek_string(ptr)
+    else
+        datestring = "#error#"
+    end if
+    free(ptr)
+    len = c_func(xGetTimeFormat,{LOCALE_USER_DEFAULT,0,xSystemTime,NULL,NULL,0})
+    ptr = allocate(len)
+    if c_func(xGetTimeFormat,{LOCALE_USER_DEFAULT,0,xSystemTime,NULL,ptr,len}) then
+        timestring = peek_string(ptr)
+    else
+        timestring = "#error#"
+    end if
+    free(ptr)
+    free(xSystemTime)
+    return {datestring,timestring}
+end function
+
+global function GetLastAccessTime(string filename)
+atom hFile
+atom pAccessTime
+atom res
+
+    if tsinit=0 then initts() end if
+    hFile = c_func(xCreateFile,{filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
+    if hFile == INVALID_HANDLE_VALUE then
+        printf(1,"CreateFile(p.ini) failed\n")-- with %d\n", c_func(xGetLastError,{}))
+        return 0
+    end if
+    pAccessTime = allocate(sizeofFILETIME)
+    if c_func(xGetFileTime,{hFile, NULL, pAccessTime, NULL})=0 then
+        printf(1,"GetFileTime(p.ini) failed\n")
+        res = 0
+    else
+        res = FILETIMEtoDateTimeStamp(pAccessTime)
+    end if
+    if c_func(xCloseHandle,{hFile}) then end if
+    free(pAccessTime)
+    return res
+end function
+
+global procedure SetLastAccessTime(string filename)
+atom hFile
+atom pSystemTime
+atom pAccessTime
+
+    if tsinit=0 then initts() end if
+    hFile = c_func(xCreateFile,{filename, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
+    if hFile == INVALID_HANDLE_VALUE then
+        printf(1,"CreateFile(p.ini) failed\n")-- with %d\n", c_func(xGetLastError,{}))
+        return
+    end if
+    pAccessTime = allocate(sizeofFILETIME)
+    pSystemTime = allocate(sizeofSYSTEMTIME)
+    c_proc(xGetSystemTime,{pSystemTime})
+    if c_func(xSystemTimeToFileTime,{pSystemTime,pAccessTime})=0 then
+        printf(1,"xSystemTimeToFileTime failed\n")
+    end if
+    if c_func(xSetFileTime,{hFile, NULL, pAccessTime, NULL})=0 then
+        printf(1,"SetFileTime(p.ini) failed\n")
+    end if
+    if c_func(xCloseHandle,{hFile}) then end if
+    free(pAccessTime)
+    free(pSystemTime)
+end procedure
+

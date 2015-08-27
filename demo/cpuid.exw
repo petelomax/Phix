@@ -1,0 +1,369 @@
+--
+-- cpuid.exw  shows basic hardware information
+--
+--  *** DEMO PROGRAM ONLY ***
+--
+--  If you want *accurate* cpuid information, there are many better utilities 
+--  available via your preferred search engine. The best open source code I 
+--  have found is at http://www.etallen.com/cpuid.html (a linux program),
+--  but obviously I can no more vouch for the accuracy of that than I could 
+--  for this code... Alternatively, a windows application can be found at 
+--  http://gnuwin32.sourceforge.net/packages/cpuid.htm (also open source). 
+--  Last updates seem to be 2005/6 ish...
+--  The code below is very much "Intel-only" and is more than likely
+--  to give incorrect results on non-Intel machines.
+--
+--  Any improvements to the collowing code would be welcome.
+--
+--  In the longer term, info from cpuid could be used in Phix to make
+--  executables better targetted to the current machine, particularly
+--  with regard to cache handling(?), but hopefully not (at least by
+--  default) so that they fail to run on older machines. Alternatively
+--  I suppose we could restrict use to interpreter-only changes, thus
+--  making it better to /always/ interpret rather than compile...(??)
+--
+
+with console 4.0    -- (this will not run on RDS Eu)
+
+function cpuid(integer extended, integer param, integer idx)
+--
+-- Invokes basic and extended cpuid functions. Assumes cpuid is supported 
+--  (cpuid was introduced in 1993: Phix will not start without it, nor for 
+--  that matter (cmiiw) will Windows 98/Me/2000/XP/Vista etc.)
+-- extended should be 0 for basic operations, 1 adds #80000000 to param
+--  (coded this way to avoid using atoms/64-bit floats to hold such values)
+-- param should be 0... <value in eax from 0>, equally for extended=0
+--  and extended=1, but less the #80000000 for the latter.
+-- idx is (currently) only needed for cpuid(0,4,idx), being the index for
+--  deterministic cache parameters as needed in ecx by cpuid.
+--
+-- Returns a 16-byte "string", which is actually raw binary and should
+--  not therefore be printed as-is. The information is quite extensive;
+--  for example see (obviously) eg http://en.wikipedia.org/wiki/CPUID
+--  or http://www.sandpile.org/ia32/cpuid.htm or of course google it.
+--
+string result
+    result = repeat(' ',16)
+    if extended then -- (eax/ebx/ecx/edx order)
+        #ilASM{ mov eax,[param]
+                or eax,#80000000
+                cpuid
+                mov edi,[result]
+                xor esi,esi                             -- esi:=0 (as base)
+                mov [esi+edi*4],eax
+                mov [esi+edi*4+4],ebx
+                mov [esi+edi*4+8],ecx
+                mov [esi+edi*4+12],edx
+                xor ebx,ebx}                            -- ebx:=0 (never forget to do this!)
+    else -- basic (eax/ebx/edx/ecx order)
+        #ilASM{ mov eax,[param]
+                mov ecx,[idx]
+                cpuid
+                mov edi,[result]
+                xor esi,esi                             -- esi:=0 (as base)
+                mov [esi+edi*4],eax
+                mov [esi+edi*4+4],ebx
+                mov [esi+edi*4+8],edx
+                mov [esi+edi*4+12],ecx
+                xor ebx,ebx}                            -- ebx:=0 (never forget to do this!)
+    end if
+    return result
+end function
+
+function dword(string s, integer i)
+--
+-- grab a dword starting at s[i] from string s (prolly from above)
+-- note that i is 1-based, ie 1,5,9,13 for 1st,2nd,3rd,4th dwords.
+--
+    -- safe, slow method:
+    -- =================
+--  return s[i]+s[i+1]*#100+s[i+2]*#10000+s[i+3]*#1000000
+
+    -- faster method, but no bounds checking:
+    -- =====================================
+integer h
+    #ilASM{ mov eax,[s]
+            mov edi,[i]
+            xor edx,edx
+            mov eax,dword[edi+eax*4-1] --(1)
+            mov dx,ax
+            shr eax,16
+            mov [h],eax
+            mov [i],edx}
+
+    --
+    -- (1) explanation: edi is the (1-based, hence the -1) index, whereas
+    --                  eax is the ref, *4 to shift left & form a pointer.
+    --
+    -- the above #ilASM yields two 16-bit integers; combine them
+    --  into a "31-bit-int or float" as needed, the easy way:
+    --
+    return h*#10000+i
+end function
+
+object o
+integer maxlevel
+string vendorID
+atom eax,ebx,edx,ecx
+integer family, model, processor_type, steppingID
+constant ptdescs = {"original OEM",     -- 0
+                    "OverDrive",        -- 1
+                    "Dual Processor"}   -- 2
+string ptdesc
+integer apicID, cpu_count, chunks, brandID
+integer cdone, times
+string pns  -- processor name string (max 48 chars)
+integer index   -- for deterministic cache parameters
+integer cache_type
+constant cache_descs = {"Null, no more caches", -- 0
+                        "Data cache",           -- 1
+                        "Instruction cache",    -- 2
+                        "Unified cache"}        -- 3
+string cache_desc
+integer cache_level, self_initialising_cache, fully_associative_cache,
+        ways, partitions, line_size, sets, cache_size
+
+integer L2cachesize, L2assoc, L2linesize
+constant L2assocs = {"Disabled",            -- 0
+                     "Direct mapped",       -- 1
+                     "2-Way",               -- 2
+                     "??",
+                     "4-Way",               -- 4
+                     "??",
+                     "8-Way",               -- 6
+                     "??",
+                     "16-Way",              -- 8
+                     "??",
+                     "??",                  -- A
+                     "??",
+                     "??",                  -- C
+                     "??",
+                     "??",
+                     "Fully associative"}   -- F
+
+    o = cpuid(0,0,0)    -- Vendor-ID and Largest Standard Function
+--  maxlevel = o[1]     -- strictly, o[1]+o[2]*#100+o[3]*#10000+o[4]*#1000000
+    maxlevel = dword(o,1)
+    vendorID = o[5..16]
+    printf(1,"maxlevel is %d\n", maxlevel)
+    printf(1,"vendorID is %s\n", vendorID)
+    if maxlevel>=1 then
+        puts(1,"cpuid(0,1,0) [Feature Information]:\n")
+        o = cpuid(0,1,0)
+        eax = dword(o,1)
+--      printf(1,"eax is %08x\n", eax)
+        eax = and_bits(eax,#0FFF3FFF)   -- clear reserved bits
+        printf(1,"eax is %08x\n", eax)
+--DEV:: this may be wrong; the "--?" may be right but I cannot test here (with 0 1st part)...
+        family = floor(and_bits(eax,#0FF00000)/#10000)+floor(and_bits(eax,#F00)/#100)
+--?     family = floor(and_bits(eax,#0FF00000)/#100000)+floor(and_bits(eax,#F00)/#100)
+        model = floor(and_bits(eax,#000F0000)/#100)+floor(and_bits(eax,#F0)/#10)
+        processor_type = floor(and_bits(eax,#3000)/#1000)
+        ptdesc = ptdescs[processor_type+1]
+        steppingID = and_bits(eax,#F)
+        printf(1,"family is %d\n", family)
+        printf(1,"model is %d\n", model)
+        printf(1,"processor_type is %d (%s)\n", {processor_type,ptdesc})
+        printf(1,"steppingID is %d\n", steppingID)
+        ebx = dword(o,5)
+        printf(1,"ebx is %08x\n", ebx)
+        apicID = floor(and_bits(ebx,#FF000000)/#1000000)
+        cpu_count = floor(and_bits(ebx,#FF0000)/#10000)
+        chunks = floor(and_bits(ebx,#FF00)/#100)            -- "CLFLUSH line size"?
+        brandID = and_bits(ebx,#FF)
+        printf(1,"apicID is %d\n", apicID)
+        printf(1,"cpu_count is %d\n", cpu_count)
+        printf(1,"chunks is %d\n", chunks)
+        printf(1,"brandID is %d\n", brandID)
+        edx = dword(o,9)
+--      printf(1,"edx is %08x\n", edx)
+        edx = and_bits(edx,#BFEFFBFF)   -- clear reserved bits
+        printf(1,"edx is %08x\n", edx)
+        printf(1,"FPU: %d\n",and_bits(edx,#01)!=0)          -- Floating Point Unit
+        printf(1,"TSC: %d\n",and_bits(edx,#10)!=0)          -- Time Stamp Counter
+        printf(1,"CMOV: %d\n",and_bits(edx,#8000)!=0)       -- Conditional Moves
+        printf(1,"PSN: %d\n",and_bits(edx,#40000)!=0)       -- Processor Serial Number (P3 only)
+        printf(1,"MMX: %d\n",and_bits(edx,#800000)!=0)      -- MultiMedia Extensions
+        printf(1,"SSE: %d\n",and_bits(edx,#2000000)!=0)     -- Streaming SIMD Extensions
+        printf(1,"SSE2: %d\n",and_bits(edx,#4000000)!=0)    -- "" 2
+        ecx = dword(o,13)
+--      printf(1,"ecx is %08x\n", ecx)
+        ecx = and_bits(ecx,#0EFCE7FF)   -- clear reserved bits
+        printf(1,"ecx is %08x\n", ecx)
+        printf(1,"SSE3: %d\n",and_bits(ecx,#01)!=0)         -- "" 3
+--      pp(o)
+        if getc(0) then end if
+    end if
+    if maxlevel>=2 then
+        puts(1,"cpuid(0,2,0) [Cache descriptors]:\n")
+        cdone = 0
+        while 1 do
+            o = cpuid(0,2,0)
+            times = o[1]
+            printf(1,"times = %d\n", times)
+            eax = dword(o,1)
+            printf(1,"eax is %08x\n", eax)
+            ebx = dword(o,5)
+            printf(1,"ebx is %08x\n", ebx)
+            edx = dword(o,9)
+            printf(1,"edx is %08x\n", edx)
+            ecx = dword(o,13)
+            printf(1,"ecx is %08x\n", ecx)
+            pp(o)
+            cdone += 1
+            if cdone=times then exit end if
+        end while
+        if getc(0) then end if
+    end if
+--  if maxlevel>=3 then
+--      puts(1,"cpuid(0,3,0) [Processor Serial Number (P3 only)]:\n")
+--      o = cpuid(0,3,0)
+--      eax = dword(o,1)
+--      printf(1,"eax is %08x\n", eax)
+--      ebx = dword(o,5)
+--      printf(1,"ebx is %08x\n", ebx)
+--      edx = dword(o,9)
+--      printf(1,"edx is %08x\n", edx)
+--      ecx = dword(o,13)
+--      printf(1,"ecx is %08x\n", ecx)
+----        if getc(0) then end if
+--  end if
+    if maxlevel>=4 then
+--NB untested:
+        index = 0
+        while 1 do
+            printf(1,"cpuid(0,4,%d) [Deterministic Cache Parameters]:\n",index)
+            o = cpuid(0,4,index)
+            eax = dword(o,1)
+            printf(1,"eax is %08x\n", eax)
+            edx = and_bits(edx,#FFFFC3FF)   -- clear reserved bits
+            printf(1,"eax is %08x\n", eax)
+            cache_type = and_bits(eax,#1F)
+            if cache_type>3 then
+                cache_desc = "UNKNOWN"
+            else
+                cache_desc = cache_descs[cache_type+1]
+            end if
+            printf(1,"cache type is %d [%s]\n",{cache_type,cache_desc})
+            if cache_type=0 or cache_type>3 then exit end if
+            cache_level = floor(and_bits(eax,#E0)/#20)
+            printf(1,"cache level is %d\n",cache_level)
+            self_initialising_cache = (and_bits(eax,#0100)!=0)
+            printf(1,"self initialising cache is %d\n",self_initialising_cache)
+            fully_associative_cache = (and_bits(eax,#0200)!=0)
+            printf(1,"fully associative cache is %d\n",fully_associative_cache)
+            ebx = dword(o,5)
+            printf(1,"ebx is %08x\n", ebx)
+            ways = floor(and_bits(ebx,#FFC00000)/#400000)+1
+            partitions = floor(and_bits(ebx,#003FF000)/#1000)+1
+            line_size = and_bits(ebx,#FFF)+1
+            edx = dword(o,9)
+            printf(1,"edx is %08x\n", edx)
+            edx = and_bits(edx,#3)  -- clear reserved bits
+            printf(1,"edx is %08x\n", edx)
+            ecx = dword(o,13)
+            printf(1,"ecx is %08x\n", ecx)
+            sets = ecx
+            cache_size = ways*partitions*line_size*sets
+            printf(1,"cache_size is %d\n",cache_size)
+--      if getc(0) then end if
+            index += 1
+        end while
+    end if
+    if maxlevel>=5 then
+        puts(1,"levels>=5 not investigated...\n")
+    end if
+
+--
+-- Extended functions
+-- ==================
+-- NB order changes from eax/ebx/edx/ecx to eax/ebx/ecx/edx for extended functions.
+
+    puts(1,"\nExtended Functions:\n\n")
+
+    o = cpuid(1,0,0)
+    maxlevel = o[1]     -- strictly, o[1]+o[2]*#100+o[3]*#10000+o[4]*#1000000
+--  maxlevel = dword(o,1)
+    printf(1,"maxlevel is %d\n", maxlevel)
+    eax = dword(o,1)
+    printf(1,"eax is %08x\n", eax)
+-- reserved:
+--  ebx = dword(o,5)
+--  printf(1,"ebx is %08x\n", ebx)
+--  ecx = dword(o,9)
+--  printf(1,"ecx is %08x\n", ecx)
+--  edx = dword(o,13)
+--  printf(1,"edx is %08x\n", edx)
+    if maxlevel>=1 then
+        puts(1,"cpuid(1,1,0) [Extended Feature Flags]:\n")
+        o = cpuid(1,1,0)
+-- reserved:
+--      eax = dword(o,1)        -- has (different) meaning on AMD/VIA/Transmeta (only)
+--      printf(1,"eax is %08x\n", eax)
+--      ebx = dword(o,5)        -- has meaning on AMD only
+--      printf(1,"ebx is %08x\n", ebx)
+--      ecx = dword(o,9)        -- has (different) meaning on AMD/Intel (only)
+--      printf(1,"ecx is %08x\n", ecx)
+        edx = dword(o,13)
+--      printf(1,"edx is %08x\n", edx)
+        edx = and_bits(edx,#20100800)   -- clear reserved bits -- **DEV: INTEL ONLY **
+        printf(1,"edx is %08x\n", edx)
+--      pp(o)
+--      if getc(0) then end if
+    end if
+    if maxlevel>=4 then -- 2/3/4 = processor brand string
+--      puts(1,"cpuid(1,4,0):\n")
+        o = cpuid(1,2,0)
+        pns = o
+        o = cpuid(1,3,0)
+        pns &= o
+        o = cpuid(1,4,0)
+--      eax = dword(o,1)
+--      printf(1,"eax is %08x\n", eax)
+--      ebx = dword(o,5)
+--      printf(1,"ebx is %08x\n", ebx)
+--      edx = dword(o,9)
+--      printf(1,"edx is %08x\n", edx)
+--      ecx = dword(o,13)
+--      printf(1,"ecx is %08x\n", ecx)
+--      pp(o)
+        pns &= o
+        for i=1 to length(pns) do
+            if pns[i]!=' ' then
+                pns = pns[i..$]
+                exit
+            end if
+        end for
+        for i=1 to length(pns) do
+            if pns[i]=0 then
+                pns = pns[1..i-1]
+                exit
+            end if
+        end for
+        printf(1,"processor name string is \"%s\"\n",{pns})
+        if getc(0) then end if
+    end if
+    -- #80000005 is reserved
+    if maxlevel>=6 then
+        puts(1,"cpuid(1,6,0) [Extended L2 cache features]:\n")
+        o = cpuid(1,6,0)
+        -- eax/ebx/edx reserved
+        ecx = dword(o,9)
+--      printf(1,"ecx is %08x\n", ecx)
+        ecx = and_bits(ecx,#FFFFF0FF)   -- clear reserved bits
+        printf(1,"ecx is %08x\n", ecx)
+        L2cachesize = floor(and_bits(ecx,#FFFF0000)/#10000)
+        L2assoc = floor(and_bits(ecx,#F000)/#1000)
+        L2linesize = and_bits(ecx,#FF)
+        printf(1,"L2 cache size = %dK\n",L2cachesize)
+        printf(1,"L2 cache associativity = %d [%s]\n",{L2assoc,L2assocs[L2assoc+1]})
+        printf(1,"L2 cache line size = %d\n",L2linesize)
+--      pp(o)
+        if getc(0) then end if
+    end if
+    if maxlevel>=7 then
+        puts(1,"levels>=7 not investigated...\n")
+    end if
+puts(1,"done\n")
+if getc(0) then end if
+

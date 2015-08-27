@@ -1,0 +1,299 @@
+--
+-- msgbox.exw
+--
+-- DEV 64bit needs work
+--
+-- Demo showing three ways to invoke external functions.
+--  1) Using c_func/c_proc
+--      This is the recommended and most robust method with maximum validation.
+--      However in some (rare) cases it may add an unacceptable performance hit.
+--      A quick perusal of builtins/pcfunc.e should suggest why I thought this,
+--      but apparently I was quite wrong. The first tests (on pfileio.e) showed
+--      the alternatives do not provide the performance advantage over c_func/
+--      c_proc hoped for (or the better spin would be that c_func/c_proc are
+--      perfectly fast enough). However, these techniques may (yet) be helpful 
+--      in my long term quest to migrate code from the back end to #ilasm. Also,
+--      it could be quite messy to invoke c_func/c_proc from inside ilasm, that
+--      is at least compared to either of the following.
+--  2) Direct inlining of the import table
+--      Can only use those functions as listed by "p -imports". While this might
+--      be noticeably faster, expect less help and assistance should it go wrong.
+--      Update: that "Can only" restriction should now be lifted. Obviously that
+--              makes the following method pretty much completely redundant.
+--  3) Inlining preloaded functions
+--      Since only a very limited set is available via the import table, shows 
+--      how to use LoadLibraryA/GetProcAddress to load any routine, and then how
+--      to invoke it. Obviously with the same error caveat as above.
+--
+--  Note that normally you would use the auto-include builtins/pmsgbox.e, for example
+--
+--      {} = message_box("message","title",MB_OK)
+--
+--  (ie just the one line) is a complete working program. This shows three possible
+--  ways to implement that, one being similar to that in builtins/msgbox.e, which
+--  you may want to refer to (or psym.e) for omitted constants such as MB_OK.
+--
+-- You may need to know the techniques demonstrated below when either:
+--  a) performance is critical, or probably far more likely,
+--  b) so you can follow the code in eg builtins\pfileio.e
+--
+
+--
+-- 1) Using c_func/c_proc
+--
+integer xMessageBoxA, 
+        xGetActiveWindow
+
+integer initX = 0
+
+procedure Xinit()
+atom user32
+    user32 = open_dll("user32.dll")
+--#without reformat
+    xMessageBoxA = define_c_func(user32, "MessageBoxA",
+        {C_POINTER, --  HWND  hWnd, // handle of owner window
+         C_POINTER, --  LPCTSTR  lpText,    // address of text in message box
+         C_POINTER, --  LPCTSTR  lpCaption, // address of title of message box
+         C_INT},    --  UINT  uType         // style of message box
+        C_INT)      -- int 
+    if xMessageBoxA=-1 then ?9/0 end if
+    xGetActiveWindow = define_c_func(user32, "GetActiveWindow",
+        {},
+        C_LONG)     -- HWND
+    if xGetActiveWindow=-1 then ?9/0 end if
+--#with reformat
+    initX = 1
+end procedure
+
+function MessageBox1(string text, string title, integer style)
+atom hWnd
+
+    if not initX then Xinit() end if
+    hWnd = c_func(xGetActiveWindow, {})
+    return c_func(xMessageBoxA, {hWnd,text,title,style})
+end function
+
+--
+--  2) Direct inlining of the import table
+--
+function MessageBox2(string text, string title, integer style)
+integer res
+    #ilASM {
+        [PE32]
+            call "user32","GetActiveWindow"
+            mov ecx,[text]
+            mov edx,[title]
+            mov esi,[style]
+            shl ecx,2 -- (convert ref to raw ptr)
+            shl edx,2 -- (convert ref to raw ptr)
+            push esi                        -- style
+            push edx                        -- title
+            push ecx                        -- text
+            push eax                        -- hwnd
+            call "user32","MessageBoxA"
+            mov [res],eax
+        [ELF64]
+            pop al
+        [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whatever alignment we started with
+            sub rsp,8*5                             -- minimum 4 param shadow space, and align/somewhere to save rax
+            call "user32","GetActiveWindow"
+            mov rdx,[text]
+            mov r8,[title]
+            mov r9,[style]
+            shl rdx,2 -- (convert ref to raw ptr)
+            shl r8,2 -- (convert ref to raw ptr)
+--          mov r9,r9                       -- style
+--          mov r8,r8                       -- title
+--          mov rdx,rdx                     -- text
+            mov rcx,rax                     -- hwnd
+            call "user32","MessageBoxA"
+            mov [res],rax
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+        [ELF64]
+            pop al
+        []
+           }
+    return res
+end function
+
+--
+--  3) Inlining preloaded functions
+--
+-- We must store addresses>#3FFFFFFF, which most will be, as floats.
+atom zGetActiveWindow,
+     zMessageBoxA
+
+integer initZ = 0
+
+-- Now we could do initialisation the naieve and difficult way...
+--/*
+constant szUser32 = "user32.dll",
+         szGetActiveWindow = "GetActiveWindow",
+         szMessageBoxA = "MessageBoxA"
+        
+procedure Zinit()
+    #ilASM{
+        [32]
+            mov eax,[szUser32]
+            shl eax,2
+            push eax                            -- lpLibFileName
+            call "kernel32.dll","LoadLibraryA"
+            push eax -- (save)
+            mov ecx,[szGetActiveWindow]
+            shl ecx,2
+            push ecx                            -- lpProcName
+            push eax                            -- library handle
+            call "kernel32.dll","GetProcAddress"
+            push eax
+            fild dword[esp]
+            pop eax -- (discard)
+            lea edi,[zGetActiveWindow]
+            call %opMovbi                       --  call StoreFlt
+            pop eax -- (restore)
+            mov ecx,[szMessageBoxA]
+            shl ecx,2
+            push ecx                            -- lpProcName
+            push eax                            -- library handle
+            call "kernel32.dll","GetProcAddress"
+            push eax
+            fild dword[esp]
+            pop eax -- (discard)
+            lea edi,[zMessageBoxA]
+            call %opMovbi                       --  call StoreFlt
+        [PE64]
+            pop al
+        [ELF32]
+            pop al
+        [ELF64]
+            pop al
+        []
+           }
+    initZ = 1
+end procedure
+--*/
+
+-- ...but since this is a one-off cost, we may as well do this:
+procedure Zinit()
+atom kernel32, user32
+integer zGetProcAddress
+    kernel32 = open_dll("kernel32.dll")
+    zGetProcAddress = define_c_func(kernel32, "GetProcAddress",
+        {C_PTR,     --  HMODULE  hModule,   // handle to DLL module
+         C_PTR},    --  LPCSTR  lpProcName  // name of function
+        C_PTR)      -- FARPROC
+    if zGetProcAddress=-1 then ?9/0 end if
+    user32 = open_dll("user32.dll")
+    zGetActiveWindow = c_func(zGetProcAddress,{user32, "GetActiveWindow"})
+    zMessageBoxA = c_func(zGetProcAddress,{user32,"MessageBoxA"})
+    if zGetActiveWindow=NULL then ?9/0 end if
+    if zMessageBoxA=NULL then ?9/0 end if
+    initZ = 1
+end procedure
+
+function MessageBox3(string text, string title, integer style)
+integer res
+    if not initZ then Zinit() end if
+    #ilASM{
+        [PE32]
+            mov eax,[zGetActiveWindow]
+            cmp eax,h4
+            jl @f
+                -- addr>#3FFFFFFF stored as float:
+                push ebx -- create space
+                fld qword[ebx+eax*4]
+                fistp dword[esp]
+                pop eax
+          @@:
+            call eax    -- call GetActiveWindow
+            mov ecx,[text]
+            mov edx,[title]
+            mov esi,[style]
+            shl ecx,2 -- (convert ref to raw ptr)
+            shl edx,2 -- (convert ref to raw ptr)
+            push esi                        -- style
+            push edx                        -- title
+            push ecx                        -- text
+            push eax                        -- hwnd (result from GetActiveWindow)
+            mov eax,[zMessageBoxA]
+            cmp eax,h4
+            jl @f
+                -- addr>#3FFFFFFF stored as float:
+                push ebx -- create space
+                fld qword[ebx+eax*4]
+                fistp dword[esp]
+                pop eax
+          @@:
+            call eax    -- call MessageBoxA
+            mov [res],eax
+        [ELF32]
+            pop al
+        [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whatever alignment we started with
+            sub rsp,8*5                             -- minimum 4 param shadow space, and align/somewhere to save rax
+            mov rax,[zGetActiveWindow]
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                -- addr>#3FFFFFFF stored as float:
+                push rbx -- create space
+                fld tbyte[rbx+rax*4]
+                fistp qword[rsp]
+                pop rax
+          @@:
+            call rax    -- call GetActiveWindow
+            mov rdx,[text]
+            mov r8,[title]
+            mov r9,[style]
+            shl rdx,2 -- (convert ref to raw ptr)
+            shl r8,2 -- (convert ref to raw ptr)
+--          mov r9,r9                       -- style
+--          mov r8,r8                       -- title
+--          mov rdx,rdx                     -- text
+            mov rcx,rax                     -- hwnd (result from GetActiveWindow)
+            mov rax,[zMessageBoxA]
+            cmp rax,r15
+            jl @f
+                -- addr>#3FFFFFFF stored as float:
+                push rbx -- create space
+                fld tbyte[rbx+rax*4]
+                fistp qword[rsp]
+                pop rax
+          @@:
+            call rax    -- call MessageBoxA
+            mov [res],rax
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+        [ELF64]
+            pop al
+        []
+           }
+    return res
+end function
+
+--
+-- One point you should not miss here is that whichever alternative you choose,
+--  and provided you wrap it in a separate source file, it becomes completely
+--  and utterly irrelevant as far as the rest of your application is concerned.
+
+    if platform()!=WIN32 then ?9/0 end if
+    {} = MessageBox1("c_func style", "MessageBox1", MB_OK)
+    {} = MessageBox2("direct import table", "MessageBox2", MB_OK)
+    {} = MessageBox3("preloaded inline", "MessageBox3", MB_OK)
+
+

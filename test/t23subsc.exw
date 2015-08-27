@@ -1,0 +1,186 @@
+--
+-- t23subsc.exw (subscript tests)
+--
+--constant RDS=2        -- set 1 to omit -ve subscripts if testing on exw.exe.
+--                  -- set 2 to omit "" & floating point subscripts if testing under -O2
+--/**/  constant RDS=0
+--/*
+        constant RDS=1
+type string(object s) return sequence(s) end type
+--*/
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+string S
+sequence Q
+    S = "fred"
+    Q = {1,2,3,-1}
+integer i
+    i=S[1]
+    if i!='f' then Abort("i(=S[1])!='f'\n") end if  
+    if S[1]!='f' then Abort("S[1]!='f'\n") end if 
+if not RDS then
+    i=S[-1]
+    if i!='d' then Abort("i(=S[-1])!='d'\n") end if 
+    if S[-1]!='d' then Abort("S[-1]!='d'\n") end if 
+end if
+    i=Q[1]
+    if i!=1 then Abort("i(=Q[1])!=1\n") end if
+    if Q[1]!=1 then Abort("Q[1]!=1\n") end if
+if not RDS then
+    i=Q[-2]
+    if i!=3 then Abort("i(=Q[-2])!=3\n") end if
+    if Q[-2]!=3 then Abort("Q[-2]!=3\n") end if
+end if
+sequence s
+    s={1,{1}}
+    s[2][1]=2
+    s[2][1]=s[2][1]+1
+    s[2][1]+=1
+    if not equal(s,{1,{4}}) then Abort("s!={1,{4}}\n") end if
+
+    s={0}
+    s[1] = {0,1,-1}
+    s[1][2] = 0
+    Q = {}
+    s[1][1] = Q
+    if not equal(s,{{"",0,-1}}) then Abort("s!={{\"\",0,-1}}\n") end if
+
+-- r=s[i] tests:
+-- (r not/init)   (r int/atom/seq/str/obj)   (s not/init)   (s seq/str/obj)   (i not/init)   (i int/atom/obj)
+--      2       *           5              *      2       *        3        *      2       *      3
+-- by not/init I mean whether the compiler /knows/ they are init or not.
+-- to simplify, I've lumped all non-init in one procedure and all known init in another, which whittles things 
+--  down to 90, then dropped a few meaningless/error cases (eg string=string[i]), leaving 76.
+
+integer rI1, rI2, rI3, rI4, rI5, rI6, rI7, rI8, rI9
+integer iI, iI2, iI3
+atom rN1, rN2, rN3, rN4, rN5, rN6, rN7, rN8, rN9
+atom iN, iN2, iN3
+sequence rP1, rP2, rP3, rP4, rP5, rP6 --, rP7, rP8, rP9
+sequence sP
+string rS1, rS2, rS3, rS4, rS5, rS6 --, rS7, rS8, rS9
+string sS
+object rO1, rO2, rO3, rO4, rO5, rO6, rO7, rO8, rO9
+object sO, iO, iO2, iO3
+
+sequence res
+procedure testU()
+-- as far as the compiler is concerned, none of these are init:
+    rI1 = sP[iI]    res=append(res,rI1)
+    rI2 = sP[iN]    res=append(res,rI2)
+    rI3 = sP[iO]    res=append(res,rI3)
+    rI4 = sS[iI]    res=append(res,rI4)
+    rI5 = sS[iN]    res=append(res,rI5)
+    rI6 = sS[iO]    res=append(res,rI6)
+    rI7 = sO[iI]    res=append(res,rI7)
+    rI8 = sO[iN]    res=append(res,rI8)
+    rI9 = sO[iO]    res=append(res,rI9)
+    rN1 = sP[iI]    res=append(res,rN1)
+    rN2 = sP[iN]    res=append(res,rN2)
+    rN3 = sP[iO]    res=append(res,rN3)
+    rN4 = sS[iI]    res=append(res,rN4)
+    rN5 = sS[iN]    res=append(res,rN5)
+    rN6 = sS[iO]    res=append(res,rN6)
+    rN7 = sO[iI]    res=append(res,rN7)
+    rN8 = sO[iN]    res=append(res,rN8)
+    rN9 = sO[iO]    res=append(res,rN9)
+    rP1 = sP[iI2]   res=append(res,rP1)
+    rP2 = sP[iN2]   res=append(res,rP2)
+    rP3 = sP[iO2]   res=append(res,rP3)
+    rP4 = sO[iI2]   res=append(res,rP4)
+    rP5 = sO[iN2]   res=append(res,rP5)
+    rP6 = sO[iO2]   res=append(res,rP6)
+    rS1 = sP[iI3]   res=append(res,rS1)
+    rS2 = sP[iN3]   res=append(res,rS2)
+    rS3 = sP[iO3]   res=append(res,rS3)
+    rS4 = sO[iI2]   res=append(res,rS4)
+    rS5 = sO[iN2]   res=append(res,rS5)
+    rS6 = sO[iO2]   res=append(res,rS6)
+    rO1 = sP[iI]    res=append(res,rO1)
+    rO2 = sP[iN]    res=append(res,rO2)
+    rO3 = sP[iO]    res=append(res,rO3)
+    rO4 = sS[iI]    res=append(res,rO4)
+    rO5 = sS[iN]    res=append(res,rO5)
+    rO6 = sS[iO]    res=append(res,rO6)
+    rO7 = sO[iI]    res=append(res,rO7)
+    rO8 = sO[iN]    res=append(res,rO8)
+    rO9 = sO[iO]    res=append(res,rO9)
+end procedure
+
+    rI1=1 rN1=1.1+1.2 rP1=repeat(-1,2) rS1=repeat(' ',3) rO1=repeat(2.7,4)
+    sP={-2,{},"fred"} sS="aaaaaa" sO={5,"fred",3.8}
+    iI=1 iN=1.2 iO=1.3
+    iI2=2 iN2=2.2 iO2=2.3
+    iI3=3 iN3=3.2 iO3=3.3
+
+procedure testI()
+-- the compiler now flags these as init:
+    rI1 = sP[iI]    res=append(res,rI1)
+    rI1 = sP[iN]    res=append(res,rI1)
+    rI1 = sP[iO]    res=append(res,rI1)
+    rI1 = sS[iI]    res=append(res,rI1)
+    rI1 = sS[iN]    res=append(res,rI1)
+    rI1 = sS[iO]    res=append(res,rI1)
+    rI1 = sO[iI]    res=append(res,rI1)
+    rI1 = sO[iN]    res=append(res,rI1)
+    rI1 = sO[iO]    res=append(res,rI1)
+    rN1 = sP[iI]    res=append(res,rN1)
+    rN1 = sP[iN]    res=append(res,rN1)
+    rN1 = sP[iO]    res=append(res,rN1)
+    rN1 = sS[iI]    res=append(res,rN1)
+    rN1 = sS[iN]    res=append(res,rN1)
+    rN1 = sS[iO]    res=append(res,rN1)
+    rN1 = sO[iI]    res=append(res,rN1)
+    rN1 = sO[iN]    res=append(res,rN1)
+    rN1 = sO[iO]    res=append(res,rN1)
+    rP1 = sP[iI2]   res=append(res,rP1)
+    rP1 = sP[iN2]   res=append(res,rP1)
+    rP1 = sP[iO2]   res=append(res,rP1)
+    rP1 = sO[iI2]   res=append(res,rP1)
+    rP1 = sO[iN2]   res=append(res,rP1)
+    rP1 = sO[iO2]   res=append(res,rP1)
+    rS1 = sP[iI3]   res=append(res,rS1)
+    rS1 = sP[iN3]   res=append(res,rS1)
+    rS1 = sP[iO3]   res=append(res,rS1)
+    rS1 = sO[iI2]   res=append(res,rS1)
+    rS1 = sO[iN2]   res=append(res,rS1)
+    rS1 = sO[iO2]   res=append(res,rS1)
+    rO1 = sP[iI]    res=append(res,rO1)
+    rO1 = sP[iN]    res=append(res,rO1)
+    rO1 = sP[iO]    res=append(res,rO1)
+    rO1 = sS[iI]    res=append(res,rO1)
+    rO1 = sS[iN]    res=append(res,rO1)
+    rO1 = sS[iO]    res=append(res,rO1)
+    rO1 = sO[iI]    res=append(res,rO1)
+    rO1 = sO[iN]    res=append(res,rO1)
+    rO1 = sO[iO]    res=append(res,rO1)
+end procedure
+
+constant expected = { -2, -2, -2, 'a', 'a', 'a', 5, 5, 5, -2, -2, -2, 'a', 'a', 'a', 5, 5, 5, {}, {}, {},
+                      "fred", "fred", "fred", "fred", "fred", "fred", "fred", "fred", "fred",
+                      -2, -2, -2, 'a', 'a', 'a', 5, 5, 5 }
+
+--if RDS!=2 then    -- not under -O2
+    res={}
+    testU()
+    if not equal(res,expected) then iI = 9/0 end if
+
+    res={}
+    testI()
+
+    if not equal(res,expected) then iI = 9/0 end if
+--end if
+
+-- 18/6/2010 (if emitON missing from Assignment/fastSubscriptLHS ref[idx]=0)
+constant newBC=0
+sequence symtab
+    symtab={{{1}}}
+constant routineNo=1,
+         S_il=1,
+         bpset=2
+if newBC then
+--DEV breaks self-host (even with newBC=0)
+                    symtab[routineNo][S_il] = append(symtab[routineNo][S_il],bpset)
+end if
+if symtab!={{{1}}} then ?9/0 end if
+

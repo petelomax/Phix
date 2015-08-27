@@ -1,0 +1,444 @@
+--with trace
+--
+-- demo_xpm.exw
+-- 
+-- Read/display xpm and bmp and icon graphics.
+-- BUG: 24-bit xpm background wrong shade (same in xpmdemo...)
+-- DEV add vertical scrollbar,
+--     a statusbar showing which xpm is under the cursor,
+--     a menu[?] with options (+/-/original)
+--
+-- Copied from a D. Cuny demo for win32lib.
+--
+
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+include arwen.ew
+include axtra.ew
+--include xpm.e         -- XPM tools
+include file.e          -- directory searching
+
+integer first
+        first = 1
+
+sequence name,
+         extn,
+         dibList,
+         isIcon,
+         dibw,
+         dibh,
+         xpos,
+         ypos,
+         dibNames
+
+
+atom dib, icon
+
+-- read all the xpm, bmp, and icon files in the specified directory
+
+--theDir = dir(current_dir())
+--constant currdir = "C:\\P3\\bmp\\dcxpm\\"
+--constant currdir = "C:\\P3\\bmp\\rs\\"
+--constant currdir = "C:\\P3\\bmp\\linux_icons\\32x32x64\\md\\"
+--constant currdir = "C:\\P3\\bmp\\linux_icons\\32x32x64\\rh\\"
+--constant currdir = "C:\\P3\\bmp\\skin\\"
+--constant currdir = "C:\\P3\\bmp\\TsEuImageEditor\\Resource\\"
+--constant currdir = "C:\\temp\\MyEditor\\MyEditor\\Source\\Resources\\xpm\\"
+--constant currdir = get_proper_path("..\\xpm\\","")
+constant currdir = get_proper_path("..\\xpm\\",getAppDir())
+--constant currdir = "..\\xpm\\"
+--constant currdir = "..\\xpm\\rh\\"
+--constant currdir = "..\\xpm\\rs\\"
+--constant currdir = "..\\xpm\\xpm\\"
+--constant currdir = "..\\DemoResources\\"
+--?currdir
+--?current_dir()
+--?command_line()
+--?dir(currdir)
+constant dirlist = sort(dir(currdir))
+
+constant iconX = c_func(xGetSystemMetrics,{SM_CXICON}),
+         iconY = c_func(xGetSystemMetrics,{SM_CYICON})
+
+
+-- create them as DIBs, and store them in a list
+
+-- clear the list
+    dibList = {}
+    isIcon = {}
+    dibw = {}
+    dibh = {}
+    xpos = {}
+    ypos = {}
+    dibNames = {}
+
+constant sizeofBITMAP = sizeofstruct(BITMAP)
+atom buffer
+
+atom hCur
+     hCur = loadCursor("C:\\windows\\cursors\\3dgarro.cur")
+
+for i=1 to length(dirlist) do  
+    -- get a name
+    name = dirlist[i][D_NAME]
+    extn = ""
+    for j=length(name) to 1 by -1 do
+        if name[j]='.' then
+            extn = lower(name[j+1..length(name)])
+            exit
+        end if
+    end for
+
+    if equal("xpm",extn) then
+    
+        -- read the xpm into a euphoria bitmap
+        dib = createDIBfromXPM(open(currdir&name,"r"), #C0C0C0)--getSysColor(COLOR_BTNFACE))
+        if dib=NULL then
+            printf(1,"%s: %s\n",{name,xpmErrMsg})
+        else
+            dibList = append(dibList,dib)
+            isIcon = append(isIcon,0)
+            dibw = append(dibw,getLastDIBw())
+            dibh = append(dibh,getLastDIBh())
+            xpos = append(xpos,0)
+            ypos = append(ypos,0)
+            dibNames = append(dibNames,currdir&name)
+        end if
+if 0 then
+--if first then
+--if 1 then
+--dib = c_func(xLoadCursor,{instance(),allocate_StringZ("C:\\windows\\cursors\\3dgarro.cur")})
+--  dib = loadImage("C:\\windows\\cursors\\3dgarro.cur", IMAGE_CURSOR, LR_LOADFROMFILE)
+--?dib
+--  void = c_func(xSetCursor,{dib})
+hCur=dib -- no!
+--  ?void
+    first = 0
+end if
+    elsif equal("bmp",extn) then
+        dib = loadImage(currdir&name, IMAGE_BITMAP, LR_LOADFROMFILE)
+        if dib=NULL then
+            printf(1,"loadImage error %d\n",{c_func(xGetLastError,{})})
+        else
+            buffer = allocate(sizeofBITMAP)
+            if not c_func(xGetObject,{dib,sizeofBITMAP,buffer}) then
+                printf(1,"xGetObject error %d\n",{c_func(xGetLastError,{})})
+            else
+                dibList = append(dibList,dib)
+                isIcon = append(isIcon,0)
+                dibw = append(dibw,peek4s(buffer+BITMAP_bmWidth))
+                dibh = append(dibh,peek4s(buffer+BITMAP_bmHeight))
+                xpos = append(xpos,0)
+                ypos = append(ypos,0)
+                dibNames = append(dibNames,currdir&name)
+            end if
+            free(buffer)
+        end if
+if 0 then
+--if first then
+--  dib = loadImage(currdir&name, IMAGE_CURSOR, LR_LOADFROMFILE)
+--  ?dib
+--  void = c_func(xSetCursor,{dib})
+hCur=dib -- no!
+--  ?void
+    first = 0
+end if
+    elsif equal("ico",extn) then
+        icon = c_func(xLoadImage,{NULL,allocate_StringZ(currdir&name),IMAGE_ICON,0,0,LR_LOADFROMFILE})
+        if icon=NULL then
+            printf(1,"icon loadImage error %d\n",{c_func(xGetLastError,{})})
+        else
+            dibList = append(dibList,icon)
+            isIcon = append(isIcon,1)
+            dibw = append(dibw,iconX)
+            dibh = append(dibh,iconY)
+            xpos = append(xpos,0)
+            ypos = append(ypos,0)
+            dibNames = append(dibNames,currdir&name)
+        end if
+if 0 then
+--if first then
+--  icon = c_func(xLoadImage,{NULL,allocate_StringZ(currdir&name),IMAGE_CURSOR,0,0,LR_LOADFROMFILE})
+--  ?icon
+--  void = c_func(xSetCursor,{icon})
+hCur=icon -- OK
+--  ?void
+    first = 0
+end if
+    end if
+    
+end for
+
+sequence xpmfile
+
+procedure add_tbar(sequence xpm, sequence name)
+-- helper routine to add the xpms from tbar_xpm.e/XPM_ICON.E/tool_xpm.e
+--DEV/SUG:
+--  xpm = var_value(var_id(name))
+-- (where var_id is like/a modified copy of routine_id, 
+--    and var_value is #ilasm to load <threadstack+n*4>, incref etc)
+    dib = createDIBfromXPM(xpm, #C0C0C0)--getSysColor(COLOR_BTNFACE))
+    if dib=NULL then
+        printf(1,"%s/%s: %s\n",{xpmfile,name,xpmErrMsg})
+    else
+        dibList = append(dibList,dib)
+        isIcon = append(isIcon,0)
+        dibw = append(dibw,getLastDIBw())
+        dibh = append(dibh,getLastDIBh())
+        xpos = append(xpos,0)
+        ypos = append(ypos,0)
+        dibNames = append(dibNames,current_dir()&"\\"&xpmfile&"/"&name)
+    end if
+end procedure
+
+include tbar_xpm.e
+    xpmfile = "tbar_xpm.e"
+    add_tbar(cancel_xpm,"cancel_xpm")
+    add_tbar(close_xpm,"close_xpm")
+    add_tbar(copy_xpm,"copy_xpm")
+    add_tbar(cut_xpm,"cut_xpm")
+    add_tbar(dir_closed_xpm,"dir_closed_xpm")
+    add_tbar(dir_open_xpm,"dir_open_xpm")
+    add_tbar(edit_xpm,"edit_xpm")
+    add_tbar(exit_xpm,"exit_xpm")
+    add_tbar(trash_full_xpm,"trash_full_xpm")
+    add_tbar(help_xpm,"help_xpm")
+    add_tbar(home_xpm,"home_xpm")
+    add_tbar(left_arrow_xpm,"left_arrow_xpm")
+    add_tbar(new_xpm,"new_xpm")
+    add_tbar(ok_xpm,"ok_xpm")
+    add_tbar(open_xpm,"open_xpm")
+    add_tbar(paste_xpm,"paste_xpm")
+    add_tbar(preferences_xpm,"preferences_xpm")
+    add_tbar(print_xpm,"print_xpm")
+    add_tbar(redo_xpm,"redo_xpm")
+    add_tbar(refresh_xpm,"refresh_xpm")
+    add_tbar(revert_xpm,"revert_xpm")
+    add_tbar(right_arrow_xpm,"right_arrow_xpm")
+    add_tbar(source_xpm,"source_xpm")
+    add_tbar(clock_run_xpm,"clock_run_xpm")
+    add_tbar(save_xpm,"save_xpm")
+    add_tbar(save_as_xpm,"save_as_xpm")
+    add_tbar(search_xpm,"search_xpm")
+    add_tbar(spellcheck_xpm,"spellcheck_xpm")
+    add_tbar(stop_xpm,"stop_xpm")
+    add_tbar(trash_xpm,"trash_xpm")
+    add_tbar(undo_xpm,"undo_xpm")
+    add_tbar(volume_xpm,"volume_xpm")
+
+include XPM_ICON.E
+    xpmfile = "XPM_ICON.E"
+    add_tbar(XPM_additional_status,"XPM_additional_status")
+    add_tbar(XPM_additional_bitmap,"XPM_additional_bitmap")
+    add_tbar(XPM_additional_image,"XPM_additional_image")
+    add_tbar(XPM_additional_label,"XPM_additional_label")
+    add_tbar(XPM_additional_progress,"XPM_additional_progress")
+    add_tbar(XPM_additional_scrollbar,"XPM_additional_scrollbar")
+    add_tbar(XPM_control_button,"XPM_control_button")
+    add_tbar(XPM_control_check,"XPM_control_check")
+    add_tbar(XPM_control_group,"XPM_control_group")
+    add_tbar(XPM_control_menu,"XPM_control_menu")
+    add_tbar(XPM_control_radio,"XPM_control_radio")
+    add_tbar(XPM_control_tabs,"XPM_control_tabs")
+    add_tbar(XPM_control_tools,"XPM_control_tools")
+    add_tbar(XPM_selection_combo,"XPM_selection_combo")
+    add_tbar(XPM_selection_grid,"XPM_selection_grid")
+    add_tbar(XPM_selection_list,"XPM_selection_list")
+    add_tbar(XPM_selection_listview,"XPM_selection_listview")
+    add_tbar(XPM_selection_spin,"XPM_selection_spin")
+    add_tbar(XPM_selection_tree,"XPM_selection_tree")
+    add_tbar(XPM_input_date,"XPM_input_date")
+    add_tbar(XPM_input_datetime,"XPM_input_datetime")
+    add_tbar(XPM_input_currency,"XPM_input_currency")
+    add_tbar(XPM_input_float,"XPM_input_float")
+    add_tbar(XPM_input_formatted,"XPM_input_formatted")
+    add_tbar(XPM_input_integer,"XPM_input_integer")
+    add_tbar(XPM_input_mle,"XPM_input_mle")
+    add_tbar(XPM_input_text,"XPM_input_text")
+    add_tbar(XPM_input_time,"XPM_input_time")
+    add_tbar(XPM_windows_child,"XPM_windows_child")
+    add_tbar(XPM_windows_childscroll,"XPM_windows_childscroll")
+    add_tbar(XPM_windows_dialog,"XPM_windows_dialog")
+    add_tbar(XPM_windows_message,"XPM_windows_message")
+    add_tbar(XPM_windows_modal,"XPM_windows_modal")
+    add_tbar(XPM_windows_normal,"XPM_windows_normal")
+    add_tbar(XPM_windows_scroll,"XPM_windows_scroll")
+    add_tbar(XPM_additional_vscrollbar,"XPM_additional_vscrollbar")
+    add_tbar(XPM_control_popup,"XPM_control_popup")
+    add_tbar(XPM_input_rich,"XPM_input_rich")
+    add_tbar(XPM_control_tabcontrol,"XPM_control_tabcontrol")
+    add_tbar(XPM_control_toolbarspacer,"XPM_control_toolbarspacer")
+
+include tool_xpm.e
+    xpmfile = "tool_xpm.e"
+    add_tbar(XPM_Calendar,"XPM_Calendar")
+    add_tbar(XPM_Contacts,"XPM_Contacts")
+    add_tbar(XPM_DeletedItems,"XPM_DeletedItems")
+    add_tbar(XPM_Inbox,"XPM_Inbox")
+    add_tbar(XPM_Journal,"XPM_Journal")
+    add_tbar(XPM_Favorites,"XPM_Favorites =")
+    add_tbar(XPM_MyComputer,"XPM_MyComputer")
+    add_tbar(XPM_MyDocuments,"XPM_MyDocuments")
+    add_tbar(XPM_Notes,"XPM_Notes")
+    add_tbar(XPM_OutlookToday,"XPM_OutlookToday")
+    add_tbar(XPM_PublicFolders,"XPM_PublicFolders")
+    add_tbar(XPM_Tasks,"XPM_Tasks")
+    add_tbar(XPM_smDrafts,"XPM_smDrafts")
+    add_tbar(XPM_smOutbox,"XPM_smOutbox")
+    add_tbar(XPM_smSentItems,"XPM_smSentItems")
+
+constant Main = create(Window, "XPM Demo", 0, 0, 10, 10, 890, 750, 0),
+         OrigSize = create(CheckBox,"Original size",0,Main,0,0,80,25,0),
+         ShowName = create(Label,"<hover mouse over image to show its name>",0,Main,80,6,440,25,0)
+    setCheck(OrigSize,True)
+
+integer nameset = 0
+
+integer stdsize, rightx, maxheight
+        stdsize = 24
+
+--with trace
+function MainHandler(integer id, integer msg, atom wParam, object lParam)
+integer winwidth,winheight, width, height
+integer x, y
+sequence winrect
+atom wDC, bDC
+integer xi,yi
+--integer isIcon
+
+    if msg=WM_PAINT and id=Main then
+--if OrigSize=0 then
+--  OrigSize = create(CheckBox,"Original size",0,Main,0,0,80,25,0)
+--  setCheck(OrigSize,True)
+----    removeStyle(OrigSize,WS_TABSTOP) -- no help...
+--end if
+--void = setCursor(hCur)    --FAIL
+        if wParam or object(lParam) then end if -- suppress warnings
+        wDC = getDC(Main)
+        bDC = c_func(xCreateCompatibleDC,{wDC})
+        winrect = getWindowRect(Main)
+        winwidth = winrect[3]-winrect[1]-8
+        winheight = winrect[4]-winrect[2]
+        x = 0
+        y = 30
+        maxheight = stdsize
+        -- draw all the bitmaps    
+        for i = 1 to length(dibList) do
+        
+if not isIcon[i] then
+            void = c_func(xSelectObject,{bDC,dibList[i]})
+end if
+            width = dibw[i]
+            height = dibh[i]
+--if 01 then    -- keep original size, and stack best we can
+if isChecked(OrigSize) then
+            if width>stdsize then
+                rightx = x+width
+            else
+                rightx = x+stdsize
+            end if
+            if rightx > winwidth then
+                x = 0
+                y += maxheight
+                rightx = width
+                maxheight = stdsize
+            end if
+
+if isIcon[i] then
+            void=c_func(xDrawIcon, {wDC,x,y,dibList[i]})
+else
+            void = c_func(xBitBlt, {wDC,x,y,width,height,bDC,0,0,SRCCOPY})
+end if
+            xpos[i] = x
+            ypos[i] = y
+            x = rightx
+            if height>maxheight then
+                maxheight = height
+            end if
+
+else        -- stretch to fixed size (stdsize x stdsize, initially 24x24)
+if isIcon[i] then
+            -- Note: this does not shrink/stretch icons.
+            void=c_func(xDrawIcon, {wDC,x,y,dibList[i]})
+else
+            void = c_func(xStretchBlt, {wDC,x,y,stdsize,stdsize,bDC,0,0,width,height,SRCCOPY})
+end if
+            xpos[i] = x
+            ypos[i] = y
+            -- move to next position in window
+            x += stdsize
+            
+            -- need to wrap?
+            if x+stdsize > winwidth then
+                x = 0
+                y += stdsize
+            end if
+end if      
+        end for
+        void = c_func(xDeleteDC,{bDC})
+        releaseDC(Main,wDC)
+
+    elsif msg=WM_CHAR then
+
+        if wParam='+' then
+
+            stdsize += 24
+            repaintWindow(Main,False)
+
+        elsif wParam='-'
+          and stdsize>24 then
+
+            stdsize -= 24
+            repaintWindow(Main,False)
+
+        elsif wParam=VK_ESCAPE then
+            closeWindow(Main)
+        end if
+
+    elsif msg=WM_MOUSEMOVE then
+--?{id,msg,wParam,lParam}
+--DEV not quite sure when best to call this...
+--void = setCursor(hCur)
+if sequence(lParam) then
+        x = lParam[1]
+        y = lParam[2]
+        if nameset then
+            setText(ShowName,"")
+        end if
+        for i=1 to length(ypos) do
+            yi = ypos[i]
+            if yi>y then exit end if
+            if y>=yi then
+                xi = xpos[i]
+                if x>=xi then
+--DEV/nb this is not right for the xStretchBlt case, but should be easy enough to fix,
+--       however after we replace "if 0|1 then" with "if isChecked(Something) then".
+                    if isChecked(OrigSize) then
+                        xi = (y<=yi+dibh[i]) and (x<=xi+dibw[i])
+                    else
+                        xi = (y<=yi+stdsize) and (x<=xi+stdsize)
+                    end if
+                    if xi then
+                        void = setCursor(hCur)
+                        setText(ShowName,dibNames[i])
+                        nameset = 1
+                        exit
+                    end if
+                end if
+            end if
+        end for
+end if
+    elsif msg=WM_COMMAND then
+        if id=OrigSize then
+            repaintWindow(Main,False)
+        end if
+    end if
+
+    return 0
+end function
+setHandler({Main,OrigSize},routine_id("MainHandler"))
+
+
+WinMain(Main,SW_NORMAL)
+--WinMain(Main,SW_MAXIMIZE)
+

@@ -1,0 +1,227 @@
+--
+-- demo_wirecube.exw
+-- =================
+--
+-- For an updated/better version, see ..\arwen32dibdemo\demo_cube.exw
+-- This was ripped off from demo_lines, and is just about as far as I could go with dib32.
+-- (I should really add a drawPolygon function to dib32, but then again I didn't write it.)
+--
+-- moving the mouse should make it spin faster
+-- the nearest face should get all four edges the same colour
+-- press escape to close
+--
+
+include arwen.ew
+include dib32.ew
+
+constant TEST = create(Window,  "Cube demo", 0, 0, 10,10,415,435,{0,0}),
+         testDC = getPrivateDC(TEST)
+
+integer dib
+        dib = createDib(400, 400, 32)
+
+integer axis
+atom sin_angle, cos_angle
+
+constant X = 1, Y = 2, Z = 3
+
+type point(sequence x)
+    return length(x)=3
+end type
+
+type matrix(sequence x)
+    return length(x)=4 and sequence(x[1])
+end type
+
+function vector_product(sequence v, matrix m)
+-- multiply a 4-vector by a 4x4 matrix
+-- note: v is actually length(3), treated as if v[4] is 1.
+sequence c
+    c = repeat(0, 4)
+    for j=1 to 4 do
+        c[j] = v[1]*m[1][j]+
+               v[2]*m[2][j]+
+               v[3]*m[3][j]+
+                    m[4][j]
+    end for
+    return c
+end function
+
+function view(point view_point)
+-- compute initial view
+atom {x,y,z} = view_point
+atom hyp = sqrt(x*x + y*y),
+     sin_theta = x/hyp,
+     cos_theta = y/hyp,
+     sin2theta = sin_theta*sin_theta,
+     cos2theta = cos_theta*cos_theta,
+     stc_theta = sin_theta*cos_theta,
+     soc_theta = sin_theta/cos_theta
+    return {{-2*cos_theta, -2*sin2theta,      -stc_theta, 0},
+            { 2*sin_theta, -2*stc_theta,      -cos2theta, 0},
+            {           0,  2*cos_theta,      -sin_theta, 0},
+            {           0,            0, y + x*soc_theta, 1}}
+end function
+
+function new_points(sequence overall, sequence points)
+-- compute the screen coordinates from the 3-D coordinates
+sequence screen_coords
+atom x,y,z
+point p
+integer x2, y2
+
+    x2 = floor(getDibWidth(dib)/2)
+    y2 = floor(getDibHeight(dib)/2)
+--  screen_coords = repeat({0, 0, 0}, length(shape))
+    screen_coords = repeat(0, length(points))
+    for i=1 to length(points) do
+        p = points[i]
+        {x,y,z} = vector_product(p, overall)
+        screen_coords[i] = {x2*(x/z+1), y2*(y/z+1), z}
+    end for
+    return screen_coords
+end function
+
+function rotate_points(integer axis, sequence points)
+-- rotate a set of points
+atom x,y,z
+atom xsin,ysin,zsin,xcos,ycos,zcos
+sequence pi
+    for i = 1 to length(points) do
+        {x,y,z} = points[i]
+        xsin = x*sin_angle
+        ysin = y*sin_angle
+        zsin = z*sin_angle
+        xcos = x*cos_angle
+        ycos = y*cos_angle
+        zcos = z*cos_angle
+        if axis = X then
+            pi = {x, ycos+zsin, zcos-ysin}
+        elsif axis = Y then
+            pi = {xcos-zsin, y, xsin+zcos}
+        else  -- axis = Z
+            pi = {xcos+ysin, ycos-xsin, z}
+        end if
+        points[i] = pi
+    end for
+    return points
+end function
+
+function makeCube()
+sequence points, faces, shape
+    points = {{-0.5,-0.5,-0.5},     -- base: left rear
+              {-0.5,-0.5, 0.5},     --       left front
+              { 0.5,-0.5, 0.5},     --       right front
+              { 0.5,-0.5,-0.5},     --       right rear
+              {-0.5, 0.5,-0.5},     -- top: left rear
+              {-0.5, 0.5, 0.5},     --      left front
+              { 0.5, 0.5, 0.5},     --      right front
+              { 0.5, 0.5,-0.5}}     --      right rear
+    faces = {{1,2,3,4,Red},         -- base
+             {1,4,8,5,Blue},        -- rear
+             {4,3,7,8,Green},       -- right
+             {1,2,6,5,DarkBrown},   -- left
+             {5,6,7,8,Magenta},     -- top
+             {2,3,7,6,Orange}}      -- front
+    shape = {points,faces}
+    return shape
+end function
+
+sequence overall
+point view_point
+integer r
+atom rot_speed
+sequence shape
+
+view_point = sq_div({6, 8, 7.5},5.2)
+overall = view(view_point)
+rot_speed = 0.09
+sin_angle = sin(rot_speed)
+cos_angle = cos(rot_speed)
+axis = Z
+shape = makeCube()
+
+sequence coords
+
+function by_depth(integer i, integer j)
+    return compare(coords[i][Z],coords[j][Z])
+end function
+
+procedure spin()
+sequence points
+sequence faces,dtags,donefaces
+integer x1,y1,x2,y2
+integer p1,p2,p3,p4
+integer colour
+integer x3,y3,x4,y4
+    coords = new_points(overall, shape[1])
+    blankDib(dib, Black)
+    dtags = custom_sort(routine_id("by_depth"),tagset(length(coords)))
+    points = sq_floor(coords)
+    faces = shape[2]
+    donefaces = repeat(False,length(faces))
+    -- for each point, furthest away first..
+    for dti = length(dtags) to 1 by -1 do
+        -- ..draw all faces that have that point and have not yet been drawn
+        for i=1 to length(faces) do
+            if not donefaces[i] 
+            and find(dtags[dti],faces[i]) then
+                {p1,p2,p3,p4,colour} = faces[i]
+                {x1,y1} = points[p1]
+                {x2,y2} = points[p2]
+                {x3,y3} = points[p3]
+                {x4,y4} = points[p4]
+                drawDibLine(dib, x1, y1, x2, y2, colour)
+                drawDibLine(dib, x2, y2, x3, y3, colour)
+                drawDibLine(dib, x3, y3, x4, y4, colour)
+                drawDibLine(dib, x4, y4, x1, y1, colour)
+                donefaces[i] = True
+            end if
+        end for
+    end for
+    copyDibToDC(testDC, 0 , 0, dib)
+
+    r = rand(50)
+
+    if r=1 then
+        axis = X
+    elsif r=2 then
+        axis = Y
+    elsif r=3 then
+        axis = Z
+    elsif r=7 then
+        if rand(2)=1 then
+            rot_speed = .03
+        else
+            rot_speed = .01*rand(5)
+        end if
+        sin_angle = sin(rot_speed)
+        cos_angle = cos(rot_speed)
+    end if
+    shape[1] = rotate_points(axis, shape[1])
+end procedure
+
+constant SpinTimer = createTimer()
+
+function handler_TEST(integer id, integer msg, atom wParam, object lParam)
+    if id or object(lParam) then end if
+    if msg=WM_PAINT then
+        copyDibToDC(wParam, 0 , 0, dib)
+    elsif msg=WM_MOUSEMOVE then
+        spin()
+    elsif msg=WM_TIMER then
+        spin()
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(TEST)
+    end if
+    return 0
+end function
+setHandler({TEST}, routine_id("handler_TEST"))
+-- reinstigate these lines to make it blurry-fast:
+--setHandler(IDLE, routine_id("spin"))
+--startIdle(50)
+startTimer(SpinTimer,TEST,100)
+
+WinMain(TEST, SW_NORMAL)
+void = deleteDib(0)

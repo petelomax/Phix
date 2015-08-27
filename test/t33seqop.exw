@@ -1,0 +1,274 @@
+--
+-- t33seqop.exw
+--
+-- tests on sequence ops.
+--  Tests relational, arithmetic, logic, and unary ops.
+--
+constant showprogress=0
+if showprogress then puts(1,"1\n") end if
+--/* -- RDS:
+type string(object o) return sequence(o) end type
+--*/
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+if showprogress then puts(1,"0\n") end if
+-- 
+-- First, some misc catches made while working on this test set:
+--
+constant tpt={2.2}
+sequence s
+object O,P
+        s=tpt
+        s[1]=-2.2
+--/* -- RDS:
+        if not equal(s,{-2.2}) then Abort("s!={-2.2}\n") end if
+        if not equal(tpt,{2.2}) then Abort("tpt!={2.2}\n") end if
+--*/ -- Phix (true/false condition must be an ATOM on RDS):
+--/**/  if s!={-2.2} then Abort("s!={-2.2}\n") end if
+--/**/  if tpt!={2.2} then Abort("tpt!={2.2}\n") end if
+
+-- dummy function to thwart localtypes.
+--  If you say X="string" then the compiler flags X as (currently) a string,
+--  whereas if you do X=F("string") it will not suspect that the result type 
+--  and hence the content of X is (now) anything other than object.
+--  NB for this to work proper, you must pass multiple argument types.
+function F(object o) return o end function
+
+if (2<2)!=0 then Abort("(2<2)!=0\n") end if
+if (2<=2)!=1 then Abort("(2<=2)!=1\n") end if
+if (2=2)!=1 then Abort("(2=2)!=1\n") end if
+if (2!=2)!=0 then Abort("(2!=2)!=0\n") end if
+if (2>=2)!=1 then Abort("(2>=2)!=1\n") end if
+if (2>2)!=0 then Abort("(2>2)!=0\n") end if
+if showprogress then puts(1,"2\n") end if
+
+-- Introduction of localtypes made these give compilation errors on Phix (correct)
+--if ({1,2,3}<=2)!=0 then Abort("({1,2,3}<=2)!=0\n") end if -- type error (correct)
+--if ({1,2,3}=2)!=0 then Abort("({1,2,3}=2)!=0\n") end if   -- type error (correct)
+--if ({1,2,3}!=2)!=1 then Abort("({1,2,3}!=2)!=1\n") end if -- type error (correct)
+--if ({1,2,3}>=2)!=1 then Abort("({1,2,3}>=2)!=1\n") end if -- type error (correct)
+--if ({1,2,3}>2)!=1 then Abort("({1,2,3}>2)!=1\n") end if   -- type error (correct)
+--if (2<{1,2,3})!=1 then Abort("(2<{1,2,3})!=1\n") end if   -- type error (correct)
+--if (2<={1,2,3})!=1 then Abort("(2<={1,2,3})!=1\n") end if -- type error (correct)
+--if (2={1,2,3})!=0 then Abort("(2={1,2,3})!=0\n") end if   -- type error (correct)
+--if (2!={1,2,3})!=1 then Abort("(2!={1,2,3})!=1\n") end if -- type error (correct)
+--if (2>={1,2,3})!=0 then Abort("(2>={1,2,3})!=0\n") end if -- type error (correct)
+--if (2>{1,2,3})!=0 then Abort("(2>{1,2,3})!=0\n") end if   -- type error (correct)
+
+O=F({1,2,3})
+P=F(2)
+--/* RDS:
+        if (compare(O,P)<0)!=0 then Abort("({1,2,3}<2)!=0\n") end if
+        if (compare(O,P)<=0)!=0 then Abort("({1,2,3}<=2)!=0\n") end if
+        if (compare(O,P)=0)!=0 then Abort("({1,2,3}=2)!=0\n") end if
+        if (compare(O,P)!=0)!=1 then Abort("({1,2,3}!=2)!=1\n") end if
+        if (compare(O,P)>=0)!=1 then Abort("({1,2,3}>=2)!=1\n") end if
+        if (compare(O,P)>0)!=1 then Abort("({1,2,3}>2)!=1\n") end if
+        if (compare(P,O)<0)!=1 then Abort("(2<{1,2,3})!=1\n") end if
+        if (compare(P,O)<=0)!=1 then Abort("(2<={1,2,3})!=1\n") end if
+        if (compare(P,O)=0)!=0 then Abort("(2={1,2,3})!=0\n") end if
+        if (compare(P,O)!=0)!=1 then Abort("(2!={1,2,3})!=1\n") end if
+        if (compare(P,O)>=0)!=0 then Abort("(2>={1,2,3})!=0\n") end if
+        if (compare(P,O)>0)!=0 then Abort("(2>{1,2,3})!=0\n") end if
+--*/ -- Phix:
+--/**/  if (O<P)!=0 then Abort("({1,2,3}<2)!=0\n") end if
+--/**/  if (O<=P)!=0 then Abort("({1,2,3}<=2)!=0\n") end if
+--/**/  if (O=P)!=0 then Abort("({1,2,3}=2)!=0\n") end if
+--/**/  if (O!=P)!=1 then Abort("({1,2,3}!=2)!=1\n") end if
+--/**/  if (O>=P)!=1 then Abort("({1,2,3}>=2)!=1\n") end if
+--/**/  if (O>P)!=1 then Abort("({1,2,3}>2)!=1\n") end if
+--/**/  if (P<O)!=1 then Abort("(2<{1,2,3})!=1\n") end if
+--/**/  if (P<=O)!=1 then Abort("(2<={1,2,3})!=1\n") end if
+--/**/  if (P=O)!=0 then Abort("(2={1,2,3})!=0\n") end if
+--/**/  if (P!=O)!=1 then Abort("(2!={1,2,3})!=1\n") end if
+--/**/  if (P>=O)!=0 then Abort("(2>={1,2,3})!=0\n") end if
+--/**/  if (P>O)!=0 then Abort("(2>{1,2,3})!=0\n") end if
+if showprogress then puts(1,"3\n") end if
+
+--/* -- RDS:
+        if (compare({1,2,3},{1,2,3})<0)!=0 then Abort("({1,2,3}<{1,2,3})!=0\n") end if
+        if (compare({1,2,3},{1,2,3})<=0)!=1 then Abort("({1,2,3}<={1,2,3})!=1\n") end if
+        if (compare({1,2,3},{1,2,3})=0)!=1 then Abort("({1,2,3}={1,2,3})!=1\n") end if
+        if (compare({1,2,3},{1,2,3})!=0)!=0 then Abort("({1,2,3}!={1,2,3})!=0\n") end if
+        if (compare({1,2,3},{1,2,3})>=0)!=1 then Abort("({1,2,3}>={1,2,3})!=1\n") end if
+        if (compare({1,2,3},{1,2,3})>0)!=0 then Abort("({1,2,3}>{1,2,3})!=1\n") end if
+--*/
+--/**/ -- Phix:
+--/**/  if ({1,2,3}<{1,2,3})!=0 then Abort("({1,2,3}<{1,2,3})!=0\n") end if
+--/**/  if ({1,2,3}<={1,2,3})!=1 then Abort("({1,2,3}<={1,2,3})!=1\n") end if
+--/**/  if ({1,2,3}={1,2,3})!=1 then Abort("({1,2,3}={1,2,3})!=1\n") end if
+--/**/  if ({1,2,3}!={1,2,3})!=0 then Abort("({1,2,3}!={1,2,3})!=0\n") end if
+--/**/  if ({1,2,3}>={1,2,3})!=1 then Abort("({1,2,3}>={1,2,3})!=1\n") end if
+--/**/  if ({1,2,3}>{1,2,3})!=0 then Abort("({1,2,3}>{1,2,3})!=1\n") end if
+if showprogress then puts(1,"4\n") end if
+
+    if (1+2)!=3 then Abort("(1+2)!=3\n") end if
+    if (5-2)!=3 then Abort("(5-2)!=3\n") end if
+if showprogress then puts(1,"5\n") end if
+
+--/* -- RDS:
+        if not equal({1,2}+3,{4,5}) then Abort("({1,2}+3)!={4,5}\n") end if
+        if not equal({7,8}-3,{4,5}) then Abort("({7,8}-3)!={4,5}\n") end if
+        if not equal(1+{2,3},{3,4}) then Abort("(1+{2,3})!={3,4}\n") end if
+        if not equal(5-{2,3},{3,2}) then Abort("(5-{2,3})!={3,2}\n") end if
+        if not equal({1,2}+{3,4},{4,6}) then Abort("({1,2}+{3,4})!={4,6}\n") end if
+        if not equal({8,9}-{4,3},{4,6}) then Abort("({8,9}-{4,3})!={4,6}\n") end if
+--*/ -- Phix:
+--/**/  if sq_add({1,2},3)!={4,5} then Abort("({1,2}+3)!={4,5}\n") end if
+--/**/  if sq_sub({7,8},3)!={4,5} then Abort("({7,8}-3)!={4,5}\n") end if
+--/**/  if sq_add(1,{2,3})!={3,4} then Abort("(1+{2,3})!={3,4}\n") end if
+--/**/  if sq_sub(5,{2,3})!={3,2} then Abort("(5-{2,3})!={3,2}\n") end if
+--/**/  if sq_add({1,2},{3,4})!={4,6} then Abort("({1,2}+{3,4})!={4,6}\n") end if
+--/**/  if sq_sub({8,9},{4,3})!={4,6} then Abort("({8,9}-{4,3})!={4,6}\n") end if
+
+        if (1 and 1)!=1 then Abort("(1 and 1)!=1\n") end if
+        if (1 and 0)!=0 then Abort("(1 and 0)!=0\n") end if
+        if (0 and 1)!=0 then Abort("(0 and 1)!=0\n") end if
+        if (0 and 0)!=0 then Abort("(0 and 0)!=0\n") end if
+if showprogress then puts(1,"6\n") end if
+        if (1 or 1)!=1 then Abort("(1 or 1)!=1\n") end if
+        if (1 or 0)!=1 then Abort("(1 or 0)!=1\n") end if
+        if (0 or 1)!=1 then Abort("(0 or 1)!=1\n") end if
+        if (0 or 0)!=0 then Abort("(0 or 0)!=0\n") end if
+if showprogress then puts(1,"7\n") end if
+        if (1 xor 1)!=0 then Abort("(1 xor 1)!=0\n") end if
+        if (1 xor 0)!=1 then Abort("(1 xor 0)!=1\n") end if
+        if (0 xor 1)!=1 then Abort("(0 xor 1)!=1\n") end if
+        if (0 xor 0)!=0 then Abort("(0 xor 0)!=0\n") end if
+if showprogress then puts(1,"8\n") end if
+
+--/* -- RDS:
+        if not equal({0,1} and 1,{0,1}) then Abort("({0,1} and 1)!={0,1}\n") end if
+        if not equal({0,1} and 0,{0,0}) then Abort("({0,1} and 0)!={0,0}\n") end if
+        if not equal({0,1} or 1,{1,1}) then Abort("({0,1} or 1)!={1,1}\n") end if
+        if not equal({0,1} or 0,{0,1}) then Abort("({0,1} or 0)!={0,1}\n") end if
+        if not equal({0,1} xor 1,{1,0}) then Abort("({0,1} xor 1)!={1,0}\n") end if
+        if not equal({0,1} xor 0,{0,1}) then Abort("({0,1} xor 0)!={0,1}\n") end if
+        if not equal(1 and {0,1},{0,1}) then Abort("(1 and {0,1})!={0,1}\n") end if
+        if not equal(0 and {0,1},{0,0}) then Abort("(0 and {0,1})!={0,0}\n") end if
+        if not equal(1 or {0,1},{1,1}) then Abort("(1 or {0,1})!={1,1}\n") end if
+        if not equal(0 or {0,1},{0,1}) then Abort("(0 or {0,1})!={0,1}\n") end if
+        if not equal(1 xor {0,1},{1,0}) then Abort("(1 xor {0,1})!={1,0}\n") end if
+        if not equal(0 xor {0,1},{0,1}) then Abort("(0 xor {0,1})!={0,1}\n") end if
+--*/ -- Phix:
+--/**/  if sq_and({0,1},1)!={0,1} then Abort("({0,1} and 1)!={0,1}\n") end if
+--/**/  if sq_and({0,1},0)!={0,0} then Abort("({0,1} and 0)!={0,0}\n") end if
+--/**/  if sq_or({0,1},1)!={1,1} then Abort("({0,1} or 1)!={1,1}\n") end if
+--/**/  if sq_or({0,1},0)!={0,1} then Abort("({0,1} or 0)!={0,1}\n") end if
+--/**/  if sq_xor({0,1},1)!={1,0} then Abort("({0,1} xor 1)!={1,0}\n") end if
+--/**/  if sq_xor({0,1},0)!={0,1} then Abort("({0,1} xor 0)!={0,1}\n") end if
+--/**/  if sq_and(1,{0,1})!={0,1} then Abort("(1 and {0,1})!={0,1}\n") end if
+--/**/  if sq_and(0,{0,1})!={0,0} then Abort("(0 and {0,1})!={0,0}\n") end if
+--/**/  if sq_or(1,{0,1})!={1,1} then Abort("(1 or {0,1})!={1,1}\n") end if
+--/**/  if sq_or(0,{0,1})!={0,1} then Abort("(0 or {0,1})!={0,1}\n") end if
+--/**/  if sq_xor(1,{0,1})!={1,0} then Abort("(1 xor {0,1})!={1,0}\n") end if
+--/**/  if sq_xor(0,{0,1})!={0,1} then Abort("(0 xor {0,1})!={0,1}\n") end if
+
+--/* -- RDS:
+        if not equal({0,0,1,1} and {0,1,0,1},{0,0,0,1}) then Abort("({0,0,1,1} and {0,1,0,1})!={0,0,0,1}\n") end if
+        if not equal({0,0,1,1} or {0,1,0,1},{0,1,1,1}) then Abort("({0,0,1,1} or {0,1,0,1})!={0,1,1,1}\n") end if
+        if not equal({0,0,1,1} xor {0,1,0,1},{0,1,1,0}) then Abort("({0,0,1,1} xor {0,1,0,1})!={0,1,1,0}\n") end if
+--*/ -- Phix:
+--/**/  if sq_and({0,0,1,1},{0,1,0,1})!={0,0,0,1} then Abort("({0,0,1,1} and {0,1,0,1})!={0,0,0,1}\n") end if
+--/**/  if sq_or({0,0,1,1},{0,1,0,1})!={0,1,1,1} then Abort("({0,0,1,1} or {0,1,0,1})!={0,1,1,1}\n") end if
+--/**/  if sq_xor({0,0,1,1},{0,1,0,1})!={0,1,1,0} then Abort("({0,0,1,1} xor {0,1,0,1})!={0,1,1,0}\n") end if
+
+if (not 0)!=1 then Abort("(not 0)!=1\n") end if
+if (not 1)!=0 then Abort("(not 1)!=0\n") end if
+if -(1)!=-1 then Abort("-(1)!=-1\n") end if
+--/* -- RDS:
+        if not equal(not {0,1},{1,0}) then Abort("(not {0,1})!={1,0}\n") end if
+        if not equal(-{0,1,2.2,{3,4}},{0,-1,-2.2,{-3,-4}}) then Abort("-{0,1,2.2,{3,4}}!={0,-1,-2.2,{-3,-4}}\n") end if
+        if not equal({-2.2},-{2.2}) then Abort("{-2.2}!=-{2.2}\n") end if
+--*/ -- Phix:
+--/**/  if sq_not({0,1})!={1,0} then Abort("(not {0,1})!={1,0}\n") end if
+--/**/  if sq_uminus({0,1,2.2,{3,4}})!={0,-1,-2.2,{-3,-4}} then Abort("-{0,1,2.2,{3,4}}!={0,-1,-2.2,{-3,-4}}\n") end if
+--/**/  if {-2.2}!=sq_uminus({2.2}) then Abort("{-2.2}!=-{2.2}\n") end if
+--/* -- RDS: (probable type error on Phix [correct])
+        if not equal({1,2,3}<2,{1,0,0}) then Abort("({1,2,3}<2)!={1,0,0}\n") end if
+        if not equal({1,2,3}<=2,{1,1,0}) then Abort("({1,2,3}<=2)!={1,1,0}\n") end if
+        if not equal({1,2,3}=2,{0,1,0}) then Abort("({1,2,3}=2)!={0,1,0}\n") end if
+        if not equal({1,2,3}!=2,{1,0,1}) then Abort("({1,2,3}!=2)!={1,0,1}\n") end if
+        if not equal({1,2,3}>=2,{0,1,1}) then Abort("({1,2,3}>=2)!={0,1,1}\n") end if
+        if not equal({1,2,3}>2,{0,0,1}) then Abort("({1,2,3}>2)!={0,0,1}\n") end if
+        if not equal(2<{1,2,3},{0,0,1}) then Abort("(2<{1,2,3})!={0,0,1}\n") end if
+        if not equal(2<={1,2,3},{0,1,1}) then Abort("(2<={1,2,3})!={0,1,1}\n") end if
+        if not equal(2={1,2,3},{0,1,0}) then Abort("(2={1,2,3})!={0,1,0}\n") end if
+        if not equal(2!={1,2,3},{1,0,1}) then Abort("(2!={1,2,3})!={1,0,1}\n") end if
+        if not equal(2>={1,2,3},{1,1,0}) then Abort("(2>={1,2,3})!={1,1,0}\n") end if
+        if not equal(2>{1,2,3},{1,0,0}) then Abort("(2>{1,2,3}>2)!={1,0,0}\n") end if
+        if not equal({1,2,3}<{3,2,1},{1,0,0}) then Abort("({1,2,3}<{3,2,1})!={1,0,0}\n") end if
+        if not equal({1,2,3}<={3,2,1},{1,1,0}) then Abort("({1,2,3}<={3,2,1})!={1,1,0}\n") end if
+        if not equal({1,2,3}={3,2,1},{0,1,0}) then Abort("({1,2,3}={3,2,1})!={0,1,0}\n") end if
+        if not equal({1,2,3}!={3,2,1},{1,0,1}) then Abort("({1,2,3}!={3,2,1})!={1,0,1}\n") end if
+        if not equal({1,2,3}>={3,2,1},{0,1,1}) then Abort("({1,2,3}>={3,2,1})!={0,1,1}\n") end if
+        if not equal({1,2,3}>{3,2,1},{0,0,1}) then Abort("({1,2,3}>{3,2,1})!={0,0,1}\n") end if
+--*/
+--/**/  if sq_lt({1,2,3},2)!={1,0,0} then Abort("({1,2,3}<2)!={1,0,0}\n") end if
+--/**/  if sq_le({1,2,3},2)!={1,1,0} then Abort("({1,2,3}<=2)!={1,1,0}\n") end if
+--/**/  if sq_eq({1,2,3},2)!={0,1,0} then Abort("({1,2,3}=2)!={0,1,0}\n") end if
+--/**/  if sq_ne({1,2,3},2)!={1,0,1} then Abort("({1,2,3}!=2)!={1,0,1}\n") end if
+--/**/  if sq_ge({1,2,3},2)!={0,1,1} then Abort("({1,2,3}>=2)!={0,1,1}\n") end if
+--/**/  if sq_gt({1,2,3},2)!={0,0,1} then Abort("({1,2,3}>2)!={0,0,1}\n") end if
+--/**/  if sq_lt(2,{1,2,3})!={0,0,1} then Abort("(2<{1,2,3})!={0,0,1}\n") end if
+--/**/  if sq_le(2,{1,2,3})!={0,1,1} then Abort("(2<={1,2,3})!={0,1,1}\n") end if
+--/**/  if sq_eq(2,{1,2,3})!={0,1,0} then Abort("(2={1,2,3})!={0,1,0}\n") end if
+--/**/  if sq_ne(2,{1,2,3})!={1,0,1} then Abort("(2!={1,2,3})!={1,0,1}\n") end if
+--/**/  if sq_ge(2,{1,2,3})!={1,1,0} then Abort("(2>={1,2,3})!={1,1,0}\n") end if
+--/**/  if sq_gt(2,{1,2,3})!={1,0,0} then Abort("(2>{1,2,3}>2)!={1,0,0}\n") end if
+--/**/  if sq_lt({1,2,3},{3,2,1})!={1,0,0} then Abort("({1,2,3}<{3,2,1})!={1,0,0}\n") end if
+--/**/  if sq_le({1,2,3},{3,2,1})!={1,1,0} then Abort("({1,2,3}<={3,2,1})!={1,1,0}\n") end if
+--/**/  if sq_eq({1,2,3},{3,2,1})!={0,1,0} then Abort("({1,2,3}={3,2,1})!={0,1,0}\n") end if
+--/**/  if sq_ne({1,2,3},{3,2,1})!={1,0,1} then Abort("({1,2,3}!={3,2,1})!={1,0,1}\n") end if
+--/**/  if sq_ge({1,2,3},{3,2,1})!={0,1,1} then Abort("({1,2,3}>={3,2,1})!={0,1,1}\n") end if
+--/**/  if sq_gt({1,2,3},{3,2,1})!={0,0,1} then Abort("({1,2,3}>{3,2,1})!={0,0,1}\n") end if
+
+if showprogress then puts(1,"9\n") end if
+
+object o,p
+--/* -- RDS (these work fine on Phix, but with lots of warnings)
+        o=1 p={1} o=o xor p
+        o=1 p={1} o=p xor o
+
+        o={} o=floor(o)
+
+        o={1} o=o/1
+        o={1} o=1/o
+
+        o={1} o=o/1.5
+        o={1} o=1.5/o
+
+        o={1} o=o*1
+        o={1} o=1*o
+
+        o={1} o=o*1.5
+        o={1} o=1.5*o
+
+        o={1} o=floor(o/1)
+--*/ -- Phix:
+--/**/  o=1 p={1} o=sq_xor(o,p)
+--/**/  o=1 p={1} o=sq_xor(p,o)
+--/**/  
+--/**/  o={} o=sq_floor(o)
+--/**/  
+--/**/  o={1} o=sq_div(o,1)
+--/**/  o={1} o=sq_div(1,o)
+--/**/  
+--/**/  o={1} o=sq_div(o,1.5)
+--/**/  o={1} o=sq_div(1.5,o)
+--/**/  
+--/**/  o={1} o=sq_mul(o,1)
+--/**/  o={1} o=sq_mul(1,o)
+--/**/  
+--/**/  o={1} o=sq_mul(o,1.5)
+--/**/  o={1} o=sq_mul(1.5,o)
+--/**/  
+--/**/  o={1} o=sq_floor_div(o,1)
+
+if showprogress then puts(1,"10\n") end if
+
+-- Added 02/06/2011:
+
+        if not (1 or 0) then Abort("not (1 or 0)") end if
+
+if showprogress then puts(1,"11\n") end if
+

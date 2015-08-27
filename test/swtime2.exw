@@ -1,0 +1,373 @@
+--
+-- swtime2.exw
+-- ==========
+--
+--              Timing tests for switch, part 2.
+--
+--              Conclusions drawn:
+--                  * An opFind/jump table offers no benefit over multiple calls to opJcc.
+--                      Surprises me a bit too, but there you go. The tests obviously prove 
+--                      that pressing on with this any further would be a waste of time.
+--                  * Even the "for d=2 to 14 by 2 do" test, which should favour the find
+--                      by quite a margin, fails to make a dent.
+--                  * The case was already proved before I replaced known integer opJne with 
+--                      cmpd_mem32_i8, shaving a whopping 17% off jmps() time. Clearly hll() 
+--                      (ie pilx86.e) should be doing that or something similar too.
+--                      [update: 17% was from an "xor eax,eax" version, which has since been
+--                               replaced with "if n!=xxx then ?9/0 end if" lines. Now ~8%]
+--
+
+atom t0, tjtbl, tjmps, thll
+constant MAX=5000000
+
+constant one        = "one",
+         two        = 2,--"two",
+         three      = "three",
+         four       = 4,--"four",
+         five       = "five",
+         six        = 6,--"six",
+         seven      = "seven",
+         eight      = 8,--"eight",
+         nine       = "nine",
+         ten        = 10,--"ten",
+         eleven     = "eleven",
+         twelve     = 12,--"twelve",
+         thirteen   = "thirteen",
+         fourteen   = 14,--"fourteen",
+         fifteen    = "fifteen",
+         numbers    = {one,
+                       two,
+                       three,
+                       four,
+                       five,
+                       six,
+                       seven,
+                       eight,
+                       nine,
+                       ten,
+                       eleven,
+                       twelve,
+                       thirteen,
+                       fourteen,
+                       fifteen},
+         none       = 0 --"none"
+object n
+    n = 0
+integer k
+
+constant nmax = 15,         -- or 7,3
+         dmax = nmax+1
+
+procedure jumptable()
+    t0 = time()
+    for i=1 to MAX do
+        for d=1 to dmax do
+--      for d=2 to 14 by 2 do
+            if d<=nmax then
+                n = numbers[d]
+            else
+                n = none
+            end if
+            #ilASM{ lea ecx,[k]         -- (result var addr)
+                    mov esi,1           -- (start from)
+                    mov eax,[n]         -- (addr object to find)
+                    mov edi,[numbers]   -- (table to search in)
+                    call %opFind        -- call opFind
+                    jmp [ecx*4+:jmptbl]
+                    -- NB jmp_table_entry added specifically for this test, not well supported.
+                    --    jmp_table_entry is just {isAddr,3}, and we supply the labels.
+                ::jmptbl
+                    jmp_table_entry :l0
+                    jmp_table_entry :l1
+                    jmp_table_entry :l2
+                    jmp_table_entry :l3
+                    jmp_table_entry :l4
+                    jmp_table_entry :l5
+                    jmp_table_entry :l6
+                    jmp_table_entry :l7
+                    jmp_table_entry :l8
+                    jmp_table_entry :l9
+                    jmp_table_entry :l10
+                    jmp_table_entry :l11
+                    jmp_table_entry :l12
+                    jmp_table_entry :l13
+                    jmp_table_entry :l14
+                    jmp_table_entry :l15
+                ::l0 }
+                    if n!=none then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l1 }
+                    if n!=one then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l2 }
+                    if n!=two then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l3 }
+                    if n!=three then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l4 }
+                    if n!=four then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l5 }
+                    if n!=five then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l6 }
+                    if n!=six then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l7 }
+                    if n!=seven then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l8 }
+                    if n!=eight then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l9 }
+                    if n!=nine then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l10 }
+                    if n!=ten then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l11 }
+                    if n!=eleven then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l12 }
+                    if n!=twelve then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l13 }
+                    if n!=thirteen then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l14 }
+                    if n!=fourteen then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l15 }
+                    if n!=fifteen then ?9/0 end if
+                #ilASM{
+--                  jmp :l99
+                ::l99 }
+        end for
+    end for
+    tjtbl = time()-t0
+end procedure
+
+procedure jmps()
+    t0 = time()
+    for i=1 to MAX do
+        for d=1 to dmax do
+--      for d=2 to 14 by 2 do
+            if d<=nmax then
+                n = numbers[d]
+            else
+                n = none
+            end if
+            #ilASM{
+--              ::l1
+                    mov edi,[one]
+                    mov eax,[n]
+                    call %opJne     -- call opJccE
+                    jne :l2}
+                    if n!=one then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l2
+----                mov edi,[two]
+--                  mov edi,2
+--                  mov eax,[n]
+--                  call %opJne     -- call opJccE
+                    cmp dword[n],2
+                    jne :l3}
+                    if n!=two then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l3
+                    mov edi,[three]
+                    mov eax,[n]
+                    call %opJne     -- call opJccE
+                    jne :l4}
+                    if n!=three then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l4
+----                mov edi,[four]
+--                  mov edi,4
+--                  mov eax,[n]
+--                  call %opJne     -- call opJccE
+                    cmp dword[n],4
+                    jne :l5}
+                    if n!=four then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l5
+                    mov edi,[five]
+                    mov eax,[n]
+                    call %opJne     -- call opJccE
+                    jne :l6}
+                    if n!=five then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l6
+----                mov edi,[six]
+--                  mov edi,6
+--                  mov eax,[n]
+--                  call %opJne     -- call opJccE
+                    cmp dword[n],6
+                    jne :l7}
+                    if n!=six then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l7
+                    mov edi,[seven]
+                    mov eax,[n]
+                    call %opJne     -- call opJccE
+                    jne :l8}
+                    if n!=seven then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l8
+----                mov edi,[eight]
+--                  mov edi,8
+--                  mov eax,[n]
+--                  call %opJne     -- call opJccE
+                    cmp dword[n],8
+                    jne :l9}
+                    if n!=eight then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l9
+                    mov edi,[nine]
+                    mov eax,[n]
+                    call %opJne     -- call opJccE
+                    jne :l10}
+                    if n!=nine then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l10
+----                mov edi,[ten]
+--                  mov edi,10
+--                  mov eax,[n]
+--                  call %opJne     -- call opJccE
+                    cmp dword[n],10
+                    jne :l11}
+                    if n!=ten then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l11
+                    mov edi,[eleven]
+                    mov eax,[n]
+                    call %opJne     -- call opJccE
+                    jne :l12}
+                    if n!=eleven then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l12
+----                mov edi,[twelve]
+--                  mov edi,12
+--                  mov eax,[n]
+--                  call %opJne     -- call opJccE
+                    cmp dword[n],12
+                    jne :l13}
+                    if n!=twelve then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l13
+                    mov edi,[thirteen]
+                    mov eax,[n]
+                    call %opJne     -- call opJccE
+                    jne :l14}
+                    if n!=thirteen then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l14
+----                mov edi,[fourteen]
+--                  mov edi,14
+--                  mov eax,[n]
+--                  call %opJne     -- call opJccE
+                    cmp dword[n],14
+                    jne :l15}
+                    if n!=fourteen then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::l15
+                    mov edi,[fifteen]
+                    mov eax,[n]
+                    call %opJne     -- call opJccE
+                    jne :lelse}
+                    if n!=fifteen then ?9/0 end if
+                #ilASM{
+                    jmp :l99
+                ::lelse }
+                    if n!=none then ?9/0 end if
+                #ilASM{
+--                  jmp :l99
+                ::l99 }
+        end for
+    end for
+    tjmps = time()-t0
+end procedure
+
+procedure hll()
+    t0 = time()
+    for i=1 to MAX do
+        for d=1 to dmax do
+--      for d=2 to 14 by 2 do
+            if d<=nmax then
+                n = numbers[d]
+            else
+                n = none
+            end if
+            if n=one then
+                if n!=one then ?9/0 end if
+            elsif n=two then
+                if n!=two then ?9/0 end if
+            elsif n=three then
+                if n!=three then ?9/0 end if
+            elsif n=four then
+                if n!=four then ?9/0 end if
+            elsif n=five then
+                if n!=five then ?9/0 end if
+            elsif n=six then
+                if n!=six then ?9/0 end if
+            elsif n=seven then
+                if n!=seven then ?9/0 end if
+            elsif n=eight then
+                if n!=eight then ?9/0 end if
+            elsif n=nine then
+                if n!=nine then ?9/0 end if
+            elsif n=ten then
+                if n!=ten then ?9/0 end if
+            elsif n=eleven then
+                if n!=eleven then ?9/0 end if
+            elsif n=twelve then
+                if n!=twelve then ?9/0 end if
+            elsif n=thirteen then
+                if n!=thirteen then ?9/0 end if
+            elsif n=fourteen then
+                if n!=fourteen then ?9/0 end if
+            elsif n=fifteen then
+                if n!=fifteen then ?9/0 end if
+            else
+                if n!=none then ?9/0 end if
+            end if
+        end for
+    end for
+    thll = time()-t0
+end procedure
+
+    jumptable()
+    jmps()
+    hll()
+    printf(1,"opFind/jump table:%3.2fs, opJccs:%3.2fs, hll:%3.2fs\n",{tjtbl,tjmps,thll})
+

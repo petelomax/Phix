@@ -1,0 +1,1810 @@
+--
+-- pFinet.ew
+-- =========
+--
+-- This is a complete rip-off of Fabio Ramirez's EInetLib.ew, re-worked by
+-- me to fit better in Edita. Please stick with the original in other apps,
+-- unless, that is, you have serious reason to believe this is better (ie
+-- this is open source, do with as you will, despite my recommendations!).
+-- Also incorporates Edita/Arwen specific code - note that this file is 
+-- utterly tied to Arwen whereas EInetLib is gui-independent.
+--
+-- See http://www.rapideuphoria.com/cgi-bin/asearch.exu?win=on&keywords=Ramirez
+
+constant i_diag=0   -- Set this to 1 to enable internal checking.
+                    -- (only covers the trickier InternetOpen, InternetConnect,
+                    --                           and InternetOpenUrl)
+                    -- NB ?9/0 when 1; smaller exes & returns error codes (aka
+                    --    "fails gracefully") when 0.
+
+--
+-- Interface/Typical usage:
+-- =======================
+--
+--  atom hSession, hConnect -- (define locally, any name you like)
+--
+--      hSession = InternetOpen(0,0,0,0) -- standard defaults (preconfig, no proxy, online)
+-- --Or:hSession = InternetOpen(INTERNET_OPEN_TYPE_PROXY,"proxy","<local>",INTERNET_FLAG_ASYNC)
+--      if hSession = NULL then *
+--
+--      hConnect = InternetConnect(hSession,"ftp.numberwang",0,"username1","passwd3",FTP,PASSIVE,0)
+--      if hConnect = NULL then *
+--
+--      -- to fetch readme.txt to file of same name in ascii mode:
+--          if not FtpGetFile(hConnect,"readme.txt","",0,0,ASCII,0) then *
+--
+--      -- to upload readme.txt to file of same name in ascii mode:
+--          if not FtpPutFile(hConnect,"readme.txt","",ASCII,0) then *
+--
+--      -- Other routines are:
+--          if not FtpDeleteFile(hConnect,FileName) then *
+--          text = FtpGetCurrentDirectory(hConnect)
+--           if length(text)=0 then *
+--          if not FtpCreateDirectory(hConnect, "NewDir") then *
+--          if not FtpSetCurrentDirectory(hConnect, "NewDir") then *
+--          if not FtpRemoveDirectory(hConnect, "NewDir") then *
+--          d = FtpDir(hConnect,NULL,NULL)  -- as dir() builtin.
+--          hFile = InternetOpenUrl(hSession,"http://www.google.co.uk/",NULL,NULL,NULL)
+--           if hFile=NULL then *
+--              len = InternetQueryDataAvailable(hFile)
+--              while len do
+--                  data = InternetReadFile(hFile, len)
+--                  if atom(data) length(data)=0 then exit end if
+--                  puts(1,data)
+--                  len = InternetQueryDataAvailable(hFile)
+--              end while
+--          hFile = FtpCommand(hConnection,True,0,"LIST",0)
+--           (same test/loop to read file as above)
+--
+--  --  InternetClose(hConnect) -- not needed if session closed next
+--      InternetClose(hSession)
+--
+-- * some kind of Abort routine, involving net_errno/msg, | retry logic, etc.
+--
+--
+-- For more details see individual routines/Edita F1/wininet.chm/EInetLib_full.ew/Google.
+--
+--
+-- Parameters
+-- ==========
+--  (for details see toStr/freeStr, it's a trivial concept)
+--  Many parameters, such as InternetOpen/ProxyName, InternetConnect/ServerName,
+--   can either be passed as a string (eg "ftp.numberwang") or a pre-allocated 
+--   atom pointer to a null-terminated string in memory. Obviously, the idea is
+--   not so much to call allocate_string() etc yourself, but if you've gotten
+--   some of these things via winapi in the first place, why peek/poke the data
+--   when there is no need. Any gain is more likely less code, rather than a
+--   few dozen milliseconds faster, if that.
+--
+-- Comments
+-- ========
+--  Apart from the initial openers, designed for F1 in Edita, the majority of
+--  code is minimially commented. Let me know if/where more details are needed.
+--
+
+without trace
+--without warning
+--with warning
+
+--include machine.e  -- Memory handling
+--include dll.e    -- DLL linking
+--include msgbox.e   -- Messages and debugging
+--include get.e    -- file operations
+--include wildcard.e 
+
+global constant
+
+  INTERNET_OPEN_TYPE_PRECONFIG=0,
+  INTERNET_OPEN_TYPE_DIRECT=1,
+  INTERNET_OPEN_TYPE_PROXY=3,
+  INTERNET_OPEN_TYPE_PRECONFIG_WITH_NO_AUTOPROXY=4,
+
+  PRE_CONFIG_INTERNET_ACCESS=INTERNET_OPEN_TYPE_PRECONFIG,
+  LOCAL_INTERNET_ACCESS=INTERNET_OPEN_TYPE_DIRECT,
+  GATEWAY_INTERNET_ACCESS=2,
+  CERN_PROXY_INTERNET_ACCESS=INTERNET_OPEN_TYPE_PROXY,
+
+  INTERNET_FLAG_ASYNC=#10000000,
+  INTERNET_FLAG_OFFLINE=#1000000,
+
+  FORMAT_MESSAGE_ALLOCATE_BUFFER = 256,
+  FORMAT_MESSAGE_FROM_SYSTEM = 4096,
+  FORMAT_MESSAGE_IGNORE_INSERTS = 512,  
+  FORMAT_MESSAGE_FROM_HMODULE = 2048,
+
+  FORMAT_MESSAGE_AB_FS_II = or_all({FORMAT_MESSAGE_ALLOCATE_BUFFER,
+                                    FORMAT_MESSAGE_FROM_SYSTEM,
+                                    FORMAT_MESSAGE_IGNORE_INSERTS}),
+
+  INTERNET_INVALID_PORT_NUMBER=0,
+  INTERNET_DEFAULT_FTP_PORT=21,
+  INTERNET_DEFAULT_GOPHER_PORT=70,
+  INTERNET_DEFAULT_HTTP_PORT=80,
+  INTERNET_DEFAULT_HTTPS_PORT=443,
+  INTERNET_DEFAULT_SOCKS_PORT=1080,
+
+  INTERNET_SERVICE_FTP=1,
+  FTP=1,
+  INTERNET_SERVICE_GOPHER=2,
+  GOPHER=2,
+  INTERNET_SERVICE_HTTP=3,
+  HTTP=3,
+  INTERNET_FLAG_PASSIVE=#08000000,
+  PASSIVE = INTERNET_FLAG_PASSIVE,
+
+  ERROR_INSUFFICIENT_BUFFER = 122,
+
+  FTP_TRANSFER_TYPE_UNKNOWN = #00000000,
+  FTP_TRANSFER_TYPE_ASCII = #00000001,
+  ASCII = FTP_TRANSFER_TYPE_ASCII,
+  FTP_TRANSFER_TYPE_BINARY = #00000002,
+  BINARY = FTP_TRANSFER_TYPE_BINARY,
+  INTERNET_FLAG_TRANSFER_ASCII = FTP_TRANSFER_TYPE_ASCII,
+  INTERNET_FLAG_TRANSFER_BINARY = FTP_TRANSFER_TYPE_BINARY,
+
+  INTERNET_FLAG_NEED_FILE=#10,
+  INTERNET_FLAG_MUST_CACHE_REQUEST=16,
+  INTERNET_FLAG_HYPERLINK=#400,
+  INTERNET_FLAG_RELOAD=#80000000,
+  INTERNET_FLAG_RESYNCHRONIZE=#800,
+
+  INTERNET_FLAG_EXISTING_CONNECT=#20000000,
+  INTERNET_FLAG_IGNORE_CERT_CN_INVALID=#1000,
+  INTERNET_FLAG_IGNORE_CERT_DATE_INVALID=#2000,
+  INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTP=#8000,
+  INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTPS=#4000,
+  INTERNET_FLAG_KEEP_CONNECTION=#400000,
+  INTERNET_FLAG_NO_AUTH=#40000,
+  INTERNET_FLAG_NO_AUTO_REDIRECT=#200000,
+  INTERNET_FLAG_NO_CACHE_WRITE=#04000000,
+  INTERNET_FLAG_NO_COOKIES=#80000,
+  INTERNET_FLAG_NO_UI=#200,
+  INTERNET_FLAG_RAW_DATA=#40000000,
+  INTERNET_FLAG_PRAGMA_NOCACHE=#100,
+
+  MAX_PATH=260,
+
+  ERROR_INTERNET_EXTENDED_ERROR=12003,
+
+zzz=-1
+
+
+constant winet = assign_dll("wininet.dll")
+
+--mapping as per dll_links.ew: [DONE, I think]
+    -- BOOL ==> C_INT
+    -- COORD ==> C_UINT
+    -- DWORD ==> C_LONG or C_UINT
+    -- Hxxx ==> C_PTR
+    -- LPxxx ==> C_PTR
+    -- Pxxx ==> C_PTR
+    -- TCHAR ==> C_CHAR
+    -- WORD ==> C_USHORT
+
+constant
+    xInternetOpen = link_c_func(winet,"InternetOpenA",
+                                {C_PTR,     --  LPCTSTR lpszAgent,
+                                 C_LONG,    --  DWORD dwAccessType,
+                                 C_PTR,     --  LPCTSTR lpszProxyName,
+                                 C_PTR,     --  LPCTSTR lpszProxyBypass,
+                                 C_LONG},   --  DWORD dwFlags
+                                C_PTR),     -- HINTERNET
+
+    xGetModuleH = link_c_func(kernel32,"GetModuleHandleA",
+                              {C_PTR},  --  LPCTSTR lpModuleName
+                              C_LONG),  -- HMODULE
+
+    xFormatMsg = link_c_func(kernel32,"FormatMessageA",
+                             {C_PTR, -- DWORD  dwFlags, // source and processing options
+                              C_PTR, -- LPCVOID  lpSource,  // address of  message source
+                              C_PTR, -- DWORD  dwMessageId, // requested message identifier
+                              C_PTR, -- DWORD  dwLanguageId, // language id for requested message
+                              C_PTR, -- LPTSTR  lpBuffer,   // address of message buffer
+                              C_PTR, -- DWORD  nSize,   // maximum size of message buffer
+                              C_PTR},-- va_list *  Arguments // address of array of message inserts
+                             C_PTR), -- DWORD
+
+    xLocalFree = link_c_func(kernel32,"LocalFree",
+                             {C_PTR},   --  HLOCAL  hMem    // handle of local memory object
+                             C_PTR),    -- HLOCAL
+
+    xInternetConnect = link_c_func(winet,"InternetConnectA",
+                                   {C_PTR,  --  HINTERNET hInternet
+                                    C_PTR,  --  LPCTSTR lpszServerName
+--c_short?? (INTERNET_PORT is word, really, ok/correct here, may ntb dword (C_long) elsewhere)
+                                    C_SHORT,--  INTERNET_PORT nServerPort
+                                    C_PTR,  --  LPCTSTR lpszUsername
+                                    C_PTR,  --  LPCTSTR lpszPassword
+                                    C_LONG, --  DWORD dwService
+                                    C_LONG, --  DWORD dwFlags
+                                    C_LONG},--  DWORD_PTR dwContext
+                                   C_PTR),  -- HINTERNET
+
+    xInternetGetLastResponseInfo = link_c_func(winet,"InternetGetLastResponseInfoA",
+                                               {C_PTR,  --  LPDWORD lpdwError
+                                                C_PTR,  --  LPTSTR lpszBuffer
+                                                C_PTR}, --  LPDWORD lpdwBufferLength
+                                               C_INT),  -- BOOL
+
+    xInternetCloseHandle = link_c_func(winet,"InternetCloseHandle",
+                                       {C_PTR}, --  HINTERNET hInternet
+                                       C_INT),  -- BOOL
+
+    xFtpGetFile = link_c_func(winet,"FtpGetFileA",
+                              {C_PTR,   --  HINTERNET hConnect
+                               C_PTR,   --  LPCTSTR lpszRemoteFile
+                               C_PTR,   --  LPCTSTR lpszNewFile
+                               C_INT,   --  BOOL fFailIfExists
+                               C_LONG,  --  DWORD dwFlagsAndAttributes
+                               C_LONG,  --  DWORD dwFlags
+                               C_LONG}, --  DWORD_PTR dwContext
+                              C_INT),   -- BOOL
+
+    xFtpPutFile = link_c_func(winet,"FtpPutFileA",
+                              {C_PTR,   --  HINTERNET hConnect
+                               C_PTR,   --  LPCTSTR lpszLocalFile
+                               C_PTR,   --  LPCTSTR lpszNewRemoteFile
+                               C_LONG,  --  DWORD dwFlags
+                               C_LONG}, --  DWORD_PTR dwContext
+                              C_INT),   -- BOOL
+
+    xFtpRenameFile = link_c_func(winet,"FtpRenameFileA",
+                                 {C_PTR,    --  HINTERNET hConnect
+                                  C_PTR,    --  LPCTSTR lpszExisting
+                                  C_PTR},   --  LPCTSTR lpszNew
+                                 C_INT),    -- BOOL
+
+    xFtpDeleteFile = link_c_func(winet,"FtpDeleteFileA",
+                                 {C_PTR,    --  HINTERNET hConnect
+                                  C_PTR},   --  LPCTSTR lpszFileName
+                                 C_INT),    -- BOOL
+
+    xFtpGetCurrentDirectory = link_c_func(winet,"FtpGetCurrentDirectoryA",
+                                          {C_PTR,   --  HINTERNET hConnect
+                                           C_PTR,   --  LPTSTR lpszCurrentDirectory
+                                           C_PTR},  --  LPDWORD lpdwCurrentDirectory
+                                          C_INT),   -- BOOL
+
+    xFtpCreateDirectory = link_c_func(winet,"FtpCreateDirectoryA",
+                                      {C_PTR,   --  HINTERNET hConnect
+                                       C_PTR},  --  LPCTSTR lpszDirectory
+                                      C_INT),   -- BOOL
+
+    xFtpSetCurrentDirectory = link_c_func(winet,"FtpSetCurrentDirectoryA",
+                                          {C_PTR,   --  HINTERNET hConnect
+                                           C_PTR},  --  LPCTSTR lpszDirectory
+                                          C_INT),   -- BOOL
+
+    xFtpRemoveDirectory = link_c_func(winet,"FtpRemoveDirectoryA",
+                                      {C_PTR,   --  HINTERNET hConnect
+                                       C_PTR},  --  LPCTSTR lpszDirectory
+                                      C_INT),   -- BOOL
+
+    xFtpCommand = link_c_func(winet,"FtpCommandA",
+                              {C_PTR,   --  HINTERNET hConnect
+                               C_INT,   --  BOOL fExpectResponse
+                               C_LONG,  --  DWORD dwFlags
+                               C_PTR,   --  LPCTSTR lpszCommand
+                               C_LONG,  --  DWORD_PTR dwContext
+                               C_LONG}, --  HINTERNET *phFtpCommand
+                              C_INT),   -- BOOL
+
+    xFtpFindFirstFile = link_c_func(winet,"FtpFindFirstFileA",
+                                    {C_PTR,     --  HINTERNET hConnect
+                                     C_PTR,     --  LPCTSTR lpszSearchFile
+                                     C_PTR,     --  LP lpFindFileData
+                                     C_LONG,    --  DWORD dwFlags
+                                     C_LONG},   --  DWORD_PTR dwContext
+                                    C_PTR),     -- HINTERNET
+
+    xFileTimeToLocalFileTime = link_c_func(kernel32,"FileTimeToLocalFileTime",
+                                           {C_POINTER,  --  CONST FILETIME *  lpFileTime, // address of UTC file time to convert
+                                            C_POINTER}, --  LPFILETIME  lpLocalFileTime // address of converted file time
+                                           C_INT),      -- BOOL
+
+    xFileTimeToSystemTime = link_c_func(kernel32,"FileTimeToSystemTime",
+                                        {C_POINTER, --  CONST FILETIME *  lpFileTime, // pointer to file time to convert
+                                         C_POINTER},--  LPSYSTEMTIME  lpSystemTime // pointer to structure to receive system time
+                                        C_INT),     -- BOOL
+
+    xInternetFindNextFile = link_c_func(winet,"InternetFindNextFileA",
+                                        {C_PTR, --  HINTERNET hFind
+                                         C_PTR},--  LPVOID lpvFindData
+                                        C_INT), -- BOOL
+
+
+    xInternetReadFile = link_c_func(winet,"InternetReadFile",
+                                    {C_PTR, --  HINTERNET hFile
+                                     C_PTR, --  LPVOID lpBuffer
+                                     C_LONG,--  DWORD dwNumberOfBytesToRead
+                                     C_PTR},--  LPDWORD lpdwNumberOfBytesRead
+                                    C_INT), -- BOOL
+
+    xInternetOpenUrl = link_c_func(winet,"InternetOpenUrlA",
+                                   {C_PTR,  --  HINTERNET hInternet
+                                    C_PTR,  --  LPCTSTR lpszUrl
+                                    C_PTR,  --  LPCTSTR lpszHeaders
+                                    C_LONG, --  DWORD dwHeadersLength
+                                    C_LONG, --  DWORD dwFlags
+                                    C_LONG},--  DWORD_PTR dwContext
+                                   C_PTR),  -- HINTERNET
+
+    xInternetQueryDataAvailable = link_c_func(winet,"InternetQueryDataAvailable",
+                                              {C_PTR,   --  HINTERNET hFile
+                                               C_PTR,   --  LPDWORD lpdwNumberOfBytesAvailable
+                                               C_LONG,  --  DWORD dwFlags
+                                               C_LONG}, --  DWORD dwContext
+                                              C_INT),   -- BOOL
+
+zzzz=-1 if zzzz then end if     -- suppress warnings
+
+--  net_errno and net_errmsg can be queried after each net
+--  operation to see if it was successful or handling error
+--  based on error number
+global atom
+  net_errno    -- Hold errno after operations done in functions
+  net_errno = 0
+
+global sequence
+  net_errmsg       -- Hold error messages 
+  net_errmsg = {}
+
+constant lpBuffer = allocate(256),
+         pPdword = allocate(4)  -- general purpose pointer-to-dword var:
+                                -- length of lpBuffer in SetError,
+                                -- NumberOfBytesRead in InternetReadFile,
+                                -- length of pBlock in InternetGetLastResponseInfo,
+                                -- directory length(MAX_PATH) in FtpGetCurrentDirectory,
+                                -- handle returned in FtpCommand,
+                                -- data avail in InternetQueryDataAvailable.
+
+function GetModule(sequence Name)
+    if length(Name)>255 then ?9/0 end if -- sanity check
+    poke(lpBuffer,Name)
+    poke(lpBuffer+length(Name), 0)
+    return c_func(xGetModuleH, {lpBuffer} )
+end function
+
+atom pBlock
+integer prevBlen prevBlen=0
+
+global procedure FreeInternetReadBlock()
+-- In the vast majority of cases it is not necessary to ever call this
+-- from your application (barring calls below when making it bigger).
+-- You might if reading files in 150MB blocks, though...
+    if prevBlen then
+        free(pBlock)
+        prevBlen = 0
+    end if
+end procedure
+
+constant pError = allocate(4)
+global function InternetGetLastResponseInfo( )
+--
+--   Retrieves the last Win32 Internet function error description or server 
+--   response on the thread calling this function
+--
+-- Returns retrieved message as text or {} on failure.
+--  May be called on success or failure of previous command.
+--
+integer result
+sequence ExtMessage
+
+    ExtMessage = {}
+  
+    if prevBlen<128+1 then
+        FreeInternetReadBlock()
+        pBlock = allocate(128+1)
+        prevBlen = 128
+    end if
+    poke4(pPdword,prevBlen)
+
+    result = c_func(xInternetGetLastResponseInfo,{pError,
+                                                  pBlock,
+                                                  pPdword
+                                                 })
+  
+    if result = False then
+        if c_func(xGetLastError,{}) = ERROR_INSUFFICIENT_BUFFER then
+            -- the buffer was smaller than needed
+            free(pBlock)
+            prevBlen = peek4u(pPdword)
+            pBlock = allocate(prevBlen)
+      
+            result = c_func(xInternetGetLastResponseInfo,{pError,
+                                                          pBlock,
+                                                          pPdword
+                                                         })
+        end if 
+    end if 
+    if result = True then
+        ExtMessage =  peek({pBlock, peek4u(pPdword)})
+    end if
+
+    return ExtMessage
+
+end function
+
+
+procedure SetError()
+atom BufferLength, aMem
+    net_errno = c_func(xGetLastError,{})
+    if net_errno=ERROR_INTERNET_EXTENDED_ERROR then
+        net_errmsg = InternetGetLastResponseInfo( )
+    else
+        net_errmsg = ""
+
+        BufferLength =  c_func(xFormatMsg,{FORMAT_MESSAGE_FROM_HMODULE,
+                                           GetModule("wininet.dll"),
+                                           net_errno,   -- What GetLastError trows
+                                           NULL,
+                                           lpBuffer,    -- Where to store message text
+                                           256,         -- max length
+                                           NULL
+                                          })
+  
+        if BufferLength > 0 then
+            net_errmsg = peek_string(lpBuffer)
+            return
+        end if
+
+        -- (FORMAT_MESSAGE_AB_FS_II = ALLOCATE_BUFFER+FROM_SYSTEM+IGNORE_INSERTS)
+        BufferLength =  c_func(xFormatMsg,{FORMAT_MESSAGE_AB_FS_II,
+                                           NULL,
+                                           net_errno,   -- What GetLastError trows
+                                           NULL,
+                                           pPdword,     -- pointer to stored text
+                                           NULL,
+                                           NULL
+                                          })
+  
+        if BufferLength > 0 then
+            aMem = peek4u(pPdword)
+            net_errmsg = peek_string(aMem)
+            if c_func(xLocalFree,{aMem})!=NULL then
+                net_errmsg&="\n\nAdditionally, xLocalFree failed.\n"
+            end if
+            return
+        end if
+    end if
+
+end procedure
+
+function toStr(object Name)
+    if atom(Name) then return Name end if
+    return allocate_string(Name)
+end function
+
+procedure freeStr(atom pPtr, object Name)
+    if sequence(Name) then free(pPtr) end if
+end procedure
+
+constant hAgent = allocate_string(Edita)
+
+global function InternetOpen(integer AccessType, object ProxyName, object ProxyBypass, atom Flags)
+--
+-- Creates a HINTERNET handle (atom) for use with /
+-- Initializes an application's use of the Win32 Internet functions
+--
+--  AccessType may be one of:
+--      NULL (=0=PRE_CONFIG_INTERNET_ACCESS=INTERNET_OPEN_TYPE_PRECONFIG),
+--      INTERNET_OPEN_TYPE_DIRECT (=1=LOCAL_INTERNET_ACCESS),
+--      GATEWAY_INTERNET_ACCESS (=2),
+--      INTERNET_OPEN_TYPE_PROXY (=3=CERN_PROXY_INTERNET_ACCESS)
+--      INTERNET_OPEN_TYPE_PRECONFIG_WITH_NO_AUTOPROXY (=4) [untested!]
+-- 
+--  ProxyName and ProxyBypass should be NULL unless AccessType is 
+--      INTERNET_OPEN_TYPE_PROXY, in which case they may be strings or
+--      atom pointers to pre-allocated null-terminated strings in memory.
+--      Note that "" is always invalid, ie a non-existent proxy rather
+--      than none or the default.
+--
+--  Flags may be a combination of:
+--    * NULL (=0=INTERNET_INVALID_PORT_NUMBER??),
+--      INTERNET_FLAG_ASYNC      (=#10000000),
+--      INTERNET_FLAG_FROM_CACHE (=#1000000=INTERNET_FLAG_OFFLINE)
+--
+--
+-- Remarks
+-- 
+--  The global constant Edita is used for an agent name. I guess (but am not
+--   sure) that if you have multiple apps accessing the internet at the same
+--   time, it may help somewhat to ensure this uniquely identifies each.
+--
+--  Returns a handle (atom) that the application passes on to subsequent Win32
+--   Internet functions. Once finished with, call InternetClose to free the
+--   handle and any associated resources. Multiple InternetOpen calls are
+--   permitted, in rare cases where you need separate behaviors (eg proxies).
+--  If InternetOpen fails, it returns NULL(=False) (see net_errno/msg)
+-- 
+atom hInternet
+atom pProxyName, pProxyBypass
+
+    pProxyName = toStr(ProxyName)
+    pProxyBypass = toStr(ProxyBypass)
+
+    if i_diag then
+        if AccessType<PRE_CONFIG_INTERNET_ACCESS
+        or AccessType>INTERNET_OPEN_TYPE_PRECONFIG_WITH_NO_AUTOPROXY
+        or (AccessType!=INTERNET_OPEN_TYPE_PROXY and
+            (pProxyName!=NULL or pProxyBypass!=NULL))
+        or (AccessType=INTERNET_OPEN_TYPE_PROXY and
+            pProxyName=NULL)
+        or (sequence(ProxyName) and length(ProxyName)=0)
+        or (Flags!=NULL and
+            Flags!=INTERNET_FLAG_ASYNC and
+            Flags!=INTERNET_FLAG_OFFLINE and
+            Flags!=INTERNET_FLAG_OFFLINE+INTERNET_FLAG_ASYNC) then
+            ?9/0
+        end if
+    end if
+
+    -- Get new HINTERNET structure
+    hInternet = c_func(xInternetOpen,{hAgent,
+                                      AccessType,
+                                      pProxyName,
+                                      pProxyBypass,
+                                      Flags
+                                     })
+      
+    if hInternet = NULL then SetError() end if
+
+    freeStr(pProxyName,ProxyName)
+    freeStr(pProxyBypass,ProxyBypass)
+
+    return hInternet
+  
+end function
+
+
+global function InternetConnect(atom hSession, object ServerName, atom ServerPort,
+                                object UserName, object Password, atom Service,
+                                atom Flags, atom Context)
+--
+-- opens a connection to a specified site.
+--
+--  hSession is a value returned from InternetOpen()
+--  ServerName is a host name, eg "ftp.fred.blogs", or
+--                an ip number, eg "11.0.1.45", or
+--                an atom pointer to pre-allocated memory
+--                   (eg from allocate_string or prev. API).
+--  ServerPort may be one of:
+--    * NULL (=0=INTERNET_INVALID_PORT_NUMBER),
+--           (uses default port for specified sevice)
+--      INTERNET_DEFAULT_FTP_PORT (=21),
+--      INTERNET_DEFAULT_GOPHER_PORT (=70),
+--      INTERNET_DEFAULT_HTTP_PORT (=80),
+--      INTERNET_DEFAULT_HTTPS_PORT (=443),
+--      INTERNET_DEFAULT_SOCKS_PORT (=1080)
+--  Username and Password are string or atom pointer to preallocated string.
+--      NULL may be specified in some cases (ie use defaults)
+--  Service may be one of:
+--      FTP (=1=INTERNET_SERVICE_FTP),
+--      GOPHER (=2=INTERNET_SERVICE_GOPHER),
+--      HTTP (=3=INTERNET_SERVICE_HTTP)
+--  Flags may be PASSIVE (=#08000000 = INTERNET_FLAG_PASSIVE) when service is FTP.
+--  Context is an application-defined (dword) value that can be used to identify
+--      the callee in a callback routine.
+--
+-- 
+-- Returns a handle (atom) that can be used in subsequent operations, or NULL if
+--  a conncetion could not be established (see net_errno/net_errmsg).
+--  After use, the connection can be closed using InternetClose(), though this
+--  is unnecessary if hSession is about to be closed.
+--
+atom pServerName, pUserName, pPassword, hConnect
+     
+    if i_diag then
+        if hSession = NULL
+        or (atom(ServerName) and ServerName=NULL)
+        or (sequence(ServerName) and length(ServerName)=0)
+        or (ServerPort!=NULL and
+            ServerPort!=INTERNET_DEFAULT_FTP_PORT and
+            ServerPort!=INTERNET_DEFAULT_GOPHER_PORT and
+            ServerPort!=INTERNET_DEFAULT_HTTP_PORT and
+            ServerPort!=INTERNET_DEFAULT_HTTPS_PORT and
+            ServerPort!=INTERNET_DEFAULT_SOCKS_PORT)
+        or (Service!=FTP and
+            Service!=GOPHER and
+            Service!=HTTP)
+        or (Flags=NULL or (Service=FTP and Flags=PASSIVE)) then
+            ?9/0
+        end if
+    else
+        if hSession = NULL  then 
+            net_errno = 0
+            net_errmsg = "invalid session handle"
+            return False
+        end if
+    end if
+    pServerName = toStr(ServerName)
+    pUserName = toStr(UserName)
+    pPassword = toStr(Password)
+      
+    hConnect = c_func(xInternetConnect,{hSession,
+                                        pServerName,
+                                        ServerPort,
+                                        pUserName,
+                                        pPassword,
+                                        Service,
+                                        Flags,
+                                        Context
+                                       })
+
+    freeStr(pServerName,ServerName)
+    freeStr(pUserName,UserName)
+    freeStr(pPassword,Password)
+
+    if hConnect = 0 then SetError() end if
+  
+    return hConnect -- Handle to FTP or HTTP connection
+end function
+
+
+global function InternetReadFile(atom hFile, integer NumberOfBytesToRead)
+--
+-- Reads data from a handle opened by FtpCommand, InternetOpenUrl,
+--  [DEV:] FtpOpenFile, GopherOpenFile, or HttpOpenRequest
+--   
+-- hFile is returned from one of the functions listed above.
+-- The best value for NumberOfBytes is result of InternetQueryDataAvailable,
+-- see example code at the top of this file.
+--
+-- Remarks.
+--  Typically the exact size of the file is unknown, especially if opened
+--  in ascii mode and Linux <==> Windows line terminator substitution is
+--  being performed, or say the handle is a cgi/php page being generated
+--  on-the-fly. Also, InternetReadFile is (in some modes) line-orientated,
+--  returning only complete lines in each block, ie the returned block may
+--  be smaller than requested size despite there being more data to read.
+--  Hence/instead InternetReadFile should be called until the length of
+--  the returned data is zero (or InternetQueryDataAvailable yields 0).
+--  Note that failing to complete the file read may prevent the file from 
+--  being cached, or worse leave a partial file in the cache.
+--
+--  If using a large block size, you may feel you want to call the routine
+--  defined before this, FreeInternetReadBlock(), but in the vast majority 
+--  of cases doing so is completely unnecessary.
+--
+-- Returns a sequence of bytes, which will be {} at end of file, or False 
+--  on error (see net_errno/msg).
+--
+sequence Block
+integer result, NumberOfBytesRead
+  
+    Block = {}
+    if prevBlen<NumberOfBytesToRead then
+        FreeInternetReadBlock()
+        pBlock = allocate(NumberOfBytesToRead)
+        prevBlen = NumberOfBytesToRead
+    end if
+
+    result = c_func(xInternetReadFile,{hFile,
+                                       pBlock,
+                                       NumberOfBytesToRead,
+                                       pPdword
+                                      })
+    
+    if result then
+        NumberOfBytesRead = peek4u(pPdword)
+        if NumberOfBytesRead > 0 then 
+            Block = peek({pBlock, NumberOfBytesRead})
+        end if
+        return Block -- Empty is ok (eof).
+    else
+        SetError()
+        return False
+    end if
+  
+end function
+
+
+global function InternetClose(atom hInternet)
+--
+-- Closes a single connect (from InternetConnect) or a whole session (from 
+--  InternetOpen) - it is not necessary to close individual connections if
+--  the entire session is about to be closed.
+-- Returns True if the handle is successfully closed, or False otherwise
+--  NB: ERROR_IO_PENDING may be a reason for failure.
+--
+integer result
+
+    result  = c_func(xInternetCloseHandle,{hInternet})
+
+    if result = False then SetError() end if
+
+    return result
+  
+end function
+
+
+
+global function FtpGetFile(atom hConnect, object RemoteFile, object LocalFile, atom FailIfExists,
+                           atom Attributes, atom Flags, atom Context)
+--
+-- Retrieves a file from the FTP server and stores it under the specified 
+--  local file name, creating a new local file, or replacing one.
+--
+--  hConnect is a value returned from InternetConnect().
+--  RemoteFile is the name of the file to retrieve (sequence or atom pointer to
+--                  a pre-allocated string [eg from allocate_string or prev. API]).
+--      NB use '/' not '\\' in RemoteFile paths.
+--  LocalFile is one of:
+--      the name of the file to save,
+--      a pointer to pre-allocated memory,
+--      "" or {} to default from RemoteFile (less path).
+--      NB NULL or 0 is treated as an error (eg allocate_string previously failed)
+--  FailIfExists should be True or False; obviously the function fails if True is
+--      specified and LocalFile (after defaulting) already exists.
+--  Attributes may be a combination of the standard FILE_ATTRIBUTE_* flags as
+--      normally used in CreateFile (for definitions see arwen/Constants.ew):
+--       FILE_ATTRIBUTE_ARCHIVE = 32,
+--       FILE_ATTRIBUTE_COMPRESSED = 2048,
+--       FILE_ATTRIBUTE_NORMAL = 128,
+--       FILE_ATTRIBUTE_DIRECTORY = 16,
+--       FILE_ATTRIBUTE_HIDDEN = 2,
+--       FILE_ATTRIBUTE_READONLY = 1,
+--       FILE_ATTRIBUTE_SYSTEM = 4,
+--       FILE_ATTRIBUTE_TEMPORARY = 256,
+--  Flags may be a combination of:
+--      a transfer mode:
+--       NULL (=0=FTP_TRANSFER_TYPE_UNKNOWN), treated as BINARY
+--       ASCII (=1=FTP_TRANSFER_TYPE_ASCII=INTERNET_FLAG_TRANSFER_ASCII),
+--       BINARY (=2=FTP_TRANSFER_TYPE_BINARY=INTERNET_FLAG_TRANSFER_BINARY)
+--      and a caching mode:
+--       INTERNET_FLAG_NEED_FILE (=#10=INTERNET_FLAG_MUST_CACHE_REQUEST),
+--       INTERNET_FLAG_HYPERLINK (=#400),
+--       INTERNET_FLAG_RELOAD (=#80000000),
+--       INTERNET_FLAG_RESYNCHRONIZE (=#800)
+--  Context is an application-defined (dword) value that can be used to identify
+--      the callee in a callback routine. Only used if InternetSetStatusCallback
+--      has previously been called.
+--
+-- 
+-- Returns True if successful, False otherwise (see net_errno/net_errmsg)
+--
+
+integer result
+atom pRemoteFile, pLocalFile
+
+    if hConnect = NULL then
+        net_errno = 0
+        net_errmsg = "invalid connection handle"
+        return False
+    end if
+
+    pRemoteFile = toStr(RemoteFile)
+    if atom(LocalFile) then
+        if LocalFile = NULL then
+            net_errno = 0
+            net_errmsg = "invalid local file (NULL)"
+            return False
+        end if
+    elsif length(LocalFile)=0 then
+        -- If no local file specified use the name of remote file
+        LocalFile = RemoteFile
+        for i=length(LocalFile) to 1 by -1 do
+            if LocalFile[i]='/' then
+                LocalFile = LocalFile[i+1..length(LocalFile)]
+                exit
+            end if
+        end for
+    end if
+    pLocalFile = toStr(LocalFile)
+
+    -- Get the file
+    result = c_func(xFtpGetFile,{hConnect,
+                                 pRemoteFile,
+                                 pLocalFile,
+                                 FailIfExists,
+                                 Attributes,
+                                 Flags,
+                                 Context
+                                })
+
+    if result = False then SetError() end if
+
+    freeStr(pRemoteFile,RemoteFile)
+    freeStr(pLocalFile,LocalFile)
+  
+    return result 
+  
+end function
+
+global function FtpPutFile(atom hConnect, object LocalFile, object RemoteFile, atom Flags, atom Context)
+--
+-- Stores a file on (uploads to) the FTP server.
+--
+--  hConnect is a value returned from InternetConnect().
+--  LocalFile is the name of the file to upload (sequence or atom pointer to
+--              a pre-allocated string [eg from allocate_string or prev. API]).
+--      NB use '\\' not '/' in LocalFile paths (contrast FtpGetFile).
+--  RemoteFile is one of:
+--      the name of the file to save,
+--      a pointer to pre-allocated memory,
+--      "" or {} to default from LocalFile (less path).
+--      NB NULL or 0 is treated as an error (eg allocate_string previously failed)
+--  Flags see FTpGetFile. According to M$ docs, the cache flags can be applied,
+--      though personally I cannot see any reason why, unless Windows genuinely
+--      does have an 'upload cache', which I seriously doubt, though it may do
+--      some checks on date/time/size, which I also doubt. It has certainly not
+--      been tested as anything other than BINARY and ASCII here.
+--  Context is an application-defined (dword) value that can be used to identify
+--      the callee in a callback routine. Only used if InternetSetStatusCallback
+--      has previously been called.
+--
+-- 
+-- Returns True if successful, False otherwise (see net_errno/net_errmsg)
+--
+atom pLocalFile, pRemoteFile
+integer result
+
+    if hConnect = NULL then 
+        net_errno = 0
+        net_errmsg = "invalid connection handle"
+        return False
+    end if
+
+    pLocalFile = toStr(LocalFile)
+    if atom(RemoteFile) then
+        if RemoteFile = NULL then
+            net_errno = 0
+            net_errmsg = "invalid remote file (NULL)"
+            return False
+        end if
+    elsif length(RemoteFile)=0 then
+        -- If no remote file specified use the name of local file
+        RemoteFile = LocalFile
+        for i=length(RemoteFile) to 1 by -1 do
+            if RemoteFile[i]='\\' then
+                RemoteFile = RemoteFile[i+1..length(RemoteFile)]
+                exit
+            end if
+        end for
+    end if
+    pRemoteFile = toStr(RemoteFile)
+
+    result = c_func(xFtpPutFile,{hConnect,
+                                 pLocalFile,
+                                 pRemoteFile,
+                                 Flags,
+                                 Context
+                                })
+
+    if result = False then SetError() end if
+
+    freeStr(pRemoteFile,RemoteFile)
+    freeStr(pLocalFile,LocalFile)
+
+    return result 
+  
+end function
+
+
+global function FtpRenameFile(atom hConnect, object Existing, object New)
+--
+-- Renames a file stored on the FTP server
+--
+--  hConnect is a value returned from InternetConnect().
+--  Existing and New are names (strings or atom pointers to memory) and
+--   may be fully qualified or relative paths to the current directory.
+--
+-- Returns True if successful, False otherwise (see net_errno/net_errmsg)
+--
+atom pExisting, pNew
+integer result
+
+    pExisting = toStr(Existing)
+    pNew = toStr(New)
+
+    result = c_func(xFtpRenameFile, {hConnect,pExisting,pNew})
+
+    if result = False then SetError() end if
+
+    freeStr(pExisting,Existing)
+    freeStr(pNew,New)
+
+    return result
+    
+end function
+
+
+
+global function FtpDeleteFile(atom hConnect, object FileName)
+--
+-- Deletes a file on the FTP server
+--
+--  hConnect is a value returned from InternetConnect().
+--  FileName is the name of the file to delete, either a fully qualified path or
+--   relative to the current directory, and may be a text sequence or an atom
+--   pointer to a pre-allocated string [eg from allocate_string or prev. API]).
+--   No confirmation is asked for, if desired prompt yourself before calling.
+--
+-- Returns True if successful, otherwise False (see net_errno/msg).
+--
+atom pFileName
+integer result
+
+    pFileName = toStr(FileName)
+
+    result = c_func(xFtpDeleteFile, {hConnect, pFileName})
+
+    if result = False then SetError() end if 
+ 
+    freeStr(pFileName,FileName)
+
+    return result
+    
+end function
+
+
+global function FtpGetCurrentDirectory(atom hConnect)
+--
+--  hConnect is a value returned from InternetConnect().
+--
+-- Returns the current directory for the specified FTP session, or "" if
+--  there was an error (see net_errno/msg)
+--
+integer result
+sequence Directory
+  
+    Directory = {}
+
+    if prevBlen<MAX_PATH then
+        FreeInternetReadBlock()
+        pBlock = allocate(MAX_PATH+1)
+        prevBlen = MAX_PATH
+    end if
+
+    poke4(pPdword, MAX_PATH)
+
+    result = c_func(xFtpGetCurrentDirectory,{hConnect,pBlock,pPdword})
+                  
+    if result then
+        Directory = peek_string(pBlock)
+    else
+        SetError()
+    end if
+    return Directory
+end function
+
+
+global function FtpCreateDirectory(atom hConnect, object Directory)
+--
+-- Creates a new directory on the FTP server
+--
+--  hConnect is a value returned from InternetConnect().
+--  Directory is the name of the directory to create, either a fully qualified path
+--   or relative to the current directory, and may be a text sequence or an atom 
+--   pointer to a pre-allocated string [eg from allocate_string or prev. API]).
+--
+-- Returns True if successful, otherwise False (see net_errno/msg).
+--
+atom pDirectory
+integer result
+
+    pDirectory = toStr(Directory)
+
+    result = c_func(xFtpCreateDirectory, { hConnect, pDirectory })
+
+    if result = False then SetError() end if 
+
+    freeStr(pDirectory,Directory)
+
+    return result
+    
+end function
+
+
+global function FtpSetCurrentDirectory(atom hConnect, object Directory)
+--
+-- Creates a new directory on the FTP server
+--
+--  hConnect is a value returned from InternetConnect().
+--  Directory is the name of the directory to create, either a fully qualified path
+--   or relative to the current directory, and may be a text sequence or an atom
+--   pointer to a pre-allocated string [eg from allocate_string or prev. API]).
+--
+-- Returns True if successful, otherwise False (see net_errno/msg).
+--
+atom pDirectory
+integer result
+
+    pDirectory = toStr(Directory)
+
+    result = c_func(xFtpSetCurrentDirectory, {hConnect, pDirectory})
+  
+    if result = False then SetError() end if 
+
+    freeStr(pDirectory,Directory)
+
+    return result
+    
+end function
+
+
+
+global function FtpRemoveDirectory(atom hConnect, object Directory)
+--
+-- Removes the specified directory on the FTP server
+--
+--  hConnect is a value returned from InternetConnect().
+--  Directory is the name of the directory to remove, either a fully qualified path
+--   or relative to the current directory, and may be a text sequence or an atom
+--   pointer to a pre-allocated string [eg from allocate_string or prev. API]).
+--   No confirmation is asked for, if wanted do that before calling.
+--
+-- Returns True if successful, otherwise False (see net_errno/msg).
+--
+atom pDirectory
+integer result
+
+    pDirectory = toStr(Directory)
+
+    result = c_func(xFtpRemoveDirectory,{hConnect, pDirectory})
+
+    if result = False then SetError() end if 
+
+    freeStr(pDirectory,Directory)
+
+    return result
+    
+end function
+
+
+global function FtpCommand(atom hConnect, integer ExpectResponse, atom Flags,
+                           object Command, atom Context)
+--
+-- Allows an application to send commands directly to an FTP server.
+--
+--  hConnect is a value returned from InternetConnect().
+--  ExpectResponse is True or False.
+--      (Afaict, this dictates whether result is in 6th parameter or the
+--       return value from c_func. If it does not work one way, just try
+--       try with the other. M$/Google somewhat vague about this.)
+--  Flags can be one of:
+--       NULL (=0), treated as BINARY
+--       ASCII (=1=FTP_TRANSFER_TYPE_ASCII=INTERNET_FLAG_TRANSFER_ASCII),
+--       BINARY (=2=FTP_TRANSFER_TYPE_BINARY=INTERNET_FLAG_TRANSFER_BINARY)
+--  Command should be a string or pointer to pre-allocated string.
+--      The following commands are known to work (here!):
+--      With ExpectResponse False (results via InternetGetLastResponseInfo):
+--          HELP shows list of commands (see below).
+--          HELP SITE shows list of site-specific commands.
+--      With ExpectResponse True (results via loop, see above):
+--          LIST list remote directory.
+--
+--      Other possible commands are:
+--          SITE CHMOD 777 filename
+--
+--      HELP gives something like this:
+--           XCWD    XCUP    SMNT*   QUIT    PORT    PASV
+--           EPRT    EPSV    ALLO*   DELE    MDTM    RMD
+--           XRMD    MKD     XMKD    PWD     XPWD    SIZE    SYST    
+--           NOOP    FEAT    OPTS    AUTH*   CCC*    CONF*   ENC*    MIC*
+--           PBSZ*   PROT*   TYPE    STRU    MODE    RETR    STOR    STOU
+--           APPE    REST    ABOR    USER    PASS    ACCT*   REIN*   
+--          CWD Change working directory
+--          CDUP Change to parent directory
+--          RNFR Rename from... (first of a pair)
+--          RNTO ... to         (second " "  ")
+--      Most of these commands duplicate other functions in this wrapper.
+--
+--  Context is an application-defined (dword) value that can be used to identify
+--      the callee in a callback routine. Only used if InternetSetStatusCallback
+--      has previously been called.
+--
+--  Returns True if successful False otherwise (see net_errmsg), unless 
+--   ExpectRespose is True, in which case the result is a handle. 
+--
+atom pCommand, ptrhFtpCommand
+integer result
+
+    if hConnect = NULL then 
+        net_errno = 0
+        net_errmsg = "invalid connection handle"
+        return False
+    end if
+
+    pCommand = toStr(Command)
+
+    if ExpectResponse then 
+        ptrhFtpCommand = pPdword
+        poke4(ptrhFtpCommand,0)
+    else
+        ptrhFtpCommand = NULL
+    end if
+
+    if Flags = NULL then Flags = BINARY end if
+
+    result = c_func(xFtpCommand,{hConnect,
+                                 ExpectResponse,
+                                 Flags,
+                                 pCommand,
+                                 Context,
+                                 ptrhFtpCommand
+                                })
+
+    if result = False then SetError() end if
+
+    freeStr(pCommand,Command)
+  
+    if ExpectResponse then 
+        return peek4u(ptrhFtpCommand)
+    end if
+
+    return result
+
+end function
+
+
+constant pFINDDATA = allocate(sizeofstruct(FINDDATA)),
+         pSYSTEMTIME = allocate(sizeofstruct(SYSTEMTIME)),
+         pFILETIME = allocate(sizeofstruct(FILETIME))
+
+function peek2u(object addr)
+    return peek(addr) + peek(addr+1)*256
+end function
+
+constant attrbits={#01,#02,#04,#00,#10,#20},    -- no volume_id
+         attrchar={'r','h','s','v','d','a'}
+
+function ConvertAttributes(integer c)
+--
+-- Convert the bitmap of file attributes into a text string
+--
+sequence res
+    res=""
+    for i=1 to length(attrbits) do
+        if and_bits(c,attrbits[i]) then
+            res&=attrchar[i]
+        end if
+    end for
+    return res
+end function
+
+
+global function FtpDir(atom hConnect, object FileName, atom Flags, atom Context)
+--
+-- Returns a remote directory listing in the same format as dir().
+-- Note that the order in which files are returned is determined solely
+--  by the FTP server.
+--
+--  hConnect is a value returned from InternetConnect().
+--
+--  FileName may be NULL or the empty string (both list the current directory whole),
+--   or it may contain a path either fully qualified or relative to the current 
+--   directory, may contain wildcards, and may be a text sequence or an atom pointer 
+--   to a pre-allocated string [eg from allocate_string or prev. API]).
+--
+--  Flags can be one of:
+--       INTERNET_FLAG_HYPERLINK (=#400),
+--       INTERNET_FLAG_NEED_FILE (=#10=INTERNET_FLAG_MUST_CACHE_REQUEST),
+--       INTERNET_FLAG_NO_CACHE_WRITE=#04000000,
+--       INTERNET_FLAG_RELOAD (=#80000000),
+--       INTERNET_FLAG_RESYNCHRONIZE (=#800)
+--
+--  Context is an application-defined (dword) value that can be used to identify
+--      the callee in a callback routine. Only used if InternetSetStatusCallback
+--      has previously been called.
+--
+--  Returns a directory listing if successful -1 otherwise (see net_errno/msgmsg)
+--
+--  The directory listing must either be completed, by calling InternetFindNextFile
+--   until it fails, or InternetClose called on the returned file handle before a 
+--   second call to FtpFindFirstFile will succeed. The FTP protocol does not permit
+--   multiple directory listings to be performed simultaneously.
+--
+atom hFile, pFileName
+sequence res
+    if hConnect = NULL then 
+        net_errno = 0
+        net_errmsg = "invalid connection handle"
+        return False
+    end if
+
+    pFileName = toStr(FileName)--&"/*.*")
+    
+    hFile = c_func(xFtpFindFirstFile,{hConnect,
+                                      pFileName,
+                                      pFINDDATA,
+                                      Flags,
+                                      Context
+                                     })
+
+    freeStr(pFileName,FileName)
+
+    if hFile = NULL then
+        SetError()
+        if net_errno = ERROR_NO_MORE_FILES then
+            return {}
+        end if
+        return -1
+    end if
+
+    res = {}
+    while 1 do
+        if c_func(xFileTimeToLocalFileTime,{pFINDDATA+FINDDATA_ftLastWriteTime,pFILETIME}) then end if
+        if c_func(xFileTimeToSystemTime,{pFILETIME,pSYSTEMTIME}) then end if
+        res=append(res,{peek_string(pFINDDATA+FINDDATA_cFileName),
+                        ConvertAttributes(peek4u(pFINDDATA+FINDDATA_dwAttr)),
+                        peek4s(pFINDDATA+FINDDATA_nFileSizeHigh)*#100000000+peek4u(pFINDDATA+FINDDATA_nFileSizeLow),
+                        peek2u(pSYSTEMTIME+SYSTEMTIME_wYear),
+                        peek2u(pSYSTEMTIME+SYSTEMTIME_wMonth),
+                        peek2u(pSYSTEMTIME+SYSTEMTIME_wDay),
+                        peek2u(pSYSTEMTIME+SYSTEMTIME_wHour),
+                        peek2u(pSYSTEMTIME+SYSTEMTIME_wMinute),
+                        peek2u(pSYSTEMTIME+SYSTEMTIME_wSecond)})
+        if not c_func(xInternetFindNextFile,{hFile,pFINDDATA}) then exit end if
+    end while
+
+    if InternetClose(hFile) then end if
+
+    return res
+
+end function
+
+
+global function InternetOpenUrl(atom hSession, object Url, object Headers, atom Flags, atom Context)
+--
+-- Begins reading a complete FTP, Gopher, or HTTP URL
+--
+--  hSession is a value returned from InternetOpen(). NB it is not necessary to
+--      invoke InternetConnect(), nor should you use a handle returned from 
+--      that function.
+--
+--  Url is the full url to open (sequence or atom pointer to a pre-allocated string)
+--      and must begin with "ftp:", "gopher:", "http:", or "https:".
+--      Note that pre-allocated strings are not checked even when i_diag is 1.
+--
+--  Headers is additional headers to be sent to the HTTP server, of NULL if none 
+--      are required. Can be a string sequence or a pre-allocated null-terminated 
+--      atom pointer (eg from allocate_string or prev. API).
+--
+--  Flags may be a combination of:
+--      INTERNET_FLAG_EXISTING_CONNECT (=#20000000),
+--      INTERNET_FLAG_HYPERLINK (=#400),
+--      INTERNET_FLAG_IGNORE_CERT_CN_INVALID (=#1000),
+--      INTERNET_FLAG_IGNORE_CERT_DATE_INVALID (=#2000),
+--      INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTP (=#8000),
+--      INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTPS (=#4000),
+--      INTERNET_FLAG_KEEP_CONNECTION (=#400000),
+--      INTERNET_FLAG_NEED_FILE (=#10),
+--      INTERNET_FLAG_NO_AUTH (=#40000),
+--      INTERNET_FLAG_NO_AUTO_REDIRECT (=#200000),
+--      INTERNET_FLAG_NO_CACHE_WRITE (=#04000000),
+--      INTERNET_FLAG_NO_COOKIES (=#80000),
+--      INTERNET_FLAG_NO_UI (=#200),
+--      INTERNET_FLAG_PASSIVE (=#08000000),
+--      INTERNET_FLAG_PRAGMA_NOCACHE (=#100),
+--      INTERNET_FLAG_RAW_DATA (=#40000000),
+--      INTERNET_FLAG_RELOAD (=#80000000), [the default]
+--      INTERNET_FLAG_RESYNCHRONIZE (=#800),
+--      INTERNET_FLAG_SECURE (=#800000),
+--
+--  Context is an application-defined (dword) value that can be used to identify
+--      the callee in a callback routine. Only used if InternetSetStatusCallback
+--      has previously been called.
+--
+-- 
+-- Returns a handle to the FTP, Gopher, or HTTP URL if the connection is 
+--  successfully established, else NULL (see net_errno/net_errmsg)
+--
+atom pUrl, pHeaders, hUrl
+integer HeadersLength
+
+    pUrl = toStr(Url)
+    pHeaders = toStr(Headers)
+
+    if sequence(Headers) then
+        HeadersLength = length(Headers)
+    elsif Headers = NULL then
+        HeadersLength = 0
+    else -- cause scan for null terminator
+        HeadersLength = -1
+    end if
+
+    if i_diag then
+        if (sequence(Url) and
+            match("ftp:",Url)!=1 and
+            match("gopher:",Url)!=1 and
+            match("http:",Url)!=1 and
+            match("https:",Url)!=1)
+        or and_bits(Flags,#131300EF)    -- comment this out if problems (let me know)
+        or hSession = NULL then
+            ?9/0
+        end if
+    else
+        if hSession = NULL  then 
+            net_errno = 0
+            net_errmsg = "invalid session handle"
+            return False
+        end if
+    end if
+
+    if Flags = NULL then
+        Flags = INTERNET_FLAG_RELOAD
+    end if
+
+    hUrl = c_func(xInternetOpenUrl,{hSession,
+                                    pUrl,
+                                    pHeaders,
+                                    HeadersLength,
+                                    Flags,
+                                    Context
+                                   })
+
+    if hUrl = NULL then SetError() end if
+      
+    freeStr(pUrl,Url)
+    freeStr(pHeaders,Headers)
+
+    return hUrl
+end function
+
+
+global function InternetQueryDataAvailable(atom hFile)
+--
+-- hFile is a handle returned from InternetOpenUrl,
+--  [DEV:] FtpOpenFile, GopherOpenFile, or HttpOpenRequest.
+--
+-- Result is number of bytes available or False on error (see net_errno/msg)
+--
+    if c_func(xInternetQueryDataAvailable,{hFile,pPdword,0,0}) then
+        return peek4u(pPdword)
+    end if
+    SetError()
+    return False
+end function
+
+
+
+-- end_of_reworked_code
+
+
+--
+--global function InternetFindNextFile()--atom hFile)
+----
+---- Gets the next file in the current (remote) directory.
+---- Note that files are returned in no particular order.
+----
+----    hFile is a value returned from FtpFindFirstFile().
+---- Uses the file handle from the last successful FtpFindFirstFile call.
+----
+---- Returns a valid file handle if successful NULL otherwise (see net_errno/msgmsg)
+----
+----    The directory listing must either be completed, by calling InternetFindNextFile
+----     until it fails, or InternetClose called on the returned file handle before a 
+----     second call to FtpFindFirstFile will succeed. The FTP protocol does not permit
+----     multiple directory listings to be performed simultaneously.
+----
+--  if hConnect = NULL then 
+--      net_errno = 0
+--      net_errmsg = "invalid connection handle"
+--      return False
+--  end if
+--
+--  result = c_func(xInternetFindNextFile,{hConnect,
+--                                     NULL,            -- Filename
+--                                     pFINDDATA,
+--                                     Flags,
+--                                     Context
+--                                    })
+--
+--  if result = NULL then SetError() end if
+--
+--  return result
+--
+--end function
+--
+
+
+--constant 
+--
+--  NO_ERROR=0,
+--  ERROR_SUCCESS=0,
+--  
+--  -- To format error messages
+--  FORMAT_MESSAGE_FROM_STRING  = 1024,
+--  LANG_NEUTRAL= 0,
+--  SUBLANG_DEFAULT= 1,  
+--  SUBLANG_SYS_DEFAULT= 2,
+--  
+--  MAX_CACHE_ENTRY_INFO_SIZE=4096,
+--
+--  INTERNET_MAX_HOST_NAME_LENGTH=256,
+--  INTERNET_MAX_USER_NAME_LENGTH=128,
+--  INTERNET_MAX_PASSWORD_LENGTH=128,
+--  INTERNET_MAX_PORT_NUMBER_LENGTH=5,
+--  INTERNET_MAX_PORT_NUMBER_VALUE=65535,
+--  INTERNET_MAX_PATH_LENGTH=2048,
+--  INTERNET_MAX_PROTOCOL_NAME  ="gopher",
+--  INTERNET_MAX_URL_LENGTH = ((length(INTERNET_MAX_PROTOCOL_NAME) - 1) + length("://") + INTERNET_MAX_PATH_LENGTH),
+--
+--  INTERNET_KEEP_ALIVE_ENABLED=1,
+--  INTERNET_KEEP_ALIVE_DISABLED=0,
+--  INTERNET_REQFLAG_FROM_CACHE=1,
+--  INTERNET_REQFLAG_ASYNC=2,
+--
+--  INTERNET_FLAG_DONT_CACHE=INTERNET_FLAG_NO_CACHE_WRITE,
+--  INTERNET_FLAG_MAKE_PERSISTENT=#02000000,
+--  INTERNET_FLAG_READ_PREFETCH=#100000,
+--
+--  
+--  GENERIC_READ= #80000000,
+--  GENERIC_WRITE= #40000000, 
+--  FLAG_ICC_FORCE_CONNECTION=#00000001,
+--  
+--  INTERNET_ERROR_BASE=12000,
+--  ERROR_INTERNET_OUT_OF_HANDLES=12001,
+--  ERROR_INTERNET_TIMEOUT=12002,
+--  ERROR_INTERNET_INTERNAL_ERROR=12004,
+--  ERROR_INTERNET_INVALID_URL=12005,
+--  ERROR_INTERNET_UNRECOGNIZED_SCHEME=12006,
+--  ERROR_INTERNET_NAME_NOT_RESOLVED=12007,
+--  ERROR_INTERNET_PROTOCOL_NOT_FOUND=12008,
+--  ERROR_INTERNET_INVALID_OPTION=12009,
+--  ERROR_INTERNET_BAD_OPTION_LENGTH=12010,
+--  ERROR_INTERNET_OPTION_NOT_SETTABLE=12011,
+--  ERROR_INTERNET_SHUTDOWN=12012,
+--  ERROR_INTERNET_INCORRECT_USER_NAME=12013,
+--  ERROR_INTERNET_INCORRECT_PASSWORD=12014,
+--  ERROR_INTERNET_LOGIN_FAILURE=12015,
+--  ERROR_INTERNET_INVALID_OPERATION=12016,
+--  ERROR_INTERNET_OPERATION_CANCELLED=12017,
+--  ERROR_INTERNET_INCORRECT_HANDLE_TYPE=12018,
+--  ERROR_INTERNET_INCORRECT_HANDLE_STATE=12019,
+--  ERROR_INTERNET_NOT_PROXY_REQUEST=12020,
+--  ERROR_INTERNET_REGISTRY_VALUE_NOT_FOUND=12021,
+--  ERROR_INTERNET_BAD_REGISTRY_PARAMETER=12022,
+--  ERROR_INTERNET_NO_DIRECT_ACCESS=12023,
+--  ERROR_INTERNET_NO_CONTEXT=12024,
+--  ERROR_INTERNET_NO_CALLBACK=12025,
+--  ERROR_INTERNET_REQUEST_PENDING=12026,
+--  ERROR_INTERNET_INCORRECT_FORMAT=12027,
+--  ERROR_INTERNET_ITEM_NOT_FOUND=12028,
+--  ERROR_INTERNET_CANNOT_CONNECT=12029,
+--  ERROR_INTERNET_CONNECTION_ABORTED=12030,
+--  ERROR_INTERNET_CONNECTION_RESET=12031,
+--  ERROR_INTERNET_FORCE_RETRY=12032,
+--  ERROR_INTERNET_INVALID_PROXY_REQUEST=12033,
+--  ERROR_INTERNET_NEED_UI=12034,
+--  ERROR_INTERNET_HANDLE_EXISTS=12036,
+--  ERROR_INTERNET_SEC_CERT_DATE_INVALID=12037,
+--  ERROR_INTERNET_SEC_CERT_CN_INVALID=12038,
+--  ERROR_INTERNET_HTTP_TO_HTTPS_ON_REDIR=12039,
+--  ERROR_INTERNET_HTTPS_TO_HTTP_ON_REDIR=12040,
+--  ERROR_INTERNET_MIXED_SECURITY=12041,
+--  ERROR_INTERNET_CHG_POST_IS_NON_SECURE=12042,
+--  ERROR_INTERNET_POST_IS_NON_SECURE=12043,
+--  ERROR_INTERNET_CLIENT_AUTH_CERT_NEEDED=12044,
+--  ERROR_INTERNET_INVALID_CA=12045,
+--  ERROR_INTERNET_CLIENT_AUTH_NOT_SETUP=12046,
+--  ERROR_INTERNET_ASYNC_THREAD_FAILED=12047,
+--  ERROR_INTERNET_REDIRECT_SCHEME_CHANGE=12048,
+--  ERROR_FTP_TRANSFER_IN_PROGRESS=12110,
+--  ERROR_FTP_DROPPED=12111,
+--  ERROR_HTTP_HEADER_NOT_FOUND=12150,
+--  ERROR_HTTP_DOWNLEVEL_SERVER=12151,
+--  ERROR_HTTP_INVALID_SERVER_RESPONSE=12152,
+--  ERROR_HTTP_INVALID_HEADER=12153,
+--  ERROR_HTTP_INVALID_QUERY_REQUEST=12154,
+--  ERROR_HTTP_HEADER_ALREADY_EXISTS=12155,
+--  ERROR_HTTP_REDIRECT_FAILED=12156,
+--  ERROR_HTTP_NOT_REDIRECTED=12160,
+--  ERROR_INTERNET_SECURITY_CHANNEL_ERROR=12157,
+--  ERROR_INTERNET_UNABLE_TO_CACHE_FILE=12158,
+--  ERROR_INTERNET_TCPIP_NOT_INSTALLED=12159,
+--  INTERNET_ERROR_LAST=ERROR_INTERNET_TCPIP_NOT_INSTALLED
+--  
+--
+--constant
+--
+---- ----------------------------------------------------------------------------
+---- The following are the ones exported by wininet.dll
+---- ----------------------------------------------------------------------------
+--
+--xInternetTimeFromSystemTime   = link_c_func(winet,"InternetTimeFromSystemTime",{C_PTR,C_LONG,C_PTR,C_LONG},C_INT),
+--xInternetTimeToSystemTime   = link_c_func(winet,"InternetTimeToSystemTime",{C_PTR,C_PTR,C_LONG},C_INT),
+--
+--  
+---- (IE3 Functions bellow are almost always available)
+--   
+--xInternetCheckConnection    = link_c_func(winet,"InternetCheckConnectionA",{C_PTR,C_PTR,C_PTR},C_INT),
+--xInternetCrackUrl           = link_c_func(winet,"InternetCrackUrlA",{C_PTR,C_LONG,C_LONG,C_PTR},C_INT),
+--xInternetCreateUrl          = link_c_func(winet,"InternetCreateUrlA",{C_PTR,C_LONG,C_PTR,C_PTR},C_INT),
+--xInternetCanonicalizeUrl    = link_c_func(winet,"InternetCanonicalizeUrlA",{C_PTR,C_PTR,C_PTR,C_LONG},C_INT),
+--xInternetCombineUrl         = link_c_func(winet,"InternetCombineUrlA",{C_PTR,C_PTR,C_PTR,C_PTR,C_LONG},C_INT),
+--
+--xInternetSetFilePointer     = link_c_func(winet,"InternetSetFilePointer",{C_PTR,C_LONG,C_PTR,C_LONG,C_LONG},C_LONG),
+--xInternetWriteFile          = link_c_func(winet,"InternetWriteFile",{C_PTR,C_PTR,C_LONG,C_PTR},C_INT),
+--xInternetQueryOption        = link_c_func(winet,"InternetQueryOptionA",{C_PTR,C_LONG,C_PTR,C_PTR},C_INT),
+--xInternetSetOption          = link_c_func(winet,"InternetSetOptionA",{C_PTR,C_LONG,C_PTR,C_LONG},C_INT),
+--xInternetSetOptionEx        = link_c_func(winet,"InternetSetOptionExA",{C_PTR,C_LONG,C_PTR,C_LONG,C_LONG},C_INT),
+--xInternetSetStatusCallback  = link_c_func(winet,"InternetSetStatusCallback",{C_PTR,C_PTR},C_PTR),
+--xFtpGetFileSize             = link_c_func(winet,"FtpGetFileSize",{C_PTR,C_PTR},C_PTR),
+--xFtpOpenFile                = link_c_func(winet,"FtpOpenFileA",{C_PTR,C_PTR,C_LONG,C_LONG,C_LONG},C_PTR),
+--xHttpOpenRequest            = link_c_func(winet,"HttpOpenRequestA",{C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_LONG,C_LONG},C_PTR),
+--xHttpAddRequestHeaders      = link_c_func(winet,"HttpAddRequestHeadersA",{C_PTR,C_PTR,C_LONG,C_LONG},C_INT),
+--xHttpSendRequest            = link_c_func(winet,"HttpSendRequestA",{C_PTR,C_PTR,C_LONG,C_PTR,C_LONG},C_INT),
+--xHttpQueryInfo              = link_c_func(winet,"HttpQueryInfoA",{C_PTR,C_LONG,C_PTR,C_PTR,C_PTR},C_INT),
+--xInternetSetCookie          = link_c_func(winet,"InternetSetCookieA",{C_PTR,C_PTR,C_PTR},C_INT),
+--xInternetGetCookie          = link_c_func(winet,"InternetGetCookieA",{C_PTR,C_PTR,C_PTR,C_PTR},C_INT),
+--xInternetAttemptConnect     = link_c_func(winet,"InternetAttemptConnect",{C_LONG},C_LONG),
+--xInternetErrorDlg           = link_c_func(winet,"InternetErrorDlg",{C_LONG,C_PTR,C_LONG,C_LONG,C_PTR},C_LONG),
+--xInternetConfirmZoneCrossing  = link_c_func(winet,"InternetConfirmZoneCrossing",{C_LONG,C_PTR,C_PTR,C_USHORT},C_LONG),
+--xCreateUrlCacheEntry        = link_c_func(winet,"CreateUrlCacheEntryA",{C_PTR,C_LONG,C_PTR,C_PTR,C_LONG},C_INT),
+--xCommitUrlCacheEntry        = link_c_func(winet,"CommitUrlCacheEntryA",{C_PTR,C_PTR,C_PTR,C_PTR,C_LONG,C_PTR,C_LONG,C_PTR,C_LONG},C_INT),
+--xRetrieveUrlCacheEntryFile  = link_c_func(winet,"RetrieveUrlCacheEntryFileA",{C_PTR,C_PTR,C_PTR,C_LONG},C_INT),
+--xUnlockUrlCacheEntryFile    = link_c_func(winet,"UnlockUrlCacheEntryFile",{C_PTR,C_LONG},C_INT),
+--xRetrieveUrlCacheEntryStream  = link_c_func(winet,"RetrieveUrlCacheEntryStreamA",{C_PTR,C_PTR,C_PTR,C_USHORT,C_LONG},C_LONG),
+--xReadUrlCacheEntryStream    = link_c_func(winet,"ReadUrlCacheEntryStream",{C_LONG,C_LONG,C_PTR,C_PTR,C_LONG},C_INT),
+--xUnlockUrlCacheEntryStream  = link_c_func(winet,"UnlockUrlCacheEntryStream",{C_LONG,C_LONG},C_INT),
+--xGetUrlCacheEntryInfo       = link_c_func(winet,"GetUrlCacheEntryInfoA",{C_PTR,C_PTR,C_PTR},C_INT),
+--xSetUrlCacheEntryInfo       = link_c_func(winet,"SetUrlCacheEntryInfoA",{C_PTR,C_PTR,C_LONG},C_INT),
+--xFindFirstUrlCacheEntry     = link_c_func(winet,"FindFirstUrlCacheEntryA",{C_PTR,C_PTR,C_PTR},C_LONG),
+--xFindNextUrlCacheEntry      = link_c_func(winet,"FindNextUrlCacheEntryA",{C_LONG,C_PTR,C_PTR},C_INT),
+--xFindCloseUrlCache          = link_c_func(winet,"FindCloseUrlCache",{C_LONG},C_INT),
+--xDeleteUrlCacheEntry        = link_c_func(winet,"DeleteUrlCacheEntry",{C_PTR},C_INT)
+--
+---- it seems that this one dissapeared ... a year is a long time
+---- xInternetDebugGetLocalTime  = link_c_func(winet,"InternetDebugGetLocalTime",{C_PTR,C_LONG},C_INT),
+----xAuthenticateUser           = link_c_func(winet,"AuthenticateUser",{C_PTR,C_PTR,C_PTR,C_LONG ,C_PTR,C_LONG,C_PTR,C_PTR},C_LONG)
+--
+--
+----
+---- InternetAttemptConnect:
+----
+----     Attempts to make a connection to the Internet
+----
+----
+---- Syntax:
+----
+----     integer InternetAttemptConnect( )   
+----
+----
+---- Comments: 
+----
+----     This function allows an application to first attempt to connect before 
+----     issuing any requests. If the connection fails, the application can enter
+----     off-line mode.
+----     Returns True if a connection can be established, or False otherwise.
+----
+---- */----------------------------------------------------------------------------
+--function InternetAttemptConnect()
+--integer result
+--
+--  result = c_func(xInternetAttemptConnect,{0})
+--
+--  if result = ERROR_SUCCESS then 
+--      return True
+--  end if
+--
+--  SetError()
+--
+--  return False
+--
+--end function
+--
+---- /*---------------------------------------------------------------------------
+----
+---- InternetCheckConnection:
+----
+----     Allows an application to check if a connection to the Internet 
+----     can be established
+----
+----
+---- Syntax:
+----
+----     integer InternetAttemptConnect({
+----                                     [{"url","http://server|10.0.20.2"}],
+----                                     [{"flags", CONSTANT}]
+----                                    })   
+----
+----
+---- Comments: 
+---- 
+----     Can be called without parameters InternetAttemptConnect({}). It's like 
+----     a PING.
+----
+----     FLAG_ICC_FORCE_CONNECTION is the only flag that is currently available.
+----     If this flag is set, it forces a connection.
+---- 
+----     Returns True if a connection can be established, or False otherwise.
+----
+---- */----------------------------------------------------------------------------
+--function InternetCheckConnection( sequence options )
+--atom Url, Flags
+--integer result
+--
+--  Url = ParameterValue("url",NULL, options)
+--  if sequence(Url) then 
+--      Url = allocate_string( Parameter )
+--  end if
+--
+--  Flags = ParameterValue("flags",NULL, options)
+--
+--  result = c_func(xInternetCheckConnection,{Url, Flags, 0})
+--
+--  if result = False then SetError() end if
+--
+--  return result
+--
+--end function
+--
+--
+--
+--
+---- /*---------------------------------------------------------------------------
+----
+---- FtpGetFileSize:
+----
+----     Retrieves the file size of the requested FTP resource
+----
+----
+---- Syntax:
+----
+----     int FtpGetFileSize( atom handleFile )
+----
+----
+---- Comments: 
+----
+----     Returns the file size of the requested FTP resource.
+----
+----     This might be a bug of mine. I've found that this just works
+----     when the file is opened for READ
+----
+---- */----------------------------------------------------------------------------
+--function FtpGetFileSize( atom hFile )
+--atom ptrFileSizeHigh, FileSizeLow
+--
+--  ptrFileSizeHigh = allocate(4)
+--
+--  FileSizeLow = c_func(xFtpGetFileSize, {hFile, ptrFileSizeHigh})
+--
+--  free(ptrFileSizeHigh) 
+--
+--  return FileSizeLow
+--end function
+--
+--
+---- /*---------------------------------------------------------------------------
+----
+---- FtpOpenFile:
+----
+----     Initiates access to a remote file on an FTP server for reading or writing
+----
+----
+---- Syntax:
+----
+----     int FtpOpenFile({
+----                     {"connection_handle" ,hConnect},
+----                     {"file_name","filename"},
+----                     {"access","READ|WRITE"},
+----                     {"flags","ASCII|BINARY"},
+----                     {"context",value},
+----                    })
+---- Comments: 
+----     Returns a file handle if successful
+----     If access is omitted then READ is the default mode
+----     If flags is not especified BINARY is the default.
+----
+----     After calling FtpOpenFile and until calling InternetClose,
+----     all other calls to FTP functions on the same FTP session handle 
+----     will fail and set the error message to ERROR_FTP_TRANSFER_IN_PROGRESS.
+----
+----     Only one file can be open in a single FTP session. Therefore, no file
+----     handle is returned and the application simply uses the FTP session 
+----     handle when necessary
+----
+----
+---- */----------------------------------------------------------------------------
+--function FtpOpenFile( sequence options)
+--atom hConnect, ptrFileName, Access, Flags, Context, hFile
+--   
+--integer p
+--
+--  -- Default values or given
+--  hConnect = ParameterValue("connection_handle", NULL, options) 
+--  if  hConnect = NULL  then 
+--      net_errno = 0
+--      net_errmsg = "EInetlib: A connection_handle must be supplied"
+--      return False
+--  end if
+--
+--  Parameter = ParameterValue("file_name",NULL, options)
+--  if sequence(Parameter) then 
+--      ptrFileName = allocate_string(Parameter)
+--  else
+--      net_errno = 0
+--      net_errmsg = "EInetlib: A file_name name is required"
+--      return False
+--  end if
+--
+--  Access = GENERIC_READ
+--  Parameter = ParameterValue("access",NULL, options)
+--  if sequence(Parameter) then 
+--      if  equal(upper(Parameter),"WRITE") then 
+--          Access = GENERIC_WRITE
+--      end if
+--  end if
+--
+--  Flags = FTP_TRANSFER_TYPE_BINARY
+--  Parameter = ParameterValue("flags",NULL, options)
+--  if sequence(Parameter) then 
+--      if  equal(upper(Parameter),"ASCII") then 
+--          Flags = FTP_TRANSFER_TYPE_ASCII
+--      end if
+--  end if
+--
+--  Context = ParameterValue("context", NULL, options) 
+--
+--  -- Open the file
+--  hFile = c_func(xFtpOpenFile,{hConnect,
+--                               ptrFileName,
+--                               Access,
+--                               Flags,
+--                               Context
+--                              })
+--
+--  free(ptrFileName)
+--
+--  if hFile = 0 then SetError() end if 
+--  
+--  return hFile 
+--  
+--end function
+--
+--
+---- /*---------------------------------------------------------------------------
+----
+---- InternetWriteFile:
+----
+----     Writes data to an open Internet file
+----
+----
+---- Syntax:
+----
+----     sequence InternetWriteFile(atom ftpFileHandle, sequence Data2Write )
+----
+----
+---- Comments: 
+----     
+----    Returns True if succesful False otherwise. If error information will be in
+----    net_errmsg. 
+----
+----    When the application is sending data, it must call InternetClose
+----    to end the data transfer
+----
+---- */----------------------------------------------------------------------------
+--function InternetWriteFile( atom hFile, sequence Data )
+--atom Buffer, ptrNumberOfBytesToWrite, ptrNumberOfBytesWritten
+--integer result
+--  
+--  ptrNumberOfBytesToWrite = length(Data)
+--  
+--  -- it can be zero if reading in a loop and an exact divisor is used
+--  if ptrNumberOfBytesToWrite > 0 then 
+--
+--      ptrNumberOfBytesWritten = allocate(4)
+--      Buffer = allocate_string(Data)
+--
+--      result = c_func(xInternetWriteFile,{hFile,
+--                                          Buffer,
+--                                          ptrNumberOfBytesToWrite,
+--                                          ptrNumberOfBytesWritten
+--                                         })
+--    
+--      free(Buffer)
+--      free(ptrNumberOfBytesWritten)
+--
+--      if result = False then SetError() end if
+--
+--      return result
+--
+--  end if
+--
+--  return True -- if an empty sequence is passed 
+--end function
+--
+--

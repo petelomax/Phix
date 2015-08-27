@@ -1,0 +1,189 @@
+--
+-- When you find an email is covered in =3D, =20 etc, copy the text
+-- to the windows clipboard and run this program.
+-- The encodings are stripped and the corrected text is both 
+-- displayed, and placed back on the clipboard. 
+-- Use Alt-F4 to close the window.
+-- You can also just leave it running in the background; alt-tab
+-- to it and the clipboard & display are automatically updated
+
+include win32lib.ew
+if setAutoFocusLabels(True) then end if
+with trace
+
+constant 
+main=create(Window,"Quoted Printable Decode",0,0,0,800,600,0),
+mle=create(MleText,"",main,5,5,0.99,0.99,0),
+sh=create(CheckBox,"&Strip Html",main,5, 0.99, 14*6, 25,0),
+hex=create(CheckBox,"&Hex View",main,100, 0.99, 14*6, 25,0),
+clip=create(CheckBox,"&Update Clipboard",main,200, 0.99, 22*6, 25,0)
+
+sequence hout
+hout=repeat(-1,256)
+for i = 0 to 9 do
+    hout[i+48]=i    -- '1'..'9' ['0' is already 0]
+end for
+for i = 10 to 15 do
+    hout[i+55]=i    -- 'A'..'F'
+    hout[i+87]=i    -- 'a'..'f'
+end for
+
+constant
+ampdeadset={"&gt;","&lt;","&nbsp;","&amp;","<p>","<P>","<BR>"},
+adrep     ={ ">",   "<",   " ",     "&",    "",   "",   ""}
+
+global function qpd(sequence in) 
+-------------------------------------
+sequence result
+integer k, k2, k3, k4,
+        ko,ke, done
+sequence endtag
+
+    result={}
+    k=1
+    if isChecked(hex) then
+        k2=1
+        while k<=length(in) do
+            if find(in[k],"\r\n") then
+                result&="\r\n"
+                if k<length(in) and find(in[k],"\r\n")=find(in[k+1],"\n\r") then
+                    k+=1
+                end if
+                k2=1
+            else
+                if k2>10 then
+                    result&="\r\n"
+                    k2=1
+                end if
+                result&=sprintf("%02x",in[k])
+                k2+=1
+            end if
+            k+=1
+        end while
+        return result
+    end if
+    while k <= length(in) do
+        if k<length(in)-1 
+        and in[k]='=' 
+        and hout[in[k+1]]!=-1 
+        and hout[in[k+2]]!=-1 then
+            result&=hout[in[k+1]]*16+hout[in[k+2]]
+            k+=3
+        elsif k<length(in)-1 
+        and in[k]='=' 
+        and in[k+1]='\r'
+        and in[k+2]='\n' then
+            k+=3
+        else
+            result&=in[k]
+            k+=1
+        end if
+    end while
+    if isChecked(sh) then   -- strip html
+        k2=1
+        while 1 do
+            k=match("<!--",result[k2..length(result)])  -- comment start
+            if k=0 then exit end if
+            k+=k2-1
+            k2=match("-->",result[k+4..length(result)]) -- comment end
+            if k2=0 then exit end if
+            k2+=k+3
+--                      for i=k+4 to k2-1 do                                            -- specific spam test
+--                              ch=result[i]
+--                              if (ch>='0' and ch<='9')
+--                              or (ch>='A' and ch<='Z')
+--                              or (ch>='a' and ch<='z') then
+--                                      if i=k2-1 then
+                        result=result[1..k-1]&result[k2+3..length(result)]
+                        k2=k
+--                                              exit
+--                                      end if
+--                              else
+--                                      k2=k+1
+--                                      exit
+--                              end if
+--                      end for
+        end while
+
+        --
+        -- chop matching, eg <pre>..</pre>
+        --
+        done=1
+        ko=1            -- opening '<'
+        ke=1            -- ending '>', on the opening doobrie
+        while 1 do
+            ko=find('<',result[done..length(result)])
+            if ko=0 then exit end if
+            ke=find('>',result[done+ko..length(result)])
+            if ke=0 then exit end if
+            --
+            -- ok, now we have a tag
+            -- find the closing tag to look for
+            --
+            k3=find(' ',result[done+ko..done+ko+ke-2])-1
+            if k3=-1 then k3=ke-1 end if
+            endtag="</"&result[done+ko..done+ko+k3-1]&'>'
+            --
+            -- now find the equivalent closing html:
+            -- eg <pre>... </pre>
+            --
+            k4=match(endtag,result[done+ko+ke..length(result)])
+            if k4 then
+                result=result[1..done-1+ko-1]&
+                       result[done+ko+ke..done+ko+ke+k4-2]&
+                       result[done+ko+ke+k4+k3+2..length(result)]
+                done=1  -- far too hard; start again!
+            else
+                done+=ko+ke
+            end if
+        end while
+        for i=1 to length(ampdeadset) do
+            while 1 do
+                k=match(ampdeadset[i],result)
+                if k=0 then exit end if
+                result=result[1..k-1]&adrep[i]&result[k+length(ampdeadset[i])..length(result)]
+            end while
+        end for
+    end if
+
+    return result
+end function
+
+procedure onResizeMain(integer self, integer event, sequence params)
+sequence size
+    if self or length(params) then end if   -- suppress warnings
+    if event=w32HResize then
+        size = getClientRect(main) -- returns {x1,y1,x2,y2}
+        size[3]-=size[1]
+        size[4]-=size[2]
+        setCtlSize(mle,size[3]-10,size[4]-40)
+        setRect(sh,5,size[4]-30,14*6,25,1)
+        setRect(hex,100,size[4]-30,14*6,25,1)
+        setRect(clip,200,size[4]-30,22*6,25,1)
+    end if
+    if event=w32HPaint then
+        setIndex(mle,{1,0})
+        paste(mle)
+        setText(mle,qpd(getText(mle)))
+        if isChecked(clip) then
+            setIndex(mle,{1,0})
+            copy(mle)
+        end if
+    end if
+    setFocus(mle)
+end procedure
+setHandler(main,{w32HResize,w32HActivate,w32HPaint},routine_id("onResizeMain"))
+
+procedure onChangeSh(integer self, integer event, sequence params)
+    if self or event or length(params) then end if  -- suppress warnings
+--      onResizeMain(main,w32HPaint,params)
+--      if self=sh then
+--              if isChecked(sh)=True then
+--                      setCheck(sh,-1)
+--              end if
+--      end if
+    repaintWindow(main)
+end procedure
+setHandler({sh,hex,clip},w32HClick,routine_id("onChangeSh"))
+
+WinMain(main,Normal)

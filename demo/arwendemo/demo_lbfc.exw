@@ -1,0 +1,72 @@
+
+include arwen.ew
+
+constant main=create(Window,"Listbox font/colour Test",0, 0, 100,100,200,490,0)
+
+constant lb=create(ListBox,"",0,main,10,10,170,450,0)
+void=insertItem(lb,{"first1","fittingly2","3","4","5","6","7"},0)
+setFont(lb,"Lucida Console",24,0)
+--void=sendMessage(lb,LB_SETITEMHEIGHT,0,sendMessage(lb,LB_GETITEMHEIGHT,0,0)+5)
+
+constant lNewBrush=c_func(xCreateSolidBrush,{BrightRed})
+
+integer justDblClick
+        justDblClick = 0
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+    if id = main and msg = WM_CTLCOLORLISTBOX and lParam=getHwnd(lb) then   -- msg is sent to parent
+        void = c_func(xSetTextColor, {wParam, Green})
+        void = c_func(xSetBkMode , {wParam, TRANSPARENT})
+        return {lNewBrush}
+--  elsif msg = WM_DRAWITEM then
+--  elsif msg = WM_COMMAND then
+--      if wParam=2 then
+----            ?1 -- item double clicked [DEV]
+--          void = messageBox("Selected",getItem(lb,0),MB_OK)
+--      end if
+    elsif msg = WM_LBUTTONDBLCLK then
+        justDblClick = 1    -- focus issues (see eaqj)
+    elsif (msg = WM_LBUTTONUP and justDblClick) then
+--trace(1)
+        justDblClick = 0
+        
+        void = messageBox("Selected",getItem(lb,0),MB_OK)
+--elsif not find(msg,{3,5,6,7,8,15,20,24,28,32,33,36,70,71,
+--                  127,128,132,133,134,136,160,161,274,305,
+--                  512,528,533,534,561,562,641,642,674,
+--                  799,49339}) then
+--      ?{id,msg,wParam,lParam}
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(main)
+    end if
+    return 0
+end function
+setHandler({main,lb},routine_id("mainHandler"))
+
+WinMain(main,SW_NORMAL)
+
+
+---- the win32lib code:
+--include win32lib.ew
+--
+--constant main=create(Window,"Listbox font/colour Test", 0, 100,100,200,500,0)
+--
+--constant lb=create(ListBox,"",main,10,10,150,400,LBS_NOINTEGRALHEIGHT)
+----
+--VOID=insertItem(lb,"first1",0)
+--VOID=insertItem(lb,"fittingly2",0)
+--VOID=insertItem(lb,"3",0)
+--VOID=insertItem(lb,"4",0)
+--VOID=insertItem(lb,"5",0)
+--VOID=insertItem(lb,"6",0)
+--VOID=insertItem(lb,"7",0)
+----
+----VOID=insertItem(lb,{"first1","fittingly2","3","4","5","6","7"},0)
+--setFont(lb,"Lucida Console",14,0)
+--
+--setFont(lb,"Tahoma",24,0)
+--setWindowBackColor( lb, BrightRed )
+--WinMain(main,SW_NORMAL)
+--abort(0)
+--

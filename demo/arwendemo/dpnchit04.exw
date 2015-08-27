@@ -1,0 +1,143 @@
+
+-- PAE: Pete's Arwen Examples.
+--  A collection of many trivial examples, from a basic window to a fully 
+--   skinned application. Search by feature, function, or constant used.
+--  Fully integrated with Edita. Install in the same directory or just run
+--   PAE while edita is up and runing. [DEV!??]
+--  Credits: win32lib demos, the archive, EUforum, etc have been raided,
+--           and obviously tweaks were needed for things to work on arwen.
+--           See individual files for individual details.
+--
+-- Description:
+--  Custom drawn title and background.
+--  The basics of a completely skinnable application.
+--  The bright white rectangle would probably look better in various colours...
+--  Horizontal lines above and below the titlebar can be toggled on an off, as
+--  can the icon. Gradient fill shown for even colours, not odd.
+--  There are no min/max/close buttons shown top right; if you want said best
+--  choice is to use a real caption, not a drawing of one like this, or maybe
+--  even whack your own darn buttons up there, sheesh! ;-)
+--  Obviously, this also shows that custom draw of the window is only part of
+--  the answer and custom drawn buttons and checkboxes may be rqd too...
+--  Also demonstrates dragging by virtual titlebar area.
+-- Keywords:
+--  toggleWindowTitle, link_c_proc, link_c_func,
+--  WM_NCHITTEST, setBackColour, getSysColor
+-- Credit: translated/extended from Tutorial by Don Phillips (31/12/01)
+
+--/*
+include ..\..\..\builtins\dll.e
+include ..\..\..\builtins\machine.e
+include ..\..\..\builtins\misc.e
+--*/
+include arwen.ew
+include axtra.ew
+
+constant Main = create(Window, "Example 04", 0, NULL, 25, 25, 300, 200, 0),
+         TextBtn = create(Button, "Change Text / Background", 0, Main, 10, 25, 180, 20, 0),
+         CloseBtn = create(Button, "Close", 0, Main, 10, 53, 180, 20, 0),
+         dRect=create(CheckBox,"Draw Rectangle?",0,Main,10,81,127,20,0),
+         dLine=create(CheckBox,"Draw Lines?",0,Main,10,105,125,20,0),
+         dIcon=create(CheckBox,"Show Icon?",0,Main,10,128,125,20,0)
+         setCheck(dLine,True)
+         toggleWindowTitle(Main)
+
+constant
+xDrawCaption = link_c_proc(user32, "DrawCaption", {C_LONG,C_LONG,C_LONG,C_LONG}),
+--NB win32.hlp is wrong for DrawCaption: (see google instead)
+xRectangle = link_c_func(gdi32, "Rectangle", {C_POINTER, C_INT, C_INT, C_INT, C_LONG}, C_LONG)
+
+
+constant DC_ACTIVE   = #0001,
+         DC_SMALLCAP = #0002,
+         DC_ICON     = #0004,
+         DC_TEXT     = #0008,
+--       DC_INBUTTON = #0010,
+         DC_GRADIENT = #0020
+--,      DC_BUTTONS  = #1000
+
+integer num
+num = 0
+
+function MainHandler(integer id, integer msg, atom wParam, object lParam)
+integer active
+atom ptrRect
+sequence rect, text
+atom hdc
+integer drawRect, drawLine, drawIcon
+--
+    if id = Main then
+    
+        if msg = WM_PAINT then
+            active = DC_TEXT
+            if remainder(num,2)=0 then  active += DC_GRADIENT end if
+            if loWord(wParam) then      active += DC_ACTIVE end if
+            rect = getWindowRect(Main)
+--?rect
+            ptrRect = allocate_Rect()
+            if and_bits(active,DC_SMALLCAP) then
+                if isVisible(dIcon) then
+                    setCheck(dIcon,True)
+                    setVisible(dIcon,False)
+                end if
+            end if
+            drawIcon = isChecked(dIcon)
+            if drawIcon then
+                poke4(ptrRect+0, 1)
+            else
+                poke4(ptrRect+0, -18)   -- ? To blat over icon ??
+            end if
+            poke4(ptrRect+4, 1)
+            poke4(ptrRect+8, rect[3]-rect[1]-1)
+            poke4(ptrRect+12, 19)
+            if drawIcon then
+                c_proc(xDrawCaption, {getHwnd(Main), getDC(Main), ptrRect, active+DC_ICON})
+            else
+                c_proc(xDrawCaption, {getHwnd(Main), getDC(Main), ptrRect, active})
+            end if
+            drawRect = isChecked(dRect)
+            drawLine = isChecked(dLine)
+            if drawRect or drawLine then
+                hdc = getDC( id )
+                -- Note: may require pen/brush here
+                if drawRect then
+                    void = c_func(xRectangle, {hdc, 2, 22, rect[3]-35, rect[4]-35 })
+                end if
+                if drawLine then
+                    void = c_func(xMoveToEx, {hdc, 0, 0, NULL})
+                    void = c_func(xLineTo, {hdc, rect[3], 0})
+                    void = c_func(xMoveToEx, {hdc, 0, 19, NULL})
+                    void = c_func(xLineTo, {hdc, rect[3], 19})
+                end if
+                releaseDC(id,hdc)
+            end if
+
+        elsif msg = WM_NCHITTEST then
+            rect = getWindowRect(Main)
+            if  loWord(lParam)>=rect[1] and loWord(lParam)<=rect[3]
+            and loWord(lParam)>=rect[2] and hiWord(lParam)<=rect[2]+22 then
+                return {HTCAPTION}
+            end if
+        end if
+
+    elsif msg = WM_COMMAND then
+        if id = CloseBtn then
+            closeWindow(Main)
+        elsif id = TextBtn then
+            num += 1
+            if num > COLOR_INFOBK then num = 1 end if
+            text = sprintf("Testing %d", {num})
+            setText(Main, text)
+            setText(TextBtn, text)
+            setBackColour(Main, getSysColor(num))
+        elsif id = dRect or id = dLine or id = dIcon then
+            repaintWindow(Main,False)
+        end if
+    end if
+    return 0
+end function
+setHandler(Main, routine_id("MainHandler"))
+
+WinMain(Main, SW_NORMAL)
+
+

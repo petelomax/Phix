@@ -1,0 +1,216 @@
+--
+-- t98locks.exw
+-- ============
+--
+-- Manual test for Phix locking.
+--
+-- This program opens eight (random) files and attempts to lock each one, 
+-- displaying the status in a console window.
+--
+-- To run this test correctly, you need to run two copies and position the
+-- two consoles so that the output of each can be seen. After a few cycles
+-- you should see that each program has about half the locks and the other 
+-- has the other half, randomly freeing and sleeping before seeing whether
+-- the other managed to steal it. While theoretically you should never see
+-- a lock owned by both processes, there always remains a possibility that
+-- slow asynchronous display may be somewhat behind reality, but it should
+-- never last longer than you can blink.
+-- It is also possible to test with more instances running. I've tried 9.
+--
+--/* Not required for Phix
+--include ..\builtins\pfileio.e
+include file.e
+--*/
+
+-- Any files will do:
+--constant path="C:\\Program Files\\Phix\\test\\"
+sequence path
+constant fileset={"t01type.exw",
+                  "t02parms.exw",
+                  "t03showt.exw",
+                  "t04unary.exw",
+                  "t05inc0.exw",
+                  "t06inc1.exw",
+                  "t07inc2.exw",
+                  "t09inc3.exw"}
+constant ostate={"fail","open"}
+constant lstate={"fail","lock","free"}
+constant range={1,2}    -- \ either of these
+--constant range={}     -- / should work ok.
+sequence fn, fnl
+integer k
+
+procedure showstate(integer i)
+    position(i,1)
+    printf(1,"%-12s %s %s",{fileset[i],ostate[(fn[i]!=0)+1],lstate[fnl[i]+1]})
+end procedure
+
+    path = command_line()
+    path = path[2]
+    for i=length(path)to 1 by -1 do
+        if path[i]='\\' then
+            path = path[1..i]
+            exit
+        end if
+    end for
+    fn = repeat(0,8)
+    fnl = repeat(0,8)
+    clear_screen()
+    for i=1 to 8 do
+        fn[i] = open(path&fileset[i],"r")
+        fnl[i] = lock_file(fn[i],LOCK_EXCLUSIVE,range)
+        showstate(i)
+    end for
+    puts(1,"\n\n Run one instance and you should only see lock/free; run two or more\n and you should see some lock/fail, lining up. Press any key to exit")
+    while 1 do
+        k = rand(8)
+        if fnl[k] then
+            unlock_file(fn[k],range)
+            fnl[k] = 2
+            showstate(k)
+--/**/      sleep(.1)   --/*        -- Phix
+            machine_proc(64,1)      -- RDS --*/
+        end if
+        fnl[k] = lock_file(fn[k],LOCK_EXCLUSIVE,range)
+        showstate(k)
+        if fnl[k] then
+--/**/      sleep(.1)   --/*        -- Phix
+            machine_proc(64,1)      -- RDS --*/
+        end if
+        if get_key()!=-1 then exit end if
+    end while
+--abort(0)
+--/*
+-- File: openlock.e
+-- Author: Derek Parnell, Melbourne
+-- Copyright: (c) 2005            
+-- Licence: Public Domain
+
+
+--========================================
+-- function: openlocked(sFileName, sMode, aTimeOut )
+-- description: Opens and locks a file.
+-- return: sequence { iCode, iData, aResidual }
+--
+-- This attempts to open the file 'sFileName' (a sequence)
+-- with the mode 'sMode' (a sequence). The valid modes are
+-- the same as supported by the Euphoria 'open' function.
+-- If the file is already locked, the function will wait
+-- up to 'aTimeOut' seconds for it to be unlocked.
+-- If the function succeeds in opening the file, it will
+-- also lock it to prevent other attempts to write to
+-- it to fail.
+--
+-- The function returns a sequence. The first element of the
+-- return is a code that indicates if it was successful or not.
+-- A 'iCode' (integer) value of 0 (zero) means that the function
+-- failed to open the file. In this case, the 'iData' element
+-- is one of
+--    OPENLOCK_NotFound
+--    OPENLOCK_Timeout
+--    OPENLOCK_Folder
+--    OPENLOCK_Readonly
+-- that identifies the reason for failure. Further more, if the
+-- reason is OPENLOCK_Timeout then the 'aResidual' element has
+-- the value 0 (zero) if the file was locked by a non-Euphoria
+-- process otherwise the file was locked by a Euphoria process.
+--
+-- A 'iCode' (integer) value of 1 (zero) means that the function
+-- succeded in opening and locking the file. The 'iData' element
+-- is the file handle you must subsequently use for file operations
+-- with the file, and 'aResidual' is either -1 to indicate that
+-- the function did not have to wait for the file to be unlocked,
+-- otherwise it is the number of seconds it waited before opening
+-- the file.
+
+-- Example:
+--      sequence lResult
+--      int lFH
+--
+--      lResult = openlocked(theFile, theMode, 5)
+--      if lResult[1] = 0 then
+--          if lResult[2] = OPENLOCK_NotFound then
+--              lResult = '"' & theFile & '"' & " does not exist."
+--          elsif lResult[2] = OPENLOCK_Timeout then
+--              lResult = '"' & theFile & '"' & " is currently locked."
+--          elsif lResult[2] = OPENLOCK_Folder then
+--              lResult = '"' & theFile & '"' & " is a directory."
+--          elsif lResult[2] = OPENLOCK_Readonly then
+--              lResult = '"' & theFile & '"' & " is a Read-Only file."
+--          else
+--              lResult = '"' & theFile & '"' & " failed to open."
+--          end if
+--      else
+--          lFH = lResult[2]
+--      end if
+
+--include file.e
+global constant
+    OPENLOCK_NotFound = 1,
+    OPENLOCK_Timeout  = 2,
+    OPENLOCK_Folder   = 3,
+    OPENLOCK_Readonly = 4
+       
+global function openlocked(sequence pFileName, sequence pMode, atom pTimeOut)
+    integer lHandle
+    integer lWaiting
+    object lDirInfo
+    atom lEndTime
+   
+    lWaiting = 0
+    while 1 do
+        lHandle = open(pFileName, pMode)
+        if lHandle = -1 then
+            lDirInfo = dir(pFileName)
+            if equal(lDirInfo,-1) then
+                return {0, OPENLOCK_NotFound}
+            end if
+--DEV (untried):
+--          if length(lDirInfo)>1 then
+--              return {0, OPENLOCK_Multifile}  -- wildcard used
+--          end if
+           
+            if find('d', lDirInfo[1][D_ATTRIBUTES]) != 0 then
+                return {0, OPENLOCK_Folder}
+            end if                          
+           
+            if pMode[1] = 'w' and find('r', lDirInfo[1][D_ATTRIBUTES]) != 0 then
+                return {0, OPENLOCK_Readonly}
+            end if                          
+           
+            if lWaiting = 0 then           
+                -- Assume it is locked, so wait for it to be freed up.
+                lEndTime = time() + pTimeOut
+                lWaiting = 1
+            else
+                if lEndTime < time() then
+                    return {0, OPENLOCK_Timeout, 0}
+                end if
+            end if
+        else
+            -- File was opened by me
+            lDirInfo = lock_file(lHandle, LOCK_SHARED, {})
+            if lWaiting = 0 then
+                if lDirInfo != 0 then
+                    -- I've opened and locked it!
+                    return {1, lHandle, -1}
+                end if                          
+                -- Couldn't lock it, so set timeout
+                lWaiting = 1
+                lEndTime = time() + pTimeOut
+            else
+                if lDirInfo != 0 then 
+                    -- It is no longer locked.
+                    return {1, lHandle, pTimeOut - lEndTime - time()}
+                end if
+           
+                if lEndTime < time() then
+                    close(lHandle)
+                    return {0, OPENLOCK_Timeout, 1}
+                end if
+            end if                 
+            close(lHandle)
+        end if
+    end while
+end function
+--*/

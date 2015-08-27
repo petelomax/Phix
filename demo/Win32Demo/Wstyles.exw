@@ -1,0 +1,268 @@
+--  Wstyles.exw --  Styles of Windows
+--
+-- This example shows windows in a variety of styles.
+
+-- It also shows the styles which create them in a tooltip hint,
+-- and also in a status bar as you move the mouse over the demo windows;
+
+-- LEFT DOUBLE CLICK MOUSE IN ANY WINDOW TO COPY THE STYLE TO CLIPBOARD,
+-- that way you can just paste the desired style into your application.
+
+-- the exits from otherwise no-exit windows routine is:
+--  onClick_NoExitWindow
+
+--  by Dan Moyer 5/8/02
+--  first version 09/20/00
+--  amemded for v54.5 11/25/00
+--  amended to show & output style info 3/29/02
+--  amended to let left-dbl-click copy to clipboard, for consistency with
+--   RunDemos, so made right click exit from some non-exit windows 5/8/02
+------------------------------------------------------------------------
+include win32lib.ew
+without warning
+------------------------------------------------------------------------
+integer PrevWindow
+PrevWindow = 0
+
+-------------------------------------------------------------------------
+-- THE WINDOWS:
+-- MAIN WINDOW:
+constant WinStyles = create(Window, "Some STYLES of Windows: Left-dbl-clk to copy style to clipboard", 0, 0, 0, 640, 510, 0),
+
+--  DEMO WINDOWS:
+-----------------------
+-- NORMAL:
+-- "normal": icon at left; caption; min, max & exit boxes at right: 
+SimpleWindow = create(Window, "Normal", WinStyles, 30, 30, 175, 100, 0),
+
+-- NO RESIZE, NORMAL BORDER:
+NoResizeWindow = create(Window, "No Resize", WinStyles, 235, 30, 175, 100, {WS_DLGFRAME, WS_SYSMENU}),
+
+-- NO RESIZE, THIN BORDER:
+ThinWindow = create(Window, "No Resize, Thin Border Window", WinStyles, 440, 30, 175, 100, {WS_CAPTION, WS_SYSMENU}),
+-----------------------
+
+-- NO EXIT:no icon; caption; no min max box; exit box shows (gray)but doesn't work; NOT resizable
+-- NOTE: YOU NEED TO ADD *SOMETHING* TO *EXIT* IT!!! (eg, onClick window)
+
+NoExitWindow = create(Window, "No Exit Window", WinStyles, 30, 150, 175, 100, {WS_DLGFRAME}),
+  
+-- NO EXIT, THIN BORDER
+NoExit2 = create(Window, "No Exit, Thin", WinStyles, 235, 150, 175, 100, {WS_CAPTION}),
+
+-- CHILD WINDOW, 3d BORDER:
+Child1 = create(Window, "a child window", WinStyles, 437, 122, 175, 100, {WS_CHILD, WS_DLGFRAME}),
+
+------------------------------------
+-- NO CAPTION, NO EXIT:
+NoCaptionWindow = create(Window, "", WinStyles, 30, 270, 175, 100, {WS_DLGFRAME, WS_POPUP}),
+
+-- NO CAPTION, THIN BORDER, NO EXIT:
+ThinNoCaptionWindow = create(Window, "", WinStyles, 235, 270, 175, 100, {WS_BORDER, WS_POPUP}),
+
+-- CHILD WINDOW, THIN BORDER:
+Child2 = create(Window, "a child window", WinStyles, 437, 243, 175, 100, {WS_CHILD, WS_BORDER}),
+
+----------------------------------------------------
+
+-- REGULAR POPUP WINDOW:
+NormPopup = create(Window, "", WinStyles, 30, 375, 175, 100, {WS_POPUP, WS_BORDER, WS_SYSMENU}),--WS_POPUPWINDOW
+
+-- NO *BORDER*, NO CAPTION, NO EXIT:
+NoBorderWindow = create(Window, "", WinStyles, 235, 375, 175, 100, {WS_POPUP}),
+
+-- CHILD WINDOW, NO BORDER, NO CAPTION, NO EXIT:
+Child3 = create(Window, "a child window", WinStyles, 438, 347, 175, 100, {WS_CHILD})--, WS_BORDER
+
+------------------------------------------------------------------------
+setHint(SimpleWindow, "style is 0")
+setHint(NoResizeWindow, "{WS_DLGFRAME, WS_SYSMENU}")
+setHint(ThinWindow, "{WS_CAPTION, WS_SYSMENU}")
+setHint(NoExitWindow, "{WS_DLGFRAME}")
+setHint(NoExit2, "{WS_CAPTION}")
+setHint(Child1, "{WS_CHILD, WS_DLGFRAME}")
+setHint(NoCaptionWindow, "{WS_DLGFRAME, WS_POPUP}")
+setHint(ThinNoCaptionWindow, "{WS_BORDER, WS_POPUP}")
+setHint(Child2, "{WS_CHILD, WS_BORDER}")
+setHint(NormPopup, "{WS_POPUP, WS_BORDER, WS_SYSMENU}")
+setHint(NoBorderWindow, "{WS_POPUP}")
+setHint(Child3, "{WS_CHILD}")
+------------------------------------------------------------------------
+-- for allowing right click to copy to clipboard:
+constant HiddenSle    = create(EditText, "", WinStyles, 10, -140, 120, 20, 0)
+
+-- a status bar:
+constant    
+    aStatusBar      = create(StatusBar, "", WinStyles, 0, 25, 20, 20, 0)
+
+setFont(aStatusBar, "Arial", 12,Bold)
+--------------------------------------------------------------------------
+PrevWindow = WinStyles  -- set to main window
+
+
+---------------------------------------------------------------------------
+--  MAKE ALL THE DEMO WINDOWS:    
+global procedure onOpen_WinStyles(integer id, integer event, sequence params)
+    openWindow(SimpleWindow,Normal)
+    openWindow(NoExitWindow,Normal)
+    openWindow(NoCaptionWindow,Normal)
+    openWindow(NoResizeWindow,Normal)
+    openWindow(ThinWindow,Normal)
+    openWindow(Child1,Normal)
+    openWindow(Child2,Normal)
+    openWindow(Child3,Normal)
+    openWindow(NoExit2,Normal)
+    openWindow(ThinNoCaptionWindow,Normal)
+    openWindow(NoBorderWindow,Normal)
+    openWindow(NormPopup,Normal)
+end procedure
+setHandler(WinStyles, w32HOpen, routine_id("onOpen_WinStyles"))
+----------------------------------------------------------------------
+
+------------------------------------------------------------------------
+-- put message in NoExitWindow:
+global procedure onPaint_NoExitWindow(integer id, integer event, sequence params)
+    setPosition(NoExitWindow, 1,0)
+    wPuts(NoExitWindow, "RIGHT CLICK IN WINDOW")
+    setPosition(NoExitWindow, 1,20)
+    wPuts(NoExitWindow, "TO EXIT")
+end procedure
+setHandler(NoExitWindow, w32HPaint, routine_id("onPaint_NoExitWindow"))
+---------------------------------------------------------------------------
+-- routine to allow exit from some windows with no exit box:
+global procedure onClick_NoExitWindow(integer id, integer event, sequence params)
+    if params[1]=WM_RBUTTONDOWN then
+        closeWindow(id)
+    end if
+end procedure
+setHandler({NoExitWindow,NoBorderWindow,NoCaptionWindow}, w32HMouse, routine_id("onClick_NoExitWindow"))
+------------------------------------------------------------------------
+-- put message in NoExit2 window:
+global procedure onPaint_NoExit2(integer id, integer event, sequence params)
+    setPosition(NoExit2, 1,0)
+    wPuts(NoExit2, "NO EXIT ROUTINE!")
+    setPosition(NoExit2, 1,20)
+    wPuts(NoExit2, "DON'T FORGET IT!")
+    setPosition(NoExit2, 1,60)
+    wPuts(NoExit2, "OR YOU WON'T BE ABLE TO EXIT!")
+end procedure
+setHandler(NoExit2, w32HPaint, routine_id("onPaint_NoExit2"))
+-----------------------------------------------------------------------
+-- put message in ThinNoCaptionWindow:
+global procedure onPaint_ThinNoCaptionWindow(integer id, integer event, sequence params)
+    setPosition(ThinNoCaptionWindow, 1,20)
+    wPuts(ThinNoCaptionWindow, "NO EXIT ROUTINE!")
+end procedure
+setHandler(ThinNoCaptionWindow, w32HPaint, routine_id("onPaint_ThinNoCaptionWindow"))
+----------------------------------------------------------------------
+-- put message in NoCaptionWindow:
+global procedure onPaint_NoCaptionWindow(integer id, integer event, sequence params)
+    setPosition(NoCaptionWindow, 1,0)
+    wPuts(NoCaptionWindow, "NO CAPTION, NO EXIT BOX")
+    setPosition(NoCaptionWindow, 1,20)
+    wPuts(NoCaptionWindow, "RIGHT CLICK IN WINDOW")
+    setPosition(NoCaptionWindow, 1,40)
+    wPuts(NoCaptionWindow, "TO EXIT")
+end procedure
+setHandler(NoCaptionWindow, w32HPaint, routine_id("onPaint_NoCaptionWindow"))
+-----------------------------------------------------------------------
+-- put message in NoBorderWindow:
+global procedure onPaint_NoBorderWindow(integer id, integer event, sequence params)
+    setPosition(NoBorderWindow, 1,0)
+    wPuts( NoBorderWindow, "THIS IS A POPUP WINDOW,")
+    setPosition(NoBorderWindow, 1,20)
+    wPuts(NoBorderWindow, "WITHOUT ANY BORDER")
+    setPosition(NoBorderWindow, 1,60)
+    wPuts(NoBorderWindow, "RIGHT CLICK IN *HERE*")
+    setPosition(NoBorderWindow, 1,80)
+    wPuts(NoBorderWindow, "TO EXIT.")
+end procedure
+setHandler(NoBorderWindow, w32HPaint, routine_id("onPaint_NoBorderWindow"))
+-----------------------------------------------------------------------
+-- put message in every Child:
+global procedure onPaint_Child(integer id, integer event, sequence params)
+atom self
+    self = getSelf()-- gets id of control, so one procedure can handle
+                    -- two different controls:
+    setPosition(self, 1,0)
+    wPuts( self, "THIS IS A CHILD WINDOW,")
+    setPosition(self, 1,20)
+    wPuts(self, "IT MOVES WITH THE PARENT")
+    setPosition(self, 1,40)
+    wPuts(self, "AND HAS NO EXIT.")
+    setPosition(self, 1,80)
+    wPuts(self, "   (xy positioning is different)")     
+--  to put this window in similar position with others,
+--  different x & y values had to be used 
+end procedure
+setHandler({Child1,Child2,Child3}, w32HPaint, routine_id("onPaint_Child"))
+------------------------------------------------------------------------
+-- put message in NormPopup:
+global procedure onPaint_NormPopup(integer id, integer event, sequence params)
+    setPosition(NormPopup, 1,0)
+    wPuts( NormPopup, "THIS IS A NORMAL POPUP,")
+    setPosition(NormPopup, 1,20)
+    wPuts(NormPopup, "IT HAS NO EXIT.")
+end procedure
+setHandler(NormPopup, w32HPaint, routine_id("onPaint_NormPopup"))
+-----------------------------------------------------------------------
+-- moving the mouse over a demo window puts style info into
+-- a tooltip, and into a status bar;
+-- right click puts styles into clipboard:
+
+procedure onMouse_Screen(integer id, integer event, sequence params)
+object aWin, dummy
+    event = params[1]
+    if event= MOUSE_MOVE or event = LEFT_DOUBLECLICK  then
+        aWin = getSelf()-- find out which window was clicked in or moved over
+        if PrevWindow = aWin and event != LEFT_DOUBLECLICK then
+            return
+        else
+            PrevWindow = aWin
+        end if
+   
+        if aWin = WinStyles then  -- if in main window, not in small one, exit
+            setText(aStatusBar,"") -- clear the status bar first,
+            return  --  then skip the following
+        end if 
+
+        setText(HiddenSle,"") -- clears text in sle 
+        -- set up to copy to clipboard, & then show style in status bar:
+        if aWin = SimpleWindow then 
+            setText(HiddenSle,"0") -- puts this into hidden sle
+        elsif aWin = NoResizeWindow then
+            setText(HiddenSle,"{ WS_DLGFRAME, WS_SYSMENU}")
+        elsif aWin = ThinWindow then
+            setText(HiddenSle,"{ WS_CAPTION, WS_SYSMENU }") 
+        elsif aWin = NoExitWindow then
+            setText(HiddenSle,"{WS_DLGFRAME}")
+        elsif aWin = NoExit2 then
+            setText(HiddenSle,"{WS_CAPTION}")
+        elsif aWin = Child1 then
+            setText(HiddenSle,"{ WS_CHILD, WS_DLGFRAME }")
+        elsif aWin = NoCaptionWindow then
+            setText(HiddenSle,"{WS_DLGFRAME , WS_POPUP}")
+        elsif aWin = ThinNoCaptionWindow then
+            setText(HiddenSle,"{WS_BORDER , WS_POPUP}") 
+        elsif aWin = Child2 then
+            setText(HiddenSle,"{ WS_CHILD, WS_BORDER }")
+        elsif aWin = NormPopup then
+            setText(HiddenSle,"{WS_POPUP, WS_BORDER, WS_SYSMENU}")
+        elsif aWin = NoBorderWindow then
+            setText(HiddenSle,"{WS_POPUP}")
+        elsif aWin = Child3 then
+            setText(HiddenSle,"{ WS_CHILD }")
+        end if
+        setText(aStatusBar, "style is:  " & getText(HiddenSle))
+        if event = LEFT_DOUBLECLICK then  -- copy style info to clipboard 
+            dummy = sendMessage(HiddenSle,EM_SETSEL, 0, -1) -- select text in sle
+            copy(HiddenSle) -- copy text in sle to clipboard
+            setText(aStatusBar, "style is:  " & getText(HiddenSle) & " :  COPIED")
+        end if
+    end if
+end procedure
+setHandler(Screen, w32HMouse, routine_id("onMouse_Screen"))
+----------------------------------------------------------------------
+
+WinMain(WinStyles, Normal)
+

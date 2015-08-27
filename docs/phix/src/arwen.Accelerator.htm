@@ -1,0 +1,121 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Accelerator Keys</h1>
+      <div id="mainSection">
+       <br>
+            ARWEN emulates support for Accelerator keys. These are user-defined key
+            combinations that are generally used to bypass menu navigations
+            and jump directly to a desired operation. Although there is
+            support for Accelerator keys inside the API I was never able to
+            get it working. Instead, I had to write my own system for
+            managing this capability. A downside is that the key combinations
+            are limited to &quot;ALT + key&quot; pairings (ie, CTRL &amp;
+            SHIFT are ignored). The first way to register an Accelerator key
+            is indirectly when creating the control by inserting the
+            Ampersand character immediately before the character you nominate
+            as the accelerator, ie:
+<!--eucode>
+        id = create(Button, "&Open",..) -- ALT + 'O'
+</eucode-->
+<pre>
+<font color="#000000">        id</font><font color="#0000FF"> =</font><font color="#7060A8"> create</font><font color="#0000FF">(</font><font color="#000000">Button</font><font color="#0000FF">,</font><font color="#008000"> "&amp;Open"</font><font color="#0000FF">,..)</font><font color="#000080"> -- ALT + 'O'</font>
+</pre>
+            Now, whenever the <em>owner</em>
+            window is open and has the focus (ie, either on itself or any
+            child controls belonging to it), pressing this combination will
+            cause a WM_COMMAND message to be sent to the child control's
+            handler. In effect, the behaviour is mimicking a keypress or
+            mouse click on that control. The caption on the control will
+            indicate the accelerator key with an underline. Because of the
+            process &amp; various limitations the key nomination is NOT case
+            sensitive.
+       <br>
+       <br>
+            Only one key may be nominated this way. However, you may directly
+            specify any number of accelerators for any control by invoking:
+<!--eucode>
+        void = setAccelerator(integer id, object caption)
+</eucode-->
+<pre>
+<font color="#000000">        void</font><font color="#0000FF"> =</font><font color="#000000"> setAccelerator</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> caption</font><font color="#0000FF">)</font>
+</pre>
+       <p>
+        <code>ID</code>
+             naturally refers to the control
+            and although it can be of any type it is best to use
+            &quot;clickable&quot; controls to avoid confusion.
+        <br>
+        <code>caption</code>
+             can be (i) a virtual key code
+            integer or (ii) a length=1 sequence containing the ASCII code or
+            (iii) a length&gt;1 sequence containing the control' caption in
+            the same format as used in the create() example above.
+        <br>
+        <br>
+            If this call succeeds the result will be True otherwise False. A
+            failed call could happen where 2 controls, both having the <em>same
+            window owner</em>, attempt to nominate the same accelerator key.
+       </p>
+       <p>
+            Nominating keys normally used by Window's own accelerated functions is highly unwise
+            because you might lose keyboard control for some important functions.
+        <br>
+        <br>
+            In the control handler that receives the WM_COMMAND message as
+            the result of an Accelerator the
+        <code>lParam</code> will be 1 otherwise it will be 0.
+            If the handler returns a 0 (default) then the focus will be
+            placed onto the control associated with the Accelerator. If that
+            control is not a focussable kind then the next available,
+            focussable control will be sought instead. This behaviour could
+            have esoteric consequences if the nominated control is, say, a
+            menu because the next available control is unlikely to be related
+            and hence moving the focus to that control doesn't serve a useful
+            purpose. Any return value other than 0 will prevent the focus
+            moving from it's original position. In most cases the user will
+            not want the focus to move, therefore the usual return value will
+            be, say, 1.
+        <br>
+        <br>
+            If the nominated control is disabled the Accelerator will not fire.
+        <br>
+        <br>
+        <b>Menus &amp; Accelerators</b>
+        <br>
+        <br>
+            It seems that because
+            Windows' manages the Menu loop itself, it will exhibit the
+            actions of Access keys for Menus which is easily confused with
+            Accelerator keys. Since I cannot alter the behaviour of Menus in
+            this regard I thought it'd be better to only allow Accelerator
+            keys for Menus via setAccelerator(). Therefore, when the user
+            creates an accelerated control the key underscore &amp; linking
+            will be done automatically. However, when the control is a menu
+            only the underscore will automatically show and Windows will use
+            the nominated key as an Access key (to quickly jump along menu
+            navigations). Linking a menu to an Accelerator must be done
+            explicitly, using a different key combination, eg:
+       </p>
+       <p>
+        <code>
+    id = create(MenuItem, &quot;&amp;File (ALT+F1)&quot;,..) -- caption is:
+         <u>F</u>ile (ALT+F1)
+        </code>
+       </p>
+       <p>
+        <code>
+    setAccelerator(id,VK_F1) -- link to accelerator key
+        </code>
+       </p>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

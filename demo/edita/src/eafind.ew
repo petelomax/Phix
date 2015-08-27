@@ -1,0 +1,903 @@
+--
+-- eafind.ew
+--
+without trace
+--with trace
+--constant lf=10, --DEV.
+--       WStyle = {WS_DLGFRAME,WS_SYSMENU}
+
+integer initFIND, Fwin
+        initFIND=0
+
+integer flab, findtext, rlab, replacetext, 
+        CASE, STOP, CLOSE, UP, DOWN, IgnoreW, 
+        FIND, REPLACE, REPLACEALL, CLRHIST, DIFF
+
+integer r_FwinHandler
+procedure createFind()
+object dbg
+    Fwin = create( Window, xl("Find"), 0, Main, 100, 50, 523, 190, 0)
+    flab = create( Label, xl("Find "), 0, Fwin, 8, 15, 70, 24, SS_RIGHT)
+    findtext = create( ComboDropDown, "", 0, Fwin, 80, 11, 305, 160, 0 )
+    rlab = create( Label, xl("Replace"), 0, Fwin, 8, 45, 70, 24, SS_RIGHT)
+    replacetext = create( ComboDropDown, "", 0, Fwin, 80, 41, 305, 120, 0 )
+    CASE = create( CheckBox, xl("Match case?"), 0, Fwin, 8, 80, 153, 20, 0 )
+    STOP = create( RadioButton, xl("Start from top of file?"), 0, Fwin, 170, 81, 210, 20, {{BS_LEFTTEXT,BS_RIGHT},0} )
+    CLOSE = create( CheckBox, xl("Close window when match found?"), 0, Fwin, 8, 105, 284, 20, 0 )
+    UP = create( RadioButton, xl("Up"), 0, Fwin, 298, 105, 90, 20, 0 )
+    DOWN = create( RadioButton, xl("Down"), 0, Fwin, 298, 129, 90, 20, 0 )
+    IgnoreW = create( CheckBox,xl("Ignore Whitespace?"), 0, Fwin, 8, 130, 282, 20, 0 )
+    FIND = create( Button, xl("Find Next"), 0, Fwin, 394, 10, 113, 25, 0 )
+    REPLACE = create( Button, xl("Replace"), 0, Fwin, 394, 40, 113, 25, 0 )
+    REPLACEALL = create( Button, xl("Replace All"), 0, Fwin, 394, 71, 113, 25, 0 )
+    CLRHIST = create( Button, xl("Clear History"), 0, Fwin, 394, 110, 113, 25, 0 )
+
+dbg = getChildren(findtext)
+if not sequence(dbg)
+or length(dbg)!=1
+or dbg[1]!=findtext+1 then
+    void=messageBox("oops, findtext edit thing:",ppf(dbg),0)
+end if
+
+    setCheck(CLOSE,True)
+    DIFF=REPLACEALL+2
+    setHandler({Fwin,flab,findtext,findtext+1,rlab,replacetext,replacetext+1,
+                CASE,STOP,CLOSE,UP,DOWN,IgnoreW,FIND,REPLACE,REPLACEALL,CLRHIST},
+                r_FwinHandler)
+    initFIND = 1
+end procedure
+
+--with trace
+integer logFindAction   -- for macro recording
+        logFindAction = 0
+
+global function isFindNP()
+-- used by eamenus to enable/disable find next/prev.
+    if initFIND then
+        return length(getText(findtext))
+    end if
+    return 0
+end function
+
+sequence ft,rt  -- find and replace text in multi-line format
+integer action, -- FIND, REPLACE, or REPLACEALL
+        backwd, -- True if backward
+        caseX,  -- False to compare case insensitively.
+        white   -- True to ignore whitespace
+
+procedure updateTextList(integer id)
+-- Maintain a "history" of find/replace texts.
+sequence text
+integer k
+    text=getText(id)
+    if length(text)=0 then return end if
+    k = getCount(id)
+    while k do
+        if compare(text,getItem(id,k))=0 then return end if
+        k-=1
+    end while
+    void = insertItem(id,text,0)
+end procedure
+
+-- Macro functions:
+integer wasSTOP
+        wasSTOP = 0
+
+function getFindDefaults()
+    if not initFIND then createFind() end if
+    return {getText(findtext),
+            wasSTOP,
+            isChecked(UP),
+            isChecked(CASE),
+            isChecked(IgnoreW)}
+end function
+
+function setFindDefaults(sequence blob)
+    if not initFIND then createFind() end if
+    setText(findtext,blob[1])
+    setCheck(STOP,blob[2])
+    setCheck(UP,blob[3])
+    setCheck(CASE,blob[4])
+    setCheck(IgnoreW,blob[5])
+    return 0
+end function
+MacroRtns[3] = routine_id("setFindDefaults")
+
+
+procedure closeFwin(integer stopMacro)
+    removeFocus(Fwin)
+    setVisible(Fwin,False)
+--  setEnable(FileMenu,True)
+--  call_proc(rEnableFileMenu,{True})   --DEV
+    -- re-enable tab switching now this is closed.
+    setEnable(TC,True)
+    setFocus(Main)
+    if stopMacro=1 then
+        MacroPlaying = 0
+    elsif logFindAction then
+        MacroKeys[MacroLearn] = append(MacroKeys[MacroLearn],{3,{getFindDefaults()}})
+        if stopMacro=0 then -- not escape key
+            MacroKeys[MacroLearn] = append(MacroKeys[MacroLearn],
+                                    {2,{VK_F3,wasSTOP,wasSTOP or isChecked(UP)}})
+        end if
+    end if
+    logFindAction = 0
+end procedure
+
+function badmojo()
+    closeFwin(1)
+    void=messageBox(xl("Error"),
+xl("A circumflex accent (aka the \"hat\" symbol, \"^\") must be followed by p, t, or ^."),0)
+    return -1
+end function
+
+function unpack(sequence flattext)
+-- convert embedded ^p (line break) and ^^ (single ^)
+-- The circumflex accent, or "hat" symbol is used in preference
+-- to say backslash because it is less likely to be present in
+-- blocked/copied text.
+sequence res
+integer c, i
+    res={}
+    i=1
+    while i<= length(flattext) do
+        c=flattext[i]
+        if c='^' then
+            if i=length(flattext) then return badmojo() end if
+            c=flattext[i+1]
+            if c='p' or c='P' then
+                res=append(res,flattext[1..i-1])
+                flattext=flattext[i+2..length(flattext)]
+                i=0
+            elsif c='t' or c='T' then
+                if white then
+                    flattext=flattext[1..i-1]&flattext[i+2..length(flattext)]
+                    i-=1
+                else
+                    flattext=flattext[1..i-1]&'\t'&flattext[i+2..length(flattext)]
+                end if
+            elsif c='^' then
+                flattext=flattext[1..i-1]&flattext[i+1..length(flattext)]
+            else
+                return badmojo()
+            end if
+        elsif white and (c=' ' or c='\t') then
+            flattext=flattext[1..i-1]&flattext[i+1..length(flattext)]
+        end if
+        i+=1
+    end while
+    res=append(res,flattext)
+    return res
+end function
+    
+function pack(object lines)
+sequence res, oneline
+integer ch
+    res={}
+    if sequence(lines) then -- getSelection() may yield 0
+        for i=1 to length(lines) do
+            oneline=lines[i]
+            if length(oneline)>2000 then
+                oneline=oneline[1..2000]
+            end if
+            for j=length(oneline) to 1 by -1 do
+                ch=oneline[j]
+                if ch='^' then
+                    oneline=oneline[1..j]&oneline[j..length(oneline)]   -- double up
+                elsif ch='\t' then
+                    oneline=oneline[1..j-1]&"^t"&oneline[j+1..length(oneline)]
+                end if
+            end for
+            if i=1 then
+                res=oneline
+            else
+                res&="^p"&oneline
+            end if
+            if length(res)>2000 then exit end if
+        end for
+    end if
+    return res
+end function
+
+integer l
+integer rmdr
+function matchAt(sequence text, sequence line, integer k)
+-- see if search text matches at current position.
+-- pass 1 as third parameter to match at start of line.
+integer c
+    if k=0 then return 0 end if
+    l=k
+    for i=1 to length(text) do
+        while 1 do
+            if l>length(line) then return 0 end if
+            c=line[l]
+            if not white then exit end if
+            if c!=' ' then
+                if c!='\t' then exit end if
+            end if
+            l+=1
+        end while
+        if c!=text[i] then return 0 end if
+        l+=1
+    end for
+    if white then
+        while l<length(line) do
+            c=line[l]
+            if c!=' ' then
+                if c!='\t' then exit end if
+            end if
+            l+=1        
+        end while
+    end if
+    rmdr=length(line)-l+1   -- +1 added 26/11/2005
+    return 1
+end function
+
+function matchEnd(sequence text, sequence line)
+-- match at end of line.
+integer c
+    l=length(line)+1
+    for i=length(text) to 1 by -1 do
+        while 1 do
+            l-=1
+            if l=0 then return 0 end if
+            c=line[l]
+            if not white then exit end if
+            if c!=' ' then
+                if c!='\t' then exit end if
+            end if
+        end while
+        if c!=text[i] then return 0 end if
+    end for
+    return 1
+end function
+
+integer replaced
+procedure notFound()
+    closeFwin(1)
+    if action=REPLACEALL then
+        void = messageBox(xl("Replace all"),
+            sprintf(xl("%d occurences replaced."),{replaced}),
+            MB_OK)
+    else
+        void = messageBox(xl("End"),
+            xl("Search has reached end of document."),
+            MB_ICONEXCLAMATION + MB_OK)
+    end if
+end procedure
+
+procedure invalidSearchString()
+    closeFwin(1)
+    void = messageBox(xl("Error"),
+        xl("Invalid Search String."),
+        MB_ICONEXCLAMATION + MB_OK)
+end procedure
+
+--with trace
+procedure FindNext()
+--
+-- If no match, do nothing...
+--
+sequence oneline
+integer ch1
+integer cX, cY, found, warned
+--, reploop
+--  reploop=0
+--trace(1)
+    replaced=0
+    warned=0
+--while 1 do    -- replace all loop
+    if action!=DIFF then
+        if equal(ft,{{}}) then
+            invalidSearchString()
+            return
+        end if
+--DEV this can crash!!!
+if length(ft[1]) then
+        ch1=ft[1][1]
+else
+        ch1=-1
+end if
+        if action=REPLACEALL and not warned then
+            if equal(rt,{{}}) then
+                warned=1
+                if messageBox(xl("Confirm"),
+                              xl("Replace string is blank.\nDelete all occurences?"),
+                              MB_ICONEXCLAMATION + MB_OKCANCEL
+                              )=IDCANCEL then
+                    return
+                end if
+            end if
+--          reploop=1
+        end if
+    end if
+while 1 do  -- replace all loop
+    if action=REPLACE
+    or action=REPLACEALL then
+--      if action!=FIND and selON then
+        if selON then
+--          if replaced or equal(ft,getSelection(SEL_COPY)) then
+            if equal(ft,getSelection(SEL_COPY)) then
+--trace(1)
+                if deleteSelection() then end if
+                addAction(INSERTBLOCK,rt)
+                InsertBlock(rt)
+                replaced+=1
+                CursorY+=length(rt)-1
+                CursorX+=1--length(rt[length(rt)])
+            end if
+        end if
+    end if
+    if backwd and selON then
+        CursorX=selX
+        CursorY=selY
+    end if
+    wasSTOP = isChecked(STOP)
+    if wasSTOP then
+        cY=0
+        setCheck(STOP,False)
+    else
+        cY=CursorY
+    end if
+    oneline=filetext[currfile][cY+1]
+    if not caseX then
+        oneline=LowerCase(oneline)
+    end if
+    if wasSTOP then
+        cX = 1
+--      CursorX=0 CursorY=0
+--DEV clearSelection()?
+        if selON then
+            paintLines(selY,CursorY)
+        end if
+        selON=0 -- must switch this off.
+    else
+        cX=MapToByte(oneline,CursorX)
+    end if
+    if cX=0 then
+        cX=length(oneline)+1
+    elsif action=REPLACE or action=REPLACEALL then
+        cX-=1
+    end if
+    found=0
+    if backwd then
+        if selON then
+            if cX then
+                cX-=1
+            else
+                cY-=1
+                if cY<0 then
+                    notFound()
+                    return
+                end if
+                oneline=filetext[currfile][cY+1]
+                if not caseX then
+                    oneline=LowerCase(oneline)
+                end if
+                cX=length(oneline)
+            end if
+        end if
+        if action=DIFF then
+            cX=1
+            while not found do
+                cY-=1
+                if cY<0 then
+                    notFound()
+                    return
+                end if
+                oneline=filetext[currfile][cY+1]
+                if matchAt(">",oneline,1) then found=1 exit end if
+                if matchAt("<",oneline,1) then found=1 exit end if
+            end while
+        elsif length(ft)=1 then
+            while not found do
+                if cX<=length(oneline) and cX>=1 and oneline[cX]=ch1 then
+                    if matchAt(ft[1],oneline,cX) then
+--                      if action!=REPLACEALL then
+                            found=1
+                            exit
+--                      end if
+--              if deleteSelection() then end if
+--              addAction(INSERTBLOCK,rt)
+--              InsertBlock(rt)
+--              replaced+=1
+                    end if
+                end if
+                cX-=1
+                if cX<=0 then
+                    cY-=1
+                    if cY<0 then
+                        notFound()
+                        return
+                    end if
+                    oneline=filetext[currfile][cY+1]
+                    if not caseX then
+                        oneline=LowerCase(oneline)
+                    end if
+                    cX=length(oneline)
+                end if
+            end while
+        else
+            while not found do
+                if matchEnd(ft[1],oneline) and l<=cX then
+--              if ch1=-1 or (matchEnd(ft[1],oneline) and l<=cX) then
+                    found=1
+                    cX=l
+                    for i=2 to length(ft) do
+                        oneline=filetext[currfile][cY+i]
+                        if not caseX then
+                            oneline=LowerCase(oneline)
+                        end if
+                        if not matchAt(ft[i],oneline,1) 
+                        or (i<length(ft) and rmdr!=0) then
+                            found=0
+                            exit
+                        end if
+                    end for
+                    if found then exit end if
+--                  if found then
+--                      if action!=REPLACEALL then exit end if
+--                      if deleteSelection() then end if
+--                      addAction(INSERTBLOCK,rt)
+--                      InsertBlock(rt)
+--                      replaced+=1
+--                  end if
+                end if
+                cY-=1
+                if cY<0 then
+                    notFound()
+                    return
+                end if
+                oneline=filetext[currfile][cY+1]
+                if not caseX then
+                    oneline=LowerCase(oneline)
+                end if
+                cX=length(oneline)
+            end while
+        end if
+    else                -- forward search
+        if action=DIFF then
+            cX=1
+            while not found do
+                cY+=1
+                if cY+1>length(filetext[currfile]) then
+                    notFound()
+                    return
+                end if
+                oneline=filetext[currfile][cY+1]
+                if matchAt(">",oneline,1) then found=1 exit end if
+                if matchAt("<",oneline,1) then found=1 exit end if
+            end while
+        elsif length(ft)=1 then
+            while not found do
+                if cX<=length(oneline) and cX>=1 and oneline[cX]=ch1 then           
+                    if matchAt(ft[1],oneline,cX) then
+--                      if action!=REPLACEALL then
+                            found=1
+                            exit
+--                      end if
+--                      if deleteSelection() then end if
+--                      addAction(INSERTBLOCK,rt)
+--                      InsertBlock(rt)
+--                      replaced+=1
+                    end if
+                end if
+                cX+=1
+                if cX>length(oneline) then
+                    cY+=1
+                    if cY+1>length(filetext[currfile]) then
+                        notFound()
+                        return
+                    end if
+                    oneline=filetext[currfile][cY+1]
+                    if not caseX then
+                        oneline=LowerCase(oneline)
+                    end if
+                    cX=1
+                end if
+            end while
+        else
+            while not found do
+                if matchEnd(ft[1],oneline) then
+--              if ch=-1 or matchEnd(ft[1],oneline) then
+                    found=1
+                    cX=l
+                    for i=2 to length(ft) do
+--19/05/09: ***
+--DEV crash here. First, search for eg "end procedure^p", then place the cursor on
+--  the last line of the file, which is "end procedure", and press F3 -> BANG!
+                        oneline=filetext[currfile][cY+i]
+                        if not caseX then
+                            oneline=LowerCase(oneline)
+                        end if
+                        if not matchAt(ft[i],oneline,1) 
+                        or (i<length(ft) and rmdr!=0) then
+                            found=0
+                            exit
+                        end if
+                    end for
+                    if found then exit end if
+--                  if found then
+--                      if action!=REPLACEALL then exit end if
+--                      if deleteSelection() then end if
+--                      addAction(INSERTBLOCK,rt)
+--                      InsertBlock(rt)
+--                      replaced+=1
+--                  end if
+                end if
+                cY+=1
+                if cY+length(ft)>length(filetext[currfile]) then
+                    notFound()
+                    return
+                end if
+                oneline=filetext[currfile][cY+1]
+                if not caseX then
+                    oneline=LowerCase(oneline)
+                end if
+            end while
+        end if          
+    end if
+    if found then
+--DEV clearSelection()?
+        if selON then
+            paintLines(selY,CursorY)
+        end if
+-- 3/12/13:
+--      selON = 1
+        if action=DIFF then
+            selON = 0
+        else
+            selON = 1
+        end if
+        CursorY = cY
+        ensureVisible(CursorY,0)
+        oneline = filetext[currfile][cY+1]
+        CursorX = ExpLength(oneline[1..cX-1])
+--if cY=5 and CursorX>0 then trace(1) end if
+--if backwd then trace(1) end if
+        forceCursorOnscreen()
+        selY = CursorY
+        selX = CursorX
+        CursorY = cY+length(ft)-1
+        ensureVisible(CursorY,0)
+        oneline = filetext[currfile][CursorY+1]
+--3/12/13:
+--      CursorX = ExpLength(oneline[1..l-1])
+        if action=DIFF then
+            CursorX = 0
+        else
+            CursorX = ExpLength(oneline[1..l-1])
+        end if
+        forceCursorOnscreen()
+        paintLines(selY,CursorY)
+        if isChecked(CLOSE) then closeFwin(0) end if
+    end if
+--  if action=FIND then exit end if
+--  if action=DIFF then exit end if
+----trace(1)
+--  if reploop=0 then
+--      if action=REPLACE then exit end if
+--      if found=0 then exit end if
+--  end if
+--  reploop=0
+    if action!=REPLACEALL then exit end if
+--doEvents(0)
+end while
+end procedure
+
+procedure StartScan(integer id)
+--
+-- Look forwards/backwards
+--
+object t
+    caseX=True  -- for replacetext
+    white=False -- ""
+    if id=DIFF then
+        ft = {{}}   -- length(ft) must be 1; bugfix 19/01/08
+    else
+        updateTextList(replacetext)
+        t=unpack(getText(replacetext))
+        if atom(t) then return end if
+        rt=t
+        caseX=isChecked(CASE)
+        white=isChecked(IgnoreW)
+        updateTextList(findtext)
+        t=unpack(getText(findtext))
+        if atom(t) then return end if
+        if not caseX then
+            t=LowerCase(t)
+        end if
+        ft=t
+--      if id!=REPLACE and id!=REPLACEALL and id!=DIFF then
+        if id!=REPLACE and id!=REPLACEALL then
+            id=FIND
+        end if
+    end if
+    action=id
+--          if id=REPLACE then
+--void = eamsg("REPLACE\n")
+--          elsif id=REPLACEALL then
+--void = eamsg("replaceall\n")
+--          else    -- find (default)
+--void = eamsg("find\tpressed\n")
+--          end if
+    backwd = isChecked(UP)
+--  if isChecked(STOP) then
+--      CursorX=0 CursorY=0
+----DEV clearSelection()?
+--      if selON then
+--          paintLines(selY,CursorY)
+--      end if
+--      selON=0 -- must switch this off.
+--      setCheck(STOP,False)
+--  end if
+    FindNext()
+end procedure
+
+integer lastLostFocus, lastGotFocus
+        lastLostFocus=0
+        lastGotFocus=0
+
+--DEV machine crash (again and again and again):
+without trace
+function FwinHandler(integer id, integer msg, atom wParam, object lParam)
+    if object(lParam) then end if -- suppress warnings
+    if msg = WM_CLOSE then
+        closeFwin(0)
+        return 0
+    elsif msg = WM_CHAR and wParam = VK_ESCAPE then
+        closeFwin(-1)   -- don't log F3
+        return {0}
+    end if
+--
+-- Possibly temporary processing, re subclass of combobox in arwen (24/3/05)
+--
+    if msg=WM_KILLFOCUS then
+        if id=findtext+1 then
+            if sendMessage(findtext,CB_GETDROPPEDSTATE,0,0) then
+                void=sendMessage(findtext,CB_SHOWDROPDOWN,0,0)
+            end if
+        end if
+        if id=replacetext+1 then
+            if sendMessage(replacetext,CB_GETDROPPEDSTATE,0,0) then
+                void=sendMessage(replacetext,CB_SHOWDROPDOWN,0,0)
+            end if
+        end if
+        lastLostFocus=id
+    end if
+    if msg=WM_CHAR and wParam=VK_TAB then
+        -- suppress bell when tabbing between controls
+        return {0}
+    end if
+    if id = Fwin and msg=WM_KEYUP and wParam=VK_TAB then
+        if lastLostFocus=findtext+1 then
+            if getKeyState(VK_SHIFT) then
+                setFocus(REPLACEALL)
+            else
+                setFocus(replacetext)
+            end if
+        elsif lastLostFocus=replacetext+1 then
+            if getKeyState(VK_SHIFT) then
+                setFocus(findtext)
+            else
+                setFocus(CASE)
+            end if
+        end if
+--      return {0}
+    end if
+
+    if msg=WM_SETFOCUS then
+        lastGotFocus=id
+    end if
+    if msg=WM_CHAR and wParam=VK_RETURN then
+        StartScan(lastGotFocus)
+        return {0}
+    end if
+    
+    if msg = WM_COMMAND then
+        if find(id,{CASE,CLOSE,IgnoreW}) then
+            -- OK, just don't ask me what the pig is going on!!!!!
+            -- I have absolutely no idea why this must be like this!!!
+            if lParam=1 then    -- accelerator key
+                setCheck(id,not isChecked(id))
+            else                -- space bar or mouse click
+                setCheck(id,isChecked(id))
+            end if
+        elsif find(id,{STOP,UP,DOWN}) then
+            if lParam=1 then
+                setCheck({STOP,UP,DOWN},False)
+                setCheck(id,True)
+            end if
+        elsif find(id,{FIND,REPLACE,REPLACEALL}) then
+            StartScan(id)   -- Replace/ReplaceAll/Find
+        elsif id=CLRHIST then
+            lParam = getText(findtext)
+            void = sendMessage(findtext,CB_RESETCONTENT,0,0)
+            setText(findtext,lParam)
+            lParam = getText(replacetext)
+            void = sendMessage(replacetext,CB_RESETCONTENT,0,0)
+            setText(replacetext,lParam)
+        elsif id=flab then
+            setFocus(findtext)
+        elsif id=rlab then
+            setFocus(replacetext)
+        end if
+--/*
+--sequence rect
+--  elsif msg = WM_SIZE then
+--      rect=getClientRect(TLwin)
+--      void=c_func( xMoveWindow, {getHwnd(TLlvw),  rect[1]+2,  rect[2]+2, rect[3]-4, rect[4]-39, 1} )
+--      if action=TABSLIST then
+--          void=c_func( xMoveWindow, {getHwnd(TLhelp), rect[1]+5,  rect[4]-30, 60,25,1})
+--          void=c_func( xMoveWindow, {getHwnd(TLfill), rect[1]+70, rect[4]-25, 35,25,1})
+--          void=c_func( xMoveWindow, {getHwnd(TLfilt), rect[1]+110,rect[4]-30, rect[3]-rect[1]-275,25,1})
+--      else
+--          void=c_func( xMoveWindow, {getHwnd(TLmc),   rect[1]+5,  rect[4]-35, 85,35,1})
+--          void=c_func( xMoveWindow, {getHwnd(TLif),   rect[1]+95, rect[4]-35, 85,35,1})
+--          void=c_func( xMoveWindow, {getHwnd(TLfill), rect[1]+180, rect[4]-25, 35,25,1})
+--          void=c_func( xMoveWindow, {getHwnd(TLfilt), rect[1]+220,rect[4]-30, rect[3]-rect[1]-375,25,1})
+--      end if
+--      void=c_func( xMoveWindow, {getHwnd(TLok),   rect[3]-130,rect[4]-30, 60,25,1})
+--      void=c_func( xMoveWindow, {getHwnd(TLcncl), rect[3]-65, rect[4]-30, 60,25,1})
+--*/
+    end if
+    return 0
+end function
+r_FwinHandler = routine_id("FwinHandler")
+--with trace
+
+global procedure Find()
+    if currfile then
+        if not initFIND then createFind() end if
+        --DEV: if current selection, use it and set CASE to True.
+        if selON then
+            setText(findtext,pack(getSelection(SEL_COPY)))
+            updateTextList(findtext) -- (added 4/3/2013)
+            setCheck(CASE,True)
+        end if
+        void=sendMessage(findtext+1,EM_SETSEL,0,-1)
+--      setEnable(FileMenu,False)
+--      call_proc(rEnableFileMenu,{False})  --DEV
+        --DEV this does not stop Ctrl Page Up/Down:
+        setEnable(TC,False)
+        addFocus(Fwin)
+        openWindow(Fwin,SW_NORMAL)
+        if MacroLearn then
+            logFindAction = 1
+        end if
+    end if
+end procedure
+
+global procedure F3key(integer control, integer shift)
+    if currfile then
+        if not initFIND then createFind() end if
+        setCheck({UP,DOWN,STOP},False)
+--      if getKeyState(VK_CONTROL) then
+        if control then
+            if selON then
+                setText(findtext,pack(getSelection(SEL_COPY)))
+                setCheck(CASE,True)
+            end if
+--          if getKeyState(VK_SHIFT) then
+--              setCheck(DOWN,True)
+--          else
+            if not shift then
+                setCheck(STOP,True)
+            end if
+--      elsif getKeyState(VK_SHIFT) then
+        elsif shift then
+            setCheck(UP,True)
+        else
+--          setCheck(DOWN,True)
+        end if
+        if selON and equal(getText(findtext),"") then
+            setText(findtext,pack(getSelection(SEL_COPY)))
+        end if
+        StartScan(FIND)
+    end if
+end procedure
+
+global procedure F4key(integer shift)
+    if currfile then
+        if not initFIND then createFind() end if
+        setCheck({UP,DOWN,STOP},False)
+        setCheck(UP,shift)
+        StartScan(DIFF)
+    end if
+end procedure
+
+integer GotoWin
+integer initGoto
+        initGoto=0
+
+integer GLINE, GLONG, GOK
+
+procedure closeGwin()
+    removeFocus(GotoWin)
+    setVisible(GotoWin,False)
+--  call_proc(rEnableFileMenu,{True})   --DEV
+    -- re-enable tab switching now this is closed.
+    setEnable(TC,True)
+    setFocus(Main)
+end procedure
+
+function gotoHandler(integer id, integer msg, atom wParam, object lParam)
+sequence ntext
+integer n, digit, thislen, maxlen
+    if wParam or object(lParam) then end if -- suppress warnings
+
+    if msg = WM_CLOSE
+    or (msg = WM_CHAR and wParam = VK_ESCAPE) then
+        closeGwin()
+        if msg = WM_CLOSE then return 0 end if
+        return {0}
+    end if
+    if id=GotoWin and msg=WM_SETFOCUS then
+        setFocus(GLINE)
+    end if
+--  if msg=WM_CHAR and wParam=VK_TAB then
+--      -- suppress bell when tabbing between controls
+--      return {0}
+--  end if
+--      StartScan(lastGotFocus)
+--      return {0}
+--  end if
+    if (msg = WM_COMMAND and find(id,{GLONG,GOK}))
+    or (msg = WM_CHAR and wParam = VK_RETURN) then
+        if id=GLONG and msg = WM_COMMAND then
+            maxlen=0
+            n=1
+            for i=1 to length(filetext[currfile]) do
+                thislen=ExpLength(filetext[currfile][i])
+                if thislen>maxlen then
+                    maxlen=thislen
+                    n=i
+                end if
+            end for
+        else
+            ntext=getText(GLINE)
+            if not length(ntext) then setFocus(GLINE) return {0} end if
+            n=0
+            for i=1 to length(ntext) do
+                digit=ntext[i]
+                digit=find(digit,"0123456789")
+                if not digit then setFocus(GLINE) return {0} end if
+                n=n*10+digit-1
+            end for
+        end if
+        if n>length(filetext[currfile]) then
+            setFocus(GLINE)
+            return {0}
+        end if
+        clearSelection()
+        CursorY=n-1
+        CursorX=0
+        forceCursorOnscreen()
+        closeGwin()
+        if msg = WM_CHAR then
+            return {0}
+        end if
+    end if
+    return 0
+end function
+
+
+global procedure Goto()
+    if currfile then
+        if not initGoto then
+            GotoWin=create(Window,xl("Goto Line"),Main,0,181,205,222,131,{0,WS_EX_TOOLWINDOW})
+            GLINE=create(EditText,"",0,GotoWin,20,19,180,20,ES_NUMBER)
+            GLONG=create(Button,xl("Longest"),0,GotoWin,23,57,75,30,0)
+            GOK=create(Button,xl("OK"),0,GotoWin,125,57,75,30,BS_DEFPUSHBUTTON)
+            setHandler({GotoWin,GLINE,GLONG,GOK},routine_id("gotoHandler"))
+            initGoto=1
+        end if
+--      call_proc(rEnableFileMenu,{False})  --DEV
+        --DEV this does not stop Ctrl Page Up/Down:
+        setEnable(TC,False)
+        setText(GLINE,"")
+        addFocus(GotoWin)
+        openWindow(GotoWin,SW_NORMAL)
+    end if
+end procedure
+global constant r_Goto=routine_id("Goto")

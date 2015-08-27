@@ -1,0 +1,135 @@
+--
+-- t03showt.exw (showtype.exw)
+--
+-- Phix tests: Builtin types, parameter passing, casting, atom(), integer(), string(), sequence().
+--
+
+--/* Not required for Phix (the string type is builtin):
+type string(object s)
+object c
+    if atom(s) then return 0 end if
+    for k = 1 to length(s) do
+        c=s[k]
+        if not integer(c) then return 0 end if
+        if c<0 then return 0 end if
+        if c>#FF then return 0 end if
+    end for
+    return 1
+end type
+--*/
+
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+-- Change the following constant to 1 while making changes/testing/debugging this program:
+constant verbose=0
+constant showprogress=0
+
+global procedure showtype(object o, integer expected)
+    if verbose then puts(1,"showtype: ") end if
+    if integer(o) then
+        if verbose then puts(1,"integer\n") end if
+        if expected!=1 then Abort("ERROR[I]\n") end if
+    elsif atom(o) then
+        if verbose then puts(1,"atom\n") end if
+        if expected!=2 then Abort("ERROR[N]\n") end if
+    elsif string(o) then
+        if verbose then puts(1,"string\n") end if
+        if expected!=3 then Abort("ERROR[S]\n") end if
+--  elsif sequence(o) then  -- 28/12: ple(1), hehe! (not int/atom/str, then yes, it must be dseq!)
+    else
+        if verbose then puts(1,"sequence\n") end if
+        if expected!=4 then Abort("ERROR[P]\n") end if
+--  else
+--      Abort("ERROR")
+--      abort(1)
+    end if
+--puts(1,"ok\n")
+end procedure
+
+-- dummy function to thwart localtypes.
+--  If you say X="string" then the compiler flags X as (currently) a string,
+--  whereas if you do X=F("string") it will not suspect that the result type 
+--  of F, and hence the content of X, is (now) anything other than object.
+--  NB for this to work proper, you must pass multiple argument types.
+function F(object o) return o end function
+
+integer I
+atom N
+string S
+sequence P
+object O
+--atom t0 t0=time()
+
+    I=1
+    N=1.1
+    S="hello"
+    P={1,2,3,4.5}
+
+
+    showtype(I,1)
+    showtype(N,2)
+    showtype(S,3)
+    showtype(P,4)
+
+    O=I
+    showtype(O,1)
+    O=N
+    showtype(O,2)
+    O=S
+    showtype(O,3)
+    O=P
+    showtype(O,4)
+
+    P=F(S)
+--  if not sequence(S) then Abort("S is not a sequence\n") end if
+--  now flagged as: ^ probable logic error (always true)
+    O=F(S)
+if showprogress then puts(1,"ok1\n") end if
+
+    if not sequence(O) then Abort("S is not a sequence\n") end if
+    if not string(P) then Abort("P is not a string\n") end if
+--  if not sequence(P) then Abort("P is not a sequence\n") end if
+--  now flagged as: ^ probable logic error (always true)
+    O=F(P)
+    if not sequence(O) then Abort("S is not a sequence\n") end if
+    showtype(P,3)
+if showprogress then puts(1,"ok2\n") end if
+    S=P
+if showprogress then puts(1,"ok3\n") end if
+    showtype(S,3)
+if showprogress then puts(1,"ok4\n") end if
+
+    P={I,N,S,{1,2,3,4.5}}   -- make sure [4] is recognisably NOT a string for the test.
+if showprogress then puts(1,"ok4a\n") end if
+      for i=1 to 4 do
+if showprogress then puts(1,"ok4b\n") end if
+          O=P[i]
+          showtype(O,i)       --OK
+          showtype(P[i],i)    -- OK
+      end for
+if showprogress then puts(1,"ok5\n") end if
+    P = {}
+--puts(1,"DOH!\n")
+--  O=P[1]
+--  showtype(O,1)     --OK
+--  showtype(P[1],1)      -- OK
+--  O=P[2]
+--  showtype(O,2)     --OK
+--  showtype(P[2],2)      -- OK
+--  O=P[3]
+--  showtype(O,3)     --OK
+--  showtype(P[3],3)      -- OK
+--  O=P[4]
+--  showtype(O,4)     --OK
+--  showtype(P[4],4)      -- OK
+
+--printf(1," rt:%3.2f seconds\n",{time()-t0})
+
+--if verbose then 
+--  if length(gets(0)) then end if
+--end if
+
+--/* Not Phix
+puts(1,"completed (it's more fun to run this under Phix!)\n")
+if getc(0) then end if
+--*/

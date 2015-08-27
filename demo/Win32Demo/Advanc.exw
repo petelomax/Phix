@@ -1,0 +1,106 @@
+-- Similar but not a copy of Chapter 10 - Windows 2000 Graphics API Black Book (Coriolis & Damon Chandler))
+-- Highly recommended Book for the Serious Windows API Programmers.
+-- Euman 2002
+
+without warning
+include Win32Lib.ew  -- (..\ArwenDemo\mmsd.exw is the arwen version of this)
+
+constant
+ MainWin = create(Window, "Mapping Mode Scaling Demo", NULL, 25, 25, 300, 200, 0)
+
+sequence InitExtent
+
+atom MainWinDC, hFont, oldMapMode, pInitExtent, pText
+MainWinDC = 0
+
+constant  
+  MM_ANISOTROPIC = 8
+atom oldFont
+oldFont = 0
+
+integer Drawing Drawing = 0
+
+------------------------------------
+procedure ReDraw()
+------------------------------------
+    sequence CurExtent
+
+    if oldFont = 0 or Drawing != 0 then
+        return
+    end if
+  
+    Drawing += 1  
+    CurExtent = getClientRect(MainWin)
+
+    repaintRect( MainWin, CurExtent[1], CurExtent[2], CurExtent[3], CurExtent[4])
+  
+    if w32Func(xSetViewportExtEx,{MainWinDC,CurExtent[5],CurExtent[6],0}) then
+        w32Proc(xEllipse,{MainWinDC, InitExtent[1], InitExtent[2], InitExtent[3], InitExtent[4]})  
+        w32Proc(xDrawText,{MainWinDC, pText, -1, pInitExtent, or_all({DT_CENTER, DT_VCENTER, DT_SINGLELINE})})
+    end if
+    
+    Drawing -= 1
+end procedure
+
+
+------------------------------------
+procedure onPaint_MainWin(integer self, integer event, object parms)
+------------------------------------
+--  atom lDC
+    if MainWinDC = 0 or Drawing != 0 then
+        return
+    end if
+    ReDraw()
+        
+end procedure
+setHandler(MainWin, w32HPaint, routine_id("onPaint_MainWin"))
+
+------------------------------------
+procedure onResize_MainWin(integer self, integer event, object parms)
+------------------------------------
+    repaintWindow(self)        
+end procedure
+setHandler(MainWin, w32HResize, routine_id("onResize_MainWin"))
+
+
+------------------------------------
+procedure onOpen_MainWin(integer self, integer event, sequence parms)
+------------------------------------
+atom mset
+    InitExtent = getClientRect(MainWin)
+  
+    mset = w32new_memset()
+    pInitExtent = w32acquire_mem(mset,4 * length(InitExtent))
+    poke4(pInitExtent, InitExtent)
+  
+    MainWinDC = getDC(MainWin)
+    hFont = EzCreateFont(MainWin, MainWinDC,"Times New Roman",120,0,0,1,0)
+    oldFont=w32Func(xSelectObject,{MainWinDC,hFont})
+    
+
+    oldMapMode = w32Func(xSetMapMode,{MainWinDC,MM_ANISOTROPIC})
+  
+    pText = w32acquire_mem(mset, "Euman's Win32lib Demo's")
+
+    VOID = w32Func(xSetGraphicsMode,{MainWinDC, GM_ADVANCED})
+    VOID = w32Func(xSetWindowExtEx,{MainWinDC,InitExtent[5],InitExtent[6],0})  
+    ReDraw()
+    w32release_mem(mset)  
+end procedure
+setHandler(MainWin, w32HActivate, routine_id("onOpen_MainWin"))
+
+
+------------------------------------
+procedure onClose_MainWin(integer self, integer event, sequence parms)
+------------------------------------
+    atom myFont
+    
+    myFont=w32Func(xSelectObject,{MainWinDC,oldFont})
+    VOID = w32Func(xDeleteObject, {myFont})
+    releaseDC(MainWin)
+
+end procedure
+setHandler(MainWin, w32HClose, routine_id("onClose_MainWin"))
+
+WinMain(MainWin, Normal)
+

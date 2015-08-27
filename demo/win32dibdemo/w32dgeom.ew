@@ -1,0 +1,291 @@
+-- Win32Dib : Fast bitmap manipulation for Win32Lib (24-bit graphics).
+-- GEOMETRIC MANIPULATION LIBRARY
+
+-- Copyright (C) 2004 Tommy Carlier
+-- tommy.carlier@telenet.be
+-- http://users.telenet.be/tommycarlier
+
+include w32dcore.ew
+
+global procedure flipDibHor(sequence dib)
+-- Flips the bitmap horizontally (left <-> right)
+atom memory, addr_left, addr_right, dummy
+integer bytesPerLine, width3
+    memory = dib[DibMemory] -- memory starts at row 0
+    bytesPerLine = dib[DibBytesPerLine] -- the amount of bytes in a line
+    width3 = dib[DibWidth] * 3 - 3
+    dummy = allocate(3)
+    for i = 1 to dib[DibHeight] do
+	addr_left = memory -- addr_left begins at position (0, y)
+	addr_right = memory + width3 -- addr_right begins at position (width - 1, y)
+	while addr_left < addr_right do
+	    mem_copy(dummy, addr_left, 3)
+	    mem_copy(addr_left, addr_right, 3)
+	    mem_copy(addr_right, dummy, 3)
+	    addr_left += 3 -- addr_left moves to the right ...
+	    addr_right -= 3 -- ... and addr_right moves to the right ...
+	end while -- ... until they meet
+	memory += bytesPerLine -- go to the next row
+    end for
+    free(dummy)
+end procedure
+
+global procedure flipDibVert(sequence dib)
+-- Flips the bitmap vertically (top <-> bottom)
+atom addr_top, addr_bottom, dummy
+integer bytesPerLine
+    addr_top = dib[DibMemory] -- addr_top begins at row 0
+    bytesPerLine = dib[DibBytesPerLine] -- the amount of bytes in a line
+    dummy = allocate(bytesPerLine)
+    addr_bottom = addr_top + (dib[DibHeight] - 1) * bytesPerLine -- addr_bottom begins at row (height - 1)
+    while addr_top < addr_bottom do
+	mem_copy(dummy, addr_top, bytesPerLine)
+	mem_copy(addr_top, addr_bottom, bytesPerLine)
+	mem_copy(addr_bottom, dummy, bytesPerLine)
+	addr_top += bytesPerLine -- addr_top moves down ...
+	addr_bottom -= bytesPerLine -- and addr_bottom moves up ...
+    end while -- ... until they meet
+    free(dummy)
+end procedure
+
+constant xdStretchBlt = registerw32Function(gdi32, "StretchBlt", {C_INT, C_INT, C_INT, C_INT, C_INT, C_INT, C_INT, C_INT, C_INT, C_INT, C_LONG}, C_INT)
+
+global function scaleDib(sequence dib, integer width, integer height, integer kill_old)
+-- Scales the bitmap to the new width and height, and returns the new bitmap.
+--  Returns 0 if the bitmap couldn't be scaled to the new width and height.
+--  If kill_old then the previous bitmap will be killed.
+object new_dib
+atom dc, new_dc
+    new_dib = newDib(width, height)
+    if atom(new_dib) then
+	if kill_old then killDib(dib) end if
+	return new_dib
+    end if
+	
+    dc = getDC(dib[DibHandle])
+    new_dc = getDC(new_dib[DibHandle])
+    VOID = w32Func(xdStretchBlt, {new_dc, 0, 0, width, height, dc, 0, 0, dib[DibWidth], dib[DibHeight], SrcCopy})
+    releaseDC(dib[DibHandle])
+    releaseDC(new_dib[DibHandle])
+    if kill_old then killDib(dib) end if
+    return new_dib
+end function
+
+global function scaleDibPct(sequence dib, integer pct, integer kill_old)
+-- Scales the bitmap by pct % and returns the new bitmap.
+--  Returns 0 if the bitmap couldn't be scaled to the new size.
+--  If kill_old then the previous bitmap will be killed.
+    return scaleDib(dib, floor(dib[DibWidth] * pct / 100), floor(dib[DibHeight] * pct / 100), kill_old)
+end function
+
+global function rotateDib(sequence dib, integer angle, integer kill_old)
+-- Rotates the bitmap and returns the new bitmap.
+--  Returns 0 if the bitmap couldn't be rotated.
+--  angle will be rounded to 90, 180, 270, -90, -180 or -270 (negative = rotate left, positive = rotate right).
+--  If kill_old then the previous bitmap will be killed.
+object new_dib
+integer left, width, height, new_width, new_height, bytes_per_line, padding, new_padding, y1
+atom addr_src, addr_dest
+    if angle >=0 then
+	left = 0
+    else
+	left = 1
+	angle = -angle
+    end if
+    angle = remainder(floor(angle / 90.0 + 0.5), 4) -- 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°
+    if angle = 0 then -- no rotation
+	new_dib = copyDib(dib)
+    else
+	if left then -- convert a rotation to the left to a rotation to the right
+	    if angle = 1 then angle = 3 -- 90° to the left = 270° to the right
+	    elsif angle = 3 then angle = 1 -- 270° to the left = 90° to the right
+	    end if
+	end if
+	width = dib[DibWidth]
+	height = dib[DibHeight]
+	if angle = 2 then
+	    new_width = width
+	    new_height = height
+	else
+	    new_width = height
+	    new_height = width
+	end if
+		
+	new_dib = newDib(new_width, new_height)
+	if angle = 1 then -- rotate 90°
+	    addr_src = dib[DibMemory]
+	    addr_dest = new_dib[DibMemory]
+	    bytes_per_line = dib[DibBytesPerLine]
+	    padding = dib[DibPadding]
+	    new_padding = new_dib[DibPadding]
+	    y1 = (height - 1) * bytes_per_line
+	    for x = 0 to bytes_per_line - padding - 3 by 3 do
+		for y = y1 to 0 by -bytes_per_line do
+		    mem_copy(addr_dest, addr_src + x + y, 3)
+		    addr_dest += 3
+		end for
+		addr_dest += new_padding
+	    end for
+	elsif angle = 2 then -- rotate 180°
+	    addr_src = dib[DibMemory]
+	    padding = dib[DibPadding]
+	    addr_dest = new_dib[DibMemory] + dib[DibBytesPerLine] * height - padding - 3
+	    for y = 1 to height do
+		for x = 1 to width do
+		    mem_copy(addr_dest, addr_src, 3)
+		    addr_dest -= 3
+		    addr_src  += 3
+		end for
+		addr_dest -= padding
+		addr_src  += padding
+	    end for
+	elsif angle = 3 then -- rotate 270°
+	    addr_src = dib[DibMemory]
+	    addr_dest = new_dib[DibMemory]
+	    bytes_per_line = dib[DibBytesPerLine]
+	    padding = dib[DibPadding]
+	    new_padding = new_dib[DibPadding]
+	    y1 = (height - 1) * bytes_per_line
+	    for x = bytes_per_line - padding - 3 to 0 by -3 do
+		for y = 0 to y1 by bytes_per_line do
+		    mem_copy(addr_dest, addr_src + x + y, 3)
+		    addr_dest += 3
+		end for
+		addr_dest += new_padding
+	    end for
+	end if
+    end if
+    if kill_old then killDib(dib) end if
+    return new_dib
+end function
+
+function min4(atom a, atom b, atom c, atom d)
+    if a < b then
+	if c < a then if d < c then return d else return c end if
+	elsif d < a then return d else return a end if
+    elsif c < b then if d < c then return d else return c end if
+    elsif d < b then return d else return b end if
+end function
+
+function max4(atom a, atom b, atom c, atom d)
+    if a > b then
+	if c > a then if d > c then return d else return c end if
+	elsif d > a then return d else return a end if
+    elsif c > b then if d > c then return d else return c end if
+    elsif d > b then return d else return b end if
+end function
+
+global function rotateDibFree(sequence dib, integer angle, object bgcolor, integer kill_old)
+-- Rotates the bitmap and returns the new bitmap.
+--  Returns 0 if the bitmap couldn't be rotated.
+--  angle is in degrees.
+--  bgcolor is the color, used to fill the region outside the rotated bitmap
+--  if bgcolor is an atom (not a color-sequence), then wrapping will be applied
+--  If kill_old then the previous bitmap will be killed.
+atom x1, x2, x3, x4, y1, y2, y3, y4, cos_angle, sin_angle
+atom center_x, center_y, offset_x, offset_y
+integer src_x, src_y, wrapping
+integer width, height, new_width, new_height, bytes_per_line, new_padding
+atom memory, new_memory
+object new_dib
+-- PL 29/4/09
+atom y, ylim, x, xlim
+    while angle < 0 do angle += 360 end while -- make sure angle is between 0 and 359 degrees
+    while angle >= 360 do angle -= 360 end while
+    if angle = 0 then -- no rotation
+	new_dib = copyDib(dib)
+    elsif angle = 90 or angle = 180 or angle = 270 then -- use the much faster rotateDib
+	return rotateDib(dib, angle, kill_old)
+    else
+	memory = dib[DibMemory]
+	width = dib[DibWidth]
+	height = dib[DibHeight]
+	bytes_per_line = dib[DibBytesPerLine]
+		
+	if atom(bgcolor) then wrapping = 1 else wrapping = 0 end if
+
+	center_x = width / 2.0 -- rotate the bitmap around the center
+	center_y = height / 2.0
+
+	cos_angle = cos(angle * 3.141592654 / 180.0) -- cosine and sine of the angle
+	sin_angle = sin(angle * 3.141592654 / 180.0)
+
+	x1 = center_x - center_x * cos_angle + center_y * sin_angle -- destination positions for the 4 corners
+	x2 = center_x + (width - center_x) * cos_angle + center_y * sin_angle
+	x3 = x2 - height * sin_angle
+	x4 = x1 - height * sin_angle
+
+	y1 = center_y - center_y * cos_angle - center_x * sin_angle
+	y2 = y1 + width * sin_angle
+	y4 = center_y + (height - center_y) * cos_angle - center_x * sin_angle
+	y3 = y4 + width * sin_angle
+		
+	offset_x = floor(min4(x1, x2, x3, x4)) -- X-coordinate of left-most point
+	offset_y = floor(min4(y1, y2, y3, y4)) -- Y-coordinate of top-most point
+	new_width = floor(max4(x1, x2, x3, x4) - offset_x) + 1 -- width of new bitmap
+	new_height = floor(max4(y1, y2, y3, y4) - offset_y) + 1 -- height of new bitmap
+
+	new_dib = newDib(new_width, new_height)
+	if atom(new_dib) then
+	    if kill_old then killDib(dib) end if
+	    return new_dib
+	end if
+	new_memory = new_dib[DibMemory]
+	new_padding = new_dib[DibPadding]
+
+	offset_y -= center_y
+	offset_x -= center_x
+	if wrapping then
+--	    for y = offset_y to new_height + offset_y - 1 do
+	    y = offset_y
+	    ylim = new_height + offset_y - 1
+	    while y<=ylim do
+--		for x = offset_x to new_width + offset_x - 1 do
+		x = offset_x
+		xlim = new_width + offset_x - 1
+		while x<=xlim do
+		    src_x = floor(x * cos_angle + y * sin_angle + center_x)
+		    src_y = floor(y * cos_angle - x * sin_angle + center_y)
+		    while src_x < 0 do src_x += width end while
+		    while src_x >= width do src_x -= width end while
+		    while src_y < 0 do src_y += height end while
+		    while src_y >= height do src_y -= height end while
+		    mem_copy(new_memory, memory + src_x * 3 + src_y * bytes_per_line, 3)
+		    new_memory += 3
+--		end for
+		    x += 1
+		end while
+		new_memory += new_padding
+--	    end for
+		y += 1
+	    end while
+	else
+--	    for y = offset_y to new_height + offset_y - 1 do
+	    y = offset_y
+	    ylim = new_height + offset_y - 1
+	    while y<=ylim do
+--		for x = offset_x to new_width + offset_x - 1 do
+		x = offset_x
+		xlim = new_width + offset_x - 1
+		while x<=xlim do
+		    src_x = floor(x * cos_angle + y * sin_angle + center_x)
+		    src_y = floor(y * cos_angle - x * sin_angle + center_y)
+		    if src_x >= 0 and src_y >= 0 and src_x < width and src_y < height then -- inside source bitmap
+			mem_copy(new_memory, memory + src_x * 3 + src_y * bytes_per_line, 3)
+		    else -- outside source bitmap, so fill with bgcolor
+			poke(new_memory, bgcolor)
+		    end if
+		    new_memory += 3
+--		end for
+		    x += 1
+		end while
+		new_memory += new_padding
+--	    end for
+		y += 1
+	    end while
+	end if
+    end if
+	
+    if kill_old then killDib(dib) end if
+    return new_dib
+end function

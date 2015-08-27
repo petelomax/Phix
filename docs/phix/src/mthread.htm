@@ -1,0 +1,168 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Multithreading</h1>
+      <div id="mainSection">
+        This collection of routines lets you create multiple, independent threads.
+       <br>
+       <br>
+        Each thread has its own current statement being executed, its own subroutine call stack, and its own set of private variables. 
+        The local (file-level) and global variables of a program are shared amongst all tasks, but require careful locking. 
+        Threads can run at the same time as other threads, and thread switching can occur at <i>any</i> point in the control flow.
+       <br>
+       <br>
+        The <b>one single advantage</b> that threads have over the simpler multitasking is that a thread can wait for a lock, event, signal,
+        notification, or network access to complete, <i>without</i> stalling any other threads. In multitasking any of those will stall the
+        entire application, because the offending task does not (and cannot) call task_yield() when it is in fact itself in such a stalled 
+        wait state. If short timeouts and frequent yielding are not enough, and your application still feels sluggish and unresponsive, you
+        may have to resort to multithreading, whereas if you use multithreading when you do not need to, well that&rsquo;s just plain foolish.
+       <br>
+       <br>
+        Multithreading is widely considered the most difficult general purpose thing a programmer ever has to master, though there are 
+        of course far harder domain-specific problems. The following rules apply when programming with threads.
+       <ul>
+        <li>
+        Extensive locking is required on anything that can be modified by more than one thread. In Phix this includes the hidden reference
+        counts on literal constants, and private variables that have been initialised from or contain copies of anything similar. You may
+        need to limit the number of strings sequences and floats that are shared between threads, to prevent that getting too painful.
+        </li>
+        <li>
+        All GUI updates must be performed by the main thread. If a worker thread wants an update to appear in the GUI, it should
+        send an appropriate (user-defined) message to the main thread rather than attempt to perform the update itself.
+        </li>
+        <li>
+        Debugging is typically at least ten times harder in multithreaded code than non-multithreaded code. If at all possible,
+        new code should be written in a (slow) single threaded test harness environment and converted to use multithreading only 
+        when performance issues compel it, though I freely admit in many cases that may simply not be practical.
+        </li>
+        <li>
+        Certain programming techniques (on windows) pretty much demand the use of threads, for example FileDirectoryChangeNotification
+        and full drag and drop - some bits of the latter are quite easy but, trust me, a full COM-based implementation is decidedly 
+        non-trivial, try typing in "catch22 drag and drop" into your favourite search engine and reading the six-part tutorial.
+        </li>
+        <li>
+        When adding multithreading to an application, the entire code base needs to be made thread-safe, including any existing
+        multitasking. It should be sufficient to avoid sharing any references to variables or data between the new code and the
+        existing non-thread-safe code. As above that includes literal constants such as "hello" and 3.14159265358979323846.
+        </li>
+       </ul>
+       <br>
+       <br>
+DEV:
+?See also the taskwire.exw Windows demo program, and the news.exu demo for Linux and FreeBSD.
+       <br>
+       <br>
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <a href="init_cs.htm">
+           <b>init_cs</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>create a new critical section</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="delete_cs.htm">
+           <b>delete_cs</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>delete a critical section</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="enter_cs.htm">
+           <b>enter_cs</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>begin mutually exclusive execution</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="try_cs.htm">
+           <b>try_cs</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>begin mutually exclusive execution, but only if the critical section lock can be obtained instantly</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="leave_cs.htm">
+           <b>leave_cs</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>end mutually exclusive execution</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="create_thread.htm">
+           <b>create_thread</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>create a new thread</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="suspend_thread.htm">
+           <b>suspend_thread</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>suspend execution of a thread</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="resume_thread.htm">
+           <b>resume_thread</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>resume execution of a thread</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="exit_thread.htm">
+           <b>exit_thread</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>terminate execution of the current thread</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="get_thread_exitcode.htm">
+           <b>get_thread_exitcode</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>get the exit code of a thread, or STILL_ACTIVE</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="wait_thread.htm">
+           <b>wait_thread</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>wait for a thread or set of threads to terminate</td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,392 @@
+DEAD
+--
+-- demo_cube.exw
+-- =============
+--
+-- Ripped off from demo_lines, with solid sides, resize/fullscreen.
+--
+constant newshape = 0
+
+include "arwen.ew"
+include dib32.ew
+
+ISMENUOWNERDRAWN = 0
+
+constant TEST = create(Window,  "Cube demo", 0, 0, 10,10,500,460,{0,0}),
+         testDC = getPrivateDC(TEST)
+
+--DEV newshape:
+integer dib
+        dib = createDib(400, 400, 32)
+
+sequence LineColours
+
+--procedure copyToScreen(atom dc)
+----    if not dc then
+----        dc = getPrivateDC(TEST)
+----    end if
+--  copyDibToDC(dc, 0 , 0, dib)
+--end procedure
+
+--procedure draw_line(integer color, sequence coords)
+--  drawDibLine(dib, floor(coords[1][1]),  floor(coords[1][2]), floor(coords[2][1]), floor(coords[2][2]), color)
+--end procedure
+
+--procedure display(sequence coords)
+--integer x1,y1,x2,y2
+--  blankDib(dib, Black)
+--  for i=1 to length(coords) do
+----        draw_line(LineColours[i], coords[i][1..2])
+--      {{x1,y1},{x2,y2}} = sq_floor(coords[i])
+--      drawDibLine(dib, x1,  y1, x2, y2, LineColours[i])
+--  end for
+--  copyDibToDC(testDC, 0 , 0, dib)
+----    copyToScreen(testDC)
+--end procedure
+--
+
+--integer NUM_LINES NUM_LINES = 0
+
+integer axis
+atom sin_angle, cos_angle
+
+constant X = 1, Y = 2, Z = 3
+
+type point(sequence x)
+    return length(x)=3
+end type
+
+type matrix(sequence x)
+    return length(x)=4 and sequence(x[1])
+end type
+
+function vector_product(sequence v, matrix m)
+-- multiply a 4-vector by a 4x4 matrix
+-- note: v is actually length(3), treated as if v[4] is 1.
+sequence c
+    c = repeat(0, 4)
+    for j=1 to 4 do
+        c[j] = v[1]*m[1][j]+
+               v[2]*m[2][j]+
+               v[3]*m[3][j]+
+                    m[4][j]
+    end for
+    return c
+end function
+
+function view(point view_point)
+-- compute initial view
+atom {x,y,z} = view_point
+atom hyp = sqrt(x*x + y*y),
+     sin_theta = x/hyp,
+     cos_theta = y/hyp,
+     sin2theta = sin_theta*sin_theta,
+     cos2theta = cos_theta*cos_theta,
+     stc_theta = sin_theta*cos_theta,
+     soc_theta = sin_theta/cos_theta
+    return {{-2*cos_theta, -2*sin2theta,      -stc_theta, 0},
+            { 2*sin_theta, -2*stc_theta,      -cos2theta, 0},
+            {           0,  2*cos_theta,      -sin_theta, 0},
+            {           0,            0, y + x*soc_theta, 1}}
+end function
+
+function new_points(sequence overall, sequence points)
+-- compute the screen coordinates from the 3-D coordinates
+sequence screen_coords
+atom x,y,z
+point p
+atom x2, y2
+
+    x2 = floor(getDibWidth(dib)/2)
+    y2 = floor(getDibHeight(dib)/2)
+--  screen_coords = repeat({0, 0, 0}, length(shape))
+    screen_coords = repeat(0, length(points))
+    for i=1 to length(points) do
+        p = points[i]
+        {x,y,z} = vector_product(p, overall)
+        screen_coords[i] = {x2*(x/z+1), y2*(y/z+1)}
+    end for
+    return screen_coords
+end function
+
+function new_coords(sequence overall, sequence shape)
+-- compute the screen coordinates from the 3-D coordinates
+sequence screen_coords
+atom x,y,z
+point p
+atom x2, y2
+
+    x2 = floor(getDibWidth(dib)/2)
+    y2 = floor(getDibHeight(dib)/2)
+--  screen_coords = repeat({0, 0, 0}, length(shape))
+    screen_coords = repeat({0, 0}, length(shape))
+    for i=1 to length(shape) do
+        for j=1 to 2 do
+            p = shape[i][j]
+            {x,y,z} = vector_product(p, overall)
+            screen_coords[i][j] = {x2*(x/z+1), y2*(y/z+1)}
+        end for
+--      screen_coords[i][3] = shape[i][3]
+    end for
+    return screen_coords
+end function
+
+function rotate_points(integer axis, sequence points)
+-- rotate a shape
+atom x,y,z
+sequence pi
+    for i = 1 to length(points) do
+        {x,y,z} = points[i]
+        if axis = X then
+            pi = {x, y*cos_angle + z*sin_angle, z*cos_angle - y*sin_angle}
+        elsif axis = Y then
+            pi = {x*cos_angle - z*sin_angle, y, x*sin_angle + z*cos_angle}
+        else  -- axis = Z
+            pi = {x*cos_angle + y*sin_angle, y*cos_angle - x*sin_angle, z}
+        end if
+        points[i] = pi
+    end for
+    return points
+end function
+
+function compute_rotate(integer axis, sequence shape)
+-- rotate a shape
+atom x,y,z
+sequence sij
+    for i = 1 to length(shape) do
+        for j = 1 to 2 do
+            {x,y,z} = shape[i][j]
+            if axis = X then
+                sij = {x, y*cos_angle + z*sin_angle, z*cos_angle - y*sin_angle}
+            elsif axis = Y then
+                sij = {x*cos_angle - z*sin_angle, y, x*sin_angle + z*cos_angle}
+            else  -- axis = Z
+                sij = {x*cos_angle + y*sin_angle, y*cos_angle - x*sin_angle, z}
+            end if
+            shape[i][j] = sij
+        end for
+    end for
+    return shape
+end function
+
+
+--sequence lines
+
+--procedure reset()
+--  lines = {}
+--end procedure
+
+procedure newColours(sequence lines)
+    LineColours = {}
+    for i=1 to length(lines) do
+        LineColours &= rand(180)+75+(rand(250)+0)*256+(rand(200)+55)*65536
+    end for
+end procedure
+
+--procedure addline(sequence start, sequence finish)
+--  lines = append(lines, {start, finish, 0})
+--end procedure
+
+--function centre(sequence shape, sequence offsetpoint)
+--  for i=1 to length(shape) do
+--      shape[i][1] = sq_sub(shape[i][1],offsetpoint)
+--      shape[i][2] = sq_sub(shape[i][2],offsetpoint)
+--  end for
+--  return shape
+--end function
+
+
+--function cube()
+----sequence apex
+--
+--  reset()
+--
+--  -- base
+--  addline({0,0,0}, {0,0,1})
+--  addline({0,0,1}, {1,0,1})
+--  addline({1,0,1}, {1,0,0})
+--  addline({1,0,0}, {0,0,0})
+--
+--  -- sides
+--  addline({0,0,0}, {0,1,0})
+--  addline({0,0,1}, {0,1,1})
+--  addline({1,0,1}, {1,1,1})
+--  addline({1,0,0}, {1,1,0})
+--
+--  -- top
+--  addline({0,1,0}, {0,1,1})
+--  addline({0,1,1}, {1,1,1})
+--  addline({1,1,1}, {1,1,0})
+--  addline({1,1,0}, {0,1,0})
+--
+--  --centre( {0.5, 0.5, 0.5} )
+--
+--  return lines
+--
+--end function
+
+--/*
+function ro()
+--  return (rand(100)-50)/50
+    return (rand(10)-5)/5
+end function
+
+function rand_offset()
+    return {ro(), ro(), ro()}
+end function
+--*/
+
+function makeCube()
+sequence shape
+    shape = {{{-0.5,-0.5,-0.5},     -- points   left btm rear
+              {-0.5,-0.5, 0.5},     --          left btm front
+              { 0.5,-0.5, 0.5},     --          right btm front
+              { 0.5,-0.5,-0.5},     --          right btm rear
+              {-0.5, 0.5,-0.5},     --          left top rear
+              {-0.5, 0.5, 0.5},     --          left top front
+              { 0.5, 0.5, 0.5},     --          right top front
+              { 0.5, 0.5,-0.5}},    --          right top rear
+--           {{1,2},                -- lines (12)
+--            {2,3},
+--            {3,4},
+--            {4,1},
+--            {1,5},
+--            {2,6},
+--            {3,7},
+--            {4,8},
+--            {5,6},
+--            {6,7},
+--            {7,8},
+--            {8,5}},
+             {{1,2,3,4,Red},        -- faces (6)    -- btm
+              {1,4,8,5,Blue},                       -- rear
+              {4,3,7,8,Green},                      -- right
+              {1,2,6,5,Yellow},                     -- left
+              {5,6,7,8,White},                      -- top
+              {2,3,7,6,Orange}}}                    -- front
+    return shape
+end function
+
+function makeShapes()
+sequence shape, shapes
+
+    shapes = {}
+--  for i=1 to 3 do
+--      shape = cube()
+--      shape = centre(shape, rand_offset())
+--      shape = centre(shape, {0.5, 0.5, 0.5})
+--?shape
+    shape = {{{-0.5,-0.5,-0.5},{-0.5,-0.5, 0.5}},
+             {{-0.5,-0.5, 0.5},{ 0.5,-0.5, 0.5}},
+             {{ 0.5,-0.5, 0.5},{ 0.5,-0.5,-0.5}},
+             {{ 0.5,-0.5,-0.5},{-0.5,-0.5,-0.5}},
+             {{-0.5,-0.5,-0.5},{-0.5, 0.5,-0.5}},
+             {{-0.5,-0.5, 0.5},{-0.5, 0.5, 0.5}},
+             {{ 0.5,-0.5, 0.5},{ 0.5, 0.5, 0.5}},
+             {{ 0.5,-0.5,-0.5},{ 0.5, 0.5,-0.5}},
+             {{-0.5, 0.5,-0.5},{-0.5, 0.5, 0.5}},
+             {{-0.5, 0.5, 0.5},{ 0.5, 0.5, 0.5}},
+             {{ 0.5, 0.5, 0.5},{ 0.5, 0.5,-0.5}},
+             {{ 0.5, 0.5,-0.5},{-0.5, 0.5,-0.5}}}
+
+        shapes &= shape
+--  end for
+    return shapes
+end function
+
+
+sequence overall
+point view_point
+integer r
+atom rot_speed
+sequence shape
+
+view_point = sq_div({6, 8, 7.5},2.2)
+overall = view(view_point)
+rot_speed = 0.09
+sin_angle = sin(rot_speed)
+cos_angle = cos(rot_speed)
+axis = Z
+if newshape then
+    shape = makeCube()
+else
+    shape = makeShapes()
+    newColours(shape)
+end if
+
+procedure spin()
+sequence coords
+,faces
+integer x1,y1,x2,y2
+if newshape then
+    coords = new_points(overall, shape[1])
+else
+    coords = new_coords(overall, shape)
+end if
+--  display(coords)
+--procedure display(sequence coords)
+    blankDib(dib, Black)
+if newshape then
+    faces = shape[2]
+    for i=1 to length(faces) do
+--      {p1,p2,p3,p4,color} = faces[i]
+--oh dear... plan b: see shadepol.exw
+    end for
+else
+    for i=1 to length(coords) do
+--      draw_line(LineColours[i], coords[i][1..2])
+        {{x1,y1},{x2,y2}} = sq_floor(coords[i])
+        drawDibLine(dib, x1,  y1, x2, y2, LineColours[i])
+    end for
+end if
+    copyDibToDC(testDC, 0 , 0, dib)
+--  copyToScreen(testDC)
+--end procedure
+
+    r = rand(50)
+
+    if r=1 then
+        axis = X
+    elsif r=2 then
+        axis = Y
+    elsif r=3 then
+        axis = Z
+    elsif r=7 then
+        if rand(2)=1 then
+            rot_speed = .03
+        else
+            rot_speed = .01*rand(5)
+        end if
+        sin_angle = sin(rot_speed)
+        cos_angle = cos(rot_speed)
+    end if
+if newshape then
+    shape[1] = rotate_points(axis, shape[1])
+else
+    shape = compute_rotate(axis, shape)
+end if
+end procedure
+
+constant SpinTimer = createTimer()
+
+function handler_TEST(integer id, integer msg, atom wParam, object lParam)
+    if id or object(lParam) then end if
+    if msg=WM_PAINT then
+--      copyToScreen(wParam)
+        copyDibToDC(wParam, 0 , 0, dib)
+    elsif msg=WM_MOUSEMOVE then
+        spin()
+    elsif msg=WM_TIMER then
+        spin()
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(TEST)
+    end if
+    return 0
+end function
+setHandler({TEST}, routine_id("handler_TEST"))
+--setHandler(IDLE, routine_id("spin"))
+--startIdle(500)
+startTimer(SpinTimer,TEST,100)
+
+WinMain(TEST, SW_NORMAL)

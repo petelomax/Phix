@@ -1,0 +1,412 @@
+--
+-- t24slice.exw
+--
+-- Phix tests:  Indexing and slicing, strings and sequences.
+--              The majority of these tests are illegal in RDS Eu
+--
+constant O2 = 1 -- set 1 for testing under -O2
+--/*
+Runs on Phix only, not RDS Eu
+ (if sq=sq, variable length slice assignment, negative indexes, etc).
+--*/
+
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+constant UseSprintf = 0-- set to 0 if sprintf is not yet working
+constant showprogress = 0
+
+procedure test()
+integer i
+string s,t
+sequence p,q
+object O,P
+    --atom t0 t0=time()
+
+    if showprogress then puts(1,"slice1\n") end if
+    O = {3}
+    P = O
+    O[1] = 5
+    if P!={3} then Abort("P!={3}\n") end if
+    if O!={5} then Abort("O!={5}\n") end if
+
+    if showprogress then puts(1,"slice2\n") end if
+    s = "feed"
+    s[2..3] = 'o'
+    if s!="food" then Abort("s!=food\n") end if
+    s[2..3] = "on"
+    if s!="fond" then Abort("s!=fond\n") end if
+    i = 2
+    s[i+1] = 'l'
+    if s!="fold" then Abort("s!=fold\n") end if
+
+    if showprogress then puts(1,"slice3\n") end if
+
+    s[2..3] = "e"
+    if s!="fed" then Abort("s!=fed\n") end if
+    s[2..1] = "east"
+    if s!="feasted" then Abort("s!=feasted\n") end if
+--if O2 then
+--  s[8..7]=" on"
+--else
+    s[0..-1] = " on"
+--end if
+    if s!="feasted on" then Abort("s!=feasted on\n") end if
+    s[1..0] = "they "
+    if s!="they feasted on" then Abort("s!=they feasted on\n") end if
+--if O2 then
+--  s[4..14]=""
+--else
+    s[4..-2] = ""
+--end if
+    if s!="then" then Abort("s!=then\n") end if
+
+    if showprogress then puts(1,"slice4\n") end if
+
+    for twice=1 to 2 do
+
+        if showprogress then puts(1,"slice5\n") end if
+
+        s = "skip"
+        if s!="skip" then Abort("s!=skip\n") end if
+        i = s[1]
+        if i!='s' then Abort("i!='s'\n") end if
+        s[2] = 'n'
+        if s!="snip" then Abort("s!=snip\n") end if
+    end for
+
+    if showprogress then puts(1,"slice6\n") end if
+
+    s[1..0] = 'a' -- test replace null slice with an atom
+    if s!="snip" then Abort("s!=snip(2)\n") end if
+    t = s[1..0]
+    if t!="" then Abort("snip[1..0]!=\"\"\n") end if
+
+    t = s[5..4]
+    if t!="" then Abort("snip[5..4]!=\"\"\n") end if
+    t = s[2..3]
+    if t!="ni" then Abort("t!=ni\n") end if
+    p = {1,"skip",3}
+    p[2][2] = 'n'
+    if p[2]!="snip" then Abort("p[2]!=snip\n") end if
+    if p!={1,"snip",3} then Abort("p!={1,snip,3}\n") end if
+
+    if showprogress then puts(1,"slice7\n") end if
+
+    p = s
+    p[1] = -5
+    if p!={-5,'n','i','p'} then Abort("p!=-5nip\n") end if
+--if O2 then
+--  p[1..4]=1.65+0
+--else
+    p[1..-1] = 1.65+0
+--end if
+    if p!={1.65,1.65,1.65,1.65} then Abort("p!={1.65,1.65,1.65,1.65}\n") end if
+    s[2..3] = "la"
+    if s!="slap" then Abort("s!=slap\n") end if
+    s[2..3] = 'e' -- test replace slice with an atom
+    if s!="seep" then Abort("s!=seep\n") end if
+    s[4..4] = "king"
+    if s!="seeking" then Abort("s!=seeking\n") end if
+    s[2..3] = "07890" -- Stretch: Not RDS Eu
+    if s!="s07890king" then Abort("s!=s07890king\n") end if
+
+    if showprogress then puts(1,"slice8\n") end if
+
+--if O2 then
+--  s[2..9]="ha"    -- Shrink: Not RDS Eu
+--else
+    s[2..-2] = "ha" -- Shrink: Not RDS Eu
+--end if
+    if s!="shag" then Abort("s!=ship\n") end if
+    t[2..2] = "x"
+    if t!="nx" then Abort("t!=nx\n") end if
+    t[1..1] = "j"
+    if t!="jx" then Abort("t!=jx\n") end if
+    t[1..1] = "abc" -- Stretch: Not RDS Eu
+    if t!="abcx" then Abort("t!=abcx\n") end if
+    t[4..4] = "def" -- Stretch: Not RDS Eu
+
+    if showprogress then puts(1,"slice9\n") end if
+
+    if t!="abcdef" then Abort("t!=abcdef\n") end if
+    t[2..5] = ""        -- Shrink: Not RDS Eu
+    if t!="af" then Abort("t!=af\n") end if
+    t[2..2] = ""        -- Shrink: Not RDS Eu
+    if t!="a" then Abort("t!=a\n") end if
+    t[1..1] = ""        -- Shrink: Not RDS Eu
+    if t!="" then Abort("t!=\"\"\n") end if
+
+    if showprogress then puts(1,"slice10\n") end if
+
+    s = "fred"
+--  t=s[1]  -- type error, good
+    i = s[1]
+    if i!='f' then Abort("i!=f\n") end if
+    if i!=s[1] then Abort("i!=s[1]\n") end if
+    if s[1]!=i then Abort("s[1]!=i\n") end if
+
+    if showprogress then puts(1,"slice11\n") end if
+
+    s[4] = 'e'
+    if s!="free" then Abort("s!=free\n") end if
+    if s[4..4]!="e" then Abort("s[4..4]!=\"e\"\n") end if
+    if s[4]!='e' then Abort("s[4]!=\'e\'\n") end if
+    s[3..4] = "og"
+    if s!="frog" then Abort("s!=frog\n") end if
+    if "frog"!=s then Abort("frog!=s\n") end if
+    t = s[2..3]
+    if t!="ro" then Abort("t!=ro\n") end if
+    if s[2..3]!="ro" then Abort("s[2..3]t!=ro\n") end if
+
+    if showprogress then puts(1,"slice12\n") end if
+
+    if O2 then
+        s[4] = 't'
+    else
+        s[-1] = 't'
+    end if
+    if s!="frot" then Abort("s!=frot\n") end if
+--  t=s[-1] -- type error, good
+    if O2 then
+        i = s[4]
+    else
+        i = s[-1]
+    end if
+    if i!='t' then Abort("i!=t\n") end if
+
+    if showprogress then puts(1,"slice13\n") end if
+
+    p = {1,2,3,4,5}
+    p[3..5] = {8,7,6}
+    if p[1]!=1 then Abort("p[1]!=1\n") end if
+    if 1!=p[1] then Abort("1!=p[1]\n") end if
+    if p[2]!=2 then Abort("p[2]!=2\n") end if
+    if 2!=p[2] then Abort("2!=p[2]\n") end if
+    if p[3]!=8 then Abort("p[3]!=8\n") end if
+    if 8!=p[3] then Abort("8!=p[3]\n") end if
+    if p[5]!=6 then Abort("p[5]!=6\n") end if
+    if 6!=p[5] then Abort("6!=p[5]\n") end if
+    q = p[2..4]
+    if not equal(q,{2,8,7}) then Abort("not equal(q,{2,8,7}\n") end if
+
+    if showprogress then puts(1,"slice14\n") end if
+
+    p = {1,{99}}
+    p[1] = 5
+    p[2][1] = 6
+    O = p[1]
+    if O!=5 then Abort("O!=5\n") end if
+    q = {O}
+    q = {p[1]}
+
+    if showprogress then puts(1,"slice15\n") end if
+
+    if UseSprintf then
+        if "5"!=sprintf("%d",{p[1]}) then Abort("5!=sprintf p[1]\n") end if
+        if showprogress then puts(1,"slice15a\n") end if
+        O = {'A','B','C'}
+        if showprogress then puts(1,"slice15b\n") end if
+        if "ABC"!=sprintf("%s",{O}) then Abort("ABC!=sprintf{{O})\n") end if
+        if showprogress then puts(1,"slice15c\n") end if
+        if "ABC"!=sprintf("%s",{{'A','B','C'}}) then Abort("ABC!=sprintf{{'A','B','C'})\n") end if
+        if showprogress then puts(1,"slice15d\n") end if
+        if sprintf("%s=%s",{O,O})!="ABC=ABC" then Abort("sprintf{{O,O})!=ABCABC\n") end if
+        if showprogress then puts(1,"slice15e\n") end if
+--      t=O -- Type error (correct)
+        t = "ABC"
+
+        if showprogress then puts(1,"slice16\n") end if
+
+        if sprintf("%s",{t})!="ABC" then Abort("sprintf{t)!=ABC\n") end if
+        i = p[1]
+        if sprintf("%d",{i})!="5" then Abort("sprintf{{i})!=5\n") end if
+
+        if sprintf("%d",{p[2][1]})!="6" then Abort("sprintf{{p[2][1]})!=6\n") end if
+        i = p[2][1]
+        if sprintf("%d",{i})!="6" then Abort("sprintf{{i})!=6\n") end if
+        q = p[1..2]
+        i = q[1]
+
+        if showprogress then puts(1,"slice17\n") end if
+
+        if sprintf("%d",{q[1]})!="5" then Abort("sprintf{{q[1]})!=5\n") end if
+        if sprintf("%d",{i})!="5" then Abort("sprintf{{i})!=5\n") end if
+
+        if sprintf("%d",{p[2][1]})!="6" then Abort("sprintf{{p[2][1]})!=6\n") end if
+        i = p[2][1]
+        if sprintf("%d",{i})!="6" then Abort("sprintf{{i})!=6(2)\n") end if
+        q[1..2] = {3,4}
+        if sprintf("%d",{q[1]})!="3" then Abort("sprintf{{q[1]})!=3\n") end if
+        if sprintf("%d",{q[2]})!="4" then Abort("sprintf{{q[2]})!=4\n") end if
+        q[2..2] = p[1..1]
+        if sprintf("%d",{q[2]})!="5" then Abort("sprintf{{q[2]})!=5\n") end if
+    end if
+
+    if showprogress then puts(1,"slice18\n") end if
+
+    -- Negative indexes:
+    p = {5,{6}}
+--  i=p[-1] -- Run-time type error (as it should), same as i={6}.
+    if O2 then
+        i = p[1]
+    else
+        i = p[-2]
+    end if
+    if i!=5 then Abort("i!=5\n") end if
+    q = p[-2..-2]
+    if q[1]!=5 then Abort("q[1]!=5\n") end if
+    p[1..-2] = {7}
+    if p[1]!=7 then Abort("p[1]!=7\n") end if
+    if O2 then
+        i = p[2][1]
+    else
+        i = p[-1][-1]
+    end if
+    if i!=6 then Abort("i!=6\n") end if
+    q = p[2..2]
+    if q[1][1]!=6 then Abort("q[1][1]!=6\n") end if
+
+    if showprogress then puts(1,"slice19\n") end if
+
+--  printf(1," rt:%3.2f seconds\n",{time()-t0})
+end procedure
+
+test()
+
+sequence a,b,c
+    a = {{1,1,1},{1,1,1},{1,1,1}}
+
+integer i
+    i = 1
+
+function f1()
+    return i
+end function
+
+function f2()
+    a = {{2,2,2},{2,2,2},{2,2,2}}
+    i = 2
+    return 2
+end function
+
+function f3()
+    a = {{3,3,3},{3,3,3},{3,3,3}}
+    i = 3
+    return -3
+end function
+
+    --
+    -- Note that both the following results are technically valid (the now
+    -- defunct Posetf worked differently). This test is only here to trigger
+    -- a mention in the release notes if the behaviour ever changes.
+    --
+    a[i][f2()] = f3()
+--  if not equal(a,{{3,-3,3},{3,3,3},{3,3,3}}) then -- A possible result
+    if not equal(a,{{3,3,3},{3,3,3},{3,-3,3}}) then -- A possible result
+        Abort("a!={{3,3,3},{3,3,3},{3,-3,3}}\n")
+        abort(1)
+    end if
+    i = 1
+    a[f1()][f2()] = f3()
+--  if not equal(a,{{3,3,3},{3,3,3},{3,-3,3}}) then -- A possible result
+    if not equal(a,{{3,-3,3},{3,3,3},{3,3,3}}) then -- A possible result
+        Abort("a!={{3,3,3},{3,3,3},{3,-3,3}}\n")
+        abort(1)
+    end if
+
+--sequence a,b,c
+    a = {1,2,3}
+    b = {a,a,a}
+    c = {b,b,b}
+    c[1][1][1] = 4
+    if UseSprintf then
+        if sprint(a)!="{1,2,3}" then Abort("a!={1,2,3}\n") end if
+        if sprint(b)!="{{1,2,3},{1,2,3},{1,2,3}}" then Abort("b!={{1,2...3}}\n") end if
+        if sprint(c)!="{{{4,2,3},{1,2,3},{1,2,3}},"&
+           "{{1,2,3},{1,2,3},{1,2,3}},"&
+           "{{1,2,3},{1,2,3},{1,2,3}}}" then
+            Abort("c!={{{4,2...3}}}\n")
+        end if
+    end if
+
+sequence A, B
+    A = {{1}}
+    A[1][1] = 0
+    B = A[1..0]
+    A = {{1,1},2,3}
+--A[1..2]&=1    --good, compiler error. (RDS says lengths do not match on assignment to slice)
+        --DEV (to document[?]) The correct Phix form would be:
+        --  A[3..2]={1}
+        -- with the caveat that:
+        --  A[3..2]=1
+        -- is a null op (assigning an atom to every element of a null sequence), or
+        -- perhaps what you might be after is: "for i=1 to 2 do a[i]&=1 end for",
+        -- which does not, imo, warrant a shorthand form.
+-- sequence op:
+--  A[1]=A[1]+1
+--  A[1]+=1
+--  if A!={{3,3},2,3} then Abort("A!={{3,3},2,3}\n") end if
+    A[1][1] = A[1][1]+1
+    A[1][1] += 1
+--  if A!={{5,3},2,3} then Abort("A!={{5,3},2,3}\n") end if
+    if not equal(A,{{3,1},2,3}) then Abort("A!={{3,1},2,3}\n") end if
+--  A[1..2]=A[1..2]+1
+--  if A!={{6,4},3,3} then Abort("A!={{6,4},3,3}\n") end if
+--DEV sequence ops not supported
+--  A[1..2]+=1
+--  if A!={{7,5},4,3} then Abort("{{7,5},4,3}\n") end if
+--  A[1][1]=2
+--  if A!={{2,5},4,3} then Abort("A!={{2,5},4,3}\n") end if
+    A = {1,2}
+    A[1..2] = A[1..2]
+    if not equal(A,{1,2}) then Abort("A!={1,2}\n") end if
+--  A[1..2]&=1  --good, caught as error.
+
+-- Bugfix: auto-expansion of string under slice assignment
+-- may want to comment out puts here for early tests...
+sequence P
+    P = "{   }\n"
+    P[2..4] = {34,80,34}
+--  puts(1,P)   -- output is {"P"}\n (ie exactly 6 characters, one of which is invisible)
+    if P!="{\"P\"}\n" then puts(1,"P!=\"{\\\"P\\\"}\\n\"\n") ?9/0 end if
+    P = ""
+
+-- Bugfix: slice replacement created circular reference:
+sequence LineTab
+    LineTab = {}
+    LineTab &= repeat(-1,4)
+    LineTab[1..2] = -2  -- was acting as LineTab[1..2]=LineTab (in an illegal circular manner, see below)
+    LineTab[2] = 0
+    if not equal(LineTab,{-2,0,-1,-1}) then
+        puts(1,"not equal(LineTab,{-2,0,-1,-1})\n")
+        if getc(0) then end if
+        abort(1)
+    end if
+
+-- illegal on RDS Eu, dies with "lengths do not match on assignment to slice (2 != 4)",
+-- whereas on Phix two elements of LineTab are replaced with four:
+--  ie same as/shorthand for: LineTab = LineTab[1..0] & LineTab & LineTab[3..4]
+    LineTab[1..2] = LineTab
+    if not equal(LineTab,{-2,0,-1,-1,-1,-1}) then
+        puts(1,"not equal(LineTab,{-2,0,-1,-1,-1,-1})\n")
+        if getc(0) then end if
+        abort(1)
+    end if
+
+--from Eu ticket 639 (never was a problem on Phix)
+sequence aa, bb
+    aa = "abc" & "d"
+    aa = aa[2..$]
+    bb = "123"
+    aa = splice(aa, bb, 2)
+    if not equal(aa,"b123cd") then ?9/0 end if
+
+--added 30/4/15: (builtins\VM\pSubssN.e\:%pSubsss was not saving ecx over fixupSliceStart)
+string basedir = "C:\\Program Files (x86)\\Phix\\"
+    if basedir[-6..-1]!="\\Phix\\" then ?9/0 end if
+    basedir = basedir[1..-6]&"Edita\\edita.exw"
+    if basedir!="C:\\Program Files (x86)\\Edita\\edita.exw" then ?9/0 end if
+
+
+--abort(12)
+--if getc(0) then end if

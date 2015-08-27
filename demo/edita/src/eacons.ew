@@ -1,0 +1,685 @@
+--
+-- eacons.ew
+--
+-- Routines for running a program and grabbing console i/o.
+--
+
+without trace
+--with trace
+
+--/* 4.0.2
+include builtins\machine.e
+include builtins\dll.e
+include builtins\file.e
+--*/
+
+--
+-- NOTE: for interactive captured i/o, the invoked program must use flush(1)
+-- after display statements to cause them to appear on the console, eg:
+--
+--       puts(1,"Result is ")
+--       puts(1,result)
+--       puts(1,"\nPress any key to continue")
+--    >> flush(1) <<
+--       if getc(0) then end if
+--
+-- If display statements are not flushed in this manner, they will typically 
+-- be buffered until the application terminates (or the buffer becomes full).
+-- Such statements have no effect when the program is run without capture.
+--
+
+--
+-- The windows API is remarkably obstinate about redirecting console i/o.
+-- Firstly, it does not permit asynchronous (non-blocked) console i/o.
+--  Any attempt to pass a handle with FILE_FLAG_OVERLAPPED, for example, is 
+--  prohibited. Hence any process reading the server end of an anonymous pipe
+--  (while attempting to capture *interactive* i/o) is doomed to "hang" on a 
+--  blocked read statement forever, unless it is sent a suitable "wake-up" 
+--  message. (Or unless the monitored process displays something [anything - 
+--  the echoed response to the debug "Press Enter..." prompt does the trick] 
+--  *immediately* before terminating).
+-- Secondly, it is also not possible to redirect standard error; this is always 
+--  sent to a console (eg running "dir /k" at a DOS prompt (on windows 98), you
+--  cannot redirect the "Invalid switch - /K" message to a file. CMIIW, but only 
+--  if you have actually tested your theory on a real windows *98* box!!!).
+--  Instead, the error code is[WILL BE] checked and *.err read. --DEV
+-- Thirdly, console input does not appear to be exclusive. While it is possible
+--  to redirect standard input, characters from the keyboard are only *more
+--  likely* to be caught by any intercept process first (and passed on to the
+--  child process), but rapid typing will result in some characters being read 
+--  by the child process first. In other words, if you redirect standard input 
+--  (to the read end of an anonymous pipe), the child process will read from 
+--  *both* the pipe and the keyboard! While this is not likely to be a problem 
+--  if, for example, the input is sourced from a file, redirecting console
+--  input has not been implemented, besides, system("prog < infile > outfile") 
+--  seems to be a much easier solution.
+-- Lastly, in the unlikely event a user application terminates with error code 
+--  259 (STILL_ACTIVE), it will prevent the console from closing normally. In 
+--  other words, never ever call abort() or invoke ExitProcess with 259.
+--  (This condition is noted in the windows API reference manual.)
+--
+-- Edita captures console i/o using a 3-card trick:
+--
+--  1) Edita (eacons.ew) invokes a secondary process (eacons.exw), handles
+--      WM_COPYDATA messages from it, and monitors everything. It is the job
+--      of eacons.ew to notice when the child app has terminated, and send a
+--      final "unblock" message to eacons.exw.
+--  2) eacons.exw spawns the monitored application with inherited i/o handles 
+--      to anonymous pipes, and performs (blocked) reads on the anonymous pipe,
+--      sending data back to edita.exw via WM_COPYDATA messages.
+--      eacons.exw is expected to "hang" at completion, that is until eacons.ew
+--      wakes it up so it can self-terminate.
+--  3) The application undergoes standard i/o (NB not error) redirection.
+--
+--  eacons.exw initially sends Edita (eacons.ew) the required process identifiers for
+--  the spawned application, before entering a "busy" loop relaying redirected i/o from
+--  the (blocking) anonymous pipe.
+--  When eacons.ew notices the client process has terminated, it sends a final "unblock" 
+--  message to the anonymous pipe to reawaken eacons.exw (which then quits).
+--  Note that both eacons.ew and eacons.exw must check for application termination.
+--
+integer initCONS
+        initCONS = 0
+
+procedure Ferror(sequence msg, integer gle)
+    if gle then
+        msg = sprintf("%s failed [%d]",{msg,getLastError()})
+    end if
+    void = proemh(xl("Error"),msg,0)
+end procedure
+
+atom pSA, pi, si
+
+--constant BUFSIZE = 256
+--constant FORTYMS = 40                  -- Forty milliseconds, 1/25th of a second
+constant STILL_ACTIVE = 259
+constant PROCESS_QUERY_INFORMATION = #400,
+         PROCESS_DUP_HANDLE = #40,
+         PQIADH = PROCESS_QUERY_INFORMATION+PROCESS_DUP_HANDLE,
+         INVALID_HANDLE_VALUE = #FFFFFFFF,  -- (unsigned) -1
+         gW = GENERIC_WRITE
+
+--function getHex8(sequence h8)
+----
+---- Return one of the handle values passed as text.
+----
+--atom n
+--integer hxch
+--  if length(h8)!=8 then ?9/0 end if
+--  n = 0
+--  for hidx=1 to 8 do
+--      hxch = find(h8[hidx],"0123456789ABCDEF")
+--      if not hxch then ?9/0 end if
+--      n = n*16+hxch-1
+--  end for
+--  return n
+--end function
+
+sequence captureProcs   -- sets of {hProc,hThr,cProc,oWr,runWith,crashpath,date/time}
+         captureProcs = {}
+
+global procedure StoreCPR(atom cProc)
+integer k
+    k = 0
+    for i=1 to length(captureProcs) do
+        if captureProcs[i][3]=-1 then
+            k = i
+            exit
+        end if
+    end for
+    if k=0 then ?9/0 end if -- no spare slot!
+    -- Convert to something we can actually use...
+    cProc = c_func(xOpenProcess,{PQIADH,0,peek4u(cProc)})   -- AG
+    if cProc=INVALID_HANDLE_VALUE then
+        Ferror("Open Process",1)
+        return
+    end if
+    captureProcs[k][3] = cProc
+end procedure
+
+global procedure StoreOWR(atom oHwr)
+atom hChildStdinWrDup
+integer k
+    k = 0
+    for i=1 to length(captureProcs) do
+        if captureProcs[i][4]=-1 then
+            k = i
+            exit
+        end if
+    end for
+    if k=0 then ?9/0 end if -- no spare slot!
+    -- Convert to something we can actually use...
+    hChildStdinWrDup = allocate(4)
+    if not c_func(xDuplicateHandle,{captureProcs[k][3], --cProc,
+                                    peek4u(oHwr),
+                                    c_func(xGetCurrentProcess,{}),
+                                    hChildStdinWrDup,
+                                    gW,     -- GENERIC_WRITE
+                                    False,  -- not inherited
+                                    0}) then
+        oHwr = 0
+    else
+        oHwr = peek4s(hChildStdinWrDup)
+    end if
+    free(hChildStdinWrDup)
+    captureProcs[k][4] = oHwr
+end procedure
+
+
+sequence EXE
+
+--include ppp.e
+procedure initCons()
+sequence commandline
+integer cll
+    pSA = allocate(sizeofstruct(SECURITY_ATTRIBUTES))
+    mem_set(pSA,0,sizeofstruct(SECURITY_ATTRIBUTES))
+    poke4(pSA+SA_nLength, sizeofstruct(SECURITY_ATTRIBUTES))
+    poke4(pSA+SA_bInheritHandle, True)
+    pi = allocate(sizeofstruct(PROCESS_INFORMATION))
+    mem_set(pi,0,sizeofstruct(PROCESS_INFORMATION))
+    si = allocate(sizeofstruct(STARTUPINFO))
+    mem_set(si,0,sizeofstruct(STARTUPINFO))
+    poke4(si+STARTUPINFO_cb, sizeofstruct(STARTUPINFO))
+
+    --
+    -- figure out the full path to edita.exw/e
+    --
+    commandline = command_line()
+    commandline = commandline[2]
+    cll = length(commandline)
+    -- Basic sanity check:
+    if cll<9
+    or not equal(LowerCase(commandline[cll-8..cll-1]),"edita.ex") then
+        if cll>=5 and equal(LowerCase(commandline[cll-4..cll]),"edita") then
+            commandline &= ".exw"
+            cll += 4
+        else
+            Ferror("command_line[2] not edita.exw[e]:\n"&ppf(command_line()),1)
+            return
+        end if
+    end if
+    if cll=9 then -- just "edita.exw" (or "edita.exe")
+        EXE = initialcurrentdir
+    else
+        EXE = commandline[1..cll-9]
+    end if
+
+    initCONS = 1
+end procedure
+
+global integer LDOpcode
+               LDOpcode = -99 -- Invalid value
+constant LDpsch = {-1,  -- Report Painter
+                   0,   -- Print
+                   1,   -- Print Preview
+                   2}, -- Window Painter
+         LDpidx = {1,1,1,2},
+         LDpgm = {"pp\\pp",
+                  "eawpaint"},
+         LDdesc = {"Print Preview",
+                   "Window Painter"}
+
+
+global function LDRun(object opcode)
+-- See LDpsch for valid integer opcodes, it can also be a sequence,
+-- eg "pFTP", "tedb", "vedb".
+-- The latter two are defined in edita.ini; if you add another entry
+-- to that section it should work without any futher mod, provided
+-- the (standalone) program is located (as .exe or .exw) in the same
+-- directory as edita.exe/w.
+sequence tgt
+object d
+integer idx,k
+atom hProc, hThr
+
+    stopMacroLearn(1)
+    if currfile
+    or sequence(opcode) then
+        if currfile and actionsave[currfile]!=actionptr[currfile] then
+            void = saveCurr()
+        end if
+        if not initCONS then
+            initCons()
+            if not initCONS then return 0 end if
+        end if
+        if sequence(opcode) then
+            tgt = opcode
+        else
+            idx = LDpidx[find(opcode,LDpsch)]   -- will crash if called wrong
+            tgt = LDpgm[idx]
+            LDOpcode = opcode
+        end if
+        k = find('\\',tgt)
+        if k and atom(dir(tgt[1..k-1])) then
+            tgt = tgt[k+1..length(tgt)]
+        end if
+        tgt = EXE & tgt & ".exw"
+        d = dir(tgt)
+        if not sequence(d) then
+            tgt[length(tgt)] = 'e'
+            d = open(tgt,"rb")
+            if d=-1 then
+                if sequence(opcode) then
+                    Ferror(sprintf("%s not found.",{tgt}),0)
+                else
+                    Ferror(sprintf("%s not found.\n\n %s not installed",{tgt,LDdesc[idx]}),0)
+                end if
+                return 0
+            end if
+            close(d)
+            if find(' ',tgt) then
+                tgt = "\"" & tgt &"\""
+            end if
+        else
+            d = getExtRunWith("exw")
+            if not length(d) then
+                Ferror("getExtRunWith(exw) is {}",0)
+                return 0
+            end if
+            if match("%s",d) then
+                tgt = sprintf(d,{tgt})
+            else
+                if not find('\"',d) and find(' ',d) then
+                    tgt = sprintf("\"%s\" \"%s\"",{d,tgt})
+                else
+                    tgt = sprintf("%s \"%s\"",{d,tgt})
+                end if
+            end if
+        end if
+        crashpath = EXE
+        if not c_func(xCreateProcess,{
+                                      NULL,
+                                      allocate_StringZ(tgt),
+                                      NULL,     -- process security attributes
+                                      NULL,     -- primary thread security attributes
+                                      True,     -- handles are inherited
+                                      0,            -- creation flags
+                                      NULL,     -- use parent's environment
+                                      allocate_StringZ(EXE),
+                                      si,       -- STARTUPINFO pointer
+                                      pi}) then -- receives PROCESS_INFORMATION
+
+            Ferror(tgt&"\n in "&EXE&"\nCreate process",1)
+            return 0
+        end if
+--DEV nicked from Run2; why are there both LDRun and Run2??
+        hProc = peek4u(pi+PROCESS_INFORMATION_hProcess)
+        hThr  = peek4u(pi+PROCESS_INFORMATION_hThread)
+
+        d = dir(crashpath&"ex.err")
+        if atom(d) then d = {{"ex.err"}} end if
+
+        captureProcs = append(captureProcs,{hProc,hThr,0,0,1,crashpath,d})
+
+        void = c_func(xWaitForInputIdle,{hProc,750})
+
+    else
+        Ferror("No file",0) --DEV disable instead
+        return 0
+    end if
+    return 1
+end function
+global constant r_LDRun = routine_id("LDRun")
+
+
+sequence prevcommandline
+         prevcommandline = ""
+sequence prevpath
+         prevpath = ""
+sequence commandline
+integer runWith --DEV??
+
+constant rwtae = xl("Run With / Treat as Extension")
+--DEV rename as ausc
+constant ccotxt = xl("Always use specified command")
+
+constant RunHist = create(Window,xl("Parameterised Run"),   0,Main,    34,202,750,128,0)
+constant RHetxt = create(Label,rwtae,                       0,RunHist, 14,  8,172, 18,0)
+constant RHext = create(ComboDropDown,"ComboDropDownList",  0,RunHist,190,  4, 65,157,0)
+constant RHeinf = create(Label,"xxx",                       0,RunHist,283,  8,452, 20,0)
+constant CmdLine = create(ComboDropDown,"",                 0,RunHist, 13, 36,724,203,0)
+--DEV rename as AlwaysRunWith?
+constant CaptureConsole = create(CheckBox,ccotxt,           0,RunHist, 15, 66,365, 20,0)
+constant HlpBtn = create(Button,xl("Help"),                 0,RunHist,515, 67, 60, 24,0)
+constant OKBtn = create(Button,xl("OK"),                    0,RunHist,595, 67, 49, 24,BS_DEFPUSHBUTTON)
+constant CancelBtn = create(Button,xl("Cancel"),            0,RunHist,661, 67, 75, 24,0)
+
+    if RHetxt or RHeinf then end if -- suppress warnings (DEV)
+
+sequence emap
+integer emi
+
+procedure Run2(sequence thispath)
+atom hProc, hThr
+integer k
+object d
+    --
+    -- First, add commandline to run history
+    --
+    k = getCount(CmdLine)
+    while k do
+        if compare(commandline,getItem(CmdLine,k))=0 then exit end if
+        k -= 1
+    end while
+    if k=0 then
+        void = insertItem(CmdLine,commandline,0)
+    end if
+
+    --
+    -- maintain previous commandline for [Ctrl] Shift F5:
+    --
+    prevcommandline = commandline
+    prevpath = thispath
+
+    crashpath = thispath
+    if not chdir(crashpath) then
+        Ferror("Cannot chdir to "&crashpath,0)
+        return
+    end if
+    --
+    -- run eacons.exw, with pid and target program as command_line parameters
+    --
+    if equal(commandline,"open") then
+        void = c_func(xShellExecute,
+                      {mainHwnd,
+                       allocate_StringZ("open"),                                    --lpOperation,
+                       allocate_StringZ(filepaths[currfile]&filenames[currfile]),   --lpFile, 
+                       allocate_StringZ(""),                                        --lpParams,
+                       allocate_StringZ(filepaths[currfile]),                       --lpDir,
+                       SW_SHOWDEFAULT})                                             --nShowCmd
+    else
+        if not c_func(xCreateProcess,{
+                                      NULL,
+                                      allocate_StringZ(commandline),
+                                      NULL,     -- process security attributes
+                                      NULL,     -- primary thread security attributes
+                                      True,     -- handles are inherited
+                                      0,            -- creation flags
+                                      NULL,     -- use parent's environment
+                                      NULL,     -- use parent's current directory
+                                      si,       -- STARTUPINFO pointer
+                                      pi}) then -- receives PROCESS_INFORMATION
+
+            Ferror(commandline&"\nCreate process",1)
+            return
+        end if
+
+        hProc = peek4u(pi+PROCESS_INFORMATION_hProcess)
+        hThr  = peek4u(pi+PROCESS_INFORMATION_hThread)
+        runWith = 0 --DEV
+        d = dir(crashpath&"ex.err")
+        if atom(d) then d = {{"ex.err"}} end if
+        captureProcs = append(captureProcs,{hProc,hThr,-1,-1,runWith,crashpath,d})
+        void = c_func(xWaitForInputIdle,{hProc,750})
+    end if
+end procedure
+
+object ext
+--DEV rename as alwaysRunWith?
+integer captureConsoleOutput
+function setCommandLine()
+    commandline = getExtRunWith(ext)
+    if not length(commandline) then return 0 end if
+    if not equal(commandline,"open") then
+        if match("eacons.exw",commandline)
+        and match("%08x",commandline) then
+            commandline = sprintf(commandline,{mainHwnd,filepaths[currfile]&filenames[currfile]})
+        elsif match("%s",commandline) then
+            commandline = sprintf(commandline,{filepaths[currfile]&filenames[currfile]})
+        else
+            if not find('\"',commandline) and find(' ',commandline) then
+                commandline = sprintf("\"%s\" \"%s%s\"",{commandline,filepaths[currfile],filenames[currfile]})
+            else
+                commandline = sprintf("%s \"%s%s\"",{commandline,filepaths[currfile],filenames[currfile]})
+            end if
+        end if
+    end if
+    return 1
+end function
+
+sequence rect
+
+function flattentxt(sequence txtlines)
+sequence res
+    res = ""
+    for i=1 to length(txtlines) do
+        res &= txtlines[i]&'\n'
+    end for
+    return res
+end function
+
+
+without trace
+function RunHistHandler(integer id, integer msg, atom wParam, object lParam)
+integer k
+    if object(lParam) then end if
+    if msg=WM_CHAR then
+        if wParam=VK_RETURN then
+            id = OKBtn
+            msg = WM_COMMAND
+        elsif wParam=VK_ESCAPE then
+            id = CancelBtn
+            msg = WM_COMMAND
+        end if
+    end if
+    if msg=WM_COMMAND then
+        if id=OKBtn then
+            commandline = getText(CmdLine)
+            Run2(filepaths[currfile])
+            msg = WM_CLOSE
+        elsif id=CancelBtn then
+            msg = WM_CLOSE
+        elsif id=HlpBtn then
+            void = messageBox(ccotxt,flattentxt(xl("_F5CCO")),0)
+        elsif id=CaptureConsole then
+            if lParam=1 then    -- accelerator key
+                captureConsoleOutput = not captureConsoleOutput
+                setCheck(CaptureConsole,captureConsoleOutput)
+            else
+                captureConsoleOutput = isChecked(CaptureConsole)
+            end if
+            if captureConsoleOutput then
+                setCaptureFlag(filepaths[currfile], filenames[currfile],getText(CmdLine))
+            else
+                setCaptureFlag(filepaths[currfile], filenames[currfile],0)
+                if setCommandLine() then
+                    setText(CmdLine,commandline)
+                    setFocus(OKBtn)
+                else
+                    setText(CmdLine,"**ERROR**")
+                end if
+            end if
+        elsif id=RHext and wParam=LBN_SELCHANGE then
+            k = getIndex(RHext)
+            if k then
+                emi = emap[k]
+                setText(RHeinf,extset[emi][2])
+                ext = extset[emi][1]
+                if setCommandLine() then
+                    setText(CmdLine,commandline)
+                else
+                    setText(CmdLine,"**ERROR**")
+                end if
+            end if
+        end if
+    end if
+    if msg=WM_KILLFOCUS and id=CmdLine+1 then
+        if sendMessage(CmdLine,CB_GETDROPPEDSTATE,0,0) then
+            void = sendMessage(CmdLine,CB_SHOWDROPDOWN,0,0)
+        end if
+    elsif msg=WM_CLOSE then
+        removeFocus(RunHist)
+        setVisible(RunHist,False)
+    elsif msg=WM_SIZE and id=RunHist then
+        rect = getClientRect(RunHist)
+        void = c_func(xMoveWindow, {getHwnd(CmdLine), 13, 36, rect[3]-28,203,1})
+        void = c_func(xMoveWindow, {getHwnd(HlpBtn), rect[3]-237, 67, 60,24,1})
+        void = c_func(xMoveWindow, {getHwnd(OKBtn), rect[3]-157, 67, 49,24,1})
+        void = c_func(xMoveWindow, {getHwnd(CancelBtn), rect[3]-93, 67, 75,24,1})
+    end if
+    return 0
+end function
+setHandler({RunHist,RHext,RHext+1,CmdLine,CmdLine+1,CaptureConsole,HlpBtn,OKBtn,CancelBtn},routine_id("RunHistHandler"))
+
+global procedure Run(integer control, integer shift)
+sequence filename
+    if currfile then
+        if not saveCurr() then return end if
+        if not initCONS then
+            initCons()
+        end if
+        if shift and length(prevcommandline) then
+            --
+            -- Run last
+            --
+            commandline = prevcommandline
+            setText(CmdLine,commandline)
+            Run2(prevpath)
+            return
+        end if
+        filename = filenames[currfile]
+        --
+        -- Get previous value of console capture flag
+        --
+        ext = getCaptureFlag(filepaths[currfile], filename)
+        captureConsoleOutput = sequence(ext)
+        setCheck(CaptureConsole,captureConsoleOutput)
+        if captureConsoleOutput then
+            if match("=",ext)=1 then
+                ext = ext[2..length(ext)]
+                captureConsoleOutput = 0
+            end if
+        else
+            ext = getFileExtension(filename)
+        end if
+        if captureConsoleOutput then
+            commandline = ext
+        elsif not setCommandLine() then
+            control = 1
+        end if
+
+        if control then
+            --
+            -- Run via a dialog
+            --
+            if shift and length(prevcommandline) then
+                commandline = prevcommandline
+            end if
+            deleteItem(RHext,0) -- empty list
+            emap = repeat(0,length(extset))
+            emi = 0
+            for i=1 to length(extset) do
+                if length(extset[i][2]) then    -- command is not ""
+                    emi += 1
+                    emap[emi] = i
+                    void = insertItem(RHext,extset[i][1],0)
+                end if
+            end for
+            for i=1 to length(emap) do
+--              if emap[i] and equal(extset[emap[i]][1],ext) then
+--                  setIndex(RHext,emap[i])
+                emi = emap[i]
+                if emi and equal(extset[emi][1],ext) then
+                    setIndex(RHext,emi)
+                    setText(RHeinf,extset[emi][2])  -- added 28/9/14 (spotted in passing)
+                    exit
+                end if
+            end for
+            setText(CmdLine,commandline)
+            addFocus(RunHist)
+            openWindow(RunHist,SW_NORMAL)
+        else
+            setText(CmdLine,commandline)
+            Run2(filepaths[currfile])
+        end if
+    end if
+end procedure
+
+procedure openErr(sequence cpath, object cdir)
+object d, cd11
+    crashpath = cpath
+    cd11 = cdir[1][1]
+    d = dir(crashpath&cd11)
+    if sequence(d) and not equal(d,cdir) then
+        if openAndShuffleErr(1,cd11)=3 then -- if switch (ie already open) then
+--DEV hmmm, this may always have been done by now???
+--              void=openFile(-1,1,0)       --      reopen
+        end if
+    end if
+end procedure
+
+global function CheckCaptured()
+atom oHwr, cProc
+atom hProc, hThr
+atom ret
+integer lCP
+sequence cpath
+object cdir
+atom exitcode = allocate_TextSpace(4),
+     dwWritten = allocate_TextSpace(4)
+
+    lCP = length(captureProcs)
+    for i=lCP to 1 by -1 do
+        --
+        -- Check the child is still alive
+        --
+--DEV (emergency/temporary bugfix, no idea what is going on)
+if i>length(captureProcs) then exit end if
+        cProc = captureProcs[i][3]
+        if cProc=-1 then
+            cProc = 0
+        end if
+        if cProc!=0 then
+            if not c_func(xGetExitCodeProcess, {cProc, exitcode}) then
+                Ferror("GetExitCodeProcess (grandchild)",1)
+                return 1
+            end if
+            ret = peek4u(exitcode)
+            if ret!=STILL_ACTIVE then
+                --
+                -- post a wake-up (binary zero) to eacons.exw:
+                -- (NB: eacons.exw may already have terminated)
+                --
+                oHwr = captureProcs[i][4]
+                void = c_func(xWriteFile,{oHwr,allocate_StringZ(""),1, dwWritten, NULL})
+                --
+                -- rare case; bug in eacons.exw?:
+                if ret then
+                    cpath = captureProcs[i][6]
+                    cdir = captureProcs[i][7]
+                    captureProcs = captureProcs[1..i-1]&captureProcs[i+1..length(captureProcs)]
+                    openErr(cpath,cdir)
+                    return 1
+                end if
+                --
+            end if
+        end if
+        hProc = captureProcs[i][1]
+        --
+        -- ...and the secondary process (eacons.exw) [or child if runWith=3]
+        --
+        if not c_func(xGetExitCodeProcess, {hProc, exitcode}) then
+            Ferror("GetExitCodeProcess",1)
+            return 1
+        end if
+        ret = peek4u(exitcode)
+        if ret!=STILL_ACTIVE then
+            hThr = captureProcs[i][2]
+            cpath = captureProcs[i][6]
+            cdir = captureProcs[i][7]
+            captureProcs = captureProcs[1..i-1]&captureProcs[i+1..length(captureProcs)]
+            void = c_func(xCloseHandle, {hProc})
+            void = c_func(xCloseHandle, {hThr})
+            if i=lCP then   -- the last one started
+                c_proc(xSetForegroundWindow,{mainHwnd})
+                lCP = 0
+            end if
+            if ret and not cProc then
+                openErr(cpath,cdir)
+            end if
+        end if
+    end for
+
+    return lCP
+end function

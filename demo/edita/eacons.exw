@@ -1,0 +1,539 @@
+--
+-- eacons.exw
+--
+-- This is the secondary process for capturing console i/o. See eacons.ew
+--
+-- see win32hlp, chapter "Processes and Threads",
+--               topic "Creating a Child Process with Redirected Input and Output".
+--               (only output is captured here, but I have done input if needed)
+--
+-- Note: this program _must_ be run using exwc.exe. Edita will not attempt to 
+-- run this program, ie it does not attempt to capture console i/o, if it 
+-- cannot find an installed copy of exwc. The fullpath of exwc is also passed
+-- to this program on the command line. Hence this is not bound/compiled.
+
+--DEV not needed for Phix:
+--/*
+--include arwen.ew  -- I could just do this, but try & keep rt o/head down...
+--include dll.e     -- ditto
+constant 
+--   C_CHAR    = #01000001,
+--   C_UCHAR   = #02000001,
+--   C_SHORT   = #01000002,
+--   C_USHORT  = #02000002,
+     C_INT     = #01000004,
+     C_UINT    = #02000004,
+     C_LONG    = C_INT,
+     C_ULONG   = #02000004,
+     C_POINTER = C_ULONG
+--   C_FLOAT   = #03000004,
+--   C_DOUBLE  = #03000008
+
+constant NULL = 0 -- NULL pointer
+
+--include machine.e
+constant M_ALLOC = 16,  M_FREE = 17
+function allocate(integer n) return machine_func(M_ALLOC, n) end function
+procedure free(atom a) machine_proc(M_FREE, a) end procedure
+function allocate_string(sequence s)
+-- create a C-style null-terminated string in memory
+atom mem
+    
+    mem = machine_func(M_ALLOC, length(s) + 1)
+    if mem then
+        poke(mem, s)
+        poke(mem+length(s), 0)
+    end if
+    return mem
+end function
+--*/
+
+procedure ErrorExit0(sequence errmsg)
+    puts(1,errmsg)  -- we are capturing console i/o, after all!
+    if getc(0) then end if
+    abort(1)
+end procedure
+
+--/**/constant 
+--/**/  kernel32 = open_dll("kernel32.dll"),
+--/**/  user32 = open_dll("user32.dll")
+
+--/*
+constant 
+    M_OPEN_DLL = 50,
+    M_DEFINE_C = 51,
+    kernel32 = machine_func(M_OPEN_DLL, "kernel32.dll"),
+    user32 = machine_func(M_OPEN_DLL, "user32.dll")
+--*/
+    if kernel32 = NULL then ErrorExit0("Couldn't open kernel32") end if
+    if user32 = NULL then ErrorExit0("Couldn't open user32") end if
+
+function link_c_func(atom dll, sequence name, sequence args, atom result)
+integer handle
+--/**/  handle = define_c_func(dll, name, args, result)
+--/*
+        handle = machine_func(M_DEFINE_C, {dll, name, args, result})
+--*/
+        if handle = -1 then ErrorExit0("Couldn't link :" & name & "()") end if
+        return handle
+end function
+
+constant 
+
+--#without reformat
+--  xCreateFile = link_c_func(kernel32, "CreateFileA",
+--      {C_POINTER,     -- LPCTSTR  lpFileName, // address of name of the file
+--       C_LONG,        -- DWORD  dwDesiredAccess,  // access (read-write) mode
+--       C_LONG,        -- DWORD  dwShareMode,  // share mode
+--       C_POINTER,     -- LPSECURITY_ATTRIBUTES  lpSecurityAttributes, // address of security descriptor
+--       C_LONG,        -- DWORD  dwCreationDistribution,   // how to create
+--       C_LONG,        -- DWORD  dwFlagsAndAttributes, // file attributes
+--       C_POINTER},    -- HANDLE   hTemplateFile   // handle of file with attributes to copy
+--      C_POINTER),     -- HANDLE
+
+    xGetStdHandle = link_c_func(kernel32, "GetStdHandle",
+        {C_LONG},       --  DWORD  nStdHandle   // input, output, or error device
+        C_POINTER),     -- HANDLE
+
+    xSetStdHandle = link_c_func(kernel32, "SetStdHandle",
+        {C_LONG,        --  DWORD  IDStdHandle, // input, output, or error device
+         C_POINTER},    --  HANDLE  hHandle     // handle to be a standard handle
+        C_INT),         -- BOOL
+
+    xCreatePipe = link_c_func(kernel32, "CreatePipe",
+        {C_POINTER, -- PHANDLE  hReadPipe,  // address of variable for read handle
+         C_POINTER, -- PHANDLE  hWritePipe, // address of variable for write handle
+         C_POINTER, -- LPSECURITY_ATTRIBUTES  lpPipeAttributes, // address of security attributes
+         C_INT},    -- DWORD  nSize     // number of bytes reserved for pipe
+        C_INT),     -- BOOL
+
+--  xGetCurrentProcess = link_c_func(kernel32, "GetCurrentProcess",
+--      {},         --  no parameters
+--      C_POINTER), -- returns HANDLE
+--
+    xCreateProcess = link_c_func(kernel32, "CreateProcessA",
+        {C_POINTER,     --  LPCTSTR  lpApplicationName, // pointer to name of executable module
+         C_POINTER,     --  LPTSTR  lpCommandLine,  // pointer to command line string
+         C_POINTER,     --  LPSECURITY_ATTRIBUTES  lpProcessAttributes, // pointer to process security attributes
+         C_POINTER,     --  LPSECURITY_ATTRIBUTES  lpThreadAttributes,  // pointer to thread security attributes
+         C_LONG,        --  BOOL  bInheritHandles,  // handle inheritance flag 
+         C_ULONG,       --  DWORD  dwCreationFlags, // creation flags
+         C_POINTER,     --  LPVOID  lpEnvironment,  // pointer to new environment block
+         C_POINTER,     --  LPCTSTR  lpCurrentDirectory,    // pointer to current directory name
+         C_POINTER,     --  LPSTARTUPINFO  lpStartupInfo,   // pointer to STARTUPINFO
+         C_POINTER},    --  LPPROCESS_INFORMATION  lpProcessInformation     // pointer to PROCESS_INFORMATION
+        C_LONG),        -- BOOL 
+
+--  xWriteFile = link_c_func(kernel32, "WriteFile",
+--      {C_POINTER,     --  HANDLE  hFile,  // handle of file to write to
+--       C_POINTER,     --  LPCVOID  lpBuffer,  // address of data to write to file
+--       C_LONG,        --  DWORD  nNumberOfBytesToWrite,   // number of bytes to write
+--       C_POINTER,     --  LPDWORD  lpNumberOfBytesWritten,    // address of number of bytes written
+--       C_POINTER},    --  LPOVERLAPPED  lpOverlapped  // addr. of structure needed for overlapped I/O
+--      C_INT),         -- BOOL
+
+    xReadFile = link_c_func(kernel32, "ReadFile",
+        {C_POINTER,     --  HANDLE  hFile,  // handle of file to read
+         C_POINTER,     --  LPVOID  lpBuffer,   // address of buffer that receives data
+         C_LONG,        --  DWORD  nNumberOfBytesToRead,    // number of bytes to read
+         C_POINTER,     --  LPDWORD  lpNumberOfBytesRead,   // address of number of bytes read
+         C_POINTER},    --  LPOVERLAPPED  lpOverlapped  // address of structure for data
+        C_INT),         -- BOOL
+
+    xGetExitCodeProcess = link_c_func(kernel32, "GetExitCodeProcess",
+        {C_ULONG,       --  HANDLE  hProcess,   // handle to the process
+         C_ULONG},      --  LPDWORD  lpExitCode     // address to receive termination status
+        C_ULONG),       -- BOOL
+
+    xWaitForSingleObject = link_c_func(kernel32, "WaitForSingleObject",
+        {C_ULONG,       --  HANDLE  hObject,    // handle of object to wait for
+         C_ULONG},      --  DWORD  dwTimeout    // time-out interval in milliseconds
+        C_ULONG),       -- DWORD    -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
+
+--  xGetConsoleScreenBufferInfo = link_c_func(kernel32, "GetConsoleScreenBufferInfo",
+--      {C_POINTER,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+--       C_POINTER},    --  PCONSOLE_SCREEN_BUFFER_INFO  lpConsoleScreenBufferInfo  // address of screen buffer info.
+--      C_INT),         -- BOOL
+--
+--  xReadConsoleOutput = link_c_func(kernel32, "ReadConsoleOutputA",
+--      {C_POINTER,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
+--       C_POINTER,     --  PCHAR_INFO  pchiDestBuffer, // address of buffer that receives data
+--       C_LONG,        --  COORD  coordDestBufferSize, // column-row size of destination buffer
+--       C_LONG,        --  COORD  coordDestBufferCoord,    // upper-left cell to write to
+--       C_POINTER},    --  PSMALL_RECT  psrctSourceRect    // address of rectangle to read from 
+--      C_INT),     -- BOOL
+--
+    xSendMessage = link_c_func(user32, "SendMessageA", {C_POINTER, C_UINT, C_UINT, C_UINT}, C_LONG),
+
+    xGetLastError = link_c_func(kernel32, "GetLastError", {}, C_INT),
+
+    xCloseHandle = link_c_func(kernel32, "CloseHandle",
+        {C_POINTER},    --  HANDLE  hObject // handle of object to close
+        C_INT)          -- BOOL
+--#with reformat
+
+
+procedure ErrorExit(sequence errmsg)
+        printf(1,"%s[%d]",{errmsg,c_func(xGetLastError,{})})
+--/**/  flush(1)
+--/*
+        machine_proc(60, 1) --  flush(1)
+--*/
+        if getc(0) then end if
+        abort(1)
+end procedure
+
+
+constant 
+    -- SECURITY_ATTRIBUTES structure
+    sizeofSA        = 12,   --new_struct(),     --Win32.hlp:
+    SALength        = 0,    --struc(C_LONG),    --DWORD
+--  SASecurityDescr = 4,    --struc(C_POINTER), --LPVOID
+    SAInheritHandle = 8,    --struc(C_LONG),    --BOOL
+
+    -- PROCESS_INFORMATION structure
+    sizeofPI        = 16,   --new_struct(),     --Win32.hlp:
+    PI_hProcess     = 0,    --struc(C_POINTER), --HANDLE
+    PI_hThread      = 4,    --struc(C_POINTER), --HANDLE
+    PI_dwProcessId  = 8,    --struc(C_LONG),    --DWORD
+--  PI_dwThreadId   = 12,   --struc(C_LONG),    --DWORD
+
+    -- STARTUPINFO structure
+    sizeofSI        = 68,   --new_struct(),     --Win32.hlp:
+    SI_cb           = 0,    --struc(C_LONG),    --DWORD
+
+--  -- SMALL_RECT structure
+--  sizeofSR        = 8,
+----    SRLeft          = 0,    --  SHORT Left; 
+----    SRTop           = 2,    --  SHORT Top; 
+----    SRRight         = 4,    --  SHORT Right; 
+----    SRBottom        = 6,    --  SHORT Bottom; 
+
+--  -- CONSOLE_SCREEN_BUFFER_INFO structure
+--  sizeofCSBI      = 22,--18,  --DEV careful! I got this all wrong:
+--  CSBIdwSize      = 0,    --COORD; 
+----    CSBIdwCurPos    = 4,    --COORD; 
+----    CSBIwAttributes = 8,    --WORD; 
+----    CSBIsrWindow    = 10,   --SMALL_RECT; 
+----    CSBIdwMaximumWindowSize = 18, --COORD; 
+ 
+--constant 
+    WM_COPYDATA = 74,
+    True=1
+
+--  clear_screen()  --CRITICAL!! (anytime before the set std output handle)
+                    --           (- and before the get std output handle!!)
+
+--constant --INVALID_HANDLE_VALUE = -1,
+--       STD_INPUT_HANDLE = -10,
+--       STD_OUTPUT_HANDLE = -11
+--       STD_ERROR_HANDLE = -12
+constant STD_OUTPUT_HANDLE = #FFFFFFF5 -- (-11)
+constant hSaveStdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
+
+--constant WHITE0 = " \n\r\t"&0
+
+--function getErrorMessages(sequence prev)
+----
+---- Read the console screen.
+---- Scan the (end of the) text already collected, and remove any overlap.
+----
+--atom pCSBI, pSR
+--atom dwSize, pBuf
+--integer sX, sY, dwords
+--sequence res
+--integer lp, ki, l
+--
+--  pCSBI=allocate(sizeofCSBI)
+--  pSR=allocate(sizeofSR)
+--
+--  if not c_func(xGetConsoleScreenBufferInfo,{hSaveStdout,pCSBI}) then
+--      ErrorExit("GetConsoleScreenBufferInfo failed\n")
+--  end if
+--  dwSize=peek4u(pCSBI + CSBIdwSize)   --#00190050 = 25*80
+--  poke4(pSR,0)
+--  poke4(pSR+4,dwSize)
+--  sX=and_bits(dwSize,#FFFF)
+--  sY=floor(dwSize/#10000)
+--  dwords = sX*sY
+--  pBuf = allocate(dwords*4)
+--
+--  if not c_func(xReadConsoleOutput,{hSaveStdout,pBuf,dwSize,NULL,pSR}) then
+--      ErrorExit("ReadConsoleOutput failed\n")
+--  end if
+--  free(pCSBI)
+--  free(pSR)
+--  res = {}
+--  for i = sY to 1 by -1 do
+--      for j = sX to 1 by -1 do
+--          if peek(pBuf+(i-1)*sX*4+(j-1)*4)!=' ' then
+--              if length(res)<i then
+--                  res = repeat({},i)
+--              end if
+--              res[i]=repeat(' ',j)
+--              for k = 1 to j do
+--                  res[i][k] = peek(pBuf+(i-1)*sX*4+(k-1)*4)
+--              end for
+--              exit
+--          end if
+--      end for
+--  end for
+--  free(pBuf)
+----trace(1)
+--  --
+--  -- Strip any confusing whitespace from text already collected
+--  --
+--  for i = length(prev) to 1 by -1 do
+--      for j = length(prev[i]) to 1 by -1 do
+--          if not find(prev[i][j],WHITE0) then exit end if
+--          prev[i] = prev[i][1 .. j - 1]
+--      end for
+--      ki = i
+--      while 1 do
+--          l = match("\r\n",prev[ki])
+--          if not l then exit end if
+----trace(1)
+--          prev = prev[1..ki - 1]&
+--                 {prev[ki][1 .. l - 1],
+--                  prev[ki][l + 2 .. length(prev[ki])]}&
+--                 prev[ki + 1 .. length(prev)]
+--          ki+=1
+--      end while
+--      if ki = length(prev) and length(prev[ki]) = 0 then
+--          ki -= 1
+--          prev = prev[1 .. ki]
+--      end if
+--  end for
+--  --
+--  -- remove any overlap with text already collected.
+--  --
+--  lp = length(prev)
+--  if lp then
+--      for i = length(res) to 1 by -1 do
+--          if match(prev[lp],res[i])=1 then
+--              if lp-i+1 > 0 then  -- res may be much longer than prev - skip
+--                  if equal(prev[lp-i+1..lp-1],res[1..i-1]) then
+--                      res[i] = res[i][length(prev[lp])+1..length(res[i])]
+--                      res=res[i..length(res)]
+--                      exit
+--                  end if
+--              end if
+--          end if
+--      end for
+--  end if
+--  while length(res) and not length(res[length(res)]) do
+--      res=res[1..length(res)-1]
+--  end while
+----if length(res) then trace(1) end if
+--  return res
+--end function
+
+object void
+
+
+constant hChildStdoutRd = allocate(4),
+         hChildStdoutWr = allocate(4),
+         pSA = allocate(sizeofSA)
+         mem_set(pSA,0,sizeofSA)
+         poke4(pSA + SALength, sizeofSA)
+         poke4(pSA + SAInheritHandle, True)
+
+constant pi = allocate(sizeofPI),
+         si = allocate(sizeofSI)
+         mem_set(si,0,sizeofSI)
+         poke4(si + SI_cb, sizeofSI)
+
+constant dwRead=allocate(4)
+
+constant exitcode = allocate(4)
+constant FORTYMS=40,                 -- Forty milliseconds, 1/25th of a second
+         STILL_ACTIVE=259
+
+constant --gW = #40000000, --GENERIC_WRITE,
+         BUFSIZE = 256,
+         chBuf = allocate(BUFSIZE)
+--       dwWritten = allocate(4),
+--       fsR = 1, --FILE_SHARE_READ
+--       OPEN_EXISTING = 3
+
+function getHex8(sequence h8)
+--
+-- Return one of the handle values passed as text.
+--
+atom n
+integer hxch
+    if length(h8)!=8 then ?9/0 end if   -- bad length!
+    n=0
+    for hidx = 1 to 8 do
+        hxch=find(h8[hidx],"0123456789ABCDEF")
+        if not hxch then ?9/0 end if    -- invalid hex char!
+        n=n*16+hxch-1
+    end for
+    return n
+end function
+
+--
+-- CD_ constants (for WM_COPDATA messages) are granted unique numbers 
+--                 based (approximately) on their date of invention.
+--
+-- These *must* match edita.exw:
+--
+constant CD_CPR =#20050224, -- eacons.exw: Child Process ID
+         CD_OWR =#20050225, --    "        Output Write handle
+         CD_CONS=#20050226  --    "		   Captured console output (also eama.ew)
+constant CDS = allocate(12)
+
+--include ppp.e
+--procedure Main()
+integer bytesRead
+
+--Main: 
+--=====
+--sequence msg
+--sequence mailname
+sequence cl, command
+atom mainHwnd
+atom addr
+--atom Hmf
+atom ret, hProc, hThr
+--, dwPID
+atom hChOut
+sequence oneline
+
+    cl=command_line()
+    -- grab the parent pid and target process from the command line or halt.
+    if length(cl) < 4 then ErrorExit("Error: command line length < 4") end if
+    for i=4 to length(cl) do
+        command=cl[i]
+        if find(' ',command)
+        and command[1]!='\"'
+        and command[length(command)]!='\"' then
+            cl[i]='\"'&command&'\"'
+        end if
+    end for
+    command=cl[4]
+    for i = 5 to length(cl) do
+        command&=' '&cl[i]
+    end for
+--  --
+--  -- open the mailslot created by eacons.ew
+--  --
+--  mailname = "\\\\.\\mailslot\\edita"&cl[3]
+--  addr = allocate_string(mailname)
+--  Hmf = c_func(xCreateFile,{addr,gW,fsR,pSA,OPEN_EXISTING,0,NULL})
+--  free(addr)
+    mainHwnd=getHex8(cl[3])
+
+    -- check version
+--  poke4(CDS,{CD_VER,0,0})
+--  if c_func(xSendMessage, {mainHwnd, WM_COPYDATA, NULL, CDS}) != #0015 then
+--      ErrorExit("invalid version")
+--  end if
+
+    -- Create a pipe for the child's STDOUT.
+ 
+    if not c_func(xCreatePipe,{hChildStdoutRd, hChildStdoutWr, pSA, 0}) then
+        ErrorExit("Stdout pipe creation failed\n")
+    end if
+
+--clear_screen()
+    hChOut = peek4u(hChildStdoutWr)
+    if not c_func(xSetStdHandle,{STD_OUTPUT_HANDLE, hChOut}) then
+        ErrorExit("Redirecting STDOUT failed")
+    end if
+ 
+    -- Create the child process.
+ 
+    addr=allocate_string(command)
+    ret=c_func(xCreateProcess,{
+        NULL,   -- executable module
+        addr,   -- command line
+        NULL,   -- process security attributes
+        NULL,   -- primary thread security attributes
+        True,   -- handles are inherited
+        0,      -- creation flags
+        NULL,   -- use parent's environment
+        NULL,   -- use parent's current directory
+        si,     -- STARTUPINFO pointer
+        pi})    -- receives PROCESS_INFORMATION
+    free(addr)
+
+    if not ret then
+        ErrorExit("Create process failed")
+    end if 
+
+    -- After process creation, restore STDOUT.
+ 
+    if not c_func(xSetStdHandle,{STD_OUTPUT_HANDLE, hSaveStdout}) then
+        ErrorExit("Re-redirecting Stdout failed\n")
+    end if 
+
+    hProc = peek4u(pi + PI_hProcess)
+    hThr  = peek4u(pi + PI_hThread)
+
+--  dwPID=peek4u(pi + PI_dwProcessId)
+    --
+    -- Send back vital control information to eacons.ew:
+    --
+--  msg = sprintf("cPr:%08x oWr:%08x",{dwPID,hChOut})
+--  addr = allocate_string(msg)
+--trace(1)
+    poke4(CDS,{CD_CPR,4,pi + PI_dwProcessId})
+    void = c_func(xSendMessage, {mainHwnd, WM_COPYDATA, NULL, CDS})
+    poke4(CDS,{CD_OWR,4,hChildStdoutWr})
+    void = c_func(xSendMessage, {mainHwnd, WM_COPYDATA, NULL, CDS})
+
+--  void = c_func(xWriteFile, {Hmf, addr, length(msg), dwWritten, NULL})
+--  free(addr)
+    --
+    -- enter busy loop transferring data from the (blocked) pipe.
+--   to
+--  -- the (non-blocked) mailslot. Save a copy for error message handling.
+    --
+--  res={}
+    while 1 do
+        if c_func(xReadFile,{peek4s(hChildStdoutRd), chBuf, BUFSIZE, dwRead, NULL}) then
+            bytesRead = peek4s(dwRead)
+            if bytesRead=0 then exit end if
+--          void = c_func(xWriteFile, {Hmf, chBuf, bytesRead, dwWritten, NULL})
+            poke4(CDS,{CD_CONS,bytesRead,chBuf})
+            void = c_func(xSendMessage, {mainHwnd, WM_COPYDATA, NULL, CDS})         
+            oneline = peek({chBuf,bytesRead})
+--DEV:
+--          while length(oneline) and oneline[$]=0 do   -- WARNING: ReadFile may crash on 2.4:
+            -- The above ReadFile will crash on Euphoria 2.4 if the program being run is a 
+            -- proper GUI app (but does not end in ".exw"). This should be the only use of $
+            -- in Edita (it was developed on 2.4). Proper GUI apps do not run correctly on the
+            -- 2.4 version of exwc.exe anyway...
+            while length(oneline) and oneline[length(oneline)]=0 do
+                oneline=oneline[1..length(oneline)-1]
+            end while
+            if length(oneline) then
+                puts(1,oneline)
+            end if
+--          res = append(res, oneline)
+        end if
+        void = c_func(xGetExitCodeProcess, {hProc, exitcode})
+        ret = peek4u(exitcode)
+        if ret!=STILL_ACTIVE then exit end if
+        ret = c_func(xWaitForSingleObject, {hProc, FORTYMS})
+    end while
+--  --
+--  -- Read the console for any error messages...
+--  --
+--  res = getErrorMessages(res) 
+--  --
+--  -- And mail any error messages back to edita (eacons.ew)...
+--  --
+--  for i = 1 to length(res) do
+--      oneline = res[i]&"\r\n"
+--      bytesRead = length(oneline)
+--      poke(chBuf,oneline)
+--      void = c_func(xWriteFile, {Hmf, chBuf, bytesRead, dwWritten, NULL})
+--  end for
+    -- Close process and thread handles.
+    void = c_func(xCloseHandle, {hProc})
+    void = c_func(xCloseHandle, {hThr})
+
+--end procedure
+--Main()

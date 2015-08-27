@@ -1,0 +1,105 @@
+--
+-- demo_curve_fit.exw
+--
+
+--/* Not required for Phix:
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+include ..\..\builtins\graphics.e
+include ..\..\builtins\image.e
+--*/
+include arwen.ew
+include ..\arwen\dib256.ew
+
+constant LOGBASE_NATURAL = 2.7182818284590447
+
+------------------------------------
+
+constant DEMO = create(Window,  "Curve fit test - Images are DIBsections", 0, 0,20,20,650,340,{0,0})
+
+constant centre_label    = create(Label,    "centre", 0, DEMO,  80,190, 40, 22,0)
+constant centre_trackbar = create(HTrackBar,      "", 0, DEMO, 120,190,140, 22,{TBS_NOTICKS,0})
+constant height_label    = create(Label,    "height", 0, DEMO,  80,210, 40, 22,0)
+constant height_trackbar = create(HTrackBar,      "", 0, DEMO, 120,210,140, 22,{TBS_NOTICKS,0})
+constant pos_label       = create(Label,  "position", 0, DEMO,  80,240, 40, 22,0)
+constant pos_trackbar    = create(HTrackBar,      "", 0, DEMO, 120,240,140, 22,{TBS_NOTICKS,0})
+constant vert_label      = create(Label,  "vertical", 0, DEMO,  80,270, 40, 22,0)
+constant vert_trackbar   = create(HTrackBar,      "", 0, DEMO, 120,270,140, 22,{TBS_NOTICKS,0})
+if vert_label or pos_label or height_label or centre_label then end if -- suppress warnings
+
+setScrollInfo(vert_trackbar, {1, 100, 10, 1}, 1)
+setScrollInfo(pos_trackbar, {1, 500, 10, 1}, 1)
+setScrollInfo(centre_trackbar, {1, 1000, 10, 1}, 1)
+setScrollInfo(height_trackbar, {1, 500, 10, 1}, 1)
+
+-------------------- THE IMAGES ON THE SCREEN ----------------------------
+
+integer dissipationcurve, -- the dib of the image
+        gauss
+
+sequence data
+
+procedure setDibs()
+sequence pal
+
+    dissipationcurve = loadDibImage(getAppDir() & "demo_curve_fit.bmp")
+    if dissipationcurve=0 then
+        puts(1,"unable to load " & getAppDir() & "demo_curve_fit.bmp")
+        if getc(0) then end if
+        abort(1)
+    end if
+    drawDibFrame(dissipationcurve, 1, 0)
+
+    gauss = createDib(getDibWidth(dissipationcurve), getDibHeight(dissipationcurve))
+    pal = makeIdentityPaletteColours()
+    setDibPalette(gauss, 1, pal)
+    setDibPalette(dissipationcurve, 1, pal)
+end procedure
+
+procedure renewGauss()
+atom centre, inv, height, junk, pos, vert
+    vert = getPos(vert_trackbar)
+    pos = getPos(pos_trackbar)+200
+    height = getPos(height_trackbar)/5+100
+    inv = getDibHeight(gauss)
+    centre = getPos(centre_trackbar)
+    data = repeat(0, getDibWidth(gauss))
+    for i=1 to length(data) do
+        junk = (i+centre-pos)/(length(data)*4)
+        data[i] = height+vert-power(LOGBASE_NATURAL, -(centre*power(junk,2)))*height
+    end for
+    plotDibPixelList(gauss, 0, data, BRIGHTRED)
+end procedure
+
+procedure displayImage(atom hDC)
+    copyDib(hDC, 10 , 10, gauss)
+end procedure
+
+integer firsttime = 0
+function handler_MAIN(integer id, integer msg, atom wParam, object lParam)
+
+    if msg=WM_ACTIVATEAPP then
+        if firsttime=0  then
+            if id or lParam then end if -- suppress warnings
+            setDibs()
+            copyDibDib(dissipationcurve, gauss)
+            displayImage(getPrivateDC(DEMO))
+            firsttime = 1
+        end if
+    elsif msg=WM_PAINT then
+        displayImage(wParam)
+    elsif msg=WM_HSCROLL then
+        copyDibDib(dissipationcurve, gauss)
+        renewGauss()
+        displayImage(getPrivateDC(DEMO))
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+end function
+
+setHandler({DEMO,centre_trackbar,height_trackbar,pos_trackbar,vert_trackbar}, routine_id("handler_MAIN"))
+
+WinMain(DEMO, SW_NORMAL)
+void = deleteDib(0)

@@ -1,0 +1,259 @@
+
+-- this file will manage a set of permanently allocated memory
+-- to help speed up the allocation of memory
+
+--/*
+include structures.ew
+include machine.e
+--*/
+
+without type_check
+
+
+function prepareBlocks(integer sizeofblock, integer numberofblocks)
+sequence blocks
+atom lpBlock
+    sizeofblock = 4*(floor((sizeofblock+3)/4)) -- ensure is a multiple of 4
+    lpBlock = allocate(sizeofblock*numberofblocks)
+    blocks = repeat(lpBlock, numberofblocks)
+    for i=2 to numberofblocks do
+        lpBlock += sizeofblock
+        blocks[i] = lpBlock
+    end for
+    return blocks
+end function
+
+---------------------------------
+
+atom LabelPointerStart, LabelBlockSize, LabelPointer, LabelPointerEnd
+
+LabelBlockSize = 100000
+LabelPointerStart = allocate(LabelBlockSize)
+LabelPointer = LabelPointerStart
+LabelPointerEnd = LabelPointerStart+LabelBlockSize-2
+
+global function allocate_StringZ(sequence s)
+-- allocate, poke & null-terminate a text string
+
+integer len,len4
+atom res
+
+    len = length(s)
+
+    res = LabelPointer
+    len4 = len+4-and_bits(len,3)    -- round to next dword
+    LabelPointer += len4
+    if LabelPointer>LabelPointerEnd then
+        LabelPointer = LabelPointerStart+len4
+        if LabelPointer>LabelPointerEnd then ?9/0 end if
+        res = LabelPointerStart
+    end if
+
+    poke(res, s)
+    poke(res+len, 0)
+
+    return res
+end function
+
+--DEV untested:
+global function allocate_StringW(sequence s)
+-- allocate, poke & null-terminate a unicode string
+
+integer len,len4
+atom res
+
+    len = length(s)*2
+    res = LabelPointer
+    len4 = len+4-and_bits(len,3)    -- round to next dword
+    LabelPointer += len4
+    if LabelPointer>LabelPointerEnd then
+        LabelPointer = LabelPointerStart+len4
+        if LabelPointer>LabelPointerEnd then ?9/0 end if
+        res = LabelPointerStart
+    end if
+    poke2(res, s)
+    poke2(res+len, 0)
+    return res
+end function
+
+
+global function allocate_TextSpace(integer sLen)
+--
+-- Quickly "allocate" memory for the text used in lists or control labels. 
+-- I assume the strings themselves are generally quite small (<20 chars). 
+-- Uses the same memory block as allocate_StringZ().
+--
+-- Usage:
+-- addr = allocate_TextSpace(len) -- addr now has the address that can be poked
+-- [optional] mem_set(addr, 0, len) -- initialise block to binary zeroes
+--
+atom res
+    res = LabelPointer
+    sLen += 4-and_bits(sLen, 3) -- ensure length is a multiple of 4
+    LabelPointer += sLen            -- advance the circular address pointer
+    if LabelPointer>LabelPointerEnd then
+        LabelPointer = LabelPointerStart+sLen
+        if LabelPointer>LabelPointerEnd then ?9/0 end if
+        res = LabelPointerStart
+    end if
+    return res
+end function
+
+---------------------------------
+
+atom lpMultiListIndex
+integer MultiListIndex_size
+
+MultiListIndex_size = 200
+lpMultiListIndex = allocate(MultiListIndex_size)
+
+
+global function allocate_ListIndexes(integer size)
+    if size>MultiListIndex_size then
+        MultiListIndex_size = size
+        free(lpMultiListIndex)
+        lpMultiListIndex = allocate(size)
+    end if
+    return lpMultiListIndex
+end function
+
+
+---------------------------------
+
+sequence ScrollBlocks
+integer CurrentScrollBlock
+
+constant NUMSCROLLBLOCKS = 100
+CurrentScrollBlock = 0
+ScrollBlocks = prepareBlocks(sizeofstruct(SCROLLINFO), NUMSCROLLBLOCKS)
+
+global function allocate_Scroll()
+    CurrentScrollBlock += 1
+    if CurrentScrollBlock>NUMSCROLLBLOCKS then
+        CurrentScrollBlock = 1
+    end if
+    return ScrollBlocks[CurrentScrollBlock]
+end function
+
+---------------------------------
+
+
+sequence PaintBlocks
+integer CurrentPaintBlock
+
+constant NUMPAINTBLOCKS = 100
+CurrentPaintBlock = 0
+PaintBlocks = prepareBlocks(sizeofstruct(PAINTSTRUCT), NUMPAINTBLOCKS)
+
+global function allocate_Paint()
+
+    CurrentPaintBlock += 1
+    if CurrentPaintBlock>NUMPAINTBLOCKS then
+        CurrentPaintBlock = 1
+    end if
+    return PaintBlocks[CurrentPaintBlock]
+end function
+
+---------------------------------
+
+sequence RectBlocks
+integer CurrentRectBlock
+
+constant NUMRECTBLOCKS = 30
+CurrentRectBlock = 0
+RectBlocks = prepareBlocks(sizeofstruct(RECT), NUMRECTBLOCKS)
+
+global function allocate_Rect()
+    CurrentRectBlock += 1
+    if CurrentRectBlock>NUMRECTBLOCKS then
+        CurrentRectBlock = 1
+    end if
+    return RectBlocks[CurrentRectBlock]
+end function
+---------------------------------
+
+sequence PointBlocks
+integer CurrentPointBlock
+
+constant NUMPOINTBLOCKS = 30
+CurrentPointBlock = 0
+PointBlocks = prepareBlocks(sizeofstruct(POINT), NUMPOINTBLOCKS)
+
+global function allocate_Point()
+    CurrentPointBlock += 1
+    if CurrentPointBlock>NUMPOINTBLOCKS then
+        CurrentPointBlock = 1
+    end if
+    return PointBlocks[CurrentPointBlock]
+end function
+---------------------------------
+
+sequence MenuBlocks
+integer CurrentMenuBlock
+
+constant NUMMENUBLOCKS = 30,
+         sizeof_MENUITEMINFO = sizeofstruct(MENUITEMINFO)
+
+CurrentMenuBlock = 0
+MenuBlocks = prepareBlocks(sizeof_MENUITEMINFO, NUMMENUBLOCKS)
+
+global function allocate_Menu()
+atom lpMenuBlock
+    CurrentMenuBlock += 1
+    if CurrentMenuBlock>NUMMENUBLOCKS then
+        CurrentMenuBlock = 1
+    end if
+    lpMenuBlock = MenuBlocks[CurrentMenuBlock]
+    mem_set(lpMenuBlock, 0, sizeof_MENUITEMINFO)
+    poke4(lpMenuBlock, sizeof_MENUITEMINFO)
+    return lpMenuBlock
+end function
+
+---------------------------------
+global procedure deallocate_AllMemory()
+
+    -- Label text and other allocated space
+    free(LabelPointerStart)
+
+    -- list indexes
+    free(lpMultiListIndex)
+
+    -- allocated blocks
+    free(ScrollBlocks[1])
+    free(PaintBlocks[1])
+    free(RectBlocks[1])
+    free(PointBlocks[1])
+    free(MenuBlocks[1])
+
+end procedure
+
+
+---------------------------------
+--constant loop = 1000000
+--atom pointer, t, d
+--
+--
+--d = time()
+--for i = 1 to loop do
+--end for
+--d = time() - d
+--
+----scroll 10.65, string allocation 11.42, space allocation 8.44
+--t = time()
+--for i = 1 to loop do
+--      pointer = allocate(18)
+--      free(pointer)
+--end for
+--? time() - t - d
+--
+----scroll 1.18, string allocation 2.87, space allocation 1.46
+--t = time()
+--for i = 1 to loop do
+--      pointer = allocate_TextSpace(18)
+--end for
+--? time() - t
+--
+--pause(2)
+--
+--
+--

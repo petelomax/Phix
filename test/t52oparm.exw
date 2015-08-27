@@ -1,0 +1,225 @@
+--
+-- t52oparm.exw     optional (/defaulted) parameter tests.
+-- ============
+--
+
+constant showprogress = 0
+
+object o
+function i1(integer i=37)
+    return i
+end function
+
+if showprogress then puts(1,"12\n") end if
+if i1()!=37 then ?9/0 end if
+if i1(15)!=15 then ?9/0 end if
+if i1()!=37 then ?9/0 end if
+if i1()=37 then
+    o=5
+else
+    o={}
+end if
+if i1(o)!=5 then ?9/0 end if
+
+function i3742()
+integer i=37, j=42
+    return i+j
+end function
+
+if i3742()!=79 then ?9/0 end if
+
+-- tests for getOneDefault:
+object a
+procedure p1(object b,c=b)
+    if b!=c then ?9/0 end if
+end procedure
+--p1(1) p1(1.1) p1("fred") p2("fred",{'f','r','e','d'}) -- compilation error expected
+p1(1) p1(1.1) p1("fred") p1("fred",{'f','r','e','d'})
+if showprogress then puts(1,"p1\n") end if
+procedure p2(object b=a)
+    if b!=a then ?9/0 end if
+end procedure
+a="fred" p2()
+--a=1
+procedure p3(object b=length(a))
+    if b!=length(a) then ?9/0 end if
+end procedure
+p3()
+procedure p3a(object a, object b=length(a))
+    if b!=length(a) then ?9/0 end if
+end procedure
+p3a("fred")
+if showprogress then puts(1,"p3a\n") end if
+procedure p4(object b,c=length(b))
+    if c!=length(b) then ?9/0 end if
+end procedure
+p4("12345")
+if showprogress then puts(1,"p4\n") end if
+--p4(55)    -- error expected   (occurred 24/6/10 as runtime error on line 47)
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p5(object b=puts(1,"hello"))    -- compilation error expected
+--end procedure
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p6(object b=length(command_line())) -- compilation error expected
+--end procedure
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p7(object b=length(c))  -- compilation error expected
+--end procedure
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p8(object b=length({})) -- compilation error expected
+--end procedure
+function p9(object b=command_line())
+    return b
+end function
+--?p9()
+object p9res=p9()
+if showprogress then ?p9res end if
+if showprogress then puts(1,"p9\n") end if
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p10(object b=p2())  -- compilation error expected
+--end procedure
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p11(object b=c) -- compilation error expected
+--end procedure
+procedure p12(object b=1)
+    if b!=1 then ?9/0 end if
+end procedure
+p12()
+if showprogress then puts(1,"p12\n") end if
+procedure p13(object b=-1)
+    if b!=-1 then ?9/0 end if
+end procedure
+p13()
+procedure p14(object b=-1.1)
+    if b!=-1.1 then ?9/0 end if
+end procedure
+p14()
+procedure p15(object b=1.2)
+    if b!=1.2 then ?9/0 end if
+end procedure
+p15()
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p16(object b,c=-b)  -- compilation error expected
+--end procedure
+procedure p17(object b='a')
+    if b!='a' then ?9/0 end if
+end procedure
+p17()
+if showprogress then puts(1,"p17\n") end if
+procedure p18(object b={1,2,3,{}})
+    if b!={1,2,3,{}} then ?9/0 end if
+end procedure
+p18()
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p19(object b={a})   -- compilation error expected
+--end procedure
+procedure p20(object b="fred")
+    if b!="fred" then ?9/0 end if
+end procedure
+p20()
+if showprogress then puts(1,"p20\n") end if
+--GOOD 22/6/10 (DEV: transfer to terror)
+--procedure p21(object b=+1)    -- compilation error expected
+--end procedure
+
+--GOOD 22/6/10 (DEV: transfer to terror)
+--forward function f(string s="true")
+--GOOD 22/6/10 (DEV: transfer to terror)
+--?f(:t="def")  -- compilation error expected
+--abort(1)
+
+function f(string s="false")    -- compilation error expected
+    return s
+end function
+
+--GOOD 22/6/10 (DEV: transfer to terror)
+--?f(:t="def")  -- compilation error expected
+--umm, possibly not the right message... (added after p30)
+--?f("abc",:s="def")    -- compilation error expected
+object sres
+sres = f(:s="abc")      if showprogress then ?sres end if
+sres = f(s:="abc")      if showprogress then ?sres end if
+sres = f("abc")         if showprogress then ?sres end if
+--abort(1)
+
+--manually check this uses opLen (yup, 25/6/10)
+procedure p30(object o, integer l=length(o))
+    if showprogress then ?{o,l} end if
+end procedure
+p30("1234")
+if o=5 then -- always true!
+    p30("123")
+else
+    p30(1)
+    ?9/0    -- never triggers (but code should still be emitted)
+end if
+p30(1,2)
+--GOOD 22/6/10 (DEV: transfer to terror)
+--p30(1,:o=1)   -- compilation error expected
+--but this inlines (yup, 25/6/10)
+procedure p31(sequence o, integer l=length(o))
+    if showprogress then ?{{o,l}} end if
+end procedure
+p31("123")
+p31("1234")
+
+-- (the errors below have been added to terror.exw)
+
+--q(1,2,3) -- compilation error expected [previously invoked as a procedure]
+--if q() then end if -- compilation error expected (got)
+--if q(1) then end if -- compilation error expected (got)
+--if q(1,2,3,4) then end if -- compilation error expected (got)
+function q(integer i, j, k=5)
+    return i+i+j+k
+end function
+if q(1,7,4)!=13 then ?9/0 end if
+if q(1,7)!=14 then ?9/0 end if
+if q(i:=1,j:=7)!=14 then ?9/0 end if
+if q(j:=7,i:=1)!=14 then ?9/0 end if
+--if q(i:=1)!=14 then ?9/0 end if  -- compilation error expected (got)
+--if q(j:=7)!=14 then ?9/0 end if  -- compilation error expected (got)
+--if q(k:=5)!=14 then ?9/0 end if  -- compilation error expected (got)
+--if q(i:=1,k:=5)!=14 then ?9/0 end if  -- compilation error expected (got)
+--if q(j:=7,k:=5)!=14 then ?9/0 end if  -- compilation error expected (got)
+if q(i:=1,j:=7,k:=4)!=13 then ?9/0 end if
+if q(i:=1,k:=4,j:=7)!=13 then ?9/0 end if
+if q(j:=7,i:=1,k:=4)!=13 then ?9/0 end if
+if q(j:=7,k:=4,i:=1)!=13 then ?9/0 end if
+if q(k:=4,i:=1,j:=7)!=13 then ?9/0 end if
+if q(k:=4,j:=7,i:=1)!=13 then ?9/0 end if
+--if q() then end if    -- compilation error expected (got)
+
+-- moved to terror, 5/7/2013:
+-- Added 22/3/2012
+--sequence x = {}
+--integer c = C_CHAR
+if showprogress then
+    eu:puts(1,"hello ")
+    phix:puts(1,"Pete\n")
+end if
+-- tests for getOneDefault:
+--object aA
+procedure p1X(object b,c=b)
+    if b!=c then ?9/0 end if
+end procedure
+p1X(1) 
+p1X(1.1) 
+p1X("fred") 
+p1X("fred",{'f','r','e','d'})
+
+-- Added 7/6/2013 (from a query on EuForum)
+object par_default    -- Currently no value 
+function foo(object mypar=par_default) 
+    -- some code 
+    return mypar    -- Or something more useful 
+end function 
+par_default = 55 
+if foo()!=55 then ?9/0 end if
+par_default = 56
+if foo()!=56 then ?9/0 end if
+if foo(57)!=57 then ?9/0 end if
+
+if showprogress then puts(1,"209\n") end if
+--puts(1,"done\n")
+--if getc(0) then end if
+

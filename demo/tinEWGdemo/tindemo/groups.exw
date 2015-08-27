@@ -1,0 +1,86 @@
+-- A simple Demo to show how SetGroup() and SetVisible() are working in tinEWG
+-- Creates something like a primitive TabControl
+-- 2012 Andreas Wagner andi@indonesianet.de
+include ..\tinewg.ew
+
+constant Group1 = 1,
+         Group2 = 2,
+         Group3 = 3
+
+WindowType = StandardWin
+{} = Window("Group Demo",-1,-1,400,200)             -- Create a centered Window
+
+constant groupbutton1 = Control(PushButton,"Group1",5,5,80,25)    --
+constant groupbutton2 = Control(PushButton,"Group2",85,5,80,25)   --
+constant groupbutton3 = Control(PushButton,"Group3",165,5,80,25)  --
+
+procedure Select1()
+    SetVisible({Group2,Group3},False)        -- 'Hide' Group2 and Group3
+    SetVisible({Group1},True)                -- 'Show' Group1
+    SetCheck(groupbutton2,False)             -- Depress the buttons
+    SetCheck(groupbutton3,False)             --
+end procedure
+
+procedure Select2()
+    SetVisible({Group1,Group3},False)
+    SetVisible({Group2},True)
+    SetCheck(groupbutton1,False)
+    SetCheck(groupbutton3,False)
+end procedure
+
+procedure Select3()
+    SetVisible({Group1,Group2},False)
+    SetVisible({Group3},True)
+    SetCheck(groupbutton1,False)
+    SetCheck(groupbutton2,False)
+end procedure
+
+
+constant groupframe1 = Control(Group,"Group1",5,30,385,130)
+constant check1 = Control(Check,"Item1",10,45,80,30)
+constant check2 = Control(Check,"Item2",10,75,80,30)
+constant check3 = Control(Check,"Item3",10,105,80,30)
+constant list1 = Control(MultiEdit,"MultiEdit1",100,45,250,110)
+SetText(list1,"This is a very primitive Demo, \r\n how Groups are working \r\n")
+SetGroup({groupframe1,check1,check2,check3,list1},Group1)   -- Add the Controls to 'Group1'
+
+SetCheck(groupbutton1,True)      -- Set the button to 'pressed' state
+
+ShowFlag = False                        -- Don't Display the following Controls now
+
+constant groupframe2 = Control(Group, "Group2" ,5,30,385,130)
+constant check21 = Control(Check, "Item21" ,10,45,80,30)
+constant check22 = Control(Check, "Item22",10,75,80,30)
+constant check23 = Control(Check,"Item23",10,105,80,30)
+constant list21 = Control(MultiEdit,"MultiEdit21",100,45,250,110)
+SetText(list21, "This is the Text for the second \r\n MultiEdit")
+SetGroup({groupframe2,check21,check22,check23,list21},Group2)    -- Add the Controls to 'Group2'
+
+constant groupframe3 = Control(Group, "Group3" ,5,30,385,130)
+constant check31 = Control(Check, "Item31" ,10,45,80,30)
+constant check32 = Control(Check, "Item32",10,75,80,30)
+constant check33 = Control(Check, "Item33",10,105,80,30)
+constant list31 = Control(MultiEdit, "MultiEdit31" ,100,45,250,110)
+SetText(list31, "This is the Text for the third \r\n MultiEdit")
+SetGroup({groupframe3,check31,check32,check33,list31},Group3)    -- Add the Controls to 'Group2'
+
+
+procedure EventLoop()
+    while True do
+        {} = WaitEvent()
+        switch Event do
+            case Click then
+                switch EventOwner do
+                    case groupbutton1  then
+                        Select1()
+                    case groupbutton2  then
+                        Select2()
+                    case groupbutton3  then
+                        Select3()
+                end switch
+        end switch
+    end while
+end procedure
+
+EventLoop()
+CloseApp(0)

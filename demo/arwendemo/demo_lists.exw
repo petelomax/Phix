@@ -1,0 +1,95 @@
+--
+-- demo of lists in ARWEN
+--
+--  Examples of ListBox, ComboDropDownList, ComboBox, and ComboDropDown controls.
+--
+
+--/* Not required for Phix
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+--*/
+include arwen.ew
+
+
+function MakeListData()
+sequence data
+    data = repeat(0, 10000)
+    for i=1 to 10000 do
+        data[i] = sprintf("Item %d", i)
+    end for
+    return data
+end function
+
+constant DUMMYDATA = MakeListData(),
+         LISTINFO = {"Lists in ARWEN",
+                     "ListBox - User can only select items.",
+                     "ComboDropDownList - Same behaviour as ListBox but the list drops down.",
+                     "ComboBox - Combination of List & Edit controls. Type some text and press Enter.",
+                     "ComboDropDown - ComboBox with a drop-down list. List must be open to enter text."}
+
+constant DEMO = create(Window,  "Lists in ARWEN", 0, 0,10,10,620,350,0)
+
+constant LIST1 = create(ListBox, "",  0, DEMO,10, 25, 105, 160, 0)
+constant LIST2 = create(ComboDropDownList,  "", 0, DEMO,130, 25, 105, 160, 0)
+constant LIST3 = create(ComboBox,"",  0, DEMO, 250, 25, 105, 160, 0)
+constant LIST4 = create(ComboDropDown,  "", 0, DEMO,370, 25, 105, 160, 0)
+
+constant BUTTON1 = create(Button, "Insert 10,000 items", 0, DEMO,  10, 200, 105, 40, BS_MULTILINE)
+constant BUTTON2 = create(Button, "Insert 10,000 items", 0, DEMO, 130, 200, 105, 40, BS_MULTILINE)
+
+constant STATUS = create(StatusBar, "",0, DEMO, 10,10,430,350,0)
+
+constant list_ids = {LIST1, LIST2, LIST3, LIST4}
+
+function demoHandler(integer id, integer msg, object wParam, object lParam)
+sequence text
+
+    if msg=WM_MOUSEMOVE then
+        -- display some helpful info about these list-type controls,
+        -- or rest the window text when the mose moves off them.
+        setText(DEMO, LISTINFO[find(id, list_ids)+1])
+    elsif msg=WM_COMMAND then
+        if id=LIST1 then
+            if wParam=LBN_SELCHANGE then
+                setText(STATUS, getItem(id, 0))
+            end if
+        elsif id=LIST2 then
+            if wParam=CBN_SELCHANGE then
+                setText(STATUS, getItem(id, 0))
+            end if
+        elsif id=LIST3 
+           or id=LIST4 then
+            if wParam=CBN_SELCHANGE then
+                text = getItem(id,0)
+                setText(STATUS, text)
+            end if
+        elsif id=BUTTON1
+           or id=BUTTON2 then
+            if id=BUTTON1 then
+                id = LIST1
+            else
+                id = LIST2
+            end if
+            deleteItem(id, 0)
+            lParam = time()
+            void = insertItem(id, DUMMYDATA, 0)
+            setIndex(id, 1)
+            setText(DEMO, sprintf("Time taken was : %1.2f seconds", time()-lParam))
+        end if
+    elsif msg=WM_KEYDOWN and wParam=VK_RETURN then
+        if id=LIST3 or id=LIST4 then
+            text = getText(id)
+            setText(STATUS, text)
+            void = insertItem(id, text, 0)
+            setText(id, "")
+        end if
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+end function
+
+setHandler({DEMO, LIST1, LIST2, LIST3, LIST4, BUTTON1, BUTTON2}, routine_id("demoHandler"))
+
+WinMain(DEMO, SW_NORMAL)

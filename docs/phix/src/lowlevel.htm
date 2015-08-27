@@ -1,0 +1,82 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Low level bug tips</h1>
+      <div id="mainSection">
+        Tips for resolving low-level bugs in phix:
+        <br>
+        <br>
+        There may be problems that go way beyond anything the standard ex.err, trace(), and profile() 
+        mechanisms can help you with, or indeed affect the latter trio directly: lower-level is needed,
+        at least until whichever of those three failed is fit and well again.
+        <br>
+        <br>
+        Obviously this is a last resort, feel free to chuck real nasties into my lap and stand well back.
+        <br>
+        <br>
+        Likewise this is not something you can jump into on day one; it needs a basic understanding of the
+        whole VM, and the ability to understand the whole of any list.asm files that you produce.
+        <br>
+        <br>
+        An intermediate level problem is resolving a bad <a href="html/glossary.htm#era">era</a>: often 
+        this can be resolved by careful examination of the specific builtins\VM file getting it wrong, and
+        perhaps a little bit of trial and error.
+        <br>
+        <br>
+        For an entry level low-level problem, might I suggest scouring a list.asm to find something that you 
+        could improve on, for example "if n&lt;length(s)" loads everything into registers before a cmp reg,reg 
+        whereas I am pretty sure a cmp reg,[ebx+reg*4-12] would help shave something off. Just bear in mind
+        that sometimes things are done the long/hard/convoluted way in order to be more helpful when things
+        go wrong, so consider adding a few more tests to test/terror.exw *before* starting anything else.
+        <br>
+        <br>
+        If possible, reproduce the problem using "p -d test" and running test.exe. Typically I will spend
+        quite some time reducing the program to the absolute bare bones, eg demo\arwendemo\bug003.exw is
+        a severely hacked copy of demo\arwendemo\demo_toolbar.exw and was created the hard way: by copying
+        the whole of arwen.ew and half a dozen other includes into bug003.exw, removing all the "global",
+        and deleting all the not used bits. The program has to be re-tested at every step, usually I have
+        to undo something that fixed it, and yes, it takes days, not hours. Once I have made life as easy 
+        as possible, and assuming close examination of the last changes in the list.asm revealed nothing,
+        I run the failing program under OllyDbg, regularly toggling back to said list.asm.
+        <br>
+        <br>
+        If the problem only occurs under "p test", a couple of extra steps are required: You may want or
+        need a listing of the compiler itself, especially the VM parts that get re-used, in which case 
+        run "p -d p" and copy the resulting list.asm to (say) p.asm. Then create another listing file 
+        (list.asm) using "p -d! test". Find the "call ecx" (or "call rcx") in p.exw/main() and trap on
+        that in OllyDbg (or FDBG). Single-step and make a note of the address it calls. Compare that 
+        with the top of your list.asm; the difference must be (manually) applied to all code addresses.
+        That covers the code section (CSvaddr), it may be that you need a similar difference to cover 
+        the data section (DSvaddr), both of which are fixed via the "p -d test" route. The easiest way 
+        to calculate the DSvaddr offset is by looking at any variable reference in the list.asm and then
+        compare it with the equivalent reference once you have found the precise location of the code 
+        you are actually debugging.
+        <br>
+        <br>
+        However the heap can also experience motion, and for that I can only recommend looking at the
+        value of pGtcb, which is at least in a static location, found by looking in that p.asm, whether 
+        running via "p -d test" or "p test". If your program allocates multiple blocks or use threads,
+        that may prove a fair bit more difficult.
+        <br>
+        <br>
+        The reason these things move (at least on windows 7) is that every time you allocate some memory,
+        the operating system locates it somewhere different. I *GUESS* it is either some kind of screen
+        saver for memory cells (ie preventing damage by always using the same parts) or more likely it
+        improves compatibility of some some application(s) that re-use memory (just) after it has been
+        freed, and further they might have been getting away with that an awful lot more on previous
+        versions of Windows, and therefore this has been introduced so that fewer people think the new 
+        version of Windows sucks when the real culrit is some bug-ridden application they use. Anyway,
+        it is a cross you must bear at the sharp end, and I trust it is now clear that "p -d test" is
+        at least three times easier than "p test" when attempting low-level debugging.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

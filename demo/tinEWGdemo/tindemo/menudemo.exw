@@ -1,0 +1,85 @@
+-- This is a Demo for Menus in tinEWG
+-- the functions are not completed and I'am unsure what is really needed
+-- I only plan for really 'basic' menu support.
+-- if i add everything that is possible it will be much too complicated.
+-- And i want to keep tinEWG as small as possible (but for sure add as much as needed)
+-- 2012 Andreas Wagner andi@indonesianet.de
+
+include ../tinewg.ew
+
+enum openfile = 100,savefile,exitapp
+
+
+{} = Window("Menue Demo")             -- You can leave out the parameters, they default to centered and 400x200
+                                    -- you can resize the Window later if needed.
+
+constant menu = CreateMenu()          -- We allways need to create the menu, basicly a container for our Items.
+                                    -- This is the Mainmenu for the Window
+
+constant popup = CreatePopupMenu()    -- Then we need to create the PopUps, also just container.
+constant about = CreatePopupMenu()    -- This are the Menus that appear when you select an Item in the Menubar
+constant subpopup = CreatePopupMenu() -- Popup Menus can have Subpopubs. See below
+
+AppendTextItem(popup,openfile, "&Open")   -- Now we can fill the menus with Items.
+AppendTextItem(popup,savefile, "&Save")   -- The id, the second parameter will be returned in the EventItem
+{} = AppendSeparator(popup)          -- This is just a Separator
+AppendTextItem(popup,exitapp, "E&xit")
+
+AppendTextItem(about,200,{"About &this program", "&Why?", "--", "Help", "And more", "and more", "and much more Items"}) -- This is the second way to call AppendTextItem()
+
+-- This line above is equal to the lines below, just less typing. 
+
+--AppendTextItem(about,200,"About &this program")  
+--AppendTextItem(about,201,"&Why")  
+--AppendSeparator(about)            
+--AppendTextItem(about,202,"Help")
+
+AppendTextItem(subpopup,300,{"SubItem1", "SubItem2", "SubItem3", "--", "SubItem4"}) -- Create the Subpopup the same way then other Menus
+
+{} = AppendPopup(menu,popup, "&File")     -- We can now connect the popups to the Mainmenu
+{} = AppendPopup(menu,about, "&About")
+{} = AppendPopup(popup,subpopup, "&SubMenu") -- and the Subpopup too the popup
+
+AppendTextItem(menu,10, "Info")      -- You can also Append Items directly to the Menubar
+
+{} = ConnectMenu(WinHwnd,menu)             -- And Finally connect the Mainmenu to the Window
+
+EnableItem(menu,201, False)    -- Enable or disable a MenuItem
+
+
+procedure Eventloop()
+    while WaitEvent() do
+        if Event=Menu then
+            if EventItem=exitapp then
+                if AskMsg("Close Program?", "Close Dialog") then
+                    CloseApp(0)
+                end if
+            elsif EventItem=10 then
+                InfoMsg(WINVERSION& " "&SERVICEPACK& "\r\n"& "Buildnumber: "&sprintf("%d",BUILDNUMBER)& "\r\n"&
+                        "Versionnumber: "&sprintf("%0.1f",WINVER), "Info Dialog")
+            elsif EventItem=200 then
+                InfoMsg("Menu Demo \r\n" & "using tinEWG" & sprintf("%x",TINVERSION), "About Dialog")
+            elsif EventItem=201 then
+                WarnMsg("Why? Why what?", "Danger Dialog")
+                EnableItem(menu,201,False)
+            elsif EventItem=202 then
+                if AskMsg("Are you really need help?", "Help Dialog") then
+                    EnableItem(menu,201,True)
+                end if
+            elsif EventItem=openfile then
+                InfoMsg("Nothing to Open", "Open Dialog")
+            elsif EventItem=savefile then
+                InfoMsg("Nothing to Save", "Save Dialog")
+            elsif EventItem>299 then
+                InfoMsg("SubItem " &sprintf("%d", EventItem-299)& " selected", "SubMenue Dialog")
+            else
+                InfoMsg("Item "&sprintf("%d", EventItem)& " selected", "Menue Dialog")
+            end if
+        end if
+        ProcessHandlers()
+    end while
+end procedure
+
+Eventloop()
+CloseApp()
+

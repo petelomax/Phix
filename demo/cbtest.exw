@@ -1,0 +1,48 @@
+--
+-- Check call_back memory usage.    
+--
+--  Run eg Task Manager at the same time and watch OpenEu (4b3) bleed memory,
+--                      and crash after about 30 seconds, on iteration 17,500. 
+--                      In contrast, 2.4/2.5 run at 60,000/min and leak fairly
+--                      slowly, probably managing hours before crashing, and
+--                      Of Course Phix runs at 300,000/min with no leak ;-)
+--                      (Or 36,000,000/min with the one-per-second-display)
+--
+--/*
+include ..\builtins\dll.e 
+--*/
+puts(1,"started...\n")
+--if getc(0) then end if
+
+function callback_routine()
+    return 0
+end function
+
+--atom t0 = time()+1
+
+procedure test_callback(sequence rname, integer loopcount)
+atom headfunc, writefunc
+    headfunc  = routine_id(rname)
+    writefunc = routine_id(rname)
+    headfunc  = call_back({'+', headfunc})
+    writefunc = call_back({'+', writefunc})
+--if t0<time() then
+    printf(1, "loop = %4d\n", {loopcount})
+--  t0 = time()+1
+--end if
+end procedure
+
+--// main 
+integer i
+    i = 1
+    while (1) do
+        test_callback("callback_routine", i)
+        i += 1
+    end while
+
+    -- Will never get here, you'll need to press Ctrl C to kill it (unless you're on 4b3, tee hee)
+
+    puts(1,"done...\n")
+    if getc(0) then end if
+--abort(0)
+

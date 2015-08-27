@@ -1,0 +1,143 @@
+-- xpm.exw
+-- 
+-- demo of the xpm file reader
+without warning
+
+include C:\Program Files\Phix\builtins\machine.e
+include C:\Program Files\Phix\builtins\dll.e
+include C:\Program Files\Phix\builtins\misc.e
+include C:\Program Files\Phix\builtins\msgbox.e
+include C:\Program Files\Phix\builtins\sort.e
+include C:\Program Files\Phix\builtins\file.e
+include C:\Program Files\Phix\builtins\get.e
+include C:\Program Files\Phix\builtins\wildcard.e
+include C:\Program Files\Phix\builtins\graphics.e
+include C:\Program Files\Phix\builtins\image.e
+
+include C:\Program Files\Phix\builtins\ppp.e
+include win32lib.ew     -- win32 library (0.15.e! working!!)
+--include C:\Program Files\Phix\demo\win32lib6\win32lib.ew  -- win32 library
+include xpm.e as xpm            -- XPM tools
+include file.e          -- directory searching
+include wildcard.e      -- upper/lower case
+
+sequence 
+    theDir,
+    theName,
+--  theBmp,
+    theList
+
+object theBmp
+    
+object bColour
+
+    bColour = getSysColor(COLOR_WINDOW)
+-- to see different effects, try also:
+--  bColour = #000000   -- Black
+--  bColour = #FFFFFF   -- White
+--  bColour = #FF0000   -- Blue
+--  bColour = #00FF00   -- Green
+--  bColour = #0000FF   -- Red
+    bColour = {and_bits(bColour,#FF),and_bits(bColour,#FF00)/#100,and_bits(bColour,#FF0000)/#10000}
+    
+-- read all the xpm files in the current directory
+
+theDir = dir( current_dir() )
+
+
+-- create them as DIBs, and store them in a list
+
+-- clear the list
+    theList = {}
+
+for i = 1 to length( theDir ) do  
+    -- get a name
+    theName = lower( theDir[i][D_NAME] )
+    
+    -- xpm?
+    if match( ".xpm", theName ) then
+--  if match( "mc.xpm", theName ) then
+--if not equal(theName,"s257.xpm") then
+--if not find(theName,{"app_x.xpm",
+--                   "arrdown2.xpm",
+--                   "arrup2.xpm",
+--                   "commun~1.xpm",
+--                   "commun~2.xpm",
+--                   "commun~3.xpm",
+--                   "commun~4.xpm",
+--                   "commun~5.xpm",
+--                   "?!?"}) then
+    
+        -- read the xpm into a euphoria bitmap
+--      theBmp = xpm:readXpm( theName, {255,255,255} )
+        theBmp = xpm:readXpm( theName, bColour )
+if atom(theBmp) then
+    if equal(theBmp,xpm:XPM_ERR_COLOR) then
+        puts(1,"couldn't translate color code for \""&theName&"\".\n")
+    else
+        ?9/0
+    end if
+else
+
+        -- create and add to the list        
+        theList = append( theList, createDIB( theBmp[2], theBmp[1] ) )
+--      theList = append(theList, createDIB(theBmp))
+end if
+--  pp({theName})
+--else
+--  pp(theName)
+--
+--end if        
+--else
+--  pp(theName)
+    end if
+    
+end for
+
+
+
+
+constant Win =  
+    create( Window, "Pixmap Demo", 0, Default, Default, 200, 100, 0 )
+
+
+procedure Paint( integer x1, integer y1, integer x2, integer y2 )
+    integer x, y
+    sequence result
+
+    -- get the extent
+    result = getWindowExtent( Win )
+    x1 = result[1]
+    y1 = result[2]
+--  result = getWindowRect(Win)
+--  x1 = result[3] - result[1]
+--  y1 = result[4] - result[2]
+    
+    x = 0
+    y = 0
+
+    -- draw all the bitmaps    
+    for i = 1 to length( theList ) do
+    
+        -- display a bitmap        
+        drawBitmap( Win, theList[i], x, y )    
+
+        -- move to next position in window
+        x = x + 24
+        
+        -- need to wrap?
+        if x+24 > x1 then
+            y = y + 24
+            x = 0            
+        end if
+    
+    end for
+
+    
+end procedure
+
+onPaint[Win] = routine_id("Paint")
+
+WinMain(Win)
+--WinMain(Win,Normal)
+

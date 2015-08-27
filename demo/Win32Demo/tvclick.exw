@@ -1,0 +1,35 @@
+--with trace
+include win32lib.ew
+without warning
+
+constant Window1 = createEx(Window, "Window1", 0, Default, Default, 400, 300, 0, 0)
+constant tvFlags = w32or_all({TVS_HASLINES,TVS_LINESATROOT,TVS_HASBUTTONS,TVS_SHOWSELALWAYS})
+constant TreeView2 = createEx(TreeView, "TreeView2", Window1, 8, 12, 208, 200, tvFlags ,0)
+constant LText3 = createEx(LText, "LText3", Window1, 228, 80, 148, 20, 0, 0)    
+
+procedure Window1_onActivate(integer self, integer event, sequence params)
+atom rent
+    rent = addTVItem(TreeView2, 0, 0, "Momma", 0)
+    for t=1 to 10 do
+        VOID = addTVItem(TreeView2, 0, 0, "Item #" & sprint(t),rent)
+    end for
+end procedure
+setHandler(Window1, w32HActivate, routine_id("Window1_onActivate"))
+
+integer pendclick
+        pendclick = 0
+procedure TreeView2_onClick(integer self, integer event, sequence params)
+    setText(LText3, getTVSelectedText(self))
+    pendclick = 1
+end procedure
+setHandler(TreeView2, w32HClick, routine_id("TreeView2_onClick"))
+
+procedure TreeView2_onChange(integer self, integer event, sequence params)
+    if pendclick = 1 then
+        setText(LText3, getTVSelectedText(self))
+        pendclick = 0
+    end if
+end procedure
+setHandler(TreeView2, w32HChange, routine_id("TreeView2_onChange"))
+
+WinMain(Window1,Normal)

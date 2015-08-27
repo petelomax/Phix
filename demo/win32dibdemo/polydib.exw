@@ -1,0 +1,85 @@
+-- Win32Dib demo: demonstrates the drawDibTransformedPolygon-procedure
+
+--without warning
+include w32dpoly.ew  -- only the core- and polygon-library are necessary
+
+object dib, screen_dib
+integer running, dx, dy, dw, dh, frames
+atom t
+
+dib = loadDib("demo.bmp")
+if not sequence(dib) then
+    if message_box("Can't load bitmap 'demo.bmp'.", "Error", MB_ICONERROR) then end if
+    abort(0)
+end if
+screen_dib = 0
+dx = 0	dy = 0	dw = 0	dh = 0
+running = 0
+
+constant win = create(Window, "Win32Dib bitmap polygon mapping demo", 0, Default, Default, 480, 300, 0)
+
+procedure winPaint(integer self, integer event, sequence parms)
+    if sequence(screen_dib) then
+	if self or event or sequence(parms) then end if -- suppress warnings
+	drawDib(win, screen_dib, 0, 0, 0, 0, screen_dib[DibWidth] - 1, screen_dib[DibHeight] - 1)
+    end if
+end procedure
+setHandler(win, w32HPaint, routine_id("winPaint"))
+
+procedure winResize(integer self, integer event, sequence parms)
+sequence rect
+    if self or event or sequence(parms) then end if -- suppress warnings
+    rect = getClientRect(win)
+    dx = floor(rect[3] / 4) + 1
+    dy = floor(rect[4] / 4) + 1
+    dw = rect[3]
+    dh = rect[4]
+    if sequence(screen_dib) then killDib(screen_dib) end if
+    screen_dib = newDib(dw, dh)
+end procedure
+setHandler(win, w32HResize, routine_id("winResize"))
+
+procedure winActivate(integer self, integer event, sequence parms)
+integer x1, y1, x2, y2, x3, y3, x4, y4
+    if self or event or sequence(parms) then end if -- suppress warnings
+    running = True
+    t = time()
+    frames = 0
+    while running do
+	x1 = rand(dx)		     y1 = rand(dy)
+	x2 = dw - rand(dx)	 y2 = rand(dy)
+	x3 = dw - rand(dx)	 y3 = dh - rand(dy)
+	x4 = rand(dx)		 y4 = dh - rand(dy)
+	if sequence(screen_dib) then
+	    clearDib(screen_dib, {255, 255, 0})
+	    drawDibTransformedPolygon(screen_dib, dib, {{x1, y1}, {x2, y2}, {x3, y3}, {x4, y4}}, {})
+	end if
+	frames += 1
+	if time() - t > 2 then
+	    setText(win, sprintf("%g FPS", frames / 2))
+	    frames = 0
+	    t = time()
+	end if
+	repaintWindow(win)
+	doEvents(win)
+    end while
+end procedure
+setHandler(win, w32HActivate, routine_id("winActivate"))
+
+procedure winClose(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if -- suppress warnings
+    running = False
+end procedure
+setHandler(win, w32HClose, routine_id("winClose"))
+
+procedure winEvent(integer self, integer event, sequence parms)
+    if self or event then end if -- suppress warnings
+    if parms[1] = WM_ERASEBKGND then -- suppress the erasing of the background: eliminates flickering
+	returnValue(1)
+    end if
+end procedure
+setHandler(win, w32HEvent, routine_id("winEvent"))
+
+WinMain(win, Normal)
+killDib(dib)
+if sequence(screen_dib) then killDib(screen_dib) end if

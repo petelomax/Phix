@@ -1,0 +1,59 @@
+--
+-- t97mleak.exw
+--
+-- Small demo program to force a memory leak (by patching the refcount).
+--
+--  Allows you to check if memory leak checking is switched on/
+--   working or not. Obviously, better performance can be obtained 
+--   when it is switched off, and a huge wad of cleanup code (see
+--   opCleanUp pemit.e) can be omitted. When it is switched on, it 
+--   counts the total number of bytes allocated and the total number 
+--   of bytes freed (that is internally, rather than via the hll 
+--   allocate() and free() functions) and displays a message just 
+--   before program termination if they differ.
+--
+--  NB: the program must /NOT/ end in abort for such to be reported.
+--   Also any offendee must (of course) be heap-allocated, which is
+--   the case for our manufactured "a2c" but is not for the initial
+--   constant "abc".
+--
+
+sequence VMep
+integer debugleak
+
+    #ilASM{ lea edi,[VMep]
+            lea ecx,[debugleak]
+            call %opGetVMep}    -- [edi]=VMep; [ecx]=debugleak
+
+    if debugleak=0 then
+        -- This should be the case for all public releases.
+        -- Hence this program is of limited use for most people.
+        puts(1,"Memory leak checking is disabled on this build.\n")
+--  else
+--              you should see a message when this program terminates.
+    end if
+
+sequence s
+integer addr
+    s="abc"
+    s[2]='2'
+--  #ilASM{ mov edi,[s]     -- source ref
+--          lea edx,[addr]  -- result addr
+--          call %opGetRaw} -- [edx] := edi shl 2
+--NB this will break if the modified s is allocated above #3FFF_FFFC (1GB), if
+--   necessary use the ebp_hiword trick from pcfunc.e. (or do the incref in asm,
+--   as shown commented out, but of course it is more fun to peek/poke things,
+--   or you could even opStoreFlt the thing, but I've better stuff to do...)
+    #ilASM{ mov edi,[s]             -- source ref
+            shl edi,2               -- -> raw addr
+--          add dword[edi-8],1
+            mov [addr],edi}         -- store (as int)
+
+    -- see pops.e/pemit.e for more info regarding opGetRaw.
+--  ?peek({addr,3})                 -- should print "a2c"
+--  ?peek({addr-12,20})             -- "" {0,0,0,3,0,0,0,1,0,0,0,#82,'a','2','c',0,?,?,?,?}
+    poke4(addr-8,peek4s(addr-8)+1)  -- increment the refcount
+--  ?peek({addr-12,20})             --    {0,0,0,3,0,0,0,2,0,0,0,#82,'a','2','c',0,?,?,?,?}
+--  s=""
+--  ?peek({addr-12,20})             --    {0,0,0,3,0,0,0,1,0,0,0,#82,'a','2','c',0,?,?,?,?}
+

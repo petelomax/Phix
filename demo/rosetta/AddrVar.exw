@@ -1,0 +1,45 @@
+--
+-- demo\rosetta\AddrVar.exw
+-- ========================
+--
+-- Demonstrate how to get the address of a variable and how to set the address of a variable.
+
+-- Phix does not natively support pointers, but there are methods to do whatever you need.
+-- You cannot set the address of a variable, but you can save it and use that to modify things.
+-- Things get more complicated for floats/strings/sequences, particularly wrt reference counts,
+--  but there are examples aplently, for pretty much everything, in the builtins/VM sources.
+-- Since all hll variables are dword-aligned or better, a shr 2 loses no information and the
+--  result can be safely stored in an integer, avoiding some nasty int/float conversions for
+--  anything above #3FFFFFFF (on 32 bit, add another 8Fs on 64 bit).
+-- Obviously extreme caution must be exercised, in the example below if you save the address
+--  of V which is local to the address procedure(), and then exit said, you have a pointer to 
+--  memory that will be re-used for something completely different almost immediately.
+-- Example is 32 and 64 bit compatible, which at this level needs twice the code, however the
+--  compiler only omits the appropriate binary for the currently selected target architecture.
+-- You can also use allocate/free with peek/poke to obtain similar effects.
+
+procedure address()
+object V
+integer addr4   -- stored /4 (assuming dword aligned, which it will be)
+#ilASM{
+    [32]
+        lea eax,[V]
+        shr eax,2
+        mov [addr4],eax
+    [64]
+        lea rax,[V]
+        shr rax,2
+        mov [addr4],rax
+    []
+      }
+    if machine_bits()=32 then
+        poke4(addr4*4,123)
+    elsif machine_bits()=64 then
+        poke8(addr4*4,123)
+    end if
+    ?V
+    if getc(0) then end if
+end procedure
+
+    address()
+

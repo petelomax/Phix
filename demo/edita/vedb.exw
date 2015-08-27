@@ -1,0 +1,1321 @@
+--
+-- vedb.exw
+--
+-- Validate edita.edb
+--  see r8 for major activities
+--DEV initiate full background scan.
+--
+--with trace
+constant editaEDB = "edita.edb"
+--constant editaEDB = "X.edb"
+constant isShutDownEdita = equal(editaEDB,"edita.edb")  -- used for testing
+
+--/**/include builtins\platform.e
+--/*
+include builtins\machine.e
+include builtins\misc.e
+include builtins\sort.e
+include builtins\file.e
+include builtins\dll.e
+include builtins\ppp.e
+include builtins\get.e
+include arwen\misc_arwen.e
+include arwen\message_box.ew
+include arwen\constants.ew
+include arwen\dll_links.ew
+include arwen\structures.ew
+include arwen\Quick_Allocations.ew
+include arwen\classes.ew
+--*/
+include ..\arwen\arwen.ew
+include builtins\ppp.e
+global integer isDebug
+include src\eamisc.e    -- UpperCase, LowerCase, Min, Max, curb, iff, despace
+global constant usegpp=1
+include src\eaxlate.e
+
+constant 
+        CD_EDITA = #20050228,   -- Are you really Edita?
+        CD_CL1L = #20050927,    -- command_line[1] Length
+        CD_CL1C = #20050928,    -- command_line[1] Char
+        CD_CL2L = #20050929,    -- command_line[2] Length
+        CD_CL2C = #20050930,    -- command_line[2] Char
+        CD_FBGS = #20051003,    -- full background scan start
+        CD_FBGSD = #20051004,   -- full background scan done?
+        Edita = xl("Edita"),
+        minlen = length(Edita),
+        CDS = allocate(12),
+        IDX = allocate(4)
+
+atom EditaHwnd
+     EditaHwnd = 0
+sequence cl1,cl2
+
+integer doCompress          -- see also cdb checkbox.
+        doCompress = 0
+
+function EnumWindowsProc(atom hwnd, atom lParam)
+integer len
+sequence text
+atom mem
+    if lParam then end if   -- suppress warnings
+    len = c_func(xSendMessage, {hwnd, WM_GETTEXTLENGTH, 0, 0} )
+    if len>=minlen then
+        len += 1
+        mem = allocate(len)
+        len = c_func(xSendMessage, {hwnd, WM_GETTEXT, len, mem} )
+        text = peek( {mem, minlen} )
+        free(mem)
+        if equal(Edita,text) then
+            --
+            -- Is it really Edita?
+            --
+            poke4(CDS,{CD_EDITA,0,0})
+            if c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})=CD_EDITA then
+                -- YES!
+                EditaHwnd=hwnd
+
+                poke4(CDS,{CD_CL1L,0,0})
+                len = c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})
+                cl1 = repeat(0,len)
+                for i=1 to len do
+                    poke4(IDX,i)
+                    poke4(CDS,{CD_CL1C,4,IDX})
+                    cl1[i] = c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})
+                end for
+
+                poke4(CDS,{CD_CL2L,0,0})
+                len = c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})
+                cl2 = repeat(0,len)
+                for i=1 to len do
+                    poke4(IDX,i)
+                    poke4(CDS,{CD_CL2C,4,IDX})
+                    cl2[i] = c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})
+                end for
+
+--              void = c_func(xSendMessage,{hwnd, WM_CLOSE,0,0})    -- too soon.
+                return 0    -- cease enumeration
+            end if
+        end if
+    end if  
+    return 1    -- continue enumeration
+end function
+
+void = c_func(xEnumWindows,{call_back(routine_id("EnumWindowsProc")),NULL})
+
+
+constant maintitle = xlna("Verify edita.edb"),
+         maintext = xl("_VEDB")
+constant Main = create(Window,maintitle,0,0,100,100,550,500,0)
+integer y
+sequence v8, v8txt
+integer rfbgs, cdb
+    y = 10
+    for i=1 to length(maintext) do
+        void = create(Label,maintext[i],0,Main,10,y,530,20,0)
+        y += 20
+    end for
+    y += 30
+    rfbgs = create(CheckBox,"Run full background scan",0,Main,30,y,500,20,0)
+    y += 30
+    v8 = repeat(0,9)        -- asterisk indicators
+    v8txt = repeat(0,9) -- phase text
+    for i=1 to 9 do
+        v8[i] = create(Label,"",0,Main,10,y,20,20,0)
+        v8txt[i] = create(Label,xl(sprintf("vedb_%d",i)),0,Main,30,y,500,20,0)
+        y += 20
+    end for
+    if EditaHwnd = 0    -- edita not running, do not attempt to stop/restart it.
+    or isShutDownEdita = 0 then
+        setEnable(rfbgs,False)
+        setEnable(v8txt[1..2],False)
+        setEnable(v8txt[length(v8)],False)
+        v8 = v8[1..length(v8)-1]
+    else
+        setEnable(v8txt[1],False)
+    end if
+    y += 10
+    cdb = create(CheckBox,"Compress database if updated",0,Main,30,y,500,20,0)
+    y += 40
+
+constant OK = create(Button,xl("OK"),0,Main,180,y,50,30,0),
+         Cancel = create(Button,xl("Cancel"),0,Main,280,y,70,30,0)
+
+
+constant ec = allocate(4)
+constant
+--  INFINITE = #FFFFFFFF,    -- Infinite timeout
+    PROCESS_QUERY_INFORMATION = #400,
+    procMem = allocate(4),
+    STILL_ACTIVE = 259
+
+include src\dbval.e
+procedure shutDownEdita()
+--
+-- Shutdown edita, because it has alot of this information cached, plus it cannot
+-- be allowed to attempt to update edita.edb (as part of background processing)
+-- while this program is running, especially not if uniq ids are being reassigned.
+--
+atom hProc
+object res
+    if EditaHwnd!=0 then
+
+        void = c_func(xGetWindowThreadProcessId,{EditaHwnd,procMem})
+        hProc = c_func(xOpenProcess,{PROCESS_QUERY_INFORMATION, False, peek4u(procMem)})
+
+        if hProc!=NULL then
+            void = c_func(xSendMessage,{EditaHwnd, WM_CLOSE,0,0})
+
+            while 1 do
+                void = c_func(xGetExitCodeProcess, {hProc, ec})
+                if peek4u(ec)!=STILL_ACTIVE then exit end if
+                doEvents(0)
+                void = c_func(xWaitForSingleObject, {hProc, 500})
+            end while
+            void = c_func(xCloseHandle,{hProc})
+        end if
+    end if
+-- added 5/4/9:
+    res = db_validate(initialcurrentdir&editaEDB)
+    if not equal(res,{1}) then
+        puts(1,"some database error:")
+        ? res
+        puts(1,"\nPress Enter...")
+        if getc(0) then end if
+        puts(1,"\n")
+        abort(0)
+    end if
+--  puts(1,"db_validate passed OK\n")
+    setText(Main,"db_validate passed OK")
+end procedure
+
+
+include src\eamisc.e
+include src\eaerror.ew
+
+
+--global integer checkProj
+--
+--global constant Extensions={},
+--              SynNames={},
+--              ExtensionNos={},
+--              filenames={},
+--              filepaths={},
+--              filetext={},
+--              actionsave={},
+--              actionptr={},
+--              bfStart=0,
+--              bfEnd=0,
+--              bfType=0,
+--              FOLD=0
+--global sequence bookmarks
+--
+--include eaedb.e
+include builtins\database.e
+
+----- ## routines etc copied from eaedb.e ## -----
+
+constant Tversion       = "version",
+         Tdirectories   = "directories",
+         Tfiles         = "files",
+         Tglobals       = "globals",
+         Tfolds         = "folds",      -- and bookmarks
+         Tbackups       = "backups"
+         --Tprojects        = "projects"    -- unused (DEV)
+
+procedure DBfatal(sequence msg)
+--trace(1) --DEV re-insert this if you get PC hangs.
+    if proemh("Error in eaedb.e",
+              msg&
+              "\n\nPress Yes to create .err file,\n"&
+              "Press No to attempt to continue.",
+              MB_YESNO)=IDYES then ?9/0 end if
+end procedure
+
+integer isOpen
+        isOpen = 0
+
+--/*
+constant M_SLEEP = 64   -- as per misc.e
+--*/
+
+procedure DBopen()
+integer errCode, retries
+sequence winTxt
+atom t
+    if not isOpen then
+        retries = 0
+--/**/  sleep(0)                    --/*
+        machine_proc(M_SLEEP, 0)    --*/ -- sleep(0), but misc.e checks t>0
+        t = time()
+        while 1 do
+            errCode = db_open(initialcurrentdir&editaEDB,DB_LOCK_EXCLUSIVE)
+            if errCode!=DB_LOCK_FAIL or retries>20 then exit end if
+            if t-time()>1 then
+                retries += 1
+                winTxt = getText(Main)
+                setText(Main,"DATABASE LOCKED")
+--/**/          sleep(1)                    --/*
+                machine_proc(M_SLEEP, 1)    --*/ -- sleep(1)
+                setText(Main,winTxt)
+--/**/          sleep(1)                    --/*
+                machine_proc(M_SLEEP, 1)    --*/ -- sleep(1)
+            else
+--/**/          sleep(0)                    --/*
+                machine_proc(M_SLEEP, 0)    --*/ -- sleep(0), but misc.e checks t>0
+            end if
+        end while
+        if errCode!=DB_OK then
+            DBfatal(sprintf("open %s%s [%d]",{initialcurrentdir,editaEDB,errCode}))
+        else
+            isOpen = 1
+        end if
+    end if
+end procedure
+
+procedure DBclose()
+    if isOpen then
+        db_close()
+        isOpen = 0
+    end if
+end procedure
+
+function SelectTable(sequence name)
+    DBopen()
+    if db_select_table(name)!=DB_OK then
+        DBfatal("db_select_table "&name)
+        return 0
+    end if
+    return 1
+end function
+
+sequence knownDirectories
+         knownDirectories={}
+
+procedure bulkUpkD(integer k)
+    if length(knownDirectories)<k then
+        -- bulk up table to next multiple of 32
+        knownDirectories &= repeat(0,floor((k-length(knownDirectories)+31)/32)*32)
+        if length(knownDirectories)<k then ?9/0 end if
+    end if
+end procedure
+
+function getDir(integer n)
+-- return the actual text of the directory path.
+object r
+integer k
+    bulkUpkD(n)
+    r = knownDirectories[n]
+    if atom(r) then
+        if not SelectTable(Tdirectories) then ?9/0 end if
+        for i=1 to db_table_size() do
+            k = db_record_data(i)
+            bulkUpkD(k)
+            if atom(knownDirectories[k]) then
+--DEV get_proper_path??
+                knownDirectories[k] = db_record_key(i)
+            end if
+        end for
+        r = knownDirectories[n]
+        if not SelectTable(Tfiles) then ?9/0 end if
+    end if
+    return r
+end function
+
+
+sequence knownFiles
+         knownFiles = {}
+
+procedure bulkUpkF(integer k)
+    if length(knownFiles)<k then
+        -- bulk up table to next multiple of 32
+        knownFiles &= repeat(0,floor((k-length(knownFiles)+31)/32)*32)
+        if length(knownFiles)<k then ?9/0 end if
+    end if
+end procedure
+
+function getNameAndDir(integer n, integer expandDir, integer closeDB)
+-- convert a unique file no (as found within the fileset of a global, for 
+-- example) into the file directory and name.
+-- expandDir is normally 1 for all display/comparison purposes, but if the
+--  result is to be used to read the files table, it should be 0.
+-- closeDB is normally 1 except during the project build scan, which calls
+--  DBclose() at the end.
+object r
+integer k
+
+    if n=-1 then    -- load req from getModifiedFile()
+        r = 0
+    else
+        bulkUpkF(n)
+        r = knownFiles[n]
+    end if
+    if atom(r) then
+        if not SelectTable(Tfiles) then ?9/0 end if
+        for i=1 to db_table_size() do
+            r = db_record_data(i)   -- {uniq,size,filedate,s,i,b}
+            k = r[1]
+            bulkUpkF(k)
+            if atom(knownFiles[k]) then
+                r = db_record_key(i)    -- {uniq[dir],file}
+                knownFiles[k] = r
+                if k=n then exit end if
+            end if
+        end for     
+    end if
+    if expandDir then
+        r[1] = getDir(r[1])
+    end if
+    if closeDB then
+        DBclose()
+    end if
+    return r
+end function
+----- ## end of routines copied from eaedb.e ## -----
+
+--with trace
+
+
+procedure fullBackgroundScan()
+    if EditaHwnd!=0 then
+        if not SelectTable(Tglobals) then ?9/0 end if
+        db_delete_table(Tglobals)
+        if db_create_table(Tglobals)!=DB_OK then ?9/0 end if
+--trace(1)
+        doCompress = 1
+        DBclose()
+        poke4(CDS,{CD_FBGS,0,0})
+        while 1 do
+--          if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})=CD_EDITA then exit end if
+            void = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})
+            if void = CD_EDITA then exit end if
+            sleep(1)
+        end while
+        poke4(CDS,{CD_FBGSD,0,0})
+        while 1 do
+            sleep(1)
+            if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})=0 then exit end if
+        end while
+    end if
+end procedure
+
+
+procedure purgeBackupSet()
+--
+-- Remove all references in edita.edb to backups made which no longer exist. 
+-- (eg user has emptied edita/backups using Explorer)
+--
+integer f, backMod, k
+sequence backupSet, extension, backName
+object fileinfo, d
+    d = dir(initialcurrentdir&"backup\\")
+    if atom(d) then -- dir missing or empty.
+        d = {}
+    else
+        for i=1 to length(d) do
+            d[i] = d[i][1]  -- just keep the name
+        end for
+        if length(d)>=2 and equal(d[1..2],{".",".."}) then
+            d = d[3..length(d)]
+        end if
+    end if
+
+    if not SelectTable(Tbackups) then ?9/0 end if
+    for b=db_table_size() to 1 by -1 do
+        f = db_record_key(b)
+        fileinfo = getNameAndDir(f,1,0)
+        if atom(fileinfo) then
+            backMod = 1
+            backupSet = {}
+        else
+            backMod = 0
+            if not SelectTable(Tbackups) then ?9/0 end if
+            backupSet = db_record_data(b)
+-- bugfix 9/7/14:
+            if atom(fileinfo[2]) then
+                extension = ""
+            else
+                extension = getFileExtension(fileinfo[2])
+            end if
+            for i = length(backupSet) to 1 by -1 do
+                backName = sprintf("%d.%s",{backupSet[i],extension})
+                if backName[2]='1' then
+                    backName[3] = backName[3] + 'A' - '0'
+                end if
+                backName = backName[1]&backName[3..length(backName)]
+                k = find(backName,d)
+                if k then
+                    d = d[1..k-1]&d[k+1..length(d)]
+                else
+--trace(1)
+                    backMod = 1
+--DEV setText(?,backName)
+                    backupSet = backupSet[1..i-1]&backupSet[i+1..length(backupSet)]
+                end if
+            end for
+        end if
+        if not SelectTable(Tbackups) then ?9/0 end if
+        if backMod then
+--trace(1)
+            doCompress = 1
+            if length(backupSet) then
+                db_replace_data(b,backupSet)
+            else
+                db_delete_record(b)
+            end if
+        end if
+    end for
+
+    if length(d) then
+        k = find("pc.htm",d)
+        if k then
+            d = d[1..k-1]&d[k+1..length(d)]
+        end if
+        if length(d) then
+--          void = proemh("Unknown files found in backup directory",
+--                        ppf(d),0)
+            d = ppf(d)
+            if length(d)>2000 then
+                d = "... " & d[1..2000] & " ..."
+            end if
+            void = proemh("Unknown files found in backup directory",d,0)
+        end if
+    end if
+end procedure
+
+sequence bExist
+procedure makeBackupTable()
+--
+--  Build a boolean table of backups. Note that it is perfectly legal for
+--  a backup to exist but the original be missing (might be a damn fine
+--  reason for the backup to exist!), so don't trash file details for any
+--  missing file that still has backups. (If the original and all backups
+--  are gone, there is no point in Edita 'pretending' to remember it.)
+--
+integer k, funiq
+    if not SelectTable(Tbackups) then ?9/0 end if
+    k = db_table_size()
+    if k then
+        funiq = db_record_key(k)
+        bExist = repeat(0,funiq)
+        while 1 do
+            bExist[funiq] = 1
+            k -= 1
+            if k=0 then exit end if
+            funiq = db_record_key(k)
+        end while
+    else
+        bExist = {}
+    end if
+--pp(bExist)
+end procedure
+
+sequence fExist
+
+constant fIncludeSet=5,
+         fIncludeBySet=6
+
+procedure purgeDeletedFilesWithNoBackups()
+--
+-- remove details of all files which no longer exist and have no backup info.
+--
+--sequence key,data -- 5/4/9
+object key,data
+integer fNo, r, k
+object IncSet
+
+-- 27/4/2010 two phases merged to make way for checkPaths().
+    purgeBackupSet()
+
+    makeBackupTable()
+    if not SelectTable(Tfiles) then ?9/0 end if
+    fExist = {}
+    for i=db_table_size() to 1 by -1 do
+        key = db_record_key(i)
+        if atom(key) then
+            printf(1,"error: atom(db_record_key(%d) in Tfiles[1]\n",i)
+            db_delete_record(i)
+            doCompress = 1
+        else
+            key[1] = getDir(key[1])
+            data = db_record_data(i)
+            if atom(data) then
+                printf(1,"error: atom(db_record_data(%d) in Tfiles[2]\n",i)
+                db_delete_record(i)
+                doCompress = 1
+            else
+                fNo = data[1]
+                if atom(dir(key[1]&key[2])) -- file no longer exists
+                and (fNo>length(bExist) or bExist[fNo]=0) then -- no backups exist either
+--pp(key)
+--puts(1,"press 't' to trace\n") 
+--if getc(0)='t' then trace(1) end if
+
+--trace(1)
+                    doCompress = 1
+                    db_delete_record(i)
+
+                    for j=1 to length(fExist) do    --**452 (see below)
+                        if fExist[j] then
+                            fExist[j] = fExist[j]-1
+                        end if
+                    end for
+                    -- remove from folds, globals, include, and includeby
+                    if not SelectTable(Tfolds) then ?9/0 end if
+                    r = db_find_key(fNo)
+                    if r>0 then
+                        db_delete_record(r)
+                    end if
+                    if not SelectTable(Tglobals) then ?9/0 end if
+                    for j=db_table_size() to 1 by -1 do
+                        data = db_record_data(j)
+                        k = find(fNo,data)
+                        if k then
+                            data = data[1..k-1]&data[k+1..length(data)]
+                            if length(data) then
+                                db_replace_data(j,data)
+                            else
+                                db_delete_record(j)
+                            end if
+                        end if
+                    end for
+                    if not SelectTable(Tfiles) then ?9/0 end if
+                    for j=1 to db_table_size() do
+                        data = db_record_data(j)
+                        for s=fIncludeSet to fIncludeBySet do
+                            IncSet = data[s]
+                            if sequence(IncSet) then
+                                k = find(fNo,IncSet)
+                                if k then
+                                    IncSet = IncSet[1..k-1]&IncSet[k+1..length(IncSet)]
+                                    data[s] = IncSet
+                                    db_replace_data(j,data)
+                                end if
+                            end if
+                        end for
+                    end for 
+                else
+                    if fNo>length(fExist) then
+                        fExist &= repeat(0,fNo-length(fExist))
+                    end if
+                    fExist[fNo] = i
+                end if
+            end if
+        end if
+    end for
+--pp(fExist)
+end procedure
+
+--with trace
+integer showRenames, showClashes
+
+procedure killfile(integer fno)
+-- subset of checkPaths.
+-- Either a Tfile record has an unrecognised directory number,
+--  or 93 and 98 resolve to the same directory, and both {93,
+--  "xxx"} and {98,"xxx"} exist, so one of them must go, or
+--  say {5,"arwen.ew"} cannot be renamed to {5,"Arwen.ew"},
+--  because the latter already exists.
+integer k
+sequence tmp
+    if not SelectTable(Tfolds) then ?9/0 end if
+    k = db_find_key(fno)
+    if k>0 then db_delete_record(k) end if
+    if not SelectTable(Tbackups) then ?9/0 end if
+    k = db_find_key(fno)
+    if k>0 then db_delete_record(k) end if
+    if not SelectTable(Tglobals) then ?9/0 end if
+    for j=db_table_size() to 1 by -1 do
+        tmp = db_record_data(j)
+        k = find(fno,tmp)
+        if k then
+            if length(tmp)=1 then
+                db_delete_record(j)
+            else
+                tmp = tmp[1..k-1]&tmp[k+1..length(tmp)]
+                db_replace_data(j,tmp)
+            end if
+        end if
+    end for
+    if not SelectTable(Tfiles) then ?9/0 end if
+end procedure
+
+procedure fixfiles(sequence fixset, sequence pmap, sequence newpath)
+--
+-- subset of checkPaths().
+-- fixset is the set of Tfiles in the same Tdirectory.
+-- pmap and newpath are for getting the directory, doh.
+--
+--  Tfiles is key:{duniq,name}, data:funiq;
+--    eg Tfiles might have a record such as
+--       ({7,"vedb.exw"},53)
+--    and Tdirectories might have a record such as
+--       ("C:\Program Files\Edita\",7)
+--    so the rest of edita.edb uses 53 to mean this file
+--    (specifically in Tbackups, Tfolds, and Tglobals).
+--
+--  Prior to 0.3.3, filenames were stored in lower case.
+--  This routine seeks to reset them to actual case.
+--
+--  Process all the files in each directory in one go:
+--  Imagine we have 10 directories, and in number 7 there
+--  are files B, a, and c, and further this routine decides
+--  to rename B as b. So the order of the records changes
+--  from {7B,7a,7c} to {7a,7b,7c}, with the obvious effect
+--  on record numbers. However, so long as we do them all-
+--  or-none style, record numbers for everything which does
+--  not begin with 7 will be unaffected.
+--
+--  Technically, it is possible that edita.edb might have,
+--  pre-0.3.3, stored some file information under both eg 
+--  "constants.ew" and "consta~1.ew", though I have never
+--  seen that happen. (Tip: dir /X shows long and short
+--  names, at least on Windows XP.) It is also possible, 
+--  post-0.3.2, either by as-yet-unnoticed bugs in Edita, 
+--  or by manually changing filename case in say Explorer, 
+--  to end up with both "INI.E" and "ini.e" in edita.edb.
+--  Of course if you changed "INI.E" to "INICOPY.E", you
+--  would not expect any magical migration in edita.edb.
+--  While testing on this is rather scant, the only thing
+--  we can realistically do is purge any clashing items.
+--
+integer pno, k
+sequence fi, name, newname, oldkey, newkey, data
+    pno = fixset[1][1]
+    newpath = newpath[pmap[pno]]
+    for i=1 to length(fixset) do
+        fi = fixset[i]
+        name = fi[2]
+        newname = get_proper_path(name,newpath)
+--PL 8/7/13 erm [DEV]
+--      if match(newpath,newname)!=1 then ?9/0 end if
+        if match(newpath,newname)!=1 then
+            puts(1,"oops\n")
+            exit
+        end if
+        newname = newname[length(newpath)+1..length(newname)]
+        if not equal(newname,name) then
+            oldkey = {pno,name}
+            newkey = {pno,newname}
+            k = db_find_key(newkey)
+            if k>0 then
+                if showClashes then
+                    if proemh("File rename clash error",
+                              newpath&"\""&name&"\""&
+                              "\n==>\n"&
+                              "\""&newname&"\""&
+                              "\n\n  ** ALREADY EXISTS **"&
+                              "\n\nShow further such messages?",
+                              MB_YESNO)=IDNO then
+                        showClashes = 0
+                    end if
+                end if
+                k = db_find_key(oldkey)
+                if k<=0 then ?9/0 end if
+                data = db_record_data(k)
+                killfile(data[1])
+                db_delete_record(k)
+            else
+                if showRenames then
+                    if proemh("File rename",
+                              newpath&name&
+                              "\n==>\n"&
+                              newname&
+                              "\n\nShow further such messages?",
+                              MB_YESNO)=IDNO then
+                        showRenames = 0
+                    end if
+                end if
+                k = db_find_key(oldkey)
+                if k<=0 then ?9/0 end if
+                data = db_record_data(k)
+                db_delete_record(k)
+                if db_insert(newkey,data)!=DB_OK then ?9/0 end if
+            end if
+        end if
+    end for
+end procedure
+
+--with trace
+procedure checkPaths()
+--
+-- Apply get_proper_path to all directories and filenames, 
+--  merging/deleting as necessary.
+-- 
+sequence oldpath, newpath, oldpaths, newpaths, pnos, pmap,
+         tmp, fixset, olddata, newdata
+integer dmax, pno, k, nk, pi, pk, fmax, fno
+integer showOrphans
+
+    showRenames = 1
+    if not SelectTable(Tdirectories) then ?9/0 end if
+    dmax = db_table_size()
+    newpaths = repeat(0,dmax)
+    oldpaths = repeat(0,dmax)
+    pnos = repeat(0,dmax)
+    for i=1 to dmax do
+        oldpath = db_record_key(i)
+        pno = db_record_data(i)
+        newpath = get_proper_path(oldpath,"")
+        if showRenames
+        and not equal(newpath,oldpath) then
+            if proemh("Path error",
+                      oldpath&
+                      "\n==>\n"&
+                      newpath&
+                      "\n\nShow further such messages?",
+                      MB_YESNO)=IDNO then
+                showRenames = 0
+            end if
+--          printf(1,"%d: %s ==> %s\n",{pno,oldpath,newpath})
+        end if
+        newpaths[i] = newpath
+        oldpaths[i] = oldpath
+        pnos[i] = pno
+    end for
+
+    for i=1 to dmax do
+        newpath = newpaths[i]
+        oldpath = oldpaths[i]
+        if not equal(newpath,oldpath) then
+            pi = pnos[i]
+            k = find(newpath,oldpaths)
+            if k then
+                -- already exists (might be quite recently created!)
+                pk = pnos[k]
+--              printf(1,"** clash detected [ %d & %d ]**\n",{pi,pk})
+                -- resolve clash by replacing all pi with pk,
+                -- when that is not possible attempt a merge.
+                if not SelectTable(Tfiles) then ?9/0 end if
+                fmax = db_table_size()
+                k = db_find_key({pi,""})
+                if k>=0 then ?9/0 end if
+                k = -k
+                fixset = {}
+                while k<fmax do
+                    tmp = db_record_key(k)
+                    if tmp[1]!=pi then exit end if
+                    fixset = append(fixset,tmp)
+                    k += 1
+                end while
+                for j=1 to length(fixset) do
+                    tmp = fixset[j]
+                    k = db_find_key(tmp)
+                    olddata = db_record_data(k)
+                    db_delete_record(k)
+                    tmp[1] = pk
+                    nk = db_find_key(tmp)
+                    if nk>0 then
+                        -- already exists, merge
+                        newdata = db_record_data(nk)
+                        if compare(olddata[3],newdata[3])=1 then
+                            db_replace_data(nk,olddata)
+                            killfile(newdata[1])
+                        else
+                            killfile(olddata[1])
+                        end if
+                    else
+                        -- rewrite
+                        if db_insert(tmp,olddata)!=DB_OK then ?9/0 end if
+                    end if
+                end for
+--              if not SelectTable(Tfolds) then ?9/0 end if
+--              if not SelectTable(Tbackups) then ?9/0 end if
+--
+--              if not SelectTable(Tglobals) then ?9/0 end if
+--
+                if not SelectTable(Tdirectories) then ?9/0 end if
+                k = db_find_key(oldpath)
+                db_delete_record(k)
+            else
+                -- simple rename
+                k = db_find_key(oldpath)
+                if pi!=db_record_data(k) then ?9/0 end if
+                db_delete_record(k)
+                if db_insert(newpath,pi)!=DB_OK then ?9/0 end if
+                oldpaths[i] = newpath
+            end if
+        end if
+    end for
+--  if getc(0) then end if
+    
+    if not SelectTable(Tfiles) then ?9/0 end if
+
+    -- process Tfiles one directory at a time...
+    --  (since deleting/inserting records messes with record nos,
+    --   trying to do this one file at a time will cause trouble.)
+
+    pmap = repeat(0,length(pnos))
+    for i=1 to length(pnos) do
+        k = pnos[i]
+        while k>length(pmap) do
+            pmap = append(pmap,0)
+        end while
+        pmap[k] = i
+    end for
+
+--?pmap[96..99]
+    
+    fixset = {}
+    fmax = db_table_size()
+    showClashes = 1
+    showOrphans = 1
+    for i=db_table_size() to 1 by -1 do
+        tmp = db_record_key(i)
+        pno = tmp[1]
+        if pno>length(pmap) or pmap[pno]=0 then
+            -- orphaned file, we have no idea what directory it
+            -- once belonged to, so trash it completely.
+            if showOrphans then
+                if proemh("Orphaned File error",
+                          "Directory number "&sprint(pno)&" unrecognised\n"&
+                          "on file "&tmp[2]&"."&
+                          "\n\nShow further such messages?",
+                          MB_YESNO)=IDNO then
+                    showOrphans = 0
+                end if
+            end if
+            tmp = db_record_data(i)
+            fno = tmp[1]
+            db_delete_record(i)
+            killfile(fno)
+        else
+            if length(fixset)
+            and tmp[1]!=fixset[1][1] then
+                fixfiles(fixset,pmap,newpaths)
+                fixset = {}
+            end if
+            fixset = append(fixset,tmp)
+        end if
+    end for
+    if length(fixset) then
+        fixfiles(fixset,pmap,newpaths)
+    end if
+
+end procedure
+
+
+procedure removeFileGaps()
+--
+-- Shuffle up uniq file nos to remove any gaps.
+-- These file numbers are cached by eaedb.e, which is why
+--  Edita must be shut down while this is running.
+--
+integer r, k
+integer fOld
+sequence data
+    while 1 do
+        k = find(0,fExist)
+        if k=0 then exit end if
+--trace(1)
+        doCompress = 1
+        fOld = length(fExist)
+        -- replace all length(fExist) with k
+        setText(Main,sprintf("replacing file no %d with %d",{fOld,k}))
+        if not SelectTable(Tbackups) then ?9/0 end if
+        r = db_find_key(fOld)
+        if r>0 then
+            data = db_record_data(r)
+            db_delete_record(r)
+            if db_insert(k,data)!=DB_OK then ?9/0 end if
+        end if
+        if not SelectTable(Tfolds) then ?9/0 end if
+        r = db_find_key(fOld)
+        if r>0 then
+            data = db_record_data(r)
+            db_delete_record(r)
+            if db_insert(k,data)!=DB_OK then ?9/0 end if
+        end if
+        if not SelectTable(Tglobals) then ?9/0 end if
+        for i=1 to db_table_size() do
+            data = db_record_data(i)
+            if find(fOld,data) then
+                data[find(fOld,data)] = k
+                db_replace_data(i,data)
+            end if
+        end for
+        if not SelectTable(Tfiles) then ?9/0 end if
+--DEV this crashed: fExist[fOld] was 452 when only 451 records existed.
+--  -a second run seemed to clear things up...
+--  -- code marked **452 above might help..
+        data = db_record_data(fExist[fOld])
+        data[1] = k
+        db_replace_data(fExist[fOld],data)
+        fExist[k] = fExist[fOld]
+        while 1 do
+            fOld -= 1
+            if fExist[fOld] then
+                fExist = fExist[1..fOld]
+                exit
+            end if
+        end while
+    end while
+    fExist = {}     -- at best this is now partial, at worst garbage;
+        --  so ensure we cannot even try to use it again.
+end procedure
+
+procedure removeUnusedDirs()
+--
+-- ## remove all directories which no longer have any file info,
+--     and shuffle up uniq dir nos to remove any gaps.
+--
+sequence dirused
+integer dOld, fNo, k, r
+--sequence key, data    -- 5/4/9
+object key, data
+    -- first, create a dirused boolean table.
+    if not SelectTable(Tfiles) then ?9/0 end if
+    fNo = db_table_size()
+    while 1 do
+        key = db_record_key(fNo)
+        if sequence(key) then exit end if
+        printf(1,"error: atom(db_record_key(%d) in Tfiles[3]\n",fNo)
+        db_delete_record(fNo)
+        doCompress = 1
+        fNo -= 1
+    end while
+    dirused = repeat(0,key[1])
+    dirused[length(dirused)] = 1
+    for i=fNo-1 to 1 by -1 do
+        key = db_record_key(i)
+        dirused[key[1]] = 1
+    end for
+    if not SelectTable(Tdirectories) then ?9/0 end if
+    for i = db_table_size() to 1 by -1 do
+        if db_record_data(i)>length(dirused) then
+            db_delete_record(i)
+        end if
+    end for
+    
+    while 1 do
+        k = find(0,dirused)
+        if k = 0 then exit end if
+--trace(1)
+        doCompress = 1
+        dOld = length(dirused)
+        if k>=dOld then ?9/0 end if
+        -- delete Tdir k, renumber Tdir dOld as k, and
+        -- recreate Tfile records with k instead of dOld
+        setText(Main,sprintf("replacing directory no %d with %d",{dOld,k}))
+        if not SelectTable(Tdirectories) then ?9/0 end if
+        -- two loops, since table is ordered on text not number:
+        for i=1 to db_table_size() do
+            if db_record_data(i)=k then
+                db_delete_record(i)
+                exit
+            end if
+        end for
+        for i=1 to db_table_size() do
+            if db_record_data(i)=dOld then
+                db_replace_data(i,k)
+                exit
+            end if
+        end for
+        if not SelectTable(Tfiles) then ?9/0 end if
+        r = db_find_key({dOld,0})
+        if r>0 then ?9/0 end if
+        r = -r
+        while r<=db_table_size() do
+            key = db_record_key(r)
+            if key[1]!=dOld then exit end if
+            key[1] = k
+            data = db_record_data(r)
+            db_delete_record(r)
+            if db_insert(key,data)!=DB_OK then ?9/0 end if
+            r += 1
+        end while
+        dirused[k] = 1
+        while 1 do
+            dOld -= 1
+            if dirused[dOld] then
+                dirused = dirused[1..dOld]
+                exit
+            end if
+        end while
+    end while
+--  dirused = {}    -- at best this is now partial, at worst garbage;
+        --  so ensure we cannot even try to use it again.
+end procedure
+
+
+
+procedure crossCheckIncludeInfo()
+--
+-- ## cross-check include info
+--
+sequence includes, includebys, newincludebys, plus
+object IncSet
+integer this, fNo
+object data
+    if not SelectTable(Tfiles) then ?9/0 end if
+    fExist = {}
+    includes = {}
+    includebys = {}
+    for i=db_table_size() to 1 by -1 do
+        data = db_record_data(i)
+        if atom(data) then
+            printf(1,"error: atom(db_record_data(%d) in Tfiles[4]\n",i)
+            db_delete_record(i)
+            doCompress = 1
+        else
+            fNo = data[1]
+            if fNo>length(fExist) then
+                plus = repeat(0,fNo-length(fExist))
+                fExist &= plus
+                includes &= plus
+                includebys &= plus
+            end if
+            fExist[fNo] = i -- save record number for later use
+            --
+            -- quickly make sure the include set has no duplicates
+            --
+            IncSet = data[fIncludeSet]
+            if sequence(IncSet) then
+                for j=length(IncSet) to 1 by -1 do
+                    this = IncSet[j]
+                    for jless=j-1 to 1 by -1 do
+                        if IncSet[jless] = this then
+    --trace(1)
+                            doCompress = 1
+                            IncSet = IncSet[1..j-1]&IncSet[j+1..length(IncSet)]
+                            data[fIncludeSet] = IncSet
+                            db_replace_data(i,data)
+                            exit
+                        end if
+                    end for
+                end for
+            end if
+            includes[fNo] = IncSet
+            includebys[fNo] = data[fIncludeBySet]
+        end if
+    end for
+    newincludebys=repeat(0,length(includebys))
+    for i=1 to length(includes) do
+        IncSet = includes[i]
+        if sequence(IncSet) then
+            for j=length(IncSet) to 1 by -1 do
+                fNo = IncSet[j]
+                if fNo>length(fExist) or fExist[fNo]=0 then
+--trace(1)
+                    doCompress = 1
+--trace(1)
+--?fNo
+                    -- includeset contains ref to non-existent file
+                    IncSet = IncSet[1..j-1]&IncSet[j+1..length(IncSet)]
+                    data = db_record_data(fExist[i])
+                    data[fIncludeSet] = IncSet
+                    db_replace_data(fExist[i],data)
+                else
+                    if atom(newincludebys[fNo]) then
+                        newincludebys[fNo] = {i}
+                    else
+                        newincludebys[fNo] = append(newincludebys[fNo],i)
+                    end if
+                end if
+            end for
+        end if
+    end for
+    for i=1 to length(includebys) do
+        -- NB before giving an error, it would be worth comparing these sorted.
+        -- It does not, of course, hurt any to replace with a different order.
+        if not equal(includebys[i],newincludebys[i]) then
+--trace(1)
+            doCompress = 1
+            data = db_record_data(fExist[i])
+            if not equal(data[fIncludeBySet],includebys[i]) then ?9/0 end if    -- sanity check
+            data[fIncludeBySet] = newincludebys[i]
+            db_replace_data(fExist[i],data)
+        end if
+    end for
+end procedure
+
+procedure purgeGlobals()
+--
+-- purge details of deleted global symbols (Hmm, would be better in Edita, full re-scan?)
+-- What this actually does is look for non-existent file refs in the globals table; some
+-- of the cleanup I saw being needed might simply be because I ran the two routines above,
+-- purgeDeletedFilesWithNoBackups() and removeFileGaps(), several times before they were
+-- complete. What this probably cannot do is remove a global symbol when it has been
+-- physically deleted or commented out from the source.
+--
+--sequence data --5/4/9
+object data
+integer dMod, fNo
+    if not SelectTable(Tglobals) then ?9/0 end if
+    for i=db_table_size() to 1 by -1 do
+        data = db_record_data(i)
+        if atom(data) then
+            printf(1,"error: atom(db_record_data(%d)) [deleted(5)]\n",i)
+            db_delete_record(i)
+            doCompress = 1
+        else
+            dMod = 0
+            for j=length(data) to 1 by -1 do
+                fNo = data[j]
+                if fNo>length(fExist) or fExist[fNo]=0 then
+--trace(1)
+                    doCompress = 1
+
+--?data
+                    data = data[1..j-1]&data[j+1..length(data)]
+--?data
+--if getc(0) then end if
+                    dMod = 1
+                end if
+            end for
+            if not SelectTable(Tglobals) then ?9/0 end if
+            if dMod then
+                if length(data) then
+                    db_replace_data(i,data)
+                else
+                    db_delete_record(i)
+                end if
+            end if
+        end if
+    end for
+
+-- finally, specially for 0.3.3 upgrade, which requires vedb.exw to be run:
+
+    if not SelectTable(Tversion) then ?9/0 end if
+    if compare(db_record_data(1),{0,3,3})<0 then
+        db_replace_data(1,{0,3,3})
+    end if
+
+end procedure
+
+procedure restartEdita()
+atom si,pi,child,res,hProc,hThr
+
+    if doCompress then
+        if isChecked(cdb) then
+        -- this is the cause of the console window popping up at the end
+        -- (db_compress invokes system("ren xxx",2)
+--trace(1)
+            if db_compress()!=DB_OK then
+                puts(1,"error running db_compress(), press Enter...")
+                if getc(0) then end if
+            end if
+        end if
+    end if
+    DBclose()
+    if EditaHwnd!=0 then
+        si = allocate(sizeofstruct(STARTUPINFO))
+        mem_set(si,0,sizeofstruct(STARTUPINFO))
+        poke4(si + STARTUPINFO_cb,  sizeofstruct(STARTUPINFO))
+        pi = allocate(sizeofstruct(PROCESS_INFORMATION))
+        mem_set(pi,0,sizeofstruct(PROCESS_INFORMATION))
+        if not equal(cl1,cl2) then
+--  cl1 &= ' '&cl2
+            cl1 = '\"'&cl1&"\" \""&cl2&'\"'
+        else
+            cl1 = '\"'&cl1&'\"'
+        end if
+        cl2 = cl1   -- ensure above done only once
+        child = allocate_string(cl1)
+        res = c_func(xCreateProcess,
+                     {NULL, -- No module name (use command line).
+                      child,    -- Command line.
+                      NULL, -- Process handle not inheritable.
+                      NULL, -- Thread handle not inheritable.
+                      False,    -- No handle inheritance
+                      0,    -- No creation flags.
+                      NULL, -- Use parent's environment block.
+                      NULL, -- Use parent's starting directory.
+                      si,   -- Pointer to STARTUPINFO structure.
+                      pi})  -- Pointer to PROCESS_INFORMATION structure.
+        hProc = peek4u(pi + PROCESS_INFORMATION_hProcess)
+        hThr  = peek4u(pi + PROCESS_INFORMATION_hThread)
+        free(si)
+        free(pi)
+        free(child)
+        if res=0 then
+            void = proemh("Error","Could not restart Edita",0)
+        else
+            void = c_func(xWaitForInputIdle,{hProc,10000})  -- give it ten seconds
+            void = c_func(xCloseHandle, {hProc})
+            void = c_func(xCloseHandle, {hThr})
+        end if
+--  system(cl1&' '&cl2,2)
+    end if
+end procedure
+
+
+
+--"vedb_1" = "running full background scan"
+--"vedb_2" = "shutting down Edita"
+--"vedb_3" = "purging backups and deleted files with no backups"
+--"vedb_4" = "checking paths and filenames"
+--"vedb_5" = "removing gaps in unique file numbers"
+--"vedb_6" = "removing unused directory entries"
+--"vedb_7" = "cross-checking include info"
+--"vedb_8" = "purging details of deleted global symbols"
+--"vedb_9" = "restarting Edita"
+
+constant r8 = {routine_id("fullBackgroundScan"),
+               routine_id("shutDownEdita"),
+               routine_id("checkPaths"),
+--             routine_id("purgeBackupSet"),    -- now called from next
+               routine_id("purgeDeletedFilesWithNoBackups"),
+               routine_id("removeFileGaps"),
+               routine_id("removeUnusedDirs"),
+               routine_id("crossCheckIncludeInfo"),
+               routine_id("purgeGlobals"),
+               routine_id("restartEdita")}
+if find(-1,r8) then ?9/0 end if
+
+integer stage
+    if EditaHwnd=0 then
+        stage = 3
+    else
+        stage = 2
+    end if
+
+integer stageactive
+        stageactive = 0
+
+procedure IdleHandler()
+    if stage>length(v8) then
+        stopIdle()
+        closeWindow(Main)
+    else
+        if not stageactive then -- doEvents() in proemh can get us back here too soon.
+            stageactive = 1
+            setText(v8[stage],"*")
+            call_proc(r8[stage],{})
+            stage += 1
+            stageactive = 0
+        end if
+    end if
+end procedure
+setHandler(IDLE, routine_id("IdleHandler"))
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            id = Cancel
+            msg = WM_COMMAND
+        elsif wParam=VK_RETURN then
+            id = getFocus()
+            msg = WM_COMMAND
+        end if
+    end if
+    if msg=WM_COMMAND then
+        if id=OK then
+            setEnable({rfbgs,OK,Cancel},False)
+            startIdle(250)
+        elsif id=rfbgs then
+            stage = 2-isChecked(rfbgs)
+            setEnable(v8txt[1],stage=1)
+        elsif id=Cancel then
+            closeWindow(Main)
+        elsif object(lParam) then -- suppress warnings
+        end if
+    elsif msg=WM_ERASEBKGND then    -- fudge, but it works
+        setFocus(OK)
+    end if
+    return 0
+end function
+setHandler({rfbgs,cdb,OK,Cancel}, routine_id("mainHandler"))
+
+WinMain(Main,SW_NORMAL)
+--checkPaths()

@@ -1,0 +1,44 @@
+--
+--  title.exw	-- demonstrates how to remove/replace the window title
+--  =========
+-- 
+-- Note for win98 users: If you hide the title, you will find that win98 does not
+--  correctly enable/display the Maximise/Restore options in the alt-space menu
+--  (aka right click on titlebar menu). 'X', and 'R' below show one possible way
+--  to address this. This problem has been fixed in later versions of Windows.
+--
+include Win32Lib.ew
+
+constant etxt = "Press Escape to toggle titlebar",
+	 xmax = ", X to maximise",
+	 rest = ", R to restore",
+	 main = createEx(Window, etxt, 0, 200, 100, 400, 300, 0, 0),
+	 tlbl = createEx(Label,"",main,10,10,300,25,0,0)
+
+integer hasTitleBar
+	hasTitleBar = w32True
+
+procedure Screen_keydown(integer Self, integer Event, sequence Params)
+    if Params[1] = VK_ESCAPE then
+	if hasTitleBar then
+	    removeStyle(main,WS_BORDER)
+	else
+	    addStyle(main,WS_BORDER)
+	end if
+	hasTitleBar = not hasTitleBar
+    elsif find(Params[1],"xX") then
+	showWindow(main,SW_MAXIMIZE)	-- example fix for win98
+	setText(tlbl,etxt&rest)
+    elsif find(Params[1],"rR") then
+	showWindow(main,SW_NORMAL)	-- ""
+	setText(tlbl,etxt&xmax)
+    elsif Self or Event then	-- suppress warnings
+    end if
+end procedure
+setHandler(Screen, w32HKeyDown, routine_id("Screen_keydown"))
+
+setText(tlbl,etxt&xmax)
+WinMain(main,Normal)
+--setText(tlbl,etxt&rest)
+--WinMain(main,Maximize)	    -- this works too.
+

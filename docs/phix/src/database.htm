@@ -1,0 +1,159 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Euphoria Database System (EDS)</h1>
+      <div id="mainSection">
+       <b>Introduction</b>
+       <br>
+        The Phix distribution contains a copy of the Euphoria Database System, slightly
+        altered for automatic include handling, ie if you use
+       <code>db_open()</code> etc
+        but omit the preceding "include database.e" then Phix quietly loads it for you.
+       <br>
+       <br>
+         Many people have expressed an interest in accessing databases using 
+         Euphoria programs. Those people have either wanted to access a
+         name-brand database management system from Euphoria, or they&rsquo;ve 
+         wanted a simple, easy-to-use, Euphoria-oriented database for storing data. 
+         EDS is the latter. It provides a simple, very flexible, database system 
+         for use by Euphoria programs.
+       <br>
+       <br>
+       <b>Structure of an EDS database</b>
+       <br>
+       <br>
+         In EDS, a database is a single file with ".edb" file type.
+         An EDS database contains 0 or more
+       <b>tables</b>. Each table has a name, and 
+         contains 0 or more
+       <b>records</b>. Each record consists of a
+       <b>key</b> part, 
+         and a
+       <b>data</b> part. The key can be any Euphoria object - 
+         an atom, a sequence, a deeply-nested sequence, whatever. Similarly the 
+         data can be any Euphoria object. There are no contraints on the 
+         size or structure of the key or data. Within a given table, the keys 
+         are all unique. That is, no two records in the same table can have 
+         the same key part.
+       <br>
+       <br>
+         The records of a table are stored in ascending order of key value.
+         An efficient binary search is used when you refer to a record
+         by key. You can also access records directly, with no search, if you 
+         know the current record number within the table. Record numbers are from
+         1 to the length (current number of records), of the table.
+       <br>
+       <br>
+         The keys and data parts are stored in a compact form, but no accuracy is 
+         lost when saving or restoring floating-point numbers or any other 
+         Euphoria data.
+       <br>
+       <br>
+         database.e will work as is, on Windows, DOS or Linux. The code runs 
+         twice as fast on Linux as it does on DOS or Windows. EDS database files
+         can be shared between Linux and DOS/Windows.
+       <br>
+       <br>
+ <pre> 
+ Example:
+    database: "mydata.edb"
+          first table: "passwords"
+               record #1:  key: "jones"   data: "euphor123"
+               record #2:  key: "smith"   data: "billgates"
+        
+          second table: "parts"
+               record #1:  key: 134525    data: {"hammer", 15.95, 500}
+               record #2:  key: 134526    data: {"saw", 25.95, 100}
+               record #3:  key: 134530    data: {"screw driver", 5.50, 1500}
+        
+ </pre>
+       <br>
+       <br>
+         It is up to you to interpret the meaning of the key and data.
+         In keeping with the spirit of Euphoria, you have total flexibility. 
+         Unlike most other database systems, an EDS record is
+       <b>
+        <i>not</i>
+       </b> 
+         required to 
+         have either a fixed number of fields, or fields with a preset maximum length.
+       <br>
+       <br>
+         In many cases there will not be any natural key value for your records.
+         In those cases you should simply create a meaningless, but unique, 
+         integer to be the key. Remember that you can always access the data 
+         by record number. It is easy to loop through the records looking for 
+         a particular field value.
+       <br>
+       <br>
+       <b>How to use these routines</b>
+       <br>
+         To reduce the number of parameters that you have to pass,
+         there is a notion of the
+       <b>current database</b>, and
+       <b>current table</b>.
+         Most routines use these "current" values automatically.
+         You normally start by opening (or creating) a database file, then
+         selecting the table that you want to work with.
+       <br>
+       <br>
+         You can map a key to a record number using db_find_key(). It uses
+         an efficient binary search. Most of the other record-level routines 
+         expect the record number as an argument. You can very quickly access 
+         any record, given it&rsquo;s number. You can access all the records by 
+         starting at record number 1 and looping through to the record number 
+         returned by db_table_size().
+       <br>
+       <br>
+       <b>How does storage get recycled?</b>
+       <br>
+         When you delete something, such as a record, the space for that item
+         gets put on a free list, for future use. Adjacent free areas are 
+         combined into larger free areas. When more space is needed, and no 
+         suitable space is found on the free list, the file will grow in size.
+         Currently there is no automatic way that a file will shrink in size, 
+         but you can use db_compress() to completely rewrite a database,
+         removing the unused spaces.
+       <br>
+       <br>
+       <b>Security / Multi-user Access</b>
+       <br>
+         This release provides a simple way to lock an entire database to prevent
+         unsafe access by other processes.
+       <br>
+       <br>
+       <b>Scalability</b>
+       <br>
+         Internal pointers are 4 bytes. That limits the size of a database file to 4 Gb.
+       <br>
+       <br>
+         The current algorithm allocates 4 bytes of memory per record in the 
+         current table. So you&rsquo;ll need at least 4Mb RAM per million records
+         on disk.
+       <br>
+       <br>
+         The binary search for keys should work reasonably well for large tables.
+       <br>
+       <br>
+         Inserts and deletes take slightly longer as a table gets larger.
+       <br>
+       <br>
+         At the low end of the scale, it is possible to create extremely small
+         databases without incurring much disk space overhead.
+       <br>
+       <br>
+       <b>Disclaimer</b>
+       <br>
+         Do not store valuable data without a backup. 
+         No responsiblility will be accepted for any damage or data loss.
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

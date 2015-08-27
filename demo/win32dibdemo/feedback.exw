@@ -1,0 +1,106 @@
+-- Win32Dib Feedback Demo
+
+--without warning
+include w32dcore.ew  -- only the core library is necessary
+
+object dib, dib2, tile_dib
+integer canvas_width, canvas_height, width, height, width2, height2, x, y, dx, dy, dx2, dy2
+integer x2, y2, dx_2, dy_2, dx2_2, dy2_2
+atom t
+integer frames, running
+
+dib = loadDib("demo.bmp")
+if not sequence(dib) then
+    if message_box("Can't load bitmap 'demo.bmp'.", "Error", MB_ICONERROR) then end if
+    abort(0)
+end if
+width = dib[DibWidth]
+height = dib[DibHeight]
+
+dib2 = copyDib(dib)
+width2 = width
+height2 = height
+
+tile_dib = 0
+canvas_width = 0
+canvas_height = 0
+
+constant win = create(Window, "Win32Dib Feedback Demo", 0, Default, Default, 600, 400, 0)
+VOID = setErasePolicy(win, w32True)
+
+procedure winPaint(integer self, integer event, sequence parms)
+    if sequence(tile_dib) then
+        if self or event or sequence(parms) then end if -- suppress warnings
+        drawDib(win, tile_dib, 0, 0, 0, 0, canvas_width - 1, canvas_height - 1)
+    end if
+end procedure
+setHandler(win, w32HPaint, routine_id("winPaint"))
+
+procedure winResize(integer self, integer event, sequence parms)
+sequence rect
+    if self or event or sequence(parms) then end if -- suppress warnings
+    rect = getClientRect(win)
+    if sequence(tile_dib) then killDib(tile_dib) end if
+    canvas_width = rect[3]
+    canvas_height = rect[4]
+    if canvas_width = 0 or canvas_height = 0 then tile_dib = 0  return end if
+    tile_dib = newDib(canvas_width, canvas_height)
+--/**/  clearDib(tile_dib, sq_rand({255, 255, 255}))    --/* -- Phix
+        clearDib(tile_dib, rand({255, 255, 255}))       --*/ -- RDS
+    dx2 = rand(5) - 2  dy2 = rand(5) - 2
+    dx2_2 = rand(5) - 2  dy2_2 = rand(5) - 2
+    x = floor(canvas_width/2 - width)  y = floor(canvas_height/2 - height)
+    x2 = floor(canvas_width/2)  y2 = floor(canvas_height/2)
+end procedure
+setHandler(win, w32HResize, routine_id("winResize"))
+
+procedure winClose(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if -- suppress warnings
+    running = False
+end procedure
+setHandler(win, w32HClose, routine_id("winClose"))
+
+procedure winActivate(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if -- suppress warnings
+    if not sequence(tile_dib) then return end if
+        
+    t = time()
+    frames = 0
+    running = True
+    dx = rand(20) - 10  dy = rand(20) - 10
+    dx_2 = rand(20) - 10  dy_2 = rand(20) - 10
+    while running do
+        dx += dx2  if dx <= -25 or dx >= 25 then dx2 = -dx2 end if
+        dy += dy2  if dy <= -25 or dy >= 25 then dy2 = -dy2 end if
+        dx_2 += dx2_2  if dx_2 <= -25 or dx_2 >= 25 then dx2_2 = -dx2_2 end if
+        dy_2 += dy2_2  if dy_2 <= -25 or dy_2 >= 25 then dy2_2 = -dy2_2 end if
+        if (x <= 0 and x + dx < x) or (x + width >= canvas_width and x + dx > x) then dx = -dx end if
+        if (y <= 0 and y + dy < y) or (y + height >= canvas_height and y + dy > y) then dy = -dy end if
+        x += dx  y += dy
+        if (x2 <= 0 and x2 + dx_2 < x2) or (x2 + width2 >= canvas_width and x2 + dx_2 > x2) then dx_2 = -dx_2 end if
+        if (y2 <= 0 and y2 + dy_2 < y2) or (y2 + height2 >= canvas_height and y2 + dy_2 > y2) then dy_2 = -dy_2 end if
+        x2 += dx_2  y2 += dy_2
+        if sequence(tile_dib) then
+            drawDibToDib(tile_dib, dib, x, y, 0, 0, width - 1, height - 1, {}, 127)
+--          drawDib(win, dib, x, y, 0, 0, width - 1, height - 1)
+            drawDibToDib(tile_dib, dib2, x2, y2, 0, 0, width2 - 1, height2 - 1, {}, 127)
+        end if
+        frames += 1
+        if time() - t > 2 then
+            setText(win, sprintf("%g FPS", frames / 2))
+            frames = 0
+            dx2 = rand(5) - 2  dy2 = rand(5) - 2
+            dx2_2 = rand(5) - 2  dy2_2 = rand(5) - 2
+            t = time()
+        end if
+        repaintWindow(win)
+        doEvents(win)
+    end while
+end procedure
+setHandler(win, w32HActivate, routine_id("winActivate"))
+
+WinMain(win, Normal)
+killDib(dib)
+killDib(dib2)
+if sequence(tile_dib) then killDib(tile_dib) end if
+freeDib()

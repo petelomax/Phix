@@ -1,0 +1,219 @@
+-----------------------------------------------------
+---------------------Windows Version  ---------------
+--------------------  Kaleidoscope  -----------------
+--------------------    Version  1.15  --------------
+--------------------      31th July 2010  -----------
+-----------------------------------------------------
+------- Many thanks to Don Cole
+-------                Dan Moyer
+-------                Derek Parnell
+------- Without Their help it would not have been completed
+-----------------------------------------------------------
+
+
+include win32lib.ew
+without warning
+--free_console()
+atom kersa
+constant
+    CXFULL = w32Func(xGetSystemMetrics,{SM_CXSCREEN}),
+    CYFULL = w32Func(xGetSystemMetrics,{SM_CYSCREEN}),
+    Win  = create(Window,"",0,0,0,CXFULL,CYFULL,{WS_POPUP,WS_DLGFRAME}),
+    Win1 = create(Window,
+                  "ENTER Twice = STOP  or  ESC  Pause/Continue  Kaleidoscope  by  (Don,Dan,Derek,Selgor)  30/07/2010",
+                  Win, 200, 100, 640,520,{WS_DLGFRAME,WS_CAPTION})
+    setWindowBackColor(Win,Yellow)
+
+-- Create a canvas to draw upon.
+constant canvas =
+    create(Pixmap, "", 0, 0,0, 1, 1, 0)
+
+constant Timer = 1
+kersa = w32Func(xShowCursor,{False})
+--setWindowBackColor(canvas,Black)
+
+constant colors = {
+                   Black, NavyBlue, Blue, BrightBlue,
+                   ForestGreen, Green, Cyan, SkyBlue,
+                   BrightGreen, BrightCyan, DarkGray, Eggplant,
+                   Red, Magenta, DarkBrown, Olive,
+                   Gray, Brown, LightGray, Purple,
+                   White, BrightRed, BrightMagenta, Violet,
+                   Orange, Pink, Yellow, BrightWhite}
+
+--constant colors = {
+--      Blue, BrightBlue, Green, Cyan,          ---Black  + Grays out
+--      BrightGreen, BrightCyan,
+--      Red, Magenta, Brown, Purple,
+--      White, BrightRed, BrightMagenta,
+--      Pink, Yellow, Parchment, BrightWhite}
+
+atom a,b,c,d,a1,b1,c1,d1,a2,b2,c2,d2,a3,b3,c3,d3,
+     x,y,x1,y1,xx,yy,xx1,yy1,xxx,yyy,xxx1,yyy1,xxxx,yyyy,xxxx1,yyyy1,
+     lt,tp,rt,bt,lt1,tp1,rt1,bt1,lt2,tp2,rt2,bt2,lt3,tp3,rt3,bt3,
+     kount,kcol
+
+integer segment
+
+procedure ModalWindow(integer self, integer event, sequence params)
+    openWindow(Win1, Modal) -- THIS IS WHAT MAKES IT A MODAL WINDOW
+    setWindowBackColor(canvas,Parchment)
+end procedure
+setHandler(Win, w32HActivate,  routine_id("ModalWindow"))
+
+procedure init_vars()
+    kount = 0
+    kcol = rand(length(colors))
+    segment = 0
+
+    lt=0 tp=0 bt=300 rt=405
+    lt1=225 tp1=0 bt1=300 rt1=630
+    lt2=0 tp2=180 bt2=480 rt2=405
+    lt3=225 tp3=180 bt3=480 rt3=630
+
+    x=235 x1=205 y=80 y1=220
+    xx=392 xx1=422 yy=80 yy1=220
+    xxx=235 xxx1=205 yyy=400 yyy1=260
+    xxxx=392 xxxx1=422 yyyy=400 yyyy1=260
+
+    a=1   b=1   c=2   d=1
+    a1=a  b1=b  c1=c  d1=d
+    a2=a  b2=b  c2=c  d2=d
+    a3=a  b3=b  c3=c  d3=d
+
+    clearWindow(canvas)
+
+end procedure
+
+procedure kullar()
+    if kcol>=length(colors) then
+        kcol = rand(length(colors))
+    else
+        if remainder(segment, 30)=0 then
+            kcol = rand(length(colors))
+        end if
+    end if
+end procedure
+
+procedure val()
+       x -= a       y -= b       x1 -= c       y1 -= d
+      xx += a1     yy -= b1     xx1 += c1     yy1 -= d1
+     xxx -= a2    yyy += b2    xxx1 -= c2    yyy1 += d2
+    xxxx += a3   yyyy += b3   xxxx1 += c3   yyyy1 += d3
+end procedure
+
+procedure xyopp()
+    if  x<lt or  x>rt then a=-a end if
+    if  y<tp or  y>bt then b=-b end if
+    if x1<lt or x1>rt then c=-c end if
+    if y1<tp or y1>bt then d=-d end if
+end procedure
+
+procedure xyopp2()
+    if  xx<lt1 or  xx>rt1 then a1=-a1 end if
+    if  yy<tp1 or  yy>bt1 then b1=-b1 end if
+    if xx1<lt1 or xx1>rt1 then c1=-c1 end if
+    if yy1<tp1 or yy1>bt1 then d1=-d1 end if
+end procedure
+
+procedure xyopp3()
+    if  xxx<lt2 or  xxx>rt2 then a2=-a2 end if
+    if  yyy<tp2 or  yyy>bt2 then b2=-b2 end if
+    if xxx1<lt2 or xxx1>rt2 then c2=-c2 end if
+    if yyy1<tp2 or yyy1>bt2 then d2=-d2 end if
+end procedure
+
+procedure xyopp4()
+    if  xxxx<lt3 or  xxxx>rt3 then a3=-a3 end if
+    if  yyyy<tp3 or  yyyy>bt3 then b3=-b3 end if
+    if xxxx1<lt3 or xxxx1>rt3 then c3=-c3 end if
+    if yyyy1<tp3 or yyyy1>bt3 then d3=-d3 end if
+end procedure
+
+
+integer stopped
+        stopped = 0
+
+procedure WinKey(integer id, integer event, sequence parms)
+-- Check for key presses.
+    if parms[1]=VK_ESCAPE then
+        stopped = not stopped
+    elsif parms[1]=VK_ENTER then
+        closeWindow(Win)
+        closeWindow(Win1)
+        kersa = w32Func(xShowCursor,{True})
+        init_vars()
+        stopped = 0
+    end if
+end procedure
+setHandler(Screen, w32HKeyDown, routine_id("WinKey"))
+
+procedure draw_it(integer id, integer event, sequence parms)
+-- On each tick of the timer, I draw the next segment of the picture.
+
+    if stopped then
+        -- Stopped, so do nothing.
+        return
+    end if
+    if segment>=650 then
+        segment=1
+        -- Maximum number of segments already drawn,
+        -- so do nothing.
+        setWindowBackColor(canvas,Parchment)
+        setWindowBackColor(Win, (colors[kcol]))--rand(length(colors)))
+        ------ colour same as ist in kal
+        -------this will vary colour      (colors[kcol]+1 --- or 2 or 3 etc.
+        return
+    end if
+
+    segment += 1
+    kount += 1
+    kullar()
+    setPenColor(canvas, colors[kcol])
+    drawLine(canvas,   x+a,    y+b,    x1+c,    y1+d)
+    drawLine(canvas, xxx+a2, yyy+b2, xxx1+c2, yyy1+d2)
+    drawLine(canvas,  xx+a1,  yy+b1,  xx1+c1,  yy1+d1)
+    drawLine(canvas,xxxx+a3,yyyy+b3,xxxx1+c3,yyyy1+d3)
+    val() xyopp() xyopp2() xyopp3() xyopp4()
+
+    -- Force the window to be redrawn.
+    repaintFG(Win1)
+end procedure
+setHandler(Win1, w32HTimer, routine_id("draw_it"))
+
+procedure start_it(integer id, integer event, sequence parms)
+-- Start the timer ticking at 10 times per second
+    setTimer(Win1, Timer, 1)
+end procedure
+setHandler(Win1, w32HActivate, routine_id("start_it"))
+
+procedure paint_it(integer id, integer event, sequence parms)
+-- Whenever the window needs to be repainted, copy the picture to the window.
+    copyBlt(Win1, 0, 0, canvas)
+
+    -- Refresh the 'help' text.
+--  wPuts({Win, 10, 10}, "ESC to pause/continue  ENTER to restart")
+
+end procedure
+setHandler(Win1, w32HPaint, routine_id("paint_it"))
+
+procedure resizing(integer id, integer event, sequence parms)
+-- Whenever the window changes size, I need to resize the canvas to
+-- match the new window size.
+    setCtlSize(canvas, parms[2], parms[3])
+    init_vars()
+    stopped = 0
+end procedure
+setHandler(Win1, w32HResize, routine_id("resizing"))
+
+-- procedure stop(integer key,integer shift)
+--closeWindow(Win)
+--closeWindow(Win1)
+--jk = w32Func(xShowCursor,{True})
+--end procedure
+--onKeyPress[Win1] = routine_id("stop")
+
+WinMain(Win, Maximized)--SW_MAXIMIZE)
+--WinMain(Win1,Maximize)-- Normal)
+--WinMain(Win1,Normal)-- Normal)
+

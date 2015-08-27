@@ -1,0 +1,177 @@
+----------  Done in early 2001 ??  Selgor  
+----------  Background , each polygon change colour  
+----------  Each colour is different  
+----------  Can have more figures  
+------------------------------------------------------  
+
+----------  Added necessary includes for dos-rescue October 2012 -----------  
+
+----------------------------------------------------------------------------  
+--
+-- This is one of the "cool" demos.
+--
+
+
+--include euwingui.ew 
+global constant C_BYTE = C_CHAR
+global function or_all(object s)
+-- or together all elements of a sequence
+atom result
+    if atom(s) then
+        result = s
+    else
+        result = 0
+        for i = 1 to length(s) do
+            result = or_bits(result, s[i])
+        end for
+    end if
+    return result
+end function
+
+include tinewg.ew
+
+constant VC_XPIXELS = 5,VC_YPIXELS = 6
+constant X = 1, Y = 2
+sequence config
+atom npoly,nlines, npoints, spacing, solid
+sequence deltas,history,poly,colpoly
+
+    WindowType = NoBorderWin
+
+constant xmax = ScreenWidth()
+constant ymax = ScreenHeight()
+
+constant mainWin = Window("",0,0,xmax,ymax)
+if mainWin then end if
+
+constant blackback = NewMB(xmax,ymax)
+constant canvas = NewMB(xmax,ymax)
+constant backpic = Control(Picture,"",0,0,xmax,ymax)
+    SetPic(backpic,Picture,blackback)
+
+
+function my_video_config()
+sequence ret_s
+    ret_s = {0,0,0,0,0,0,0,0,0}
+    ret_s[VC_XPIXELS] = xmax
+    ret_s[VC_YPIXELS] = ymax
+    return ret_s
+end function
+
+procedure colour()
+    for i=1 to length(colpoly)  do
+        colpoly[i] = rand(#FFFFFF)
+    end for
+
+    for x=1 to length(colpoly)-1 do
+        if equal(colpoly[x],colpoly[x+1]) then
+            colour()
+        end if
+    end for
+end procedure
+
+
+    nlines = 6
+    npoints = 4
+    spacing = 15
+    solid = 0
+    npoly = 3
+
+    config = my_video_config()
+    poly = repeat(0,npoly)
+    deltas = repeat(0,npoly)
+    history = repeat(0,npoly)
+    colpoly = repeat(0,npoly)
+    colour()
+
+    for i=1 to length(poly) do
+--/**/  poly[i] = sq_add(sq_rand(repeat(config[VC_XPIXELS..VC_YPIXELS],npoints)),2)         --/*
+        poly[i] = rand(repeat(config[VC_XPIXELS..VC_YPIXELS],npoints))+2                    --*/
+--/**/  deltas[i] = sq_sub(sq_rand(repeat({2*spacing-1, 2*spacing-1}, npoints)),spacing)    --/*
+        deltas[i] = rand(repeat({2*spacing-1, 2*spacing-1}, npoints))-spacing               --*/
+        history[i] = {}
+    end for
+
+
+
+procedure filled_polygon(atom col,atom fillflag,sequence points)
+sequence flat
+    flat = {}
+    for i=1 to length(points)  do
+        flat = flat&points[i]
+    end for
+    SetDrawingMB(canvas)
+    SetPenColor(col)
+    DrawPolygon(flat,fillflag)
+end procedure
+
+procedure polygon(atom col,atom fillflag,sequence points)
+sequence flat
+    flat = {}
+    if fillflag then
+        filled_polygon(col,fillflag,points)
+    else
+        for i=1 to length(points)-1 do
+            flat = append(flat,points[i]&points[i+1])
+        end for
+        flat = append(flat,points[1]&points[$])
+        SetDrawingMB(canvas)
+        SetPenColor(col)
+        DrawMultiLine(flat)
+    end if
+end procedure
+
+
+
+procedure poly_pattern()
+
+    for i=1 to length(history) do
+        if length(history[i])>=nlines then
+            polygon(0, solid, history[i][1])
+            history[i] = history[i][2..nlines]
+
+        end if
+    end for
+
+    for i=1  to length(history) do
+        history[i] = append(history[i], poly[i])
+--/**/  poly[i] = sq_add(poly[i],deltas[i]) --/*
+        poly[i] += deltas[i]                --*/
+    end for
+
+    for i=1  to length(poly) do
+        polygon(colpoly[i], solid, poly[i])
+        for j=1 to npoints do
+            if poly[i][j][X]<=0 or poly[i][j][X]>=config[VC_XPIXELS] then
+                deltas[i][j][X] = -deltas[i][j][X]
+            end if
+
+            if poly[i][j][Y]<=0 or poly[i][j][Y]>=config[VC_YPIXELS] then
+                deltas[i][j][Y] = -deltas[i][j][Y]
+            end if
+
+        end for
+    end for
+    if rand(101)=1 then
+        colour()
+
+    end if
+    CopyMBToControl(canvas,0,0,xmax,ymax,backpic,0,0)
+end procedure
+
+
+    SetWinTimer(25)
+    while True do
+        if WaitEvent() then end if
+        if Event=Click 
+        or (Event=Key and EventItem=KEY_ESCAPE) then
+            exit
+        elsif Event=Time then
+            SetCur(0)
+            poly_pattern()
+        elsif Event=Move then
+            SetCur(0)
+        end if
+    end while
+
+    CloseApp(0)

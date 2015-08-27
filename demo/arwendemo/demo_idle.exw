@@ -1,0 +1,232 @@
+--
+-- demo_idle.exw
+-- =============
+--
+
+--/* Not required for Phix:
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+include ..\..\builtins\graphics.e
+include ..\..\builtins\misc.e
+include ..\..\builtins\image.e
+include ..\arwen\misc_arwen.e
+include ..\arwen\message_box.ew
+include ..\arwen\constants.ew
+include ..\arwen\dll_links.ew
+include ..\arwen\structures.ew
+include ..\arwen\Quick_Allocations.ew
+include ..\arwen\classes.ew
+include ..\..\builtins\sort.e
+include ..\..\builtins\file.e
+include ..\arwen\arwen.ew
+include ..\arwen\dib256.ew
+--*/
+--/**/include arwen.ew
+--/**/include ..\arwen\dib256.ew
+
+constant
+    header = "Background Idle processing",
+    s_text = "Note that the background process is occurring continuously",
+    hint   = "Type here; move Trackbar or ScrollBar"
+
+-- create Window & controls
+constant DEMO           = create(Window, header,                0, 0,    100,100,500,413, {{WS_HSCROLL,WS_VSCROLL},0})
+
+constant HHH            = create(HScroll, "",                   0, DEMO,   0,  0,  0,  0, SBS_BOTTOMALIGN)
+
+constant START          = create(Button,"Start",                0, DEMO,  10,215, 80, 25, 0)
+constant STOP           = create(Button,"Stop",                 0, DEMO,  10,250, 80, 25, 0)
+constant DIALOG_COLOR   = create(Button,"Color Dialog Box",     0, DEMO, 100,215,120, 25, 0)
+constant DIALOG_SELECT  = create(Button,"Select Folder Dialog", 0, DEMO, 100,250,120, 25, 0)
+constant DIALOG_FILE    = create(Button,"Select File Dialog",   0, DEMO, 100,285,120, 25, 0)
+
+constant EDIT           = create(EditText,hint,                 0, DEMO, 230,215,250, 25, 0)
+constant TRACK          = create(HTrackBar,"",                  0, DEMO, 230,250,250, 25, 0)
+
+constant STATUS         = create(StatusBar,"",                  0, DEMO,   0,  0,200,  0, 0)
+
+integer row
+        row = -1
+integer direction
+        direction = 1
+
+
+constant width = 500,
+         height = 200
+
+integer DIB
+
+--/**/include psqop.e   -- Phix
+procedure startDIB()
+sequence pal
+        DIB = createDib(width, height)
+--/**/  pal = sq_rand(repeat({255,255,255}, 256))   --/*    -- Phix
+        pal = rand(repeat({255,255,255}, 256))      --*/    -- RDS
+        setDibPalette(DIB, 1, pal)
+end procedure
+
+startDIB()
+
+integer setThumbs
+        setThumbs = False
+
+constant --ODM_VIEW_ICONS = #7029,
+--       ODM_VIEW_LIST  = #702B,
+         ODM_VIEW_DETAIL = #702C
+--       ODM_VIEW_THUMBS= #702D
+--      ,
+--       ODM_VIEW_TILES = #702E,
+
+
+procedure handler_IDLE()--integer id, integer msg, atom wParam, atom lParam)
+atom hDC, hWnd
+
+    if setThumbs then
+        setThumbs = False
+--          hWnd = c_func(xFindWindowEx,{getHwnd(DEMO), 0, "SHELLDLL_DefView", ""})
+--          hWnd = c_func(xFindWindowEx,{getHwnd(DEMO), 0, "Folder View", ""})
+--getActiveWindow
+        hWnd = c_func(xGetForegroundWindow,{})
+        --?hWnd
+        if hWnd then
+            --0x0461
+            --constant ID_LISTVIEW = #461 -- from dlgs.h
+            hWnd = c_func(xGetDlgItem,{hWnd,#461})  -- fails first time...
+            --?hWnd
+            if hWnd then
+                setThumbs = False
+--          ?hWnd
+--          void = c_func(xSendMessage,{hWnd, WM_COMMAND, ODM_VIEW_THUMBS, 0})
+                void = c_func(xSendMessage,{hWnd, WM_COMMAND, ODM_VIEW_DETAIL, 0})
+            --          ?void
+            end if
+        end if
+    end if
+
+    -- advance row pointer
+    row += direction
+    if row>height-1 then
+        row = height-1
+        direction = -1
+    elsif
+            row<0 then
+        row = 1
+        direction = 1
+    end if
+
+    hDC = getPrivateDC(DEMO)
+
+    for i=0 to width-1 do
+        setDibPixel(DIB, i, row, rand(255))
+    end for
+
+    void = drawDib(hDC, 0, row, width, 1, DIB, 0, row, width, 1)
+
+end procedure
+
+procedure setControls(integer on_off)
+    setEnable({STOP, EDIT, TRACK, DIALOG_COLOR, DIALOG_SELECT, DIALOG_FILE, HHH}, on_off)
+    setEnable(START, not on_off)
+end procedure
+
+function formatRGB(atom colour)
+integer r, g, b
+    r = and_bits(colour, #FF)
+    colour = floor(colour/256)
+    g = and_bits(colour, #FF)
+    b = floor(colour/256)
+    return sprintf("RGB colour selected: { %d, %d, %d }", {r,g,b})
+end function
+
+function handler_BUTTON(integer id, integer msg, atom wParam, object lParam)
+sequence filters
+atom flags
+
+    if msg=WM_COMMAND then -- one of the buttons was clicked
+
+        if id=START then
+            if wParam then end if   -- suppress warning
+            startIdle(20)
+            setText(STATUS, s_text)
+            setControls(True)
+            setFocus(STOP)
+
+        elsif id=STOP then
+            stopIdle()
+            setText(STATUS, "")
+            setControls(False)
+            setFocus(START)
+
+        elsif id=DIALOG_COLOR then
+--void = messageBox("test","test",0)
+            lParam = getChooseColour(DEMO, Black, CC_RFS)
+
+            if lParam= -1 then
+                setText(STATUS, "Colour selection aborted")
+            else
+                setText(STATUS, formatRGB(lParam))
+            end if
+
+        elsif id=DIALOG_SELECT then
+
+            lParam = selectDirectory(0,0,NULL)
+            if length(lParam) then
+                setText(STATUS, lParam)
+            else
+                setText(STATUS, "Folder selection aborted")
+            end if
+
+        elsif id=DIALOG_FILE then
+
+            filters = {"All *.*","*.*",  "some ew,exw",  "*.ew;*.exw"}
+            flags = or_all({OFN_HIDEREADONLY,OFN_ALLOWMULTISELECT})
+            --OFN_ENABLEHOOK
+            setThumbs = True --<<**
+            lParam = getOpenFileName(DEMO, "*.*", filters, flags)
+            if sequence(lParam) then
+                setText(STATUS, lParam[1])
+            else
+                setText(STATUS, "File selection aborted")
+            end if
+
+        end if
+
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+
+    return 0
+
+end function
+
+function handler_DEMO(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_PAINT then
+        if id or object(lParam) then end if -- suppress warning
+        copyDib(wParam, 0, 0, DIB)
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+end function
+
+
+--function handler_HHH(integer id, integer msg, atom wParam, object lParam)
+----    if msg = WM_HSCROLL then
+----        void = postMessage(DEMO, WM_ENTERIDLE, 0,0)
+------      runIdle()
+------      return 0
+------  callIdle()
+----    end if
+--  return 0
+--  end function
+
+setControls(False)
+
+setHandler({START, STOP, DIALOG_COLOR, DIALOG_SELECT, DIALOG_FILE}, routine_id("handler_BUTTON"))
+setHandler(IDLE, routine_id("handler_IDLE"))
+setHandler({DEMO,EDIT,TRACK,HHH}, routine_id("handler_DEMO"))
+
+WinMain(DEMO, SW_NORMAL)
+void = deleteDib(0)

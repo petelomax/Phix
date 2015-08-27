@@ -1,0 +1,198 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">printf</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica"> printf(integer fn, string st, object x)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>Print x, to file or device fn, using format string st. If x is
+             an atom then all formats from st are applied to it. If x is a sequence,
+             then formats from st are applied to
+          <b>
+           <i>successive elements</i>
+          </b> of x.
+            Thus printf() always takes exactly 3 arguments. However the length of
+            the last argument, containing the values to be printed, can vary. 
+            The basic formats are:
+          <!--DEV-->
+          <br>
+          <br>
+ %s - print a sequence as a string of characters, or print an atom as
+ a single character
+          <br>
+ %c - print an atom as a single character
+          <br>
+ %d - print an atom as a decimal integer
+          <br>
+ %x - print an atom as a hexadecimal integer (0..9 and A..F)
+          <br>
+ %X - as %x but using <i>lower case(!!)</i> letters (a..f)
+          <br>
+ %o - print an atom as an octal integer
+          <br>
+ %b - print an atom as a binary integer
+          <br>
+ %e - print an atom as a floating point number with exponential
+ notation
+          <br>
+ %E - as %e but with a capital E
+          <br>
+ %f - print an atom as a floating-point number with a decimal
+ point but no exponent
+          <br>
+ %g - print an atom as a floating point number using either
+ the %f or %e format, whichever seems more appropriate
+          <br>
+ %G - as %g except %E instead of %e
+          <br>
+ %% - print the '%' character itself
+          <br>
+          <br>
+            Field widths can be added to the basic formats, e.g. %5d, %8.2f,
+            %10.4s. The number before the decimal point is the minimum field
+            width to be used. The number after the decimal point is the
+            precision to be used.
+          <br>
+          <br>
+            For %f and %e, the precision specifies how many digits follow the
+            decimal point character, whereas for %g, the precision specifies 
+            how many significant digits to print, and for %s the precision
+            specifies how many characters to print.
+          <br>
+          <br>
+            If the field width is negative, e.g. %-5d then the value will be
+            left-justified within the field. Normally it will be right-justified.
+            If the field width starts with a leading 0, e.g. %08d
+            then leading zeros will be supplied to fill up the field. If the
+            field width starts with a '+' e.g. %+7d then a plus sign will be
+            printed for positive values.
+            If the field width starts with a ',' (%d and %f only) then commas 
+            are inserted every third character (Phix-specific).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>A statement such as printf(1,"%s","John Smith") should by rights just print 'J', as the
+            %s should apply to the first element of x, which in this case is 'J'. 
+            The correct statement is printf(1,"%s",{"John Smith"}) where no such confusion can arise. 
+            However this is such an easy mistake to make that in Phix it is caught specially and the 
+            full name printed. Note however that RDS Eu and OpenEuphoria will both just print 'J'.
+          <br>
+          <br>
+            Unicode is supported via UTF8 strings, which this routine treats exactly the same as
+            ansi. %c does <i><b>not</b></i> support the printing of single unicode characters, but
+            instead performs and_bits(a,#FF) and prints it as a standard ascii character.
+          <br>
+            Lastly, %x and %X are "the wrong way round" for historical/compatibility reasons.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+balance = 12347.879
+printf(myfile, "The account balance is: %,10.2f\n", balance)
+      The acccount balance is:  12,347.88
+</eucode-->
+<pre>
+<font color="#000000">balance</font><font color="#0000FF"> =</font><font color="#000000"> 12347.879
+</font><font color="#800080">printf</font><font color="#0000FF">(</font><font color="#000000">myfile</font><font color="#0000FF">,</font><font color="#008000"> "The account balance is: %,10.2f\n"</font><font color="#0000FF">,</font><font color="#000000"> balance</font><font color="#0000FF">)
+</font><font color="#000000">      The acccount balance is:  12</font><font color="#0000FF">,</font><font color="#000000">347.88</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+name = "John Smith"
+score = 97
+printf(1, "|%15s, %5d |\n", {name, score})
+      |     John Smith,    97 |
+</eucode-->
+<pre>
+<font color="#000000">name</font><font color="#0000FF"> =</font><font color="#008000"> "John Smith"
+</font><font color="#000000">score</font><font color="#0000FF"> =</font><font color="#000000"> 97
+</font><font color="#800080">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "|%15s, %5d |\n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#000000"> score</font><font color="#800000">}</font><font color="#0000FF">)
+      |    </font><font color="#000000"> John Smith</font><font color="#0000FF">,   </font><font color="#000000"> 97</font><font color="#0000FF"> |</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+printf(1, "%-10.4s $ %s", {"ABCDEFGHIJKLMNOP", "XXX"})
+      ABCD       $ XXX
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#800080">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "%-10.4s $ %s"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"ABCDEFGHIJKLMNOP"</font><font color="#0000FF">,</font><font color="#008000"> "XXX"</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#000000">      ABCD       $ XXX</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 4:</b>
+         </td>
+         <td>
+<!--eucode>
+printf(1, "error code %d[#%08x]", ERROR_CANCELLED)
+      error code 2147943623[#800704C7]
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#800080">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "error code %d[#%08x]"</font><font color="#0000FF">,</font><font color="#000000"> ERROR_CANCELLED</font><font color="#0000FF">)
+</font><font color="#000000">      error code 2147943623</font><font color="#0000FF">[</font><font color="#000000">#800704C7</font><font color="#0000FF">]</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="sprintf.htm">sprintf</a>,
+          <a href="puts.htm">puts</a>,
+          <a href="open.htm">open</a>,
+            and the
+          <a id="ext517" style="color:#9B5565" 
+            href="javascript:ExternalLink('ext517','http://www.gnu.org/software/libc/manual/html_node/Floating_002dPoint-Conversions.html#Floating_002dPoint-Conversions');">gnu clib docs
+          </a>,
+            on which the Phix version is partially based, but does not use directly.
+          <br>
+            <a name="SEEALSO"></a>
+            puthex32(a) and putsint(i) are low-level equivalents of printf(1,"%08x[\n]",{a}) and printf(1,"%d[\n]",{i}) respectively, see builtins\puts1[h].e
+         </td>
+        </tr>
+       </table>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

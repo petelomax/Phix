@@ -1,0 +1,396 @@
+--
+-- pPower.e
+-- ========
+--
+--  Implements :%opPow
+--
+
+include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
+include VM\pFPU.e   -- :%down53 etc
+
+#ilASM{ jmp :%opRetf
+
+--DEV
+        ::e102cr0tple0   -- cannot raise 0 to power<=0
+            int3
+        ::e1413sopa
+            int3
+        ::e34pfu
+            int3
+--      ::e35pfo
+--          int3
+        ::e54atrnntnip
+            int3
+
+--/*
+procedure :%opPow(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+  :%opPow
+---------
+    [32]
+        --calling convention:
+        --  lea edi,[p1]        -- target
+        --  mov ecx,[p3]        -- ref p3 (opUnassigned)
+        --  mov eax,[p2]        -- ref p2 (opUnassigned)
+        --  call :%opPow        -- [edi] := power(eax,ecx)
+        --    all registers trashed unless result is integer, left in eax
+
+        -- handle power(2,0..29) as 1 shl cl.
+        cmp eax,2
+        jne :notPow2
+        cmp ecx,29
+        ja :notPow2
+        mov eax,1
+        mov edx,[edi]
+        shl eax,cl
+      ::opPowRet
+        cmp edx,h4
+        mov [edi],eax
+        jle @f
+            sub dword[ebx+edx*4-8],1
+            jz :%pDealloc
+      @@:
+        ret
+
+      ::notPow2
+
+        -- handle power(x,0) as 1, except for power(0,0) and power(<seq>,0) which are errors
+        test ecx,ecx
+        jnz :notPow0
+        test eax,eax
+        jz :e102cr0tple0
+        cmp eax,h4
+        jl @f
+            cmp byte[ebx+eax*4-1],0x12
+            jne :e1413sopa
+      @@:
+        mov edx,[edi]
+        mov eax,1
+        jmp :opPowRet
+    
+      ::notPow0
+
+        -- power(-177..177,1..4) can be done using mul to give an integer result...
+        cmp ecx,4
+        ja :notIntRes
+        cmp eax,-177
+        jl :notIntRes
+        cmp eax,177
+        jg :notIntRes
+        mov esi,eax
+        mov edx,[edi]
+        sub ecx,1
+        jz :opPowRet
+      ::IntPowMulLoop
+        imul esi
+        sub ecx,1
+        jnz IntPowMulLoop
+        mov edx,[edi]
+        jmp :opPowRet
+
+      ::notIntRes
+        cmp ecx,h4
+        jge :opPowp3Flt
+            push ecx
+            fild dword[esp]
+            add esp,4
+            jmp @f
+      ::opPowp3Flt
+            cmp byte[ebx+ecx*4-1],0x12
+            jne :e1413sopa
+            fld qword[ebx+ecx*4]
+      @@:
+        cmp eax,h4
+        jge :opPowp2Flt
+            push eax
+            fild dword[esp]
+            add esp,4
+            jmp @f
+      ::opPowp2Flt
+            cmp byte[ebx+eax*4-1],0x12
+            jne :e1413sopa
+            fld qword[ebx+eax*4]
+      @@:
+
+--    ::opPowNN
+        fldz
+        fcomp
+        fnstsw ax
+--DEV  test ah,0x41 jz (C=0 and Z=0 for ja), not sure any help since wd need test ah,0x40 next...
+        sahf
+        ja :opPowP2neg      -- jump if 0 > (above) p2
+        fxch
+        jne @f              -- if p2=0 then:
+            fldz
+            fcompp
+            fnstsw ax
+--DEV test ah,0x01/jnz (C=1 for jb)
+            sahf
+            jb :%pStoreFlt
+            jmp :e102cr0tple0   -- cannot raise 0 to power<=0
+      @@:
+        fxch
+      ::opPowP3even
+        fyl2x               -- st1*=log2(st0); pop st0. st0 must be >0 ; ie log2(p2)*p3
+        fld st0             -- duplicate st0
+        frndint             -- round it to an integer   ;DEV SLOW!
+        fsub st1,st0        -- leave only fractional portion in st1
+        fxch st1            -- st1=int(p2*log2(p3)); st0=p2*log2(p3)-st1
+        f2xm1               -- get the fractional power of 2 (minus 1). st0 = 2^^st0-1 st0 must be in the range -1.0 to +1.0
+        fld1
+        faddp               -- get rid of that minus 1
+        fscale              -- multiply by 2^int(p2*log2(p3)) ; similar to shl 2 being same as mul 4
+
+      ::opPowCont
+        fxch
+        fstp st0            -- discard junk
+--  mov edx,edi
+-- 30/1:
+    -- check for under/overflow:
+--  cmp [sferr],0
+--  je @f
+--  mov [sferr],0
+--minatm        dq 0xFFEFFFFFFFFFFFFF   ; -1.7976931348623146e308
+--maxatm        dq 0x7FEFFFFFFFFFFFFF   ; +1.7976931348623146e308
+--DEV test this!
+        push 0xFFEFFFFF
+        push -1
+--  fld qword[minatm]
+        fld qword[esp]  -- minatm 
+        fcomp
+        fnstsw ax
+--DEV Agner sez (look this up!) test ax,0x40 jz StoreFlt64 (nb test inverted)
+--  sahf
+--  ja e34pfu           -- power function underflow
+        test ah,0x41
+        jz :e34pfu          -- power function underflow
+        mov dword[esp+4],0x7FEFFFFF
+--  fld qword[maxatm]
+        fld qword[esp]  -- maxatm
+        add esp,8
+        fcomp
+        fnstsw ax
+--DEV Agner sez (look this up!) test ax,0x40 jz StoreFlt64 (nb test inverted)
+--  sahf
+--  jae StoreFlt
+        test ah,0x01
+        jz :%pStoreFlt
+--      jmp :e35pfo         -- power function overflow
+        pop edx
+        mov al,35
+        sub edx,1
+        jmp :!iDiag
+        int3
+--  mov [sferr],1
+-- @@:
+
+--  jmp StoreFlt
+
+      ::opPowP2neg
+        fabs                -- p2 = |p2|, in this case same as *-1
+        fld st1             -- duplicate p3
+        frndint             -- DEV SLOW!
+        fcom st2
+        fnstsw ax
+        sahf
+        jne :e54atrnntnip   -- attempt to raise negative number to non-integer power
+        sub esp,4
+        fistp dword[esp]
+        pop eax
+        shr eax,1
+        jnc :opPowP3even
+        fyl2x               -- st1*=log2(st0); pop st0. st0 must be >0 ; ie log2(p2)*p3
+        fld st0             -- duplicate st0
+        frndint             -- round it to an integer   ; DEV SLOW!
+        fsub st1,st0        -- leave only fractional portion in st1
+        fxch st1            -- st1=int(p2*log2(p3)); st0=p2*log2(p3)-st1
+        f2xm1               -- get the fractional power of 2 (minus 1). st0 = 2^^st0-1 st0 must be in the range -1.0 to +1.0
+        fld1
+        faddp               -- get rid of that minus 1
+        fscale              -- multiply by 2^int(p2*log2(p3)) ; similar to shl 2 being same as mul 4
+        fchs                -- change sign!
+        jmp :opPowCont       
+    [64]
+        --calling convention:
+        --  lea rdi,[p1]        -- target
+        --  mov rcx,[p3]        -- ref p3 (opUnassigned)
+        --  mov rax,[p2]        -- ref p2 (opUnassigned)
+        --  call :%opPow        -- [rdi] := power(rax,rcx)
+        --    all registers trashed unless result is integer, left in rax
+
+        mov r15,h4
+        -- handle power(2,0..61) as 1 shl cl. (29..61 untested!)
+        cmp rax,2
+        jne :notPow2
+        cmp rcx,61
+        ja :notPow2
+        mov rax,1
+        mov rdx,[rdi]
+        shl rax,cl
+      ::opPowRet
+        cmp rdx,r15
+        mov [rdi],rax
+        jle @f
+            sub qword[rbx+rdx*4-16],1
+            jz :%pDealloc
+      @@:
+        ret
+
+      ::notPow2
+
+        -- handle power(x,0) as 1, except for power(0,0) and power(<seq>,0) which are errors
+        test rcx,rcx
+        jnz :notPow0
+        test rax,rax
+        jz :e102cr0tple0
+        cmp rax,r15
+        jl @f
+            cmp byte[rbx+rax*4-1],0x12
+            jne :e1413sopa
+      @@:
+        mov rdx,[rdi]
+        mov rax,1
+        jmp :opPowRet
+    
+      ::notPow0
+
+--DEV new valid int range not yet done...
+        -- power(-177..177,1..4) can be done using mul to give an integer result...
+        cmp rcx,4
+        ja :notIntRes
+        cmp rax,-177
+        jl :notIntRes
+        cmp rax,177
+        jg :notIntRes
+        mov rsi,rax
+        mov rdx,[rdi]
+        sub rcx,1
+        jz :opPowRet
+      ::IntPowMulLoop
+        imul rsi
+        sub rcx,1
+        jnz IntPowMulLoop
+        mov rdx,[rdi]
+        jmp :opPowRet
+
+      ::notIntRes
+        cmp rcx,r15
+        jge :opPowp3Flt
+            push rcx
+            fild qword[rsp]
+            add rsp,8
+            jmp @f
+      ::opPowp3Flt
+            cmp byte[rbx+rcx*4-1],0x12
+            jne :e1413sopa
+            fld tbyte[rbx+rcx*4]
+      @@:
+        cmp rax,r15
+        jge :opPowp2Flt
+            push rax
+            fild qword[rsp]
+            add rsp,8
+            jmp @f
+      ::opPowp2Flt
+            cmp byte[rbx+rax*4-1],0x12
+            jne :e1413sopa
+            fld tbyte[rbx+rax*4]
+      @@:
+
+--    ::opPowNN
+        fldz
+        fcomp
+        fnstsw ax
+--DEV  test ah,0x41 jz (C=0 and Z=0 for ja), not sure any help since wd need test ah,0x40 next...
+        sahf
+        ja :opPowP2neg      -- jump if 0 > (above) p2
+        fxch
+        jne @f              -- if p2=0 then:
+            fldz
+            fcompp
+            fnstsw ax
+--DEV test ah,0x01/jnz (C=1 for jb)
+            sahf
+            jb :%pStoreFlt
+            jmp :e102cr0tple0   -- cannot raise 0 to power<=0
+      @@:
+        fxch
+      ::opPowP3even
+        fyl2x               -- st1*=log2(st0); pop st0. st0 must be >0 ; ie log2(p2)*p3
+        fld st0             -- duplicate st0
+        frndint             -- round it to an integer   ;DEV SLOW!
+        fsub st1,st0        -- leave only fractional portion in st1
+        fxch st1            -- st1=int(p2*log2(p3)); st0=p2*log2(p3)-st1
+        f2xm1               -- get the fractional power of 2 (minus 1). st0 = 2^^st0-1 st0 must be in the range -1.0 to +1.0
+        fld1
+        faddp               -- get rid of that minus 1
+        fscale              -- multiply by 2^int(p2*log2(p3)) ; similar to shl 2 being same as mul 4
+
+      ::opPowCont
+        fxch
+        fstp st0            -- discard junk
+        -- check for under/overflow:
+--DEV test this!
+        mov rax,0x0000FFFE
+        mov rcx,-1
+        push rax
+        push rcx
+        fld tbyte[rsp]  -- minatm 
+        fcomp
+        fnstsw ax
+--DEV Agner sez (look this up!) test ax,0x40 jz StoreFlt64 (nb test inverted)
+--  sahf
+--  ja e34pfu           -- power function underflow
+        test ah,0x41
+        jz :e34pfu          -- power function underflow
+        mov rax,0x00007FFE
+        mov [rsp+8],rax
+        fld tbyte[rsp]  -- maxatm
+        add rsp,16
+        fcomp
+        fnstsw ax
+--DEV Agner sez (look this up!) test ax,0x40 jz StoreFlt64 (nb test inverted)
+--  sahf
+--  jae StoreFlt
+        test ah,0x01
+        jz :%pStoreFlt
+--      jmp :e35pfo         -- power function overflow
+        pop rdx
+        mov al,35
+        sub rdx,1
+        jmp :!iDiag
+        int3
+
+--  mov [sferr],1
+-- @@:
+
+--  jmp StoreFlt
+
+      ::opPowP2neg
+        fabs                -- p2 = |p2|, in this case same as *-1
+        fld st1             -- duplicate p3
+        frndint             -- DEV SLOW!
+        fcom st2
+        fnstsw ax
+        sahf
+        jne :e54atrnntnip   -- attempt to raise negative number to non-integer power
+        sub rsp,8
+        fistp qword[rsp]
+        pop rax
+        shr rax,1
+        jnc :opPowP3even
+        fyl2x               -- st1*=log2(st0); pop st0. st0 must be >0 ; ie log2(p2)*p3
+        fld st0             -- duplicate st0
+        frndint             -- round it to an integer   ; DEV SLOW!
+        fsub st1,st0        -- leave only fractional portion in st1
+        fxch st1            -- st1=int(p2*log2(p3)); st0=p2*log2(p3)-st1
+        f2xm1               -- get the fractional power of 2 (minus 1). st0 = 2^^st0-1 st0 must be in the range -1.0 to +1.0
+        fld1
+        faddp               -- get rid of that minus 1
+        fscale              -- multiply by 2^int(p2*log2(p3)) ; similar to shl 2 being same as mul 4
+        fchs                -- change sign!
+        jmp :opPowCont       
+    []
+      }
+

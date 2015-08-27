@@ -1,0 +1,39 @@
+-- Arwen32Dib demo: demonstrates the scale-function
+--  Ported to Arwen by Pete Lomax
+
+include a32dgeom.ew  -- only the core- and geometric manipulation-library are necessary
+
+object dib, scale_dib
+    dib = loadDib("demo.bmp")
+    if not sequence(dib) then
+        void = message_box("Can't load bitmap 'demo.bmp'.", "Error", MB_ICONERROR)
+        abort(0)
+    end if
+    scale_dib = 0
+
+constant win = create(Window, "Arwen32Dib bitmap scale demo -- resize the window to see the scaling", 0, 0, Default, Default, 600, 400, 0)
+
+function winHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_PAINT then
+        if sequence(scale_dib) then
+            drawDib(win, scale_dib, 0, 0, 0, 0, scale_dib[DibWidth]-1, scale_dib[DibHeight]-1)
+        end if
+    elsif msg=WM_SIZE then
+        rect = getClientRect(win)
+        if sequence(scale_dib) then killDib(scale_dib) end if
+        scale_dib = scaleDib(dib, rect[3], rect[4], False)
+        repaintWindow(win,False)
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(win)
+    end if
+    return 0
+end function
+setHandler({win},routine_id("winHandler"))
+
+    WinMain(win, SW_NORMAL)
+    killDib(dib)
+    if sequence(scale_dib) then killDib(scale_dib) end if
+    freeDib()

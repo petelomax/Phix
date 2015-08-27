@@ -1,0 +1,2641 @@
+--format PE64
+-- DEV this might need to be in pHeap.e (:%pGetMCHK?): (so that pAlloc can store 0 in the era)
+--  it may also want to be "with memory_leak_checking/full_memory_leak_checking"
+global constant MCHK = 0        -- 0 = off, 1 = on
+--global constant MCHK = 01     -- 0 = off,
+--                              -- 1 = internal (flt/str/seq)
+--                              -- 2 = full (""/allocate)
+--!/**/include builtins\VM\pcfuncN.e
+
+--  Note that MCHK is ignored if opLntpcalled!=0 or length(ptab)!=0, as otherwise
+--                            opLnp/t will leave random floats etc on the "wrong heap"
+--                            and therefore trigger spurious memory leak errors.
+--                            (that may be fixable with a bit of jiggery-pokery, if
+--                             we extend symtab[T_EBP] to contain ntcb4...)
+--
+-- p.exw:  Phix: Pete's hybrid interpreted/compiled self hosted programming language.
+--
+--  Pronounced "fix". Test/trace/profile a program using "p test" (ie interpreter mode),
+--  compile a program for distrubution using "p -c test", and/or use the gui front-end.
+--  Rebuild the compiler in seconds using "p -c p", with no other tools/software needed.
+--  Test compiler modifications using "p p test".
+--                
+
+--SUG: check types and side-effects on auto-includes.
+--
+-- Programming notes:   (some general tips regarding bugs etc in p.exw itself)
+-- =================
+--  index out of bounds caused by opstack[opsidx[-1/2/3]] of 0: if emitON is 0, there
+--                      is probably a missing "if emitON then" wrapper at that point.
+--                      The missing entry from the test set is "constant DEBUG=0" with
+--                      "if DEBUG then <any & all possible code constructs> end if",
+--                      which ought to do nothing except compile cleanly.
+--  try "p p -cp" when "p -cp" fails. Certainly any change to the calling convention for
+--                      the backend VM (usually) requires this, similar build problems 
+--                      have occured with #ilasm/updates to iload in pttree.e, and with
+--                      some changes to #isginfo handling.
+--erm:
+--  stuff I rule out includes: goto: see notes/alternative in pops.e
+--                             preprocessing/macros: make the compiler smarter rather
+--                              than make it handle two different interlaced languages.
+--                             no proven gain: don't care about "want", need proof.
+--                              try whacky ideas yourself, be not premature with them.
+--                             because C does it like that: so what? Go use C then.
+--  open-source forks of the compiler are welcome, closed source ones are forbidden.
+--
+-- For a description of with/without console/gui, see file:docs/pfeat.htm#console
+--
+--DEV temp. removed (as it now triggers use of new emit, try putting back once pth works!)
+--!/**/format "p.fmt"
+----with gui 4.0        -- pw.exe/see verify_build() etc below
+--/**/with console 4.0      -- p.exe (this program does not run on RDS Eu!)
+--DEV (this wants to be in a common file for p.exw/pth.exw)
+--format PE32 4.0
+--version { "FileDescription","Phix Programming Language",
+--        "LegalCopyright","Pete Lomax",
+--        "FileVersion","0.6.3",
+--        "ProductName","Phix Programming Language",
+--        "ProductVersion","0.6.3",
+--        "OriginalFilename","pw.exe" }
+
+--
+-- Warning: it is not wise to trace/profile the compiler whilst that is also
+--          trying to trace/profile a user app. In particular, "p p test" may
+--          crash (error code 91) when one of these is enabled.
+--          Update: I have stopped attempts to "share" a copy of pdebug.e and
+--          as long as pdiag.e (which remains "shared") has "without debug",
+--          this now seems better, albeit the sanity remains questionable...
+--
+--with profile_time
+--with profile
+
+--include demo\arwen\arwen.ew
+--include demo\arwen\axtra.ew
+--include builtins\timestamp.ew
+
+without trace
+--without type_check
+--with trace
+with type_check
+--without debug -- no gain
+
+--!/**/without licence      -- Disable licencing, since it quite deliberately cripples 
+--                          --  most of the core compiler/interpreter functionality.
+--                          -- (You may freely share modified compiler sources, with a
+--                          --   an "official" p.exe binary to recompile them, however
+--                          --   you may NOT ship a pre-built/closed source p.exe.)
+--                          -- (TIP: If you add a language construct, think twice before
+--                          --       using it in p.exw itself, otherwise you may need to
+--                          --       ship two versions of the modified compiler source.
+--                          --       Not that running p temp\pold -cp is a major burden
+--                          --       over "p -cp", as a one-time installation task.)
+
+global integer bind
+               bind = 0         -- set by -c, -listing command line options (create .exe file)
+
+global integer repl
+               repl = 0         -- set by -repl command line option (read eval print loop)
+
+global integer testall
+               testall = 0
+global integer pauseOnWarnings
+               pauseOnWarnings = 01     -- only used if testall!=0 (which it is for final file)
+
+-- note there is a "copy" of this in pdiag.e:
+global integer batchmode        -- set by -batch command line option
+               batchmode = 0    -- 1=suppress displays/prompts [incomplete]
+
+global integer norun            -- set by -norun, -listing command line options
+               norun = 0
+
+global integer nodiag           -- set by -nodiag command line option
+               nodiag = 0       --  (can make list.asm easier to follow)
+
+global integer listing          -- set by -listing command line option (also sets norun & bind)
+               listing = 0      --  (aka -d, -dump, -l, -list, command line option)
+                                -- -1 indiates -d! (interpretive dump) listing
+--DEV should no longer need this (rsn)
+global integer listimports      -- set by -import(s) command line option
+               listimports = 0  -- 1 just dumps the import section to screen
+
+global constant suppressopRetf = 0 -- debug aid, should be 0 in all releases
+if suppressopRetf then
+    puts(1,"warning (p.exw line 107): suppressopRetf is ON\n")
+end if
+
+--DEV this is not properly implemented yet; needs to do a full gvar_scan in pemit.e,
+--      process #isginfo/opGchk properly, etc. (pltype.e should be OK)
+--  (btw, apart from completely ignoring "without warning", this would/should not 
+--        give you any more info than -c already does...)
+global integer lint             -- set by -lint command line option
+               lint = 0         --  (nb all x[i] = c_func will give warnings)
+
+global integer dumpil           -- set by -dumpil command line option
+               dumpil = 0       --  (nb only suitable for small programs/compiler debugging,
+                                --      and also: not all errors/warnings will be displayed.)
+global integer dilfn            -- for use with dumpil option, output file "ildump.txt"
+               dilfn = 1        --  (opened here, written in pilx86, closed in pemit.e)
+
+global constant showfileprogress = 0    -- show files, times, etc.
+
+global constant collectstats = 0        -- see opStat, profile.e, eg emitHex5(), Branch().
+                                        -- WARNING: this (=1) is currently broken.
+
+global constant countTransTmpFer = 0    -- if set, writes a table of instructions which
+                                        -- might be suitable for tmptransfer, sorted in
+                                        -- order of occurrence, to ildump.txt only.
+                                        -- NB: does nowt else, and collects "consumers"
+                                        --  only, not potential producers (see pilx86.e).
+global constant showOpCounts = 0        -- if set, writes a table of opcodes in order
+                                        -- of number of times ilxlate() processed them.
+if countTransTmpFer then
+    if showOpCounts then ?9/0 end if    -- these (debug) options are mutually exclusive!
+end if
+
+
+global constant AutoIncWarn = 01        -- If 1, warn when files are auto-included.
+                                        -- NB only has effect under -lint.
+
+include builtins\pcase.e as pcase -- upper(), lower()
+
+--include pcore.e
+--include p6core.e
+--
+-- pcore.e
+--
+--  common incudeset for p.exw and pgui.exw
+--
+include pglobals.e
+
+include builtins\ppp.e
+
+include pops.e      -- opcode table
+
+include pttree.e    -- ternary tree
+
+include pmsgs.e -- Warnings/Warn/Abort/Duplicate/Expected/Fatal/Undefined
+
+include ptok.e  -- tokeniser: getToken()
+--include p6tok.e   -- tokeniser: getToken()
+
+include pltype.e    -- localtypes handling
+
+include psym.e      -- symbol table handler.
+--include p6sym.e -- symbol table handler.
+
+include pilx86.e    -- ilxlate(), (also includes psched.e)
+
+global sequence code_section
+global integer CSvsize, DSvsize
+global integer CSvaddr, DSvaddr, ImageBase, VMvaddr, VMraddr, DVraddr, VMvsize      --DEV temp, for listing
+global string divm  -- used by p2asm.e if dumpVM=1
+global sequence VMep -- used by p2asm.e [DEV]
+
+--include pemit.e
+--include p6emit.e
+include pEmit2.e
+
+--include pdebug.e  -- trace routines
+include VM\pTrace.e -- trace routines
+
+include pmain.e     -- main parser
+
+--include profile.e -- profile, profile_time, and opStats reporting
+include builtins\VM\pProfile.e
+
+include plist.e     -- assembly and symbol table dump
+
+include builtins\VM\pMemChk.e   -- check_heap
+
+--DEV find a way to run terror.exw full test... (a stub? two top-level includes?)
+--DEV migrate these into bench.exw???
+--DEV better: create a file test\alltests.txt to contain this...
+--  Lines which do not begin with <tab><double quote> are ignored.
+--
+-- Most of these tests are mundane, some exhaustively so:
+--
+constant testset={
+    "..\\test\\t01type.exw",--[ 1] OK   -- very basic type checking
+    "t02parms.exw",         --[ 2] OK   -- simple parameter checking (oldish)
+    "t03showt.exw",         --[ 3] OK   -- more very basic type checking
+    "t04unary.exw",         --[ 4] OK   -- tests for unary minus and 'not'
+    "t05inc0.exw",          --[ 5] OK   -- a trivial include
+    "t06inc1.exw",          --[ 6] OK   -- basic namespaces and scope
+    "t07inc2.exw",          --[ 7] OK   -- multiple includes, all vars named 'z'
+    "t08inc22.exw",         --[ 8] OK   -- multiple includes, different named vars
+    "t09inc3.exw",          --[ 9] OK   -- namespaced references to sub-includes    [new feature]
+    "t10inc4.exw",          --[10] OK   -- more trivial includes (oldish)
+    "t11inc5.exw",          --[11] OK   -- subdirectory include                     [new feature]
+    "t12inc6.exw",          --[12] OK   -- more trivial multiple includes
+    "t13inc7.exw",          --[13] OK   -- automatic global resolution              [new feature]
+    "t14inc8.exw",          --[14] OK   -- more ""
+    "t15inc9.exw",          --[15] OK   -- more trivial includes (oldish)
+    "t16incD.exw",          --[16] OK   -- test ../same is skipped
+    "t17incV.exw",          --[17] OK   -- test crazy \\/ and uPPER/LowerCase handling
+    "t18equal.exw",         --[18] OK   -- stress test of [not] equal (!=/=)
+    "t19find.exw",          --[19] OK   -- quick test of find()
+    "t20cast.exw",          --[20] OK   -- primitive assignments and type checks
+    "t21ret1.exw",          --[21] OK   -- simple function returns
+    "t22cmp.exw",           --[22] OK   -- stress test compare and relops
+    "t23subsc.exw",         --[23] OK   -- trivial subscript tests
+    "t24slice.exw",         --[24] OK   -- stress test slice ops
+    "t25rmdr.exw",          --[25] OK   -- stress test remainder()
+    "t26aprnd.exw",         --[26] OK   -- stress test append/prepend
+    "t27rpeat.exw",         --[27] OK   -- trivial test of repeat
+    "t28prntf.exw",         --[28] OK   -- trivial printf tests [pprntf.e]
+    "t29for.exw",           --[29] OK   -- for loop test [performance needs improving]
+    "t30prime.exw",         --[30] OK   -- a simple prime number function test
+    "t31sce.exw",           --[31] OK   -- short circuit tests (oldish)
+    "t32sprnt.exw",         --[32] OK   -- simple sprint() tests
+    "t33seqop.exw",         --[33] OK   -- (old) sequence tests
+    "t34andor.exw",         --[34] OK   -- simple and/or tests (oldish)
+    "t35cncat.exw",         --[35] OK   -- stress test the & operator
+    "t36match.exw",         --[36] OK   -- stress test match() function
+    "t37misc.exw",          --[37] OK   -- power/log/atom_to_float32/lower etc
+    "t38bltns.exw",         --[38] OK   -- check builtins/ compile cleanly
+--DEV add:
+--t39fio.exw
+--t39riomini.exw
+    "t39rndio.exw",         --[39] OK   -- random i/o on 30K file till done
+    "t40rtnid.exw",         --[40] OK   -- tests on routine_id, call_proc etc.
+    "t41infan.exw",         --[41] OK   -- tests on inf and nan handling
+    "t42cback.exw",         --[42] OK   -- call_back tests
+    "t43tchk.exw",          --[43] OK   -- simple user defined type checks
+    "t44silly.exw",         --[44] OK   -- recursive return test (ie the function f() returns f() case)
+    "t45aod.exw",           --[45] OK   -- an assignment on declaration problem test
+    "t46ltype.exw",         --[46] OK   -- localtype tests
+    "t47ltth.exw",          --[47] OK   -- localtype test harness, for tweakers of Assignment() in pmain.e
+--DEV top-level abort(0) kills the run...
+--  "t48init.exw",          --[48] OK   -- init tests ** not implemented/suboptimal **
+    "t49ginfo.exw",         --[49] OK   -- gvar_scan final results tests.
+--Fine, but needs annoying edit
+--  "t50gscan.exw",         --[50] OK   -- some snippets which gave pgscan.e a hard time.
+    "t51nstc.exw",          --[51] OK   -- some tests for an upgrade to Expr().
+    "t52oparm.exw",         --[52] OK   -- optional parameter tests.
+    "t53switch.exw",        --[53] OK   -- switch tests [DEV incomplete].
+    "t54inc.exw",           --[54] OK   -- include bugfix (18/01/2012) part 1.
+    "t55incinc.exw",        --[55] OK   -- include bugfix (18/01/2012) part 2.
+    "t56inc.exw",           --[56] OK   -- ReLinkAsGlobal bugfix (27/12/2012)
+--DEV broke 22/4/15:
+    "t57masgn.exw",         --[57] OK   -- test multiple assignment.
+    "t58rtxt.exw",          --[58] OK   -- file i/o tests (wait until pfileio3.e goes live) [DEV]
+    "t59mri.exw",           --[59] OK   -- test mutually recursive includes
+--FP
+    "..\\demo\\mandle.exw", --[60] OK   -- simple ascii mandlebrot demo
+    "..\\demo\\combo.exw",  --[61] OK   -- simple combinations function
+    "..\\demo\\takeuchi.exw",--[62] OK  -- stress test function calls
+--  "..\\demo\\arwen\\demo_controls.exw",
+    -1}
+
+
+--  mainpath = rootpath&"test\\"    -- see also smp under testall
+
+--  mainfile = testset[14]
+
+--  mainfile = "test9.exw"  -- message box hook (OK)
+    
+--  mainpath = ""
+--  mainfile = "pt.exw"
+--  mainfile = "pt2.exw"
+--  mainfile = "pt3.exw"
+--  mainfile = "pgui.exw"
+--  mainpath = "c:\\temp\\lzj\\"
+--  mainfile = "lzjb.exw"
+--
+-- The demos that came with arwen:
+--
+--  mainpath = "demo\\arwen\\"
+--  mainfile = "demo_controls.exw"  -- OK
+--  mainfile = "demo_curve_fit.exw" -- OK
+--  mainfile = "demo_idle.exw"      -- OK
+--  mainfile = "demo_lists.exw"     -- OK
+--  mainfile = "demo_memo.exw"      -- OK
+--  mainfile = "demo_menus.exw"     -- OK
+--  mainfile = "demo_menus_od.exw"  -- OK   -- BUGS (same on RDS Eu)
+--  mainfile = "demo_msgtraps.exw"  -- OK
+--  mainfile = "demo_progress.exw"  -- OK
+--  mainfile = "demo_resizing.exw"  -- OK
+--  mainfile = "demo_sysmenu.exw"   -- OK
+--  mainfile = "demo_tabs.exw"      -- OK
+--  mainfile = "demo_timer.exw"     -- OK
+--  mainfile = "demo_toolbar.exw"   -- OK (null program) 
+--  mainfile = "demo_viewer.exw"    -- OK
+------ and a few of my own:
+--  mainfile = "demo_listview.exw"  -- OK
+--  mainfile = "demo_treeview.exw"  -- OK 
+--  mainfile = "demo_lbfc.exw"      -- OK 
+--  mainfile = "demo_mmsd.exw"      -- [missing]
+--  mainfile = "pae\\mmsd.exw"      -- OK
+--  mainfile = "demo_vtext.exw"     -- OK 
+--  mainfile = "generic.exw"        -- OK
+--  mainfile = "viewa.exw"          -- OK
+
+--  mainpath = rootpath&"demo\\"
+--  mainfile = "Mandle.exw"     -- OK (and 33 times faster than Eu!) (erm, 20...)
+--  mainfile = "call.exw"       -- OK (needed a fair few mods to asm.e though)
+--  mainfile = "combo.exw"      -- OK
+--  mainfile = "goto.exw"       -- OK (WARNING: different results are to be expected from 
+--                              --      {p goto|exw goto} vs. {p -c goto|goto.exe|exw p goto}
+--                              --      - of course in the latter there is an implied -c)
+--  mainfile = "hd.exw"         -- OK
+--  mainfile = "takeuchi.exw"   -- OK
+--  mainfile = "sanity.exw"     -- OK
+--??    mainfile = "clip.exw"
+
+--also, that printf number too big for %x or %o format message. (one day)
+                                -- date() [FIXED in hll]
+--***                           -- set_rand() [commented out for now]
+--***                           -- for loop control var not integer...
+--***                           -- for loop limit not integer (commented out in overflow())
+                                -- sequence op (mul) (commented out in sequence_ops)
+--***                           -- for loop in atomic_ops() crashes [commented out]
+--***                           -- divide by 0 to get traceback... (need to get debug working!)
+--  mainfile = "db01.exw"
+
+--  mainpath = rootpath&"new\\"
+--  mainfile = "t2.exw"         -- OK, (make me a demo) [DEV]
+
+
+-- quick test to ensure we get the ones out of \builtins not EUDIR\include:
+--  mainpath = ""
+--  mainfile = "get.e"          -- OK
+--  mainfile = "file.e"         -- OK
+--  mainfile = "sort.e"         -- OK
+--  mainfile = "misc.e"         -- OK
+--  mainfile = "dll.e"          -- OK (after several routines [opcodes in Pve] commented out)
+--  mainfile = "graphics.e"     -- OK (almost completely commented out)
+--  mainfile = "image.e"        -- OK
+--  mainfile = "mouse.e"        -- all commented out (not supported for windows)
+--  mainfile = "msgbox.e"       -- OK
+--  mainfile = "wildcard.e"     -- OK (upper & lower removed, in pcase.e for Pve)
+--  mainfile = "image.e"        -- OK
+--  mainfile = "machine.e"      -- OK
+--  mainfile = "safe.e"
+--  mainfile = "database.e"     -- OK, needs more testing
+
+--  mainfile = "ppp.e"          -- OK
+--  mainfile = "arwen.ew"       -- OK
+
+--  mainpath = "demo\\win32lib\\"
+--  mainfile = "win32lib.ew"
+--  mainfile = "win32lib.ewx"
+                                --
+                                -- type error win32lib.ew line 18909:
+                                -- if atom(lRefControl) or ..., where lRefControl had been defined as a 
+                                -- sequence. Removed the spurious test.
+                                --
+                                -- also, from Posetf, win32lib.ew line 11696, 16353, 23758, 23872, 25701, 30397:
+                                --      vStreamCBPosn = floor(lEnd + 1) -- floor added PL 21/10
+                                --      bgControl = floor(pOwner)   -- floor added PL 21/10
+                                --      lStart = floor(lNextElem)   -- floor added PL 21/10
+                                --      lTextPrinted = floor(lNextElem)     -- floor added PL 21/10
+                                --      offset = floor(address)     -- floor added PL 21/10
+                                --      origpos = floor(pos)    -- floor added PL 22/10
+                                --
+                                -- win32lib.ew line 23352 for i = 0 to wParam, replaced with
+                                --  for i = 0 to floor(wParam), also line 23335.
+                                --
+                                -- w32msgs.e 109: crash_message() undefined
+--  mainfile = "CenterIt.exw"
+--  mainpath = "C:\\Program Files\\Phix\\demo\\win32lib\\Demo\\"
+--  mainfile = "Advanc.exw"         -- OK
+--  mainfile = "aktb.exw"           -- OK
+--  mainfile = "CenterIt.exw"       -- OK
+--  mainfile = "appselect.exw"      -- OK
+--  mainfile = "backcolor.exw"      -- OK
+--  mainfile = "BIGDOTS.EXW"        -- OK
+--  mainfile = "biglistview.exw"    -- OK
+--  mainfile = "bitmap.exw"         -- OK
+--  mainfile = "bitmap_zoom.exw"    -- OK-ish (buggy demo, same on RDS)
+--  mainfile = "BitMap10.exw"       -- OK
+                                    -- however I had a Fatal exception which appeared to be a duff header...
+                                    --  disk space was v.low, so it could be that pfio.asm is not detecting 
+                                    --  write/flush fails properly...
+--  mainfile = "BitMap14.exw"       -- OK
+--  mainfile = "bitmap3.exw"        -- OK
+--  mainfile = "BitmapPrint.exw"    -- OK
+--  mainfile = "BitmapText.EXW"     -- OK
+--  mainfile = "BkGnd16.EXW"        -- OK
+--  mainfile = "boxes.exw"          -- OK
+--  mainfile = "Buttons5.exw"       -- OK
+--  mainfile = "Center1.exw"        -- OK
+--  mainfile = "charbmp.exw"        -- OK
+--  mainfile = "child4.exw"         -- OK
+--  mainfile = "childw.exw"         -- OK
+--  mainfile = "childw1.exw"        -- OK
+--  mainfile = "childw2.exw"        -- OK
+--  mainfile = "childw3.exw"        -- OK
+--  mainfile = "click.exw"          -- OK
+--  mainfile = "clientarea.exw"     -- OK
+--  mainfile = "clock.exw"          -- OK
+--  mainfile = "clock2.exw"         -- OK
+--  mainfile = "colorbtn.exw"       -- OK
+--  mainfile = "colorlabel.exw"     -- OK
+--  mainfile = "colorlabel2.exw"    -- OK
+--  mainfile = "colorlbl.exw"       -- OK
+--  mainfile = "colors.exw"         -- OK
+--  mainfile = "combo.exw"          -- OK
+--  mainfile = "ComboBoxEx.EXW"     -- OK
+--  mainfile = "ctrlq.exw"          -- OK
+--  mainfile = "destroy.exw"        -- OK
+--  mainfile = "destroy2.exw"       -- OK
+--  mainfile = "dicethrow.exw"      -- OK
+--  mainfile = "display.exw"        -- OK
+--  mainfile = "doevent.exw"        -- OK
+--  mainfile = "dosbox.exw"         -- OK
+--  mainfile = "dots.exw"           -- OK
+--  mainfile = "drawing2.exw"       -- OK
+--  mainfile = "drawRecTest.exw"    -- OK
+--  mainfile = "drawtext.exw"       -- OK
+--  mainfile = "EditBoxes.exw"      -- OK
+--  mainfile = "eucompress.exw"     -- ?
+--  mainfile = "ex00.exw"           -- OK
+--  mainfile = "EX01.EXW"           -- OK
+--  mainfile = "EX02.EXW"           -- OK
+--  mainfile = "EX03.EXW"           -- OK
+--  mainfile = "EX04.EXW"           -- OK
+--  mainfile = "EX05.EXW"           -- OK
+--  mainfile = "EX06.EXW"           -- OK
+--  mainfile = "EX07.EXW"           -- OK
+--  mainfile = "ex08.exw"           -- OK
+--  mainfile = "EX09.EXW"           -- OK   (required seq op fix/remove w32iff in setFont)
+--  mainfile = "EX10.EXW"           -- OK
+--  mainfile = "EX11.EXW"           -- OK
+--  mainfile = "EX12.EXW"           -- OK
+--  mainfile = "EX13.EXW"           -- OK
+--  mainfile = "EX14.EXW"           -- OK
+--  mainfile = "ex15.exw"           -- broke (same on RDS)
+--  mainfile = "ex16.exw"           -- OK
+--  mainfile = "EX17.EXW"           -- OK
+--  mainfile = "EX18.EXW"           -- OK
+--  mainfile = "EX19.EXW"           -- OK
+--  mainfile = "EX20.EXW"           -- OK
+--  mainfile = "EX21.EXW"           -- OK
+--  mainfile = "EX22.EXW"           -- OK
+--  mainfile = "EX23.EXW"           -- OK
+--  mainfile = "F1Key.exw"          -- OK
+--  mainfile = "fastLV.exw"         -- OK
+--  mainfile = "fileprop.exw"       -- OK
+--  mainfile = "FindFile.EXW"       -- OK
+--  mainfile = "findstr.exw"        -- OK
+--  mainfile = "FlatToolBar.EXW"    -- OK
+--  mainfile = "focus.exw"          -- **** BUG **** (closes immediately)
+--  mainfile = "focus2.exw"         -- OK
+--  mainfile = "fullscreen.exw"     -- OK
+--  mainfile = "GENERIC.EXW"        -- broken (same on RDS Eu)
+--  mainfile = "getClientRect.exw"  -- OK
+--  mainfile = "getfile.exw"        -- OK
+--  mainfile = "getfocus.exw"       -- OK
+--  mainfile = "GetMfiles.EXW"      -- OK
+--  mainfile = "gradfil.exw"        -- OK
+--  mainfile = "groupadv.exw"       -- OK
+--  mainfile = "grouptab.exw"       -- OK
+--  mainfile = "HANDLERS.EXW"       -- OK
+--  mainfile = "hexes.exw"          -- OK
+--  mainfile = "hintwidth.exw"      -- OK
+--  mainfile = "HOV.EXW"            -- OK
+--  mainfile = "hover.exw"
+--  mainfile = "icon00.exw"         -- OK
+--  mainfile = "idle.exw"           -- OK
+--  mainfile = "imageview.exw"
+--  mainfile = "initfocus.exw"      -- OK
+--  mainfile = "inScreenPointIn.exw"-- OK
+--  mainfile = "kick2.exw"          -- OK
+--  mainfile = "KM.EXW"             -- ? phroom ?
+--  mainfile = "life.exw"           -- OK
+--  mainfile = "list_additem.exw"
+--  mainfile = "listdemo.exw"
+--  mainfile = "listpop.exw"
+--  mainfile = "listsync.exw"
+--  mainfile = "listtabs.exw"
+--  mainfile = "ListTreeView.EXW"
+--  mainfile = "listtreeview2.exw"
+--  mainfile = "listview.exw"       -- OK
+--  mainfile = "listview2.exw"
+--  mainfile = "listview3.exw"
+--  mainfile = "listviewbox.exw"
+--  mainfile = "ListViewEdit.exw"
+--  mainfile = "ListViewStyles.exw"
+--  mainfile = "ListViewStyles2.exw"
+--  mainfile = "listwin.exw"
+--  mainfile = "loadlv1.exw"
+--  mainfile = "loadlv2.exw"
+--  mainfile = "loadlv3.exw"
+--  mainfile = "long.exw"
+--  mainfile = "lostfocus.exw"
+--  mainfile = "lvcol.exw"
+--  mainfile = "lvheadings.exw"
+--  mainfile = "lvicon.exw"
+--  mainfile = "lvicons.exw"
+--  mainfile = "lvsetindexcoba.exw"
+--  mainfile = "MAKEDOC.EXw"
+--  mainfile = "MDI01.EXW"
+--  mainfile = "Menu08.exw"
+--  mainfile = "menubang.exw"
+--  mainfile = "menuchk.exw"
+--  mainfile = "mle_write.exw"
+--  mainfile = "mletext.exw"
+--  mainfile = "modal.exw"
+--  mainfile = "modaltab.exw"
+--  mainfile = "ModalWin.EXW"
+--  mainfile = "MonthCalendar.EXW"
+--  mainfile = "Mouse.dat"
+--  mainfile = "mousetrap.exw"
+--  mainfile = "MsgBox.exw"
+--  mainfile = "MultiDialog.exw"
+--  mainfile = "multisel.exw"
+--  mainfile = "mwheel.exw"
+--  mainfile = "nested_groups.exw"
+--  mainfile = "notify.exw"         -- OK
+--  mainfile = "ntb.exw"            -- OK
+--  mainfile = "openfile.exw"
+--  mainfile = "PageSetupDlg.EXW"
+--  mainfile = "paintevent.exw"
+--  mainfile = "parsexpm.exw"
+--  mainfile = "password.exw"
+--  mainfile = "peekstring.exw"
+--  mainfile = "playsounds.exw"
+--  mainfile = "pokie.exw"          -- OK
+--  mainfile = "popupwindow.exw"
+--  mainfile = "PRETEND.EXW"        -- OK
+--  mainfile = "printerlines.exw"
+--  mainfile = "PrintRichText.EXW"
+--  mainfile = "progressbar.exw"
+--  mainfile = "pw2.exw"
+--  mainfile = "radios.exw"
+--  mainfile = "randdots.exw"       -- OK
+--  mainfile = "rclick.exw"
+--  mainfile = "ReBar.EXW"
+--  mainfile = "RESIZE.EXW"
+--  mainfile = "resizebmp.exw"
+--  mainfile = "RichEdit.EXW"
+--  mainfile = "richedit1.exw"
+--  mainfile = "richedit2.exw"
+--  mainfile = "rolling_die_2.exw"  -- OK
+--  mainfile = "rotated_text.exw"   -- OK
+--  mainfile = "rt.exw"             -- broke (same on RDS)
+--  mainfile = "RtClick.exw"
+--  mainfile = "RTI.ex"
+--  mainfile = "rubbish.txt"
+--  mainfile = "rundemo.hpc"
+--  mainfile = "RUNDEMO.HTX"
+--  mainfile = "RunDemos.exw"       -- OK (ish, ...)
+--  mainfile = "RunDemos.lst"
+--  mainfile = "saveas.exw"
+--  mainfile = "Scramble.exw"
+--  mainfile = "scroll.EXW"
+--  mainfile = "scroll2.exw"
+--  mainfile = "SCROLL3.EXW"
+--  mainfile = "scroller.exw"
+--  mainfile = "selectFolder.exw"
+--  mainfile = "SETFOCUS.EXW"
+--  mainfile = "setinitfocus.exw"
+--  mainfile = "setmouse.exw"
+--  mainfile = "setvis.exw"
+--  mainfile = "shexec.exw"
+--  mainfile = "showfile.exw"
+--  mainfile = "showtext.exw"
+--  mainfile = "simple_flatToolBar.EXW"
+--  mainfile = "simple_list.exw"
+--  mainfile = "simplelist.exw"
+--  mainfile = "smalllv.exw"
+--  mainfile = "splash.exw"
+--  mainfile = "sprite.exw"
+--  mainfile = "StatBar1.EXW"
+--  mainfile = "StatBar2.EXW"
+--  mainfile = "swin.exw"               -- OK
+--  mainfile = "tab_arrow.exw"
+--  mainfile = "tabclick.exw"
+--  mainfile = "tabCnt.exw"
+--  mainfile = "TABCOLOR.EXW"
+--  mainfile = "tabcontrol.exw"
+--  mainfile = "tabcontrol2.exw"
+--  mainfile = "TabItemDelete.exw"
+--  mainfile = "tabListView.exw"
+--  mainfile = "tesrtf.exw"
+--  mainfile = "timer.exw"
+--  mainfile = "ToolBar.EXW"
+--  mainfile = "Tooltip.EXW"
+--  mainfile = "tooltip_dynamic.exw"
+--  mainfile = "trackbar.exw"
+--  mainfile = "TranslatedIdeText.exw"
+--  mainfile = "translbl.exw"
+--  mainfile = "treevclick.exw"
+--  mainfile = "treeview.exw"
+--  mainfile = "treeview2.exw"
+--  mainfile = "treeview3.exw"
+--  mainfile = "tvchecked.exw"
+--  mainfile = "tvedit.exw"
+--  mainfile = "tvSave.EXW"
+--  mainfile = "twowin.exw"
+--  mainfile = "UpDown.EXW"
+--  mainfile = "virt_lv.exw"
+--  mainfile = "visibility.exw"
+--  mainfile = "WalkDir.EXW"
+--  mainfile = "window.exw"
+--  mainfile = "wordcatcher.exw"
+--  mainfile = "wprint.exw"
+--  mainfile = "WrtLabel.EXW"
+--  mainfile = "wscore.exw"
+--  mainfile = "wscroll.exw"
+--  mainfile = "Wstyles.EXW"        -- OK
+--  mainfile = "www.exw"
+
+
+--  mainpath = "C:\\Program Files\\Edita\\"
+--  mainfile = "test.exw"
+--  mainfile = "edita.exw"      -- OK 30/3/08 (bar the label colour problem!)
+                                -- floor() required database.e 359:
+                                --  for t = 1 to ntables do
+                                -- made ntables an integer (was atom)
+                                -- ditto line 371 (for r = 1 to tnrecs do)
+                                -- ditto line 425 (for i = 1 to free_count do)
+                                -- ditto line 747 (for i = 1 to nt do)
+                                -- ditto line 788 (for j = 1 to block_size do)
+                                -- ditto line 1072 (for i = key_location to nrecs+1 do)
+                                -- ditto line 1207 (for i = key_location to nrecs do)
+                                --
+                                -- Not sure about this one [DEV]: edita.exw line 5006
+                                --   or (msg = WM_ENDSESSION and wParam) then return saveAllFilesAndINI()
+                                -- replaced with:
+                                --   or (msg = WM_ENDSESSION and wParam!=0) then return saveAllFilesAndINI()
+
+----                                -- eamenus.ew line 1241: for i = 1 to length(menuset) do gives type error;
+----                                --  replaced line 1216 (for i = M_File to E_SelM do) with:
+----                                --      for i = floor(M_File) to floor(E_SelM) do
+
+--  mainfile = "tedb.exw"       -- OK 15/11/08
+
+--  mainpath = "C:\\temp\\calc\\"
+--  mainfile = "calc.exw"       -- sequence op line 210, plus 3 in the testset,
+                                -- Phix gets 3.2834812058e+272,
+                                --    RDS Eu 3.283481206e+272, (close enough or better, I say!)
+                                -- OK 30/3/08
+
+include builtins\syswait.ew
+
+constant k32 = open_dll("kernel32.dll"),
+         xDeleteFile = define_c_func(k32,"DeleteFileA",{C_POINTER},C_LONG)
+--DEV there's a Beep in kernel32?!
+constant user32 = open_dll("user32.dll"),
+         xBeep = define_c_proc(user32, "MessageBeep", {C_INT}),
+         stdBeep = {-1}
+
+procedure Delete(sequence filename)
+-- filename is "pnew.exe" or "pnew2.exe".
+-- not critical should this fail.
+atom fstr
+integer tries
+    fstr = allocate_string(filename)
+    tries = 0
+    while not c_func(xDeleteFile,{fstr}) do
+        tries += 1
+        if tries>20 then
+            puts(1,"(gave up)\n")
+            exit
+        end if
+        puts(1,filename&" in use, retrying..\n")
+        sleep(tries)    -- 1,2,3...20 total 210 secs (3 mins 30 secs)
+    end while
+    free(fstr)
+end procedure
+
+procedure Retry(sequence msg)
+    puts(1,msg)
+    c_proc(xBeep,stdBeep)
+    sleep(1)
+    if find(get_key(),"nN") then abort(1) end if
+    puts(1,"\n")
+end procedure
+
+procedure OverWrite(sequence pw, integer fn, integer fin, integer oc)
+-- pw ("pw.exe" or "p.exe") has just been successfully opened ("wb"),
+-- as file number fn; copy newly created and verified pnew.exe to it,
+-- from file number fin, and patch the subsystem in the pw.exe case.
+-- oc is 0 (zero) for Overwrite, 1 for Create.
+integer c
+    if oc then
+        puts(1,"Creating ")
+    else
+        puts(1,"Overwriting ")
+    end if
+    puts(1,pw)
+    while 1 do
+        c = getc(fin)
+        if c=-1 then exit end if
+        puts(fn,c)
+    end while
+    close(fin)
+    if equal(pw,"pw.exe")
+    or (equal(pw,"p.exe") and oc=1) then
+        if seek(fn,#DC)!=0 then
+            puts(1,"\n\n**seek error on pw.exe**\n\nPress Enter...")
+            if wait_key() then end if
+            abort(1)
+        end if
+        if equal(pw,"pw.exe") then
+            puts(fn,2) -- IMAGE_SUBSYSTEM_WINDOWS_GUI
+        else
+            puts(fn,3) -- IMAGE_SUBSYSTEM_WINDOWS_CUI
+        end if
+    end if
+    close(fn)
+end procedure
+
+procedure verify_build()
+-- 1) Check that pnew.exe and pnew2.exe are binary identical,
+--    if not abort with 1 to signal failure.
+integer fn, fn2, c, c2
+sequence doOther
+        puts(1,"verifying pnew.exe==pnew2.exe")
+        fn = open("pnew.exe","rb")
+        fn2 = open("pnew2.exe","rb")
+        if fn!=-1 and fn2!=-1 then
+            while 1 do
+                c = getc(fn)
+                c2 = getc(fn2)
+                if c!=c2 then fn = -1 exit end if
+                if c=-1 then exit end if
+            end while
+        end if
+        if fn=-1 or fn2=-1 then
+            puts(1,"\n\nRebuild unsuccessful, sorry\n\nPress Enter...")
+            if wait_key() then end if
+            abort(1)
+        end if
+        puts(1," OK\n")
+        close(fn2)
+        if seek(fn,0)!=0 then
+            puts(1,"\n\n**seek error on pnew.exe**\n\nPress Enter...")
+            if wait_key() then end if
+            abort(1)
+        end if
+--
+-- 2) The most likely case is p.exe is in use, as it is still running
+--    from the original "p -c p" command. Alternatively, it all started 
+--    with "pw -c p" so pw.exe is still in use. This is an operating 
+--    system feature: rather than load the whole of p.exe (or any other
+--    executable) into ram, it loads just the first few sectors, and
+--    keeps p.exe open/in use throughout, in case it needs to load the
+--    remainder and/or swap out some code pages should memory run low.
+--    (If a code page has been modified, it goes to the normal swap
+--     file, if not the os knows it can just re-load it from p.exe.)
+--    This means that p.exe simply cannot be used to directly overwrite 
+--    p.exe however hard you try, instead an indirect route is needed.
+--
+--    Repeatedly try to open p.exe or pw.exe, displaying a message while 
+--    both are in use. (Doing so seems easier than using command_line()
+--    to decide which.) When/if we manage to open one, overwrite it and 
+--    immediately run it with "-pmkr5" or "-pmkr6" to do the other one.
+--    By not waiting for this very last step we allow the calling process
+--    to terminate and avoid an "in use deadlock".
+--
+--    Note: if you run say "p -cp" from Edita, when it runs "pw -pmkr5" 
+--          to overwrite p.exe and terminates, Edita may notice that the
+--          p.exe process has finished and re-grab focus, which may mean
+--          that retry messages from the pw.exe process are obscured.
+--          I suppose we could try sending Edita a message along the
+--          lines of "replace waiting for that p.exe to finish with
+--          waiting for this pw.exe to finish", perhaps...
+--          Let me know if this behaviour annoys or confuses you.
+--
+        while 1 do
+            fn2 = open("pw.exe","wb")
+            if fn2!=-1 then
+                OverWrite("pw.exe",fn2,fn,0)
+                doOther = mainpath&"pw.exe -pmkr5"  -- ie DoOther("p.exe")
+                exit
+            end if
+            fn2 = open("p.exe","wb")
+            if fn2!=-1 then
+                OverWrite("p.exe",fn2,fn,0)
+                doOther = mainpath&"p.exe -pmkr6"   -- ie DoOther("pw.exe")
+                exit
+            end if
+            Retry("Both p.exe and pw.exe are in use - retry?")
+        end while
+        puts(1," OK\n")
+--/**/  printf(1,"==>sysproc(%s)\n",{doOther})
+--/**/  sysproc(doOther)        --/* Phix (no wait)
+        printf(1,"==>sysproc(%s)\n",{doOther})
+        system(doOther,2)       -- no wait (RDS) */
+        abort(0)
+end procedure
+
+procedure DoOther(sequence ppw)
+-- ppw is either "p.exe" or "pw.exe".
+integer fn, firsttime, fin
+    firsttime = 1   -- (sleep(1) once only, and not once each for ppw & pnew.exe])
+--DEV commented out 29/05 (check list.asm, see if I missed anything/there should be a fin=-1 as well)
+--  fn = -1
+    while 1 do
+        fn = open(ppw,"wb")
+        if fn!=-1 then exit end if
+        if firsttime then
+            sleep(1)
+            firsttime = 0
+        else
+            Retry(ppw&" in use - retry?")
+        end if
+    end while
+    while 1 do
+        fin = open("pnew.exe","rb")
+        if fin!=-1 then exit end if
+        if firsttime then
+            sleep(1)
+            firsttime = 0
+        else
+            Retry("pnew.exe in use - retry?")
+        end if
+    end while
+    OverWrite(ppw,fn,fin,0)
+    --
+    -- finally, try to delete pnew.exe and pnew2.exe:
+    --
+    Delete("pnew.exe")
+    Delete("pnew2.exe")
+    abort(0)
+end procedure
+
+
+--with trace
+
+include pgets0.ew
+
+sequence default_commandlines
+integer lend,
+        didx    -- default_commandlines index. Note our table is "backwards"
+
+function keyHandler(integer ch, integer virtKey, sequence r)
+--
+-- return value: atoms are ignored and input continues.
+--               a sequence s of length 1 is treated specially,
+--               if s[1] is a sequence or an atom < ' ' then
+--               input is terminated and that value is returned
+--               (ie to the gets0() call), otherwise s is the
+--               new/replacement value of input (obviously to
+--               leave the input as-is, just return eg 0).
+--
+integer newidx
+sequence t
+    if ch=0 then
+        newidx = 0
+        if virtKey=G0_UP then
+            newidx = didx+1
+            if newidx>lend then newidx = lend end if
+        elsif virtKey=G0_DOWN then
+            newidx = didx-1
+            if newidx<=0 then newidx = 1 end if
+        elsif virtKey=G0_PGUP then
+            newidx = lend
+        elsif virtKey=G0_PGDN then
+            newidx = 1
+        elsif virtKey=G0_F1 then
+            return {"?",0,G0_CTRLZ}
+        elsif virtKey=G0_F7 then
+            if lend then
+                for i=lend to 1 by -1 do
+                    puts(1,'\n'&default_commandlines[i])
+                end for
+                puts(1,"\nuse (pg) up/down to select:")
+                cpos = 0
+                newidx = didx
+            else
+                puts(1,"\nempty:")
+            end if
+        elsif virtKey=G0_F8 then
+            if didx<lend then newidx = didx+1 else newidx = 1 end if
+        else
+            c_proc(xBeep,stdBeep)
+            return 0
+        end if
+        if newidx and newidx<lend then
+            didx = newidx
+--          return {default_commandlines[didx],-1,0}    -- cursor at end of default
+            return {default_commandlines[didx],0,0}     -- cursor at start of default
+        end if
+    elsif ch<G0_BACK                -- ctrl ABDEFG
+       or ch=11                     -- ctrl K
+       or (ch>=14 and ch<=25) then  -- ctrl NOPQRSTUWXY
+        -- ignore funny chars (smiley faces etc)
+        -- (C is copy, H is BS, I is TAB, J is LF,
+        --  L is clear, M is cr, V is paste, Z is EOF)
+        c_proc(xBeep,stdBeep)
+        return 0
+    elsif cpos=lr or cpos+overstrike=lr then
+        -- if adding a char or replacing last char
+        if overstrike and cpos<lr then
+            r[cpos+1] = ch
+        else
+            r &= ch
+        end if
+        for i=1 to lend do
+            t = default_commandlines[i]
+            if match(r,t)=1 then
+                newidx = i
+                -- found a match, check it is unique
+                for j=i+1 to lend do
+                    t = default_commandlines[j]
+                    if match(r,t)=1 then
+                        newidx = 0
+                        exit
+                    end if
+                end for
+                if newidx then
+                    t = default_commandlines[newidx]
+                    if not equal(r,t) then
+                        didx = newidx
+                        return {t,cpos,ch}
+                    end if
+                end if
+                exit
+            end if
+        end for
+    end if
+    return ch
+end function
+constant r_keyHander = routine_id("keyHandler")
+
+function de_quote(sequence s)
+    if length(s)>1
+    and s[1]='\"' 
+    and s[length(s)]='\"' then
+        s = s[2..length(s)-1]
+    end if
+    return s
+end function
+
+function decode_number(sequence s)
+integer res = 0
+integer ch
+    if length(s)=0 then ?9/0 end if
+    for i=1 to length(s) do
+        ch = s[i]
+        if ch<'0' or ch>'9' then ?9/0 end if
+        res = res*10 + ch-'0'
+    end for
+    return res
+end function
+
+sequence params
+         params = {}
+
+procedure processCommandLine()
+object x0
+sequence default_commandline
+string x
+integer dfn, ch, k, k1, xk, lencl, lenx
+integer pfn, pwfn
+--/**/atom R
+sequence cl
+
+--trace(1)
+
+    cl = command_line()
+--?cl
+-- 30/6/2010:
+-- (Even I don't normally want this! 
+--  rebuildStub() does it better for the p -cp case.
+--  However, using pstub.exe can help a bit after a
+--  bad edit to p.asm makes "p -cp" fail and then 
+--  "p p -test" may indeed need it... But anyone else
+--  reading this is highly unlikely to get into that
+--  situation, since things should get migrated to
+--  hll/#ilasm before playtime begins.)
+--
+--if 01 then
+    cl1 = cl[1]
+--DEV temp: command_line should do this...  
+--  if not find('.',cl1) then
+--      cl1 &= ".exe"
+--  end if
+--else
+--  cl1 = rootpath&"pstub.exe"  -- DEV better for rebuild issues.
+--  if atom(dir(cl1)) then
+--      cl1 = cl[1]
+----/* RDS Eu: do not use say C:\Euphoria\bin\exw.exe as the stub!!
+----     (on Phix, cl1 is already likely to be C:\Program Files\Phix\p.exe)
+--      cl1 = rootpath&"p.exe"
+--?9/0 -- Above will no longer work now the backend is encrypted.
+--   -- (Bootstrapping via RDS Eu is only possible with an
+--   --  unencrypted stub, which I do not distribute. See the
+--   --  docs for options regarding a fully open source version
+--   --  of Phix, it is not a one-man job!)
+----*/
+--  end if
+--end if
+while 1 do  -- 17/8
+    if length(cl)<3 then
+--removed 16/07/2013:
+----        if r_proemh!=-1 then    -- if perror.ew included by pmsgs.e
+--      if get_r_proemh()!=-1 then  -- if perror.ew included by pmsgs.e
+------DEV run it under Phix!!! (IE: US, NOW!!)
+--          if sequence(dir("pgui.exw")) then
+--              mainpath = current_dir()&"\\"
+--              mainfile = "pgui.exw"
+--              return
+--          elsif sequence(dir("pgui.exe")) then
+----/**/            sysproc("pgui.exe")     --/* Phix
+--              system("pgui.exe",2)    --  RDS */
+--              abort(0)
+--          end if
+--      end if
+        -- version number is major.minor.bugfix
+        puts(1,"Phix hybrid interpreter/compiler.\n\n")
+--      puts(1,"as modified by <insert your name here>\n")
+--DEV we should do some #ilasm here to obtain correct version/build no,
+--      and pemit.e should auto-increment something:
+        printf(1,"Version %d.%d.%d  Copyright Pete Lomax 2006..2015\n\n",phixversion)
+
+        default_commandline = ""
+--      default_commandlines = readpini()   -- DEV/SUG... (or is pgui.exw running off a separate db?)
+        default_commandlines = {}
+        dfn = open("p.ini","r")
+        if dfn!=-1 then
+            while 1 do
+                x0 = gets(dfn)
+                if atom(x0) then exit end if
+                k = length(x0)
+                if k>1 and x0[k]='\n' then
+                    x0 = x0[1..k-1]
+                    default_commandlines = append(default_commandlines,x0)
+                end if
+            end while
+            close(dfn)
+        end if
+        lend = length(default_commandlines)
+        didx = 0
+        if lend then
+            default_commandline = default_commandlines[1]
+        end if
+        while 1 do
+--DEV it should also recognise "p -?"
+            puts(1,"Enter ? for options or filename to execute")
+--          if sequence(default_commandline) then
+--              printf(1,"[%s]",{default_commandline})
+--          end if
+            puts(1,":")
+--          x0 = gets(0)
+            g0_addcr = 0    -- (do not append cr, please)
+--          x0 = gets0(r_keyHander,default_commandline,0)
+            x0 = gets0(r_keyHander,"",0)
+--          x0 = gets0(r_keyHander,"",-1)
+            g0_addcr = 1    -- (reset to default, just in case)
+            puts(1,"\n")
+--          if not equal(x0,"?\n") then exit end if
+            if not equal(x0,"?") then exit end if
+            puts(1,"\ninterpret: <filename>\n")
+--          puts(1,"compile: -c <filename> (aka -compile <filename>)\n")
+            puts(1,"compile: -c <filename>\n\n")
+            puts(1,"also: -d creates a list.asm file,\n")
+            puts(1,"      -nodiag creates a smaller list.asm file,\n")
+            puts(1,"      -norun may be useful in batch jobs,\n")
+            puts(1,"      -test, tnn, b, bt, etc, and of course\n")
+            puts(1,"      -c p, which rebuilds the compiler.\n")
+            puts(1,"      for more details\\options see pth.exw.\n\n")
+--          puts(1,"run tests: -test\n")
+--          puts(1,"specific test: tnn [as test\\tnn*.exw, provided tnn.exw not found]\n")
+--          puts(1,"benchmarks: b [as bench\\bench.exw, provided b.exw not found]\n")
+--          puts(1,"last bench: bt [as bench\\benchtst.exw, provided bt.exw not found]\n")
+--          puts(1,"dump: -d <filename> (aka -dump, -l, -list, -listing) --> list.asm\n")
+--          puts(1,"nodiag: -nodiag <filename> (makes for a smaller -d listing)\n")
+--          puts(1,"norun: -norun <filename> (normally used with -c in a batch file)\n")
+--          puts(1,"visit website: -www\n\n")
+            puts(1,"Wildcards are allowed, as long as they select a single file, \n")
+            puts(1," with \".exw\" assumed, eg \"demo\\tak*\" runs demo\\takeuchi.exw.\n\n")
+--          puts(1," For more details, eg rebuilding the compiler, see pth.exw.\n")
+--          puts(1,"Press F7 to list prompt history, up/down to select (kept in p.ini).\n\n")
+            puts(1,"Press F7 to list prompt history, up/down to select.\n\n")
+
+--          puts(1,"\ninterpret: <filename>\n")
+--          puts(1,"compile: -c <filename> (aka -compile <filename>)\n")
+--          puts(1,"run tests: -test\n")
+--          puts(1,"specific test: tnn [as test\\tnn*.exw, provided tnn.exw not found]\n")
+--          puts(1,"benchmarks: b [as bench\\bench.exw, provided b.exw not found]\n")
+--          puts(1,"last bench: bt [as bench\\benchtst.exw, provided bt.exw not found]\n")
+--          puts(1,"dump: -d <filename> (aka -dump, -l, -list, -listing) --> list.asm\n")
+--          puts(1,"nodiag: -nodiag <filename> (makes for a smaller -d listing)\n")
+--          puts(1,"norun: -norun <filename> (normally used with -c in a batch file)\n")
+--          puts(1,"visit website: -www\n\n")
+--          puts(1,"Wildcards are allowed, as long as they select a single file, with \n")
+--          puts(1," \".exw\" assumed, eg \"demo\\tak*\" runs demo\\takeuchi.exw.\n")
+--          puts(1," For more details, eg rebuilding the compiler, see pth.exw.\n")
+--          puts(1,"Press F7 to list prompt history, up/down to select (kept in p.ini).\n\n")
+        end while
+--trace(1)
+--      if atom(x0) then abort(0) end if
+--      if atom(x0) then abort(0) end if
+        x = x0
+        lenx = length(x)
+--      if lenx and x[lenx]='\n' then
+--          lenx -= 1
+--          x = x[1..lenx]
+--      end if
+--      if lenx=0 then
+--          if atom(default_commandline) then abort(0) end if
+--          x = default_commandline
+--          lenx = length(x)
+            if lenx=0 then
+                g0close()
+                pemit2free()
+                abort(0)
+            end if
+--      else
+--          if find(27,x) then abort(0) end if  -- esc
+            -- save new default_commandline
+            if not equal(x,default_commandline) then
+                k = find(x,default_commandlines)
+                if k=0 then
+                    default_commandlines = prepend(default_commandlines,x)
+                    if length(default_commandlines)>20 then
+                        default_commandlines = default_commandlines[1..20]
+                    end if
+                elsif k!=1 then
+                    default_commandlines = {x} & 
+                                           default_commandlines[1..k-1] & 
+                                           default_commandlines[k+1..length(default_commandlines)]
+---- DEV untried:
+----/**/            default_commandlines[2..k] = default_commandlines[1..k-1]
+----/**/            default_commandlines[1] = x
+                end if
+                if k!=1 then
+                    dfn = open("p.ini","w")
+--                  puts(dfn,x)
+                    for i=1 to length(default_commandlines) do
+                        puts(dfn,default_commandlines[i])
+                        puts(dfn,'\n')
+                    end for
+                    close(dfn)
+                end if
+            end if
+--      end if
+        --
+        -- We now need to split up x the same way command_line does:
+        --
+        cl = {}
+        while 1 do
+            while lenx do -- strip leading spaces
+                ch = x[1]
+--DEV make gets behave more like raw console when esc keyed, clear default_commandline, F1 search?
+--      maybe we want to set a user-defined console handler?
+--SUG:  function ch(integer keycode, integer state)
+--      -- return 0 to ignore the keystroke
+--      -- return 1 to terminate the gets(0) call.
+--          if keycode=9 then   -- tab
+--          elsif keycode=27 then   -- escape
+--          elsif keycode=328[?] then   -- uparrow
+--          elsif keycode=315? then     -- F1
+-- Console functionality:
+-- F7 lists previous entries, Alt F7 clears that list, Uparrow goes through them,
+--  PageUp gets first, PageDown gets last (like uparrow), F8 is also like
+--  uparrow only it clocks round and edit starts in column 1, whereas it starts
+--  on the right hand end for Up/Page. F9 prompts for a number as shown against
+--  the F7 list. There is also a "current" marker of '>' in the list, not quite
+--  sure what good if any that is. Lastly F1 retrieves one char at a time from 
+--  the last/current entry, and/or acts as undelete. Blimey!
+--          end if
+--          return 0    -- ignore key
+--      end function
+--      set_console_handler(call_back(routine_id("ch"))
+--              if ch=27 then abort(0) end if   -- esc (return)
+                if ch!=' ' then exit end if
+                x = x[2..lenx]
+                lenx -= 1
+            end while
+            if not lenx then exit end if
+            k = 1
+            while 1 do
+                if k>lenx then
+                    cl = append(cl,x)
+                    x = ""  --??
+                    lenx = 0
+                    exit
+                end if
+                xk = x[k]
+                if xk=' ' then
+                    k1 = k-1
+                    cl = append(cl,x[1..k1])
+                    k1 = k+1
+                    x = x[k1..lenx]
+                    lenx = length(x)
+                    exit
+                end if
+                if xk='-' then
+                    if k>1 then
+                        k1 = k-1
+                        cl = append(cl,x[1..k1])
+                        k1 = k+1
+                        x = x[k1..lenx]
+                        lenx = length(x)
+                    end if
+--DEV not sure if we need this, may be adequately handled below:
+                    if lenx>1 then
+--so tryme:
+--                  if lenx>12345 then
+                        xk = x[2]
+                        if xk = 'c' then
+                            -- treat "-ctest", and "-compiletest", as "-c test".
+                            cl = append(cl,"-c")
+                            x = x[3..lenx]
+                            lenx = length(x)
+                            if match("ompile",x)=1 then
+                                x = x[7..lenx]
+                                lenx = length(x)
+                            end if
+                            exit
+                        elsif xk = 'd' then
+                            -- treat "-dtest", and "-dumptest", as "-d test".
+                            if match("umpil ",x)=3 then
+                                -- except for -dumpil option (note "-dumpiltest" treated as "-d umpiltest")
+                                cl = append(cl,"-dumpil")
+                                x = x[9..lenx]
+                                lenx = length(x)
+                            elsif match("ll ",x)=3 then
+                                -- proposed -dll option, not yet coded ("-dlltest" treated as "-d lltest")
+                                cl = append(cl,"-dll")
+                                x = x[6..lenx]
+                                lenx = length(x)
+                            else
+--DEV test first without: (seems fine/handled below)
+--                              if x[3]='!' then
+--                                  cl = append(cl,"-d!")
+--                                  x = x[4..lenx]
+--                                  lenx = length(x)
+--                              else
+                                    cl = append(cl,"-d")
+                                    x = x[3..lenx]
+                                    lenx = length(x)
+--erm, bug/proof this lot is specious!?
+                                    if match("ompile",x)=1 then
+                                        x = x[7..lenx]
+                                        lenx = length(x)
+                                    end if
+--                              end if
+                            end if
+                            exit
+                        elsif xk='l' then
+                            -- treat "-l test", "-ltest", "-listtest", and "-listingtest" as "-d test".
+                            if match("int ",x)=3 then
+                                -- except for -lint option (note "-linttest" treated as "-l inttest")
+                                cl = append(cl,"-lint")
+                                x = x[7..lenx]
+                                lenx = length(x)
+                            else
+                                cl = append(cl,"-d")
+                                x = x[3..lenx]
+                                lenx = length(x)
+                                if match("isting",x)=1 then
+                                    x = x[7..lenx]
+                                    lenx = length(x)
+                                elsif match("ist",x)=1 then
+                                    x = x[4..lenx]
+                                    lenx = length(x)
+                                end if
+                            end if
+                            exit
+                        end if
+                    end if
+                elsif xk='\"' then
+                    if k!=1 then ?9/0 end if    -- dunno what to do now? [DEV]
+                                                -- (make prev test "or xk='\"' and k>1"??)
+                    while 1 do
+                        k += 1
+                        if k>lenx then
+                            symtab={}
+                            Fatal("missing closing quote")
+--                          abort(1)    -- Fatal() does not return
+                        end if
+                        if x[k]='\"' then exit end if
+                    end while
+--                  cl = append(cl,x[1..k])
+                    cl = append(cl,x[2..k-1])
+                    k1 = k+1
+                    x = x[k1..lenx]
+                    lenx = length(x)
+                    exit
+                end if
+                k+=1
+            end while
+        end while
+    else
+        cl = cl[3..length(cl)]
+    end if
+
+    while 1 do
+        lencl = length(cl)
+        if not lencl then cl="" exit end if
+        x = cl[1]
+        lenx = length(x)
+        if lenx<1 or x[1]!='-' then exit end if
+        x = x[2..lenx]
+        lenx -= 1
+        if lenx=0 then
+            Fatal("option expected (not just \"-\")\n")
+        end if
+        k = match("-",x)
+        if k then
+            -- treat eg [-]"c-test" as [-]"c -test", ie cl[1]:="-test" and x:="c"
+            cl[1] = x[k..lenx]
+            lenx = k-1
+            x = x[1..lenx]
+        else
+            cl = cl[2..lencl]
+        end if
+        x = pcase:lower(x)  -- ie/eg "-C" ==> "-c", "-DUMP" ==> "-dump"
+        ch = x[1]
+        if equal(x,"c") then
+            bind = 1
+        elsif find(x,{"d","dump","l","list","listing"}) then
+            norun = 1
+            bind = 1
+            listing = 1
+--          testall = 0     -- removed 19/12
+            if length(cl)
+            and cl[1][1]='!' then
+                bind = 0
+                listing = -1
+                cl[1] = cl[1][2..length(cl[1])]
+            end if
+--DEV cannot happen:
+--      elsif equal(x,"d!") then
+----puts(1,"d! detected\n") -- DEV
+--          norun = 1
+--          listing = -1
+        elsif equal(x,"dumpil") then
+            dumpil = 1
+-- moved, to use mainpath 15/3/10
+--          dilfn = open("ildump.txt","w")
+        elsif equal(x,"dll") then
+            Fatal("unsupported option: -dll\n")     --DEV must get onto this soon....
+        elsif equal(x,"e2") then
+            newEmit = 1
+        elsif equal(x,"e0") then
+            newEmit = 0
+--DEV/temp:
+        elsif equal(x,"x64") then
+            X64 = 1
+            subvers = #00000005
+            OptConsole = 1
+        elsif equal(x,"lint") then
+            lint = 1
+        elsif lenx>1 and find(ch,"cdel") then
+            if ch='c' then
+                if match("ompile",x)=2 then
+                    if lenx>7 then
+                        cl = prepend(cl,x[8..lenx])
+                    end if
+                else
+                    cl = prepend(cl,x[2..lenx])
+                end if
+                bind = 1
+            elsif ch='e' then
+                -- null-effect "-e!" option: added to make everything
+                --  exactly match "-d!" listing when (re-)running it.
+                if x[2]!='!' then
+                    Fatal("unrecognised option: -"&x&'\n')
+                end if
+            else
+                norun = 1
+                bind = 1
+                listing = 1
+                testall = 0
+                if ch='d' then
+                    if match("ump",x)=2 then
+                        if lenx>4 then
+                            cl = prepend(cl,x[5..lenx])
+                        end if
+--DEV document this: (p p -d! test)
+                    elsif x[2]='!' then
+                        bind = 0
+                        listing = -1
+                        if lenx>2 then
+                            cl = prepend(cl,x[3..lenx])
+                        end if
+                    else
+                        cl = prepend(cl,x[2..lenx])
+                    end if
+                else -- ch='l'
+                    if match("isting",x)=2 then
+                        if lenx>7 then
+                            cl = prepend(cl,x[8..lenx])
+                        end if
+                    elsif match("ist",x)=2 then
+                        if lenx>4 then
+                            cl = prepend(cl,x[5..lenx])
+                        end if
+                    else
+                        cl = prepend(cl,x[2..lenx])
+                    end if
+                end if
+            end if
+        elsif equal(x,"norun") then
+            norun = 1
+        elsif equal(x,"run") then
+            norun = 0
+        elsif equal(x,"nodiag") then
+            nodiag = 1
+        elsif find(x,{"import","imports"}) then
+            listimports = 1
+--DEV (5/1/15)
+--          finalfixups("", "", 0)
+            finalfixups2("", "", 0)
+--          return -- control does not return
+        elsif equal(x,"isense") then
+--DEV
+            -- "pw -isense <trapfile> line col <pkey> mode <main>"
+            intellisense = 1
+            if length(cl)!=6 then ?9/0 end if
+            trapfile = de_quote(cl[1])
+            trapline = decode_number(cl[2])
+            trapcol = decode_number(cl[3])
+            trapkey = de_quote(cl[4])
+            trapmode = decode_number(cl[5])
+            trapns = 0
+            cl = cl[6..6]
+--          cl = {"#47A6B5"}
+--          cl = {"#47A6B5", "p.ew"}
+        elsif equal(x,"pmkr2") then
+            puts(1,"Self-host round 2: compiling p.exw (using that pnew.exe just created)\n")
+            cl = {"p.exw","-pmkr3"}
+            lencl = 2
+            bind = 3
+            use_pini_time = 1
+            exit
+        elsif equal(x,"pmkr3") then
+            puts(1,"Self-host round 3: compiling p.exw (using that pnew2.exe just created)\n")
+            cl = {"p.exw"}
+            lencl = 1
+            bind = 4
+            use_pini_time = 1
+            exit
+        elsif equal(x,"pmkr4") then
+            puts(1,"Self-host round 4: compiling p.exw (using that pnew.exe just created)\n")
+            cl = {"p.exw"}
+            lencl = 1
+            bind = 5
+            use_pini_time = 1
+            exit
+        elsif equal(x,"pmkr5") then
+            DoOther("p.exe")
+        elsif equal(x,"pmkr6") then
+            DoOther("pw.exe")
+        elsif equal(x,"pw") then        -- p -pw = create pw.exe from p.exe
+            pfn = open("p.exe","rb")
+            if pfn=-1 then
+                Fatal("unable to open p.exe for read\n")
+            end if
+            pwfn = open("pw.exe","wb")
+            if pwfn=-1 then
+                Fatal("unable to open pw.exe for write\n")
+            end if
+            OverWrite("pw.exe",pwfn,pfn,1)
+            g0close()
+            pemit2free()
+            abort(0)
+        elsif equal(x,"p") then         -- pw -p = create p.exe from pw.exe
+            pwfn = open("pw.exe","rb")
+            if pwfn=-1 then
+                Fatal("unable to open pw.exe for read\n")
+            end if
+            pfn = open("p.exe","wb")
+            if pfn=-1 then
+                Fatal("unable to open p.exe for write\n")
+            end if
+            OverWrite("p.exe",pfn,pwfn,1)
+            g0close()
+            pemit2free()
+            abort(0)
+        elsif equal(x,"repl") then
+            -- (quickly cribbed from "test")
+            if lencl>1 then
+                g0close()
+                pemit2free()
+                Fatal("additional options may not follow \"-repl\"\n")
+--              abort(1)    -- Fatal() does not return
+            end if
+            repl = 1
+            cl = {""}
+            lencl = 1
+            listing = 0
+            dumpil = 0
+            exit
+        elsif equal(x,"test") then
+            if lencl>1 then
+                g0close()
+                pemit2free()
+                Fatal("additional options may not follow \"-test\"\n")
+--              abort(1)    -- Fatal() does not return
+            end if
+--          cl = {{}}
+            cl = {""}   -- 6/3/09
+            lencl = 1           -- added 19/12
+            testall = 1
+--          listing = 0         -- removed 19/12 (-d -test is now valid)
+            exit
+        elsif equal(x,"www") then
+            k = system_open("www.phix.isgreat.org")
+            g0close()
+            pemit2free()
+            abort(0)
+        elsif equal(x,"batch") then
+            batchmode = 1
+--!/**/     #ilASM {call %opSetBatchMode }
+            #ilASM{
+                    --
+                    -- If VM/pdiagN.e has been included, call :!SetBatchMode, 
+                    --  which leaves the return address on the stack.
+                    -- If VM/pdiagN.e has NOT been included, this quietly 
+                    --  resolves to call 0, which pushes the same return addr
+                    --  as a non-0 call would, but continues on the next line.
+                    -- Note that pdiagN.e is normally part of all applications,
+                    --  (unless -nodiag has been specified) and cannot use the
+                    --  same batchmode variable that we just set above.
+                    --
+                    call :!SetBatchMode     -- set pdiagN.e/batchmode (opt)
+                [32]
+                    add esp,4
+                [64]
+                    add rsp,8
+                []
+                  }
+        else
+            g0close()
+            pemit2free()
+            Fatal("unrecognised option: -"&x&'\n')
+        end if
+    end while
+if lencl then exit end if   -- 17/8
+end while                   -- 17/8
+
+    params = cl[2..lencl]
+    cl = cl[1]
+    lencl = length(cl)
+
+    if (lencl>2 and cl[2]=':')                          -- beginning X:
+    or (lencl>3 and cl[3]=':' and cl[1]='\"') then      -- beginning "X:
+        mainpath = ""
+    else
+        mainpath = current_dir()
+        if not find(mainpath[length(mainpath)],"\\/") then
+            mainpath &= '\\'
+        end if
+    end if
+
+    for i=lencl to 1 by -1 do
+        if find(cl[i],"\\/") then
+            mainpath &= cl[1..i]
+            k = i+1
+            cl = cl[k..lencl]
+            exit
+        end if
+    end for
+    if length(cl) and not find('.',cl) then
+        cl &= ".exw"
+    end if
+    mainfile = cl
+--moved again, 24/6/10:
+--  if dumpil then
+--      dilfn = open(mainpath&"ildump.txt","w")
+--  end if
+
+if not newEmit then
+--/**/  if scramble then
+--/**/      if bind>=3 then
+--/**/          clipBoard(PASTE)
+--/**/          -- added 3/8/2011: (doh, wrong end!)
+--/**/          if size=-1 then -- some error?
+--/**/              for i=1 to 10 do
+--/**/                  sleep(0.1)
+--/**/                  clipBoard(PASTE)
+--!/**/                 if size!=-1 then exit end if
+--/**/                  if size!=-1 then 
+--/**/                      puts(1,"\n\n**Retrying the clipboard worked!!**\n\n")       -- DEV temp
+--/**/                      exit
+--/**/                  end if
+--/**/              end for
+--/**/          end if
+--/**/          if size!=8 then
+--/**/              printf(1,"error: clipboard size is %d, not 8\n",size)
+--/**/  -- (see "-- AH! size is not SET by copy..." below, added 22/10/2011)
+--/**/              puts(1," (try running p -cp again [I really must hunt this down and fix it sometime..])\n")
+--/**/              if getc(0) then end if
+--/**/              abort(0)
+--/**/          end if
+--/**/          R=0
+--/**/          for i=1 to 8 do
+--/**/              R = R*16 + (clip[i]-'A')
+--/**/          end for
+--/**/          set_rand(R)
+--/**/  --      #ilASM{ lea edi,[R]
+--/**/  --              call %opGetRand }
+--/**/  --      printf(1,"rand seed:%08x\n",R)
+--/**/      end if
+--/**/  end if
+end if
+
+    g0close()
+end procedure
+
+sequence source
+        source = "asm\\p.asm "
+
+atom t, t0
+--, tc, tff, tr
+atom errorcode
+
+procedure rebuildStub()
+--
+-- When self-hosting, and asm/p.asm exists, rebuild pstub.exe if 
+--  it does not exist, or if it is older than any *.asm file,
+--  and/or use pstub.exe in place of p.exe.
+-- At the moment this can only happen on Pete Lomax's machine...
+--  However, any volunteers to help port the asm bit by bit to 
+--  hll/#ilasm (ie fully open source) would be most welcome.
+--  See also plist.e
+--
+integer fn, rebuild
+object ferrline
+sequence ferrset, alreadyshown
+object dstub, dasm
+    errorcode = 0
+    fn = open(mainpath&source,"rb")
+    if fn!=-1 then                      -- so, asm/p.asm exists...
+        close(fn)
+        rebuild = 0
+        cl1 = mainpath&"pstub.exe"      -- used whether we rebuild or not
+        dstub = dir(cl1)
+        if sequence(dstub) then
+            dstub = dstub[1][4..9]      -- year..second
+            dasm = dir(mainpath&"asm\\*.asm")
+            for i=1 to length(dasm) do
+--              if dstub<=dasm[i][4..9] then
+                if compare(dstub,dasm[i][4..9])<=0 then
+                    rebuild = 1
+                    exit
+                end if
+            end for
+        else                -- pstub.exe does not exist
+            rebuild = 1
+        end if
+        if rebuild then
+--          puts(1,"==>fasm")
+            t = time()
+            errorcode = system_wait("fasmq.exe "&source&" \""&cl1&"\"")
+            t = time()-t
+--          printf(1,"ed in %3.2f seconds\n",t)
+            printf(1,"fasmed in %3.2f seconds\n",t)
+            if errorcode!=0 then
+                puts(1,"\n")
+                puts(1,"fasmq.exe "&source&" \""&cl1&"\"\n")
+                fn = open("ferr.txt","r")
+--              if fn = -1 then
+--                  sleep(1)
+--                  fn = open("ferr.txt","r")
+--              end if
+                if fn=-1 then
+                    fn = open("fasmq.exe","r")
+                    if fn=-1 then
+                        puts(1,"(no ferr.txt file, and no fasmq.exe)\n")
+                    else
+                        close(fn)
+                        puts(1,"(no ferr.txt file)\n")
+                    end if
+                else
+                    ferrset = {}
+                    ferrline = gets(fn)
+                    alreadyshown = "This error has [probably] already been shown:\n"
+                    if not equal(ferrline,alreadyshown) then
+                        ferrset = append(ferrset,alreadyshown)
+                    else
+                        alreadyshown = ""
+                    end if
+                    while sequence(ferrline) do
+                        puts(1,ferrline)
+                        ferrset = append(ferrset,ferrline)
+                        ferrline = gets(fn)
+                    end while
+                    close(fn)
+                    if length(alreadyshown) then
+                        fn = open("ferr.txt","w")
+                        for i=1 to length(ferrset) do
+                            puts(fn,ferrset[i])
+                        end for
+                        close(fn)
+                    end if
+                end if
+if DEBUG then
+                puts(1,"\nPress Enter, or d for diagnostics...")
+                if find(wait_key(),"dD") then ?9/0 end if
+else
+                puts(1,"\nPress Enter...")
+                if wait_key() then end if
+end if
+            end if  -- errorcode!=0
+        end if  -- fn=1
+    end if  -- fn!=-1
+    source = ""
+end procedure
+
+
+
+procedure comptime()
+integer tl
+sequence lps
+    --
+    -- count of (included) lines:
+    --
+    tl = 0
+    for i=1 to length(allfiles) do
+        if equal(expandedYet[i],0) then
+            text = allfiles[i]
+            exptext[i] = expandIntoLines()
+            expandedYet[i] = linestarts
+        end if
+        tl += length(exptext[i])
+    end for
+    t = time()-t
+    if t then
+        lps = sprintf(" (%d lines per second)",tl/t)
+    else
+        lps = ""
+    end if
+    printf(1,"%d lines compiled in %3.2f seconds%s\n",{tl,t,lps})
+end procedure
+
+integer ntokens
+        ntokens=0
+
+--include puts1h.e
+
+with trace
+function main()
+object savepath
+sequence outfile
+--/**/atom R
+--/**/string wasclip
+--/**/string newclip    -- added 22/10/2011
+--/**/integer wassize
+--integer dbg_regstate
+--trace(1)
+--regstate = 9
+--  dbg_regstate = regstate --DEV temp!
+--  if find(mainfile,{"p","p.exw"}) and bind<=1 then
+--printf(1,"rootpath is %s,\nmainpath is %s\n",{rootpath,mainpath})
+--integer local_ebp
+integer CSvaddr4
+integer ebp4,   -- saved ebp, /4 as it shd be dword-aligned, then fits in an integer
+        esp4,   -- saved esp, ""
+        pst4,   -- saved symtabptr, aka [ds+8] (via :%pGetSymPtr), ""
+        ntcb4   -- saved pGtcb.pNxtcb
+--      frst4   -- saved pGtcb.pFirst (/4, which is done by pNew/RestoreGtcbChain)
+--,sym4,level
+object wasEBP   -- integer(0) = compiled, else ({ebp4,esp4,pst4}) = interpreted
+--integer dfn
+
+    if equal(mainfile,"p.exw") and bind<=1 then
+        if length(params) and bind then
+            Fatal("additional options may not follow \"-c p[.exw]\"\n")
+--          abort(1)    -- Fatal() does not return
+        end if
+if newEmit then
+        if bind then
+            bind = 2
+            -- (we use the last access time of p.ini in pbinary.e)
+--          dfn = open("p.ini","r")
+--          if dfn=-1 then
+--              dfn = open("p.ini","w")
+--              if dfn=-1 then
+--                  Fatal("cannot open/create p.ini\n")
+--              end if
+--          end if
+--          close(dfn)
+            SetLastAccessTime("p.ini")
+            if scramble then ?9/0 end if
+            if not listing then
+                puts(1,"\nCheck for and shut down any running instances of p.exe and/or pw.exe\n")
+                puts(1,"          (retry messages are given when required after round 4, and\n")
+                puts(1,"           if it cannot overwrite both, it will not overwrite either)\n\n")
+                puts(1,"Self-host round 1: compiling p.exw\n")
+            end if
+            use_pini_time = 1
+        end if
+else
+        if length(source) and not listing then
+            rebuildStub()
+            if errorcode then abort(0) end if
+        end if
+        if bind then
+            bind = 2
+--/**/      if scramble then
+--/**/          clipBoard(PASTE)
+--/**/          wassize = size
+--/**/          if size!=-1 then    -- clipboard was empty
+--/**/              wasclip = clip
+--/**/          end if
+--/**/  --      printf(1,"wasclip:%s, wassize:%d\n",{wasclip,wassize})
+--/**/          #ilASM{ lea edi,[R]
+--/**/                  call %opGetRand }
+--/**/  --      printf(1,"rand seed:%08x\n",R)
+--/**/          size = 8
+--/**/          clip = repeat(' ',8)
+--/**/          for i=8 to 1 by -1 do
+--/**/              clip[i] = and_bits(R,#0F)+'A'
+--/**/              R = floor(R/#10)
+--/**/          end for
+--/**/          newclip = clip      -- added 22/10/2011
+--/**/          clipBoard(COPY)
+--/**/          clipBoard(PASTE)    -- added 22/10/2011
+--/**/          if size=-1 then -- some error?
+--/**/              for i=1 to 10 do
+--/**/                  sleep(0.1)
+--/**/                  size = 8
+--/**/                  clip = newclip
+--/**/                  clipBoard(COPY)
+--/**/ -- AH! size is not SET by copy...
+--/**/  --              if size!=-1 then exit end if
+--/**/                  clipBoard(PASTE)    -- added 22/10/2011
+--/**/                  if size!=-1 or clip!=newclip then exit end if -- added 22/10/2011
+--/**/                  if i=10 then
+--DEV do we want a retry/cancel here? (and do we want a messageBox if GUI?)
+--/**/                      puts(1,"\n\nerror: clipboard unavailable\n\nPress Enter...")
+--/**/                      if getc(0) then end if
+--/**/                      abort(1)
+--/**/                  end if
+--/**/              end for
+--/**/          end if
+--/**/      end if
+            if not listing then
+                puts(1,"\nCheck for and shut down any running instances of p.exe and/or pw.exe\n")
+                puts(1,"          (retry messages are given when required after round 4, and\n")
+                puts(1,"           if it cannot overwrite both, it will not overwrite either)\n\n")
+                puts(1,"Self-host round 1: compiling p.exw\n")
+--/!**!/            puts(1," <temp debug msg>: Clip is "&clip&"\n") --[DEV]
+            end if
+        end if
+end if
+
+--DEV wtf? (I assume this is because it was changing/I wanted to use pstub.exe over p.exe for testing...)
+--  elsif newEBP then
+--      rebuildStub()
+--      if errorcode then abort(0) end if
+    end if
+    t = time()
+--t0 = t
+
+    fileno=0
+    resetOptions()
+    tokinit()
+    syminit()
+--trace(1)
+
+    includeFile(mainpath&mainfile,0,0)
+
+    if length(params) and not bind then
+        filenames[1]&=params
+    end if
+--moved here 24/6/10:
+    if dumpil then
+        dilfn = open(mainpath&"ildump.txt","w")
+    end if
+
+
+if 0 then
+    t = time()
+    getCh() -- start on first char
+    while 1 do
+        getToken()
+--      if Ch=-1 then exit end if
+        if Ch<=0 then exit end if
+        ntokens+=1
+    end while
+    t = time()-t
+    printf(1,"ntokens=%d in %3.2f seconds\n",{ntokens,t})
+    if getc(0) then end if
+    return 1
+--  return 0
+end if
+
+    if showfileprogress then
+        puts(1,"compiling...\n")
+    end if
+--trace(1)
+    Compile()
+--?{mainfile,filepaths,filenames}
+    if showfileprogress then
+        puts(1,"compiled\n")
+    end if
+    ltDiagMsg("*** compiled ***\n") -- (pltype.e diagnostics)
+--trace(1)
+
+--?cl1
+
+--tc = time()
+    if bind then
+        symtab[T_cmdlnflg] = 1 -- in command_line(), .exe's must always duplicate res[1]
+        if batchmode then
+            symtab[T_cmdlnflg] = 5  -- (+#04=the no prompt bit)
+        end if
+        if bind = 1 then
+            outfile = mainfile
+            for i=length(mainfile) to 1 by -1 do
+                if mainfile[i]='.' then
+if newEmit then
+                    if PE then
+                        outfile = mainfile[1..i]&"exe"
+                    else
+                        outfile = mainfile[1..i-1]
+                    end if
+else
+                    outfile = mainfile[1..i]&"exe"
+end if
+                    exit
+                end if
+            end for
+        else    -- "p -c p" etc cases/phases/rounds:
+--?bind
+            t0 = t
+            t = time()-t
+            if bind=2 then
+                if not listing then
+                    norun = 0
+                    params = {"-pmkr2"}
+                else
+                    puts(1,"creating pnew.exe...\n")
+                    norun = 1
+                end if
+                outfile = "pnew.exe"
+            elsif bind>=3 then
+                norun = 1
+                outfile = "pnew2.exe"   -- bind=3,5 (rounds 2&4)
+                if bind=4 then
+                    outfile = "pnew.exe"    -- bind=2,4 (rounds 1&3)
+                end if
+            end if
+if newEmit then
+            if PE=0 then
+                outfile = outfile[1..-5]
+            end if
+end if
+        end if
+
+--if newEmit then
+--?outfile
+        finalfixups2(mainpath,outfile,t)
+--else
+--      finalfixups(mainpath,outfile,t)
+--end if
+
+        if bind!=1 then
+            t = time()-t0
+            printf(1,"(%3.2fs)\n",t)
+        end if
+
+        if bind=5 then  -- -pmkr4 case
+            if showfileprogress then comptime() end if
+            verify_build() -- does not return
+        end if
+
+--  elsif not norun then    --DEV should norun force bind??
+    else    -- actually, this gives the numbers I want for the "p p -norun a" test.
+            -- plus, it matters not that -norun (without -c) is a tad slower, not
+            -- likely to be used much apart from above testing & syntax checking.
+        --
+        -- Interpret
+        --
+        if profileon and not testall then
+            ptab = repeat(0,length(allfiles))    -- create a profile table
+            for i=1 to length(allfiles) do
+                if equal(expandedYet[i],0) then
+                    text = allfiles[i]
+                    exptext[i] = expandIntoLines()
+                    expandedYet[i] = linestarts
+                end if
+--              ptab[i] = repeat(0,length(exptext[i]))
+                ptab[i] = repeat(0,length(exptext[i])+1) -- 1/10/14...
+            end for
+        else
+            ptab = {}
+        end if
+        opstat = 0
+        if collectstats then    -- (do not "and" this, for emitON optimisation)
+            if not testall then
+                opstat = repeat(0,length(opNames))
+            end if
+        end if
+
+        cl1 = ""
+--if newEmit then
+        opLntpcalled = 0
+        finalfixups2("","",t)
+--      ?9/0    -- (there is no opInterp yet! [see pStack.e])
+--else
+--      finalfixups("","",t)
+--end if
+
+    end if
+--tff=time()
+--show_cstats()
+
+    if showfileprogress then comptime() end if
+
+    errorcode = 0
+
+    if not norun then
+--DEV this might be a mistake... (it is different/an incompatibility with RDS Eu)
+        savepath = current_dir()
+        if equal(savepath,mainpath) then
+            savepath = 0
+        else
+--printf(1,"chdir to mainpath:%s\n",{mainpath})
+            if not chdir(mainpath) then
+                Message("Unable to chdir to "&mainpath)
+                savepath = 0
+            end if
+        end if
+
+        if bind then
+            for i=1 to length(params) do
+                outfile &= ' '&params[i]
+            end for
+            if bind>1 then
+                printf(1,"==>system_wait(%s):\n",{mainpath&outfile})
+            end if
+            errorcode = system_wait(mainpath&outfile)
+            if bind=2 then
+                if errorcode=0 then
+                    outfile = mainpath&"pnew2.exe -pmkr3"
+                    printf(1,"==>system_wait(%s):\n",{outfile})
+                    errorcode = system_wait(outfile)
+                    if errorcode = 0 then
+                        outfile = mainpath&"pnew.exe -pmkr4"
+                        printf(1,"==>system_wait(%s):\n",{outfile})
+                        errorcode = system_wait(outfile)
+                        if errorcode = 0 then
+                            printf(1,"self-host rounds 1..4 successfully completed (%3.2fs)\n",time()-t0)
+                        else
+                            puts(1,"some error!!!\n")
+                        end if
+                    else
+                        puts(1,"some error!!\n") --<<
+                    end if
+                else
+                    puts(1,"some error!\n")
+                end if
+if not newEmit then
+--/**/          if scramble then
+--/**/              if wassize!=-1 then
+--/**/                  size = wassize
+--/**/                  clip = wasclip
+--/**/                  clipBoard(COPY)
+--/**/      --          clipBoard(PASTE)
+--/**/      --          wasclip = clip
+--/**/      --          wassize = size
+--/**/      --          printf(1,"wasclip:%s, wassize:%d\n",{wasclip,wassize})
+--/**/              end if
+--/**/          end if
+end if
+            end if
+            if sequence(savepath) then
+                if not chdir(savepath) then
+                    Message("Unable to chdir \\back\\ to "&savepath)
+                end if
+            end if
+        else -- interpret
+
+            symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
+            wasEBP = symtab[T_EBP]
+--  ?       if atom(wasEBP]) then
+--              level = 1
+--          else
+--              level = wasEBP[3]+1
+--          end if
+            #ilASM{
+                -- set ebp4,esp4,pst4 (from ebp,esp,symtabptr)
+                [32]
+                    mov eax,ebp
+                    mov ecx,esp
+--14/8/15:
+--                  mov edx,[ds+8]
+                    call :%pGetSymPtr
+                    shr eax,2
+                    shr ecx,2
+--                  shr edx,2
+                    shr esi,2
+                    mov [ebp4],eax
+                    mov [esp4],ecx
+--                  mov [pst4],edx
+                    mov [pst4],esi
+                [64]
+                    mov rax,rbp
+                    mov rcx,rsp
+--                  mov rdx,[ds+8]
+                    call :%pGetSymPtr
+                    shr rax,2
+                    shr rcx,2
+--                  shr rdx,2
+                    shr rsi,2
+                    mov [ebp4],rax
+                    mov [esp4],rcx
+--                  mov [pst4],rdx
+                    mov [pst4],rsi
+                  }
+--  ?       symtab[T_EBP] = {ebp4,esp4,level}
+            -- (note that esp4 is also used in builtins\VM\Stack.e\opAbort) [DEV]
+            symtab[T_EBP] = {ebp4,esp4,pst4}
+--if bind then
+            -- added 28/5/15:
+            if not dumpil
+            and not listing 
+            and not some_unresolved_rtnids then
+                rbldrqd = 1
+            end if
+--end if
+--if newEmit then
+--          ?9/0
+            CSvaddr4 = floor(CSvaddr/4)
+--          call(CSvaddr)
+--DEV create a new heap if we want to perform memory leak checking...
+if MCHK and length(ptab)=0 and opLntpcalled=0 then
+--  The interpret code (in p.exw/main) needs something like:
+--
+--      #ilASM{
+--              ...
+--              call :%pNewGtcbChain        -- (if analysing)
+--              mov [ntcb4],eax             -- temp save
+-->             mov [frst4],ecx             -- temp save
+--              <existing call :%newStack still rqd>
+--              <existing call(symtab[T_maintls][S_il])>
+--              <existing restore ebp/esp/symtabptr>
+-->             mov ecx,[frst4]
+--              mov eax,[ntcb4]
+--              call :%pRestoreGtcbChain    -- (if analysing)
+--              mov [ntcb4],edx             -- analyse later, in hll (and free it)
+-->             mov [frst4],edi             -- analyse later, in hll (and free it)
+--              ...
+--            }
+-->     check_heap(ntcb4,frst4)                 -- (if analysing)
+--      <carry on with profile, -test, etc>
+--
+--  Note: if profiling then analysing should be turned off, otherwise there could be floats
+--  as stored by opLnp[t] etc in the wrong heap/being reported as memory leaks, likewise for
+--  tracing.
+
+            #ilASM{
+                [32]
+                    call :%pNewGtcbChain
+                    mov [ntcb4],eax         -- temp save
+--                  mov [frst4],ecx         -- temp save
+--                  mov eax,[symtab]
+                    mov esi,[symtab]
+                    mov ecx,[CSvaddr4]
+--                  shl eax,2
+                    shl esi,2
+                    shl ecx,2
+--                  mov [ds+8],eax          -- symtabptr
+                    call :%pSetSymPtr
+                    push ecx
+                    call :%newStack
+--DEV (diagnostics)
+--                  pop ecx
+mov ecx,[esp]
+                    call ecx
+pop ecx
+--DEV store errorcode? (same deal 3-place else)
+                    call :%RunCleanup
+
+--                  mov eax,[ds+8]
+                    call :%pGetSymPtr
+--                  mov edx,[eax+84]        -- symtab[T_EBP=22]
+                    mov edx,[esi+84]        -- symtab[T_EBP=22]
+                    -- in case it helps, the next two lines should work just as well:
+    --              mov eax,[symtab]
+    --              mov edx,[ebp+eax*4+84]  -- symtab[T_EBP]
+                    mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
+                    mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
+--                  mov edx,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
+                    mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
+                    shl eax,2
+                    shl ecx,2
+--                  shl edx,2
+                    shl esi,2
+                    mov ebp,eax             -- restore ebp
+                    mov esp,ecx             -- restore esp
+--                  mov [ds+8],edx          -- restore symtabptr
+                    call :%pSetSymPtr
+                    mov eax,[ntcb4]
+--                  mov ecx,[frst4]
+                    call :%pRestoreGtcbChain
+                    mov [ntcb4],edx
+--                  mov [frst4],edi
+
+                [64]
+                    call :%pNewGtcbChain
+                    mov [ntcb4],rax         -- temp save
+--                  mov [frst4],rcx         -- temp save
+--                  mov rax,[symtab]
+                    mov rsi,[symtab]
+                    mov rcx,[CSvaddr4]
+--                  shl rax,2
+                    shl rsi,2
+                    shl rcx,2
+--                  mov [ds+8],rax          -- symtabptr
+                    call :%pSetSymPtr
+                    push rcx
+                    call :%newStack
+--DEV (diagnostics)
+--                  pop rcx
+mov rcx,[rsp]
+                    call rcx
+pop rcx
+                    call :%RunCleanup
+
+--                  mov rax,[ds+8]
+                    call :%pGetSymPtr
+--                  mov rdx,[rax+168]       -- symtab[T_EBP=22]
+                    mov rdx,[rsi+168]       -- symtab[T_EBP=22]
+                    mov rax,[rbx+rdx*4]     -- symtab[T_EBP][1] = ebp4
+                    mov rcx,[rbx+rdx*4+8]   -- symtab[T_EBP][2] = esp4
+--                  mov rdx,[rbx+rdx*4+16]  -- symtab[T_EBP][3] = pst4
+                    mov rsi,[rbx+rdx*4+16]  -- symtab[T_EBP][3] = pst4
+                    shl rax,2
+                    shl rcx,2
+--                  shl rdx,2
+                    shl rsi,2
+                    mov rbp,rax             -- restore ebp
+                    mov rsp,rcx             -- restore esp
+--                  mov [ds+8],rdx          -- restore symtabptr
+                    call :%pSetSymPtr
+                    mov rax,[ntcb4]
+--                  mov rcx,[frst4]
+                    call :%pRestoreGtcbChain
+                    mov [ntcb4],rdx
+--                  mov [frst4],rdi
+                []
+                  }
+--          check_heap(ntcb4,frst4)
+            check_heap(ntcb4)
+else -- not MCHK
+--puts(1,"not MCHK\n")
+            #ilASM{
+                [32]
+--                  mov eax,[symtab]
+                    mov esi,[symtab]
+                    mov ecx,[CSvaddr4]
+--                  shl eax,2
+                    shl esi,2
+                    shl ecx,2
+--                  mov [ds+8],eax          -- symtabptr
+                    call :%pSetSymPtr
+--newStack??
+--DEV not safe...
+--push ebp
+--              T_EBP       = 22,   -- spare (DEV T_level/T_EBP) -- compiled=0, interpreted={ebp4,esp4,sym4,gvar4?,level}
+                    push ecx
+                    call :%newStack
+--DEV (diagnostics)
+--                  pop ecx
+mov ecx,[esp]
+                    call ecx
+pop ecx
+--                }
+--          call(CSvaddr4)
+--          #ilASM{
+--DEV Either a) we rely on :%pAbort to restore ebp/esp, or
+--           b) we restore ebp/esp here. 
+--           in either case we must restore symtabptr here - since abort() may not have been called.
+--           While :%pAbort needs to fetch esp4 (aka [ds+8][T_EBP][2]) to locate the return address,
+--           given that we need pst4 here anyway, it makes more sense to restore everything here.
+--                  mov eax,[ds+8]
+                    call :%pGetSymPtr
+--                  mov edx,[eax+84]        -- symtab[T_EBP=22]
+--                  mov edx,[esi+84]        -- symtab[T_EBP=22]
+                    mov edx,[esi+21*4]      -- symtab[T_EBP=22]
+                    -- in case it helps, the next two lines should work just as well:
+    --              mov eax,[symtab]
+    --              mov edx,[ebp+eax*4+84]  -- symtab[T_EBP]
+                    mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
+                    mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
+--                  mov edx,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
+                    mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
+                    shl eax,2
+                    shl ecx,2
+--                  shl edx,2
+                    shl esi,2
+                    mov ebp,eax             -- restore ebp
+                    mov esp,ecx             -- restore esp
+--                  mov [ds+8],edx          -- restore symtabptr
+                    call :%pSetSymPtr
+                [64]
+--                  pop al
+--                  mov rax,[symtab]
+                    mov rsi,[symtab]
+                    mov rcx,[CSvaddr4]
+--                  shl rax,2
+                    shl rsi,2
+                    shl rcx,2
+--                  mov [ds+8],rax              -- symtabptr
+                    call :%pSetSymPtr
+                    push rcx
+                    call :%newStack
+--DEV (diagnostics)
+--                  pop rcx
+mov rcx,[rsp]
+                    call rcx
+pop rcx
+
+--                  mov rax,[ds+8]
+                    call :%pGetSymPtr
+--                  mov rdx,[rax+168]           -- symtab[T_EBP=22]
+--                  mov rdx,[rsi+168]           -- symtab[T_EBP=22]
+                    mov rdx,[rsi+21*8]          -- symtab[T_EBP=22]
+                    -- in case it helps, the next two lines should work just as well:
+    --              mov rax,[symtab]
+    --              mov rdx,[rbp+rax*4+21*8]    -- symtab[T_EBP]
+                    mov rax,[rbx+rdx*4]         -- symtab[T_EBP][1] = ebp4
+                    mov rcx,[rbx+rdx*4+8]       -- symtab[T_EBP][2] = esp4
+--                  mov rdx,[rbx+rdx*4+16]      -- symtab[T_EBP][3] = pst4
+                    mov rsi,[rbx+rdx*4+16]      -- symtab[T_EBP][3] = pst4
+                    shl rax,2
+                    shl rcx,2
+--                  shl rdx,2
+                    shl rsi,2
+                    mov rbp,rax                 -- restore ebp
+                    mov rsp,rcx                 -- restore esp
+--                  mov [ds+8],rdx              -- restore symtabptr
+                    call :%pSetSymPtr
+                []
+                  }
+--puts(1,"not MCHK(2)\n")
+end if
+
+--puts1("returned from call(CSvaddr)!\n")
+            symtab[T_EBP] = wasEBP
+            errorcode = 0   --DEV
+--DEV also elsewhere?
+            free(CSvaddr)
+            free(DSvaddr)
+--/*
+:%opInterp (should probably just be in p.exw/main())
+----------
+    -- note: the compiler should not have any open files when this is called.
+    --       interpretation is NOT thread safe
+--  push [symtabptr] -- now [ds+8] (no longer needed)
+--  mov [symtabptr],??? ""
+    [level]++
+--27/2/15: eax:=symtabptr, ecx:=gvarptr
+    call :%newStack
+    call ???
+:%opIaborted
+    [level]--
+--  pop [symtabptr] ""
+    call :%freeStack
+    ret
+--*/
+
+--else
+----if 0 then -- helpful to skip this when profiling the compiler [esp under -test]
+----/**/        #ilASM{ call :%save_ebp         -- (see pcfunc.e)
+----/**/                mov [local_ebp],eax
+----/**/                mov eax,[symtab]
+----/**/                mov edx,[CSvaddr]
+----/**/                mov esi,[DSvaddr]
+----/**/                mov ebx,[opstat]
+----/**/                mov edi,[ptab]
+----/**/                lea ecx,[errorcode]
+----/**/                call %opInterp2
+----/**/                mov edx,[local_ebp]
+----/**/                call :%restore_ebp
+----/**/        }
+----end if
+--end if
+
+--/*
+    bind = 1/0  -- NB must always bind on RDS Eu (since there is no VM loaded to run things on!)
+                -- OK, I assume you changed bind = 0 above (line 830ish), ... but what you gonna 
+                --      replace that opInterp call with?
+--*/
+            if length(ptab) or sequence(opstat) then
+--          if (profileon or collectstats) and not testall then
+--DEV
+                dump_profile()
+--puts(1,"warning: p7.exw line 2177 dump_profile() omitted\n")
+                if errorcode=0
+                and nwarns=0
+--DEV is this better?:
+--              and (not bind or not equal(mainfile,"p.exw")) then
+                and not find(lower(params),{{"-cp"},{"-c","p"},
+                                            {"-cp.exw"},{"-c","p.exw"},
+                                            {"-compilep"},{"-compile","p"},
+                                            {"-compilep.exw"},{"-compile","p.exw"}}) then
+                    puts(1,"\nPress Enter...")
+                    if getc(0) then end if
+                end if
+            end if
+        end if  -- bind/interpret
+    elsif listing then
+        dump_listing()
+    end if  -- no norun
+--  elsif bind then
+----    if errorcode!=0 then
+----        Message(sprintf("\nSome error: %d[#%x]\n",{errorcode,errorcode}))
+----        abort(0)
+----    end if
+    Warnings(1)
+    return errorcode
+end function
+
+procedure REPL()
+object savepath
+--integer local_ebp
+object line
+
+    t = time()
+
+    fileno=0
+    resetOptions()
+    tokinit()
+    syminit()
+
+    puts(1,"Warning: the repl is brand new, experimental, incomplete, and liable to crash!\n")
+    puts(1,"Enter a statement such as \"?remainder(floor(250/8),8)\" or \"puts(1,\"Hi\")\"\n")
+while 1 do  -- main loop
+    puts(1,"\n>")
+    text = ""
+    while 1 do  -- read line loop
+        line = trim(gets(0))
+        if atom(line) then exit end if
+        if length(line)=0 then exit end if
+        if line[$]!='\\' then
+            text &= line
+            exit
+        end if
+        line[$] = ' '
+        text &= line
+    end while
+    if length(text)<=4 and find(lower(text),{"q","quit","exit"}) then exit end if
+    if length(text)=0 then
+        puts(1,"enter q or quit to exit\n")
+    else
+        puts(1,"\n")
+--trace(1)
+        text = append(text,'\n')
+        ltl = length(text)
+        allfiles = {text}--append(allfiles,text)
+        allpfiles = {text}--append(allpfiles,text)
+        exptext = {0}--append(exptext,0)
+        expandedYet = {0}--append(expandedYet,0)
+        unresolved_routine_ids = {0}--append(unresolved_routine_ids,0)
+--      finalOptWarn = append(finalOptWarn,optset[OptWarning])
+        finalOptWarn = {optset[OptWarning]}
+--      if length(filenames)=0 then
+--          -- (the testset (p -test) contains some ..\\)
+--          mainpath = thispath
+--          mainfile = file
+--      end if
+        filenames = {{0,""}} --append(filenames,{pathno,file})
+        fileno = 1 --length(filenames)
+        col = 0
+--trace(1)
+        Compile()
+        --
+        -- Interpret
+        --
+        ptab = {}
+        opstat = 0
+        cl1 = ""
+--if newEmit then
+        finalfixups2("","",t)
+--      ?9/0    -- (there is no opInterp yet! [see pStack.e])
+--else
+--      finalfixups("","",t)
+--end if
+
+        errorcode = 0
+
+--  if not norun then
+--DEV this might be a mistake... (it is different/an incompatibility with RDS Eu)
+        savepath = current_dir()
+        if equal(savepath,mainpath) then
+            savepath = 0
+        else
+--printf(1,"chdir to mainpath:%s\n",{mainpath})
+            if not chdir(mainpath) then
+                Message("Unable to chdir to "&mainpath)
+                savepath = 0
+            end if
+        end if
+
+        symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
+
+--if newEmit then
+            ?9/0 -- (repl)  -- crib from main() [again]
+--else
+----if 0 then -- helpful to skip this when profiling the compiler [esp under -test]
+----/**/        #ilASM{ call :%save_ebp         -- (see pcfunc.e)
+----/**/                mov [local_ebp],eax
+----/**/                mov eax,[symtab]
+----/**/                mov edx,[CSvaddr]
+----/**/                mov esi,[DSvaddr]
+----/**/                mov ebx,[opstat]
+----/**/                mov edi,[ptab]
+----/**/                lea ecx,[errorcode]
+----/**/                call %opInterp2
+----/**/                mov edx,[local_ebp]
+----/**/                call :%restore_ebp
+----/**/        }
+----end if
+--end if
+
+--/*
+    bind = 1/0  -- NB must always bind on RDS Eu (since there is no VM loaded to run things on!)
+                -- OK, I assume you changed bind = 0 above (line 830ish), ... but what you gonna 
+                --      replace that opInterp call with?
+--*/
+--  end if  -- no norun
+--  Warnings(1)
+--  currtls = T_maintls
+        currRtn = dropScope(0,S_File)
+        symtab[T_pathset] = -999
+        symtab[T_fileset] = -999
+    end if -- length(text)=0
+end while
+g0close()
+end procedure
+
+
+sequence smf, smp   -- save of main file & path
+
+    newEmit = 1
+X64 = 0
+    processCommandLine()
+
+atom eres
+     eres = 0
+atom alltime
+
+if repl then
+    REPL()
+    abort(0)
+end if
+if testall then
+    alltime = time()
+    smf = mainfile
+    smp = mainpath
+    mainpath = rootpath&"test\\"
+    OptConsole = 1
+    tt_save_init()
+    for i=1 to length(testset)-1 do
+--printf(1,"state=%d\n",state)
+        mainfile = testset[i]
+        printf(1,"Testing[%d]: %s%s\n",{i,mainpath,mainfile})
+        eres = main()
+        if eres!=0 then exit end if
+        tt_init()
+        ResetResourceSectionDefaults()
+    end for
+    if eres=0 then
+        printf(1,"All tests completed successfully, %3.2f seconds\n",time()-alltime)
+--  printf(1,"ntokens=%d\n",{ntokens})
+        mainfile = smf
+        mainpath = smp
+        OptConsole = -1
+        testall = 0
+    else
+        printf(1,"\nTest terminated with error code %d[#%08x]\n",eres)
+        mainfile = ""
+    end if
+    if not length(mainfile) then
+        puts(1,"\nPress Enter...")
+        if getc(0) then end if
+    end if
+end if
+
+if length(mainfile) then
+--trace(1)
+--puts(1,"uh?1")
+    eres = main()
+--puts(1,"uh?")
+
+--  tr = time()
+--  if bind<=1 then
+--      printf(1,"compile:%3.2f, fixup:%3.2f, run:%3.2f, total:%3.2f\n",
+--                {tc-t0,        tff-tc,      tr-tff,    tr-t0})
+--  end if
+end if
+if eres then 
+--DEV temp:
+--  if bind>1 then
+--  printf(1,"abort(#%08x)\n",eres)
+--  end if
+    abort(eres)
+end if
+
+if countTransTmpFer or showOpCounts then
+    opshow()
+    puts(1,"see ildump.txt\n")
+end if
+--DOH: this is not going to be run from an abort(0)!
+--!/**/c_cleanup()
+pemit2free()
+--puts(1,"uh?")
+--if getc(0) then end if

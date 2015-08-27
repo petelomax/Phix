@@ -1,0 +1,123 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">task_yield</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">task_yield()
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>Yield control to the scheduler. The scheduler can then choose another task to run, or perhaps let the current task continue running.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>Tasks should call task_yield() periodically so other tasks will have a chance to run. 
+            Only when task_yield() is called, is there a way for the scheduler to take back control from a task. 
+            This is known as cooperative multitasking.
+            <br>
+            A task can have calls to task_yield() in many different places in it&rsquo;s code, and at any depth of subroutine call. 
+            <br>
+            <br>
+            The scheduler will use the current value of {min, max} or the current number of consecutive runs remaining, in determining when to return to the current task. 
+            <br>
+            <br>
+            When control returns, execution will continue with the statement that follows task_yield(). 
+            The call-stack and all private variables will remain as they were when task_yield() was called. 
+            Global and local variables may have changed, due to the execution of other tasks.
+            <br>
+            <br>
+            Tasks should try to call task_yield() often enough to avoid causing real-time tasks to miss their time window, 
+            and to avoid blocking time-shared tasks for an excessive period of time. On the other hand, there is a bit of 
+            overhead in calling task_yield(), and this overhead is slightly larger when an actual switch to a different task takes place.
+            <br>
+            <br>
+            A task should avoid calling task_yield() when it is in the middle of a delicate operation that requires exclusive access to some data. 
+            Otherwise a race-condition could occur, where one task might interfere with an operation being carried out by another task. 
+            In some cases a task might need to mark some data as "locked" or "unlocked" in order to prevent this possibility. 
+            With cooperative multitasking, these concurrency issues are much less of a problem than with preemptive multitasking. [DEV see ??]
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+-- this is how the main thread might wait for all tasks to complete
+terminate_application = 1   -- tell threads to start shutting down, if appropriate
+while active_tasks>0 do     -- (active_tasks is a manually maintained counter)
+    task_yield()
+    sleep(0.1)              -- (recommended if any real-time tasks are in use)
+end while
+abort(0)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080">-- this is how the main thread might wait for all tasks to complete
+</font><font color="#000000">terminate_application</font><font color="#0000FF"> =</font><font color="#000000"> 1  </font><font color="#000080"> -- tell threads to start shutting down, if appropriate
+</font><font color="#008080">while</font><font color="#000000"> active_tasks</font><font color="#0000FF">&gt;</font><font color="#000000">0</font><font color="#008080"> do    </font><font color="#000080"> -- (active_tasks is a manually maintained counter)
+</font><font color="#7060A8">    task_yield</font><font color="#0000FF">()
+</font><font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">0.1</font><font color="#0000FF">)             </font><font color="#000080"> -- (recommended if any real-time tasks are in use)
+</font><font color="#008080">end while
+</font><font color="#7060A8">abort</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+-- an alternative to the above:
+main_task_id = task_self()
+task_suspend(main_task_id)
+task_yield()
+-- (nb: if no other task invokes task_schedule(main_task_id), control never returns)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080">-- an alternative to the above:
+</font><font color="#000000">main_task_id</font><font color="#0000FF"> =</font><font color="#7060A8"> task_self</font><font color="#0000FF">()
+</font><font color="#7060A8">task_suspend</font><font color="#0000FF">(</font><font color="#000000">main_task_id</font><font color="#0000FF">)
+</font><font color="#7060A8">task_yield</font><font color="#0000FF">()
+</font><font color="#000080">-- (nb: if no other task invokes task_schedule(main_task_id), control never returns)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="task_create.htm">task_create</a>,
+          <a href="task_schedule.htm">task_schedule</a>,
+          <a href="task_suspend.htm">task_suspend</a>,
+          <a href="task_self.htm">task_self</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

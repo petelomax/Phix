@@ -1,0 +1,32 @@
+--
+-- demo_minmax.exw
+-- 
+--  Shows how to set the min/max size for a window
+--
+-- Copied from a D. Parnell demo for win32lib.
+--
+
+include arwen.ew 
+
+constant Win = create(Window, "Test Min/Max Size", 0, 0, 100, 100, 400, 400, 0)
+ 
+constant min_width = 200, 
+         min_height = 200, 
+         max_width = 700, 
+         max_height = 500 
+
+function WinHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_GETMINMAXINFO and id=Win then
+        poke4(lParam + MINMAXINFO_ptMinTrackSize, {min_width,min_height}) 
+        poke4(lParam + MINMAXINFO_ptMaxTrackSize, {max_width,max_height}) 
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(Win)
+    end if
+    return 0
+end function
+setHandler(Win,routine_id("WinHandler"))
+
+WinMain(Win,SW_NORMAL)
+
+

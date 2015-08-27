@@ -1,0 +1,171 @@
+--
+-- pth.exw
+-- =======
+--
+-- Phix test harness, and command line options documentation.
+--
+--  You can rebuild the compiler by running "p -c p", or by running p and entering "-c p" at the
+--  prompt, both of which also create pw.exe. You can also use pw.exe, (that is, run "pw -c p"),
+--  which also recreates p.exe and pw.exe (though any error messages usually vanish).
+--
+--  See pfeat.htm for an explanation of the four rounds this involves and the safeguards they implement.
+--  Note that any other running instances of both p.exe and pw.exe must be terminated before this can
+--  be completed; "-retry?:" prompts are given if/when needed. Sometimes this can cause problems, and
+--  four rounds can be noticeably slower than one, perhaps impeding fast development.
+--
+--  ****************************************************************************************************
+--  This (trivial) file avoids such problems, by enabling the creation of pth.exe for testing (although 
+--  that must not be in use either). As above compiling pth.exw incurs much less checking than p.exw, 
+--  which is noted as being both good and bad. There should be no significant difference between "p p" 
+--  and "p pth", btw, when -c is not involved. Personally, I rarely ever use this file, but your setup
+--  may be different, plus it is a reasonable place for detailed documentation of command line options.
+--  ****************************************************************************************************
+--
+--  Another, and perhaps better, way of testing modifications to the compiler sources is simply to run
+--  eg "p p test". Note that if your editor (and obviously I recommend Edita) is set to run *.exw files
+--  using RDS's exw[c].exe, rather than p[w].exe, that can further hamper the process. 
+--  The "Tools/Parameterised Run/Always use specified command" checkbox in Edita can relieve the worst 
+--  of such symptoms, if you're not quite prepared to abandon RDS Eu/OpenEuphoria completely just yet.
+--
+--  -test runs the standard test set.
+--  tNN runs a specific test, provided that tNN.exw is not found. Eg t01 is the same as test\t01type.
+--  b runs the benchmarks, same as bench\bench.exw, and likewise only works if b.exw does not exist.
+--  bt runs the last benchmark, same as bench\benchtst.exw, likewise as long as bt.exw is not found.
+--  -c (aka -compile) creates a .exe file instead of interpreting the source, and runs it.
+--  -norun may be useful when packaging an application for release, eg in a batch job.
+--  -d (aka -dump, -l, -list, -listing) creates a list.asm file, which shows the generated binary in
+--      fasm-style syntax, against the original source code. While the above options all generate an
+--      exe file and then list/dissassemble that, the -d! option (only) produces the equivalent for
+--      interpreted/in-memory programs. Since interpretation skips much analysis, many optimisations
+--      may be omitted. Also, the otherwise null-effect -e! option is provided to allow interpretation
+--      at the exact same addresses as shown in the -d! listing; simply processing the -d! uses up a
+--      little bit of memory, not much, but enough to move the AllocateBlock()s in pemit.e, and thus
+--      processing a "-e!" helps to even things out.
+--      See notes in plist.e for more details about the contents of list.asm files, their purpose 
+--      (ie human readership only), and the constants dumpSymTab, doOneInclude, and doOneFileName.
+--  -nodiag excludes the diagnostics which normally trigger when a program crashes, including the
+--      creation of an ex.err file. This can make for a smaller/easier to follow list.asm file,
+--      but of course you get alot less help and far fewer clues should the program go wrong.
+--      Still, it can be very useful during development of the interpreter/compiler itself.
+--  -dumpil creates a different (and probably less useful) file, ildump.txt, which contains the
+--      internal intermediate code. While this is sometimes useful when debugging the compiler,
+--      it is unlikely to be of much use with application code, or without a matching list.asm.
+--  -batch runs in "quiet" mode, suppressing displays to screen and pause prompts, for use by
+--      test\terror.exw. It also causes warnings to behave as errors. See the global batchmode.
+--      Should work equally for both interpreting and compiling.
+--  -imports lists the import section (for p/pw.exe), showing what can be invoked via (eg)
+--      #ilASM{ call "kernel32","SetFilePointer" } style syntax. Things not listed need be to 
+--      invoked via eg #ilASM{ call "kernel32.dll","LoadLibraryA"/"GetProcAddress" call eax}, 
+--      see demo\msgbox.exw for more details. Once enough backend code is moved to hll, we may 
+--      be able to create the import section dynamically, but no promises just yet. You can
+--      also run demo\filedump and look at the import section and more from any executable.
+--      (I plan to remove this soon)
+--  -isense is used by edita to initiate a background intellisense processor. For more details
+--      see eaisense.ew and ptok.e
+--  
+--      <aside>
+--          RDS Eu 4.0 uses the following command line switches:
+--             [-batch]         Turn on batch processing (do not "Press Enter" on error)
+--             [-c filename]    Specify a configuration file
+--             [-copyright]     Display all copyright notices
+--             [-d word]        Define a preprocessor word
+--             [-eudir dir]     Overrides the value of EUDIR
+--             [-i dir]         Add a directory to be searched for include files
+--             [-l local]       Defines a localization qualifier
+--             [-ldb localdb]   Defines the base name for localization databases
+--             [-p file_ext:command]Setup a pre-processor
+--             [-pf]            Force pre-processing regardless of cache state
+--             [-strict]        Enable all warnings
+--             [-test]          Test syntax only, do not execute. Implies batch mode.
+--             [-version]       Display the version number
+--             [-w name]        Defines warning level
+--             [-wf filename]   Write all warnings to the given file instead of STDOUT
+--             [-x name]        Defines warning level by exclusion
+--             [-h], [--help]   Display the command options
+--             [-?]             Display the command options
+--           translator options: 
+--             [-silent]          Do not display status messages 
+--             [-wat]             Set the compiler to Watcom 
+--             [-djg]             Set the compiler to DJGPP 
+--             [-gcc]             Set the compiler to GCC 
+--             [-com dir]         Set the compiler directory 
+--             [-con]             Create a console application 
+--             [-dll]             Create a shared library 
+--             [-so]              Create a shared library 
+--             [-plat platform]   Set the platform for the translated code 
+--             [-lib filename]    Use a non-standard library 
+--             [-fastfp]          Enable hardware FPU (DOS option only) 
+--             [-stack size]      Set the stack size (Watcom) 
+--             [-debug]           Enable debug mode for generated code 
+--             [-maxsize size]    Set the number of C statements per generated file before splitting. 
+--             [-keep]            Keep the generated files 
+--             [-makefile]        Generate a project Makefile 
+--             [-makefile-full]   Generate a full project Makefile 
+--             [-cmakefile]       Generate a project CMake file 
+--             [-emake]           Generate a emake/emake.bat file to build project 
+--             [-nobuild]         Do not build the project nor write a build file 
+--             [-builddir dir]    Generate/compile all files in 'builddir' 
+--             [-o filename]      Set the output filename 
+--          When testing for compatibility, I use "-i builtins", though
+--           you may not need to if your EUINC etc are already set.
+--      </aside>
+--
+--  As above, "p -c p" and "p"/"-c p" are equivalent. Other valid console shortcuts include "p -test",
+--  "pw t25", "p -c-test", "pw -c-norun myapp", "pw myapp -metric -log=0", "p b", "p bt", "p -dbt", etc.
+--  These are of course the thing to use on desktop icons and start menu entries, unless you have already
+--  "-c"'d in which case just link direct to the .exe that was created. For your convenience, "-ctest",
+--  "-compilex", "-dy", "-dumpz", "-ltest", "-listt24", and "-listingbt" are treated as if the space
+--  had not been omitted, however a space is mandatory for all other options. I coded this because I
+--  always seem to type "p -cp" instead of "p -c p". Note that "p-cp" confuses the dos prompt and 
+--  just yields "bad command or file name", not much I can do about that. Also note that command lines
+--  such as "p test -c -nodiag" may not do what you expect: rather than compile test with nodiag, this
+--  will interpret test and pass it "-c -nodiag" as options. In other words, compiler options must
+--  occur before the application source file name, and application options after it. Hence eg the
+--  command "p -c test -c config.txt" will compile (first -c) test and pass "-c config.txt" as the
+--  command line options; naturally "-c" can mean something quite different to p.exw and test.exw.
+--
+--  Wildcards are also allowed as long as they uniquely identify a single file, eg "demo\tak*" will
+--  run "demo\takeuchi.exw". Note that the ".exw" is automatically assumed, and hence this will work
+--  even when demo\takeuchi.exe also/already exists.
+--
+--  "p -pw" can (re)create pw.exe by copying and patching p.exe, likewise
+--  "pw -p" can (re)create p.exe by copying and patching pw.exe. Thus we never have to ship both.
+--    (actually in practice I now ship "original.exe" and ppw.bat takes care of the rest.)
+--
+--  The command prompt (Enter ? for options or filename to execute) handling is mostly inspired by 
+--  good old DOSKEY, if you remember that. The specially handled keys (see pgets0.ew) are:
+--
+--      F1: a simple help screen (same as entering "?\n").
+--      F7: list previous entries. The starting point is always the bottom (most recently used) of 
+--          this list, initially selectable by either uparrow or downarrow, and which is also (re-) 
+--          selected by PageDown, whereas PageUp selects the top. Selecting and running an entry
+--          moves it to the bottom of the list, which is stored in the p.ini file. Unlike DOSKEY,
+--          this means that no duplicate entries are shown.
+--      F8: as up, but cycles round when the top is reached. (should this be removed?)
+--      F9: (not implemented) in DOSKEY, F7 displays numbers next to entries, as well as a ">"
+--          marker and a "--more--" prompt, and F9 allows selection by number. Is this needed?
+--      UpArrow: select next least recently used entry.  \ Initially either of these
+--      DownArrow: select next most recently used entry. / selects the last response.
+--      Left: move cursor left one character (unless already hard left).
+--      Right: move cursor right one character (unless already hard right).
+--      Home: move cursor to first character.
+--      End: move cursor to after last character.
+--      Escape: kill default, if no default then terminate the compiler.
+--      Ctrl L: clear all text to the right of the cursor.
+--      Insert: toggle between overwrite (the initial default) and insert modes.
+--              (there is no visual indication of the change or current mode.)
+--      Delete: delete character under the cursor.
+--      Backspace: delete character to the left of the cursor.
+--      Tab: ignored. (should this be removed?)
+--      Ctrl C: Copy entire prompt input to windows clipboard.
+--      Ctrl V: Replace entire prompt input from windows clipboard.
+--      Ctrl X: (not implemented) As Ctrl C / Escape. Is this needed?
+--      Ctrl Z: immediately terminate input, no cr. (btw, this has no special meaning for 
+--          p.exw, it is just a general feature of pgets0.ew, not actually used by p.exw.)
+--      Lastly, the prompt is auto-completed once enough characters have been entered to
+--          uniquely identify a previous command input. If this is not what you want, just
+--          keep typing and remember to press Ctrl L before the final Return.
+--
+
+--/**/include p.exw
+

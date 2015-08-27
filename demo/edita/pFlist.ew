@@ -1,0 +1,232 @@
+-- pFlist.ew
+-- =========
+--
+-- pFTP.exw has just loaded the remote directory via loadDir, which calls 
+-- FtpDir, ie xFtpFindFirstFile/xInternetFindNextFile loop: however I can 
+-- find no way to load "flags" (eg "drwxr-xr-x") via that route.
+--
+-- This source grabs (via FtpCommand(hConnection,True,0,"LIST",0)) a full
+-- directory text-list and updates (/parses it against) the DataR table.
+--
+-- (Yes, it would probably be quicker to load DataR from a listing only,
+--  but I wrote FtpDir() first, to be dir() compatible, so there ;-).)
+--
+-- implements LoadText()
+--
+-- TODO:
+--  improve error handling
+--  different ftp sites may return different list formats
+--
+procedure LTerr(sequence text, integer fstart, integer idx, integer line, sequence msg)
+if sequence(text) or fstart or idx or line then end if -- suppress warnings
+    puts(1,msg)
+    if getc(0) then end if
+end procedure
+
+function skipspaces(sequence txt, integer idx)
+    while idx<=length(txt) and find(txt[idx]," \t\r\n") do
+        idx+=1
+    end while
+    return idx
+end function
+
+function skipword(sequence txt, integer idx)
+    while idx<=length(txt) and not find(txt[idx]," \t\r\n") do
+        idx+=1
+    end while
+    return idx
+end function
+
+atom snumb
+function skipnumber(sequence txt, integer idx)
+integer i0, ch
+    i0 = idx
+    snumb=0
+    while idx<=length(txt) do
+        ch = txt[idx]-'0'
+        if ch<0 or ch>9 then exit end if
+        snumb = snumb*10+ch
+        idx+=1
+    end while
+    if idx=i0 then i0=9/0 end if
+    return skipspaces(txt,idx)
+end function
+
+integer smonth
+constant months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"}
+function skipmonth(sequence txt, integer idx)
+integer i0
+    i0=idx
+    while idx<=length(txt) and not find(txt[idx]," \t\r\n") do
+        idx+=1
+    end while
+    if idx!=i0+3 then
+        smonth=0
+    else
+        smonth = find(txt[i0..idx-1],months)
+    end if
+    if smonth<1 or smonth>12 then
+        puts(1,"unrecognised month")
+        if getc(0) then end if
+    end if
+    return skipspaces(txt,idx)
+end function
+
+integer sday
+function skipday(sequence txt, integer idx)
+integer ch
+    sday=0
+    while idx<=length(txt) do
+        ch = txt[idx]
+        if not find(ch,"0123456789") then exit end if
+        sday = sday*10+ch-'0'
+        idx+=1
+    end while
+    if sday<1 or sday>31 then
+        puts(1,"day 1..31 expected")
+        if getc(0) then end if
+    end if
+    return skipspaces(txt,idx)
+end function
+
+integer syear, shour, smin
+object thisyear
+thisyear = date()
+thisyear = thisyear[1]+1900
+
+function skipcol8(sequence txt, integer idx)
+-- column 8 can be eg 2004 or 17:56 (a time)
+integer ch, year
+    year=0
+    syear = thisyear
+    shour = 0
+    snumb = 0   -- for smin setting..
+    while idx<=length(txt) do
+        ch = txt[idx]
+        if not find(ch,"0123456789") then exit end if
+        year = year*10+ch-'0'
+        idx+=1
+    end while
+    if year<1900 or year>2099 then
+        shour = year
+        if year>=0 and year<=23 and ch=':' then -- it's a time then
+            idx+=1
+            return skipnumber(txt,idx)
+        end if
+        puts(1,"year 1900..2099 expected")
+        if getc(0) then end if
+    else
+        syear=year
+    end if
+    return skipspaces(txt,idx)
+end function
+
+object sname
+function skipname(sequence txt, integer idx)
+integer i0
+    i0 = idx
+--  while idx<=length(txt) and not find(txt[idx]," \t\r\n") do
+    while idx<=length(txt) and not find(txt[idx],"\r\n") do
+        idx+=1
+    end while
+    if idx=i0 then i0=9/0 end if
+    sname = txt[i0..idx-1]
+    return skipspaces(txt,idx)
+end function
+
+
+function GetListing()
+atom hFile
+sequence data
+object block
+integer len
+
+    data = {}
+    hFile = FtpCommand(hConnection,True,0,"LIST -al",0)
+    if hFile!=NULL then
+        len = InternetQueryDataAvailable(hFile)
+        while len do
+            block = InternetReadFile(hFile, len)
+            if atom(block) or length(block)=0 then exit end if
+            data &= block
+            len = InternetQueryDataAvailable(hFile)
+        end while
+    end if
+    return data
+end function
+
+global procedure LoadText()
+-- see comments at start.
+-- Complete update of DataR.
+-- Called from loadDir().
+-- Internet connection is still open.
+sequence txt
+integer idx, fstart, line
+sequence flags
+integer filesize
+integer sicon
+    txt = GetListing()
+    idx = 1
+    line = 1
+    while idx<=length(txt) do
+        --
+        -- get flags first:
+        --
+        fstart = idx
+        if txt[idx]!='d' and txt[idx]!='-' then
+            LTerr(txt,fstart,idx,line,"'d' or '-' expected")
+            return
+        end if
+        idx+=1
+        for i=1 to 9 do
+            if not find(txt[idx],"rwx-") then
+                LTerr(txt,fstart,idx,line,"'rwx-' expected")
+                return
+            end if
+            idx+=1
+        end for
+        flags = txt[fstart..idx-1]
+        --
+        -- skip 3 columns[?]
+        --
+        idx = skipspaces(txt,idx)
+        for i=1 to 3 do
+            idx = skipword(txt,idx)
+            idx = skipspaces(txt,idx)
+        end for
+        idx = skipnumber(txt,idx)
+        filesize=snumb
+        idx = skipmonth(txt,idx)
+        idx = skipday(txt,idx)
+        idx = skipcol8(txt,idx)
+        smin = snumb
+        idx = skipname(txt,idx)
+        for j=1 to length(DataR) do
+            if equal(sname,DataR[j][1]) then
+                DataR[j][5]=flags
+                sname = -1
+                exit
+            end if
+        end for
+        if sequence(sname) then
+--          LTerr(txt,fstart,idx,line,"filename error:"&filename)
+--DEV if shown hidden files option checked:
+if not find(sname,{".",".."}) then
+                        -- {D_Name,     D_Size,     D_Date,      D_Icon, D_Flags}
+--          Data[didx] = {di[D_NAME],di[D_SIZE],di[D_YEAR..D_SECOND],0,"??"}
+
+if flags[1]='d' then
+    sicon=0 -- default folder icon (3=SI_FOLDER_CLOSED but first in imagelist)
+else
+    sicon=2 -- default object icon (0=SI_UNKNOWN but 3rd in imagelist)
+end if
+
+--DEV dim these like Explorer does?
+DataR=append(DataR,{sname,filesize,{syear,smonth,sday,shour,smin,0},sicon,flags})
+end if
+        end if
+        line +=1
+    end while
+end procedure
+
+

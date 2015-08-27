@@ -1,0 +1,562 @@
+--
+-- pCom.ew
+-- =======
+--
+--  A mini (bare bones) COM implementation. 
+--  Written for Edita, to invoke the Vista+ style GetOpenFile/SaveOpenFile, rather
+--   than the old style that you get as soon as you define a hook procedure (grrr).
+--
+--  I cannot really say anything about VB or OCX support, except that if you want
+--  to know how to handle a VARIANT, or IDispatch, the answer is "not here" - for 
+--  anything like that you might be better off trying eucom. IE This is C++-style
+--  COM, and most definitely not VBScript-style COM.
+--
+--  What little documentation there is lies scattered throughout this code.
+--  If you have winAPI.chm (and PwinAPI.txt) properly installed, then F1 Help, in
+--  Edita, on almost anything (COM-related) in this file should find it.
+--
+
+constant DEBUG=0    -- When 1, outputs "COM error %08x [%s] (%08x:%02x %s)\n" for
+                    --  anything amiss. The () part may give a hint but do not
+                    --  expect much, eg 0C in the %02x may mean IFileDialog_Show
+                    --  or IShellItem_BindToHandler or something else entirely.
+                    -- You are more likely to get somewhere with trace(1) or a 
+                    --  judiciously placed ?9/0, to be honest about it.
+                    -- Pass an extra 0 to cominvk[_imm]() to suppress debug for
+                    --  specific calls that you /expect/ to (sometimes) fail,
+                    --  and/or an extra 1 (temporarily) as you write new code,
+                    --  both of which will override this default setting for
+                    --  those particular calls.
+                    
+
+include arwen.ew
+-- required for (at least):
+--  xMultiByteToWideChar, xWideCharToMultiByte, xCoInitialize, xCoCreateInstance, 
+--  xSHCreateItemFromParsingName, xCoTaskMemFree, CP_UTF8
+-- 
+
+
+global constant CLSCTX_INPROC_SERVER        = 0x000001
+--              CLSCTX_INPROC_HANDLER       = 0x000002,
+--              CLSCTX_LOCAL_SERVER         = 0x000004,
+--              CLSCTX_INPROC_SERVER16      = 0x000008,
+--              CLSCTX_REMOTE_SERVER        = 0x000010,
+--              CLSCTX_INPROC_HANDLER16     = 0x000020,
+--              CLSCTX_INPROC_SERVERX86     = 0x000040,
+--              CLSCTX_INPROC_HANDLERX86    = 0x000080,
+--              CLSCTX_ESERVER_HANDLER      = 0x000100,
+--              CLSCTX_NO_CODE_DOWNLOAD     = 0x000400,
+--              CLSCTX_NO_CUSTOM_MARSHAL    = 0x001000,
+--              CLSCTX_ENABLE_CODE_DOWNLOAD = 0x002000,
+--              CLSCTX_NO_FAILURE_LOG       = 0x004000,
+--              CLSCTX_DISABLE_AAA          = 0x008000,
+--              CLSCTX_ENABLE_AAA           = 0x010000,
+--              CLSCTX_FROM_DEFAULT_CONTEXT = 0x020000
+
+global constant S_OK            = 0,
+                E_NOTIMPL       = 0x80004001,
+                E_NOINTERFACE   = 0x80004002,
+                E_FAIL          = 0x80004005,
+                E_INVALIDARG    = 0x80070057,
+                ERROR_CANCELLED = 0x800704c7
+
+global constant --FOS_OVERWRITEPROMPT   = 0x00000002,
+--              FOS_STRICTFILETYPES     = 0x00000004,
+--              FOS_NOCHANGEDIR         = 0x00000008,
+--              FOS_PICKFOLDERS         = 0x00000020,
+                FOS_FORCEFILESYSTEM     = 0x00000040,
+--              FOS_ALLNONSTORAGEITEMS  = 0x00000080,
+--              FOS_NOVALIDATE          = 0x00000100,
+                FOS_ALLOWMULTISELECT    = 0x00000200,
+--              FOS_PATHMUSTEXIST       = 0x00000800,
+--              FOS_FILEMUSTEXIST       = 0x00001000,
+--              FOS_CREATEPROMPT        = 0x00002000,
+--              FOS_SHAREAWARE          = 0x00004000,
+--              FOS_NOREADONLYRETURN    = 0x00008000,
+--              FOS_NOTESTFILECREATE    = 0x00010000,
+--              FOS_HIDEMRUPLACES       = 0x00020000,
+--              FOS_HIDEPINNEDPLACES    = 0x00040000,
+--              FOS_NODEREFERENCELINKS  = 0x00100000,
+--              FOS_DONTADDTORECENT     = 0x02000000,
+--              FOS_FORCESHOWHIDDEN     = 0x10000000,
+--              FOS_DEFAULTNOMINIMODE   = 0x20000000,
+--              FOS_FORCEPREVIEWPANEON  = 0x40000000
+$
+
+global constant --SIGDN_NORMALDISPLAY               = 0,
+--              SIGDN_PARENTRELATIVEPARSING         = 0x80018001,
+--              SIGDN_DESKTOPABSOLUTEPARSING        = 0x80028000,
+--              SIGDN_PARENTRELATIVEEDITING         = 0x80031001,
+--              SIGDN_DESKTOPABSOLUTEEDITING        = 0x8004c000,
+                SIGDN_FILESYSPATH                   = 0x80058000,
+--              SIGDN_URL                           = 0x80068000,
+--              SIGDN_PARENTRELATIVEFORADDRESSBAR   = 0x8007c001,
+--              SIGDN_PARENTRELATIVE                = 0x80080001,
+$
+
+function gnibble(integer c)
+-- helper routine for GUID()
+    if c>='0' and c<='9' then return c-'0' end if
+    if c>='A' and c<='F' then return c-'A'+10 end if
+    if c>='a' and c<='f' then return c-'a'+10 end if
+    ?9/0
+end function
+
+--DEV init flag?
+constant guid_map = {7,8,5,6,3,4,1,2,12,13,10,11,17,18,15,16,20,21,22,23,25,26,27,28,29,30,31,32,33,34,35,36}
+
+global function GUID(string guid)
+--
+-- Accepts guid strings in either of the following formats:
+--   "HHHHHHHH-HHHH-HHHH-HHHH-HHHHHHHHHHHH"     -- (36 characters)
+--  "{HHHHHHHH-HHHH-HHHH-HHHH-HHHHHHHHHHHH}"    -- (38 characters)
+-- Terminates on wrong length, misplaced hyphens, and characters outside 0..9,A..F,a..f.
+-- Returns an atom pointer to a 16-byte block of memory containing the binary guid.
+-- Caller is responsible for free()ing said memory should it no longer be required,
+--  though in most cases guids persist for the entire duration of the program, as
+--  per the half dozen or so examples(/global constants) shortly below.
+--
+atom res = allocate(16)
+integer nb1, nb2, byte
+
+    if length(guid)=38 and guid[1]='{' and guid[38]='}' then guid = guid[2..37] end if
+    if length(guid)!=36 then ?9/0 end if
+    if guid[9]!='-' then ?9/0 end if
+    if guid[14]!='-' then ?9/0 end if
+    if guid[19]!='-' then ?9/0 end if
+    if guid[24]!='-' then ?9/0 end if
+    for i=1 to length(guid_map) by 2 do
+        nb1 = guid[guid_map[i]]
+        nb2 = guid[guid_map[i+1]]
+        byte = gnibble(nb1)*#10+gnibble(nb2)
+        poke(res+floor(i/2),byte)
+    end for
+    return res
+end function
+
+global function equalGUID(atom a, atom b)
+-- returns true if the two guids are identical, false otherwise
+    return (a==b) or (peek({a,16})==peek({b,16}))
+end function
+
+global function compareGUID(atom a, atom b)
+-- returns 0 if the two guids are identical, -1 if a<b or +1 if a>b
+    if a==b then return 0 end if
+    return compare(peek({a,16}),peek({b,16}))
+end function
+
+--
+-- A CLSID (class id) identifies a specific implementation of an interface.
+-- Some classes may implement multiple interfaces.
+-- An interface may be implemented by more than one class.
+-- Not all interfaces will have a corresponding CLSID, for example IModalWindow and
+-- IFileDialog will not, but interfaces derived from them, such as IFileOpenDialog and
+-- IFileSaveDialog will (have said corresponding CLSIDs).
+-- Typically HKEY_CLASSES_ROOT\CLSID\<GIUD>\InProcServer32 contains the location and
+--  name of the dll that contains the actual implementation (should you wrongly care).
+--
+global constant atom CLSID_FileOpenDialog = GUID("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7"),
+                     CLSID_FileSaveDialog = GUID("C0B4E2F3-BA21-4773-8DBA-335EC946EB8B")
+--                   CLSID_TaskbarList = GUID (56FDF344-FD6D-11D0-958A-006097C9A090)
+
+--
+-- An IID (interface id) uniquely identifies an interface, in other words something (else) 
+-- that implements said interface will have such-and-such methods, in a specific order.
+--
+global constant atom IID_IUnknown = GUID("00000000-0000-0000-C000-000000000046"),
+                     IID_IFileOpenDialog = GUID("d57c7288-d4ad-4768-be02-9d969532d960"),
+                     IID_IFileSaveDialog = GUID("84bccd23-5fde-4cdb-aea4-af64b83d78ab"),
+                     IID_IShellItem = GUID("43826d1e-e718-42ee-bc55-a1e261c37bfe"),
+                     IID_IFileDialogCustomize = GUID("{E6FDD21A-163F-4975-9C8C-A69F1BA37034}")
+--                   IID_IFileDialogEvents = GUID("973510db-7d7f-452b-8975-74a85828d354")
+--                   IID_ITaskbarList = GUID(56FDF342-FD6D-11D0-958A-006097C9A090)
+
+--
+-- Interface definitions are basically just offsets into a vtable of function pointers.
+--  There really are no function prototypes or parameter definitions, it really is a
+--  matter of get it right or watch it not work: it (really!) is as simple as that.
+-- (There is no particular reason why most of these are commented out, except to show
+--  which of them are actively used/have been thoroughly tested.)
+--
+global constant IUnknown_QueryInterface                         = #00,
+--              IUnknown_AddRef                                 = #04,
+                IUnknown_Release                                = #08,
+
+--              IModalWindow_QueryInterface                     = IUnknown_QueryInterface,
+--              IModalWindow_AddRef                             = IUnknown_AddRef,
+--              IModalWindow_Release                            = IUnknown_Release,
+                IModalWindow_Show                               = #0C,
+
+                IFileDialog_QueryInterface                      = IUnknown_QueryInterface,
+--              IFileDialog_AddRef                              = IUnknown_AddRef,
+                IFileDialog_Release                             = IUnknown_Release,
+                IFileDialog_Show                                = IModalWindow_Show,
+                IFileDialog_SetFileTypes                        = #10,
+                IFileDialog_SetFileTypeIndex                    = #14,
+--              IFileDialog_GetFileTypeIndex                    = #18,
+                IFileDialog_Advise                              = #1C,
+                IFileDialog_Unadvise                            = #20,
+                IFileDialog_SetOptions                          = #24,
+                IFileDialog_GetOptions                          = #28,
+                IFileDialog_SetDefaultFolder                    = #2C,
+                IFileDialog_SetFolder                           = #30,
+--              IFileDialog_GetFolder                           = #34,
+                IFileDialog_GetCurrentSelection                 = #38,
+--              IFileDialog_SetFileName                         = #3C,
+--              IFileDialog_GetFileName                         = #40,
+--              IFileDialog_SetTitle                            = #44,
+--              IFileDialog_SetOkButtonLabel                    = #48,
+--              IFileDialog_SetFileNameLabel                    = #4C,
+                IFileDialog_GetResult                           = #50,
+--              IFileDialog_AddPlace                            = #54,
+                IFileDialog_SetDefaultExtension                 = #58,
+--              IFileDialog_Close                               = #5C,
+--              IFileDialog_SetClientGuid                       = #60,
+--              IFileDialog_ClearClientData                     = #64,
+--              IFileDialog_SetFilter                           = #68,  -- (deprecated)
+
+--              IFileDialogCustomize_QueryInterface             = IUnknown_QueryInterface,
+--              IFileDialogCustomize_AddRef                     = IUnknown_AddRef,
+                IFileDialogCustomize_Release                    = IUnknown_Release,
+--              IFileDialogCustomize_EnableOpenDropDown         = #0C,
+--              IFileDialogCustomize_AddMenu                    = #10,
+--              IFileDialogCustomize_AddPushButton              = #14,
+                IFileDialogCustomize_AddComboBox                = #18,
+--              IFileDialogCustomize_AddRadioButtonList         = #1C,
+--              IFileDialogCustomize_AddCheckButton             = #20,
+--              IFileDialogCustomize_AddEditBox                 = #24,
+--              IFileDialogCustomize_AddSeparator               = #28,
+--              IFileDialogCustomize_AddText                    = #2C,
+--              IFileDialogCustomize_SetControlLabel            = #30,
+--              IFileDialogCustomize_GetControlState            = #34,
+--              IFileDialogCustomize_SetControlState            = #38,
+--              IFileDialogCustomize_GetEditBoxText             = #3C,
+--              IFileDialogCustomize_SetEditBoxText             = #40,
+--              IFileDialogCustomize_GetCheckButtonState        = #44,
+--              IFileDialogCustomize_SetCheckButtonState        = #48,
+                IFileDialogCustomize_AddControlItem             = #4C,
+--              IFileDialogCustomize_RemoveControlItem          = #50,
+--              IFileDialogCustomize_RemoveAllControlItems      = #54,
+--              IFileDialogCustomize_GetControlItemState        = #58,
+--              IFileDialogCustomize_SetControlItemState        = #5C,
+                IFileDialogCustomize_GetSelectedControlItem     = #60,
+                IFileDialogCustomize_SetSelectedControlItem     = #64,
+                IFileDialogCustomize_StartVisualGroup           = #68,
+                IFileDialogCustomize_EndVisualGroup             = #6C,
+--              IFileDialogCustomize_MakeProminent              = #70,
+--              IFileDialogCustomize_SetControlItemText         = #74,
+
+--              IFileDialogEvents_QueryInterface                = IUnknown_QueryInterface,
+--              IFileDialogEvents_AddRef                        = IUnknown_AddRef,
+--              IFileDialogEvents_Release                       = IUnknown_Release,
+--              IFileDialogEvents_OnFileOk                      = #0C,
+--              IFileDialogEvents_OnFolderChanging              = #10,
+--              IFileDialogEvents_OnFolderChange                = #14,
+--              IFileDialogEvents_OnSelectionChange             = #18,
+--              IFileDialogEvents_OnShareViolation              = #1C,
+--              IFileDialogEvents_OnTypeChange                  = #20,
+--              IFileDialogEvents_OnOverwrite                   = #24,
+
+--              IFileOpenDialog_QueryInterface                  = IUnknown_QueryInterface,
+--              IFileOpenDialog_AddRef                          = IUnknown_AddRef,
+--              IFileOpenDialog_Release                         = IUnknown_Release,
+--              IFileOpenDialog_Show                            = IModalWindow_Show,
+--              IFileOpenDialog_SetFileTypes                    = IFileDialog_SetFileTypes,
+--              IFileOpenDialog_SetFileTypeIndex                = IFileDialog_SetFileTypeIndex,
+--              IFileOpenDialog_GetFileTypeIndex                = IFileDialog_GetFileTypeIndex,
+--              IFileOpenDialog_Advise                          = IFileDialog_Advise,
+--              IFileOpenDialog_Unadvise                        = IFileDialog_Unadvise,
+--              IFileOpenDialog_SetOptions                      = IFileDialog_SetOptions,
+--              IFileOpenDialog_GetOptions                      = IFileDialog_GetOptions,
+--              IFileOpenDialog_SetDefaultFolder                = IFileDialog_SetDefaultFolder,
+--              IFileOpenDialog_SetFolder                       = IFileDialog_SetFolder,
+--              IFileOpenDialog_GetFolder                       = IFileDialog_GetFolder,
+--              IFileOpenDialog_GetCurrentSelection             = IFileDialog_GetCurrentSelection,
+--              IFileOpenDialog_SetFileName                     = IFileDialog_SetFileName,
+--              IFileOpenDialog_GetFileName                     = IFileDialog_GetFileName,
+--              IFileOpenDialog_SetTitle                        = IFileDialog_SetTitle,
+--              IFileOpenDialog_SetOkButtonLabel                = IFileDialog_SetOkButtonLabel,
+--              IFileOpenDialog_SetFileNameLabel                = IFileDialog_SetFileNameLabel,
+--              IFileOpenDialog_GetResult                       = IFileDialog_GetResult,
+--              IFileOpenDialog_AddPlace                        = IFileDialog_AddPlace,
+--              IFileOpenDialog_SetDefaultExtension             = IFileDialog_SetDefaultExtension,
+--              IFileOpenDialog_Close                           = IFileDialog_Close,
+--              IFileOpenDialog_SetClientGuid                   = IFileDialog_SetClientGuid,
+--              IFileOpenDialog_ClearClientData                 = IFileDialog_ClearClientData,
+--              IFileOpenDialog_SetFilter                       = IFileDialog_SetFilter,  -- (deprecated)
+                IFileOpenDialog_GetResults                      = #6C,
+--              IFileOpenDialog_GetSelectedItems                = #70,
+
+--              IFileSaveDialog_QueryInterface                  = IUnknown_QueryInterface,
+--              IFileSaveDialog_AddRef                          = IUnknown_AddRef,
+--              IFileSaveDialog_Release                         = IUnknown_Release,
+--              IFileSaveDialog_Show                            = IModalWindow_Show,
+--              IFileSaveDialog_SetFileTypes                    = IFileDialog_SetFileTypes,
+--              IFileSaveDialog_SetFileTypeIndex                = IFileDialog_SetFileTypeIndex,
+--              IFileSaveDialog_GetFileTypeIndex                = IFileDialog_GetFileTypeIndex,
+--              IFileSaveDialog_Advise                          = IFileDialog_Advise,
+--              IFileSaveDialog_Unadvise                        = IFileDialog_Unadvise,
+--              IFileSaveDialog_SetOptions                      = IFileDialog_SetOptions,
+--              IFileSaveDialog_GetOptions                      = IFileDialog_GetOptions,
+--              IFileSaveDialog_SetDefaultFolder                = IFileDialog_SetDefaultFolder,
+--              IFileSaveDialog_SetFolder                       = IFileDialog_SetFolder,
+--              IFileSaveDialog_GetFolder                       = IFileDialog_GetFolder,
+--              IFileSaveDialog_GetCurrentSelection             = IFileDialog_GetCurrentSelection,
+--              IFileSaveDialog_SetFileName                     = IFileDialog_SetFileName,
+--              IFileSaveDialog_GetFileName                     = IFileDialog_GetFileName,
+--              IFileSaveDialog_SetTitle                        = IFileDialog_SetTitle,
+--              IFileSaveDialog_SetOkButtonLabel                = IFileDialog_SetOkButtonLabel,
+--              IFileSaveDialog_SetFileNameLabel                = IFileDialog_SetFileNameLabel,
+--              IFileSaveDialog_GetResult                       = IFileDialog_GetResult,
+--              IFileSaveDialog_AddPlace                        = IFileDialog_AddPlace,
+--              IFileSaveDialog_SetDefaultExtension             = IFileDialog_SetDefaultExtension,
+--              IFileSaveDialog_Close                           = IFileDialog_Close,
+--              IFileSaveDialog_SetClientGuid                   = IFileDialog_SetClientGuid,
+--              IFileSaveDialog_ClearClientData                 = IFileDialog_ClearClientData,
+--              IFileSaveDialog_SetFilter                       = IFileDialog_SetFilter,  -- (deprecated)
+--              IFileSaveDialog_SetSaveAsItem                   = #6C,
+--              IFileSaveDialog_SetProperties                   = #70,
+--              IFileSaveDialog_SetCollectedProperties          = #74,
+--              IFileSaveDialog_GetProperties                   = #78,
+--              IFileSaveDialog_ApplyProperties                 = #7C,
+
+--              IShellItem_QueryInterface                       = IUnknown_QueryInterface,
+--              IShellItem_AddRef                               = IUnknown_AddRef,
+                IShellItem_Release                              = IUnknown_Release,
+--              IShellItem_BindToHandler                        = #0C,
+--              IShellItem_GetParent                            = #10,
+                IShellItem_GetDisplayName                       = #14,
+--              IShellItem_GetAttributes                        = #18,
+--              IShellItem_Compare                              = #1C,
+
+--              IShellItemArray_QueryInterface                  = IUnknown_QueryInterface,
+--              IShellItemArray_AddRef                          = IUnknown_AddRef,
+                IShellItemArray_Release                         = IUnknown_Release,
+--              IShellItemArray_BindToHandler                   = #0C,
+--              IShellItemArray_GetPropertyStore                = #10,
+--              IShellItemArray_GetPropertyDescriptionList      = #14,
+--              IShellItemArray_GetAttributes                   = #18,
+                IShellItemArray_GetCount                        = #1C,
+                IShellItemArray_GetItemAt                       = #20,
+--              IShellItemArray_EnumItems                       = #24,
+$
+
+--integer rlen -- (for test code at the end)
+
+global function COMDLG_FILTERSPEC(sequence filters)
+--
+-- filters should be something like { {"Text Document (*.txt)", "*.txt"}, 
+--                                    {"All Documents (*.*)", "*.*"} }
+-- The text strings can be ansi or utf8.
+-- Returns an atom pointer to allocated memory containing a table of internal
+--  pointers to the text (also in "") expanded to WideChar (utf16le) format.
+-- Caller is responsible for free()ing said memory when no longer required.
+--
+sequence fi         -- (as I want the typechecking)
+string fi1, fi2     -- (as I want the typechecking)
+integer len = 0
+atom res,           -- result
+     ptraddr,       -- where (in "") pointers to strings get poked 
+     straddr = 0    -- where (in "") strings get poked
+
+    for i=1 to length(filters) do
+        fi = filters[i]
+        if length(fi)!=2 then ?9/0 end if
+        {fi1,fi2} = fi
+        len += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi1,-1,NULL,0})
+        len += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi2,-1,NULL,0})
+        straddr += 8
+    end for
+--  rlen = straddr+len*2
+--  res = allocate(rlen)
+    res = allocate(straddr+len*2)
+    ptraddr = res
+    straddr += res -- (==res+length(filters)*8)
+    for i=1 to length(filters) do
+        fi = filters[i]
+        {fi1,fi2} = fi
+        poke4(ptraddr,straddr)
+        ptraddr += 4
+        len = c_func(xMultiByteToWideChar,{CP_UTF8,0,fi1,-1,NULL,0})
+        straddr += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi1,-1,straddr,len})*2
+        poke4(ptraddr,straddr)
+        ptraddr += 4
+        len = c_func(xMultiByteToWideChar,{CP_UTF8,0,fi2,-1,NULL,0})
+        straddr += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi2,-1,straddr,len})*2
+    end for
+    return res
+end function
+
+global function unicode_string(string utf8str)
+-- Returns an atom pointer to memory containing the ansi/utf8 input converted to a null-word (#0000) terminated WideString.
+-- Caller is responsible for free()ing memory (that the result points to) once the WideString result is no longer required.
+atom res
+integer len
+    len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,NULL,0})
+    res = allocate(len*2)
+    len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,res,len})
+    return res
+end function
+
+global function peek_unicode_string(atom pInBuff)
+-- Returns an ansi/utf8 string converted from the passed pointer to WideString (pInBuff).
+-- Caller may or may not need to free(pInBuff) [or CoTaskMemFree(pInBuff)], whereas the
+--  return value (a normal string) should take care of itself.
+integer nLen
+atom pOutBuff
+string res
+    nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pInBuff,-1,NULL,0,NULL,NULL})
+    pOutBuff = allocate(nLen)
+    nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pInBuff,-1,pOutBuff,nLen,NULL,NULL})
+    res = peek({pOutBuff,nLen-1})
+    free(pOutBuff)
+    return res
+end function
+
+global function create_com_object(sequence vtable)
+--
+-- vtable is a full set of all the rqd interface methods in the right order.
+--  For example IFileDialogEvents needs the ten methods (call_backs) as listed 
+--  above, ie IFileDialogEvents_QueryInterface..IFileDialogEvents_OnOverwrite.
+--  Note there are no function prototypes etc, it is simply a matter of get it
+--  /all/ right or watch it not work; cryptic error code: only if you are lucky.
+-- Returns an atom pointer to a bare minimum COM object containing 
+--  a {<pointer to vtable>,refcount} pair, and the vtable itself.
+-- 
+atom res = allocate(8+length(vtable)*4)
+    poke4(res,{res+8,0}&vtable)
+    return res
+end function
+
+sequence com_error_codes
+sequence com_error_names
+integer com_error_init = 0
+
+procedure comErrorInit(atom error_code, string error_desc)
+    com_error_codes = append(com_error_codes,error_code)
+    com_error_names = append(com_error_names,error_desc)
+end procedure
+
+function com_error_name(atom error_code)
+    if not com_error_init then
+        com_error_init = 1
+        com_error_codes = {}
+        com_error_names = {"unknown"} -- (if find() yields 0, show this. subsequent codes/names are therefore "staggered" by 1.)
+        comErrorInit(E_NOTIMPL,         "E_NOTIMPL")
+        comErrorInit(E_NOINTERFACE,     "E_NOINTERFACE")
+        comErrorInit(E_FAIL,            "E_FAIL")
+        comErrorInit(E_INVALIDARG,      "E_INVALIDARG")
+        comErrorInit(ERROR_CANCELLED,   "ERROR_CANCELLED")
+        -- feel free to add more here... (any that actually trigger, not all 273,851 at once please ;-)
+    end if
+    return com_error_names[find(error_code,com_error_codes)+1]
+end function
+
+global function cominvk_imm(atom pInterface,integer vIdx,sequence params, integer bDebug=DEBUG)
+--
+-- pInterface is usually a parameter to a call_back. Unlike cominvk() [below],
+--  when creation involves allocate(4) and CoCreateInstance/QueryInterface, an
+--  extra peek4u() is required, so (obviously) we use cominvk_imm in the rarer
+--  cases when we need to avoid that peek. If in doubt, use trial and error to
+--  decide whether you need to use cominvk() or cominvk_imm().
+-- vIdx is an offset into the vtable, eg constant IFileDialog_Show (= #0C).
+-- params is a sequence of atoms, eg flags, ids, or the results from calls to
+--  unicode_string() or allocate(4) [both of which caller must free()], etc.
+--  Note that some elements of params may require a peek4u, most should not,
+--       but if in doubt, erm, you'll have to use good old trial and error.
+-- Pass an extra 0 to override (switch off) debug handling on specific calls
+--  that you expect to (sometimes) fail (eg IFileDialog_GetCurrentSelection),
+--  or pass an extra 1 on new code that you are just adding.
+--
+-- Returns S_OK on success, otherwise a HRESULT error code. Note that these
+--  are unsigned, so use and_bits(hResult,#80000000) instead of hResult<0,
+--  but you can compare directly against eg constant E_FAIL (=#80004005).
+--
+integer local_ebp
+atom res
+    if and_bits(vIdx,#03) then
+        #ilASM { ::kaboom }
+        ?9/0
+    end if
+    if string(params) and length(params) then
+        params &= -1    -- force conversion to dword-sequence
+        params = params[1..$-1]
+    end if
+    #ilASM{ call :%save_ebp         -- (see pcfunc.e)
+            mov [local_ebp],eax
+            mov esi,[params]
+            mov ecx,[ebx+esi*4-12]  -- length
+            shl esi,2
+            cmp ecx,0
+            je :zeroparams
+          ::paramloop
+                mov eax,[esi+ecx*4-4]
+                cmp eax,h4
+                jl @f
+                    sub esp,8
+                    cmp byte[ebx+eax*4-1],0x12          -- (ebx==0)
+                    jne :kaboom
+                    fld qword[ebx+eax*4]
+                    fistp qword[esp]
+                    pop eax
+                    add esp,4
+              @@:
+                push eax
+                sub ecx,1
+                jnz :paramloop          
+          ::zeroparams
+            mov eax,[pInterface]            
+            mov edx,[vIdx]
+            push eax
+            mov eax,[eax]
+            call [eax+edx]
+            xor ebx,ebx
+            lea edi,[res]
+            push ebx
+            push eax
+            fild qword[esp]
+            add esp,8
+            call %opMovbi       -- call StoreFlt ([edi]:=ST0)
+        @@:
+            mov edx,[local_ebp]
+            call :%restore_ebp
+    }
+    if bDebug then
+--      if res<S_OK then
+        if and_bits(res,#80000000) then
+            printf(1,"COM error %08x [%s] (%08x:%02x %s)\n",{res,com_error_name(res),pInterface,vIdx,sprint(params)})
+--          trace(1)
+        end if
+    end if
+    return res
+end function
+
+global function cominvk(atom pInterface,integer vIdx,sequence params, integer bDebug=DEBUG)
+--
+-- pInterface is eg constant pFileDialog = allocate(4), the content of which
+--  has typically been populated via CoCreateInstance or QueryInterface, or 
+--  for that matter, I nearly forgot about our very own, create_com_object().   [?]
+-- Other possibilities and parameters are documented in cominvk_imm() above.
+--
+    return cominvk_imm(peek4u(pInterface),vIdx,params,bDebug)
+end function
+
+
+-- some old test code:
+--constant filters = { {"Word Document (*.doc)",      "*.doc"}, 
+--                   {"Web Page (*.htm; *.html)", "*.htm;*.html"}, 
+--                   {"Text Document (*.txt)",    "*.txt"}, 
+--                   {"All Documents (*.*)",      "*.*"} }
+--constant c_rgSaveTypes = COMDLG_FILTERSPEC(filters)
+--constant c_size = length(filters)
+
+--?c_rgSaveTypes
+--for i=1 to rlen do
+--  if remainder(i-1,16)=0 then
+--      printf(1,"\n%08x ",c_rgSaveTypes+i-1)
+--  end if
+--  printf(1," %02x",peek(c_rgSaveTypes+i-1))
+--end for
+--puts(1,"\n")
+--if getc(0) then end if
+

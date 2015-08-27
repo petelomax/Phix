@@ -1,0 +1,131 @@
+--
+-- demo\rosetta\Averages_Median.exw
+-- ================================
+--
+--  Write a program to find the median value of a vector of floating-point numbers. 
+--  The program need not handle the case where the vector is empty, but must handle 
+--  the case where there are an even number of elements. In that case, return the 
+--  average of the two middle values. 
+--
+--  There are several approaches to this. One is to sort the elements, and then pick 
+--  the one(s) in the middle. Sorting would take at least O(n?logn). Another would be 
+--  to build a priority queue from the elements, and then extract half of the elements 
+--  to get to the middle one(s). This would also take O(n?logn). The best solution is 
+--  to use the selection algorithm (http://en.wikipedia.org/wiki/Selection_algorithm)
+--  to find the median in O(n) time.
+--
+--
+
+constant USESORT = 1    -- 1 = use first routine, 0 = use second (quick_select) one
+
+function median(sequence s)
+atom res=0
+integer l = length(s), k = floor((l+1)/2)
+    if l then
+        s = sort(s)
+        res = s[k]
+        if remainder(l,2)=0 then
+            res = (res+s[k+1])/2
+        end if
+    end if
+    return res
+end function
+
+include QuickSelect.exw     -- (nb this displays output [but no longer pauses])
+
+function medianq(sequence s)
+atom res=0, tmp
+integer l = length(s), k = floor((l+1)/2)
+    if l then
+        {s,res} = quick_select(s,k)
+        if remainder(l,2)=0 then
+            {s,tmp} = quick_select(s,k+1)
+            res = (res+tmp)/2
+        end if
+    end if
+    return res  -- (or perhaps return {s,res})
+end function
+
+
+-- a full list of all the tests I could find on the rosettacode page:   
+constant tests = {{4.45,    {4.4, 2.3, -1.7, 7.5, 6.6, 0, 1.9, 8.2, 9.3, 4.5}},
+                  {4.4,     {4.4, 2.3, -1.7, 7.5, 6.6, 0, 1.9, 8.2, 9.3, 4.5, -11.7}},
+                  {4.4,     {4.4, 2.3, -1.7, 7.5, 6.6, 0, 1.9, 8.2, 9.3}},
+                  {3.35,    {4.4, 2.3, -1.7, 7.5, 6.6, 0, 1.9, 8.2}},
+                  {2.3,     {4.4, 2.3, -1.7, 7.5, 6.6, 0, 1.9}},
+                  {3.35,    {4.4, 2.3, -1.7, 7.5, 6.6, 0}},
+                  {4.4,     {4.4, 2.3, -1.7, 7.5, 6.6}},
+                  {3.35,    {4.4, 2.3, -1.7, 7.5}},
+                  {2.3,     {4.4, 2.3, -1.7}},
+                  {3.35,    {4.4, 2.3}},
+                  {4.5,     {2.3, -1.7, 7.5, 6.6, 0, 1.9, 8.2, 9.3, 4.5}},
+                  {5.55,    {-1.7, 7.5, 6.6, 0, 1.9, 8.2, 9.3, 4.5}},
+                  {6.6,     {7.5, 6.6, 0, 1.9, 8.2, 9.3, 4.5}},
+                  {5.55,    {6.6, 0, 1.9, 8.2, 9.3, 4.5}},
+                  {4.5,     {0, 1.9, 8.2, 9.3, 4.5}},
+                  {6.35,    {1.9, 8.2, 9.3, 4.5}},
+                  {8.2,     {8.2, 9.3, 4.5}},
+                  {6.9,     {9.3, 4.5}},
+                  {4,       {3, 1, 4, 1, 5, 9, 7, 6, 3}},
+                  {4.5,     {3, 1, 4, 1, 5, 9, 7, 6}},
+                  {3,       {3, 1, 4, 1, 5}},
+                  {2,       {3, 1, 4, 1}},
+                  {3,       {1, 9, 2, 4}},
+                  {2,       {1, 9, 2}},
+                  {3.5,     {1, 5, 3, 6, 4, 2}},
+                  {3,       {1, 5, 3, 2, 4}},
+                  {4.1,     {4.1, 4, 1.2, 6.235, 7868.33}},
+                  {4.4,     {4.1, 5.6, 7.2, 1.7, 9.3, 4.4, 3.2}},
+                  {4.25,    {4.1, 7.2, 1.7, 9.3, 4.4, 3.2}},
+                  {2.1,     {3, 4, 1, -8.4, 7.2, 4, 1, 1.2}},
+                  {4.85,    {5.1, 2.6, 6.2, 8.8, 4.6, 4.1}},
+                  {4.6,     {5.1, 2.6, 8.8, 4.6, 4.1}},
+                  {2,       {1, 2, 3}},
+                  {2.5,     {1, 2, 3, 4}},
+                  {5.5,     tagset(10)},
+                  {5,       tagset(9)},
+                  {4,       {5, 3, 4}},
+                  {3.5,     {5, 4, 2, 3}},
+                  {4.5,     {3, 2, 7, 6}},
+                  {6,       {3, 2, 9, 7, 6}},
+                  {44,      {41, 56, 72, 17, 93, 44, 32}},
+                  {85/2,    {41, 72, 17, 93, 44, 32}},
+                  {3,       {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0.11}},
+                  {5.5,     {10, 9, 8, 7, 6, 5, 4, 3, 2, 1}},
+                  {5,       {9, 8, 7, 6, 5, 4, 3, 2, 1}},
+                  {1.15e200,{-1.2345678e99, 2.3e200}},
+                  {51.695,  {28.207, 74.916, 51.695, 72.486, 51.118, 3.241, 73.807}},
+                  {50.924,  {27.984, 89.172, 0.250, 66.316, 41.805, 60.043}},
+                  {15,      {10, 20, 30, 40, 50, -100, 4.7, -11e+2}},
+                  {4.05,    {9.3, -2, 4, 7.3, 8.1, 4.1, -6.3, 4.2, -1, -8.4}},
+                  {5.7,     {8.3, -3.6, 5.7, 2.3, 9.3, 5.4, -2.3, 6.3, 9.9}},
+                  {4.4,     {4.4}},
+                  {4.5,     {4.5}},
+                  {10,      {10}},
+                  {0,       {}}}
+
+
+atom expected, actual
+sequence s
+--atom t0 = time()
+--for z=1 to 1000 do
+for i=1 to length(tests)-1 do
+    {expected,s} = tests[i]
+    s = repeat(0,100)&s&repeat(1e208,100)
+    if USESORT then
+        actual = median(s)
+    else
+        actual = medianq(s)
+    end if
+    if abs(actual-expected)>1e-14 then
+        if sprint(actual)!=sprint(expected) then    -- (needed for the 1.15e200 case)
+            ?9/0
+        end if
+    end if
+end for
+--end for
+--?time()-t0
+
+puts(1,"Press Enter...")
+{} = wait_key()
+

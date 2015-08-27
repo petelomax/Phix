@@ -1,0 +1,582 @@
+--
+-- pgui.exw
+-- ========
+--
+-- The gui front-end to Phix.
+-- A tabbed dialogue including demos, settings, and registration.
+-- Also planned is a testbed for a gui debugger (not yet started). 
+--  There were also plans to have a "Run" tab but I quickly realised that 
+--  would take a ridiculous amount of effort just to match the lowest 10% 
+--  of what Edita already does, however I will not entirely rule it out, 
+--  as an "extended two-way conversation" between this (pgui) and Edita 
+--  might yet offer some other advantage(s).
+-- Some other ideas are:
+--  embedded phix (see Phix\demo\arwendemo\pgui\pgpw.ew) [bad idea?] [REPL?]
+--  include perror.ew for proemh() (done in "")
+--  a nicer looking gui version of the console [REPL?]
+--  move the testset from p.exw to here
+--  check for updates
+--
+
+-- INITIALISATION
+-- HKCR/.exw/PerceivedType=text  (etc, a .reg file will do) [ditto .ew, .err, .asm?]
+-- command prompt here, directory listing if I can find it, maybe.
+-- PATH, maybe? [registry settings seem to be enough]
+
+--TODO:
+--  save window sizes and positions
+
+--RDS Eu 2.4 
+--(and OpenEuphoria 4.0.2:?)
+--/*
+global type string(object s) return sequence(s) end type
+--global function trim(object source, object what=" \t\r\n", integer ret_index=0)
+global function trim(object source, object what, integer ret_index)
+integer rpos
+integer lpos
+
+    if sequence(source) then
+        lpos = 1
+        rpos = length(source)
+        if atom(what) then
+            while lpos<=rpos
+              and source[lpos]=what do
+                lpos += 1
+            end while
+            while rpos>lpos
+              and source[rpos]=what do
+                rpos -= 1
+            end while
+        else
+            while lpos<=rpos
+              and find(source[lpos], what) do
+                lpos += 1
+            end while
+            while rpos>lpos
+              and find(source[rpos], what) do
+                rpos -= 1
+            end while
+        end if
+
+        if ret_index then
+            return {lpos, rpos}
+
+        elsif lpos!=1
+           or rpos!=length(source) then
+            source = source[lpos..rpos]
+        end if
+    end if
+    return source
+end function
+
+include builtins\dll.e
+--global constant C_PTR = C_POINTER
+include builtins\machine.e
+include builtins\misc.e
+include builtins\sort.e
+include builtins\file.e
+include builtins\get.e
+include builtins\database.e
+include demo\arwen\misc_arwen.e
+include demo\arwen\message_box.ew
+include demo\arwen\constants.ew
+include demo\arwen\dll_links.ew
+include demo\arwen\structures.ew
+include demo\arwen\Quick_Allocations.ew
+include demo\arwen\classes.ew
+include builtins\syswait.ew
+--*/
+
+--with trace
+include demo\arwen\arwen.ew
+--include demo\arwen\axtra.e
+--with trace
+
+--include pgui\pgpw.ew -- (bad idea? [effectively embeds a copy of pw.exe inside this program])
+--include demo\arwendemo\pgui\pgpw.ew --as pgpw [problem: error handling needs to crash!]
+
+
+with warning
+
+global constant
+--  pmain = create(Window,"Phix GUI front-end (incomplete)",0,0,356,130,1184,347,0),
+    pmain = create(Window,"Phix GUI front-end",0,0,152,113,1184,797,0),
+    TC = create(TabControl, "" , 0, pmain, 5,3,1163,352,0),
+--  prun = create(TabItem,"Run",0,TC,0,0,0,0,0),
+--Notes:
+--  for gui apps only (if it did use p.exe the console would still vanish)
+--  interpretation/debugging only
+--  Readme: Note this is absolutely NOT "the best way to run apps". It is
+--  perhaps best suited for debugging gui apps. Novices may ...
+--  Note: this (pgui/Run) is a basic demo as opposed to a sensible/practical
+--        way to start applications. ==> how about a "construct command line" theme?
+--  rcode = create(Label,"Not implemented",0,prun,16,29,173,20,0),
+    demos = create(TabItem,"Demos",0,TC,0,0,0,0,0),
+    dcols = {{"Columns",55},{"Set",30},{"Dynamically",490}},
+--DEV yet another thing to "fix" in window painter: (things should be disabled if not directly inlined)
+--  dstyle = {{LVS_SINGLESEL,LVS_SHOWSELALWAYS,LVS_OWNERDATA},0},
+--  dlist = create(ListView,dcols,0,demos,12,14,596,105,dstyle),
+    dlist = create(ListView,dcols,0,demos,1,3,1153,122,{{LVS_SINGLESEL,LVS_SHOWSELALWAYS,LVS_OWNERDATA},0}),
+    dbRun = create(Button,"&Run",0,demos,1,130,75,30,0),
+    dlFilter = create(Label,"Fil&ter",0,demos,85,140,32,16,0),
+    dtFilter = create(EditText,"",0,demos,116,136,875,22,0),
+    dbHelp = create(Button,"&Help",0,demos,998,131,75,30,0),
+    dbClose = create(Button,"&Close",0,demos,1080,131,75,30,0),
+    dSource = create(ListBox,"Source",0,demos,1,165,1153,111,LBS_NOINTEGRALHEIGHT),
+--  repl = create(TabItem,"REPL",0,TC,0,0,0,0,0),   -- use "p -repl" (currently a bit broken)
+--  pdebug = create(TabItem,"Debug",0,TC,0,0,0,0,0),
+--  dbgtxt = "Not implemented (any ideas tried out here will probably end up in Edita)",
+    -- (I really haven't put much thought into this, except that I probably will want
+    --  a separate gui process to talk to, that can crash/quit without bringing down
+    --  Edita. First stab will be here, but I am unlikely to want to duplicate all the
+    --  edit/search/multiple tab/syntax colouring etc etc. Then again Alt-Tab or even
+    --  (say) F4 to toggle/setForeGroundWindow might prove perfectly adequate.)
+--  dcode = create(Label,dbgtxt,0,pdebug,18,33,396,20,0),
+
+    psettings = create(TabItem,"Settings",0,TC,0,0,0,0,0),
+    lPath = create(Label,"PATH:",0,psettings,8,17,109,20,SS_RIGHT),
+    cHKCU = "HKEY_CURRENT_USER\\Environment\\Path",
+    cHKLM = "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment\\Path",
+    rbUser    = create(RadioButton,cHKCU,0,psettings,121,14,559,20,0),
+    rbMachine = create(RadioButton,cHKLM,0,psettings,121,31,631,20,0),
+    cbPath = create(CheckBox,"cbPath",0,psettings,119,53,14,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+    lPath1 = create(Label,"path1",0,psettings,137,56,535,20,SS_OWNERDRAW),
+    lPath2 = create(Label,"path2",0,psettings,137,75,535,20,SS_OWNERDRAW),
+    lPath3 = create(Label,"path3",0,psettings,137,94,535,20,SS_OWNERDRAW),
+    cbPerceivedType = create(CheckBox,"Percieved Type",0,psettings, 8,111,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+    cbPTOther       = create(CheckBox,"(of \"text\")", 0,psettings,41,130,91,20,{{BS_CENTER,BS_LEFTTEXT},0}),
+    lType1 = create(Label,".e,.ew,.ex,.exw",        0,psettings,137,114,535,20,SS_OWNERDRAW),
+    lType2 = create(Label,".asm,.bat,.css,.inc,.js",0,psettings,137,133,535,20,SS_OWNERDRAW),
+    cbDefaultIcon = create(CheckBox,"Default Icon",0,psettings,8,151,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+    lIcon  = create(Label,".e,.ew,.ex,.exw",        0,psettings,137,154,535,20,SS_OWNERDRAW),
+    icon1 = create(Label,"C:\\Program Files\\Phix\\Psrc.ico,1",0,psettings,137,169,535,20,SS_OWNERDRAW),
+    cbErrorIcon = create(CheckBox,"Error File Icon",0,psettings,8,181,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+    lEIcon = create(Label,".err",                   0,psettings,137,184,180,20,SS_OWNERDRAW),
+    icon2 = create(Label,"C:\\Windows\\system32\\shell32.dll,78",0,psettings,137,197,535,20,SS_OWNERDRAW),
+    cbEdita = create(CheckBox,"Edit with Edita",0,psettings,8,210,124,19,{{BS_LEFTTEXT,BS_RIGHT},0}),
+    lEdit = create(Label,".e,.ew,.ex,.exw",0,psettings,137,213,196,20,SS_OWNERDRAW),
+    edit1 = create(Label,"pw edita %1",0,psettings,137,227,535,15,SS_OWNERDRAW),
+    cbRun = create(CheckBox,"Run \".ex\" with Phix",0,psettings,8,242,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+    run1 = create(Label,"p %1",0,psettings,137,245,535,13,SS_OWNERDRAW),
+    cbRunW = create(CheckBox,"Run \".exw\" with Phix",0,psettings,8,264,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+    run2 = create(Label,"pw %1",0,psettings,137,267,535,20,SS_OWNERDRAW),
+
+--  lRun = create(Label,".ex",0,psettings,949,21,180,20,0),
+--  lRunW = create(Label,".exw",0,psettings,948,33,180,20,0),
+--  ptE   = create(TriCheckBox,".e, .ew",0,psettings,1013, 128,85,20,0),
+--  ptEx  = create(TriCheckBox,".ex",    0,psettings,1011, 196,85,20,0),
+--  ptExw = create(TriCheckBox,".exw",   0,psettings,1016,222,85,20,0),
+--  ptErr = create(TriCheckBox,".err",   0,psettings,1009,246,85,20,0),
+--  ptAsm = create(TriCheckBox,".asm",   0,psettings,1008,78,85,20,0),
+--  ptBat = create(TriCheckBox,".bat",   0,psettings,827,65,85,20,0),
+--  ptCss = create(TriCheckBox,".css",   0,psettings,885,47,85,20,0),
+--  ptInc = create(TriCheckBox,".inc",   0,psettings,811,27,85,20,0),
+--  ptJs  = create(TriCheckBox,".js",    0,psettings,857,24,85,20,0),
+--  diE   = create(TriCheckBox,".e, .ew",0,psettings,1015, 154,85,20,0),
+--  diEx  = create(TriCheckBox,".ex",    0,psettings,922, 75,85,20,0),
+--  diExw = create(TriCheckBox,".exw",   0,psettings,890,158,85,20,0),
+--  diErr = create(TriCheckBox,".err",   0,psettings,1008,104,85,20,0),
+--  eeE   = create(TriCheckBox,".e, .ew",0,psettings,1013, 175,85,20,0),
+--  eeEx  = create(TriCheckBox,".ex",    0,psettings,915, 101,85,20,0),
+--  eeExw = create(TriCheckBox,".exw",   0,psettings,890,185,85,20,0),
+--  eeErr = create(TriCheckBox,".err",   0,psettings,899,246,85,20,0),
+----    eeAsm = create(TriCheckBox,".asm",   0,psettings,224,150,85,20,0),
+----    eeBat = create(TriCheckBox,".bat",   0,psettings,224,175,85,20,0),
+----    eeCss = create(TriCheckBox,".css",   0,psettings,224,200,85,20,0),
+----    eeInc = create(TriCheckBox,".inc",   0,psettings,224,225,85,20,0),
+----    eeJs  = create(TriCheckBox,".js",    0,psettings,224,250,85,20,0),
+--  rwEx   = create(TriCheckBox,".ex",    0,psettings,904, 127,75,20,0),
+--  rwExw  = create(TriCheckBox,".exw",   0,psettings,897,217,75,20,0),
+    cddAct = create(ComboDropDown,"Action", 0,psettings,120, 295, 116,157,0),
+    sbOK  = create(Button,"OK",         0,psettings, 246,289, 75,30,0),
+--  sbUndo   = create(Button,"Create undo.reg", 0,psettings,143,290,103,30,0),
+--  sbCreate = create(Button,"Create setup.reg",0,psettings,274,290,103,30,0),
+    sbHelp   = create(Button,"Help",            0,psettings,334,289, 75,30,0),
+
+--  ffaptxt = "(fast, free, and painless; copies above to clipboard and opens browser)",
+--  clawtxt = "(checks that the licence shown above actually works)",
+--  pregister = create(TabItem,"Register",0,TC,0,0,0,0,0),
+--  rclbl = create(Label,"Registration code",0,pregister,15,19,93,20,0),
+--  lclbl = create(Label,"Licence code",0,pregister,13,158,85,20,0),
+--  rrc1 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,18,334,20,0),
+--  rrc2 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,35,334,20,0),
+--  rrc3 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,52,334,20,0),
+--  rrc4 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,69,334,20,0),
+--  rNow = create(Button,"Register now",0,pregister,11,89,91,30,0),
+--  ffap = create(Label,ffaptxt,0,pregister,112,96,350,20,0),
+--  lic1 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,159,334,20,0),
+--  lic2 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,176,334,20,0),
+--  lic3 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,193,334,20,0),
+--  lic4 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,210,334,20,0),
+--  test = create(Button,"Test",0,pregister,11,229,89,30,0),
+--  claw = create(Label,clawtxt,0,pregister,109,237,355,20,0),
+
+    M_Cmnu = create(Menu, "", 0, 0, 0,0,0,0,0),
+    M_Camd = create(MenuItem,"Amend\tF2",       0, M_Cmnu, 0,0,0,0,0),
+    M_Enum = create(MenuItem,"Enums\tF3",       0, M_Cmnu, 0,0,0,0,0),
+    M_Cols = create(MenuItem,"Columns\tF4",     0, M_Cmnu, 0,0,0,0,0),
+    M_Cewe = create(MenuItem,"Edit with Edita", 0, M_Cmnu, 0,0,0,0,0),
+    M_Crun = create(MenuItem,"Run\tF5",         0, M_Cmnu, 0,0,0,0,0),
+    M_Copy = create(MenuItem,"Copy command",    0, M_Cmnu, 0,0,0,0,0)
+
+--  setFont({rrc1,rrc2,rrc3,rrc4,lic1,lic2,lic3,lic4},"Courier",8,0)
+
+--  if rcode or dcode or scode or rclbl or lclbl or ffap or claw then end if -- suppress warnings [DEV]
+--  if dcode then end if -- suppress warnings [DEV]
+
+-- SS_OWNERDRAW ids and their colours:
+global constant colourids = {lPath1,lPath2,lPath3,lType1,lType2,lIcon,icon1,lEIcon,icon2,lEdit,edit1,run1,run2}
+--global sequence colours = repeat(0,length(colourids))
+global sequence colours
+    colours = repeat(0,length(colourids))
+
+global string crun, croot
+
+include peama.ew as peama
+
+-- (used by pgdemo.ew and pgisense.ew)
+--global atom eHwnd = peama:getEditaHwnd()
+global atom eHwnd
+        eHwnd = peama:getEditaHwnd()
+
+--integer trap=0
+
+global sequence enums
+global sequence esets
+global sequence columns
+global sequence cflags
+include demo\arwendemo\pgui\pgdb.ew as pgdb
+include demo\arwendemo\pgui\pgdemo.ew as demo
+--include demo\arwendemo\pgui\pgrepl.ew as repl
+include demo\arwendemo\pgui\pgsetup.ew as setup
+--include demo\arwendemo\pgui\pglicence.ew as licence   [DEAD]
+
+integer focusOn
+        focusOn = 0
+integer swmode
+        swmode = SW_NORMAL
+
+constant popupTimer = createTimer()
+
+sequence drawitemids
+         drawitemids = {}   -- SS_OWNERDRAW ids that may need blanking,
+sequence drawitemtxt
+         drawitemtxt = {}   -- by re-displaying text in background clr.
+
+function pmainHandler(integer id, integer msg, atom wParam, object lParam)
+integer x,y,w,h,hh
+string ftxt
+integer TCidx
+atom hDC
+--integer k
+--atom pItemIdx
+--atom eHndl, pRect
+string itemtxt
+integer k
+--/*
+sequence rect
+--*/
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE
+        or (id=dbClose and wParam=VK_RETURN) then
+            if id=dtFilter then
+                setFocus(dlist)
+            else
+                closeWindow(pmain)
+            end if
+        elsif wParam=VK_RETURN then
+--          if id=mbAll then
+--              msg = WM_COMMAND
+            if find(id,{dbRun,dbHelp,dbClose}) then
+                msg = WM_COMMAND
+            elsif id=dtFilter then
+                setFocus(dlist)
+--          elsif id=dlist then
+--              msg = WM_COMMAND
+--              id = mbEdit
+            end if
+        elsif wParam=' '
+--        and find(id,{mbOne,mbAll,mbEdit,dbClose}) then
+          and find(id,{dbRun,dbHelp,dbClose}) then
+            msg = WM_COMMAND
+        elsif getIndex(TC)=demos
+          and id!=dtFilter then
+            if wParam>=' ' and wParam<='z' then
+                setText(dtFilter,getText(dtFilter)&wParam)
+                demo:setFilters()
+            elsif wParam=VK_BACK then
+                ftxt = getText(dtFilter)
+                if length(ftxt) then
+                    setText(dtFilter,ftxt[1..length(ftxt)-1])
+                    demo:setFilters()
+                end if
+            end if
+        end if
+    end if
+    if (msg=WM_NOTIFY and wParam=TCN_SELCHANGE)
+    or (msg=WM_SETFOCUS and id=TC) then
+        if focusOn!=0 then
+            id = focusOn
+        else
+            id = getIndex(TC)
+        end if
+--      if id=pregister then
+--          if licence:checkClipboard() then
+--              licence:Test()
+--          end if  
+--      els
+        if id=demos then
+            demo:Init()
+--      elsif id=isense then
+--          intellisense:init(0)
+        elsif id=psettings then
+            setup:Setup()
+        end if
+    elsif msg=WM_COMMAND then
+--?{{id,cddAct},{wParam,LBN_SELCHANGE,hiWord(wParam),loWord(wParam)}}
+        if id=M_Camd then
+            demo:Amend()
+        elsif id=M_Enum then
+            demo:Enums()
+        elsif id=M_Cols then
+            demo:Columns()
+        elsif id=M_Cewe then
+            demo:EditWithEdita()
+        elsif id=dbRun
+           or id=M_Crun then
+            demo:Run(0)
+        elsif id=M_Copy then
+            demo:Run(1)
+        elsif id=dbClose then
+            closeWindow(pmain)
+        elsif id=dbHelp then
+            demo:Help()
+        elsif id=dtFilter then
+            demo:setFilters()
+--      elsif find(id,{cbPerceivedType,ptE,ptEx,ptExw,ptErr,ptAsm,ptBat,ptCss,ptInc,ptJs,
+--                     cbEdita,        eeE,eeEx,eeExw,eeErr,--eeAsm,eeBat,eeCss,eeInc,eeJs,
+--                     cbDefaultIcon,  diE,diEx,diExw,diErr,
+--                     cbRun,              rwEx,rwExw}) then
+        elsif find(id,{ lPath,rbMachine,rbUser,cbPath,lPath1,lPath2,lPath3,
+                        cbPerceivedType,cbPTOther,lType1,lType2,
+                        cbDefaultIcon,lIcon,icon1,
+                        cbErrorIcon,lEIcon,icon2,
+                        cbEdita,lEdit,edit1,
+                        cbRun,run1,
+                        cbRunW,run2}) then
+            setup:setButtonStates()
+--DEV not sure why this differs from eacons.ew (because it is on a tab control?):
+--      elsif id=cddAct and wParam=LBN_SELCHANGE then
+        elsif id=cddAct and hiWord(wParam)=LBN_SELCHANGE then
+            setup:setButtonStates()
+        elsif id=sbOK then
+            setup:Apply()
+        elsif id=sbHelp then
+            setup:Help()
+--      elsif id=rNow then
+--          licence:Now()
+--      elsif id=test then
+--          licence:Test()
+        end if
+    elsif msg=WM_PAINT then
+        if focusOn then
+            id = focusOn
+            focusOn = 0
+            setFocus(id)
+        end if
+    elsif msg=WM_KEYDOWN then
+        TCidx = getIndex(TC)
+        if wParam=VK_ESCAPE then
+            closeWindow(pmain)
+        elsif wParam=VK_F1 then
+            if TCidx=demos then
+                demo:Help()
+            elsif TCidx=psettings then
+                setup:Help()
+            end if
+        elsif wParam=VK_F2 then
+            if TCidx=demos then
+                demo:Amend()
+            end if
+        elsif wParam=VK_F3 then
+            if TCidx=demos then
+                demo:Enums()
+            end if
+        elsif wParam=VK_F4 then
+            if TCidx=demos then
+                demo:Columns()
+            end if
+--OK, this is doable, after we allow user defined columns to be created, right click menu(not F2)...
+--    not that I can get that rect. Oh, just throw up a window..... [IE: do **NOT** try this, F2->demo:Amend() is just fine]
+--      elsif wParam=VK_F2 then
+--          if id=dlist then
+--              addStyle(dlist,LVS_EDITLABELS)
+--              k = getIndex(dlist)
+--              if k then
+--                  eHndl = sendMessage(dlist,LVM_EDITLABEL,k-1,0)
+--                  c_proc(xSetWindowText,{eHndl,allocate_StringZ("whatever")})
+----                    <need to get the desired rect>
+----                    pItemIdx = allocate_Point()
+----                    poke4(pItemIdx,{k-1,0})
+--                  pRect = allocate_Rect()
+--                  poke4(pRect,{1,LVIR_LABEL})
+----                    void = sendMessage(dlist,LVM_GETSUBITEMRECT,k-1,pRect)
+----                    void = sendMessage(dlist,LVM_GETITEMINDEXRECT,pItemIdx,pRect)
+--                  void = sendMessage(dlist,LVM_GETITEMRECT,k-1,pRect)
+--                  {x,y,w,h} = peek4u({pRect,4})
+--                  x = sendMessage(dlist,LVM_GETCOLUMNWIDTH,0,0)
+--                  w = sendMessage(dlist,LVM_GETCOLUMNWIDTH,1,0)
+----                    ?{x,y,w,h}
+----                    void = c_func(xMoveWindow,{eHndl, 10, 55, 100, 20, 1})
+----                    c_proc(xShowWindow,{eHndl,SW_HIDE})
+--                  void = c_func(xMoveWindow,{eHndl, x, y, w, h-y, 0})
+----                    c_proc(xShowWindow,{eHndl,SW_SHOWNORMAL})
+--              end if
+--          end if
+        elsif wParam=VK_F5 then
+            if TCidx=demos then
+                demo:Run(0)
+            end if
+        elsif wParam=VK_F8 then
+            if TCidx=demos then
+                demo:ShowCount()
+            end if
+        elsif wParam=VK_F9 then
+            pgdb:pgdbCompress()
+        end if
+    elsif msg=WM_SIZE and id=pmain then
+--/**/  {x,y,w,h} = getClientRect(pmain)
+--/*
+        rect = getClientRect(pmain)
+        x = rect[1]
+        y = rect[2]
+        w = rect[3]
+        h = rect[4]
+--*/
+        hh = floor(h/2)-35
+        void = c_func(xMoveWindow,{getHwnd(TC),    x+2, y+2,  w-4,  h-4,  0})
+        void = c_func(xMoveWindow,{getHwnd(dlist), x+5, y+25, w-15, hh-5, 0})
+        resizeLVColumns(dlist)
+        void = c_func(xMoveWindow,{getHwnd(dbRun),    x+4,    hh+25, 75,    30,    0})
+        void = c_func(xMoveWindow,{getHwnd(dlFilter), x+85,   hh+33, 27,    16,    0})
+        void = c_func(xMoveWindow,{getHwnd(dtFilter), x+114,  hh+30, w-285, 22,    0})
+        void = c_func(xMoveWindow,{getHwnd(dbHelp),   x+w-164,hh+25, 75,    30,    0})
+        void = c_func(xMoveWindow,{getHwnd(dbClose),  x+w-84, hh+25, 75,    30,    0})
+        void = c_func(xMoveWindow,{getHwnd(dSource),  x+5,    hh+60, w-15,  hh,    0})
+    elsif msg=WM_GETMINMAXINFO then
+        poke4(lParam+MINMAXINFO_ptMinTrackSize+POINT_x,630)
+        poke4(lParam+MINMAXINFO_ptMinTrackSize+POINT_Y,395)
+    elsif msg=WM_NOTIFY and id=dlist then
+        demo:Notify(wParam,lParam)      
+    elsif msg=WM_RBUTTONDOWN and id=dlist then
+        -- if we call demo:PopMenu() immediately, the listview selection does not get updated...
+        startTimer(popupTimer,pmain,5)
+    elsif msg=WM_TIMER then
+        if wParam=popupTimer then
+            -- .. but now that it has (5ms later), we can kill the timer and show the popup!
+            stopTimer(popupTimer)
+            demo:PopMenu()
+        end if
+    elsif msg=WM_DRAWITEM then
+        hDC = peek4u(lParam+DIS_hDC)
+        id = peek4u(lParam+DIS_CtlID)
+        if not id then
+            id = c_func(xGetWindowLong,{peek4u(lParam+DIS_hwndItem),GWL_USERDATA}) --getID
+        end if
+        itemtxt = getText(id)
+        k = find(id,drawitemids)
+        if k=0 then
+            drawitemids = append(drawitemids,id)
+            drawitemtxt = append(drawitemtxt,itemtxt)
+        else
+            void = c_func(xSetTextColor,{hDC,c_func(xGetSysColor,{COLOR_BTNFACE})})
+            c_proc(xDrawText,{hDC,allocate_StringZ(drawitemtxt[k]),-1,lParam+DIS_rcItem,DT_LEFT})
+            drawitemtxt[k] = itemtxt
+        end if
+        void = c_func(xSetTextColor,{hDC,colours[find(id,colourids)]})
+        c_proc(xDrawText,{hDC,allocate_StringZ(itemtxt),-1,lParam+DIS_rcItem,DT_LEFT})
+    end if
+    return 0
+end function
+setHandler({pmain,
+--          rNow,test,
+            TC,
+            dlist,dbRun,dtFilter,dbHelp,dbClose,
+--          prepl,
+            psettings,
+--          cbPerceivedType,ptE,ptEx,ptExw,ptErr,ptAsm,ptBat,ptCss,ptInc,ptJs,
+--          cbEdita,        eeE,eeEx,eeExw,eeErr,--eeAsm,eeBat,eeCss,eeInc,eeJs,
+--          cbDefaultIcon,  diE,diEx,diExw,diErr,
+--          cbRun,              rwEx,rwExw,
+            lPath,rbMachine,rbUser,cbPath,lPath1,lPath2,lPath3,
+            cbPerceivedType,cbPTOther,lType1,lType2,
+            cbDefaultIcon,lIcon,icon1,
+            cbErrorIcon,lEIcon,icon2,
+            cbEdita,lEdit,edit1,
+            cbRun,run1,
+            cbRunW,run2,
+--          sbApply,sbUndo,sbCreate,sbHelp,
+            cddAct,cddAct+1,sbOK,sbHelp,
+--          pregister,
+            M_Camd,M_Enum,M_Cols,M_Cewe,M_Crun,M_Copy},
+            routine_id("pmainHandler"))
+
+--DEV (somewhat unlikely:)
+--global procedure GUIdebug()
+--  if not pinit then init() end if
+--  setFocus(pdebug)
+--end procedure
+
+--procedure pguic()
+--  if not pinit then init() end if
+--DEV set this from -register commandline option, else Run
+--  focusOn = demo:General_Init()
+
+procedure main()
+sequence cl
+string cl3
+
+    cl = command_line()
+
+    crun = cl[1]
+    for i=length(crun) to 0 by -1 do
+        if crun[i]='\\' then
+            croot = crun[1..i]
+            crun = lower(crun[i+1..length(crun)])
+--          if not find(crun,{"p7.exe","pw.exe","p.exe"}) then
+--          if not find(crun,{"p7.exe","pw.exe"}) then
+            if not find(crun,{"p7.exe","pw.exe","p.exe","exw.exe","exwc.exe"}) then
+                crun = "pw.exe"
+            end if
+            crun = croot&crun
+            exit
+        end if
+    end for
+    if find(' ',crun) then
+        crun = '\"' & crun & '\"'
+    end if
+
+    if length(cl)>=3 then
+        cl3 = cl[3]
+        if cl3="-demo" then     -- (the default anyway)
+            focusOn = demos
+--      elsif cl3="-register" then
+--          focusOn = pregister
+        elsif cl3="-settings" then
+            focusOn = psettings
+        else
+            puts(1,"unrecognised command line option :"&cl3)
+            ?9/0
+        end if
+    end if
+
+    WinMain(pmain,swmode)
+end procedure
+main()
+--end procedure
+
+--if routine_id("Compile")=-1 then pguic() end if
+--pguic()
+pgdb:DBclose()
+

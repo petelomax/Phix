@@ -1,0 +1,2477 @@
+--DEV migrate ALL these to terror...
+--
+-- t99errs.exw (manual test of error handling)
+--
+-- comments of the form [(...)] are not part of message.
+-- comments of the form [(*1)] refer to footnotes in this program.
+--
+-- General Ramblings
+-- =================
+-- Maybe there should be a #pe directive (predicted error), which causes the compiler to exit
+-- gracefully (back to say TopLevel for file 1 in pmain.e) rather than abort, partially re-init
+-- and carry on - provided of course the error we predicted was the one we got. The re-init bit
+-- could scan to next #pe as a way of cleaning things up. eg:
+--
+--      #pe{")" expected}
+--      procedure p1(6)
+--      #pe{"end" expected}
+--      procedure p2() 6
+--
+-- Obviously, if you find any #pe then the program is non-runnable.
+--
+--** ==> Actually, keep it simple: #pe effectively terminates the compiler quietly.
+--  Each source file has a maximum of one #pe directive; use lots of small sources
+--   (or a equivalent to bench\benchtst.exw) for testing the compiler.
+--
+-- Might also want a #pw, which might actually have a real-world use - instead of turning off
+-- all warnings, or entire classes of warnings, correctly predict them and they go silent, eg:
+--
+--      #pw{parameter o is not used}
+--      procedure ignore(object o) end procedure
+--
+-- Predict them wrong, eg "pramtater oh niet uesd", ==> 'missing warning' warning.
+-- #pw would be a strict filo stack; you have to get the order right. [WHY??!]
+-- Note that quotes between the {} are quite literal, as in the #pe examples.
+-- Also, if without warning is in force, #pw directives are completely ignored.
+--
+
+-- BUT, also you want a run-time error thing, eg
+--  #rte{attempt to divide by 0}
+--  ?9/0
+
+--
+-- On with the actual tests
+-- ========================
+--
+--/**/with console
+
+--
+-- 1. Compile-time errors (alphabetical, with duplicate cases shown):
+--    ===================
+--
+-- NOTE: Please do /NOT/ scour this list and dream up another two dozen
+--        similar-ish messages|cases 'you think would be good'.
+--
+--       There are two reasons, and two reasons alone, why I publish this;
+--          a) verify 3rd-party mods do not break anything.
+--          b) offer a hint when struggling to understand an error.
+--       Most certainly not to encourage endless debate and discussion!
+--
+--       If in doubt (or need) though, please do ask; You never know, I 
+--        might pan a suggestion twenty times before I suddenly see the 
+--        light!
+--
+--       I am fairly unlikely to bother with any theoretical suggestions
+--        whereas real-world examples will get full consideration,
+--        especially if I can compare/test with/without message direct.
+--        I believe any detailed analysis would best be posted privately,
+--        at least the first draft, rather than start some stupid holy
+--        war on an unsuspecting mailing list somewhere ;-)
+--
+--       Of course if we disagree on an error you think should be added,
+--        then I'll have no option but to be convinced if:
+--          a) you provide needed code mods, and sufficient test sets
+--              to prove it will address /all/ required cases.
+--              (it is my duty alone to port from pexec.e to asm)
+--          b) all tests and major legacy code are unaffected.
+--              (or all required mods to such make perfect sense, maybe 
+--               like my own "if a and b or c" "requires parenthesis",
+--               which I added to force the intent to be made crystal
+--               clear, rather than rely on association/precedence, 
+--               a concept few novices would grasp and even some 
+--               experienced programmers occasionally get wrong.)
+--          c) benchmark tests show no crippling additional overhead.
+--
+-- Items marked with "--+" could be removed, as there is sufficent run-time 
+--  checking, and doing so could shave a small percentage off compile time.
+--  However it is clearly better to detect them as early as possible rather
+--  than leave nasty surprises in rarely-executed corners of released code.
+--  Legacy code which appeared to work may therefore show a sudden flurry
+--  of errors and warnings.
+    
+--constant c5=''                [(*3)]  -- character constant length error (use double quotes for strings)
+--atom a11 a11+=1                       --+compound op on declaration [(*1)]
+--exit                                  -- exit statement must be inside a loop
+--function f1() end function            -- function does not return a value
+--length({})                            -- function result must be assigned or used
+--£                                     -- illegal character
+--abort("string")                       --+incompatible type for routine signature
+--if length(0) then                     --+incompatible type for routine signature
+--procedure p7(atom a1) p7("string")    --+incompatible type for routine signature
+--object a a=find(0,0)                  --+incompatible type for routine signature
+--constant c1=3 c1=5                    -- may not change the value of a constant
+--for i=1 to 10 do i=5 end for          -- may not change the value of a for loop control variable
+-- /*                                   --+missing closing block comment
+----/*                                  --+missing closing block comment
+--constant c6='aaaaaaaaaaaaaaaaaaaaaaaa -- missing end quote
+--constant c7="aaaaaaaaaaaaaaaaaaaaaaaa -- missing end quote
+--procedure p5(atom a2) p5()            -- missing parameters
+--global 6                              -- procedure, function, type, constant, or vartype expected
+--return                                -- return must be inside a procedure or function
+--sequence s10 s10[1]=0                 --+subscript on declaration [(*1)]
+--constant c4="	tab		tab"           -- tab character found in string - use spaces or \\t instead
+--procedure p6() p6(1)                  -- too many arguments
+--type t1(object o) end type            -- type does not return a true/false value
+--if "fred"=1 then end if               --+type error (always false)
+--sequence s2 atom a3 if a3=s2 then     --+type error (always false)
+--while "a"=1 do                        --+type error (always false)
+--while 1 do if "a"=1 then exit         --+type error (always false)
+--string s8 if s8[1][1] then            --+type error (attempt to subscript an atom)
+--sequence s3 s3=1                      --+type error (storing atom in sequence)
+--sequence s4 s4=find(1,{1})            --+type error (storing atom in sequence) [(*2)]
+--sequence s5 atom a5 s5=a5             --+type error (storing atom in sequence)
+--string s9 s9="fred"[1]                --+type error (storing character in sequence)
+--atom a6 a6=""                         --+type error (storing sequence in atom)
+--atom a7 a7=append({},1)               --+type error (storing sequence in atom) [(*2)]
+--atom a8 sequence s2 a8=s2             --+type error (storing sequence in atom)
+--integer i i=1 i&=2                    --+type error (storing sequence in atom)
+--sequence s11 s11=s11[{1,2}]           --+type error (subscript must be an atom)
+--sequence s12 s12=s12[1..{3}]          --+type error (subscript must be an atom)
+--sequence s13 s13={} s13[{1,2}]=1      --+type error (subscript must be an atom)
+--if "fred" then return end if          --+type error (true/false condition must be ATOM)
+--if append({},1) then return end if    --+type error (true/false condition must be ATOM)
+--constant c8="fred" if c8 then return  --+type error (true/false condition must be ATOM)
+--object o2 o2="fred"+1                 --+type error (use sq_add?)
+--atom a9 a9=not{1}                     --+type error (use sq_not?)
+--atom a10 sequence s6 a10=-s6          --+type error (use sq_uminus?)
+--object o1 o1=-"fred"                  --+type error (use sq_uminus?)
+--pixel()                               -- undefined:pixel. Phix does not support DOS programming.
+--for i= to  do                         -- undefined identifier to
+--constant c3=2.4.5                     -- unrecognised .5
+--6                                     -- unrecognised 6
+--constant c2="fred\q"                  -- unrecognised escape character
+--with psychic_powers                   -- unrecognised option
+--type t()                              -- user defined types must have exactly one parameter
+
+
+--?constant xx=1e9999 --DEV just gives inf...
+
+--Footnotes for section 1.
+--[(*1)]: These checks were at one time practically mandatory, as otherwise 
+--        it would emit semi-gibberish semi-working (and hard to debug) code,
+--        though quite a bit has changed since then.
+--[(*2)]: The compiler only knows of builtin return types; it does not [yet]
+--        deduce what type(s) a user-defined function(/type) returns. For a
+--        few ideas, see routine plausible() in pmain.e which deduces needed 
+--        parameter types for (implicit) fwd routines [not heavily tested].
+--        You might manage something similar in DoReturn and save it at the 
+--        end of DoRoutineDef, possibly/probably extending symtab[N][S_Sig].
+--        (PS: you read that right, the compiler does not "know", or check,
+--             that user defined types return a bool/integer, yet. Note
+--             also that it should not "assume" this; if a udt returns an
+--             object, then compilation must proceed using that _fact_; eg
+--             were mytype to return "fred", then integer i i=mytype(x)
+--             must _not_ skip the type_check on i like it does in i=3.)
+--[(*3)]: Also documented in file:C:\Program Files\Phix\docs\positive.htm#ewref [DEV]
+--[(*3)]: Also documented in file://localhost/C:\Program Files\Phix\docs\positive.htm#ewref [DEV]
+--
+-- 2. Compile-time warnings (alphabetical):
+--    =====================
+
+--object z98  if 1 or z98 then end if   -- Warning: %s is never assigned a value
+--object z99                            -- Warning: %s is not used
+
+
+--
+-- 3. Run-time errors (alphabetical):
+--    ===============
+-- Examples are not provided in all cases. Some further information may be
+--  present in pdiag.e. Note frequent use of object to avoid compile errors.
+--DEV dropped, no idea anymore!
+-- "pcrih2" is just a note to myself that I've tested this fully
+-- (internally, I have 6 valid combos of exw.exe|p.exe, hll|asm, compile|interp 
+--  that I can test, though I shall only document/release 4 of them:
+--  p) p.exe t99, c) p.exe -c t99, r) exw.exe p.exw t99, and i) p.exe p.exw/t99.)
+--  [rcp are the important ones, i less so, h2 are "old technology"]
+
+--integer i i=1/0                   -- pcrih2 -- attempt to divide by 0
+--object a,b a=b b=0                    -- pc     -- variable b has not been assigned a value [opMove]
+--object o o={o}                    -- pc     -- variable o has not been assigned a value [opMkSq]
+--constant x=peek4u(#FFFFFFFF)      -- pc-    -- invalid peek memory address [(machine-level exception)]
+--include c:\Program Files\Phix\builtins\machine.e
+--atom a integer i a=allocate(4) poke4(a,-1) i=peek({a,2})  -- type check error, i is {255,255}
+--integer i atom a i=peek(a)                    -- variable a has not been assigned a value [opPeeki]
+--integer i i=peek(-1)                          -- invalid peek memory address
+--type h(integer c) return not c end type h halt
+--halt=0                                --        -- OK
+--halt=1                                --        -- type check failure, halt is 1
+--object DIE,D2 DIE+=1              --        -- variable DIE has not been assigned a value
+--sequence s s="name" s[0]=1                -- index 0 out of bounds, assigning to sequence length 4
+--sequence s s="123" abort(s[0])            -- index 0 out of bounds, reading from sequence length 3
+--sequence s s="name" s[3..1]=1             -- slice length is negative [3..1]
+--sequence s s="name" s[-1..-3]=1           -- slice length is negative [4..2]
+--integer i i=#3FFFFFFF+10                  -- type_check failure, i is 1073741833
+--integer i i=-#3FFFFFFF-10                 -- type_check failure, i is -1073741833
+--integer i,j i=7 j=i/2                     -- type check failure, j is 3.5"
+--integer i,j i=-7 j=i/2                    -- type check failure, j is -3.5"
+--integer i i=#3FFFFFFF*2                   -- type_check failure, i is 2147483646
+--integer i i=-#3FFFFFFF*2                  -- type_check failure, i is -2147483646
+--integer i,j i=-#40000000 j=i/-1           -- type_check failure, i is 1073741824
+--object s integer i s={{}} i=s[1]          -- type_check failure, i is {}
+--atom a integer i a=#3FFFFFFF i=a+1        -- type_check failure, i is 1073741824
+--integer i i=-#40000000 i-=1               -- type_check failure, i is -1073741825
+--integer i i=#3FFFFFFF i+=1                -- type_check failure, i is 1073741824
+--integer i i=-#40000000/-1                 -- type_check failure, i is 1073741824
+--object o sequence STOP o=1 STOP=o         -- type check failure, STOP is 1
+--object o o=1 o=length(o)                  -- length of an atom is not defined
+--object o o="fred" integer i i=o           -- type check failure, i is "fred"
+--object o sequence s o="1" s="2" s[o]='3'  -- subscript is not an atom
+--integer i,j,k k=(i=j)                     -- variable i has not been assigned a value (opSeq)
+--integer i,j,k i=1 k=(i=j)                 -- variable j has not been assigned a value (opSeq)
+--object o if o then ?1 end if              -- variable o has not been assigned a value (opJnot)
+--object o if not o then ?1 end if          -- variable o has not been assigned a value (opJif)
+--object o if o>1 then ?1 end if            -- variable o has not been assigned a value (opJcc)
+--object o if 1>o then ?1 end if            -- variable o has not been assigned a value (opJcc)
+--object o if o=1 then ?1 end if            -- variable o has not been assigned a value (opJccE)
+--object o if 1=o then ?1 end if            -- variable o has not been assigned a value (opJccE)
+--integer i object s if s[i] then ?1 end if
+--integer i object s if not s[i] then ?1 end if
+--object s integer i s={} if s[i] then ?1 end if
+--object s integer i s={} if not s[i] then ?1 end if
+--object s s={{}} if s then ?1 end if
+--object s s={{}} if s[1] then ?1 end if
+--integer i object o i=o
+--object o for i=o to o do end for
+--object o o=3.5 for i=o to o do end for
+--object o o=3.5 for i=1 to o do end for
+--object o o=3.5 for i=1 to 10 by o do end for
+--object o o=0 for i=1 to 10 by o do end for
+--object o call(o)
+--object o o={} call(o)
+--object o call_proc(o,o)
+--object o call_proc(-1,o)
+--call_proc(-1,{})
+--object o o={o}
+--object o o=1 o=o[1][1]                    -- attempt to subscript an atom (opSubse)
+--object o o=o[1][1]                            -- variable o has not been assigned a value (opSubse)
+--object o o="s" o=o[1][1]                  -- attempt to subscript an atom (opSubse)
+--object o o={"s"} o=o[1][1][1]                 -- attempt to subscript an atom (opSubse)
+--object o o=3.5 o=o[1][1]               -- attempt to subscript an atom (opSubse)
+--object o o={{}} o=o[1][1]
+--object o o=1 o[1][1]=1                    -- attempt to subscript an atom (opRepe)
+--object o o="s" o[1][1]=1                  -- attempt to subscript an atom (opRepe)
+--object o o=3.5 o[1][1]=1                  -- attempt to subscript an atom (opRepe)
+--object o o={3.5} o[1][1]=1                    -- attempt to subscript an atom (opRepe)
+--object o o={"s"} o[1][1][1]=1                 -- attempt to subscript an atom (opRepe)
+--object o o=1 o[1]=1                   -- attempt to subscript an atom (opRepe1)
+--object o o=3.5 o[1]=1                 -- attempt to subscript an atom (opRepe1)
+--object o o=1 o[1..1]=1                    -- attempt to subscript an atom (opReps)
+--object o o=3.5 o[1]=1                 -- attempt to subscript an atom (opReps)
+--object o o="s" o[1][1..1]=1                   -- attempt to subscript an atom (opReps)
+--object o o={"s"} o[1][1][1..1]=1                  -- attempt to subscript an atom (opReps)
+--object o o=o[1]
+--object o o=o[1][1]
+--object o o=o[1..1]
+--object o o=1 o=o[1]
+--object o o=1 o=o[1][1]
+--object o o=1 o=o[1..1]
+--object o o=3.5 o=o[1]
+--object o o=3.5 o=o[1][1]
+--object o o=3.5 o=o[1..1]
+--object o integer i o=1 i=o[1]
+--object o integer i o=1 i=o[1][1]
+--object o integer i o={1} i=o[1][1]
+--object o integer i o=3.5 i=o[1]
+--object o integer i o=3.5 i=o[1][1]
+--object o integer i o={3.5} i=o[1][1]
+--object o integer i o=3.5 i=o[1..1]
+--object o,p o[1]=1
+--object o,p o[1][1]=1
+--object o,p o[1..1]=1
+--object o,p o={{1.5}} o[1][1]=p
+--object o,p o={{1}} o[1][1]=p
+--object o,p o={1} o[1]=p
+--object o,p o={1.5} o[1]=p
+--object o integer i o={1.5} i=o[1]
+--integer a,b,c a=0 b=1 if a or (b and not c) then ?1 end if        -- opSnot [DEV no error, not <unassigned> => false]
+--object o o=find(o,o)                  -- o has not been assigned a value
+--object o,p o=1 o=find(o,p)            -- p has not been assigned a value
+--object o,p o=1 o=find(p,o)            -- second argument of find() must be a sequence
+--object o,p o=1.5 o=find(p,o)          -- second argument of find() must be a sequence
+--object o,p o={} o=find(p,o)           -- p has not been assigned a value
+--object o o=find(1,o)                  -- o has not been assigned a value
+--object o o=1.5 o=find(1,o)            -- second argument of find() must be a sequence
+--object o o=match(o,o)                 -- o has not been assigned a value
+--object o,p o=match(o,p)               -- o has not been assigned a value
+--object o,p p=1 o=match(o,p)           -- o has not been assigned a value
+--object o,p p=1.5 o=match(o,p)         -- o has not been assigned a value
+--object o,p p={} o=match(o,p)          -- o has not been assigned a value
+--object o o='o' o=match("o",o)         -- second argument of match() must be a sequence
+--object o,p o='o' p=1 o=match(p,o)     -- second argument of match() must be a sequence
+--object o,p o=1.5 p=1 o=match(p,o)     -- second argument of match() must be a sequence
+--object o,p o=o xor p                  -- o has not been assigned a value
+--object o,p p=1 o=o xor p              -- o has not been assigned a value
+--object o,p p=1 o=p xor o              -- o has not been assigned a value
+--object o,p p={1} o=o xor p            -- o has not been assigned a value
+--DEV needs p=F() stuff to foil localtypes?...
+--object o,p p={1} o=p xor o            -- sequence op (xor) attempted
+--object o,p o=1 p={1} o=o xor p        -- sequence op (xor) attempted
+--object o,p o=1 p={1} o=p xor o        -- sequence op (xor) attempted
+--object o o=floor(o)                   -- o has not been assigned a value
+--object o o={} o=floor(o)              -- sequence op (floor) attempted
+--object o o=o<o
+--object o o=o<1
+--object o o=o<1.5
+--object o o=o<{}
+--object o o=1<o
+--object o o=1.5<o
+--object o o={}<o
+--object o o={}<o
+--object o o=integer(o)
+--object o o=atom(o)
+--object o o=string(o)
+--object o o=sequence(o)
+--object o o=length(o)
+--object o o=1 o=length(o)
+--object o o=1.5 o=length(o)
+--object o o=not(o)
+--object o o={} o=not(o)
+--object o o=o+1
+--object o o=1+o
+--object o o={1} o=o+1
+--object o o={1} o=1+o
+--object o o=o+1.5
+--object o o=1.5+o
+--object o o={1} o=o+1.5
+--object o o={1} o=1.5+o
+--object o integer i o=#3FFFFFFF i=o+1
+--object o integer i i=o+1
+--object o integer i i=1+o
+--DEV we need p=F() stuff to foil localtypes...
+--object o integer i o={1} i=o+1
+--object o integer i o={1} i=1+o
+--object o integer i i=o+1.5
+--object o integer i i=1.5+o
+--object o integer i o={1} i=o+1.5
+--object o integer i o={1} i=1.5+o
+--integer i i=#3FFFFFFF+1
+--object o o=o-1
+--object o o=1-o
+--object o o={1} o=o-1
+--object o o={1} o=1-o
+--object o o=o-1.5
+--object o o=1.5-o
+--object o o={1} o=o-1.5
+--object o o={1} o=1.5-o
+--object o integer i o=-#40000000 i=o-1
+--object o integer i i=o-1
+--object o integer i i=1-o
+--object o integer i o={1} i=o-1
+--object o integer i o={1} i=1-o
+--object o integer i i=o-1.5
+--object o integer i i=1.5-o
+--object o integer i o={1} i=o-1.5
+--object o integer i o={1} i=1.5-o
+--integer i i=-#40000000 i-=1
+--object o o=o/1
+--object o o=1/o
+--object o o={1} o=o/1
+--object o o={1} o=1/o
+--object o o=o/1.5
+--object o o=1.5/o
+--object o o={1} o=o/1.5            -- sequence op (div) attempted (use sq_div?)
+--object o o={1} o=1.5/o
+--object o integer i o=-#40000000 i=o/-1    -- type check failure, i is 1073741824
+--object o integer i i=o/1                  -- variable o has not been assigned a value
+--object o integer i i=1/o
+--object o integer i o={1} i=o/1
+--object o integer i o={1} i=1/o
+--object o integer i i=o/1.5
+--object o integer i i=1.5/o
+--object o integer i o={1} i=o/1.5
+--object o integer i o={1} i=1.5/o
+--integer i i=-#40000000 i=i/-1
+--object o o=0 o=1/o
+--object o o=0 o=1.5/o
+--object o,p o=0 p={} o=p/o
+
+--object o o=o*1
+--object o o=1*o
+--object o o={1} o=o*1
+--object o o={1} o=1*o          -- sequence op (mul) attempted (use sq_mul?)
+--object o o=o*1.5
+--object o o=1.5*o
+--object o o={1} o=o*1.5
+--object o o={1} o=1.5*o
+--object o integer i o=-#40000000 i=o*-1    -- type check failure, i is 1073741824
+--object o integer i i=o*1                  -- variable o has not been assigned a value
+--object o integer i i=1*o
+--object o integer i o={1} i=o*1
+--object o integer i o={1} i=1*o
+--object o integer i i=o*1.5
+--object o integer i i=1.5*o
+--object o integer i o={1} i=o*1.5
+--object o integer i o={1} i=1.5*o
+--integer i i=-#40000000 i=i*-1
+
+--object o o=floor(o/1)
+--object o o=floor(1/o)
+--object o o={1} o=floor(o/1)
+--object o o={1} o=floor(1/o)
+--object o o=floor(o/1.5)
+--object o o=floor(1.5/o)
+--object o o={1} o=floor(o/1.5)
+--object o o={1} o=floor(1.5/o)
+--object o integer i o=-#40000000 i=floor(o/-1) -- type check failure, i is 1073741824
+--object o integer i i=floor(o/1)                   -- variable o has not been assigned a value
+--object o integer i i=floor(1/o)
+--object o integer i o={1} i=floor(o/1)         -- sequence op (div) attempted (use sq_div?)
+--object o integer i o={1} i=floor(1/o)
+--object o integer i i=floor(o/1.5)
+--object o integer i i=floor(1.5/o)
+--object o integer i o={1} i=floor(o/1.5)
+--object o integer i o={1} i=floor(1.5/o)
+--integer i i=-#40000000 i=floor(i/-1)
+
+--object o  -- o={} 
+--if compare(1,o)>0 then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if compare(o,1)<0 then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if compare(1,o)=0 then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if compare(o,1)=0 then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if 1>o then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if o<1 then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if 1=o then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if o=1 then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if equal(1,o) then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+--if equal(o,1) then puts(1,"ERROR\n") else puts(1,"ok\n") end if
+
+--object o o = remainder(o,o)
+--object o o = remainder(1,o)
+--object o o = remainder(1.5,o)
+--object o, p={} o = remainder(p,o)
+--object o o = remainder(o,1)
+--object o o = remainder(o,1.5)
+--object o, p={} o = remainder(o,p)
+--object o o = remainder(o,0)
+--object o o = remainder(1,0)
+--object o o = remainder(1.5,0)
+--object o, p={} o = remainder(p,0)
+--object o, p={} o = remainder(1,p)
+--object o, p={} o = remainder(1.5,p)
+--object o, p={} o = remainder(p,p)
+
+--object o o=-o
+--object o o={} o=-o
+
+--object o o = and_bits(o,o)
+--object o o = and_bits(1,o)
+--object o o = and_bits(1.5,o)
+--object o, p={} o = and_bits(p,o)
+--object o o = and_bits(o,1)
+--object o o = and_bits(o,1.5)
+--object o, p={} o = and_bits(o,p)
+--object o o = and_bits(o,0)
+--object o, p={} o = and_bits(p,0)
+--object o, p={} o = and_bits(1,p)
+--object o, p={} o = and_bits(1.5,p)
+--object o, p={} o = and_bits(p,p)
+
+--object o o = or_bits(o,o)
+--object o o = or_bits(1,o)
+--object o o = or_bits(1.5,o)
+--object o, p={} o = or_bits(p,o)
+--object o o = or_bits(o,1)
+--object o o = or_bits(o,1.5)
+--object o, p={} o = or_bits(o,p)
+--object o o = or_bits(o,0)
+--object o, p={} o = or_bits(p,0)
+--object o, p={} o = or_bits(1,p)
+--object o, p={} o = or_bits(1.5,p)
+--object o, p={} o = or_bits(p,p)
+
+--object o o = xor_bits(o,o)
+--object o o = xor_bits(1,o)
+--object o o = xor_bits(1.5,o)
+--object o, p={} o = xor_bits(p,o)
+--object o o = xor_bits(o,1)
+--object o o = xor_bits(o,1.5)
+--object o, p={} o = xor_bits(o,p)
+--object o o = xor_bits(o,0)
+--object o, p={} o = xor_bits(p,0)
+--object o, p={} o = xor_bits(1,p)
+--object o, p={} o = xor_bits(1.5,p)
+--object o, p={} o = xor_bits(p,p)
+
+--object o,p o = not_bits(p)
+--object o,p={} o = not_bits(p)
+
+--object o o=rand(o)
+--object o={} o=rand(o)
+--object o=0.5 o=rand(o)
+
+--object o set_rand(o)
+--object o={} set_rand(o)
+
+--object o o=power(2,o)
+--object o o=power(o,2)
+--object o={} o=power(2,o)
+--object o={} o=power(o,2)
+--object o o=power(0,-1)
+--object o o=power(-1,3.5)
+
+--object o o=allocate(o)
+--object o o=allocate(-1)
+--object o={} o=allocate(o)
+--object o free(o)
+--object o={} free(o)
+
+--object o o=cos(o)
+--object o={} o=cos(o)
+--object o={} o=sqrt(o)
+
+--object o o=1 o=open(o,"r")        -- invalid file name
+--object o o=1.5 o=open(o,"r")      -- invalid file name
+--object o o={{}} o=open(o,"r")     -- invalid file name
+--object o,p o=define_c_func({},#10,{C_INT},C_INT) p={{}} o=c_func(o,{p}) -- arguments to c_func() must be atoms or strings
+--object o,p o=define_c_proc({},#10,{C_INT}) p={{}} c_proc(o,{p}) -- arguments to c_proc() must be atoms or strings
+--object o o="" o=define_c_var(o,"fred")    -- define_c_var() parameter error
+--object o o=define_c_var(1,{"fred"})   -- define_c_var() parameter error
+--object o o=define_c_func(0,0,0,0) -- define_c_proc/func() parameter error
+--object o o=define_c_func(0,{"fred"},{C_INT},C_INT)    -- define_c_proc/func() parameter error
+--object o o=1 o=open_dll(o)    -- argument to open_dll() must be string
+--object o o=1.5 o=open_dll(o)  -- argument to open_dll() must be string
+--object o o={{}} o=open_dll(o) -- argument to open_dll() must be string
+--object o o=1 o=chdir(o)           -- argument to chdir() must be string
+--object o o=1.5 o=chdir(o)         -- argument to chdir() must be string
+--object o o={{}} o=chdir(o)            -- argument to chdir() must be string
+--object o o="test" o[2]="fred" o=open(o,"r")       -- invalid file name
+
+--integer i i=1/0
+
+--TODO:
+--object o o="fred" o=getc(o)                   -- file number is not an integer
+--if getc(-1) then end if                       -- invalid file number(-1)
+--integer i i=rand(0)                           -- argument to rand must be >=1
+--object o o="abc" o=repeat(0,o)                -- repeat count must be non-negative integer
+--object o o=-5 o=repeat(0,o)               -- repeat count must be non-negative integer
+--atom a a=rand(#7FFFFFFF)                  -- [OK]
+--atom a a=rand(#80000000)                  -- repeat count must be non-negative integer
+--DEV BUG: include file.e ?where(3)
+--include file.e
+--?where(3)                                 -- invalid file number (vs "file must be open for where()")
+--?seek(3,-1)                               -- ("")
+--object o o="fred" if o then o=1 end if        -- true/false condition must be an ATOM
+--object o o="fred" abort(o)                    -- abort code must be integer
+--atom a a=power(0,-1)                  -- attempt to raise 0 to power <= 0
+--atom a a=power(-3,1.2)                    -- attempt to raise negative number to non-integer power
+--atom a a=remainder(10,0)              -- attempt to get remainder of a number divided by 0
+--?a
+--"first argument of match() must be a sequence" --DEV document this is no longer so.
+--"first argument of match() must be a non-empty sequence"  ""
+
+--DEV: (do we need some "emergency memory" to do this?)
+--?1
+--procedure s() s() end procedure s()
+
+--**Heap allocation failure**
+--Fatal exception: 80000003
+--eax is: 0
+--eip is: 0040335B (just after AllocFlt)
+--line: 0 in routine 381, s
+--Process Terminated
+--diag looping (minimal diagnostics follow); error code is:106
+--line: 11813856 in routine 491, diag
+--Press Enter...
+
+without warning
+abort(0)
+
+"Your program has run out of memory.\nOne moment please..."
+--"mouse locks failed"
+
+"name for dir() is too long"
+"current directory not available"   -- see opCurrDir
+"sequence has wrong length"
+"in machine_func an atom was expected, not a sequence"
+"program aborted"
+"subscript must be an atom\n(assigning to subscript of a sequence)"
+"sequence found inside character string"
+--"bitwise operations are limited to 32-bit numbers"
+"attempt to take square root of a negative number"
+"may only take log of a positive number"
+"attempt to slice an atom"
+"slice lower index is not an atom"
+"slice upper index is not an atom"
+"file number must be an atom"
+"wrong file mode for attempted operation"
+"open mode must be a sequence"
+"device or file name must be a sequence"
+"file name for open() is too long"
+"invalid open mode"
+"can't open -- too many open files"
+"number is too big for %x or %o format"
+"not enough values to print in printf()"
+"first argument of system() must be a sequence"
+"second argument of system() must be an atom"
+"argument to getenv must be a sequence"
+"subscript must be an atom\n(reading an element of a sequnce)"
+"length of an atom is not defined"
+"argument to rand() must be >= 1"
+"attempt to divide by 0"
+"for-loop variable is not an atom"
+"for-loop limit is not an atom"
+"for-loop increment is not an atom"
+"attempt to exit a function without returning a value"
+"first argument of append must be a sequence"
+"first argument of prepend must be a sequence"
+"second argument of position() is not an atom"
+"first argument of position() is not an atom"
+"number of bytes to peek is less than 0"
+"first argument to poke() must be an atom"
+"argument to call() must be an atom"
+"argument to trace() must be an atom"
+"argument to trace() must be 0, 1 or 2"
+"machine(%d,...) not supported"
+"slice lower index is less than 1 (%ld)"
+"slice upper index is less than 0 (%ld)"
+"slice length is less than 0 (%ld)"
+"slice starts past end of sequence (%ld > %ld)"
+"slice ends past end of sequence (%ld > %ld)"
+"file number %d is not open"
+"format specifier is incomplete (%s)"
+"Unknown printf format (%s)"
+"can't open %s"
+
+Searching for: abort
+ Files scanned 1285, Directories scanned 143, Lines 508250
+
+C:\p5\pmain.e:246           Abort("Type Error")
+C:\p5\pmain.e:256 --                    Abort("Type Error (storing atom in integer)")
+C:\p5\pmain.e:280 --            Abort("Type Error")
+C:\p5\pmain.e:317 --                Abort("Type Error (storing atom in integer)")
+C:\p5\pmain.e:366           Abort("Type Error")
+C:\p5\pmain.e:393           Abort("Type Error (use sq_"&opstack[opsidx]&"?)")
+C:\p5\pmain.e:399           Abort("Type Error (use sq_"&opstack[opsidx]&"?)")
+C:\p5\pmain.e:421 ----              Abort("Type Error; floor() required")
+C:\p5\pmain.e:422 --                Abort("Type Error (storing atom in integer)")
+C:\p5\pmain.e:474           Abort("Type Error")
+C:\p5\pmain.e:515           Abort("Type Error (attempt to subscript an atom)")
+C:\p5\pmain.e:521               Abort("Type Error")
+C:\p5\pmain.e:551           Abort("Type Error (attempt to slice an atom)")
+C:\p5\pmain.e:581 --            Abort("Type Error (storing atom in integer)")
+C:\p5\pmain.e:742 --                Abort("type type: type override is prohibited")
+C:\p5\pmain.e:767 --                    Abort("defaulting not allowed")
+C:\p5\pmain.e:794 --                Abort("missing default")
+C:\p5\pmain.e:894           Abort("arguments to power must be atoms (use sq_power instead)")
+C:\p5\pmain.e:1072   if length(signature) and signature[1]<='Z' then Abort("missing parameters") end if
+C:\p5\pmain.e:1140           Abort("signature error ("&sprint(signature)&")")
+C:\p5\pmain.e:1480               Abort("function does not return a value")
+C:\p5\pmain.e:1482               Abort("type does not return a true/false value")
+C:\p5\pmain.e:1507       Abort("internal limit of 2034 stack entries exceeded; split routine into smaller chunks\n")
+C:\p5\pmain.e:1541       Abort("Forward definitions of types are not allowed")
+C:\p5\pmain.e:1875       if not find(RelOp,RelOps) then Abort("Unrecognised relop "&RelOp) end if
+C:\p5\pmain.e:1938                       Abort("Type Error")
+C:\p5\pmain.e:1953           Abort("Type Error")
+C:\p5\pmain.e:1973                           Abort("Type Error")
+C:\p5\pmain.e:1996                       Abort("Type Error")
+C:\p5\pmain.e:2011           Abort("Type Error")
+C:\p5\pmain.e:2031                           Abort("Type Error")
+C:\p5\pmain.e:2043                   Abort("Type Error")
+C:\p5\pmain.e:2058                   Abort("Type Error")
+C:\p5\pmain.e:2073           Abort('\"'&TokStr&"\" ambiguous: add parenthesis")
+C:\p5\pmain.e:2160           Abort("sequence operations not supported")
+C:\p5\pmain.e:2429           Abort("Type Error")
+C:\p5\pmain.e:2460               Abort("elsif, else, or end if expected.")
+C:\p5\pmain.e:2477           Abort("Type Error")
+C:\p5\pmain.e:2579           Abort("Type Error")
+C:\p5\pmain.e:2716           Abort("Type Error")
+C:\p5\pmain.e:2814       if VarType(CN) != T_integer then Abort("Type Error") end if
+C:\p5\pmain.e:2821           Abort("already in use as control loop variable")
+DEV::
+constant iet="illegal expression type (floor() may be required)"
+C:\p5\pmain.e:2848   if find(opstype[opsidx],"SPN") then Abort(iet) end if
+C:\p5\pmain.e:2866   if find(opstype[opsidx],"SPN") then Abort(iet) end if
+C:\p5\pmain.e:2884       if find(opstype[opsidx],"SPN") then Abort(iet) end if
+C:\p5\pmain.e:2952       Abort("return must be inside a procedure or function")
+C:\p5\pmain.e:3014       else Abort("Identifier " & TokStr & " cannot be used here")
+C:\p5\pmain.e:3032       Abort("unrecognised opcode")
+C:\p5\pmain.e:3047               Abort("fixed literal integer expected")
+C:\p5\pmain.e:3070                   Abort("fixed literal integer expected")
+C:\p5\pmain.e:3078           if sequence(VarType(N)) then Abort("invalid") end if
+C:\p5\pmain.e:3098               Abort("fixed literal integer expected")
+C:\p5\pmain.e:3101 --        if sequence(VarType(N)) then Abort("invalid") end if
+C:\p5\pmain.e:3125       Abort("incorrect number of operands")
+C:\p5\pmain.e:3146   elsif toktype!=LETTER then Abort("Unrecognised "&TokStr)
+C:\p5\pmain.e:3297                       Abort("cannot mix profile and profile_time")
+C:\p5\pmain.e:3304 --                Abort("invalid (use profile(0) and profile(1) instead)")
+C:\p5\pmsgs.e:171 global procedure Abort(sequence msg)
+C:\p5\pmsgs.e:223 global procedure Abort_multi(sequence msg, sequence abort_set)
+C:\p5\pmsgs.e:226   for i=1 to length(abort_set) do
+C:\p5\pmsgs.e:227 --        f = symtab[abort_set[i]][S_FPno]
+C:\p5\pmsgs.e:228       f = symtab[abort_set[i]][3]
+C:\p5\pmsgs.e:230       if i = length(abort_set) then
+C:\p5\pmsgs.e:236   Abort(msg)
+C:\p5\pmsgs.e:240   Abort("Duplicate Identifier "&x)
+C:\p5\pmsgs.e:244   Abort(str&" expected")
+C:\p5\pmsgs.e:297       Abort(x&" undefined.\n\nThis may be a result of using an RDS rather than a Phix standard include.")
+C:\p5\pmsgs.e:313       Abort(x&" undefined.\n\nPhix does not support DOS programming.")
+C:\p5\pmsgs.e:315       Abort("Undefined Identifier "&x)
+C:\p5\psym.e:577           Abort("for loop variable may not be assigned")
+C:\p5\psym.e:1378                                           abort_set&=res
+C:\p5\psym.e:1392                           if length(abort_set) then
+C:\p5\psym.e:1393                               Abort_multi("namespace qualifier not specific enough",abort_set&res)
+C:\p5\psym.e:1454                               abort_set&=res
+C:\p5\psym.e:1464               if length(abort_set) then
+C:\p5\psym.e:1465                   Abort_multi("a namespace qualifier is required",abort_set&res)
+C:\p5\ptok.e:217                           Abort(file&"\nCannot cleanup path\n")
+C:\p5\ptok.e:354           Abort(fatalmsg)
+C:\p5\ptok.e:726                       if charset[Ch]!=toktype then Abort("closing quote expected") end if
+C:\p5\ptok.e:761           if toktype=DIGIBAD then Abort("Illegal") end if
+C:\p5\ptok.e:822           if toktype=DIGIBAD then Abort("illegal") end if             
+
+C:\p5\pmain.e:1368           Duplicate(routineName)
+C:\p5\pmain.e:1458           Duplicate(TokStr)
+C:\p5\pmain.e:1593   if N then Duplicate(TokStr) end if
+C:\p5\pmain.e:3307       if InTable(InTop) then Duplicate(TokStr) end if
+C:\p5\pmsgs.e:258 global procedure Duplicate(sequence x)
+C:\p5\pmsgs.e:259   Abort("Duplicate Identifier "&x)
+
+C:\p5\pmain.e:1420   if not equal(TokStr,")") then Expected("\")\"") end if  -- validate but get next later...
+C:\p5\pmain.e:1588       Expected("\"procedure\" or \"function\"") 
+C:\p5\pmain.e:1811           Expected("Math Factor")
+C:\p5\pmain.e:3158           Expected("Math Factor")
+C:\p5\pmsgs.e:262 global procedure Expected(sequence str)
+C:\p5\ptok.e:928 global procedure MatchString(sequence x)
+C:\p5\ptok.e:935       if not equal(TokStr,x) then Expected('\"'&x&'\"') end if
+
+C:\p5\pmain.e:791 --                    MatchString("=")
+C:\p5\pmain.e:800 --                    MatchString("=")
+C:\p5\pmain.e:964   MatchString("(")
+C:\p5\pmain.e:979                   MatchString(")")
+C:\p5\pmain.e:1004       MatchString(",")
+C:\p5\pmain.e:1103       MatchString(")")
+C:\p5\pmain.e:1341 --    MatchString(topset[Rtype])
+C:\p5\pmain.e:1349   MatchString(topset[Rtype])
+C:\p5\pmain.e:1392   MatchString("(")
+C:\p5\pmain.e:1419 ----  MatchString(")")
+C:\p5\pmain.e:1550   MatchString("end")
+C:\p5\pmain.e:1554   MatchString(topset[Rtype])
+C:\p5\pmain.e:1573   MatchString("forward")
+C:\p5\pmain.e:1604   MatchString("(")
+C:\p5\pmain.e:1610   MatchString(")")
+C:\p5\pmain.e:1627       MatchString("[")
+C:\p5\pmain.e:1633           MatchString("]")
+C:\p5\pmain.e:1636       MatchString("]")
+C:\p5\pmain.e:1654   MatchString("{")
+C:\p5\pmain.e:1663       MatchString(",")
+C:\p5\pmain.e:1718   MatchString("}")
+C:\p5\pmain.e:1736       MatchString(")")
+C:\p5\pmain.e:1826       MatchString("-")
+C:\p5\pmain.e:1834       MatchString("+")
+C:\p5\pmain.e:1837       MatchString(TokStr)
+C:\p5\pmain.e:1861       MatchString({toktype})
+C:\p5\pmain.e:1883       MatchString({toktype})
+C:\p5\pmain.e:1897       MatchString("&")
+C:\p5\pmain.e:1915           MatchString(RelOp)
+C:\p5\pmain.e:1917           MatchString({toktype})
+C:\p5\pmain.e:1919           MatchString(RelOp)
+C:\p5\pmain.e:2092           MatchString(TokStr)
+C:\p5\pmain.e:2185           MatchString("[")
+C:\p5\pmain.e:2194           MatchString("]")
+C:\p5\pmain.e:2218           MatchString({toktype})
+C:\p5\pmain.e:2222   MatchString("=")
+C:\p5\pmain.e:2368   MatchString("exit")
+C:\p5\pmain.e:2429   MatchString("if")
+C:\p5\pmain.e:2435   MatchString("then")
+C:\p5\pmain.e:2552           MatchString("exit")
+C:\p5\pmain.e:2626           MatchString("elsif")
+C:\p5\pmain.e:2660           MatchString("then")
+C:\p5\pmain.e:2709           MatchString("else")
+C:\p5\pmain.e:2748   MatchString("end")
+C:\p5\pmain.e:2749   MatchString("if")
+C:\p5\pmain.e:2781   MatchString("while")
+C:\p5\pmain.e:2838   MatchString("do")
+C:\p5\pmain.e:2844   MatchString("end")
+C:\p5\pmain.e:2845   MatchString("while")
+C:\p5\pmain.e:2882   MatchString("for")
+C:\p5\pmain.e:2910   MatchString("=")
+C:\p5\pmain.e:2929   MatchString("to")
+C:\p5\pmain.e:2991   MatchString("do")
+C:\p5\pmain.e:2999   MatchString("end")
+C:\p5\pmain.e:3000   MatchString("for")
+C:\p5\pmain.e:3030   MatchString("return")
+C:\p5\pmain.e:3049   MatchString("?")
+C:\p5\pmain.e:3067   MatchString("il")
+C:\p5\pmain.e:3068   MatchString("{")
+C:\p5\pmain.e:3085       MatchString(",")
+C:\p5\pmain.e:3162   MatchString("}")
+C:\p5\pmain.e:3314       MatchString("=")
+C:\p5\psym.e:1352                       MatchString(":")
+
+C:\p5\pmsgs.e:286 global function Fatal(object msg)
+C:\p5\ptok.e:214                           if Fatal(file&"\nCannot cleanup path\n") then end if
+--  fatalmsg = "Cannot open "&file
+--  -- build list of directories searched:
+--  if length(allpaths) then
+--      inpart = "\nin "
+--      for i=1 to length(allpaths)-1 do
+--          fatalmsg &= inpart&allpaths[i]&","
+--          inpart = "\n   "
+--      end for
+--      if equal(inpart,"\n   ") then
+--          inpart = "\nor "
+--      end if
+--      fatalmsg &= inpart&allpaths[length(allpaths)]&'.'
+--  end if
+C:\p5\ptok.e:351           if Fatal(fatalmsg) then end if
+
+C:\p5\pmain.e:848           Warn("probable logic error (always true)")
+C:\p5\pmain.e:850           Warn("probable logic error (always false)")
+C:\p5\pmain.e:1129               Warn(symtab[routineNo][S_Name]&" is deprecated\n")
+C:\p5\pmain.e:1380                       Warn("external forward reference; initialisation code may not have been performed\n")
+C:\p5\pmain.e:3340       Warn("if that is a stamp, then this is a very old file.\n"&
+                                     "     It is probably worth getting a newer one.")
+C:\p5\pmain.e:3387               Warn("unsupported option")
+C:\p5\pmain.e:3634                       Warn(symtab[i][S_Name]&" is not actually defined (or used) anywhere.")
+C:\p5\pmain.e:3646               Warn(symtab[i][S_Name]&" is not used.")
+C:\p5\pmain.e:3657                   Warn(symtab[i][S_Name]&" is not used.")
+C:\p5\pmain.e:3659                   Warn(symtab[i][S_Name]&" is never assigned a value.")
+C:\p5\pmsgs.e:5 -- Implements  Warnings(), Warn(sequence msg), Abort(sequence msg), 
+C:\p5\pmsgs.e:135 global procedure Warn(sequence msg)
+C:\p5\ptok.e:300                   Warn("not marked phix compatible; updated version rqd")
+
+C:\p5\pexec.e:239 procedure RTErp(integer msgid, object p1, object p2)
+C:\p5\pexec.e:847   if idx<0 then RTErp(7,idx,0) return 0 end if -- slice start is less than 1 (%d)
+C:\p5\pexec.e:848   if idx>len+1 then RTErp(10,idx,len) return 0 end if -- slice starts past end of sequence (%d > %d)"
+C:\p5\pexec.e:855   if idx>len then RTErp(11,idx,len) return 0 end if -- slice ends past end of sequence (%d > %d)
+C:\p5\pexec.e:858   if slicelen<0 then RTErp(9,slicestart,sliceend) return 0 end if -- slice length is negative (%d..%d)
+C:\p5\pexec.e:944   if o3<0 then RTErp(7,o3,0) return end if -- slice start is less than 1 (%d)
+C:\p5\pexec.e:951   if o4-o3+1 < 0 then RTErp(9,o3,o4) return end if -- slice length is negative (%d..%d)
+C:\p5\pexec.e:952   if o3>l2+1 then RTErp(10,03,l2) return end if -- slice starts past end of sequence (%d > %d)
+C:\p5\pexec.e:953   if o4>l2 then RTErp(11,o4,l2) return end if -- slice ends past end of sequence (%d > %d)
+C:\p5\pexec.e:1138   if not integer(o2) then RTErp(58,-99,0) return end if -- bad file number (%d)
+C:\p5\pexec.e:1168       RTErp(58,-99,0) return -- bad file number (%d)
+C:\p5\pexec.e:1185       RTErp(58,-99,0) return -- bad file number (%d)
+
+C:\p5\pexec.e:250 procedure RTErn(integer msgid)
+C:\p5\pexec.e:323 --                RTErn(91)   -- profile internal error
+C:\p5\pexec.e:467   if not atom(o3) then RTErn(12) return end if -- lhs of and/or must be an ATOM
+C:\p5\pexec.e:482   if not atom(o3) then RTErn(12) return end if -- lhs of and/or must be an ATOM
+C:\p5\pexec.e:497   if not atom(o3) then RTErn(12) return end if -- lhs of and/or must be an ATOM
+C:\p5\pexec.e:511   if not atom(o3) then RTErn(12) return end if -- lhs of and/or must be an ATOM
+C:\p5\pexec.e:529   if not integer(o2) then RTErn(53) return end if -- for loop error
+C:\p5\pexec.e:533   if not integer(o3) then RTErn(53) return end if -- for loop error
+C:\p5\pexec.e:536   if not integer(o4) then RTErn(53) return end if -- for loop error
+C:\p5\pexec.e:566   if not integer(o1) then RTErn(53) return end if
+C:\p5\pexec.e:701           RTErn(1)    -- type check failure, %s is %s
+C:\p5\pexec.e:764   RTErn(13)
+C:\p5\pexec.e:797       if not sequence(o1) then RTErn(4) return 0 end if -- attempt to subscript an atom
+C:\p5\pexec.e:799       if not atom(idx) then RTErn(5) return 0 end if  -- subscript is not an atom
+C:\p5\pexec.e:804       if idx<1 or idx>len then RTErn(6) return 0 end if -- index out of bounds
+C:\p5\pexec.e:830   if not sequence(o1) then RTErn(4) return 0 end if -- attempt to subscript an atom
+C:\p5\pexec.e:833   if not atom(idx) then RTErn(5) return 0 end if -- subscript is not an atom
+C:\p5\pexec.e:838       if idx<1 or idx>len then RTErn(6) return 0 end if -- index out of bounds
+C:\p5\pexec.e:851   if not atom(idx) then RTErn(8) return 0 end if -- slice end is not an integer
+C:\p5\pexec.e:901       if not sequence(o2) then RTErn(4) return end if -- attempt to subscript an atom
+C:\p5\pexec.e:904       if not atom(o3) then RTErn(5) return end if -- subscript is not an atom
+C:\p5\pexec.e:908       if o3<1 or o3>length(o2) then RTErn(6) return end if -- index out of bounds
+C:\p5\pexec.e:927       if not sequence(o2) then RTErn(4) return end if -- attempt to subscript an atom
+C:\p5\pexec.e:930       if not atom(o3) then RTErn(5) return end if -- subscript is not an atom
+C:\p5\pexec.e:935       if o3<1 or o3>length(o2) then RTErn(6) return end if    -- index out of bounds
+C:\p5\pexec.e:947   if not atom(o4) then RTErn(8) return end if -- slice end is not an integer
+C:\p5\pexec.e:1046   if not atom(o2) or not atom(o3) then RTErn(27) return end if -- sequence op (xor) attempted
+C:\p5\pexec.e:1055   if not atom(o2) then RTErn(19) return end if -- sequence op (floor) attempted
+C:\p5\pexec.e:1102   if not sequence(o2) then RTErn(46) return end if -- length of an atom is not defined
+C:\p5\pexec.e:1111   if not atom(o2) then RTErn(21) return end if -- sequence op (not) attempted
+C:\p5\pexec.e:1123   if not sequence(o2) then RTErn(57) return end if -- invalid file name
+C:\p5\pexec.e:1127   if not find(o2,"rwua") then RTErn(61) return end if -- invalid open mode
+C:\p5\pexec.e:1170       RTErn(63) return -- second parameter of seek must be an atom
+C:\p5\pexec.e:1197   if not atom(o2) then RTErn(28) return end if -- argument to rand() must be an atom
+C:\p5\pexec.e:1207       RTErn(48) return -- argument to chdir must be sequence
+C:\p5\pexec.e:1222   if not atom(o2) or not atom(o3) then RTErn(14) return end if -- sequence op (add) attempted
+C:\p5\pexec.e:1233   if not atom(o2) or not atom(o3) then RTErn(15) return end if -- sequence op (sub) attempted
+C:\p5\pexec.e:1244   if not atom(o2) or not atom(o3) then RTErn(16) return end if -- sequence op (div) attempted
+C:\p5\pexec.e:1245   if o3=0 then RTErn(2) return end if -- attempt to divide by 0
+C:\p5\pexec.e:1256   if not atom(o2) or not atom(o3) then RTErn(17) return end if -- sequence op (mul) attempted
+C:\p5\pexec.e:1267   if not atom(o2) or not atom(o3) then RTErn(18) return end if -- sequence op (remainder) attempted
+C:\p5\pexec.e:1276   if not atom(o2) then RTErn(20) return end if -- sequence op (unary minus) attempted
+C:\p5\pexec.e:1287   if not atom(o2) or not atom(o3) then RTErn(22) return end if -- sequence op (and_bits) attempted
+C:\p5\pexec.e:1298   if not atom(o2) or not atom(o3) then RTErn(23) return end if -- sequence op (or_bits) attempted
+C:\p5\pexec.e:1309   if not atom(o2) or not atom(o3) then RTErn(24) return end if -- sequence op (xor_bits) attempted
+C:\p5\pexec.e:1318   if not atom(o2) then RTErn(25) return end if -- sequence op (not_bits) attempted
+C:\p5\pexec.e:1329   if not atom(o2) or not atom(o3) then RTErn(26) return end if -- sequence op (power) attempted
+C:\p5\pexec.e:1330   if not integer(o3) and o2<0 then RTErn(54) return end if -- attempt to raise negative number to non-integer power
+C:\p5\pexec.e:1346       RTErn(37) return -- argument to allocate must be integer
+C:\p5\pexec.e:1358   if not atom(o2) then RTErn(30) return end if -- argument to cos must be atom
+C:\p5\pexec.e:1367   if not atom(o2) then RTErn(31) return end if -- argument to sin must be atom
+C:\p5\pexec.e:1376   if not atom(o2) then RTErn(32) return end if -- argument to tan must be atom
+C:\p5\pexec.e:1385   if not atom(o2) then RTErn(33) return end if -- argument to arctan must be atom
+C:\p5\pexec.e:1394   if not atom(o2) then RTErn(34) return end if -- argument to log must be atom
+C:\p5\pexec.e:1403   if not atom(o2) then RTErn(35) return end if -- argument to sqrt must be atom
+C:\p5\pexec.e:1413       RTErn(46) return -- argument to float32_to_atom must be sequence of length 4
+C:\p5\pexec.e:1426       RTErn(47) return -- argument to float64_to_atom must be sequence of length 8
+C:\p5\pexec.e:1439       RTErn(73) return -- argument to open_dll must be string
+C:\p5\pexec.e:1457       RTErn(74) return -- define c_func/proc parameter error
+C:\p5\pexec.e:1464       RTErn(74) return -- define c_func/proc parameter error
+C:\p5\pexec.e:1470           RTErn(74) return -- define c_func/proc parameter error
+C:\p5\pexec.e:1486           RTErn(85) return -- define_c_var parameter error
+C:\p5\pexec.e:1567           RTErn(84) -- 2nd call_back param must be atom or sequence of length 2
+C:\p5\pexec.e:1576       RTErn(72) return -- invalid routine_id
+C:\p5\pexec.e:1626   if not sequence(o2) then RTErn(55) return end if -- first argument to append must be sequence
+C:\p5\pexec.e:1637   if not sequence(o2) then RTErn(56) return end if -- first argument to prepend must be sequence
+C:\p5\pexec.e:1660   if not integer(o3) or o3<0 then RTErn(52) return end if -- repeat count must be non negative integer
+C:\p5\pexec.e:1670       RTErn(49) return -- argument to atom_to_float32 must be atom
+C:\p5\pexec.e:1684       RTErn(50) return -- argument to atom_to_float64 must be atom
+C:\p5\pexec.e:1705   if not integer(o2) then RTErn(60) return end if -- file number is not an integer
+C:\p5\pexec.e:1740       RTErn(43) return -- argument to peek must be atom or sequence of two atoms
+C:\p5\pexec.e:1752       RTErn(44) return -- argument to peek4s must be atom or sequence of two atoms
+C:\p5\pexec.e:1764       RTErn(45) return -- argument to peek must be atom or sequence of two atoms
+C:\p5\pexec.e:1778       RTErn(75) return -- first argument to c_func must be atom
+C:\p5\pexec.e:1783           RTErn(76) return -- second argument to c_func must be sequence
+C:\p5\pexec.e:1789 --                RTErn(77) return -- arguments to C routines must be atoms
+C:\p5\pexec.e:1791 --                RTErn(88) return -- arguments to C_func must be atom or string
+C:\p5\pexec.e:1823 --    RTErn(68) return -- argument to dir must be sequence
+C:\p5\pexec.e:1836       RTErn(71) return -- argument to getenv must be string
+C:\p5\pexec.e:1868       RTErn(82) return -- argument to call must be atom
+C:\p5\pexec.e:1885       RTErn(72) return -- invalid routine_id
+C:\p5\pexec.e:1889   if not sequence(o3) then RTErn(80) return end if -- second argument to call_proc/func must be sequence
+C:\p5\pexec.e:1893       RTErn(81) return -- incorrect number of parameters specified in call_proc/func
+C:\p5\pexec.e:1931       RTErn(78) return -- first argument to c_proc must be atom
+C:\p5\pexec.e:1936           RTErn(79) return -- second argument to c_proc must be sequence
+C:\p5\pexec.e:1942 --                RTErn(77) return -- arguments to C routines must be atoms
+C:\p5\pexec.e:1944 --                RTErn(89) return -- arguments to C_proc must be atom or string
+C:\p5\pexec.e:1977       if not atom(o1) then RTErn(38) return end if -- argument to free must be an atom
+C:\p5\pexec.e:1991       RTErn(39) return -- arguments to mem_copy must be atoms
+C:\p5\pexec.e:2006       RTErn(40) return -- arguments to mem_set must be atoms
+C:\p5\pexec.e:2025   if not atom(o1) then RTErn(41) return end if -- first argument to poke must be atom
+C:\p5\pexec.e:2035   if not atom(o1) then RTErn(42) return end if -- first argument to poke4 must be atom
+C:\p5\pexec.e:2049 --    RTErn(83) return -- arguments to position must be integer
+C:\p5\pexec.e:2064       RTErn(60) return -- file number if not an integer
+C:\p5\pexec.e:2077   if not integer(o1) then RTErn(60) return end if -- file number is not an integer
+C:\p5\pexec.e:2085       if not atom(o2) then RTErn(29) return end if -- argument to set_rand() must be an atom
+C:\p5\pexec.e:2107       RTErn(86) return -- argument to trace must be integer 0..3
+C:\p5\pexec.e:2120       RTErn(90) return -- argument to profile must be 0 or 1
+C:\p5\pexec.e:2134 procedure opRTErn()   -- RTErr(a,b)
+C:\p5\pexec.e:2141   RTErn(o1)--,o2)
+C:\p5\psym.e:278       opRTErn = opCode("opRTErn",2),      -- internal, see pdiag.e. Trigger error by integer.
+C:\p5\psym.e:1283               opRTErn,3,2,        -- RTErn(1,0) --DEV not sure if 2nd param needed anywhere
+
+"type check failure, %s is %s\n",                               -- e01tcf
+"attempt to divide by 0\n",                                     -- e02atdb0
+"attempt to subscript an atom\n",                               -- e04atsaa
+"subscript is not an atom\n",                                   -- e05sinaa
+"index out of bounds\n",                                        -- e06ioob
+"slice start is less than 1 (%d)\n",                            -- e07ssilt1
+    -- after adjustment for negative indexing, eg if length
+    -- 10, then [-10..y] would be OK, [-11..y] not (and show as 0).
+"slice end is not an integer\n",                                -- e08seinai
+"slice length is negative (%d..%d)\n",                          -- e09slin
+"slice starts past end of sequence (%d > %d)\n",                -- e10sspeos
+*"slice ends past end of sequence (%d > %d)\n",                 -- e11sepeos
+"lhs of and/or must be an ATOM (use sq_and/or?)\n",             -- e12lhsmbaa [no longer used]
+"attempt to exit a function without returning a value\n",       -- e13ateafworav
+"sequence op (add) attempted (use sq_add?)\n",                  -- e14soaa
+    -- Phix does not support implicit/infix sequence ops;
+    -- you must use explicit/function calls instead.
+"sequence op (sub) attempted (use sq_sub?)\n",                  -- e15sosa
+"sequence op (div) attempted (use sq_div?)\n",                  -- e16soda
+"sequence op (mul) attempted (use sq_mul?)\n",                  -- e17soma
+"sequence op (remainder) attempted (use sq_remainder?)\n",      -- e18sora
+"sequence op (floor) attempted (use sq_floor?)\n",              -- e19sofa
+"sequence op (unary minus) attempted (use sq_uminus?)\n",       -- e20souma
+"sequence op (not) attempted (use sq_not?)\n",                  -- e21sona
+"sequence op (and_bits) attempted (use sq_and_bits?)\n",        -- e22soaba
+"sequence op (or_bits) attempted (use sq_or_bits?)\n",          -- e23sooba
+"sequence op (xor_bits) attempted (use sq_xor_bits?)\n",        -- e24soxba
+"sequence op (not_bits) attempted (use sq_not_bits?)\n",        -- e25sonba
+"sequence op (power) attempted (use sq_power?)\n",              -- e26sopa
+"sequence op (xor) attempted (use sq_xor?)\n",                  -- e27soxa
+"argument to rand() must be an atom (use sq_rand?)\n",          -- e28atrmba
+"argument to set_rand() must be an atom\n",                     -- e29atsrmba
+"argument to cos() must be atom (use sq_cos?)\n",               -- e30atcmba
+"argument to sin() must be atom (use sq_sin?)\n",               -- e31atsmba
+"argument to tan() must be atom (use sq_tan?)\n",               -- e32attmba
+"argument to arctan() must be atom (use sq_arctan?)\n",         -- e33atatmba
+"argument to log() must be atom (use sq_log?)\n",               -- e34atlmba
+"argument to sqrt() must be atom (use sq_sqrt?)\n",             -- e35atsmba
+"length of an atom is not defined\n",                           -- e36loaaind
+"argument to allocate() must be integer\n",                     -- e37atambi
+"argument to free() must be an atom\n",                         -- e38atfmba
+"arguments to mem_copy() must be atoms\n",                      -- e39atmcmba
+"arguments to mem_set() must be atoms\n",                       -- e40atmsmba
+"first argument to poke() must be atom\n",                      -- e41fatpmba
+"first argument to poke4() must be atom\n",                     -- e42fatp4mba
+"argument to peek() must be atom or sequence of two atoms\n",   -- e43atpmbaoso2a
+"argument to peek4s() must be atom or sequence of two atoms\n", -- e44atpmbaoso2a
+"argument to peek4u() must be atom or sequence of two atoms\n", -- e45atpmbaoso2a
+"argument to float32_to_atom() must be sequence of length 4\n", -- e46atf32tambsol4
+"argument to float64_to_atom() must be sequence of length 8\n", -- e47atf64tambsol8
+"argument to chdir() must be string\n",                         -- e48atcdmbs
+"argument to atom_to_float32() must be atom\n",                 -- e49atatf32mba
+"argument to atom_to_float64() must be atom\n",                 -- e50atatf64mba
+"reference count limit breached\n",                             -- e51rclb
+"repeat count must be non negative integer",                    -- e52rcmbnni
+    -- max shared refs to same object is 16,777,215.
+    -- Force new object creation using slice (s[1..-1])
+    -- or maths (eg 1.0+0.0). Short integers not affected.
+"for loop error\n",                                             -- e53fle
+    -- Phix has trouble with floating-point for loops.
+    -- Replace eg 'for x=1.0 to 2.0 by 0.1 do ... end for'
+    -- with 'x=1.0 for j=10 to 20 do ... x+=0.1 end for'
+"attempt to raise negative number to non-integer power\n",      -- e54atrnntnip
+    -- mathematically, power(-3,-3) is an imaginary number.
+"first argument to append() must be sequence\n",                -- e55fatambs
+    -- You may mean a&b instead of append(a,b)
+    -- Note that append("one","two") is {"one","two"},
+    -- whereas "one"&"two" is "onetwo", although they 
+    -- give the same results if both a and b are atoms.
+"first argument to prepend() must be sequence\n",               -- e56fatpmbs
+    -- You may mean b&a instead of prepend(a,b)
+    -- Note that prepend("two","one") is {"one","two"},
+    -- whereas "one"&"two" is "onetwo", although they 
+    -- give the same results if both a and b are atoms.
+"invalid file name\n",                                          -- e57ifn
+"bad file number (%d)\n",                                       -- e58bfn [DEV untested?]
+"wrong file mode for attempted operation\n",                    -- e59wfmfao
+    -- eg attempt to read a file opened with open(x,"w").
+"file number is not an integer\n",                              -- e60fninai
+"invalid open mode\n",                                          -- e61iom
+    -- second parameter to open must be (r|w|a|u)[b].
+"file number %d is not open\n",                                 -- e62fnnino
+"second parameter of seek() must be an atom\n",                 -- e63sposmba (unused/reserved)
+"seek fail on append/write open\n",                             -- e64sfoawo
+    -- internal error, should not happen.
+"sequence found in character string\n",                         -- e65sfics
+"invalid lock type\n",                                          -- e66ilt
+"byterange must be {} or pair of atoms\n",                      -- e67bre
+"argument to dir() must be string\n",                           -- e68atcdmbs
+"error in format string\n",                                     -- e69eifs
+"insufficient values for (s)printf()\n",                        -- e70ivfpf
+    -- Phix does not permit printf(1,"%d %d",i)
+    -- (and in that case print i twice).
+"argument to getenv() must be string",                          -- e71atgmbs
+"invalid routine_id\n",                                         -- e72iri
+"argument to open_dll() must be string\n",                      -- e73atodmbs
+"define c_func/proc parameter error\n",                         -- e74dcfpe
+"first argument to c_func() must be atom\n",                    -- e75fatcfmba
+"second argument to c_func() must be sequence\n",               -- e76satcfmbs
+"arguments to C routines must be atoms or strings\n",           -- e77atcrmba
+"incorrect number of parameters in call_func/proc()\n",         -- e81inopicfp
+"argument to call() must be atom\n",                            -- e82atcmba
+"arguments to position() must be integer\n",                    -- e83atpmbi
+"call_back parameter must be routine_id or {'+',routine_id}\n", -- e84cbpmbropr
+"define_c_var() parameter error\n",                             -- e85dcvpe
+"argument to trace() must be integer 0..3\n",                   -- e86attmbi03
+"arguments to c_func() must be atoms or strings\n",             -- e88atcfmbaos
+"arguments to c_proc() must be atoms or strings\n",             -- e89atcpmbaos
+"argument to profile() must be 0 or 1\n",                       -- e90atpmb01
+"profile internal error\n",                                     -- e91pie
+"variable %s has not been assigned a value\n",                  -- e92vhnbaav
+"bind error %d (%s)\n",                                         -- e93berr
+"invalid c_func/proc address\n",                                -- e94icfa
+    -- Most likely cause is that define_c_func/proc returned -1
+-1}
+--no longer used:
+--"unknown type (internal error)\n",                            -- e93unktype
+    -- Raw data is not short int, float, string, or sequence.
+    -- Internal error, possible if reference counts incorrect.
+    -- Nothing whatsoever to do with user defined types.
+
+constant binderrs = {
+bind error 1 (infile is not string)
+bind error 2 (error opening infile (p.exe))
+bind error 3 (error seeking to infile eof)
+bind error 4 (error allocating sizeof(p.exe|new.exe))
+bind error 5 (error reading p.exe)
+bind error 6 (MZ header not found)
+bind error 7 (PE header not found)
+bind error 8 (subvers not atom)
+bind error 9 (length(optable)!=length(opNames))
+bind error 10 (calcsize!=dumpsize)
+bind error 11 (incorrect image size)
+bind error 12 (outfile not string)
+bind error 13 (error writing new.exe)
+bind error 14 (sig not sequence)}
+
+
+--DEV: "number is too big" (I just store inf)
+--DEV: "hex number is too big" ("", and it has to be pretty big, like 250+ characters)
+--??"the compiler has run out of memory"
+--"the previous subprogram is too large"
+--"the previous subprogram has too many lines"
+--"subprogram is too large"
+--"too many lines"
+--"badly-formed list of parameters - expected ',' or ')'"
+--"file name is missing"
+--"do not put quotes around an include file name"
+--"sample size must be a positive integer"
+--"unknown command"
+--"I/O error reading source file"
+--"source line is too long"
+--"includes are nested too deeply"
+--"program includes too many files"
+--"fractional part of number is missing"
+--"number not formed correctly"
+--"hex number not formed correctly"
+--"Can't open %s\n"
+--"%s has not been declared",
+--"%s takes %s%d argument%s"
+--"attempt to redefine %s"
+--"Built-in %s() redefined"
+--"can't open %s or %s"
+
+-- lengths do not match on assignment to slice  -- GONE!
+
+execute.e:
+C:\temp\Edita\eusrc\execute.e:291 procedure RTFatalType(integer x)
+--  msg = sprintf("type_check error\n%s is ", {vname}) 
+C:\temp\Edita\eusrc\execute.e:548  RTFatalType(pc+1)
+C:\temp\Edita\eusrc\execute.e:556  RTFatalType(pc+1)
+C:\temp\Edita\eusrc\execute.e:564  RTFatalType(pc+1)
+C:\temp\Edita\eusrc\execute.e:958  RTFatalType(pc-2)
+
+C:\temp\Edita\eusrc\execute.e:312 procedure RTFatal(sequence msg)
+C:\temp\Edita\eusrc\execute.e:349   RTFatal("Couldn't open ctrace.out")
+C:\temp\Edita\eusrc\execute.e:501     RTFatal("attempt to exit a function without returning a value")  -- end of a function
+C:\temp\Edita\eusrc\execute.e:521  RTFatal("attempt to subscript an atom\n(reading from it)")
+C:\temp\Edita\eusrc\execute.e:524  RTFatal("subscript must be an atom\n(reading an element of a sequence)")
+C:\temp\Edita\eusrc\execute.e:527  RTFatal(sprintf("subscript value %d is out of bounds, reading from a sequence of length %d",{sub, length(x)}))
+C:\temp\Edita\eusrc\execute.e:744  RTFatal(sprintf("subscript value %d is out of bounds, assigning to a sequence of length %d",{subs, length(seq)}))
+C:\temp\Edita\eusrc\execute.e:612  RTFatal("not initialized") -- ??
+C:\temp\Edita\eusrc\execute.e:663  RTFatal("length of an atom is not defined")
+C:\temp\Edita\eusrc\execute.e:735  RTFatal("attempt to subscript an atom\n(assigning to it)")
+C:\temp\Edita\eusrc\execute.e:738  RTFatal(sprintf("subscript must be an atom\n(assigning to a sequence of length %d)",length(seq)))
+C:\temp\Edita\eusrc\execute.e:756  RTFatal("slice lower index is not an atom")
+C:\temp\Edita\eusrc\execute.e:759  RTFatal("slice lower index is less than 1")
+C:\temp\Edita\eusrc\execute.e:763  RTFatal("slice upper index is not an atom")
+C:\temp\Edita\eusrc\execute.e:766  RTFatal("slice upper index is less than 0")
+C:\temp\Edita\eusrc\execute.e:772  RTFatal("slice length is less than 0")
+C:\temp\Edita\eusrc\execute.e:780  RTFatal("attempt to slice an atom")
+C:\temp\Edita\eusrc\execute.e:784  RTFatal("slice starts past end of sequence")
+C:\temp\Edita\eusrc\execute.e:788  RTFatal("slice ends past end of sequence")
+C:\temp\Edita\eusrc\execute.e:824  RTFatal("subscript must be an atom\n(assigning to subscript of a sequence)")        
+C:\temp\Edita\eusrc\execute.e:1409  RTFatal("for-loop variable is not an atom")
+C:\temp\Edita\eusrc\execute.e:1412  RTFatal("for-loop limit is not an atom")
+C:\temp\Edita\eusrc\execute.e:1415  RTFatal("for-loop increment is not an atom")
+C:\temp\Edita\eusrc\execute.e:1634  RTFatal("invalid routine id")
+C:\temp\Edita\eusrc\execute.e:1642      RTFatal(sprintf("%s() does not return a value", SymTab[sub][S_NAME]))
+C:\temp\Edita\eusrc\execute.e:1646      RTFatal(sprintf("the value returned by %s() must be assigned or used",))
+C:\temp\Edita\eusrc\execute.e:1651  RTFatal("argument list must be a sequence")
+C:\temp\Edita\eusrc\execute.e:1655  RTFatal(sprintf("call to %s() via routine-id should pass %d arguments, not %d",))
+C:\temp\Edita\eusrc\execute.e:2227  RTFatal("Invalid routine id")
+C:\temp\Edita\eusrc\execute.e:2246     RTFatal(sprintf("too many call_backs with %d arguments have been created already",SymTab[r][S_NUM_ARGS]))
+C:\temp\Edita\eusrc\execute.e:2259  RTFatal("crash routine requires a valid routine id")
+
+C:\temp\Posetf\eusrc\ALLOC.C:481  CompileErr("the compiler has run out of memory");
+C:\temp\Posetf\eusrc\EMIT.C:803   CompileErr("Sequence found in name string for routine_id");
+
+C:\temp\Posetf\eusrc\PARSER.C:359  CompileErr(TempBuff);
+      "Syntax error - expected to see possibly %s, not %s", expected, actual);
+C:\temp\Posetf\eusrc\PARSER.C:369  CompileErr(TempBuff);
+    sprintf(TempBuff, "%s has not been declared", s->name);
+C:\temp\Posetf\eusrc\PARSER.C:373  CompileErr(TempBuff);
+    sprintf(TempBuff, "a namespace qualifier is needed to resolve %s", s->name);
+C:\temp\Posetf\eusrc\PARSER.C:387     CompileErr(TempBuff);
+    sprintf(TempBuff, "%s takes %s%d argument%s", subsym->name, only,)
+C:\temp\Posetf\eusrc\PARSER.C:518  CompileErr(TempBuff);
+        "Syntax error - expected to see an expression, not %s",
+C:\temp\Posetf\eusrc\PARSER.C:720  CompileErr("Syntax error - expected to see =, +=, -=, *=, /= or &=");
+C:\temp\Posetf\eusrc\PARSER.C:786  CompileErr("return must be inside a procedure or function");
+C:\temp\Posetf\eusrc\PARSER.C:1038  CompileErr("a loop variable name is expected here");
+C:\temp\Posetf\eusrc\PARSER.C:1109      CompileErr(TempBuff);
+        sprintf(TempBuff, "attempt to redefine %s", sym->name);
+C:\temp\Posetf\eusrc\PARSER.C:1178      CompileErr("a name is expected here");
+C:\temp\Posetf\eusrc\PARSER.C:1244      CompileErr("a variable name is expected here");
+C:\temp\Posetf\eusrc\PARSER.C:1368  CompileErr("a name is expected here");
+C:\temp\Posetf\eusrc\PARSER.C:1396      CompileErr("a type is expected here");            
+C:\temp\Posetf\eusrc\PARSER.C:1401      CompileErr("a parameter name is expected here");
+C:\temp\Posetf\eusrc\PARSER.C:1411      CompileErr("badly-formed list of parameters - expected ',' or ')'");
+C:\temp\Posetf\eusrc\PARSER.C:1421  CompileErr("types must have exactly one parameter");
+C:\temp\Posetf\eusrc\PARSER.C:1582       CompileErr("sample size must be a positive integer");
+C:\temp\Posetf\eusrc\PARSER.C:1715 CompileErr("'global' must be followed by:\n     <a type>, 'constant', 'procedure', 'type' or 'function'");
+C:\temp\Posetf\eusrc\PARSER.C:1752   CompileErr("function result must be assigned or used");
+C:\temp\Posetf\eusrc\PARSER.C:1760   CompileErr("exit must be inside a loop");                 
+C:\temp\Posetf\eusrc\PARSER.C:1792       CompileErr("illegal character");
+C:\temp\Posetf\eusrc\PARSER.C:1794       CompileErr("unknown command");
+C:\temp\Posetf\eusrc\RUNTIME.C:411  CompileErr(msg);
+int matherr(struct exception *err)
+    case DOMAIN: 
+        msg = "domain";
+        break;
+    case SING: 
+        msg = "singularity";
+        break;
+    case OVERFLOW: 
+        msg = "overflow";
+        break;
+    case UNDERFLOW: 
+        msg = "underflow";
+        break;
+    case TLOSS:
+    case PLOSS: 
+        msg = "loss of significance";
+        break;
+    default:
+        msg = "internal";
+        break;
+    }
+    sprintf(sbuff, "math function %s error", msg);
+
+C:\temp\Posetf\eusrc\SCANNER.C:216      CompileErr("I/O error reading source file");
+C:\temp\Posetf\eusrc\SCANNER.C:731        CompileErr("fractional part of number is missing");
+C:\temp\Posetf\eusrc\SCANNER.C:745    CompileErr("exponent not formed correctly");
+C:\temp\Posetf\eusrc\SCANNER.C:761    CompileErr("number not formed correctly");
+C:\temp\Posetf\eusrc\SCANNER.C:793        CompileErr("#! may only be on the first line of a program"); [ADD ME!]
+C:\temp\Posetf\eusrc\SCANNER.C:804       CompileErr("hex number not formed correctly"); [# ON IT'S OWN]
+C:\temp\Posetf\eusrc\SCANNER.C:1089      CompileErr("missing closing quote on file name");
+C:\temp\Posetf\eusrc\SCANNER.C:1108  CompileErr("file name is missing");
+C:\temp\Posetf\eusrc\SCANNER.C:1146    CompileErr("a new namespace identifier is expected here");
+
+C:\temp\Posetf\eusrc\PARSER.C:687  SafeErr("may not assign to a for-loop variable");
+C:\temp\Posetf\eusrc\PARSER.C:689  SafeErr("may not change the value of a constant");
+C:\temp\Posetf\eusrc\PARSER.C:813  SafeErr("exit statement must be inside a loop");
+C:\temp\Posetf\eusrc\PARSER.C:1471   SafeErr("no value returned from function");
+C:\temp\Posetf\eusrc\PARSER.C:1473   SafeErr("type must return true / false value");
+C:\temp\Posetf\eusrc\PARSER.C:1618  SafeErr("unknown with/without option");
+C:\temp\Posetf\eusrc\SCANNER.C:543  SafeErr("unknown escape character");
+C:\temp\Posetf\eusrc\SCANNER.C:720        SafeErr("only one decimal point allowed");
+C:\temp\Posetf\eusrc\SCANNER.C:919       SafeErr("tab character found in string - use \\t instead");
+C:\temp\Posetf\eusrc\SCANNER.C:923       SafeErr("single-quote character is empty");
+C:\temp\Posetf\eusrc\SCANNER.C:927       SafeErr("character constant is missing a closing '");
+C:\temp\Posetf\eusrc\SCANNER.C:948    SafeErr("tab character found in string - use \\t instead");
+C:\temp\Posetf\eusrc\SCANNER.C:956       SafeErr("end of line reached with no closing \"");
+C:\temp\Posetf\eusrc\SCANNER.C:960       SafeErr("end of file reached with no closing \"");
+C:\temp\Posetf\eusrc\SCANNER.C:1151       SafeErr("missing namespace qualifier");
+C:\temp\Posetf\eusrc\SCANNER.C:1156   SafeErr("improper syntax for include-as");
+C:\temp\Posetf\eusrc\SCANNER.C:1161      SafeErr("improper syntax for include-as");
+
+C:\temp\Posetf\eusrc\EMIT.C:994       Warning("Statements have been inserted to trace execution of your program.");
+C:\temp\Posetf\eusrc\PARSER.C:181  Warning(TempBuff);
+    "%s:%u - statement after %s will never be executed", 
+        name_ext(file_name[current_file_no]), line_number, keyword);
+C:\temp\Posetf\eusrc\PARSER.C:1376      Warning(TempBuff);
+        sprintf(TempBuff, "built-in routine %s() redefined", p->name);
+C:\temp\Posetf\eusrc\PARSER.C:1524  Warning("profiling is not available in the Public Domain Edition");
+C:\temp\Posetf\eusrc\SYMTAB.C:590      Warning(TempBuff);
+        ("local constant"|"local variable"|"parameter"|"private variable")
+        in %s[()]
+        ("not used"|"never assigned a value")
+
+C:\temp\Posetf\eusrc\ALLOC.C:478  RTFatal("Your program has run out of memory.\nOne moment please...");
+C:\temp\Posetf\eusrc\CALLC.C:139  RTFatal(TempBuff);
+    sprintf(TempBuff, "c_proc/c_func: bad routine number (%d)", proc_index);
+C:\temp\Posetf\eusrc\CALLC.C:144  RTFatal("c_proc/c_func: argument list must be a sequence");
+C:\temp\Posetf\eusrc\CALLC.C:170  RTFatal(TempBuff);
+    sprintf(TempBuff, func ? "%s does not return a value" : "%s returns a value",)
+C:\temp\Posetf\eusrc\CALLC.C:183  RTFatal(TempBuff);
+    sprintf(TempBuff, "C routine %s() needs %d argument%s, not %d",)
+C:\temp\Posetf\eusrc\CALLC.C:197      RTFatal("This C routine was defined using an invalid argument type");
+C:\temp\Posetf\eusrc\CALLC.C:207   RTFatal("arguments to C routines must be atoms");
+C:\temp\Posetf\eusrc\CALLC.C:230    RTFatal("passing an integer where a sequence is required");
+C:\temp\Posetf\eusrc\CALLC.C:235        RTFatal("passing a sequence where an atom is required");
+C:\temp\Posetf\eusrc\CALLC.C:239        RTFatal("passing an atom where a sequence is required");
+C:\temp\Posetf\eusrc\CALLC.C:257   RTFatal("arguments to C routines must be atoms");
+C:\temp\Posetf\eusrc\EXECUTE.C:248  RTFatal("first argument to poke4 must be an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:269      RTFatal("poke4 is limited to 32-bit numbers");
+C:\temp\Posetf\eusrc\EXECUTE.C:298       RTFatal("poke4 is limited to 32-bit numbers");
+C:\temp\Posetf\eusrc\EXECUTE.C:308   RTFatal("sequence to be poked must only contain atoms");
+C:\temp\Posetf\eusrc\EXECUTE.C:693       RTFatal("subscript must be an atom\n(reading an element of a sequence)");
+C:\temp\Posetf\eusrc\EXECUTE.C:1299       RTFatal("length of an atom is not defined");
+C:\temp\Posetf\eusrc\EXECUTE.C:2008    RTFatal("for-loop variable is not an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:2010    RTFatal("for-loop limit is not an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:2016    RTFatal("for-loop increment is not an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:2140       RTFatal("invalid routine id");
+C:\temp\Posetf\eusrc\EXECUTE.C:2155    RTFatal(TempBuff);
+            sprintf(TempBuff, "%s() does not return a value",)
+C:\temp\Posetf\eusrc\EXECUTE.C:2164    RTFatal(TempBuff);
+              "the value returned by %s() must be assigned or used",
+C:\temp\Posetf\eusrc\EXECUTE.C:2170       RTFatal("argument list must be a sequence");
+C:\temp\Posetf\eusrc\EXECUTE.C:2183       RTFatal(TempBuff);
+               "call to %s() via routine-id should pass %d argument%s, not %d",
+C:\temp\Posetf\eusrc\EXECUTE.C:2320   RTFatal("attempt to exit a function without returning a value");
+C:\temp\Posetf\eusrc\EXECUTE.C:2421       RTFatal("first argument of append must be a sequence");
+C:\temp\Posetf\eusrc\EXECUTE.C:2435       RTFatal("first argument of prepend must be a sequence");
+C:\temp\Posetf\eusrc\EXECUTE.C:2501       RTFatal("second argument of position() is not an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:2509       RTFatal("first argument of position() is not an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:2595    RTFatal("argument to peek() must be an atom or a 2-element sequence");
+C:\temp\Posetf\eusrc\EXECUTE.C:2608    RTFatal("number of bytes to peek is less than 0");
+C:\temp\Posetf\eusrc\EXECUTE.C:2692    RTFatal("argument to peek() must be an atom or a 2-element sequence");
+C:\temp\Posetf\eusrc\EXECUTE.C:2704    RTFatal("number of bytes to peek is less than 0");
+C:\temp\Posetf\eusrc\EXECUTE.C:2764       RTFatal("first argument to poke must be an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:2821        RTFatal(
+>>>             "sequence to be poked must only contain atoms");
+C:\temp\Posetf\eusrc\EXECUTE.C:2876       RTFatal("argument to call() must be an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:3139       RTFatal("argument to trace() must be an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:3153       RTFatal("argument to profile() must be an atom");
+C:\temp\Posetf\eusrc\EXECUTE.C:3161       RTFatal("argument to profile() must be 0 or 1");
+C:\temp\Posetf\eusrc\EXECUTE.C:3212     RTFatal("attempt to subscript an atom\n(reading from it)");
+C:\temp\Posetf\eusrc\MACHINE.C:271  RTFatal(TempBuff);
+    "%s: an integer was expected, not a sequence", where);
+C:\temp\Posetf\eusrc\MACHINE.C:433  RTFatal("an integer was expected, not a sequence");
+C:\temp\Posetf\eusrc\MACHINE.C:531     RTFatal(buff);
+    sprintf(buff, "%s is not supported in Euphoria for %s", )
+C:\temp\Posetf\eusrc\MACHINE.C:697  RTFatal("second argument to pixel must be a sequence of length 2");
+C:\temp\Posetf\eusrc\MACHINE.C:955  RTFatal("argument to get_pixel() must be a sequence of length 2 or 3");
+C:\temp\Posetf\eusrc\MACHINE.C:990      RTFatal("3rd argument of get_pixel() must be >= 0");
+C:\temp\Posetf\eusrc\MACHINE.C:1207      RTFatal(
+"argument to all_palette must be a sequence containing sequences of length 3");
+C:\temp\Posetf\eusrc\MACHINE.C:2009       RTFatal ("mouse locks failed");
+C:\temp\Posetf\eusrc\MACHINE.C:2705  RTFatal("where() failed on this file");
+C:\temp\Posetf\eusrc\MACHINE.C:2754  RTFatal("name for dir() is too long");
+C:\temp\Posetf\eusrc\MACHINE.C:2900  RTFatal("name for dir() is too long");
+C:\temp\Posetf\eusrc\MACHINE.C:2995  RTFatal("name for dir() is too long");
+C:\temp\Posetf\eusrc\MACHINE.C:3081  RTFatal("current directory not available");
+C:\temp\Posetf\eusrc\MACHINE.C:3107  RTFatal("third argument to put_screen_char() must be a sequence of even length");
+C:\temp\Posetf\eusrc\MACHINE.C:3257  RTFatal("3rd argument to lock_file must be a sequence of length 0 or 2");
+C:\temp\Posetf\eusrc\MACHINE.C:3301  RTFatal("2nd argument to unlock_file must be a sequence of length 0 or 2");
+C:\temp\Posetf\eusrc\MACHINE.C:3566  RTFatal("sequence has wrong length");
+C:\temp\Posetf\eusrc\MACHINE.C:3586  RTFatal("in machine_func an atom was expected, not a sequence");
+C:\temp\Posetf\eusrc\MACHINE.C:3808  RTFatal("name for open_dll() is too long");
+C:\temp\Posetf\eusrc\MACHINE.C:3857  RTFatal("variable name must be a sequence");
+C:\temp\Posetf\eusrc\MACHINE.C:3861  RTFatal("variable name is too long");
+C:\temp\Posetf\eusrc\MACHINE.C:3905  RTFatal("routine name must be a sequence");
+C:\temp\Posetf\eusrc\MACHINE.C:3910  RTFatal("routine name is too long");
+C:\temp\Posetf\eusrc\MACHINE.C:3937  RTFatal("argument size list must be a sequence");
+C:\temp\Posetf\eusrc\MACHINE.C:3943  RTFatal("return type must be an atom");  // this check assumed below
+C:\temp\Posetf\eusrc\MACHINE.C:3975  RTFatal("call_back: bad routine id\n");
+C:\temp\Posetf\eusrc\MACHINE.C:3979  RTFatal("call-back routine must be a function or type");
+C:\temp\Posetf\eusrc\MACHINE.C:4005   RTFatal("routine has too many parameters for call-back");
+C:\temp\Posetf\eusrc\MACHINE.C:4367       RTFatal(TempBuff);
+            sprintf(TempBuff, "machine(%d,...) not supported", opcode);
+C:\temp\Posetf\eusrc\RTERROR.C:587     RTFatal(TempBuff);
+  "subscript value %ld is out of bounds, assigning to a sequence of length %ld",
+C:\temp\Posetf\eusrc\RTERROR.C:592     RTFatal("attempt to subscript an atom\n(assigning to it)");
+C:\temp\Posetf\eusrc\RTERROR.C:597     RTFatal("subscript must be an atom\n(assigning to subscript of a sequence)");
+
+>>static void RecentLines()
+/* display the lines executed recently */
+    int i;
+
+    if (TraceLineSize == 0)
+    return;
+    fprintf(TempErrFile, "\nTraced lines leading up to the failure:\n\n");
+    for (i = TraceLineNext; i < TraceLineSize; i++)
+    ListTraceLine(TraceLineBuff[i]);
+    for (i = 0; i < TraceLineNext; i++)
+    ListTraceLine(TraceLineBuff[i]);
+    fprintf(TempErrFile, "\n");
+>>#define MAX_TRACEBACK 100 /* maximum number of levels of traceback to show */
+
+    if (levels < MAX_TRACEBACK)
+
+    else 
+        skipping++;
+
+    if (skipping > 0)
+    sprintf(TempBuff, "\n... (skipping %d levels)\n\n", skipping)
+
+C:\temp\Posetf\eusrc\RUNTIME.C:442  RTFatal("sequence found inside character string");
+C:\temp\Posetf\eusrc\RUNTIME.C:949  RTFatal("bitwise operations are limited to 32-bit numbers");
+C:\temp\Posetf\eusrc\RUNTIME.C:1051  RTFatal("can't raise 0 to power <= 0");
+C:\temp\Posetf\eusrc\RUNTIME.C:1070  RTFatal("can't raise 0 to power <= 0");
+C:\temp\Posetf\eusrc\RUNTIME.C:1072  RTFatal("can't raise negative number to non-integer power");
+C:\temp\Posetf\eusrc\RUNTIME.C:1288  RTFatal("attempt to take square root of a negative number");
+C:\temp\Posetf\eusrc\RUNTIME.C:1296  RTFatal("attempt to take square root of a negative number");
+C:\temp\Posetf\eusrc\RUNTIME.C:1353  RTFatal("may only take log of a positive number");
+C:\temp\Posetf\eusrc\RUNTIME.C:1361  RTFatal("may only take log of a positive number");
+C:\temp\Posetf\eusrc\RUNTIME.C:1652      RTFatal(TempBuff);
+        "sequence lengths are not the same (%ld != %ld)",
+--C:\temp\Posetf\eusrc\RUNTIME.C:1749  RTFatal("second argument of find() must be a sequence");
+C:\temp\Posetf\eusrc\RUNTIME.C:1808  RTFatal("first argument of match() must be a sequence");
+C:\temp\Posetf\eusrc\RUNTIME.C:1810  RTFatal("second argument of match() must be a sequence");
+C:\temp\Posetf\eusrc\RUNTIME.C:1815  RTFatal("first argument of match() must be a non-empty sequence");
+C:\temp\Posetf\eusrc\RUNTIME.C:1855  RTFatal("attempt to slice an atom");
+C:\temp\Posetf\eusrc\RUNTIME.C:1859  RTFatal(TempBuff);
+    sprintf(TempBuff, "slice lower index is less than 1 (%ld)", startval);
+C:\temp\Posetf\eusrc\RUNTIME.C:1863  RTFatal(TempBuff);
+    sprintf(TempBuff, "slice upper index is less than 0 (%ld)", endval);
+C:\temp\Posetf\eusrc\RUNTIME.C:1868  RTFatal(TempBuff);
+    sprintf(TempBuff, "slice length is less than 0 (%ld)", length);
+C:\temp\Posetf\eusrc\RUNTIME.C:1876  RTFatal(TempBuff);
+    sprintf(TempBuff, "slice starts past end of sequence (%ld > %ld)", 
+C:\temp\Posetf\eusrc\RUNTIME.C:1881  RTFatal(TempBuff);
+    sprintf(TempBuff, "slice ends past end of sequence (%ld > %ld)",
+C:\temp\Posetf\eusrc\RUNTIME.C:1902  RTFatal("slice lower index is not an atom");
+C:\temp\Posetf\eusrc\RUNTIME.C:1914  RTFatal("slice upper index is not an atom");
+C:\temp\Posetf\eusrc\RUNTIME.C:1979  RTFatal("slice lower index is not an atom");
+C:\temp\Posetf\eusrc\RUNTIME.C:1987  RTFatal("slice upper index is not an atom");
+C:\temp\Posetf\eusrc\RUNTIME.C:2018      RTFatal(TempBuff);
+        "lengths do not match on assignment to slice (%ld != %ld)",
+C:\temp\Posetf\eusrc\RUNTIME.C:2099  RTFatal("file number must be an atom");
+C:\temp\Posetf\eusrc\RUNTIME.C:2102  RTFatal(TempBuff);
+    sprintf(TempBuff, "bad file number (%ld)", file_no);
+C:\temp\Posetf\eusrc\RUNTIME.C:2120      RTFatal(TempBuff); 
+        sprintf(TempBuff, "file number %d is not open", file_no);
+C:\temp\Posetf\eusrc\RUNTIME.C:2123      RTFatal("wrong file mode for attempted operation");
+C:\temp\Posetf\eusrc\RUNTIME.C:2158  RTFatal("open mode must be a sequence");
+C:\temp\Posetf\eusrc\RUNTIME.C:2161  RTFatal("device or file name must be a sequence");
+C:\temp\Posetf\eusrc\RUNTIME.C:2165  RTFatal("file name for open() is too long");
+C:\temp\Posetf\eusrc\RUNTIME.C:2169  RTFatal("invalid open mode");
+C:\temp\Posetf\eusrc\RUNTIME.C:2213  RTFatal("invalid open mode");
+C:\temp\Posetf\eusrc\RUNTIME.C:2237  RTFatal("can't open -- too many open files");
+C:\temp\Posetf\eusrc\RUNTIME.C:2660      RTFatal(TempBuff);
+        sprintf(TempBuff, "format specifier is incomplete (%s)", cstring);
+C:\temp\Posetf\eusrc\RUNTIME.C:2720       RTFatal("number is too big for %x or %o format");
+C:\temp\Posetf\eusrc\RUNTIME.C:2761  RTFatal(TempBuff);
+    sprintf(TempBuff, "Unknown printf format (%s)", cstring);
+C:\temp\Posetf\eusrc\RUNTIME.C:2847        RTFatal("not enough values to print in printf()");
+C:\temp\Posetf\eusrc\RUNTIME.C:2996  RTFatal(TempBuff);
+    "attempt to move cursor off the screen to line %d, column %d",
+C:\temp\Posetf\eusrc\RUNTIME.C:3075  RTFatal("first argument of system() must be a sequence");
+C:\temp\Posetf\eusrc\RUNTIME.C:3082  RTFatal("second argument of system() must be an atom");
+C:\temp\Posetf\eusrc\RUNTIME.C:3086  RTFatal("system() command is too long");
+C:\temp\Posetf\eusrc\RUNTIME.C:3125  RTFatal("first argument of system_exec() must be a sequence");
+C:\temp\Posetf\eusrc\RUNTIME.C:3132  RTFatal("second argument of system_exec() must be an atom");
+C:\temp\Posetf\eusrc\RUNTIME.C:3184  RTFatal("argument to getenv must be a sequence");
+
+C:\temp\Posetf\eusrc\MACHINE.C:586     not_supported("draw_line()");
+C:\temp\Posetf\eusrc\MACHINE.C:681     not_supported("pixel()");
+C:\temp\Posetf\eusrc\MACHINE.C:942     not_supported("get_pixel()");
+C:\temp\Posetf\eusrc\MACHINE.C:1110     not_supported("ellipse()");
+C:\temp\Posetf\eusrc\MACHINE.C:1150     not_supported("palette()");
+C:\temp\Posetf\eusrc\MACHINE.C:1189     not_supported("all_palette()");
+C:\temp\Posetf\eusrc\MACHINE.C:2491     not_supported("allocate_low()");
+C:\temp\Posetf\eusrc\MACHINE.C:2533     not_supported("free_low()");
+C:\temp\Posetf\eusrc\MACHINE.C:2577     not_supported("dos_interrupt()");
+C:\temp\Posetf\eusrc\MACHINE.C:3340     not_supported("use_vesa()");
+C:\temp\Posetf\eusrc\MACHINE.C:4182   not_supported("get_display_page()");
+C:\temp\Posetf\eusrc\MACHINE.C:4189   not_supported("set_display_page()");
+C:\temp\Posetf\eusrc\MACHINE.C:4205       not_supported("set_active_page");
+
+edb: test for opening two db's
+======================================
+The following example worked for me:
+with trace
+sequence s
+
+trace(1)
+
+if db_open("dbtest1", DB_LOCK_EXCLUSIVE) != DB_OK then 
+   puts(1, "Could not open database dbtest1.edb\n"&
+           "  (Note t??ebd3 assumes t??-1 and t??-1 have been run first.)"&
+           " Aborting ...\n")
+   abort(1)
+end if
+
+if db_open("dbtest2", DB_LOCK_EXCLUSIVE) != DB_OK then 
+   puts(1, "Could not open database dbtest2.edb\n"&
+           "  (Note t??ebd3 assumes t??-1 and t??-1 have been run first.)"&
+           " Aborting ...\n")
+   abort(1)
+end if
+s = db_table_list()  -- just to verify what edb you've got here
+
+db_close()
+
+if db_select("dbtest1") != DB_OK then
+    puts(1,"dbtest1.edb could not  be selected. Abort.")
+    abort(1)
+end if
+s = db_table_list()  -- just to verify what edb you've got here
+
+db_close()
+Regards,
+
+Jim
+
+
+
+Tony Steward wrote:
+>
+> Hi,
+> Does db_close() close all edb's that are open or just the current edb.
+>
+======================================
+Date: 1 Aug 2003
+  by 0 with SMTP; 1 Aug 2003 13:00:09 -0000
+ Fri, 1 Aug 2003 14:00:08 +0100
+From: Pete Lomax <petelomax at blueyonder.co.uk>
+Subject: Re: Trouble reading bytes
+
+
+On Fri, 1 Aug 2003 17:14:41 +1000, Derek Parnell
+<ddparnell at bigpond.com> wrote:
+
+<snip>
+>puts() ONLY WRITES BYTES!=20
+>
+>Try this...
+>
+>  puts(fn, {400,500,600,700})
+>
+>You should get written out to 'fn' 4 BYTES - not a Sequence containing 4=
+ bytes. The four bytes are #90, #F4, #58, #BC.
+And try this:
+sequence d
+d={97,353,609,1121,2145,4193}
+puts(1,d)-- "aaaaaa" !
+
+The moral is never use puts() to store anything other than character
+data. Numbers get clobbered (as documented, but worth repeating).
+
+I forget the original poster, but I'd recommend using database.e. The
+following is a little starter:
+
+include database.e-- see C:\EUPHORIA\HTML\DATABASE.HTM
+sequence data
+data = {{0,0,0,0,0},
+        {1,1,1,1,1},
+        {2,2,2,2,2},
+        {3,3,3,3,3}}
+
+integer recordnumber
+
+if db_open("data.edb",DB_LOCK_NO)=DB_OPEN_FAIL then
+if db_create("data.edb",DB_LOCK_NO)!=DB_OK then
+puts(1,"error creating database")
+abort(0)
+end if
+end if
+if db_select_table("data")!=DB_OK then
+if db_create_table("data")!=DB_OK then
+puts(1,"error creating data table")
+abort(0)
+end if
+end if
+
+recordnumber=db_find_key(1)
+if recordnumber<0 then
+if db_insert(1,data)!=DB_OK then
+puts(1,"error writing data")
+abort(0)
+end if
+else
+db_replace_data(recordnumber,data)
+end if
+
+?data
+?db_record_data(db_find_key(1))
+
+db_close()
+
+if getc(0) then end if
+======================================
+Date: 10 Oct 2003
+  by inmta008.topica.com.topica.com with SMTP; 10 Oct 2003 11:51:09 -0000
+ (iPlanet Messaging Server 5.2 HotFix 1.14 (built Mar 18 2003))
+ with SMTP id <0HMJ0038QGYICM at mta06bw.email.bigpond.com> for
+ EUforum at topica.com; Fri, 10 Oct 2003 21:23:07 +1000 (EST)
+ by bwmam06.bigpond.com(MAM REL_3_3_2d 47/1608781); Fri,
+ 10 Oct 2003 21:23:06 +0000
+From: Derek Parnell <ddparnell at bigpond.com>
+Subject: Re: suggestion for database.e
+
+
+----- Original Message -----
+From: "Markus Schaller" <markus.schaller at web.de>
+To: "EUforum" <EUforum at topica.com>
+Subject: suggestion for database.e
+
+
+>
+>
+> Hello,
+>
+> I've added three functions, which I missed several times, to database.e
+> Are there any suggestions, or is there a better way to get the following
+> infos?
+>
+
+I'd had added the same functions to my copy of database.e too. I did the current_tabl
+e differently though.
+
+I added a new variable 'current_table_name' and set this to "" whenever the current_t
+able is closed and to the table name when a table is selected. My new routine is ...
+
+
+  global function db_current_table() -- DEREK PARNELL --
+    return current_table_name        -- DEREK PARNELL --
+  end function                       -- DEREK PARNELL --
+
+I also added a slight performance enhancement to db_select_table ...
+
+
+  global function db_select_table(sequence name)
+  -- let table with the given name be the current table
+    atom table, nkeys, index
+    atom block_ptr, block_size
+    integer blocks, k
+   
+    table = table_find(name)
+    if table = -1 then
+       return DB_OPEN_FAIL
+    end if 
+    if current_table = table then    -- DEREK PARNELL --
+    return DB_OK                     -- DEREK PARNELL --
+    end if                           -- DEREK PARNELL --
+    current_table_name = name        -- DEREK PARNELL --
+    current_table = table
+    . . .
+
+--
+Derek
+======================================
+Date: 28 Mar 2002
+From: Derek Parnell <ddparnell at bigpond.com>
+Subject: Re: database.e db_open_noeds?]
+  by inmta006.topica.com with SMTP; 29 Mar 2002 02:11:04 -0000
+          (Netscape Messaging Server 4.15) with SMTP id GTPPY200.6OT for
+          <EUforum at topica.com>; Fri, 29 Mar 2002 12:08:26 +1000
+boundary="----=_NextPart_000_0059_01C1D720.10B97740"
+
+This is a multi-part message in MIME format.
+
+------=_NextPart_000_0059_01C1D720.10B97740
+charset="iso-8859-2"
+
+
+----- Original Message -----
+From: "Salix" <salix at freemail.hu>
+To: "EUforum" <EUforum at topica.com>
+Subject: [Fwd: database.e db_open_noeds?]
+
+
+> -------- Original Message --------
+> Subject: database.e db_open_noeds?
+> Date: Wed, 27 Mar 2002 11:01:28 +0100
+> From: Salix <salix at freemail.hu>
+> To: EUforum <EUforum at topica.com>
+>
+> Hello all,
+>
+> Is there any return code for db_open() like DB_OPEN_NOEDS? How do you
+> recognize that a file you wanted to open is actually not an Euphoria
+> Database System file? (Any code or tipp is welcome.)
+
+There is no way supplied by RDS to do this. I've attached a file that you
+can include in your application. It contains a function called
+db_validate(). It takes a file name as parameter and returns a sequence as a
+result.
+If the first element returned is a 1, then the file is a valid EDS database.
+Otherwise the second element is an error code that identifies what was wrong
+with the file.  As it checks nearly every byte in the file, it can take a
+while for large databases.
+
+---------
+Derek.
+
+------=_NextPart_000_0059_01C1D720.10B97740
+Content-Type: application/octet-stream;
+name="dbval.e"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+filename="dbval.e"
+
+include file.e
+without trace
+without profile
+without warning
+without type_check
+constant
+        DB_MAGIC = 77,
+        FREE_COUNT = 7,
+        SIZEOF_TABLE_HEADER = 16,
+        I2B = 249,   -- 2-byte signed integer follows
+    I3B = 250,   -- 3-byte signed integer follows
+    I4B = 251,   -- 4-byte signed integer follows
+    F4B = 252,   -- 4-byte f.p. number follows
+    F8B = 253,   -- 8-byte f.p. number follows
+    S1B = 254,   -- sequence, 1-byte length follows, then elements
+--    S4B = 255,   -- sequence, 4-byte length follows, then elements
+        INIT_FREE = 5,
+        KnownVersions = {{0,5}, {2,3}},
+        BADINT = #100000000
+
+global constant
+         kOpenFailed = 1,
+         kNotEDS = 2,
+         kTableSeek = 3,
+         kInitialSeek = 4,
+         kTableCount = 5,
+         kTableNamePtr = 6,
+         kRecCnt = 7,
+         kBlkCnt = 8,
+         kTableIndexPtr = 9,
+         kTableNameSeek = 10,
+         kTableName = 11,
+         kIndexSeek = 12,
+         kRecordCnt = 13,
+         kRecordPtr = 14,
+         kRecordSeek = 15,
+         kKeyPtr = 16,
+         kKeySeek = 17,
+         kDataPtr = 18,
+         kDataSeek = 19,
+         kNextTableSeek = 20,
+         kFreeCountSeek = 21,
+         kFreeChainSeek = 22,
+         kFreeChainPtr = 23,
+         kFreeCount = 24,
+         kFreeChainAddr = 25,
+         kFreeChainSize = 26,
+         kKeyData = 27,
+         kDataData = 28,
+         kFreeCountTooHigh = 29,
+         kFreeList = 30,
+         kFreeListSpace = 31,
+         kFreeListSeek = 32,
+         kFreeChainSizeChk = 33,
+         kVersion = 34
+
+
+function get_string(integer fn)
+-- read a 0-terminated string at current position in database file
+    sequence s
+    integer c
+   
+    s = ""
+    while 1 do
+c = getc(fn)
+if c = -1 then
+    return -1
+elsif c = 0 then
+    exit
+end if
+s &= c
+    end while
+    return s
+end function
+
+function get4(integer fn)
+-- read 4-byte value at current position in database file
+    integer b0, b1, b2, b3
+    b0 = getc(fn)
+    b1 = getc(fn)
+    b2 = getc(fn)
+    b3 = getc(fn)
+    if b0 < 0 or b1 < 0 or b2 < 0 or b3 < 0 then
+        return BADINT
+    else
+        return b0 + #100*b1 + #10000*b2 + #1000000*b3
+    end if
+end function
+
+
+function validate_data(integer fn)
+-- validate a compressed Euphoria object from disk
+    integer c, v
+    atom len
+   
+    c = getc(fn)
+    if c < 0 then
+        return 0
+    end if
+   
+    if  c < I2B then
+    v = 0
+   
+    elsif c = I2B then
+    v = 2
+
+    elsif c = I3B then
+    v = 3
+
+    elsif c = I4B then
+    v = 4
+
+    elsif c = F4B then
+      v = 4
+
+    elsif c = F8B then
+    v = 8
+    else
+    -- sequence
+    if c = S1B then
+        len = getc(fn)
+            if len < 0 then
+                return 0
+            end if
+    else
+        len = get4(fn)
+            if len = BADINT then
+                return 0
+            end if
+    end if
+    for i = 1 to len do
+        if validate_data(fn) = 0 then
+                return 0
+            end if
+    end for
+    return 1
+    end if
+
+    for i = 1 to v do
+        c = getc(fn)
+        if c < 0 then
+            return 0
+        end if
+    end for
+
+    return 1
+end function
+
+
+
+global function db_validate(sequence pFileName)
+-- Validates a EDS database.
+    object void, sObj
+    integer magic, minor, major
+    integer fn
+    atom tables, ntables, tname, trecords, t_header, tnrecs,
+ key_ptr, data_ptr, size, addr, tindex
+    integer  tblocks
+    atom free_count, free_list, free_list_space
+    atom max
+
+    fn = open(pFileName, "rb")
+    if fn = -1 then
+        return {0, kOpenFailed}
+    end if
+
+    void = seek(fn, -1)
+    max = where(fn)
+
+    void = seek(fn, 0)
+    if void != 0 then
+        return {0, kInitialSeek}
+    end if
+    magic = getc(fn)
+    if magic != DB_MAGIC then
+        close(fn)
+    return {0, kNotEDS}
+    end if
+
+    major = getc(fn)
+    minor = getc(fn)
+    if not find({major,minor}, KnownVersions) then
+        close(fn)
+        return {0, kVersion}
+    end if
+
+    tables = get4(fn)
+    if tables < 0 or tables = BADINT or tables > max then
+        close(fn)
+    return {0, kNotEDS}
+    end if
+
+    void = seek(fn,tables)
+    if void != 0 then
+        close(fn)
+    return {0, kTableSeek}
+    end if
+
+    ntables = get4(fn)
+    if ntables < 0 or ntables = BADINT then
+        close(fn)
+    return {0, kTableCount}
+    end if
+
+    t_header = where(fn)
+
+    for t = 1 to ntables do
+    -- display the next table
+    tname = get4(fn)
+        if tname < 0 or tname = BADINT or tname > max then
+            close(fn)
+        return {0, kTableNamePtr, t}
+        end if
+
+    tnrecs = get4(fn)
+        if tnrecs < 0 or BADINT then
+            close(fn)
+        return {0, kRecCnt, t}
+        end if
+
+    tblocks = get4(fn)
+        if tblocks < 0 or tblocks = BADINT then
+            close(fn)
+        return {0, kBlkCnt, t}
+        end if
+
+    tindex = get4(fn)
+        if tindex < 0 or tindex = BADINT or tindex > max then
+            close(fn)
+        return {0, kTableIndexPtr, t}
+        end if
+
+    void = seek(fn,tname)
+        if void != 0 then
+            close(fn)
+        return {0, kTableNameSeek, t}
+        end if
+
+    sObj = get_string(fn)
+        if equal(sObj, -1) then
+            close(fn)
+            return {0, kTableName, t}
+        end if
+
+    for b = 1 to tblocks do
+        void = seek(fn, tindex+(b-1)*8)
+            if void != 0 then
+                close(fn)
+                return {0, kIndexSeek,t,b}
+            end if
+
+        tnrecs = get4(fn)
+            if tnrecs < 0 or tnrecs = BADINT then
+                close(fn)
+                return {0, kRecordCnt, t, b}
+            end if
+
+        trecords = get4(fn)
+            if trecords < 0 or trecords = BADINT or trecords > max then
+                close(fn)
+                return {0, kRecordPtr, t, b}
+            end if
+
+        for r = 1 to tnrecs do
+        -- check the record data
+        void = seek(fn, trecords+(r-1)*4)
+                if void != 0 then
+                    close(fn)
+                    return {0, kRecordSeek, t, b, r}
+                end if
+
+        key_ptr = get4(fn)
+                if key_ptr < 0 or key_ptr = BADINT or key_ptr > max then
+                    close(fn)
+                    return {0, kKeyPtr, t, b, r}
+                end if
+
+        void = seek(fn, key_ptr)
+                if void != 0 then
+                    close(fn)
+                    return {0, kKeySeek, t, b, r}
+                end if
+
+        data_ptr = get4(fn)
+                if data_ptr < 0 or data_ptr = BADINT or data_ptr > max then
+                    close(fn)
+                    return {0, kDataPtr, t, b, r}
+                end if
+
+        if validate_data(fn) = 0 then
+                    close(fn)
+                    return {0, kKeyData, t, b, r}
+                end if
+
+        void = seek(fn, data_ptr)
+                if void != 0 then
+                    close(fn)
+                    return {0, kDataSeek, t, b, r}
+                end if
+
+        if validate_data(fn) = 0 then
+                    close(fn)
+                    return {0, kDataData, t, b, r}
+                end if
+        end for
+    end for
+    t_header += SIZEOF_TABLE_HEADER
+    void = seek(fn, t_header)
+        if void != 0 then
+            close(fn)
+            return {0, kNextTableSeek, t}
+        end if
+    end for
+
+    -- check the free list
+    void = seek(fn, FREE_COUNT)
+    if void != 0 then
+        close(fn)
+        return {0, kFreeCountSeek}
+    end if
+
+    free_count = get4(fn)
+    if free_count < 0 or free_count = BADINT then
+        close(fn)
+        return {0, kFreeCount}
+    end if
+    if free_count > max/13 then
+    close(fn)
+        return {0, kFreeCountTooHigh}
+    end if
+
+    free_list = get4(fn)
+    if free_list < 0 or free_list = BADINT then
+        close(fn)
+        return {0, kFreeChainPtr}
+    end if
+    if free_list > max then
+    close(fn)
+        return {0, kFreeList}
+    end if
+
+    void = seek(fn, free_list-4)
+    if void != 0 then
+        close(fn)
+        return {0, kFreeChainSeek}
+    end if
+    free_list_space = get4(fn)
+    if free_list_space = BADINT or
+       free_list_space > max or
+       free_list_space < INIT_FREE * 8 then
+    close(fn)
+        return {0, kFreeListSpace}
+    end if
+
+    for i = 1 to free_count do
+    void = seek(fn, free_list+(i-1)*8)
+        if void != 0 then
+            close(fn)
+            return {0, kFreeListSeek}
+        end if
+
+    addr = get4(fn)
+        if addr = BADINT or addr < 0 or addr > (max-4) then
+            close(fn)
+            return {0, kFreeChainAddr, i}
+        end if
+
+    size = get4(fn)
+        if size < 0 or size = BADINT then
+            close(fn)
+            return {0, kFreeChainSize, i}
+        end if
+    if (size + addr-4) > max then
+            close(fn)
+            return {0, kFreeChainSize, i}
+    end if
+
+    void = seek(fn, addr-4)
+    if get4(fn) > size then
+            close(fn)
+            return {0, kFreeChainSizeChk, i}
+    end if
+
+    end for
+
+
+    -- All clear.
+    close(fn)
+    return {1}
+end function
+======================================
+Date:         Sun, 17 Sep 2000 15:02:58 -0400
+From: Jim <futures8 at PCOLA.GULF.NET>
+Subject:      find() can't find ","???
+To: EUPHORIA at LISTSERV.MUOHIO.EDU
+
+Trying to use find() to find a comma in a comma-delimited ascii input file, but with
+no success.  It's really essential
+for me to know where the first object in the data ends. (I could use a 'get()' loop,
+accessing each object, and then
+length() for what I need, but that gets kind of kludgey.
+
+Seems to me that gets() ignores the comma in the data, perhaps recognizing it as the
+end-of-object marker, and Find()
+can't find it.
+
+I'm sure many others have encountered the problem and have devised a slick solution.
+But, I'm at my wits end.
+
+Hope some kind soul will offer a solution.
+
+Program listing (not too big) is below, and includes a few lines of sample data from
+the comma-delimitd file.
+
+Thanks.
+
+Jim
+
+-- Update.ex
+-- read Todays.txt as control to select table, and update table with the
+-- Todays.txt record.
+include get.e
+include file.e
+include misc.e
+include database.e
+include wildcard.e
+include jimlib.e
+
+with trace
+-- without warning
+allow_break(1)
+
+sequence TableNames,TableNamesSorted,TableToRead,DataFile,FileName,
+         ContCode,Date,Open,High,Low,Close,Volume,OpenInt,OutputRec,Data
+
+integer  TableNo
+
+atom     a,b,c,EOF
+
+object   fn,Todays,UpdateRec,wait,InsertRec
+
+constant SCREEN = 1,true = 1,false = 0, KEYBOARD = 0
+---------------------------------------------------------------------------------
+
+clear_screen()
+
+if db_open("dbtest2", DB_LOCK_EXCLUSIVE) != DB_OK then  -- if doesn't exist
+   puts(SCREEN, "Could not open database dbtest2.edb. Aborting ...\n")
+end if
+
+TableNames = db_table_list()
+-- sort table names
+TableNamesSorted = sort(TableNames)
+TableNames       = TableNamesSorted
+
+
+fn = open("TODAYS.TXT","rb")
+if fn = -1 then puts(SCREEN,"Could not open TODAYS.TXT.. aborting ...")  abort(1)
+end if
+Todays = fn
+
+while true do
+      UpdateRec = gets(Todays) -- ContCode,Date,Open,High,Low,Close,Volume,OpenInt
+      if equal(UpdateRec, -1) then
+         exit
+      end if
+---------------------------------------------------------------------------
+      -- SAMPLE DATA
+      --  AD00U,20000913,55.45,55.70,55.42,55.56,3086,14492
+      --  AD00Z,20000913,55.20,55.60,55.30,55.55,3285,17312
+      --  C00U,20000913,183.50,183.75,180.25,180.50,7030,3679
+      --  C00X,20000913,190.50,190.75,187.25,187.50,601,2791
+      --  C00Z,20000913,195.25,195.25,191.25,191.50,51692,217958
+      --  CC00U,20000913,796,798,793,798,28,36
+      --  CC00Z,20000913,817,840,817,838,1536,52269
+--------------------------------------------------------------------------
+
+      --        FileName = UpdateRec[1..find(",",UpdateRec)]      -- DOESN'T FIND IT
+      --        FileName = UpdateRec[1..find(44,UpdateRec)]       -- DOESN'T FIND IT
+      --        object comma     comma = ','
+      --        FileName = UpdateRec[1..find(comma,UpdateRec)]    -- DOESN'T FIND IT
+
+           -------------      Below works OK, but only because of the uniqueness of the data       --------------
+      FileName = UpdateRec[1..5]
+      Date = UpdateRec[7..14]
+      Data = UpdateRec[7..length(UpdateRec) -1]
+      if numeric(FileName[2..3])         then                  --  pos. 5 is a comma
+         FileName = UpdateRec[1..4]
+         Date = UpdateRec[6..13]
+         Data = UpdateRec[6..length(UpdateRec) -1]
+      end if
+      TableToRead = upper(FileName)
+
+      if db_select_table(TableToRead) != DB_OK then
+         clear_screen()
+         position(10,1)
+         puts(1,"\n"&TableToRead&" not found. Aborting ...\n")  abort(1)
+      end if
+
+      -- update table
+
+      InsertRec = db_insert(Date,Data)
+      if equal(InsertRec, "DB_EXISTS_ALREADY")  then
+         printf(1,"%s", {FileName}) puts(1,"  ") printf(1,"%s ",{Date})
+         puts(1," already exists. Bypassing...\n")
+      else
+         printf(1,"%s", {FileName}) puts(1,"  ") printf(1,"%s \n",{Date})
+      end if
+end while
+
+db_close()
+close(Todays)
+Reply:
+   Jim:
+
+-- run this code
+
+? find(",", "comma is here, somewhere")
+
+? find(',', "comma is here, somewhere")
+
+-- Bernie
+======================================
+Date: 27 Jan 2003
+From: Andy Serpa <ac at onehorseshy.com>
+Subject: RE: Danger!  Type-checking & the translator
+
+
+ajm.tammer at quicknet.nl wrote:
+> Hi Andy
+>
+> You did not declare z to be local to the type(routine) so yhe code
+> inside the routine assigns a value ON YOUR COMMAND to the higherleveled
+> z ouside it
+>
+> :) a@t aka ekhnaton
+>
+> BTW... what is the use of a type(routine) if you dont use it to check
+> validity of a user-defined type??
+>
+
+Yes, that's right -- I don't want z to be local to the type -- I want z
+to be a side-effect of assigning something to y.  (In practice, z would
+take on different values depending on what you assigned to y).
+
+As to what use that type of thing is, there are lots of uses, and lots
+of people have taken advantage of them.  You can look at custom defined
+types as "functions which are automatically called when assigning a
+value to a variable of that type."  That can be very useful.  Which is
+why I'm freaking out a bit here, because it means if I want to use the
+translator, I potentially have to check not only my own code but examine
+and recode any libraries I might download from the archive.  I gave
+Diamond as an example, which I know contains code that depends on type
+code being called.
+
+Which is why it is not just a debugging issue -- it means that
+translated programs possibly need to use completely different ALGORITHMS
+that non-translated programs, and it also means you can not necessarily
+expect a translated program, even a bug-free one, to work as it does
+before translation.  That is a major flaw, to say the least.
+
+Here's an example.  In the Berkeley DB code I'm now working with, every
+database call returns an error code.  Some errors are "expected", like
+KEY NOT FOUND.  Others are unexpected, and the program needs to shut
+down at that point.  But to avoid corruption, I want to close all the
+databases cleanly to make sure everything is committed to disk.
+
+So I make a type such as:
+
+type db_error(integer x)
+  if x != 0 then -- if there is an error
+    bdb_close_all()  -- close all databases
+    return 0 -- type check failure, causes abort
+  else
+    return 1
+end type
+db_error err
+
+Now everytime I do a db call, I do it like:
+
+err = bdb_open(db_name)
+
+Nice and elegant.
+
+Now, on error, all the db's are automatically shut down.  Translate that
+program, and the error code is not even checked at all!  Disaster!  I'm
+going to have to change 1000's of lines of code now.  (By the way, this
+is the same reason we need a crash_proc() function to set a procedure to
+be called on a crash -- with a syntax error I'm looking at possible
+database corruption because I don't get a chance to shut them down
+properly.)
+
+Or you might have an exception handling system with types that always
+return TRUE, but nevertheless set some internal exception variable so
+your program can deal with the error without crashing.  If the type code
+is never called, disaster there too.
+======================================
+Date: 19 Dec 2002
+From: Ken Rhodes <ken_rhodes30436 at yahoo.com>
+Subject: RE: To RDS:  EDS docs/samples
+  by 0 with SMTP; 19 Dec 2002 00:38:25 -0000
+
+Here is a link to the online EDS Documentation
+http://www.rapideuphoria.com/database.htm#replace_data
+
+and here is mydata.ex from Euphoria 2.3
+----------------------- Simple Customizable Database -----------------------
+
+-- This program uses the Euphoria Database System (EDS) to create and
+-- maintain a simple database. You can customize this program by modifying
+-- the FIELDS variable (below). You'll have to delete or rename the
+-- "mydata.edb" database file if you change the number of fields.
+
+constant FIELDS = {
+   -- The first field is the "key" value used for lookups,
+   -- and it must only occur in one record. We used the phone number
+   -- (like our local dry cleaner does). :-)
+   -- You might want to use the surname, or invent a "person number"
+   -- as an artificial but unique key. 
+"Phone number",
+   -- The other fields can be whatever you like. Feel free to change
+   -- or add more fields...
+"Last Name",
+"First name",
+"Middle Initial"
+}
+
+-- file to store the database in:
+constant MYNAME   = "mydata.edb"
+
+include database.e  -- Euphoria Database System
+include get.e
+include sort.e
+include wildcard.e
+
+constant KEYBOARD = 0,
+ SCREEN   = 1,
+ ERROR    = 2
+
+constant TRUE = 1
+constant WHITE_SPACE = " \t\n"
+constant FORM_FEED = 12
+
+type file_number(integer x)
+-- document which vars are used as file numbers
+    return x >= 0
+end type
+
+procedure myfatal(sequence msg)
+-- fatal error
+    puts(ERROR, '\n' & "An unexpected error occurred:" & msg & '\n')
+    ? 1/0 -- to see call stack
+end procedure
+
+function user_input()
+-- get user input from keyboard
+    object line
+
+    while TRUE do
+        line = gets(KEYBOARD)
+        if sequence(line) then
+            -- delete any leading whitespace
+            while find(line[1], WHITE_SPACE) do
+                line = line[2..length(line)]
+                if length(line) = 0 then
+                    exit
+                end if
+            end while
+            if length(line) > 0 then
+                exit
+            end if
+        end if
+        puts(SCREEN, "\n? ")
+    end while
+    -- delete trailing whitespace
+    while find(line[length(line)], WHITE_SPACE) do
+        line = line[1..length(line)-1]
+    end while
+    return line
+end function
+
+procedure show(file_number f, object key, object data)
+    puts(f, "\n" & key & '\n')
+    for i = 2 to length(FIELDS) do
+puts(f, '\t' & data[i-1] & '\n')
+    end for
+end procedure
+
+procedure add()
+-- add a new record to the database
+    sequence key, data
+    integer f
+   
+    puts(SCREEN, "\n\t" & FIELDS[1] & ": ")
+    key = user_input()
+    f = db_find_key(key)
+    if f >= 1 then
+show(SCREEN, db_record_key(f), db_record_data(f))
+puts(SCREEN, "Do you want to update this record?
+(y/n) ")
+if find('n', gets(0)) then
+    return
+end if
+    end if
+    data = {}
+    for i = 2 to length(FIELDS) do
+puts(SCREEN, "\n\t" & FIELDS[i] & ": ")
+data = append(data, user_input())
+    end for
+    puts(SCREEN, '\n')
+    if f >= 1 then
+-- update data part of record
+db_replace_data(f, data)
+    else
+-- insert new record
+if db_insert(key, data) != DB_OK then
+    myfatal("insert failed!\n")
+end if
+    end if
+end procedure
+
+procedure delete()
+-- delete a record, given first field
+    sequence name
+    integer d
+
+    puts(SCREEN, "\n\t" & FIELDS[1] & ": ")
+    name = user_input()
+    d = db_find_key(name)
+    if d < 0 then
+puts(SCREEN, "\n\tnot found\n")
+return
+    end if
+    show(SCREEN, db_record_key(d), db_record_data(d))
+    puts(SCREEN, "Delete? (y/n) ")
+    if find('n', gets(0)) then
+return
+    end if
+    db_delete_record(d)
+end procedure
+
+procedure find_name()
+-- find the record that matches the surname
+    sequence name
+    integer f
+
+    puts(SCREEN, "\n\t" & FIELDS[1] & ": ")
+    name = user_input()
+    f = db_find_key(name)
+    if f < 0 then
+puts(SCREEN, "\n\tnot found\n")
+return
+    end if
+    show(SCREEN, db_record_key(f), db_record_data(f))
+end procedure
+
+procedure list(file_number f)
+-- list the entire database to a device
+    puts(f, '\n')
+    for rec = 1 to db_table_size() do
+show(f, db_record_key(rec), db_record_data(rec))
+    end for
+end procedure
+
+procedure main()
+    sequence command
+    file_number printer
+   
+    -- open or create the database
+    if db_open(MYNAME, DB_LOCK_NO) != DB_OK then
+if db_create(MYNAME, DB_LOCK_NO) != DB_OK then
+    myfatal("Couldn't create database")
+end if
+if db_create_table("phone numbers") != DB_OK then
+    myfatal("couldn't create table")
+end if
+    end if
+
+    -- select the (only) table in the database
+    if db_select_table("phone numbers") != DB_OK then
+myfatal("couldn't select table\n")
+    end if
+   
+    -- prompt the user for his command
+    clear_screen()
+    puts(SCREEN, "\t\tSimple Database\n")
+    while TRUE do
+puts(SCREEN,
+     "\n(a)dd, (d)elete, (f)ind, (l)ist, (p)rint,
+(q)uit: ")
+command = upper(user_input())
+if 'A' = command[1] then
+    add()
+
+elsif 'D' = command[1] then
+    delete()
+
+elsif 'F' = command[1] then
+    find_name()
+
+elsif 'Q' = command[1] then
+    exit
+
+elsif 'L' = command[1] then
+    list(SCREEN)
+
+elsif 'P' = command[1] then
+    printer = open("PRN", "w")
+    if printer = -1 then
+puts(SCREEN, "Can't open printer device\n")
+    else
+list(printer)
+puts(printer, FORM_FEED)
+close(printer)
+    end if
+else
+    puts(SCREEN, "\nsay what?\n")                  
+end if
+    end while
+end procedure
+
+main()
+======================================

@@ -1,0 +1,255 @@
+-- demonstrates usage of the hypertext control,
+-- and simple but full emulation of a modal dialog window
+
+--/*
+include "C:\\Program Files\\Phix\\builtins\\dll.e"
+include "C:\\Program Files\\Phix\\builtins\\machine.e"
+include "C:\\Program Files\\Phix\\builtins\\misc.e"
+--*/
+include arwen.ew
+without warning
+
+sequence MemoText, UrlText, UrlTarget, Done
+integer MemoCount, MemoNo
+
+
+--------------[ Routines not directly related to the GUI ]--------------
+
+function url_escape(sequence text)
+-- e.g. "hi there" --> "hi%20there"
+sequence ret
+integer char
+
+    ret = ""
+    for i = 1 to length(text) do
+        char = text[i]
+        if char > #7F or find(char, "\r\n \"!#%*/?&=<>") then
+            ret &= sprintf("%%%02x", char)
+        else
+            ret &= char
+        end if
+    end for
+    return ret
+end function
+
+global function mail_url(sequence To, sequence cc, sequence bcc, sequence subject, sequence body)
+sequence url, temp
+
+    url = "mailto:" & url_escape(To)
+    temp = ""
+
+    if length(cc) then
+        temp &= "&cc=" & url_escape(cc)
+    end if
+    if length(bcc) then
+        temp &= "&bcc=" & url_escape(bcc)
+    end if
+    if length(subject) then
+        temp &= "&subject=" & url_escape(subject)
+    end if
+    if length(body) then
+        temp &= "&body=" & url_escape(body)
+    end if
+
+    if length(temp) then
+        temp[1] = '?'
+        url &= temp
+    end if
+    return url
+end function
+
+procedure read_file()
+-- A real program would read the information from a file.
+--DEV:
+    MemoText  = {
+                 "Get the latest Phix package."
+                 & "\r\n\r\nClick at the link below!",
+                 "I must not forget to buy some flowers for my grandma.",
+                 "Got any question?"
+                }
+
+    UrlText  = {
+                "Download now!",
+                "",
+                "Find answers"
+               }
+
+--DEV out of date!
+    UrlTarget = {
+                 "http://www.phix.is-great.org/download.php",
+                 "",
+                 "http://www.google.com"
+                }
+
+    MemoCount = length(MemoText)
+    Done = repeat(0, MemoCount)
+end procedure
+
+
+----------------------------[ Main window ]-----------------------------
+
+constant TODAY = date()
+setClassDefaults(Window, {WS_SYSMENU,WS_MINIMIZEBOX}, 0)
+constant mtitle = sprintf("%d-%02d-%02d - Memo", {TODAY[1]+1900, TODAY[2], TODAY[3]}),
+         MEMO = create(Window, mtitle, 0,0, 300,150,300,375, 0)
+--DEV display a warning if icon not found?
+setIcon(MEMO, loadIcon("lightbulb.ico"))
+centerWindow(MEMO,0,-40)
+
+constant
+   GROUP = create(Group,         "", 0, MEMO,  15,  0,260,230, 0),
+   EDIT  = create(MultiEditText, "", 0, MEMO,  30, 20,230,150, 0),
+   URL   = create(HyperText,     "", 0, MEMO,  30,185,115, 20, 0),
+   CHECK = create(CheckBox, "Done.", 0, MEMO,  30,205, 60, 20, 0),
+   PAGE  = create(Label,         "", 0, MEMO, 220,208, 40, 20, ES_RIGHT),   -- right aligned
+
+   BUTTON_PREV = create(Button, "<<   Prev",   0, MEMO,  40,250,100, 25, 0),
+   BUTTON_NEXT = create(Button, "Next   >>",   0, MEMO, 150,250,100, 25, 0),
+   BUTTON_OK   = create(Button, "OK",          0, MEMO,  95,290,100, 25, 0),
+
+   MENU_FILE      = create(Menu,     "&File",  0, MEMO,      0,0,0,0,0),
+   MENUITEM_ABOUT = create(MenuItem, "A&bout", 0, MENU_FILE, 0,0,0,0,0)
+
+
+---------------------------[ "About" window ]---------------------------
+
+setClassDefaults(Window, 0, 0)
+constant ABOUT = create(Window, "About", 0, MEMO, 360,180,300,180, 0)
+centerWindow(ABOUT,70,-95)
+
+constant
+   A_TEXT = "If you like this program, send a mail to the author.",
+   ABOUT_TEXT = create(Label, A_TEXT,          0, ABOUT,  30,30,250,20, 0),
+   ABOUT_MAIL = create(HyperText, "Send now!", 0, ABOUT, 110,60, 50,20, 0),
+   ABOUT_OK   = create(Button, "OK",           0, ABOUT,  90,95,100,25, 0)
+
+
+----------[ Handlers for main window and related procedures ]-----------
+
+procedure set_data()
+    setText(EDIT, MemoText[MemoNo])
+    setText(URL,  UrlText [MemoNo])
+    if length(UrlTarget[MemoNo]) then
+        setEnable(URL, True)
+    else
+        setEnable(URL, False)
+    end if
+    void = sendMessage(CHECK, BM_SETCHECK, Done[MemoNo], 0)
+    setText(PAGE, sprintf("%d/%d", {MemoNo, MemoCount}))
+end procedure
+
+function handler_MAIN(integer id, integer msg, atom wParam, object lParam)
+integer exitCode
+
+    -- The next 3 lines make the "About" window behave modal:
+    if isVisible(ABOUT) and (msg = WM_NCHITTEST) then
+        return {HTNOWHERE}
+    end if
+
+    if (msg = WM_COMMAND)                              -- user has clicked on a
+    or (msg = WM_KEYDOWN and wParam = VK_RETURN) then   -- button or pressed Enter
+      -- save current state
+        Done[MemoNo] = sendMessage(CHECK, BM_GETCHECK, 0, 0)
+
+        if id = BUTTON_OK then
+            closeWindow(MEMO)                              -- terminate program
+
+        elsif id = URL then
+            exitCode = openDocument(UrlTarget[MemoNo])   --** on success, err is ..
+
+        else
+            if id = BUTTON_PREV then
+                if MemoNo = MemoCount then
+                    setEnable({BUTTON_NEXT}, True)
+                end if
+                MemoNo -= 1
+                if MemoNo = 1 then
+                    setEnable({BUTTON_PREV}, False)
+                    setFocus(BUTTON_NEXT)
+                end if
+            elsif id = BUTTON_NEXT then
+                if MemoNo = 1 then
+                    setEnable({BUTTON_PREV}, True)
+                end if
+                MemoNo += 1
+                if MemoNo = MemoCount then
+                    setEnable({BUTTON_NEXT}, False)
+                    setFocus(BUTTON_PREV)
+                end if
+            end if
+            set_data()
+        end if
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(MEMO)
+    end if
+    return 0
+end function
+setHandler({MEMO,GROUP,BUTTON_PREV,BUTTON_NEXT,BUTTON_OK,URL}, routine_id("handler_MAIN"))
+
+function handler_MENU(integer id, integer msg, atom wParam, object lParam)
+    if msg = WM_COMMAND then
+        openWindow(ABOUT, SW_NORMAL)
+    end if
+    return 0
+end function
+setHandler(MENUITEM_ABOUT, routine_id("handler_MENU"))
+
+-- Handler for EDIT control (required in order to change the background color)
+atom hBrush
+     hBrush = c_func(xCreateSolidBrush, {Parchment})
+
+function handler_EDIT(integer id, integer msg, atom wParam, object lParam)
+    if msg = WM_CTLCOLOREDIT then
+        void = c_func(xSetBkColor, {wParam, Parchment})
+        return hBrush
+    elsif msg = WM_DESTROY then
+        void = deleteObject(hBrush)
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(MEMO)
+    end if
+    return 0
+end function
+setHandler(EDIT, routine_id("handler_EDIT"))
+
+
+------------[ Handler for "About" window and related stuff ]------------
+
+constant
+   TO      = "\"John Doe\" <john@doe.org>",
+   CC      = "",
+   BCC     = "",
+   SUBJECT = "Hello",
+   BODY    = "This is the best program I ever saw!\r\n\r\nRegards"
+
+constant ABOUT_MAIL_ADDR = mail_url(TO, CC, BCC, SUBJECT, BODY)
+
+function handler_ABOUT(integer id, integer msg, atom wParam, object lParam)
+integer exitCode
+
+    if (msg = WM_COMMAND)                              -- user has clicked on the
+    or (msg = WM_KEYDOWN and wParam = VK_RETURN) then   -- button or pressed Enter
+        if id = ABOUT_OK then
+            closeWindow(ABOUT)
+        elsif id = ABOUT_MAIL then
+            exitCode = openDocument(ABOUT_MAIL_ADDR)      --**
+        end if
+    end if
+    return 0
+end function
+setHandler({ABOUT_OK,ABOUT_MAIL}, routine_id("handler_ABOUT"))
+
+
+--------------------------------[ Main ]--------------------------------
+
+read_file()
+
+MemoNo = 1
+setEnable({BUTTON_PREV}, False)
+if MemoNo = MemoCount then
+    setEnable({BUTTON_NEXT}, False)
+end if
+set_data()
+
+WinMain(MEMO, SW_NORMAL)

@@ -1,0 +1,382 @@
+--
+-- life.exw
+--  Ported to Arwen PL 1/10/14
+--  (there might be some useful ideas in here for a fake console for the repl)
+--
+include arwen.ew
+
+constant MainWin = create( Window, "Life", 0, 0, 25, 25, 800,600, 0)
+constant SB = create(StatusBar, "", 0, MainWin, 0, 0, 0, 0, {0,0,0})    -- (no sizegrip)
+--constant MENU = create(Menu, "&Menu" , 0, MainWin, 0,0,0,0,0)
+--constant MENU1 = create(MenuItem,  "&These are" , 0, MENU, 0,0,0,0,0)
+
+constant btnGod = create(Button, "Apply", 0, MainWin, 5, 5, 42, 25, 0)
+constant lblInitPop = create(Label, "Initial Pop", 0, MainWin, 51, 5, 66, 20, SS_OWNERDRAW)
+constant txtInitPop = create(EditText, "50", 0, MainWin, 51, 27, 32, 20, 0)
+constant lblStdConsume = create(Label, "StdConsume", 0, MainWin, 121, 5, 60, 20, SS_OWNERDRAW)
+constant txtStdConsume = create(EditText, "2", 0, MainWin, 121, 27, 32, 20, 0)
+constant lblAvgLE = create(Label, "Avg LifeExp", 0, MainWin, 191, 5, 66, 20, SS_OWNERDRAW)
+constant txtAvgLE = create(EditText, "100", 0, MainWin, 191, 27, 32, 20, 0)
+constant lblMaturity = create(Label, "Maturity", 0, MainWin, 255, 5, 48, 20, SS_OWNERDRAW)
+constant txtMaturity = create(EditText, "16", 0, MainWin, 255, 27, 32, 20, 0)
+constant lblReproCost = create(Label, "Repro Cost", 0, MainWin, 310, 5, 60, 20, SS_OWNERDRAW)
+constant txtReproCost = create(EditText, "10", 0, MainWin, 310, 27, 32, 20, 0)
+constant lblOldAge = create(Label, "Old Age%", 0, MainWin, 371, 5, 48, 20, SS_OWNERDRAW)
+constant txtOldAge = create(EditText, "75", 0, MainWin, 371, 27, 32, 20, 0)
+constant lblOAEffect = create(Label, "Old Age Effect", 0, MainWin, 435, 5, 84, 20, SS_OWNERDRAW)
+constant txtOAEffect = create(EditText, "2", 0, MainWin, 435, 27, 32, 20, 0)
+constant lblAccident = create(Label, "Accident Rate/10000", 0, MainWin, 511, 5, 114, 20, SS_OWNERDRAW)
+constant txtAccident = create(EditText, "10", 0, MainWin, 511, 27, 32, 20, 0)
+constant lblEntropy = create(Label, "Entropy", 0, MainWin, 629, 5, 42, 20, SS_OWNERDRAW)
+constant txtEntropy = create(EditText, "1", 0, MainWin, 629, 27, 32, 20, 0)
+constant lblDyingRate = create(Label, "Dying Rate", 0, MainWin, 675, 5, 60, 20, SS_OWNERDRAW)
+constant txtDyingRate = create(EditText, "1.5", 0, MainWin, 675, 27, 32, 20, 0)
+constant MainTimer = createTimer()
+
+constant labels = {lblInitPop,lblStdConsume,lblAvgLE,lblMaturity,lblReproCost,lblOldAge,lblOAEffect,lblAccident,lblEntropy,lblDyingRate}
+setTextColor(labels, BrightWhite)
+setBackColour(labels, Black)
+
+-- Fixed width font.
+setFont(MainWin, "Courier New", 12, Normal)
+--setFont(MainWin, "Courier New", 24, Normal)
+--setFont(MainWin, "Courier New", 8, Normal)
+--setFont(MainWin, "Consolas", 24, Normal)
+setTextColor(MainWin, BrightWhite)
+setBackColour(MainWin, Black)
+
+sequence vTextDim
+         vTextDim = sq_add(getTextExtent(MainWin, "_"),0.25)
+sequence vVirtualScreen
+         vVirtualScreen = repeat( repeat(' ', 80), 25)
+-- for resize tests:
+--vVirtualScreen[1][1] = '1'
+--vVirtualScreen[$][$] = '$'    -- BUG!!
+--vVirtualScreen[25][80] = '$'
+
+function ColToPixel(integer column)
+    return floor((column-1) * vTextDim[1])
+end function
+
+function RowToPixel(integer row)
+    return floor((row-1) * vTextDim[2])
+end function
+
+removeStyle(MainWin,WS_THICKFRAME+WS_MINIMIZEBOX+WS_MAXIMIZEBOX)
+integer mX = ColToPixel(81)
+integer mY = RowToPixel(26)+130
+setWindowPos(MainWin, 0, 0, mX, mY, SWP_NOMOVE)
+
+
+integer vCycle
+integer vStandardConsumption
+integer vAvgLifeExpect
+integer vInitPop
+integer vMaturity
+integer vOldAge
+integer vAccident
+integer vEntropy
+integer vOAEffect
+atom vDyingRate
+atom vReproCost
+
+-- List of Creatures
+sequence Life
+Life = {}
+constant vGenderCode = {'F', 'M'}
+
+function NewLife(integer pCol, integer pRow, integer pInitAge)
+    atom lOldAge
+    atom lLifeExpectancy
+    integer lGender
+
+    lLifeExpectancy = (2 * vAvgLifeExpect / 3) + rand(floor(2 * vAvgLifeExpect / 3))
+
+    lOldAge = (vOldAge * lLifeExpectancy / 100) +
+                 rand(1 + floor((lLifeExpectancy-1)*(100-vOldAge)/100))
+
+    if rand(10) = 1 then
+        lOldAge /= 2
+    end if
+
+    if rand(10) = 1 then
+        lOldAge /= 2
+    end if
+
+    lGender = rand(2)
+
+    return {vGenderCode[lGender], pCol, pRow, lLifeExpectancy, 1, pInitAge, lOldAge}
+
+end function
+
+
+procedure onTimer_MainWin()
+integer lNewRow
+integer lNewCol
+integer lOldRow
+integer lOldCol
+integer lCol
+integer lRow
+sequence lNewCreature
+atom lX, lY, lF, ll, lN, lA, lT
+
+    vCycle += 1
+    lNewCreature = {}
+    for i = length(Life) to 1 by - 1 do
+        lOldRow = Life[i][3]
+        lOldCol = Life[i][2]
+
+        -- Try to move one space in a random direction.
+        lNewRow = rand(3) - 2 + lOldRow
+        lNewCol = rand(3) - 2 + lOldCol
+
+
+        if lNewRow >= 1 and lNewRow <= 25 and
+           lNewCol >= 1 and lNewCol <= 80 then
+
+            -- Check that new space is unoccupied first.
+            if vVirtualScreen[lNewRow][lNewCol] = ' ' then
+                -- Remove from old place.
+                vVirtualScreen[lOldRow][lOldCol] = ' '
+                -- Put into new place.
+                if Life[i][6] >= vMaturity then
+                    vVirtualScreen[lNewRow][lNewCol] = Life[i][1]
+                else
+                    vVirtualScreen[lNewRow][lNewCol] = lower(Life[i][1])
+                end if
+                Life[i][2] = lNewCol
+                Life[i][3] = lNewRow
+
+                -- Adjust consumption rate.
+                Life[i][5] -= vStandardConsumption
+                if Life[i][5] <= 1 then
+                    Life[i][5] = 1
+                end if
+            else
+                -- Can't move so it dies a little.
+                -- The more it can't move the quicker it dies.
+                Life[i][5] *= vDyingRate
+                Life[i][4] -= Life[i][5]
+
+                -- Is there a chance for a new creature though?
+                if vVirtualScreen[lNewRow][lNewCol] != Life[i][1] and
+                   vVirtualScreen[lNewRow][lNewCol] != '.' and
+                   -- Check that it's old enough to reproduce.
+                   Life[i][6] >= vMaturity then
+
+                    -- Meets the opposite gender.
+                    ll = 0
+                    for j = 1 to length(Life) do
+                        if Life[j][2] = lNewCol and
+                           Life[j][3] = lNewRow then
+                            if Life[j][6] >= vMaturity then
+                                ll = 1
+                            end if
+                            exit
+                        end if
+                    end for
+                    -- Mate is old enough too.
+                    if ll = 1 then
+                        -- See if there is a space spot next to my
+                        -- new mate. If so, a new creature is born.
+                        for x = -1 to 1 do
+                            lCol = lNewCol + x
+                            if lCol >=1 and lCol <= 80 then
+                                for y = -1 to 1 do
+                                    lRow = lNewRow + y
+                                    if lRow >= 1 and lRow <= 25 then
+                                        if vVirtualScreen[lRow][lCol] = ' ' then
+                                            Life[i][4] -= vReproCost -- Takes quite a toll.
+                                            lNewCreature = append(lNewCreature,
+                                                 NewLife(lCol, lRow, 0))
+                                            vVirtualScreen[lRow][lCol] = '.'
+                                            lNewRow = 9999
+                                            lNewCol = 9999
+                                            exit
+                                        end if
+                                    end if
+                                end for
+                            end if
+                         end for
+                     end if
+                end if
+            end if
+        else
+            -- Doesn't move so it dies a little.
+            -- The more it doesn't move the quicker it dies.
+            Life[i][5] *= vDyingRate
+            Life[i][4] -= Life[i][5]
+        end if
+
+        -- Matures.
+        Life[i][6] += 1
+
+        -- The creature dies a little due to entropy.
+        Life[i][4] -= vEntropy
+        -- Check for old age etc.
+        if Life[i][6] > Life[i][7] then
+            Life[i][4] -= vOAEffect
+        end if
+
+        -- Accident rate of 0.1% per cycle.
+        if rand(10000) <= vAccident then
+            Life[i][4] = 0
+        end if
+
+        -- Has it has died yet?
+        if Life[i][4] <= 0 then
+            vVirtualScreen[Life[i][3]][Life[i][2]] = ' '
+            Life = Life[1 .. i - 1] & Life[i+1 .. length(Life)]
+        end if
+
+
+        if length(Life) < 2 then
+            Life = {}
+            exit
+        end if
+
+    end for
+
+    repaintWindow(btnGod,False)  -- (trigger the wPuts loop)
+
+    -- Add new creatures to the colony.
+    Life &= lNewCreature
+
+    -- Gather the stats.
+    lX = 0
+    lY = 0
+    lN = length(lNewCreature)
+    lF = 0
+    ll = 0
+    lA = 0
+    for i = 1 to length(Life) do
+        if Life[i][1] = 'F' then
+            lX += 1
+        elsif Life[i][1] = 'M' then
+            lY += 1
+        end if
+        lF += Life[i][4]
+        if Life[i][6] < vMaturity then
+            ll += 1
+        end if
+
+    end for
+    lT = lX + lY
+    if lT = 0 then
+        lT = 1
+    end if
+    setText(SB, sprintf("Cycle: %d,  F = %d, M = %d (new= %d, total = %d (Adult=%3.1f%%, Juv=%3.1f%%) ) Colony Strength = %d",
+                        {vCycle, lX, lY, lN, lT, 100 * (lT - ll)/lT,  100 *ll/lT, lF}))
+
+    -- Destroy all life if only one gender exists.
+    if lX = 0 or lY = 0 then
+        Life = {}
+    end if
+
+    if length(Life) <= 1 then
+        stopTimer(MainTimer)
+--      vVirtualScreen = {} -- (bug in the win32lib version, (causes crash) too)
+        Life = {}
+        vVirtualScreen = repeat( repeat(' ', 80), 25)
+--      repaintWindow(btnGod,False)  -- (if you like a blank screen)
+    end if
+end procedure
+
+--DEV make this a standard thing:
+function getInteger(sequence numstr)
+--
+-- Return the (positive) integer value of a string.
+-- "" is treated as 0. {} is returned on error.
+--
+atom n
+integer ch
+    n = 0
+    for i=1 to length(numstr) do
+        ch = numstr[i]-'0'
+        if ch<0 or ch>9 then return {} end if
+        n = n*10+ch
+        if not integer(n) then return {} end if
+    end for
+    return n
+end function
+
+function GetScreenVal(integer id, atom defval)
+object lVal
+
+    lVal = getInteger(getText(id))
+    if sequence(lVal) or lVal < 0 then
+        lVal = defval
+        setText(id, defval)
+    end if
+    return lVal
+
+end function
+
+procedure onClick_God()
+
+    vStandardConsumption = GetScreenVal(txtStdConsume, 2)
+    vAvgLifeExpect = GetScreenVal(txtAvgLE,72)
+    vInitPop = GetScreenVal(txtInitPop,25)
+    vMaturity = GetScreenVal(txtMaturity,16)
+    vOldAge = GetScreenVal(txtOldAge,75)
+    vAccident = GetScreenVal(txtAccident,10)
+    vOAEffect = GetScreenVal(txtOAEffect, 2)
+    vEntropy = GetScreenVal(txtEntropy,1)
+    vDyingRate = GetScreenVal(txtDyingRate, 1.5)
+    vReproCost = GetScreenVal(txtReproCost, 10)
+
+    if length(Life) = 0 then
+        for i = 1 to vInitPop do
+            -- Populate with mature creatures.
+            Life = append(Life, NewLife(rand(80), rand(25), vMaturity))
+        end for
+        vCycle = 0
+        startTimer(MainTimer,MainWin,33)
+    end if
+
+end procedure
+
+integer firsttime = 1
+function winHandler(integer id, integer msg, atom wParam, object lParam)
+atom hDC
+if object(lParam) then end if
+    if msg=WM_CHAR
+    and wParam=VK_ESCAPE then
+        closeWindow(MainWin)
+    elsif msg=WM_COMMAND then
+        if id=btnGod then
+            onClick_God()
+        end if
+    elsif msg=WM_TIMER then
+        if firsttime then
+            firsttime = 0
+            onClick_God()
+        end if
+        onTimer_MainWin()
+    elsif msg=WM_PAINT then
+        if id=btnGod then
+            drawRectangle(MainWin,1,0,50,mX,mY-83)
+            for i = 1 to length(vVirtualScreen) do
+                wPuts(MainWin, 0, RowToPixel(i)+50, vVirtualScreen[i])
+            end for
+        end if
+    elsif msg=WM_DRAWITEM then
+        hDC = peek4u(lParam+DIS_hDC)
+        id = peek4u(lParam+DIS_CtlID)
+        if not id then
+            id = c_func(xGetWindowLong,{peek4u(lParam+DIS_hwndItem),GWL_USERDATA}) --getID
+        end if
+        void = c_func(xSetTextColor,{hDC,BrightWhite})
+        void = c_func(xSetBkColor,{hDC,Black})
+        c_proc(xDrawText,{hDC,getText(id),-1,lParam+DIS_rcItem,DT_LEFT})
+    end if
+    return 0
+end function
+setHandler({MainWin,btnGod,
+            -- and purely for escape handling:
+            txtStdConsume,txtAvgLE,txtInitPop,txtMaturity,txtOldAge,
+            txtAccident,txtOAEffect,txtEntropy,txtDyingRate,txtReproCost},
+           routine_id("winHandler"))
+
+WinMain( MainWin, SW_NORMAL )
+

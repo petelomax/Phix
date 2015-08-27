@@ -1,0 +1,35 @@
+--
+-- t59mri.exw
+--
+--  tests for mutually recursive inclusion
+--
+without warning -- (four "implicit (local) call resolved to global" warnings expected)
+
+include inc8\t59a.e -- include t59b.e; global function A() return "this is t59a\n" end function; puts(1,B())
+include inc8\t59b.e -- include t59a.e; global function B() return "this is t59b\n" end function; puts(1,A())
+
+-- (strictly speaking, we don't need the second include statement (t59b) in this file)
+
+--DEV more work required to solve this (namespace ignored) [rename the one in t59a as "Ax"]
+--global function A()
+--  return "this is WRONG\n"
+--end function
+
+
+-- Compilation (prior to A1/A2/A3 etc being added) proceeds as follows:
+--  include t59a immediately includes t59b and leaves the remainder "pending".
+--  include t59b skips the include t59a (as it is pending/in progress), defines B() and assumes A() is a forward local.
+--  include t59a resumes, defines a global A(), w/o backpatching the local in t59b, and resolves B() as expected.
+--  Just prior to pilx86.e/unused_cleanup() issuing an Undefined(), it makes one final check whether that unresolved
+--  local could be backpatched to a (unique) global (and if so does just that). It is this latter part, ~14/2/14, 
+--  that this test was created for. [DEV further tests for named and optional parameters are rqd.]
+
+-- Copied from my readme.txt writeup:
+--          Originally I was only going to issue a warning under -lint, but after
+--          that initial dithering, realised this is a last chance hail mary with
+--          limited testing, far better to encourage programmers to add the said
+--          explicit forward definitions, use the pmain.e code, and keep symtab 
+--          free from unnecessary/duplicate/forwarded entries.
+-- (Which also eases worries over that "namespace ignored" issue mentioned above.)
+
+--if getc(0) then end if

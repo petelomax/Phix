@@ -1,0 +1,1531 @@
+--
+-- t46ltype.exw
+--
+-- Tests for localtypes
+--
+--  For more up-to-date info, see pltype.e. The comments below have been 
+--  quickly scanned for not being outrageously wrong, but may well still 
+--  contain some minor hiccups. No point just deleting the lot, after all
+--  this is just a test file...
+--
+-- DISCLAIMER:
+-- ==========
+--  In any #istype{var_id,var_type}, the var_type values should **NOT** be 
+--  considered gospel; instead they are the best we can realistically expect
+--  this dumb/stupid/one-pass compiler to comprehend, or the result of the
+--  "It works! It works! Quick: add a rack of tests to warn us should we 
+--  later accidentally dislodge anything!" syndrome. Backpatch/final fixup 
+--  techniques may significantly improve matters; any changes should however 
+--  (and obviously) make /some/ logical sense before you change/accept them!
+--  Where spotted, I have coded eg #istype{x,0b1101} -- 0b1001 better. The
+--  values in the comments/absence of said cannot be taken any different.
+--
+--  Also note that a bad mistake in localtype handling can cause a compile-
+--  time crash; hence some/most tests here need only to compile cleanly.
+--
+--  Tests below are a bit higgledy-piggledy, repetitive/duplicate, sorry.
+--
+-- What is this localtype thing?
+-- =============================
+--  This is best illustrated by a few examples:
+--
+--      procedure x(object o)
+--          if integer(o) then
+--              --[1]
+--          elsif string(o) then
+--              --[2]
+--          else
+--              --[3]
+--          end if
+--          -- [4]
+--
+--  (Assume we do NOT modify o anywhere and mess things up that way.)
+--
+--  Originally, o was treated as an object throughout, whereas with localtypes:
+--      at [1] we know o is an integer
+--      at [2] we know o is a string
+--      at [3] we know o is a float or a sequence, not integer or string
+--      at [4] we must revert to treating o as an object
+--
+--  While [1] and [2] may seem straightforward, [3] should hint that a "merge" 
+--   is being used and that all is not quite as trivial as it first seems,
+--   especially as these rules must apply to /every/ variable in symtab.
+--
+--  In all cases, when we can do no better, a pessimistic reset to declared 
+--   type is acceptable (at "end if" etc), so we might do that at [4], but
+--   in many cases we can indeed perform a suitable "type/value merge".
+--
+--  Localtypes also cover min/max integer values, sequence lengths, and 
+--   element types, however not on the first pass, and only when compiling.
+--   For more on that, see t50ginfo.exw (and forget about it for now).
+--
+--  BTW: Localtypes are a compiler implementation detail; they do not affect
+--   the actual lanugage definition or use in any way, shape, or form, with
+--   the obvious exception of supporting #istype{} directives/checks.
+--
+--
+--  Assignments are handled in a similar fashion:
+--
+--      if flag then
+--          o = 1
+--          --[1]
+--      else
+--          o = "1"
+--          --[2]
+--      end if
+--      --[3]
+--
+--  At [1], we know o is an integer, 
+--  at [2], we know o is a string,
+--  at [3], we know o is integer or string, but not float and not T_Dsq.
+--          (The presence of an "else" has bearing here, without it we
+--           would "merge" all assignments (as opposed to just "NOTALL")
+--           with the state(s) before the opening "if".)
+--
+--
+--  Also, at a subexpression level:
+--
+--      if x or (integer(o) and p) or y then
+--
+--        During the evaluation of p, we know o is an integer, but
+--        during the evaluation of y, o must be treated as object.
+--
+--      if x and (integer(o) or p) and y then
+--
+--        During the evaluation of p, we know o is not an integer,
+--        but likewise for the evaluation of y, o is an object.
+--
+--  Clearly the compiler must stick with logical deductions, and not stray
+--   into the realm of assumption and guesswork.
+--
+--  Function and routine calls must also clear any localtypes as necessary:
+--
+--      object x
+--      ...
+--      if integer(x) then
+--          -- we know x is an integer here
+--          some_routine()
+--          -- if "" may have altered x, it must be treated as object here
+--      else
+--          -- we know x is "not integer" here
+--      end if
+--      -- here we must "merge" the state of x before continuing.
+--
+--  Notice that whatever some_routine() did to x, the "else" just inverts 
+--  the surrounding test (if any), and "end if" must set things right.
+--
+--  Theoretically, some_routine() might always or sometimes set x to eg
+--   integer. However (as things stand) any (possible) mod => "object".
+--
+
+--
+-- Anyway, here follows 1300+ lines of various random tests!
+--
+
+constant showprogress=0
+integer nse
+
+procedure Case(object o)
+-- This routine should produce really good asm, ie cmp reg,0/cmp reg,255
+--  rather than calling opJlt etc.
+        if not integer(o) 
+        or --/**/  #istype{o,integer}
+            o<0
+        or o>255 then
+--/**/      #istype{o,object}
+            return
+        end if
+--/**/  #istype{o,object}   --0b0001 (integer) better (DEV)
+        if not integer(o) then return end if
+--/**/  #istype{o,integer}
+        if o<0 then return end if
+        if o>255 then return end if
+        nse=1   -- avoid "no side effects" warning
+end procedure
+
+if equal("3","4") then  -- (see notes at end of XYZ)
+    Case(-1)
+    Case(1)
+    Case(1234)
+    Case("")
+end if
+
+procedure XYZ(integer flag)
+-- flag is (both) 0 or 1 (to avoid any possible optimisations)
+-- (compile-time testing only; this is never actually executed)
+integer I
+object O
+sequence P
+        O={}
+--      I=O -- type error (storing sequence in atom)
+--/**/  #istype{O,0b0100}       -- T_Dsq
+--
+        if flag then
+            O=1
+        else
+            O={}
+        end if
+--/**/  #istype{O,0b0101}       -- T_Dsq|T_integer
+        I=O -- no type error! (not at compile-time anyway)
+        O=1
+--      P=O -- type error (storing atom in sequence)
+--/**/  #istype{O,integer}
+        if flag then
+            O={}
+        else
+            O=1
+        end if
+--/**/  #istype{O,0b0101}
+        I=O -- no type error! (not at compile-time anyway)
+--/**/  #istype{O,0b0101}   -- 0b0001 better [DEV, see note in Assignment()]
+        P=O -- no type error!
+--/**/  #istype{P,0b1100}
+        O=P
+--/**/  #istype{O,0b1100}
+        while flag=2 do
+            O = 1
+--/**/      #istype{O,0b0001}
+        end while
+--/**/  #istype{O,0b1101}
+        O = 1
+--/**/  #istype{O,0b0001}
+        while flag=2 do
+            O="xx"
+--/**/      #istype{O,0b1000}
+        end while
+--/**/  #istype{O,0b1001}
+        O=P
+--/**/  #istype{O,0b1100}
+        for i=1 to 0 do
+            O = 1
+--/**/      #istype{O,0b0001}
+        end for
+--DEV now getting object in pmain.e (fair enough), 0b1101 in pixl86.e (pukka[?!])
+--!/**/ #istype{O,object}   -- 0b1101 better
+--!/**/ #istype{O,0b1101}   --  fixed 25/7/09 (lt2) [OOPS: opLoopTop must O=<object>!]
+        O = 1
+--/**/  #istype{O,0b0001}
+        for i=1 to 2 do
+            O="xx"
+--/**/      #istype{O,0b1000}
+        end for
+--DEV now getting object in pmain.e (fair enough), 0b1001 in pixl86.e (pukka[?!])
+--!/**/ #istype{O,object}   -- 0b1001 better
+--!/**/ #istype{O,0b1001}   --  fixed 25/7/09 (lt2) [OOPS: opLoopTop must O=<object>!]
+        nse=1   -- avoid "no side effects" warning
+end procedure
+
+--if 3=4 then
+    -- WARNING: The compiler currently makes no attempt to detect the above 
+    --          test as always true/false. Should it manage to (check that
+    --          list.asm shows some actually emitted binary for this), then
+    --          the above test may need replacing.
+    --          Update: Above occurred, replaced with the following. Same may
+    --          happen again if the compiler gets smarter.
+if equal("3","4") then
+    XYZ(1)
+    XYZ(3)
+    XYZ(0)
+end if
+
+
+--string result
+--
+--  result = ""
+--  result &= '.'
+----            result &= digit+'0'
+--  if length(result)=0 then
+--      result="0"
+--  end if
+--
+sequence args
+integer nxt
+object OOO
+    args = {{}}
+    nxt = 1
+    OOO = args[nxt]
+--!/**/ #istype{OOO,object}     -- 0b0100 better
+--!/**/ #istype{OOO,0b0100}     -- 18/9 now getting this from pilx86.e, object from pmain.e
+    if atom(OOO) then
+--!/**/ #istype{OOO,atom}
+--!/**/ #istype{OOO,0000}   -- 18/9 now getting this from pilx86.e, atom from pmain.e
+        puts(1,"umm\n")
+    end if
+--!/**/ #istype{OOO,object}     -- ""
+
+
+
+--/**/constant RDS=0
+--/*
+      constant RDS=1
+type string(object s)
+object c
+    if atom(s) then return 0 end if
+    for k = 1 to length(s) do
+        c=s[k]
+        if not integer(c) then return 0 end if
+        if c<0 then return 0 end if
+        if c>#FF then return 0 end if
+    end for
+    return 1
+end type
+--*/
+
+
+procedure XP(object o)
+--/**/  #istype{o,object}
+        if integer(o) then
+            -- roottype of o is now integer (0b0001)
+--          if integer(o) then puts(1,"ple\n") end if   -- ple(1) wanted!
+--          if atom(o) then puts(1,"ple\n") end if      -- ple(1) wanted!
+--          if string(o) then puts(1,"ple\n") end if    -- ple(0) wanted!
+--/**/      #istype{o,integer}
+        else
+            -- roottype of o is now "not integer" (0b1110)
+--          if integer(o) then puts(1,"ple\n") end if   -- ple(0) wanted!
+--/**/      #istype{o,0b1110}
+            if string(o) then
+--/**/          #istype{o,0b1000}
+            else
+                -- roottype of o is now "not integer and not string" (0b0110)
+--              if string(o) then puts(1,"ple\n") end if    -- ple(0) wanted!
+--/**/          #istype{o,0b0110}
+            end if
+--/**/      #istype{o,0b1110}
+        end if
+--/**/  #istype{o,object}
+        if not integer(o) then
+            -- roottype of o is now "not integer" (0b1110)
+--          if integer(o) then puts(1,"ple\n") end if   -- ple(0) wanted!
+--/**/      #istype{o,0b1110}
+        else
+            -- roottype of o is now integer (0b0001)
+--          if integer(o) then puts(1,"ple\n") end if   -- ple(1) wanted!
+--          if atom(o) then puts(1,"ple\n") end if      -- ple(1) wanted!
+--          if string(o) then puts(1,"ple\n") end if    -- ple(0) wanted!
+--/**/      #istype{o,0b0001}
+        end if
+--/**/  #istype{o,object}
+        nse=1   -- avoid "no side effects" warning
+end procedure
+XP(1)
+XP(1.1)
+XP("string")
+XP({-1})
+
+
+integer R
+--if RDS then end if
+--if not RDS then end if
+--if RDS then R=1 end if
+--if not RDS then R=1 end if
+type tj(integer j) return j>=1 end type
+type tk(tj k) return k>=2 end type
+-- we now have a "type chain" of tk->tj->integer.
+R = tk(1)   -- [R=0]
+tj j,j2     j=1
+--/**/      #istype{j,tj}
+tk k,k2     k=2
+--/**/      #istype{k,tk}
+integer R2
+            R2 = R  -- no tc
+--/**/      #istype{R2,integer}
+            R2 = j  -- no tc
+--DEV (broke 19/8/12)
+--!/**/     #istype{R2,tj}
+            R2 = k  -- no tc
+--DEV (")
+--!/**/     #istype{R2,tk}
+--          j2 = R  -- tc   (good, fails)
+            j2 = j  -- no tc
+--/**/      #istype{j2,tj}
+            j2 = k  -- no tc
+--DEV(")
+--!/**/     #istype{j2,tk}
+--/**/      #istype{j2,tj} --???
+--          k2 = R  -- tc   (good, fails[in tk])
+--          k2 = j  -- tc   (good, fails)
+            k2 = k  -- no tc
+--/**/      #istype{k2,tk}
+
+if not tj(1) then puts(1,"erm...\n") end if
+
+type ta(object a) return a=a end type
+type tb(ta b) return b=b end type
+ta A tb B
+B = 99  -- tc
+A = B   -- no tc
+B = A   -- no tc!!!
+A = 99  -- tc
+B = A   -- tc rqd
+
+--      R = integer(j)  --> ple (a)
+--      R = integer(k)  --> ple (a)
+--      R = tj(j)       --> ple (a)
+--/**/  #istype{j,tj}
+--      R = tj(k)       --> ple (a)
+--/**/  #istype{k,tk}
+        R = tk(j)       -- OK
+--      R = tk(k)       --> ple (a)
+--      R = sequence(j) --> ple (b)
+--      R = sequence(k) --> ple (b)
+
+type ts(sequence s) return length(s)=3 end type
+ts s    s = {1,2,3}
+--      R = integer(s)  --> ple (b)
+--/**/  #istype{s,ts}
+if not RDS then
+--      R = ts(j)       --> ple (b)
+--      R = ts(k)       --> ple (b)
+end if
+--      R = ts(s)       --> ple (a)
+--      R = sequence(s) --> ple (a)
+        R = string(s)   -- OK
+
+
+type X(integer x)
+    return x=1
+end type
+type Y(X y)
+    return y=1
+end type
+X x
+Y y
+x=1
+y=1
+--if X(x) then puts(1,"ok\n") else puts(1,"X(x)\n") end if              -- ple
+--/**/  #istype{x,X}
+--if integer(x) then puts(1,"ok\n") else puts(1,"integer(x)\n") end if  -- ple
+--if Y(y) then puts(1,"ok\n") else puts(1,"Y(y)\n") end if              -- ple
+--if X(y) then puts(1,"ok\n") else puts(1,"X(y)\n") end if              -- ple
+--/**/  #istype{y,Y}
+--if integer(y) then puts(1,"ok\n") else puts(1,"integer(y)\n") end if  -- ple
+--if atom(x) then puts(1,"ok\n") else puts(1,"atom(x)\n") end if        -- ple
+--if atom(y) then puts(1,"ok\n") else puts(1,"atom(y)\n") end if        -- ple
+--if sequence(y) then puts(1,"ok\n") else puts(1,"atom(y)\n") end if    -- ple
+--if string(y) then puts(1,"ok\n") else puts(1,"atom(y)\n") end if      -- ple
+
+integer I
+atom N
+string S
+sequence P
+object O
+    I=1
+    N=1.5
+    S="string"
+    P={-1}
+--if integer(I) then puts(1,"ok\n") else puts(1,"integer(I)\n") end if      -- ple(1)
+--if atom(I) then puts(1,"ok\n") else puts(1,"atom(I)\n") end if            -- ple(1)
+--if string(I) then puts(1,"ok\n") else puts(1,"string(I)\n") end if        -- ple(0)
+--if sequence(I) then puts(1,"ok\n") else puts(1,"sequence(I)\n") end if    -- ple(0)
+--if object(I) then puts(1,"ok\n") else puts(1,"object(I)\n") end if        -- ple(1)
+--/**/  #istype{I,integer}
+--if integer(N) then puts(1,"integer(N)\n") end if                          -- ple(0)
+--if atom(N) then puts(1,"ok\n") else puts(1,"atom(N)\n") end if            -- ple(1)
+--if string(N) then puts(1,"ok\n") else puts(1,"string(N)\n") end if        -- ple(0)
+--if sequence(N) then puts(1,"ok\n") else puts(1,"sequence(N)\n") end if    -- ple(0)
+--if object(N) then puts(1,"ok\n") else puts(1,"object(N)\n") end if        -- ple(1)
+--/**/  #istype{N,0b0010}
+--if integer(S) then puts(1,"ok\n") else puts(1,"integer(S)\n") end if      -- ple(0)
+--if atom(S) then puts(1,"ok\n") else puts(1,"atom(S)\n") end if            -- ple(0)
+--if string(S) then puts(1,"ok\n") else puts(1,"string(S)\n") end if        -- ple(1)
+--if sequence(S) then puts(1,"ok\n") else puts(1,"sequence(S)\n") end if    -- ple(1)
+--if object(S) then puts(1,"ok\n") else puts(1,"object(S)\n") end if        -- ple(1)
+--/**/  #istype{S,string}
+--if integer(P) then puts(1,"ok\n") else puts(1,"integer(P)\n") end if      -- ple(0)
+--if atom(P) then puts(1,"ok\n") else puts(1,"atom(P)\n") end if            -- ple(0)
+--if string(P) then puts(1,"uh?\n") end if                                  -- ple(0)
+--if sequence(P) then puts(1,"ok\n") else puts(1,"sequence(P)\n") end if    -- ple(1)
+--if object(P) then puts(1,"ok\n") else puts(1,"object(P)\n") end if        -- ple(1)
+--/**/  #istype{P,0b0100}
+--O=I
+
+function f(object o) return o end function
+-- ^^ dummy function to thwart localtypes.
+-- The compiler is /NOT/ [yet?] smart enough to figure out that f("string") is type string;
+--  (this routine deliberately chosen/written because o="string" messes with localtypes,
+--   whereas o=f("string") functions exactly the same except no messing  ""      ""    !)
+--  NB for this to work proper, you must pass multiple argument types (since the hidden 
+--      "Function Return Tvar" gets the full localtype treatment just like any other var).
+
+O=f(I)
+if integer(O) then
+    if showprogress then
+        puts(1,"ok\n")
+    end if
+else
+    puts(1,"BUG: integer(O)\n")
+end if
+if atom(O) then
+    if showprogress then
+        puts(1,"ok\n")
+    end if
+else
+    puts(1,"BUG: atom(O)\n")
+end if
+if string(O) then
+    puts(1,"BUG: string(O)\n")
+else
+    if showprogress then
+        puts(1,"ok\n")
+    end if
+end if
+if sequence(O) then
+    puts(1,"BUG: sequence(O)\n")
+else
+    if showprogress then
+        puts(1,"ok\n")
+    end if
+end if
+
+--if object(O) then puts(1,"ok\n") else puts(1,"object(O)\n") end if    -- ple
+
+integer ie
+type odd_int1(integer e)
+    return and_bits(e,1)
+end type
+    ie = odd_int1(1)    -- no ple!
+odd_int1 oi1
+    oi1 = 1
+--  ie = integer(oi1)   -- ple please!  -- OK!
+--/**/  #istype{oi1,odd_int1}
+
+type odd_int2(object e)
+    if not integer(e) then return 0 end if
+    return and_bits(e,1)
+end type
+    ie = odd_int2(1)
+
+type odd_int3(odd_int1 e)
+    return and_bits(e,1)
+end type
+    ie = odd_int3(1)    -- no ple!
+odd_int3 oi3
+    oi3 = 1
+--  ie = integer(oi3)   -- ple please!  -- OK!
+--/**/  #istype{oi3,odd_int3}
+
+type odd_int4(object e)
+    if not odd_int1(e) then return 0 end if
+    return and_bits(e,1)
+end type
+    ie = odd_int4(1)
+
+type odd_int5(object e)
+    if odd_int1(e) then return and_bits(e,1) end if
+    return 0
+end type
+    ie = odd_int5(1)
+
+--with trace
+--trace(1)
+--test:
+--type udt(object o) return atom(o) or sequence(o) end type     -- 29/7/09 now correctly gives ple
+type udt(object o) return equal(o,o) end type
+object o
+udt a,b
+        o = f(99)
+        a = f(99)
+        b = f(99)
+        a = b   -- no tc
+--/**/  #istype{a,udt}
+--/**/  #istype{b,udt}
+--/**/  #istype{o,object}
+        a = o   -- tc rqd
+        if udt(o) then
+--/**/      #istype{o,udt}
+            a = o   -- no tc
+        end if
+--/**/  #istype{o,object}
+        a = o   -- tc rqd
+
+-- from da book:
+type TK(integer K) if K then end if return 1 end type   TK K,K2
+type TL(TK L) if L then end if return 1 end type        TL L,L2
+procedure jkl()
+integer J,J2
+
+    J2=1 K=1 K2=1 L=1 L2=1
+
+--(nb order is critical ;-))
+    J = K   -- notc
+    J = L   -- notc
+    J = J2  -- notc
+    K = K2  -- notc
+    K = L   -- notc
+    K = J   -- tc
+    L = J   -- tc
+    L = K   -- tc
+    L = L2  -- notc
+
+    J2=1 K2=1 L2=1
+end procedure
+--if 1=2 then jkl() end if
+if equal("1","2") then jkl() end if
+
+--abort(1)
+
+--integer z
+--object o
+--  o=1.5
+--  z=o
+--procedure DoSequence()
+--integer len
+--sequence constseq
+--  len = 0
+--  constseq = {}
+--end procedure
+--DoSequence()
+
+--constant XSEQ = {},
+--       XSTR = ""
+--sequence x, y
+--  x = {}
+--  y = ""
+--if string(x) then
+--  puts(1,"x *IS* a string!!\n")
+--else
+--  puts(1,"x is not a string\n")
+--end if
+--if string(y) then
+--  puts(1,"y is a string\n")
+--else
+--  puts(1,"y is *NOT* a string!!\n")
+--end if
+
+--if getc(0) then end if
+--type tj(integer j) return j>=1 end type   -- already defined
+--tj j                                      -- ""
+    --/**/  #istype{j,tj}
+    j=1
+    --/**/  #istype{j,tj}
+
+--object o                                  -- already defined
+    if integer(o) then
+        --/**/ #istype{o,integer}
+    end if
+    if tj(o) then
+-- brokne on newEBP (as above)
+--      --/**/ #istype{o,tj}
+--      a? = o  -- no tc (when localtypes are working)
+    end if
+--  if 3=4 then
+    if equal("3","4") then
+        o=1
+        --/**/  #istype{o,integer}
+    end if
+
+procedure compress(object x)
+integer a
+    --/**/  #istype{x,object}
+    if integer(x) then
+        --/**/  #istype{x,integer}
+        a=1
+    else
+        --/**/  #istype{x,0b1110}
+        a=0
+    end if
+    --/**/  #istype{x,object}
+    if a and integer(x) then
+        --/**/  #istype{x,integer}
+    else
+        --/**/  #istype{x,object}
+    end if
+    --/**/  #istype{x,object}
+    if integer(x) and a then
+        --/**/  #istype{x,integer}
+    else
+        --/**/  #istype{x,object}
+    end if
+    --/**/  #istype{x,object}
+    if a or integer(x) then
+        --/**/  #istype{x,object}
+    else
+        --/**/  #istype{x,object}
+    end if
+    --/**/  #istype{x,object}
+    if integer(x) or a then
+        --/**/  #istype{x,object}
+    else
+        --/**/  #istype{x,object}
+    end if
+    --/**/  #istype{x,object}
+    if integer(x) or 
+        --/**/  #istype{x,0b1110}   -- not integer (for remainder of condition only)
+        a then
+        --/**/  #istype{x,object}
+    else
+        --/**/  #istype{x,object}
+    end if
+    --/**/  #istype{x,object}
+
+    if integer(x) then
+        --/**/  #istype{x,integer}
+        x -= 1
+        if showprogress then
+            puts(1,"hello\n")
+        end if
+    elsif atom(x) then
+        --/**/ #istype{x,0b0010}
+        if showprogress then
+            puts(1,"hello2\n")
+        end if
+    end if
+    --/**/  #istype{x,object}
+    x=1
+    --/**/  #istype{x,integer}
+    while x=2 do
+        --/**/  #istype{x,integer}      -- (deduced from the x=1 test)
+        x={}
+        --/**/  #istype{x,0b0100}
+    end while
+--DEV 3/8/09. pmain.e is still getting this wrong (object),
+--  but now pilx86.e is getting integer (clever little boy that he be!).
+-- temp. removed (comment out opLtype emit, to fix this in pemit.e, 
+--                OR: #istype{x,object[,flag]} where flag can be:
+--                  1: pmain.e only
+--                  2: pilx86.e only (and probably isGscan=0 only)
+--                  3: both)
+--              
+-- --/**/   #istype{x,object}           -- 0b0101 better//0b0001 better still
+    x=1
+    --/**/  #istype{x,integer}
+    while x<=1 do
+-- ?? not sure about this one (getting integer in pilx86) [**DEV** re-check list.asm when done] [replaced 19/8/12]
+        --/**/  #istype{x,object}
+        if x=1 then exit end if
+        x={}
+        --/**/  #istype{x,0b0100}
+    end while
+-- ditto [DEV]
+--  --/**/  #istype{x,object}           -- 0b0101 better (19/8/12 I get that when I -c it, object when interpreting)
+    x=1
+    --/**/  #istype{x,integer}
+    while x!=1 do
+        --/**/  #istype{x,object}
+        x=1.5
+        --/**/  #istype{x,0b0010}
+        x={}
+        --/**/  #istype{x,0b0100}
+    end while
+-- ditto [DEV]
+--  --/**/  #istype{x,object}           -- 0b0111 better (19/8/12 I get 0b0101 under -c, object when interpreting)
+    x=1
+    --/**/  #istype{x,integer}
+    while x!=1 do
+        --/**/  #istype{x,object}
+        x=1.5
+        --/**/  #istype{x,0b0010}
+        if x<2 then exit end if
+        x={}
+        --/**/  #istype{x,0b0100}
+    end while
+--DEV ditto
+--  --/**/  #istype{x,object}           -- 0b0111 better (19/8/12 I get 0b0101 under -c, object when interpreting)
+
+end procedure
+compress(9.9)
+
+constant YY=1
+    --/**/  #istype{YY,integer}
+
+procedure xxx()
+object result
+        result = {1.1,2,3,4}
+
+--/**/  #istype{result,0b0100}
+--      if 3 = 4 then
+        if equal("3",f("4")) then
+--/**/      #istype{result,0b0100}
+            result = 1
+--/**/      #istype{result,integer}
+        
+--      elsif 4 = 4 then
+        elsif equal("4",f("4")) then
+--/**/      #istype{result,0b0100}
+            result = 1
+--/**/      #istype{result,integer}
+
+        end if
+--/**/  #istype{result,0b0101}
+
+        if result then
+            if showprogress then
+                puts(1,"hello\n")
+            end if
+        end if
+
+end procedure
+
+if YY then xxx() end if
+
+constant MININT =-#40000000,
+         MAXINT = #3FFFFFFF
+
+atom min, max
+--/**/  #istype{min,atom}
+--/**/  #istype{max,atom}
+        min = 1
+--/**/  #istype{min,integer}
+        min = MININT
+--/**/  #istype{min,integer}
+        max = 1
+--/**/  #istype{max,integer}
+        max = MAXINT
+--/**/  #istype{max,integer}
+
+        --  type tj(integer j) return j>=1 end type
+        --  type tk(tj k) return k>=2 end type
+        --==-- we now have a "type chain" of tk->tj->integer[->atom].
+        --  tj j    j=1
+        --  tk k    k=2
+        --  integer(j) --> ple(1)
+        --  integer(k) --> ple(1)
+        --  tj(j)      --> ple(1)
+        --  tj(k)      --> ple(1)
+        --  tk(j)       -- OK
+        --  tk(k)      --> ple(1)
+        --  sequence(j)--> ple(0)
+        --  sequence(k)--> ple(0)
+        --  type ts(sequence s) return length(s)=3 end type
+        --  ts s    s = {1,2,3}
+        --  integer(s) --> ple(0)
+        --  ts(j)      --> ple(0)
+        --  ts(k)      --> ple(0)
+        --  ts(s)      --> ple(1)
+        --  sequence(s)--> ple(1)
+        --  string(s)   -- OK
+        --
+        -- Localtypes are also used, eg:
+        --  object x,y
+        --      x="string"
+        --      string(x)   -- ple(1)
+        --      atom(x)     -- ple(0)
+        --      x=1
+        --      string(x)   -- ple(0)
+        --      integer(x)  -- ple(1)
+        --      if integer(y) then
+        --          string(y)   -- ple(0)
+        --      end if
+
+integer a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,
+        a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,
+        a21,a22,a23,a24,a25,a26,a27,a28,a29,a30
+
+
+procedure p1()
+        a1=1 a2=1 a3=1 a4=1 a5=1 a6=1 a7=1 a8=1 a9=1 a10=1
+        a11=1 a12=1 a13=1 a14=1 a15=1 a16=1 a17=1 a18=1 a19=1 a20=1
+        a21=1 a22=1 a23=1 a24=1 a25=1 a26=1 a27=1 a28=1 a29=1 a30=1
+end procedure
+
+-- manually check this gets the same [S_Efct] as p1:
+procedure p1a()
+    if 1=2 then
+        a1=1 a2=1 a3=1 a4=1 a5=1 a6=1 a7=1 a8=1 a9=1 a10=1
+    elsif 1=3 then
+        if 1=4 then
+            a11=1 a12=1 a13=1 a14=1 a15=1 a16=1 a17=1 a18=1 a19=1 a20=1
+        else
+            a21=1 a22=1 a23=1 a24=1 a25=1 a26=1 a27=1 a28=1 a29=1 a30=1
+        end if
+    end if
+end procedure
+
+-- manually check this gets the same [S_Efct] as p1:
+procedure p2()
+atom max
+        max = 1
+--/**/  #istype{max,integer}
+        p1()
+--/**/  #istype{max,integer}
+        p1()
+--/**/  #istype{max,integer}
+end procedure
+
+if 1=2 then
+    p1a()
+    p2()
+end if
+
+--/**/  #istype{o,object}
+        o=f("string")
+--/**/  #istype{o,object}   -- compiler is not smart enough to figure this one out yet
+        if integer(o) then
+--/**/      #istype{o,integer}      --[1]
+        elsif string(o) then
+--/**/      #istype{o,string}       --[2]
+        else
+--/**/      #istype{o,0b0110}       --[3]
+        end if
+--/**/  #istype{o,object}           --[4]
+--
+--  Originally, o was treated as an object throughout, whereas with localtypes:
+--      at [1] we know o is an integer
+--      at [2] we know o is a string
+--      at [3] we know o is a float or a sequence, not integer or string
+--      at [4] we must revert to treating o as an object
+
+--      if x or (integer(o) and p) or y then
+--
+--        During the evaluation of p, we know o is an integer, but
+--        during the evaluation of y, o must be treated as object.
+--
+object p
+    p=f("string")
+    if 1=2 
+--  or (integer(o) and o=p)
+    or (integer(o) and 
+--  --/**/#istype{o,object} -- 0b0001 (integer) better
+    --/**/#istype{o,integer} -- fixed 19/7/09
+        equal(o,p))
+--  or o=p then
+    or 
+    --/**/#istype{o,object}
+        equal(o,p) then
+--/**/  #istype{o,object}
+    end if
+    if integer(o) and o=p then
+--/**/  #istype{o,integer}
+    end if
+--/**/  #istype{o,object}
+
+--      if x and (integer(o) or p) and y then
+--
+--        During the evaluation of p, we know o is not integer,
+--        likewise for the evaluation of y, o must revert to object.
+--
+    if 1=2 
+--  and (integer(o) or o=p)
+    and (integer(o) or 
+--  --/**/#istype{o,object} -- 0b1110 (not integer) better
+    --/**/#istype{o,0b1110} -- fixed 29/7/09
+        equal(o,p))
+--  and o=p then
+    and 
+    --/**/#istype{o,object}
+        equal(o,p) then
+--/**/  #istype{o,object}
+    end if
+    if integer(o) or
+--/**/  #istype{o,0b1110}
+         equal(o,p) then
+--/**/  #istype{o,object}
+    end if
+--/**/  #istype{o,object}
+
+
+--      object x
+--      ...
+procedure modo()    o = 1   end procedure
+procedure modp()    p = 1   end procedure
+        if integer(o) then
+--/**/      #istype{o,integer}
+            modo()
+--/**/      #istype{o,object}
+        else
+--/**/      #istype{o,0b1110}
+        end if
+--/**/  #istype{o,object}
+        if integer(o) then
+--/**/      #istype{o,integer}
+            modp()
+--/**/      #istype{o,integer}
+        else
+--/**/      #istype{o,0b1110}
+        end if
+--/**/  #istype{o,object}
+
+--function f(object o) return o end function
+--object o
+integer cc
+        o = f("string")
+        cc = f(1)
+        if integer(o) then          --: set and toggle (as first example)
+--/**/      #istype{o,integer}
+        elsif cc then
+--/**/      #istype{o,0b1110}
+        end if
+--/**/  #istype{o,object}
+        if integer(o) and cc then   --: set but no toggle
+--/**/      #istype{o,integer}
+        elsif cc then
+--/**/      #istype{o,object}
+        end if
+--/**/  #istype{o,object}
+        if cc and integer(o) then   --: set but no toggle
+--/**/      #istype{o,integer}
+        elsif cc then
+--/**/      #istype{o,object}
+        end if
+--/**/  #istype{o,object}
+        if integer(o) or cc then --: no set, no toggle[*]
+--/**/      #istype{o,object}
+        elsif cc then
+--/**/      #istype{o,object}
+        end if
+--/**/  #istype{o,object}
+        if cc or integer(o) then --: no set, no toggle
+--/**/      #istype{o,object}
+        elsif cc then
+--/**/      #istype{o,object}
+        end if
+--/**/  #istype{o,object}
+
+procedure setIndex(integer id, object selection)
+        if id then
+            if sequence(selection) then return end if
+--/**/      #istype{selection,atom}
+        else
+--/**/      #istype{selection,object}
+        end if
+        nse=1   -- avoid "no side effects" warning
+end procedure
+if 1=f(2) then setIndex(0,"") end if
+
+procedure XXX()
+object XX
+--!/**/ #isinit{XX,0}
+        if integer(XX) and  --/**/  #istype{XX,integer}
+            XX>=0 and       --/**/  #istype{XX,integer}
+            XX<=255 and     --/**/  #istype{XX,integer}
+            XX<=255 then
+--/**/          #istype{XX,integer}
+        end if
+--/**/  #istype{XX,object}
+        if XX>=0 and        --/**/  #istype{XX,object}
+            integer(XX) and --/**/  #istype{XX,integer}
+            XX<=255 and     --/**/  #istype{XX,integer}
+            XX<=255 then
+--/**/          #istype{XX,integer}
+        end if
+--/**/  #istype{XX,object}
+        if XX>=0 and        --/**/  #istype{XX,object}
+            XX<=255 and     --/**/  #istype{XX,object}
+            integer(XX) and --/**/  #istype{XX,integer}
+            XX<=255 then
+--/**/          #istype{XX,integer}
+        end if
+--/**/  #istype{XX,object}
+
+
+        if integer(XX) or   --/**/  #istype{XX,0b1110}
+            XX>=0 or        --/**/  #istype{XX,0b1110}
+            XX<=255 or      --/**/  #istype{XX,0b1110}
+            XX<=255 then
+--/**/          #istype{XX,object}
+        end if
+--/**/  #istype{XX,object}
+        if XX>=0 or         --/**/  #istype{XX,object}
+            integer(XX) or  --/**/  #istype{XX,0b1110}      -- (0b1110 is "not integer")
+            XX<=255 or      --/**/  #istype{XX,0b1110}      -- ""
+            XX<=255 then
+--/**/          #istype{XX,object}
+        end if
+--/**/  #istype{XX,object}
+        if XX>=0 or         --/**/  #istype{XX,object}
+            XX<=255 or      --/**/  #istype{XX,object}
+            integer(XX) or  --/**/  #istype{XX,0b1110}
+            XX<=255 then
+--/**/          #istype{XX,object}
+        end if
+--/**/  #istype{XX,object}
+        XX=1
+        XX={}
+    nse=1   -- avoid "no side effects" warning
+end procedure
+if f(1)=2 then XXX() end if
+
+procedure kkk()
+object x,y
+        y=x[1]
+--!/**/ #istype{x,0b1100}   -- DEV not implemented
+        x=1
+    nse=1   -- avoid "no side effects" warning
+end procedure
+if 1=f(2) then kkk() end if
+--if getc(0) then end if
+
+-- This got itself broke. (The wParam=25 correctly sets wParam to integer,
+--  but the "then return" was incorrectly promoting that type to the
+--  containing if-construct. It now uses noofbranches=1, the same check
+--  that was being used/introduced for flippable.)
+function newHandler(atom wParam)
+--/**/  #istype{wParam,atom}
+        if wParam=25 then return newHandler(wParam) end if
+--/**/  #istype{wParam,atom}
+        if wParam=35 then return newHandler(wParam) end if
+--/**/  #istype{wParam,atom}
+        return 0
+end function
+if newHandler(1) then end if
+
+-- BUGFIX 28/1/09 (getting ple on "if sequence(o) then"; "and ifBP=0" added to DoIf().):
+integer l
+function F(object o)
+    if sequence(o) and length(o) = 0 then
+        return 0
+    end if
+    if sequence(o) then
+        l = 1
+    end if
+    return 1
+end function
+-- tests unimportant, except to gvar o as "anything".
+--  nesting to avoid those stupid short-circuit warnings (dgms!).
+--  (actually it was going wrong w/o these calls anyway...)
+if F({}) then
+    if F(1) then
+        if F(1.5) then
+            if F("string") then
+                if F({-1,"",{},1.5}) then
+                    puts(1,"oops\n")
+                    abort(1)
+                end if
+            end if
+        end if
+    end if
+end if
+ 
+--        [DEV: todo: something like this is probably not caught
+--              if sequence(x) then
+--                  -- x not modified
+--              else
+--                  x = {}
+--              end if
+--          clearly we could deduce that x is always sequence here, but
+--          currently this code will not mix/merge SET/TEST properly.
+--          See also t46ltype.]
+
+-- Added 30/7/09:
+
+object savepath
+
+        savepath = "string"
+--/**/ #istype{savepath,string}     -- OK!
+        if 3=f(2) then
+            savepath = 0
+        else
+            if 3=f(4) then
+                savepath = 0
+            end if
+        end if
+--/**/ #istype{savepath,0b1001} -- was getting integer!
+
+-- Added 30/7/09: (got the new op<INSP>0 tests the wrong way round)
+
+object  ppp_Nest        -- nest level
+--      ppp_Nest=0
+
+integer  nindent
+
+procedure pp_Init()
+    ppp_Nest = 0
+end procedure
+
+    pp_Init()
+    if not sequence(ppp_Nest) then
+        ppp_Nest = {1,ppp_Nest}
+    end if
+    nindent = ppp_Nest[1]
+
+-- Added 30/7/09: (not resetting lprev[i] = lprev[lvlen] in kill().)
+
+integer a99, b99, c99
+        c99 = 0
+string result
+procedure round()
+    if a99 then
+        if b99 then
+            result[1] = result[2]
+            result[2] = '.'
+            c99 = 1
+        end if
+    end if
+end procedure
+result = ".0" a99=1 b99=1 round()
+
+-- Added 03/08/09:
+type w32string(object s)
+    return sequence(s)
+end type
+
+procedure newUIObj(object pParms)
+--/**/  #istype{pParms,object}
+        if w32string(pParms) then
+--/**/      #istype{pParms,w32string}
+            if equal(pParms,{2}) then
+                pParms = pParms[2..3]
+--/**/          #istype{pParms,sequence}
+            end if
+--/**/      #istype{pParms,object}
+            pParms = pParms     -- compilation error here
+--/**/      #istype{pParms,object}
+        end if
+--/**/  #istype{pParms,object}
+        nse = 1
+end procedure
+newUIObj({1})
+newUIObj("1")
+
+procedure n2(w32string pParms)
+--/**/  #istype{pParms,w32string}
+        if equal(pParms,{2}) then
+            pParms = pParms[2..3]
+--/**/      #istype{pParms,w32string}
+        end if
+--/**/  #istype{pParms,w32string}
+        pParms = pParms
+--/**/  #istype{pParms,w32string}
+        nse = 1
+end procedure
+n2({1})
+
+-- Added 10/8/09:
+-- w32msgs.e
+
+integer v
+
+procedure w32SetCType(object pChar)
+    if sequence(pChar) and sequence(pChar[1]) then
+        v = 16
+    else
+        v = 16
+    end if
+end procedure
+
+w32SetCType({{127}})
+
+--Added 28/9/09:
+-- (from pttree.e, emitON/opCtrl error)
+
+integer ttidx
+        ttidx = 0
+
+constant hll_tt_search=0
+
+procedure tt_search()
+        if hll_tt_search then
+            while 1 do
+                if not ttidx then
+                    ttidx=1
+                else
+                    ttidx=0
+                end if
+            end while
+        else -- not hll_tt_search:
+            ttidx = 0
+        end if  -- hll_tt_search
+end procedure
+tt_search()
+
+--Added 29/9/9:
+-- (opAsm not clearing reg table properly)
+
+----/**/ constant hll_tt_search=0
+
+procedure tt_search2()
+
+integer pcurr   -- 1-based ptr idx, for later update of tt[pcurr] if needbe.
+
+    pcurr = 0
+
+--/* hll version:
+--*/  if hll_tt_search then
+        ttidx = 0
+--/*
+--*/  else -- not hll_tt_search:
+--/**/  #ilASM{ -- eax = ttidx/pcurr (nb 0-based here)
+--/**/          xor eax,eax                         -- mov eax,0
+--/**/          add eax,5
+--/**/          mov [pcurr],eax }                   -- pcurr = 5
+--/**/      pcurr += 1
+--/**/  end if  -- hll_tt_search
+
+    if pcurr=6 then
+        if showprogress then
+            puts(1,"OK\n")
+        end if
+    elsif pcurr=1 then
+        puts(1,"BUG: pcurr is 1\n")
+    else
+        puts(1,"BUG: pcurr is ??\n")
+    end if
+
+    pcurr = 10
+
+end procedure
+tt_search2()
+
+-- Added 29/9/9:
+function Ysprintf(object args)
+string r1
+object o
+                    if atom(args) then
+                        o = args
+                    else
+                        o = args[1]
+                    end if
+--/**/  #istype{o,object}
+                    if atom(o) then
+--/**/  #istype{o,atom}
+                        r1 = " "
+                        r1[1] = and_bits(#FF,o)
+                    else
+                        r1 = o
+                    end if
+    return r1
+end function
+
+object X3
+    X3 = Ysprintf({"Hello Pete"})
+if showprogress then
+    puts(1,X3)
+end if
+
+-- Added 1/10/09:
+-- (the ltcall from the applyFont() in buildFontSet() was setting ptype to T_integer...
+--  of course a later undo was leaving hFont's [S_ltype] as T_integer permanently,
+--  which played havoc in setHelpFont with both a ple and an atsaa(at compile-time).)
+object void
+
+object hFont
+
+sequence fontDCs        -- DC store for all fonts yet displayed (else zero)
+fontDCs = {1,1.5,{}}    
+fontDCs = append(fontDCs,"")    -- (sequence of object)
+
+procedure applyFont()
+        hFont=fontDCs[1]
+end procedure
+
+procedure buildFontSet()
+    hFont=0
+    applyFont()
+end procedure
+
+procedure setHelpFont()
+    if sequence(hFont) then
+        void = hFont[4]
+    end if
+end procedure
+
+if length(fontDCs)=5 then   -- (never true)
+    setHelpFont()   -- suppress warning
+    buildFontSet()  -- suppress warning
+end if
+
+-- Added 6/10/09:
+--  (a dummy opMovbi was needed in makeBool; previously the "or"
+--   set absolute to 0..0, then 1..1 and left it at that. Now 
+--   it uses an {opMovbi,BN,-1,0} [ie a src of -1] to force the 
+--   necessary 0..1)
+sequence new_include_name
+
+function path_open()
+integer absolute
+sequence errbuff
+
+    absolute = 0
+    
+    absolute = find(new_include_name[1], "\\/:") or
+               find(':', new_include_name)
+    
+    if absolute then
+        errbuff = new_include_name
+        return 9/0
+    end if
+
+    return 1    -- OK
+    
+end function
+
+    integer new_file
+    new_include_name = "aam.e"
+    new_file = path_open() -- sets new_include_name to full path 
+
+-- Broken 15/11/09 (when compiled only). The problem was that opMove (etc) was not
+--  calling ltAdd because the next op was opTchk... but opTchk was calling getSrc.
+--  Hence d={1} makes d a sequence of integer, which the next line left alone, and
+--  then d[1] is both a) retrieved via opSubse1i (which crashes), and b) optimised
+--  away (so that even if it did not crash, the ?9/0 would always occur).
+with type_check
+
+function F2(object o)
+    return o
+end function
+
+sequence d
+integer i
+    i = F(0)
+
+    d = {1}
+
+    d = F2({20.25})
+
+    if d[1]!=20.25 then
+        ?9/0
+    end if 
+
+-- Added 21/11/09:
+-- (under q86, links in wrong order etc, crashed in blurph/pemit.e)
+--/**/  #ilASM{
+--/**/          xor eax,eax                         -- mov eax,0
+--/**/          jl :ttidxGT
+--/**/          jmp :endif
+--/**/        ::ttidxGT
+--/**/          add eax,2
+--/**/        ::endif
+--/**/          xor ebx,ebx}                        -- mov ebx,0
+
+-- Added 23/11/09: (opAsm jumps were being linked out of order (with
+--                  the hidden jump from the hll pcurr+=1), which
+--                  caused blurph() in pemit.e to panic (?9/0) when 
+--                  it converted a +ve offset to a -ve one, or maybe
+--                  it was vice versa. q86insert() added to pilx86.e)
+--
+-- **NB**  If you "p -d" this code and examine list.asm, the jump to
+--          ttidxLT is "branch straightened" to "endif"; needless
+--          to say I got caught out by this and wasted an hour...
+--          (Agreed, scanforShortJmp/blurph in pemit.e should spot
+--           the "174 00" and completely omit it, however attempts
+--           to do so (see dead5j/dead6j) failed miserably.)
+--
+integer ttidxA
+        ttidxA = 0
+
+integer pcurr
+
+    pcurr = 0
+--/**/  #ilASM{
+--/**/          xor eax,eax
+--/**/          jl :endif
+--/**/        ::ttidxLT
+--/**/          jmp :endif
+--/**/          jl :ttidxLT     -- **see above**!
+--/**/        ::endif
+--/**/          xor ebx,ebx}
+    pcurr += 1
+    ttidxA = 0
+
+-- Added 14/03/2010:
+--  (was getting ple(1), due to merge errors, see pltype.e)
+object style
+procedure getStyleText(object x, integer flag)
+        style = x
+--/**/  #istype{style,object}
+        if sequence(style) then
+--/**/      #istype{style,sequence}
+            if flag then
+                style = style[2]
+--/**/          #istype{style,object}
+            else
+                style = style[1]
+--/**/          #istype{style,object}
+            end if
+--/**/      #istype{style,object}
+            if sequence(style) then     --<< BUG: ple(1) here
+                style = 0
+            end if
+        end if
+end procedure
+getStyleText(0,0)
+getStyleText({1,2.1},1)
+getStyleText({"",{}},1)
+
+-- Added 14/03/2010:
+--  (was commented as *NOT IMPLEMENTED*; on testing it seems fine)
+--  (actually, now a duplicate of code above, but no harm leaving it here)
+function p_()
+    return 1
+end function
+
+procedure p_2(integer x, y, object o)
+--      if x or (integer(o) and p) or y then
+--
+--        During the evaluation of p, we know o is an integer, but
+--        during the evaluation of y, o must be treated as object.
+--
+
+    if x or (integer(o) and --/**/  #istype{o,integer}
+                            p_()) or --/**/ #istype{o,object}
+                                    y then
+        puts(1,"")
+    end if
+
+--      if x and (integer(o) or p) and y then
+--
+--        During the evaluation of p, we know o is not integer,
+--        likewise for the evaluation of y, o is an object.
+
+    if x and (integer(o) or --/**/  #istype{o,0b1110}
+                            p_()) and --/**/  #istype{o,object}
+                                     y then
+        puts(1,"")
+    end if
+end procedure
+
+p_2(0,0,1)
+p_2(0,1,1.5)
+p_2(1,0,"")
+p_2(1,1,{})
+
+-- Added 27/03/2010:
+sequence
+    DATATYPE
+
+procedure resetIniLists()
+    DATATYPE = {}
+end procedure
+
+    resetIniLists()
+
+    DATATYPE &= 0
+
+    DATATYPE[1..1] = DATATYPE[1..1]
+
+-- Added 29/12/2011:
+--  pltype.e/ltskip() was just leaving LOOP entries on the stack...,
+--  leading to ?9/0 when subsequent ltCtrl hit them [under -c only btw].
+--  I also had to add an "end" field to opLoopTop, since there was no
+--  such available for "while" statements, and the one on opFor got 
+--  clobbered with x86loc on the last pass.
+atom f2912
+string result2912
+procedure round2912()
+    if f2912>5 then
+        for i=length(result2912) to 1 by -1 do
+            f2912 = 0
+            exit
+        end for
+    end if
+end procedure
+
+    result2912 = "1"
+    f2912 = 0
+    round2912()
+
+-- Added 9/1/15:
+-- Solved by making pltype.e/mergeBlocks restore FLIPPED entries under FULL,
+--  which counteracted the UNDONE entries it had already just restored.
+--  Also added extra symtab[N][S_ltype] diagnostics to ltdiag.txt output.
+
+procedure errorise(object s)
+--/**/  #istype{s,object}
+        if atom(s) then
+--/**/      #istype{s,atom}
+        elsif string(s) then
+--/**/      #istype{s,string}
+            if length(s)>20 then
+                s = s[1..20]&".."
+            end if
+        else
+--/**/      #istype{s,0b0100}   -- !!!
+--!/**/     #istype{s,string}   -- !!!
+        end if
+        if showprogress then puts(1,"hello\n") end if
+end procedure
+errorise("thing")
+errorise({0})
+errorise(15)
+

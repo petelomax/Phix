@@ -1,0 +1,1127 @@
+--with profile
+--DEV see scowl for addTVItem's 5th param (iSel, icon when selected, [open folder])
+--
+-- demo_treeviews.exw
+-- fast treeviews in arwen.
+--
+-- Main features:
+-- =============
+--
+--  Lists all drives, and their files and directories.
+--
+--  Fast. See performance section below.
+--
+--  Treeview text is held in local table rather than Windows.
+--
+--  Subdirectory(subtree) loading delayed until item expanded.
+--
+--  Subdirectories initially shown as empty (when they are).
+--
+--  Selection of/auto-navigate to previous item, works equally on both 
+--   files and folders. See selectPreviousItem().
+--
+--  Simple implementation of imagelists.
+--   (some minor improvements no doubt possible)
+--   Extracting icons from files and obtaining defaults from the registry.
+--
+--  Drag/drop handling:
+--   a) visual:
+--    TVN_BEGINDRAG (g_fDragging=True),
+--    WM_MOUSEMOVE, (includes automatic scrolling)
+--    WM_LBUTTONUP (g_fDragging=False).
+--    -works both with and without icons/associated imagelist
+--   b) practical/physical:
+--    moveTree (recursive, preserving flags/icons etc)
+--    --Obviously, you'll need to completely rewrite the first half of this 
+--      function (fMove/c_func(xMoveFile)) if not working with files and 
+--      directories, second half can(/must) remain as-is.
+--
+--  In-place editing (via F2, does not change anything on disk).
+--
+--  Reload/refresh selected directory (F5). Now uses a freelist.
+--
+--  Control F5 and/or Shift F5 now reload the entire treeview.
+--
+--  Skips load of diskettes during startup (user must press F5).
+--
+--  Ability to toggle checkbox and icon display. It may be of 
+--   limited practical value to change such on-the-fly, but it
+--   may help in design choices.
+--
+--  Treeview resized to fit window.
+--
+--  Simple guard against dangerous actions, eg attempts to
+--   drag/rename C:\\Windows. (see function non_sensible())
+--
+--
+-- TODO / known issues:
+-- ===================
+--  F5 clears all checkboxes. In this DEMO, checkboxes don't do anything, are
+--   *not* stored anywhere, and F5 deletes the tree(/branch) and reloads all 
+--   data from disk, with all checkboxes blank by default.
+--   It is unlikely the behaviour of this program will change in that respect.
+--
+--  pop-menu on WM_RBUTTONUP:
+--   Drag-end suggestions include copy, move, create shortcut, cancel.
+--   Context suggestions include rename, delete, and create directory.
+--
+--  timer delays, eg auto-expand directory when hovering over it.
+--
+--  Migrate code/routines to arwen.ew [as & when suggested]
+--
+--  Label edit (F2) does nothing; might want moveFile (see TVN_ENDLABELEDIT)
+--   Note that, with this "update tree but not hard disk" situation in place,
+--    if you 'rename' a directory eg C:\temp to say C:\fred, before it, and
+--    /all/ subdirectories, have been expanded, then later attempts to expand
+--    (ie load) them will fail as dir(C:\fred) [and/or dir(C:\fred\stuff)]
+--    returns -1 instead of a listing for C:\temp[\stuff]. [obviously]
+--
+--  All drives get SI_HDD(8) icon; ideally it should pick one of SI_FLOPPY_514 (5)
+--   through SI_RAMDISK (12)
+--
+--  Using dir() to determine whether there are any files prior to loading
+--   them is somewhat overkill. There should probably be another builtin
+--   eg non_empty_dir() which returns False if dir is empty. (see d2)
+-- 
+--
+-- Performance:
+-- ===========
+--  This program is probably just as fast as Windows Explorer (arguments
+--   about the quality of that app aside), with one qualification:
+--  A fair comparison is not just to load a (single) big directory in
+--   this program and Explorer: the latter only loads directories into
+--   the treeview, it puts files and some subdirs into a (much simpler)
+--   listview, whereas this program puts the lot into a single treeview.
+--   If it takes Explorer 2 seconds to load say C:\\Windows\\System, 
+--   whereas this program takes 4, then for reasons outlined above I 
+--   perceive the treeview handling performance is level-pegging.
+--   Naturally, any such comparisons should be performed by running both 
+--   programs first, then timing them on a second run, to avoid either 
+--   being penalised for loading the cache while the other benefits from 
+--   the fact that the data needed is already in memory.
+--
+--  Failry obviously, if you organise your files/data so that no one 
+--   parent has more than say 1000 child records, then load delays are 
+--   very rarely noticeable, if ever. But even a plain listview of say
+--   10,000 items can take several seconds to load, even in assembly.
+--
+--  The check whether a directory contains files (under delayed loading)
+--   is somewhat suspect. Essentially it uses length(dir(path))>2, which
+--   may mean building a table several thousand entries long just to see
+--   if there is anything more than "." and "..". Naturally, a simpler
+--   and better answer would be to use a function which returns true the 
+--   moment it finds a (real) file, false if it finds no files.
+--   The pdir.e file as distributed with Phix could be used to craft
+--   such a routine, ie replacing res={}/res=append() with filecount=0/
+--   filecount+=1/if filecount>2 then return 0|1 (that source is windows 
+--   only but would be equally viable on Eu and Phix).
+--
+
+--/**/include arwen.ew
+--/* RDS Eu:
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+include ..\arwen\misc_arwen.e
+include ..\arwen\message_box.ew
+include ..\arwen\constants.ew
+include ..\arwen\dll_links.ew
+include ..\arwen\structures.ew
+include ..\arwen\Quick_Allocations.ew
+include ..\arwen\classes.ew
+include ..\arwen\imagelists.ew
+include ..\arwen\arwen.ew
+include ..\..\builtins\sort.e
+include ..\..\builtins\misc.e
+include ..\..\builtins\file.e
+--*/
+
+constant DEMO = create(Window,  "TreeViews Demo", 0, 0,410,10,340,350,0)
+
+constant TREE1 = create(TreeView, "", 0, DEMO,10, 10, 312, 244, TVS_EDITLABELS),
+         treeHwnd = getHwnd(TREE1)
+
+constant CHECK = create(CheckBox, "Show &CheckBoxes?", 0, DEMO, 10, 264, 170, 25, 0)
+constant ICONS = create(CheckBox, "Show &Icons?",     0, DEMO, 180, 264, 330, 25, 0)
+
+constant STATUS = create(StatusBar, "",0, DEMO, 10,10,430,350,0)
+
+-- get the recommended sizes for small icons:
+constant cX = c_func(xGetSystemMetrics,{SM_CXSMICON}),
+         cY = c_func(xGetSystemMetrics,{SM_CYSMICON})
+
+constant himl = c_func(xImageList_Create,{cX,cY,ILC_COLOR8+ILC_MASK,1,32})
+
+--===============
+--function getExtension(sequence name)
+--  for j = length(name) to 1 by -1 do
+--      if name[j]='.' then return upper(name[j+1..length(name)]) end if
+--  end for
+--  return ""
+--end function
+--
+--DEV make (optional) part of arwen? (arreg.ew)
+include ..\arwen\pFreg.ew   -- regIconInfo() [eg ".bat" ->/-> "C:\Windows\System\shell32.dll,-153"].
+--
+object iconinfo
+atom icon
+
+function parseDefaultIcon(object iconin)
+-- This processes eg "batfile" (obtained from ".bat") as well as
+-- the special case (next) of "Folder".
+-- Results left in inconinfo/icon
+integer sign
+    if equal(iconin,-1) then return -1 end if
+    iconinfo = regIconInfo(iconin&"\\DefaultIcon")
+    if equal(iconinfo,-1) then return -1 end if
+    if iconinfo[1]='\"' and iconinfo[length(iconinfo)]='\"' then
+        iconinfo = iconinfo[2..length(iconinfo)-1]
+    end if
+    icon = 0
+    for vi=length(iconinfo) to 1 by -1 do
+        if equal(iconinfo[vi],',') then
+            sign = (iconinfo[vi+1]='-')
+            for j=vi+1+sign to length(iconinfo) do
+                icon = icon*10+iconinfo[j]-'0'
+            end for
+            if sign then
+                icon = -icon
+            end if
+            iconinfo = iconinfo[1..vi-1]
+            exit
+        end if
+    end for
+    return iconinfo
+end function
+
+
+atom s32
+    s32 = allocate_StringZ("shell32.dll")
+
+constant rqdIcons = {3,8}
+--  0 SI_UNKNOWN Unknown File Type
+--  1 SI_DEF_DOCUMENT Default document
+--  2 SI_DEF_APPLICATION Default application
+--  3 SI_FOLDER_CLOSED  Closed folder
+--  4 SI_FOLDER_OPEN    Open folder
+--  5 SI_FLOPPY_514 5 1/4 floppy
+--  6 SI_FLOPPY_35  3 1/2 floppy
+--  7 SI_REMOVABLE  Removable drive
+--  8 SI_HDD    Hard disk drive
+--  9 SI_NETWORKDRIVE Network drive
+-- 10 SI_NETWORKDRIVE_DISCONNECTED  network drive offline
+-- 11 SI_CDROM      CD drive
+-- 12 SI_RAMDISK    RAM disk
+
+atom pDword
+    pDword = allocate(4)
+    for i=1 to length(rqdIcons) do
+        if c_func(xExtractIconEx,{s32,rqdIcons[i],NULL,pDword,1})!=1 then
+            ?9/0
+        end if
+        icon = peek4u(pDword)
+
+        void = c_func(xImageList_AddIcon,{himl,icon})
+        void = c_func(xDeleteObject,{icon})
+    end for
+    free(pDword)
+
+-- attach imagelist to the treeview
+void=sendMessage(TREE1,TVM_SETIMAGELIST,TVSIL_NORMAL,himl)
+
+setCheck(ICONS,True)
+
+sequence treeItems
+         treeItems = {}
+
+-- indexes to treeItems:
+constant tHandle = 1,
+         tText   = 2,
+         tLoaded = 3,
+         tPidx   = 4
+
+--DEV replace with treeIdx??
+integer lTI -- length(treeItems)
+
+sequence extensions         -- for imagelist lookup
+         extensions = {':'} -- 0 is folder, 1 is drive.
+
+integer freelist
+        freelist = 0
+
+
+function caseInsensitiveSort(sequence s1,sequence s2)
+    return compare(upper(s1[D_NAME]),upper(s2[D_NAME]))
+end function
+
+include ../../builtins\ppp.e
+function loadDir(integer pidx, sequence path)
+-- wrapper round dir() to add tree items.
+atom parent
+object d, d2
+object ext
+integer k, hasChildren
+atom pDword
+
+    if path[length(path)]!='\\' then path&='\\' end if
+
+    if pidx=-1 then -- skip floppies during initial load (user must press F5)
+        d = -1
+        pidx = NULL
+    else
+        d = dir(path)
+        if sequence(d) then
+            if equal(d[1][1],".") then
+                d = d[3..length(d)]
+            end if
+        end if
+    end if
+
+    if sequence(d) and length(d) then
+        if pidx=0 then
+            -- add the root parent only once we know whether it has children
+            if freelist then
+                pidx = freelist
+                freelist = treeItems[freelist]
+                treeItems[pidx] = {0,path[1..length(path)-1],1,0}
+            else
+                treeItems = append(treeItems,{0,path[1..length(path)-1],1,0})
+                pidx = length(treeItems)
+            end if
+--          lTI = length(treeItems)
+            icon = (path[length(path)-1]=':')    -- use drive(1) or folder icon(0)
+            parent = addTVItem(TREE1,NULL,pidx,icon,icon,1)
+            treeItems[pidx][tHandle] = parent
+        else
+            parent = treeItems[pidx][tHandle]
+        end if
+        d = custom_sort(routine_id("caseInsensitiveSort"),d)
+        for i=1 to length(d) do
+            if find('d',d[i][D_ATTRIBUTES]) then        -- a directory
+                --
+                -- delay the full load, but set the children marker now.
+                --
+--DEV: hasChildren = non_empty_dir(path&d[1][D_NAME])
+--DEV: hasChildren = dir(path&d[1][D_NAME],NON_EMPTY)[!=-1] (?see pdir.e?)
+                d2 = dir(path&d[i][D_NAME])
+                hasChildren = False
+                if sequence(d2) then
+                    hasChildren = length(d2)>2  -- assume all subdirs start with . and ..
+                end if
+                if freelist then
+                    lTI = freelist
+                    freelist = treeItems[freelist]
+                    treeItems[lTI] = {0,d[i][D_NAME],not hasChildren,pidx}
+                else
+                    treeItems = append(treeItems,{0,d[i][D_NAME],not hasChildren,pidx})
+                    lTI = length(treeItems)
+                end if
+                -- if no children, mark as loaded, else mark as unloaded:
+                icon = 0    -- use folder icon
+                treeItems[lTI][tHandle] = addTVItem(TREE1,parent,lTI,icon,icon,hasChildren)
+                -- this is now deferred, via treeItems[i][tLoaded(=3)], to TVN_ITEMEXPANDING:
+                --void = loadDir(?p,path&d[i][D_NAME])
+            end if
+        end for
+        for i=1 to length(d) do
+            if not find('d',d[i][D_ATTRIBUTES]) then    -- not a directory
+                ext = upper(d[i][D_NAME])
+                for j=length(ext) to 1 by -1 do
+                    if ext[j]='.' then
+                        ext = upper(ext[j+1..length(ext)])
+                        exit
+                    end if
+                end for
+--              ext = getExtension(di[D_NAME])
+                k = find(ext,extensions)
+
+                if k=0 then
+                    icon = NULL
+                    if find(ext,{"EXE","ICO"}) then
+                        iconinfo = path&d[i][D_NAME]
+--pp(iconinfo)
+                    else
+                        iconinfo = parseDefaultIcon(regIconInfo("."&ext))
+                    end if
+                    if not equal(iconinfo,-1) then
+                        pDword = allocate(4)
+                        if c_func(xExtractIconEx,{allocate_StringZ(iconinfo),icon,NULL,pDword,1})=1 then
+                            icon = peek4u(pDword)
+                        end if
+                        free(pDword)
+                    end if
+                    if icon=NULL then
+                        -- use icons loaded initially
+                        if equal(ext,"EXE") then    -- default application (SI_DEF_APPLICATION) 
+                            k = 1
+                        else                        -- unknown file type (SI_UNKNOWN)
+                            k = 2
+                        end if
+                    else
+                        if find(ext,{"EXE","ICO"}) then
+                            -- locally, get exe/ico icons every time
+                            ext = 0
+                        end if
+                        extensions = append(extensions,ext)
+                        k = length(extensions)
+                        void = c_func(xImageList_AddIcon,{himl,icon})
+                        void = c_func(xDeleteObject,{icon})
+                    end if
+                end if
+
+                if freelist then
+                    lTI = freelist
+                    freelist = treeItems[freelist]
+                    treeItems[lTI] = {0,d[i][D_NAME],-1,pidx}
+                else
+                    treeItems = append(treeItems,{0,d[i][D_NAME],-1,pidx})
+                    lTI = length(treeItems)
+                end if
+                treeItems[lTI][tHandle] = addTVItem(TREE1,parent,lTI,k,k,0) -- use kth icon, no children
+            end if
+        end for
+        return 1    -- hasChildren
+    elsif pidx=0 then
+        -- add the root parent only once we know whether it has children
+        if freelist then
+            lTI = freelist
+            freelist = treeItems[freelist]
+            treeItems[lTI] = {0,path[1..length(path)-1],1,0}
+        else
+            treeItems = append(treeItems,{0,path[1..length(path)-1],1,0})
+            lTI = length(treeItems)
+        end if
+        icon = (path[length(path)-1]=':')  -- use drive(1) or folder icon(0)
+        treeItems[lTI][tHandle] = addTVItem(TREE1,NULL,lTI,icon,icon,0)
+    end if
+    return 0        -- does not have Children
+end function
+
+--include ppp.e
+procedure loadAllDrives()
+atom buffer, pDrive
+integer buflen
+sequence onedrive
+    buflen = c_func(xGetLogicalDriveStrings,{0,NULL})
+    buffer = allocate(buflen)
+    pDrive = buffer
+    void = c_func(xGetLogicalDriveStrings,{buflen,buffer})
+    while 1 do
+        onedrive = peek_string(pDrive)
+        buflen = length(onedrive)
+        if buflen=0 then exit end if
+        if c_func(xGetDriveType,{pDrive})=DRIVE_REMOVABLE then  -- skip floppies (user must key F5)
+            void = loadDir(-1,upper(onedrive[1..buflen-1]))
+        else
+            void = loadDir(NULL,upper(onedrive[1..buflen-1]))
+        end if
+        pDrive += buflen+1  -- skip trailing/separating nulls
+    end while
+    free(buffer)
+end procedure
+loadAllDrives()
+
+
+function getTreeText(integer treeIdx, integer fullpath)
+-- gets the text of the treeview item, optionally returning the full tree path.
+-- If fullpath is 0, the result is eg "ascii.bat";
+-- if fullpath is 1, the result is eg "C:\\Euphoria\\bin\\ascii.bat";
+-- if fullpath is 2, the result is eg {"C:","Euphoria","bin","ascii.bat"}
+--   (the last case is more useful for trees which are not file directories)
+sequence text
+    if fullpath then
+        if fullpath=1 then
+            text = treeItems[treeIdx][tText]
+            while 1 do
+                treeIdx = treeItems[treeIdx][tPidx]
+                if treeIdx=0 then exit end if
+                text = treeItems[treeIdx][tText]&'\\'&text
+            end while
+            return text
+        else -- fullpath=2
+            text = {treeItems[treeIdx][tText]}
+            while 1 do
+                treeIdx = treeItems[treeIdx][tPidx]
+                if treeIdx=0 then exit end if
+                text = prepend(text,treeItems[treeIdx][tText])
+            end while
+            return text
+        end if
+    end if
+    return treeItems[treeIdx][tText]
+end function
+
+procedure delTree(integer treeIdx)
+    for i=1 to length(treeItems) do
+        if sequence(treeItems[i]) and treeItems[i][tPidx]=treeIdx then
+--          printf(1,"Deleting %s\n",{treeItems[i][tText]})
+            delTree(i)
+            deleteTVItem(TREE1, treeItems[i][tHandle])
+            treeItems[i] = freelist
+            freelist = i
+        end if
+    end for
+end procedure
+
+procedure moveTree(integer fromIdx, integer toIdx, integer fMove)
+--
+-- fromIdx and toIdx are indexes into treeItems.
+-- fMove is 1 when called externally: actually move the file;
+-- whereas recursive calls do NOT want to do this as the entire
+-- directory has already been moved in one go - the point of 
+-- recursive calls is to update the treeview only.
+--
+integer loaded, parent
+integer eCode
+sequence tfrom, tto, emsg
+atom imode, dmode
+sequence ibest,dlast,this,test
+integer hasChildren, check
+atom hItem, newH
+    tfrom = getTreeText(fromIdx,1)
+    tto = getTreeText(toIdx,1)
+    loaded = treeItems[fromIdx][tLoaded]
+    if fMove then
+        tto &='\\'&getTreeText(fromIdx,0)
+        if not c_func(xMoveFile,{allocate_StringZ(tfrom),
+                                 allocate_StringZ(tto)}) then
+            eCode = c_func(xGetLastError,{})
+            -- expand common error codes
+            -- (let me know any others you spot)
+            if eCode=183 then
+                emsg = "[ERROR_ALREADY_EXISTS]"
+            else
+                emsg = ""
+            end if
+            emsg = sprintf("Move %s to %s\n\n Failure Code %d%s",
+                           {tfrom,tto,eCode,emsg})
+            void = messageBox("MoveFile Error",emsg,0)
+            -- leave tree as-is then
+            return
+        end if
+    end if
+    hItem = treeItems[fromIdx][tHandle] -- deleted at end
+    if treeItems[toIdx][tLoaded]=1 then
+        icon = getTVicon(TREE1,hItem)
+        check = isTVChecked(TREE1,hItem)
+        if loaded=-1 then
+            hasChildren = 0
+        else
+            hasChildren = getTVChildFlag(TREE1,hItem)
+        end if
+        parent = treeItems[fromIdx][tPidx]
+
+        -- put the moved item in the right place:
+        -- TVI_SORT won't work because we put directories out first.
+        -- set imode to TVI_FIRST or handle of item to insert after.
+        -- note there is no particular guarantee that treeItems are
+        -- in any way sorted or grouped, not after external updates,
+        -- F5, and the knock-on effects of freelist, anyway.
+
+        imode = TVI_FIRST   -- default if no files found
+        dlast = ""          -- init highest dir yet found (loaded=-1 only)
+        dmode = TVI_FIRST   -- default if no dirs found
+        ibest = ""          -- init highest file (lower than this) yet found
+        this = upper(treeItems[fromIdx][tText])
+        for i=1 to length(treeItems) do
+            if treeItems[i][tPidx]=toIdx then
+                if loaded=-1 then -- drag item is a leaf (file)
+                    if treeItems[i][tLoaded]=-1 then    -- look at leaf nodes then
+                        -- save highest file less than this:
+                        test = upper(treeItems[i][tText])
+                        if compare(this,test)>0         -- dragitem after treeItems[i]
+                        and compare(test,ibest)>0 then  -- nowt better than treeItems[i] yet found
+                            ibest = test
+                            imode = treeItems[i][tHandle]
+                        end if
+                    elsif imode=TVI_FIRST then  -- no pre-file found yet
+                        -- save highest dir (to insert after)
+                        test = upper(treeItems[i][tText])
+                        if compare(test,dlast)>0 then
+                            dlast = test
+                            dmode = treeItems[i][tHandle]
+                        end if
+                    end if
+                else -- dragitem is a dir
+                    if treeItems[i][tLoaded]!=-1 then   -- look at dirs then
+                        -- save highest dir less than this (or stick with TVI_FIRST)
+                        test = upper(treeItems[i][tText])
+                        if compare(this,test)>0
+                        and compare(test,ibest)>0 then
+                            ibest = test
+                            imode = treeItems[i][tHandle]
+                        end if
+                    end if
+                end if
+            end if
+        end for
+        if loaded=-1 and imode=TVI_FIRST then
+            -- insert after highest dir if no lower files found
+            -- dmode is still TVI_FIRST if no directories found
+            imode = dmode
+        end if
+        setTVInsertMode(imode)
+        newH = addTVItem(TREE1,treeItems[toIdx][tHandle],fromIdx,icon,icon,hasChildren)
+        treeItems[fromIdx][tHandle] = newH
+        setTVCheck(TREE1,newH,check)
+    
+        setTVInsertMode(TVI_LAST)   -- restore normal insertion behaviour
+        
+        treeItems[fromIdx][tPidx] = toIdx
+        setTVChildFlag(TREE1, treeItems[toIdx][tHandle],1)  -- toIdx definitely now has children
+ 
+        if parent then
+            for i=1 to length(treeItems) do
+                if treeItems[i][tPidx]=parent then  -- still has children, do nowt
+                    parent = 0
+                    exit
+                end if
+            end for
+            if parent then
+                -- no children remain, clear TVITEM_cChildren
+                setTVChildFlag(TREE1, treeItems[parent][tHandle],0)
+            end if
+        end if
+
+        if loaded=1 then    -- move any existing treeview sub-items then
+            for i=1 to length(treeItems) do
+                if treeItems[i][tPidx]=fromIdx then
+                    moveTree(i,fromIdx,0)
+                end if
+            end for
+        end if
+    else
+        -- target (new parent) is not loaded (/not yet expanded)
+--      delTree(fromIdx)    -- doh! not needed, obviously!
+        -- put now unused record onto the freelist
+        -- (item will appear automatically when new parent is expanded)
+        treeItems[fromIdx] = freelist -- and item itself
+        freelist = fromIdx
+    end if
+    deleteTVItem(TREE1, hItem)
+end procedure
+
+procedure purgefreelist()
+-- shrink treeItems as much as possible
+integer newmax,k, flscan
+    --
+    -- work out new extent of treeItems
+    --
+    newmax = 0
+    for i=length(treeItems) to 1 by -1 do
+        if sequence(treeItems[i]) then
+            newmax = i
+            exit
+        end if
+    end for
+    --
+    -- Remove all entries at the start of the freelist 
+    --  which are past the new extent.
+    --  (eg if newmax is 4 and freelist is 10,3,7,1 then
+    --   set freelist to 3).
+    --
+    while freelist>newmax do
+        freelist = treeItems[freelist]
+    end while
+    --
+    -- Remove any embedded entries in the remaining 
+    --  freelist which refer past the new extent
+    --  (eg if newmax is 4 and freelist is 3,7,1 then
+    --   set freelist to 3,1)
+    --
+    flscan = freelist
+    while flscan do
+        k = treeItems[flscan]
+        if k>newmax then
+            treeItems[flscan] = treeItems[k]
+        else
+            flscan = k
+        end if
+    end while
+    --
+    -- and finally shrink the table
+    --
+    treeItems = treeItems[1..newmax]
+end procedure
+
+--
+-- Select a previous item (does nothing if not found):
+--
+procedure selectPreviousItem(sequence previtem)
+sequence this
+integer previdx, pidx, loaded
+atom hItem
+    previdx = 1
+    --
+    -- Use a while loop rather than a for loop as  
+    --  treeItems may get extended by loadDir.
+    --
+    hItem = 0
+    pidx = 0
+    previtem = upper(previtem)
+    while previdx<=length(treeItems) do
+        if sequence(treeItems[previdx]) and treeItems[previdx][tPidx]=pidx then
+            this = upper(treeItems[previdx][tText])
+            if match(this,previtem)=1 then
+                pidx = previdx
+                loaded = treeItems[previdx][tLoaded]
+                hItem = treeItems[previdx][tHandle]
+                if loaded=-1 then exit end if       -- a leaf node
+                if length(previtem)=length(this) then exit end if   -- or directory selected
+                if not loaded then  -- subdir needs loading
+                    treeItems[previdx][tLoaded] = 1
+                    void = loadDir(previdx,getTreeText(previdx,1))
+                end if
+                -- chop target by dir and trailing '\'
+                previtem = previtem[length(this)+2..length(previtem)]
+            end if
+        end if
+        previdx += 1
+    end while
+    if hItem then
+        void = sendMessage(TREE1,TVM_SELECTITEM,TVGN_CARET,hItem)
+    end if
+end procedure
+
+--AUTONAV: (to demo, uncomment & modify to existing files/dirs)
+--selectPreviousItem("C:\\Euphoria\\include\\dll.e")
+--selectPreviousItem("C:\\Euphoria\\include\\wildcard.e")
+--selectPreviousItem("C:\\TEMP\\P\\TEST")
+selectPreviousItem("C:\\AAAAAA")
+
+
+function non_sensible(integer treeIdx)
+--
+-- Simple trap on a few daft/dangerous things,
+--  ie/eg attempts to drag/rename C:\\Windows.
+-- (Not that it is not really practical/sensible
+--  to prohibit mucking about _inside_ that and
+--  similar directories, but let me know of any
+--  other obvious ones to catch.)
+-- Of course feel free to delete anything here
+--  that you really think you ought to be allowed 
+--  to do, just don't blame me later.
+--
+sequence utxt
+    utxt = upper(getTreeText(treeIdx,1))
+    if find(utxt,
+            {"C:\\WINDOWS",
+             "C:\\PROGRAM FILES",
+             "C:\\MY DOCUMENTS",
+             "C:\\EUPHORIA",
+             "C:\\RECYCLED",
+             "C:",
+             "C:\\AUTOEXEC.BAT",
+             "C:\\COMMAND.COM",
+             "C:\\CONFIG.SYS",
+             "C:\\IO.SYS",
+             "C:\\MSDOS.SYS",
+             "C:\\MSDOS.---",
+             "C:\\VIDEOROM.BIN"}) then
+        void = messageBox("Erm","Don't try that on\n\n"&
+                          utxt&"\n\n"&
+                          "See function non_sensible().",0)
+        return 1
+    end if
+    return 0    -- OK to carry on
+end function
+
+integer g_fDragging
+        g_fDragging = False
+
+atom htiTarget, htiParent, hDrag, himl2
+integer tvItemHeight, dragIdx
+
+constant NoEntryCursor = loadCursor(IDC_NO),
+         ArrowCursor = loadCursor(IDC_ARROW)
+
+atom dragCursor -- also used as test in WM_LBUTTONUP
+
+--DEV:
+constant ETO_OPAQUE = 2
+
+--include ppp.e
+function treeHandler(integer id, integer msg, atom wParam, object lParam)
+integer treeIdx
+sequence rect
+sequence text
+atom style, state
+integer flag, hasChildren
+atom hItem, pRect, hBmp
+atom mem
+integer x,y
+atom lpText, lpRect, hDC, pDC
+integer len, width
+atom tvItem, newItem
+atom TVI, tvht
+
+    if msg=WM_NOTIFY then
+        if wParam=TVN_SELCHANGED        -- selection changed, or
+        or wParam=NM_CUSTOMDRAW then    -- occurs after checkbox toggled (and others)
+            treeIdx = getIndex(TREE1)
+            if treeIdx then
+                setText(STATUS,sprintf("%s (%d[%d])",{getTreeText(treeIdx,1),
+                                                      isTVChecked(TREE1,treeItems[treeIdx][tHandle]),
+                                                      treeIdx}))
+--              setText(STATUS,ppf(getTreeText(treeIdx,2))) -- shows path as array
+            end if
+        elsif wParam=TVN_GETDISPINFO then
+            tvItem = lParam + TVDISPINFO_TVITEM
+            if and_bits(peek4s(tvItem + TVITEM_mask),TVIF_TEXT) then
+                treeIdx = peek4s(tvItem + TVITEM_lParam)
+                text = treeItems[treeIdx][tText]
+                -- check text length does not exceed internal buffer size:
+                len = peek4s(tvItem + TVITEM_cchTextMax)
+                if length(text)>=len then
+                    text = text[1..len]
+                    text[len] = 0
+                else
+                    text &= 0
+                end if
+                poke(peek4s(tvItem + TVITEM_pszText),text)
+            end if
+        elsif wParam=TVN_ITEMEXPANDING then
+            newItem = lParam + NMTREEVIEW_itemNew
+            treeIdx = peek4s(newItem + TVITEM_lParam)
+            if treeIdx and not treeItems[treeIdx][tLoaded] then
+                treeItems[treeIdx][tLoaded] = 1
+                void = loadDir(treeIdx,getTreeText(treeIdx,1))
+            end if
+--      elsif wParam=TVN_BEGINLABELEDIT then
+--?{id,msg,wParam,lParam,DEMO,TREE1}
+            --return {1}    -- prevents edit (eg file already open/in use)
+        elsif wParam=TVN_ENDLABELEDIT then
+            tvItem = lParam + TVDISPINFO_TVITEM
+            treeIdx = peek4s(tvItem + TVITEM_lParam)
+            mem = peek4s(tvItem + TVITEM_pszText)
+            if mem!=0 then  -- 0 means edit cancelled
+                text = peek_string(mem)
+                -- DEV Might want eg moveFile() here.
+                treeItems[treeIdx][tText] = text
+            end if
+        elsif wParam=TVN_BEGINDRAG
+           or wParam=TVN_BEGINRDRAG then
+
+            -- get the handle and index (to treeItems) of item being dragged
+            --  (these items remain valid until the final update):
+            newItem = lParam + NMTREEVIEW_itemNew
+            hDrag = peek4s(newItem + TVITEM_hItem)
+            dragIdx = peek4s(newItem + TVITEM_lParam)
+
+            if non_sensible(dragIdx) then return 0 end if
+
+            if isChecked(ICONS) then
+                -- Let windows create the drag image (see also below)
+                himl2 = sendMessage(TREE1,TVM_CREATEDRAGIMAGE,0,hDrag) 
+            end if
+
+            -- Get the bounding rectangle of the item being dragged. 
+            pRect = allocate_Rect()
+            poke4(pRect,hDrag)
+            if not sendMessage(TREE1,TVM_GETITEMRECT,True,pRect) then
+                puts(1,"TVM_GETITEMRECT error\n")
+            end if
+
+            -- height is used for scroll tests (in WM_MOUSEMOVE)
+            tvItemHeight = peek4s(pRect+12)-peek4s(pRect+4)
+
+            if not isChecked(ICONS) then
+
+                -- TVM_CREATEDRAGIMAGE cannot be used when the treeview
+                -- does not have an associated imagelist, so create one
+                -- manually (containing a bitmap of the text):
+
+                lpRect = allocate_Rect()
+                text = treeItems[dragIdx][tText]
+                len = length(text)
+                lpText = allocate_StringZ(text)
+                hDC = c_func(xGetDC,{treeHwnd})
+                width = peek4s(pRect+8)-peek4s(pRect)
+
+                hBmp = c_func(xCreateCompatibleBitmap,{hDC,width,tvItemHeight})
+                if hBmp=NULL then
+                    puts(1,"CreateCompatibleBitmap error\n")
+                end if
+                pDC = c_func(xCreateCompatibleDC,{hDC})
+                void = c_func(xSelectObject,{pDC,hBmp})
+                void = c_func(xSelectObject,{pDC,getFont(TREE1)})
+                poke4(lpRect,{0,0,width,tvItemHeight})
+                if not c_func(xExtTextOut, {pDC,0,0,ETO_OPAQUE,lpRect,lpText,len,NULL}) then
+                    ?c_func(xGetLastError,{})
+                    puts(1,"ExtTextOut error\n")
+                end if
+                void = c_func(xDeleteDC,{pDC})
+
+                himl2 = c_func(xImageList_Create,{width,tvItemHeight,ILC_COLOR8+ILC_MASK,1,1})
+
+                void = c_func(xImageList_AddMasked,{himl2,hBmp,-1})
+                void = c_func(xDeleteObject,{hBmp})
+                void = c_func(xReleaseDC,{treeHwnd,hDC})
+            end if
+
+            -- save parent handle for quick testing in WM_MOUSEMOVE
+            -- (you cannot "move" a file into it's current parent!)
+            htiParent = treeItems[dragIdx][tPidx]
+            if htiParent then
+                htiParent = treeItems[htiParent][tHandle]
+            end if
+
+            rect = getClientCoords(TREE1)
+            x = rect[1]-12
+            y = rect[2]
+
+            if not c_func(xImageList_BeginDrag,{himl2,0,x,y}) then
+                puts(1,"ImageList_BeginDrag error\n")
+            end if
+
+            if not c_func(xImageList_DragEnter,{treeHwnd,x,y}) then
+                puts(1,"ImageList_DragEnter error\n")
+            end if
+
+            captureMouse(DEMO)
+            g_fDragging = True
+        end if
+    elsif msg=WM_SIZE then
+        rect = getClientRect(DEMO)
+        void = c_func(xMoveWindow, {treeHwnd, rect[1]+10, rect[2]+10, rect[3]-20, rect[4]-50, 1})
+--      void = c_func(xMoveWindow, {treeHwnd, rect[1]+50, rect[2]+50, rect[3]-60, rect[4]-90, 1})
+--      void = c_func(xMoveWindow, {treeHwnd, rect[1]+90, rect[2]+90, rect[3]-100, rect[4]-130, 1})
+        void = c_func(xMoveWindow, {getHwnd(CHECK), rect[1]+10, rect[4]-30, rect[1]+160, 25, 1})
+        void = c_func(xMoveWindow, {getHwnd(ICONS), rect[1]+180, rect[4]-30, rect[1]+330, 25, 1})
+    elsif msg=WM_COMMAND then
+        if id=CHECK
+        or id=ICONS then
+            if lParam=1 then    -- accelerator key
+                flag = not isChecked(id)
+            else                -- space bar or mouse click
+                flag = isChecked(id)
+            end if
+            setCheck(id,flag)
+        end if
+        if id=CHECK then
+            style = c_func(xGetWindowLong,{treeHwnd,GWL_STYLE})
+            if flag then
+                style = or_bits(style,TVS_CHECKBOXES)
+            else
+                style = and_bits(style,not_bits(TVS_CHECKBOXES))
+                --
+                -- NOTE: Only for the incurably curious. You almost certainly
+                -- will never actually want to do this in real life. If you do, 
+                -- you will need to save (and restore) all the checked states.
+                -- (and_bits(state,#1000) is OFF; and_bits(state,#2000) is ON)
+                --      
+                TVI = allocate(sizeofstruct(TVITEM))
+                mem_set(TVI,0,sizeofstruct(TVITEM))
+                poke4(TVI + TVITEM_mask, TVIF_STATE)
+                for i=1 to length(treeItems) do
+                    poke4(TVI + TVITEM_hItem, treeItems[i][tHandle])
+                    void = sendMessage(TREE1,TVM_GETITEM,0,TVI)
+                    state = peek4s(TVI + TVITEM_state)
+                    state = and_bits(state,#CFFF)   -- clear checked and unchecked bits
+                    poke4(TVI + TVITEM_state, state)
+                    poke4(TVI + TVITEM_stateMask, #3000) -- update ""
+                    void = sendMessage(TREE1,TVM_SETITEM,0,TVI)
+                end for
+                free(TVI)
+            end if
+            void = c_func(xSetWindowLong,{treeHwnd,GWL_STYLE,style})
+        elsif id=ICONS then
+            if flag then
+                void=sendMessage(TREE1,TVM_SETIMAGELIST,TVSIL_NORMAL,himl)
+            else
+                void=sendMessage(TREE1,TVM_SETIMAGELIST,TVSIL_NORMAL,NULL)
+            end if
+        end if
+    elsif id=TREE1 and msg=WM_CHAR and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+--DEV tryme:
+--  elsif id=TREE1 and (msg=WM_LBUTTONDBLCLK or
+--                     (msg=WM_CHAR and wParam=VK_RETURN)) then
+    elsif (msg=WM_CHAR and id=TREE1 and wParam=VK_RETURN)
+       or (msg=WM_LBUTTONDBLCLK and id=TREE1) then
+        treeIdx = getIndex(TREE1)
+        if treeIdx and treeItems[treeIdx][tLoaded]=-1 then  -- a leaf node
+            void = messageBox("Selected",getTreeText(treeIdx,1),0)
+--          closeWindow(DEMO)
+            setFocus(TREE1)
+        else
+            void = sendMessage(TREE1,TVM_EXPAND,TVE_TOGGLE,treeItems[treeIdx][tHandle])
+        end if
+        return {0}
+    elsif msg=WM_MOUSEMOVE and id=DEMO then
+        -- NOTE: 
+        --  Controls such as TREE1 will get a 'raw' lParam
+        --  (ie an atom with y in hiWord and x in loWord)
+        --  whereas windows such as DEMO get an {x,y} sequence.
+        --  This is because (I think!) WndProc calls isMouseMsg
+        --  and proc_MouseMessage, whereas SubProc does not.
+        -- (WndProc, SubProc, etc are defined in arwen.ew)
+        --
+        if g_fDragging and sequence(lParam) then
+
+            if not c_func(xImageList_DragMove, lParam) then
+                puts(1,"ImageList_DragMove error\n")
+            end if
+
+            rect = getClientCoords(TREE1)
+
+            tvht = allocate(sizeofstruct(TVHITTESTINFO))
+            poke4(tvht+TVHT_pt+POINT_x,lParam[1]-rect[1])
+            poke4(tvht+TVHT_pt+POINT_Y,lParam[2]-rect[2])
+
+            if not c_func(xImageList_DragShowNolock,{False}) then
+                puts(1,"ImageList_DragShowNolock error[0]\n")
+            end if
+            htiTarget = sendMessage(TREE1,TVM_HITTEST,0,tvht)
+            free(tvht)
+            -- select or clear current drop highlight
+            -- (ie we still call this if htiTarget=NULL):
+            if not sendMessage(TREE1,TVM_SELECTITEM,TVGN_DROPHILITE,htiTarget) then
+                puts(1,"TVGN_DROPHILITE error\n")
+            end if
+
+            -- Check whether drop target is one of none, existing parent, 
+            -- self, subfolder of self, or non-dir; if so make cursor no-entry.
+
+            if htiTarget=NULL                   -- cannot drag off screen
+            or htiTarget=hDrag                  -- ..or onto itself
+            or htiTarget=htiParent then         -- ..or into the parent it is already in
+                dragCursor = NoEntryCursor
+            else
+                dragCursor = ArrowCursor
+                for i=1 to length(treeItems) do
+                    if htiTarget=treeItems[i][tHandle] then
+                        treeIdx = i
+                        while treeIdx do
+                            if treeItems[treeIdx][tLoaded]=-1           -- .. or into a leaf node(non-dir)
+                            or treeItems[treeIdx][tHandle]=hDrag then   -- .. or into a subdir of itself
+                                dragCursor = NoEntryCursor
+                                exit
+                            end if
+                            treeIdx = treeItems[treeIdx][tPidx]
+                        end while
+                        exit
+                    end if
+                end for
+            end if
+            void = setCursor(dragCursor)
+
+            if htiTarget!=NULL then
+
+                -- scroll if needed:
+                hItem = htiTarget
+                if lParam[2]<=rect[2]+tvItemHeight then -- mouse pointer at top of treeview
+                    hItem = sendMessage(TREE1,TVM_GETNEXTITEM,TVGN_PREVIOUSVISIBLE,htiTarget)
+                    if hItem=NULL then
+                        hItem = htiTarget
+                    end if
+                elsif lParam[2]>=rect[4]-tvItemHeight then -- mouse at bottom of treeview
+                    hItem = sendMessage(TREE1,TVM_GETNEXTITEM,TVGN_NEXTVISIBLE,htiTarget)
+                    if hItem=NULL then
+                        hItem = htiTarget
+                    end if
+                end if
+                void = sendMessage(TREE1,TVM_ENSUREVISIBLE,0,hItem)
+            end if
+            if not c_func(xImageList_DragShowNolock,{True}) then
+                puts(1,"ImageList_DragShowNolock error[1]\n")
+            end if
+
+        end if
+    elsif msg=WM_LBUTTONUP
+       or msg=WM_RBUTTONUP then
+        if g_fDragging then
+            if not c_func(xImageList_DragLeave,{treeHwnd}) then
+                puts(1,"ImageList_DragLeave error\n")
+            end if
+
+            if not c_func(xImageList_EndDrag,{}) then
+--hmm:
+--              puts(1,"ImageList_EndDrag error\n")
+            end if
+
+            if not isChecked(ICONS) then
+                if not c_func(xImageList_Destroy,{himl2}) then
+                    puts(1,"ImageList_Destroy error\n")
+                end if
+            end if
+
+--          if msg!=WM_RBUTTONUP then
+
+            -- See WM_MOUSEMOVE; test true if drop target is valid
+            if dragCursor=ArrowCursor then
+                treeIdx = -1
+                for i=1 to length(treeItems) do
+                    if htiTarget=treeItems[i][tHandle] then
+                        treeIdx = i
+                        exit
+                    end if
+                end for
+                moveTree(dragIdx,treeIdx,1)
+            end if
+            if not sendMessage(TREE1,TVM_SELECTITEM,TVGN_DROPHILITE,NULL) then
+                puts(1,"TVGN_DROPHILITE error(0)[2]\n")
+            end if
+
+            releaseMouse()
+            void = c_func(xShowCursor,{True})
+            g_fDragging = False
+
+            --end if (msg!=WM_RBUTTONUP)
+        end if
+--      if msg=WM_RBUTTONUP then    --DEV popup menu?
+--      end if
+    elsif id=TREE1 and msg=WM_KEYDOWN then
+        if wParam=VK_F2 then        -- rename
+            treeIdx = getIndex(TREE1)
+            if non_sensible(treeIdx) then return 0 end if
+            void = sendMessage(TREE1,TVM_EDITLABEL,0,treeItems[treeIdx][tHandle])
+        elsif wParam=VK_F5 then -- refresh
+            treeIdx = getIndex(TREE1)
+            if getKeyState(VK_CONTROL) then
+                treeIdx = 0
+            elsif getKeyState(VK_SHIFT) then
+                treeIdx = 0
+            end if
+            if treeIdx then
+                text = getTreeText(treeIdx,1) -- fullpath
+                if treeItems[treeIdx][tLoaded]=-1 then      -- leaf node
+                    treeIdx = treeItems[treeIdx][tPidx]     -- refresh parent
+                end if
+                if treeItems[treeIdx][tLoaded] then
+                    void = sendMessage(TREE1,WM_SETREDRAW,False,0)
+                    delTree(treeIdx)
+                    purgefreelist()
+                    void = sendMessage(TREE1,WM_SETREDRAW,True,0)
+                else
+                    treeItems[treeIdx][tLoaded] = 1
+                end if
+                hasChildren = loadDir(treeIdx,getTreeText(treeIdx,1))
+                setTVChildFlag(TREE1,treeItems[treeIdx][tHandle],hasChildren)
+                selectPreviousItem(text)
+            else
+                void = sendMessage(TREE1,WM_SETREDRAW,False,0)
+                delTree(0)
+                void = sendMessage(TREE1,WM_SETREDRAW,True,0)
+                purgefreelist()
+                deleteTVItem(TREE1, TVI_ROOT) -- clear
+                loadAllDrives()
+            end if
+        end if
+    end if
+    return 0
+end function
+setHandler({DEMO,TREE1,CHECK,ICONS},routine_id("treeHandler"))
+
+
+--deleteTVItem(TREE1,treeItems[1][tHandle]) -- removes first drive
+--deleteTVItem(TREE1, TVI_ROOT) -- test (OK)
+--delTree(0)
+--purgefreelist()
+--treeItems={}
+--void=loadDir(NULL,"D:")
+--treeItems=append(treeItems,{0,"test",1,0})
+--lTI=length(treeItems)
+--treeItems[lTI][tHandle]=addTVItem(TREE1,NULL,lTI,0,0) -- 0=use folder icon [DEV]
+
+WinMain(DEMO, SW_NORMAL)
+

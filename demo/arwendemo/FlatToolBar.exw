@@ -1,0 +1,236 @@
+-- Toolbar.exw
+-- Matt Lewis
+--  converted to arwen PL 30/5/9
+puts(1,"NB: conversion to arwen incomplete...\n")   --DEV
+--without warning
+
+include arwen.ew
+include axtra.ew    -- getSysColor()
+
+--if setAppName("Toolbar Example") then end if
+
+integer Win, SB, TB
+integer B1, B2, B3, S1, B4
+
+
+atom iExw
+--sequence icons
+integer enable
+--, ri3
+Win = create(Window, "Flat ToolBar Demo",   0, 0, 0, 0, 300, 300, 0)
+SB  = create(StatusBar,         "" , 0, Win,        0,  0,  0,  0, 0)
+
+--?loadIcon("..\\demoresources\\clsdfold.ico")
+
+constant
+--DEV
+--  closefolder = loadIcon("..\\demoresources\\clsdfold.ico"),
+--  xExtractIcon
+--  openfolder  = extractIcon("..\\demoresources\\openfold.ico"),
+--  dos         = extractIcon("..\\demoresources\\disk05.ico"),
+--  linux       = loadIcon("..\\demoresources\\disk06.ico"),
+--  generic     = loadIcon("..\\demoresources\\disks04.ico")
+    SCB = getSysColor(COLOR_BTNFACE),
+    closefolder = createDIBfromXPM(open("..\\xpm\\run.xpm","r"), SCB)
+--  openfolder  = closefolder,
+--  dos         = closefolder,
+--  linux       = closefolder,
+--  generic     = closefolder
+
+--  ToolNew     = ToolbarButton(GTools, "New",  open("C:\\p5\\demo\\xpm\\run.xpm","r")),  -- works fine, btw.
+--  ToolNew     = ToolbarButton(GTools, "New",  open("..\\xpm\\run.xpm","r")),  -- works fine, btw.
+
+--(nicked from generic.exw:)
+--function ToolbarButton(integer toolbar, object tooltip, object xpm)
+---- create a button in the toolbar (here always GTools)
+---- if tooltip is 0, creates a seperation instead.
+---- tooltip can be "" if no hint text is required.
+---- xpm can be an included constant or a freshly open file handle.
+--
+--integer button
+--atom dib
+--
+--  if equal(tooltip,'-') then  -- seperator
+--      void = create(ToolSep,"",0,toolbar,0,0,0,0,0)
+--      return 0
+--  end if
+--  if atom(xpm) and xpm<=2 then ?9/0 end if
+--
+--  -- convert the xpm to a dib, converting transparent colours to the button colour:
+--  dib = createDIBfromXPM(xpm, SCB)
+--  if dib=NULL then puts(1,"oops, dib is NULL\n") end if   -- sanity check
+--  button = create(PictureButton, "", dib, toolbar, 0, 0, 28, 28, 0)
+--  if length(tooltip) then setHint(button, tooltip) end if
+--  return button
+--end function
+
+--sequence wk1
+integer tbheight
+
+--DEV in aextra:
+--global 
+function getTextHeight(integer id)
+atom point
+atom lHDC
+    point = allocate_Point()
+    lHDC = getDC(id)
+    if not c_func(xGetTextExtentPoint32, {lHDC,allocate_StringZ("|"),1,point}) then ?9/0 end if
+    releaseDC(id,lHDC)
+    return peek4s(point+POINT_Y)
+end function
+
+--wk1 = getTextExtent(Screen, "|")
+--tbheight = (32 + 12 + wk1[2])
+tbheight = 32 + 12 + getTextHeight(Win)
+
+--DEV:
+--TB    = create(FlatToolBar, "", 0, Win, 0, 0, 0, tbheight, 0)
+--TB    = create(ToolBar, "", 0, Win, 0, 0, 0, tbheight, CCS_NOMOVEY)   -- no help
+TB  = create(ToolBar, "", 0, Win, 0, 0, tbheight-15, tbheight, {TBSTYLE_FLAT,TBSTYLE_EX_DRAWDDARROWS})
+removeStyle(TB,WS_BORDER)
+--addStyle(TB,TBSTYLE_FLAT)
+constant TBHwnd = getHwnd(TB)
+
+
+iExw = c_func(xLoadIcon,{instance(), "exw"})
+
+--DEV:
+--icons = {}
+--icons &= addIcon({closefolder, openfolder, iExw})
+--icons &= addIcon({dos, linux, generic})
+--icons &= addIcon(repeat(iExw,3))
+--icons &= addIcon({linux, generic,dos})
+
+--B4    = create(PushButton, {"Destroy", "number 4"},   0, TB, icons[3],  0,  0,  0, 0)
+B4  = create(PictureButton, "Destroy", closefolder, TB, 0,  0,  tbheight-8, tbheight-8, 0)
+--removeStyle(B4,BS_PUSHBUTTON)
+addStyle(B4,BS_FLAT)
+
+--  className[FlatToolBar] = TOOLBARCLASSNAMEA
+--  classType[FlatToolBar] = COMMON_CONTROL
+--  classStyle[FlatToolBar] = w32or_all({CCS_TOP,
+--                                       CCS_NORESIZE,
+--                                          --CCS_ADJUSTABLE,
+--                                       WS_CLIPPINGCHILD,
+--                                       WS_VISIBLE,
+--                                       WS_BORDER,
+--                                       WS_TABSTOP,
+--                                       TBSTYLE_FLAT,
+--                                       TBSTYLE_TOOLTIPS})
+--  classStyleEx[FlatToolBar] = TBSTYLE_EX_DRAWDDARROWS
+--  classAttr[FlatToolBar] = w32NoConv + w32Clickable + w32OwnerId + w32Toolbar
+--
+--  --/topic Controls
+--  --/const SepButton
+--  --/desc Separator button for use with /FlatToolBar Controls
+--  -- This should only be used with /FlatToolBar controls.  It creates
+--  -- a divider between buttons, which is shown as a vertical line.
+--  className[SepButton] = "button"
+--  classType[SepButton] = BUTTON
+--  classStyle[SepButton] = TBSTYLE_SEP
+--  classAttr[SepButton] = w32NoConv + w32Clickable
+--  classKbdInput[SepButton] = DLGC_UNDEFPUSHBUTTON
+--
+--  className[ToolBar] = TOOLBARCLASSNAMEA
+--  classType[ToolBar] = COMMON_CONTROL
+--  classStyle[ToolBar] = w32or_all({CCS_TOP,
+--                                   CCS_NORESIZE,
+--                                   WS_CLIPPINGCHILD,
+--                                   WS_VISIBLE,
+--                                   WS_BORDER})
+--
+--  classAttr[ToolBar] = w32NoConv + w32Clickable + w32OwnerId + w32Toolbar
+
+--DEV
+--S1    = create(SepButton,      "",  0, TB,         0,  0,  0,  0, 0)
+S1  = create(ToolSep,        "",  0, TB,         0,  0,  1,  tbheight-8, TBSTYLE_SEP)
+--DEV ^ not enuf space on this...
+
+--B2    = create(PushButton, {"Two", "number 2"},       0, TB, icons[2], 0,  0,  0, 0)
+B2  = create(PictureButton, "Two",  0, TB, 0, 0,  tbheight-8,  tbheight-8, 0)
+--B2    = create(PictureButton, "Two",  closefolder, TB, 0, 0,  tbheight-8,  tbheight-8, 0)
+--^^ 3rd param of closefolder works, btw.
+
+--B1    = create(PushButton, {"One","number 1"}, 0, Win,         20, 130, 50, 25, 0)
+--B3    = create(PushButton, {"Disable","number 3"}, 0, Win,         20, 160, 50, 25, 0)
+B1  = create(PushButton, "One", 0, Win,      20, 130, 50, 25, 0)
+B3  = create(PushButton, "Disable",0, Win,       20, 160, 50, 25, 0)
+
+setHint(B4,"number 4")
+setHint(B2,"number 2")
+setHint(B1,"number 1")
+setHint(B3,"number 3")
+
+--procedure TB_onMouse(integer self, integer event, sequence parms)
+--  atom iMsg
+--  atom x
+--  atom y
+--  atom shifts
+--
+--  x = parms[2]
+--  y = parms[3]
+--  shifts = parms[4]
+--  setText(SB, sprintf("X=%d Y=%d Shift=%d", {x,y,shifts}))
+--end procedure
+--setHandler(TB, w32HMouse, routine_id("TB_onMouse"))
+
+--procedure one_onClick(integer self, integer event, sequence parms)
+--  setText(SB, sprintf("Button %s %d %d ", {getText(getSelf()), isVisible(TB), isVisible(SB)}))
+--end procedure
+--setHandler(B1, w32HClick, routine_id("one_onClick"))
+
+--procedure two_onClick(integer self, integer event, sequence parms)
+--  setText(SB,  "                  Button Two")
+--  setText(B2, "XXX" & getText(B2))
+--end procedure
+--setHandler(B2, w32HClick, routine_id("two_onClick"))
+
+enable = 1
+
+--procedure disable_onClick(integer self, integer event, sequence parms)
+--
+--  enable = 1 - enable
+--  setEnable({B1,TB}, enable)
+--
+--  setText(SB,"")
+--  if enable = 0
+--  then
+--      setText(B3, "Enable")
+--  else
+--      setText(B3, "Disable")
+--  end if
+--
+--end procedure
+--setHandler(B3, w32HClick, routine_id("disable_onClick"))
+
+--procedure destroy_onClick(integer self, integer event, sequence parms)
+
+--  if validId(B3) then
+--      ?destroy(B3)
+--  else
+--      B3  = create(PushButton, "", 0, Win, 20, 160, 50, 25, 0)
+--      if enable = 0
+--      then
+--          setText(B3, "Enable")
+--      else
+--          setText(B3, "Disable")
+--      end if
+----        setHandler(B3, w32HClick, routine_id("disable_onClick"))
+--  end if
+--end procedure
+--setHandler(B4, w32HClick, routine_id("destroy_onClick"))
+function WinHandler(integer id, integer msg, atom wParam, object lParam)
+if wParam then end if
+    if msg=WM_SIZE then
+        if id=Win then
+            -- resize the toolbar control (dev ??)
+            void = c_func(xMoveWindow, {TBHwnd, 0, 0, lParam[3], tbheight, 1})
+        end if
+    end if
+    return 0
+end function
+setHandler(Win,routine_id("WinHandler"))
+
+WinMain(Win, SW_NORMAL)
+
+

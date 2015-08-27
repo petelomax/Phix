@@ -1,0 +1,168 @@
+--
+-- permutes.exw - permutations demo
+--
+-- Copyright Pete Lomax 2004.
+--
+-- This is a fast method of generating permutations from a given set.
+-- eg permutes of "abc" are "abc","acb","bac","bca","cab",&"cba".
+-- Instead of generating a list, the permute function returns a unique
+-- result for each of the integers 1 to factorial(length(set))
+--
+-- It is sufficiently fast that discarding any part processed permutes
+-- and re-generating them on the fly if they are needed again will be
+-- far faster than attempting to save them in a list or table, though
+-- of course you w/could save the index of the permute(s) in question.
+-- It is as fast to (re-)generate eg the 37,468th permute as the 1st.
+-- My PC is old&slow, yet it will generate 46,233 perms in <1 second.
+-- [Update: my new machine managed 2,290,364 permutations per second]
+--
+-- While the example below works on a string, a list of integers or
+-- a list of complex structures may be passed as the set.
+--
+-- The permutations are not generated in any particular order, except 
+-- for the first entry, last entry, and rightmost element.
+--
+-- permute() and factorial() are now in builtins/auto-includes.
+--
+include builtins\factorial.e
+include builtins\permute.e
+--include perm.e -- now in ""
+--function permute(integer n, sequence set)
+----
+---- return the nth permute of the given set.
+---- n should be an integer in the range 1 to factorial(length(set))
+----
+--sequence res,rem  -- (builtins now re-uses set for rem)
+--integer w
+--  n -= 1
+----    res = repeat(0,length(set))
+--  res = set -- so permute(n,str/seq) yields str/seq
+--  rem = set -- remaining set is initially full set
+--  for i=length(set) to 1 by -1 do 
+--      w = remainder(n,i)+1
+--      res[i] = rem[w]
+--      rem[w] = rem[i]
+--      n = floor(n/i)
+--  end for
+--  return res
+--end function
+--
+
+-- Q: Can you explain how/why this works?
+-- A: Not fully. In the same way that you can print a number backwards 
+--    by repeatedly getting remainder(n,10), and shifting (/10) for each 
+--    digit, that was how I did the original combo program (combo.exw).
+--    (This program is a successful experimental mod of that program.)
+--    For permutations, the "10" is initially the length of the set and 
+--    drops by one as each "digit" is calculated, with the subsequent 
+--    selections restricted to elements of the set not yet selected. 
+--    As to precisely/mathematically why this works for permutations 
+--    is beyond me, but in broad layman terms, I can see that since
+--    factorial(4) is 4*3*2*1, then /4/3/2/1 is the right thing to do,
+--    though in practice it uses remainder(4/3/2/1)+1.
+--
+-- Q: How are you certain that no permutation is repeated?
+-- A: I'm not. I have tested it from length 1 to 8 (1 + 2 + 6 + 24 +
+--    120 + 720 + 5040 + 40320 = 46,233 in total) and there are no 
+--    repeats, which also means that all possibles *are* generated.
+--    I cannot guarantee uniqueness/completeness above sets of length 8,
+--    but honestly does that really matter? (It _probably_ works fine,
+--    and that /4/3/2/1 part makes sense, if not a formal proof.)
+--    [Update: Tested 9 on my new machine. It took about 12 minutes.]
+--    [Update: Testing 10 had been running for ~10 hours, so I nicked
+--     ..\pttree.e to replace chkset, and it finished in 8.66s (!!).
+--     (and, yes, it correctly failed when I added a 1 to fls)
+--     A full test on 11, however, quickly ran out of memory (tt was
+--     at least 134,217,720 = 536,870,880 bytes) Maybe on 64bit...]
+--
+-- Q: Why aren't the permutations generated in a sorted order?
+-- A: Beats me ;-) I barely understand why this algorithm works, 
+--    and at least as far as I know, I invented it. If you look in
+--    builtins\permutes.e you can find a couple of tweaks that do
+--    improve ordering slightly, that I have now commented out.
+--
+
+--
+-- [Update: following warning no longer relevant since pttree nicked]
+-- WARNING: this (setting checkfordups to 1) can take several minutes 
+--          on length(set)=8, since the test involves creating a table 
+--          of 40,320 entries, checking the entire table before each 
+--          new one is added, so ~812 million compares; and as it is 
+--          only a test program, no hash table.
+--          It will increase exponentially for longer sets.
+--
+-- I also tested that the program correctly fails if fls is increased
+-- by one (to be one more than the max possible no of permutations).
+--
+
+constant showtime = 1
+constant checkfordups = 0
+
+-- As mentioned above, rudely nicked pttree from Phix, not guaranteed 
+--  to work (when you change checkfordups to 1) on subsequent versions,
+--  although it has been quite stable for a number of years now.
+--  First four lines needed to make it compile cleanly/crash offpiste.
+--   (by "offpiste" I mean that if I change the sources of Phix, this
+--    may crash with "variable text has not been assigned a value" or
+--    similar, and likewise eg T_constm1 is deliberately 0 not 21.)
+global integer Ch, col
+global string text
+global constant scramble=0, T_constm1=0, S_Nlink=0, S_Name=0, maxNVop=0
+global sequence symtab, opNames
+include ../pttree.e
+integer iidx
+
+constant maxsetlen = 10
+--sequence chkset   -- (replaced with pttree)
+sequence set
+integer fls         -- factoral(ls)
+integer tfls=0      -- total ""
+sequence res
+atom t,t2
+integer putnewline = 0
+    t = time()
+
+    for ls=1 to maxsetlen do
+        set = repeat('@',ls)
+        for i=1 to ls do
+            set[i] += i     -- create "A" to "ABCDEFGH"
+        end for
+        fls = factorial(ls)
+        if checkfordups then
+--          chkset = repeat(0,fls)
+--          if ls>=10 then fls+=1 end if    -- good, makes it crash when it is fine without it
+            tt = {}
+        end if
+        if showtime then
+            tfls += fls
+            printf(1,"Length: %d, permutes: %d\n",{ls,fls})
+            t2 = time()+1
+        end if
+        for i=1 to fls do
+            res = permute(i,set)
+--          puts(1,res&'\n')
+            if showtime and time()>t2 then
+                printf(1,"Iteration %d (%3.2f%%) :%s\r",{i,i*100/fls,res})
+                putnewline = 1
+                t2 = time()+1
+            end if
+            if checkfordups then
+--              if find(res,chkset) then ?9/0 end if
+--              chkset[i] = res
+                tt_string(res,-5)
+                iidx = ttidx+EQ
+                if tt[iidx] then ?9/0 end if
+                tt[iidx] = i
+            end if
+        end for
+        if putnewline then
+            puts(1,"\n")
+            putnewline = 0
+        end if
+    end for
+    if showtime then
+        t = time()-t
+        printf(1,"%3.2fs (%d/s)\n",{t,tfls/t})
+    end if
+    puts(1,"Done")
+    if getc(0) then end if

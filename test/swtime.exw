@@ -1,0 +1,326 @@
+--
+-- swtime.exw
+-- ==========
+--
+--              Timing tests for switch low-level implementation.
+--                  (ie this program was written during/before the implementaion of "switch")
+--
+--              Conclusions drawn:
+--                  * Branch misprediction is costly (around 8 to 12 clocks, but we knew that).
+--                  * Not worth doing a switch for less than 8-way (being the break-even point).
+--                  * Quite beneficial by the time you get to 16-way. The code below began as
+--                      4-way (loss!), 8-way (no gain), and ended up 16-way as shown below.
+--                      At 16-way, it is twice the speed of cmp/jmp, ie the same speed as an
+--                      8-way cmp/jmp construct, and will remain that for any size/range.
+--                      You can try this out yourself by replacing the 15 at the start of
+--                      each routine with 7 or 3, as long as you change all three, that is.
+--
+
+-- 1) integer case. (see also swtime2.exw for non-integer cases)
+
+atom t0, tif, tjmps, tjtbl
+constant MAX=500000000
+
+procedure ifconstruct()
+-- a standard if-construct, that we'll rework.
+-- **NB from pre-switch days!! - by the time you read this, the
+--      compiler may well be auto-converting this to a switch!
+integer j
+    t0 = time()
+    for i=1 to MAX do
+        j = and_bits(i,15)  -- (gives 0..15)
+        if j=0 then
+            if j!=0 then ?9/0 end if
+            if j=55 then
+                puts(1,"j=55!!\n")
+            end if
+        elsif j=1 then
+            if j!=1 then ?9/0 end if
+        elsif j=2 then
+            if j!=2 then ?9/0 end if
+        elsif j=3 then
+            if j!=3 then ?9/0 end if
+        elsif j=4 then
+            if j!=4 then ?9/0 end if
+        elsif j=5 then
+            if j!=5 then ?9/0 end if
+        elsif j=6 then
+            if j!=6 then ?9/0 end if
+        elsif j=7 then
+            if j!=7 then ?9/0 end if
+        elsif j=8 then
+            if j!=8 then ?9/0 end if
+        elsif j=9 then
+            if j!=9 then ?9/0 end if
+        elsif j=10 then
+            if j!=10 then ?9/0 end if
+        elsif j=11 then
+            if j!=11 then ?9/0 end if
+        elsif j=12 then
+            if j!=12 then ?9/0 end if
+        elsif j=13 then
+            if j!=13 then ?9/0 end if
+        elsif j=14 then
+            if j!=14 then ?9/0 end if
+        elsif j=15 then
+            if j!=15 then ?9/0 end if
+        -- should never execute (prevents if-construct being converted to switch/jump-table)
+        --  (use p -f test\swtime and examine test\list.asm to verify what it is doing)
+        elsif i=1 then
+            if i!=1 then ?9/0 end if
+        end if
+    end for
+    tif = time()-t0
+end procedure
+
+procedure jmps()
+-- Above translated to asm, pre-switch days, which of course
+--  should not be affected when the compiler supports switch.
+-- Although this is as exact a copy as possible, a +/-10% 
+--  variation in timings is probably unavoidable.
+integer j
+    t0 = time()
+    for i=1 to MAX do
+        #ilASM{ mov ecx,[i]
+                and ecx,0b01111 -- (gives 0..15)
+                mov [j],ecx     -- (to match hll)
+--          ::l0
+                cmp ecx,0
+                jne :l1
+                cmp ecx,0
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l1
+                cmp ecx,1
+                jne :l2
+                cmp ecx,1
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l2
+                cmp ecx,2
+                jne :l3
+                cmp ecx,2
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l3
+                cmp ecx,3
+                jne :l4
+                cmp ecx,3
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l4
+                cmp ecx,4
+                jne :l5
+                cmp ecx,4
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l5
+                cmp ecx,5
+                jne :l6
+                cmp ecx,5
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l6
+                cmp ecx,6
+                jne :l7
+                cmp ecx,6
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l7
+                cmp ecx,7
+                jne :l8
+                cmp ecx,7
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l8
+                cmp ecx,8
+                jne :l9
+                cmp ecx,8
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l9
+                cmp ecx,9
+                jne :l10
+                cmp ecx,9
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l10
+                cmp ecx,10
+                jne :l11
+                cmp ecx,10
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l11
+                cmp ecx,11
+                jne :l12
+                cmp ecx,11
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l12
+                cmp ecx,12
+                jne :l13
+                cmp ecx,12
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l13
+                cmp ecx,13
+                jne :l14
+                cmp ecx,13
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l14
+                cmp ecx,14
+                jne :l15
+                cmp ecx,14
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l15
+                cmp ecx,15
+                jne :l99
+                cmp ecx,15
+                je :l99
+                call %opDivf2           -- call e02atdb0
+--              jmp :l99
+            ::l99 }
+    end for
+    tjmps = time()-t0
+end procedure
+
+procedure jumptable()
+-- And, finally, the above reworked as a switch
+integer j
+    t0 = time()
+    for i=1 to MAX do
+        #ilASM{ mov ecx,[i]
+                and ecx,0b01111     -- (gives 0..15)
+                mov [j],ecx         -- (to match hll)
+                jmp [ecx*4+:jmptbl]
+                -- NB jmp_table_entry added specifically for this test, not well supported.
+                --    jmp_table_entry is just {isAddr,3}, and we supply the labels.
+            ::jmptbl
+                jmp_table_entry :l0
+                jmp_table_entry :l1
+                jmp_table_entry :l2
+                jmp_table_entry :l3
+                jmp_table_entry :l4
+                jmp_table_entry :l5
+                jmp_table_entry :l6
+                jmp_table_entry :l7
+                jmp_table_entry :l8
+                jmp_table_entry :l9
+                jmp_table_entry :l10
+                jmp_table_entry :l11
+                jmp_table_entry :l12
+                jmp_table_entry :l13
+                jmp_table_entry :l14
+                jmp_table_entry :l15
+            ::l0
+                cmp ecx,0
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l1
+                cmp ecx,1
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l2
+                cmp ecx,2
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l3
+                cmp ecx,3
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l4
+                cmp ecx,4
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l5
+                cmp ecx,5
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l6
+                cmp ecx,6
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l7
+                cmp ecx,7
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l8
+                cmp ecx,8
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l9
+                cmp ecx,9
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l10
+                cmp ecx,10
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l11
+                cmp ecx,11
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l12
+                cmp ecx,12
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l13
+                cmp ecx,13
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l14
+                cmp ecx,14
+                je :l99
+                call %opDivf2           -- call e02atdb0
+                jmp :l99
+            ::l15
+                cmp ecx,15
+                je :l99
+                call %opDivf2           -- call e02atdb0
+--              jmp :l99
+            ::l99 }
+    end for
+    tjtbl = time()-t0
+end procedure
+
+--<aside>
+--  putting the jumptable() call in the middle seems to have significant effect
+--  on the tests; the if and jmps and more consistent and the jump table is a 
+--  bit faster. Probably processor cache effects, ymmv.
+--</aside>
+    ifconstruct()
+    jumptable()
+    jmps()
+    printf(1,"if-construct:%3.2fs, jumps:%3.2fs, jump table:%3.2fs\n",{tif,tjmps,tjtbl})
+

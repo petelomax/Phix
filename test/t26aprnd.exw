@@ -1,0 +1,450 @@
+--
+-- t26aprepend.exw
+-- ===============
+--
+-- append() and prepend() testing.
+--
+-- Do not try running this on RDS Eu (unless you want to put equal() everywhere)
+
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+constant showprogress=0
+
+sequence res
+res={}
+res=append(res,{1})
+if res!={{1}} then Abort("res!={{1}}\n") end if
+
+if showprogress then puts(1,"aprpnd1\n") end if
+
+--integer i,j
+--atom n,m
+--string s,t
+sequence p,q
+--object O
+--atom t0 t0=time() -- needs printf() anyways...
+
+--sequence abc,def
+--,s123,s456
+
+--string st
+--,x,y
+--sequence xy
+
+--integer I
+--atom N
+--string S
+--sequence P
+
+    if append(""," ")!={" "} then Abort("append(\"\",\" \")!={\" \"}\n") end if
+    if prepend(""," ")!={" "} then Abort("prepend(\"\",\" \")!={\" \"}\n") end if
+----for i=1 to 1000 do
+--
+    if append({1},2)!={1,2} then Abort("append({1},2)!={1,2}\n") end if
+    if prepend({1},2)!={2,1} then Abort("prepend({1},2)!={2,1}\n") end if
+    if append({1},#7FFFFFFF)!={1,#7FFFFFFF} then Abort("append({1},#7FFFFFFF)!={1,#7FFFFFFF}\n") end if
+    if prepend({1},#7FFFFFFF)!={#7FFFFFFF,1} then Abort("prepend({1},#7FFFFFFF)!={#7FFFFFFF,1}\n") end if
+--routine signature error (correct):
+--  if append(#7FFFFFFF,1)!={#7FFFFFFF,1} then Abort("append(#7FFFFFFF,1)!={#7FFFFFFF,1}\n") end if
+--runtime error (correct):
+--  object o o = #7FFFFFFF
+--  if append(o,1)!={#7FFFFFFF,1} then Abort("append(0[=#7FFFFFFF],1)!={#7FFFFFFF,1}\n") end if
+
+if showprogress then puts(1,"aprpnd2\n") end if
+
+    if append({#7FFFFFFF},1)!={#7FFFFFFF,1} then Abort("append({#7FFFFFFF},1)!={#7FFFFFFF,1}\n") end if
+    if prepend({#7FFFFFFF},1)!={1,#7FFFFFFF} then Abort("prepend({#7FFFFFFF},1)!={1,#7FFFFFFF}\n") end if
+    if append({#7FFFFFFF},#7FFFFFFF)!={#7FFFFFFF,#7FFFFFFF} then 
+        Abort("append({#7FFFFFFF},#7FFFFFFF)!={#7FFFFFFF,#7FFFFFFF}\n") end if
+    if prepend({#7FFFFFFF},#7FFFFFFF)!={#7FFFFFFF,#7FFFFFFF} then 
+        Abort("prepend({#7FFFFFFF},#7FFFFFFF)!={#7FFFFFFF,#7FFFFFFF}\n") end if
+    if append("a","")!={'a',{}} then Abort("append(\"a\",\"\")!={\'a\',{}}\n") end if
+    if prepend("a","")!={{},'a'} then Abort("append(\"a\",\"\")!={{},\'a\'}\n") end if
+    if append("",'a')!="a" then Abort("append(\"\",\'a\')!=\"a\"}\n") end if
+    if prepend("",'a')!="a" then Abort("prepend(\"\",\'a\')!=\"a\"}\n") end if
+
+if showprogress then puts(1,"aprpnd3\n") end if
+
+    p=append("a",'b')
+    q=prepend("a",'b')
+    if p!="ab" then Abort("p!=\"ab\"\n") end if
+    if q!="ba" then Abort("q!=\"ba\"\n") end if
+    if not string(p) then Abort("not string(p)\n") end if
+-- 29/1/07 result of prepend is now always a sequence, for performance reasons
+--         Otherwise it (the sequence) should be as valid as a string proper would be.
+--  if not string(q) then Abort("not string(q)\n") end if
+    p=append(p,'a')
+    q=prepend(q,'a')
+    if p!="aba" then Abort("p!=\"aba\"\n") end if
+    if q!="aba" then Abort("q!=\"aba\"\n") end if
+    p=append(p,'a')
+    q=prepend(q,'a')
+    if p!="abaa" then Abort("p!=\"abaa\"\n") end if
+    if q!="aaba" then Abort("q!=\"aaba\"\n") end if
+    p=append(p,'a')
+    q=prepend(q,'a')
+    if p!="abaaa" then Abort("p!=\"abaaa\"\n") end if
+    if q!="aaaba" then Abort("q!=\"aaaba\"\n") end if
+    p=append(p,'a')
+    q=prepend(q,'a')
+    if p!="abaaaa" then Abort("p!=\"abaaaa\"\n") end if
+    if q!="aaaaba" then Abort("q!=\"aaaaba\"\n") end if
+    p=append(p,'a')
+    q=prepend(q,'a')
+    if p!="abaaaaa" then Abort("p!=\"abaaaaa\"\n") end if
+    if q!="aaaaaba" then Abort("q!=\"aaaaaba\"\n") end if
+    p=append(p,'a')
+    q=prepend(q,'a')
+    if p!="abaaaaaa" then Abort("p!=\"abaaaaaa\"\n") end if
+    if q!="aaaaaaba" then Abort("q!=\"aaaaaaba\"\n") end if
+    p=append(p,'a')
+    q=prepend(q,'a')
+    if p!="abaaaaaaa" then Abort("p!=\"abaaaaaaa\"\n") end if
+    if q!="aaaaaaaba" then Abort("q!=\"aaaaaaaba\"\n") end if
+
+if showprogress then puts(1,"aprpnd4\n") end if
+
+    if append("abc",-5)!={'a','b','c',-5} then Abort("append(\"abc\",-5}!={\'a\',\'b\',\'c\',-5}\n") end if
+    if prepend("abc",-5)!={-5,'a','b','c'} then Abort("prepend(\"abc\",-5}!={-5,\'a\',\'b\',\'c\'}\n") end if
+    if append("bc",'a')!="bca" then Abort("append(\"bc\",\'a\')!=\"bca\"\n") end if
+    if prepend("bc",'a')!="abc" then Abort("prepend(\"bc\",\'a\')!=\"abc\"\n") end if
+
+if showprogress then puts(1,"aprpnd5\n") end if
+
+    if append({1,2,3,4,5},6)!={1,2,3,4,5,6} then 
+        Abort("append({1,2,3,4,5},6)!={1,2,3,4,5,6}\n") end if
+    if prepend({1,2,3,4,5},0)!={0,1,2,3,4,5} then 
+        Abort("prepend({1,2,3,4,5},0)!={0,1,2,3,4,5}\n") end if
+    p=append({2,3,4,5},6)
+    q=prepend({2,3,4,5},1)
+    if p!={2,3,4,5,6} then Abort("p!={2,3,4,5,6}\n") end if
+    if q!={1,2,3,4,5} then Abort("q!={1,2,3,4,5}\n") end if
+
+    p=append(p,7)
+    q=prepend(q,0)
+    if p!={2,3,4,5,6,7} then Abort("p!={2,3,4,5,6,7}\n") end if 
+    if q!={0,1,2,3,4,5} then Abort("q!={0,1,2,3,4,5}\n") end if 
+
+    p=append(p,8)
+    q=prepend(q,-1)
+    if p!={2,3,4,5,6,7,8} then Abort("p!={2,3,4,5,6,7,8}\n") end if 
+    if q!={-1,0,1,2,3,4,5} then Abort("q!={-1,0,1,2,3,4,5}\n") end if 
+
+    p=append(p,9)
+    q=prepend(q,-2)
+    if p!={2,3,4,5,6,7,8,9} then Abort("p!={2,3,4,5,6,7,8,9}\n") end if 
+    if q!={-2,-1,0,1,2,3,4,5} then Abort("q!={-2,-1,0,1,2,3,4,5}\n") end if 
+
+    p=append(p,10)
+    q=prepend(q,-3)
+    if p!={2,3,4,5,6,7,8,9,10} then Abort("p!={2,3,4,5,6,7,8,9,10}\n") end if 
+    if q!={-3,-2,-1,0,1,2,3,4,5} then Abort("q!={-3,-2,-1,0,1,2,3,4,5}\n") end if 
+
+    p=append(p,11)
+    q=prepend(q,-4)
+    if p!={2,3,4,5,6,7,8,9,10,11} then Abort("p!={2,3,4,5,6,7,8,9,10,11}\n") end if 
+    if q!={-4,-3,-2,-1,0,1,2,3,4,5} then Abort("q!={-4,-3,-2,-1,0,1,2,3,4,5}\n") end if
+
+if showprogress then puts(1,"aprpnd6\n") end if
+
+    if append("ab","cd")!={'a','b',"cd"} then Abort("append(ab,cd)!={'a','b',\"cd\"\n") end if
+    if prepend("ab","cd")!={"cd",'a','b'} then Abort("prepend(ab,cd)!={\"cd\",'a','b'\n") end if
+
+    if append("ab",{3,4})!={'a','b',{3,4}} then Abort("append(ab,{3,4})!={a,b,{3,4}}\n") end if
+    if prepend("ab",{3,4})!={{3,4},'a','b'} then Abort("append(ab,{3,4})!={{3,4},a,b}\n") end if
+
+if showprogress then puts(1,"aprpnd7\n") end if
+
+    if append({1,2},"cd")!={1,2,"cd"} then Abort("append({1,2},cd}!={1,2,\"cd\"\n") end if 
+    if prepend({1,2},"cd")!={"cd",1,2} then Abort("append({1,2},cd}!={\"cd\",1,2\n") end if 
+
+    if append({1,2},{3,4})!={1,2,{3,4}} then Abort("append({1,2},{3,4})!={1,2,{3,4}}\n") end if
+    if prepend({1,2},{3,4})!={{3,4},1,2} then Abort("append({1,2},{3,4})!={{3,4},1,2}\n") end if
+
+-- <YAWN> The following tests were just copied from concat.exw & concat replaced with append,
+--        so don't expect any of them to work...
+--
+-- Finally, allocate things on the fly to check incref etc...
+--
+if showprogress then puts(1,"aprpnd8\n") end if
+
+    if append(append("ab",'c'),append("de",'f'))!={'a','b','c',"def"} then
+        Abort("append(append(\"ab\",\'c\'),append(\"de\",\'f\'))!={'a','b','c',\"def\"}\n") end if
+
+    if append(append("ab",'c'),append({4,5},6))!={'a','b','c',{4,5,6}} then
+        Abort("append(append(\"ab\",\'c\'),append({4,5},6))!={'a','b','c',{4,5,6}}\n") end if
+    
+    if append(append({1,2},3),append("de",'f'))!={1,2,3,"def"} then
+        Abort("append(append({1,2},3),append(\"de\",\'f\'))!={1,2,3,\"def\"}\n") end if
+
+    if append(append({1,2},3),append({3,4},5))!={1,2,3,{3,4,5}} then
+        Abort("append(append({1,2},3),append({3,4},5))!={1,2,3,{3,4,5}}\n") end if
+
+if showprogress then puts(1,"aprpnd9\n") end if
+--  abc=append("ab",'c')
+--  def=append("de",'f')
+--  s123=append({1,2},3)
+--  s456=append({4,5},6)
+--
+--  if append(abc,def)!="abcdef" then
+--      Abort("append(abc,def)!=\"abcdef\"\n") end if
+--
+--  if append(abc,s456)!={'a','b','c',4,5,6} then
+--      Abort("append(sbc,s456)!={'a','b','c',4,5,6}\n") end if
+--  
+--  if append(s123,def)!={1,2,3,'d','e','f'} then
+--      Abort("append(s123,def)!={1,2,3,'d','e','f'}\n") end if
+--
+--  if append(s123,s456)!={1,2,3,4,5,6} then
+--      Abort("append(s123,s456)!={1,2,3,4,5,6}\n") end if
+--
+----
+---- OK, we need some deeper level testing...
+----
+--  s="s"
+--  t="t"
+--  st={s,t}
+--  x="x"
+--  y="y"
+--  xy={x,y}
+--  if append(st,xy)!={"s","t","x","y"} then
+--      Abort("append(st,xy)!={s,t,x,y}\n") end if
+--
+--  if append(#7FFFFFFF-5,#7FFFFFFF-6)!=append(#7FFFFFFF-5,#7FFFFFFF-6) then
+--      Abort("append(#7FFFFFFF-5,#7FFFFFFF-6)!=append(#7FFFFFFF-5,#7FFFFFFF-6)\n") end if
+--
+--
+--  if append({st,xy},{st,xy})!=append({st,xy},{st,xy}) then
+--      Abort("append({st,xy},{st,xy})!=append({st,xy},{st,xy})\n") end if
+--
+--
+---- OK, Let's do this properly!!!
+---- Note the following tests care much less about equality (ie that append is returning 
+---- the correct results) than they do about alloc/dealloc & incref/decref.
+---- In fact, on that point, I'll not even bother to test for equality.
+--
+--  I=#7FFFFFFF-10      -- make sure it is on the heap
+--  N=1.1+2.2           -- ""
+--  S=append("ab","cd") -- ""
+--  P={I,N,S}           -- ""
+--
+--  O=append(0,0)
+--  O=append(0,'a')
+--  O=append(0,I)
+--  O=append(0,#7FFFFFFF-10)
+--  O=append(0,1.5)
+--  O=append(0,N)
+--  O=append(0,1.1+2.2)
+--  O=append(0,"abc")
+--  O=append(0,S)
+--  O=append(0,append("ab","cd"))
+--  O=append(0,{1,2})
+--  O=append(0,P)
+--  O=append(0,{I,N,S})
+--  O=append('a',0)
+--  O=append('a','a')
+--  O=append('a',I)
+--  O=append('a',#7FFFFFFF-10)
+--  O=append('a',1.5)
+--  O=append('a',N)
+--  O=append('a',1.1+2.2)
+--  O=append('a',"abc")
+--  O=append('a',S)
+--  O=append('a',append("ab","cd"))
+--  O=append('a',{1,2})
+--  O=append('a',P)
+--  O=append('a',{I,N,S})
+--  O=append(I,0)
+--  O=append(I,'a')
+--  O=append(I,I)
+--  O=append(I,#7FFFFFFF-10)
+--  O=append(I,1.5)
+--  O=append(I,N)
+--  O=append(I,1.1+2.2)
+--  O=append(I,"abc")
+--  O=append(I,S)
+--  O=append(I,append("ab","cd"))
+--  O=append(I,{1.2})
+--  O=append(I,P)
+--  O=append(I,{I,N,S})
+--  O=append(#7FFFFFFF-10,0)
+--  O=append(#7FFFFFFF-10,'a')
+--  O=append(#7FFFFFFF-10,I)
+--  O=append(#7FFFFFFF-10,#7FFFFFFF-10)
+--  O=append(#7FFFFFFF-10,1.5)
+--  O=append(#7FFFFFFF-10,N)
+--  O=append(#7FFFFFFF-10,1.1+2.2)
+--  O=append(#7FFFFFFF-10,"abc")
+--  O=append(#7FFFFFFF-10,S)
+--  O=append(#7FFFFFFF-10,append("ab","cd"))
+--  O=append(#7FFFFFFF-10,{1.2})
+--  O=append(#7FFFFFFF-10,P)
+--  O=append(#7FFFFFFF-10,{I,N,S})
+--  O=append(1.5,0)
+--  O=append(1.5,'a')
+--  O=append(1.5,I)
+--  O=append(1.5,#7FFFFFFF-10)
+--  O=append(1.5,1.5)
+--  O=append(1.5,N)
+--  O=append(1.5,1.1+2.2)
+--  O=append(1.5,"abc")
+--  O=append(1.5,S)
+--  O=append(1.5,append("ab","cd"))
+--  O=append(1.5,{1,2})
+--  O=append(1.5,P)
+--  O=append(1.5,{I,N,S})
+--  O=append(N,0)
+--  O=append(N,'a')
+--  O=append(N,I)
+--  O=append(N,#7FFFFFFF-10)
+--  O=append(N,1.5)
+--  O=append(N,N)
+--  O=append(N,1.1+2.2)
+--  O=append(N,"abc")
+--  O=append(N,S)
+--  O=append(N,append("ab","cd"))
+--  O=append(N,{1,2})
+--  O=append(N,P)
+--  O=append(N,{I,N,S})
+--  O=append(1.1+2.2,0)
+--  O=append(1.1+2.2,'a')
+--  O=append(1.1+2.2,I)
+--  O=append(1.1+2.2,#7FFFFFFF-10)
+--  O=append(1.1+2.2,1.5)
+--  O=append(1.1+2.2,N)
+--  O=append(1.1+2.2,1.1+2.2)
+--  O=append(1.1+2.2,"abc")
+--  O=append(1.1+2.2,S)
+--  O=append(1.1+2.2,append("ab","cd"))
+--  O=append(1.1+2.2,{1,2})
+--  O=append(1.1+2.2,P)
+--  O=append(1.1+2.2,{I,N,S})
+--  O=append("abc",0)
+--  O=append("abc",'a')
+--  O=append("abc",I)
+--  O=append("abc",#7FFFFFFF-10)
+--  O=append("abc",1.5)
+--  O=append("abc",N)
+--  O=append("abc",1.1+2.2)
+--  O=append("abc","abc")
+--  O=append("abc",S)
+--  O=append("abc",append("ab","cd"))
+--  O=append("abc",{1,2})
+--  O=append("abc",P)
+--  O=append("abc",{I,N,S})
+--  O=append(S,0)
+--  O=append(S,'a')
+--  O=append(S,I)
+--  O=append(S,#7FFFFFFF-10)
+--  O=append(S,1.5)
+--  O=append(S,N)
+--  O=append(S,1.1+2.2)
+--  O=append(S,"abc")
+--  O=append(S,S)
+--  O=append(S,append("ab","cd"))
+--  O=append(S,{1,2})
+--  O=append(S,P)
+--  O=append(S,{I,N,S})
+--  O=append(append("ab","cd"),0)
+--  O=append(append("ab","cd"),'a')
+--  O=append(append("ab","cd"),I)
+--  O=append(append("ab","cd"),#7FFFFFFF-10)
+--  O=append(append("ab","cd"),1.5)
+--  O=append(append("ab","cd"),N)
+--  O=append(append("ab","cd"),1.1+2.2)
+--  O=append(append("ab","cd"),"abc")
+--  O=append(append("ab","cd"),S)
+--  O=append(append("ab","cd"),append("ab","cd"))
+--  O=append(append("ab","cd"),{1,2})
+--  O=append(append("ab","cd"),P)
+--  O=append(append("ab","cd"),{I,N,S})
+--  O=append({1,2},0)
+--  O=append({1,2},'a')
+--  O=append({1,2},I)
+--  O=append({1,2},#7FFFFFFF-10)
+--  O=append({1,2},1.5)
+--  O=append({1,2},N)
+--  O=append({1,2},1.1+2.2)
+--  O=append({1,2},"abc")
+--  O=append({1,2},S)
+--  O=append({1,2},append("ab","cd"))
+--  O=append({1,2},{1,2})
+--  O=append({1,2},P)
+--  O=append({1,2},{I,N,S})
+--  O=append(P,0)
+--  O=append(P,'a')
+--  O=append(P,I)
+--  O=append(P,#7FFFFFFF-10)
+--  O=append(P,1.5)
+--  O=append(P,N)
+--  O=append(P,1.1+2.2)
+--  O=append(P,"abc")
+--  O=append(P,S)
+--  O=append(P,append("ab","cd"))
+--  O=append(P,{1,2})
+--  O=append(P,P)
+--  O=append(P,{I,N,S})
+--  O=append({I,N,S},0)
+--  O=append({I,N,S},'a')
+--  O=append({I,N,S},I)
+--  O=append({I,N,S},#7FFFFFFF-10)
+--  O=append({I,N,S},1.5)
+--  O=append({I,N,S},N)
+--  O=append({I,N,S},1.1+2.2)
+--  O=append({I,N,S},"abc")
+--  O=append({I,N,S},S)
+--  O=append({I,N,S},append("ab","cd"))
+--  O=append({I,N,S},{1,2})
+--  O=append({I,N,S},P)
+--  O=append({I,N,S},{I,N,S})
+
+--end for
+
+-- bug found 18/06/08:
+sequence kNewDC, vDCs
+    kNewDC = 0 & repeat({}, 5)
+    vDCs = append({}, kNewDC)
+    if not equal(vDCs,{{0,{},{},{},{},{}}}) then
+        Abort("not equal(vDCs,{{0,{},{},{},{},{}}})\n")
+    end if
+    vDCs[1][1] = 5
+    if not equal(vDCs,{{5,{},{},{},{},{}}}) then
+        Abort("not equal(vDCs,{{5,{},{},{},{},{}}})\n")
+    end if
+
+-- enhancement 12/05/09:
+function z(sequence dest,object x, integer what)
+-- these should all generate the same code (under -d):
+    if what=1 then
+        dest = append(dest,x)
+    elsif what=2 then
+        dest = dest&{x}
+    elsif what=3 then
+        dest &= {x}
+    end if
+    return dest
+end function
+
+constant x6={1,1.5,"string",{},{{}},{1,2}}
+
+object q1,q2,q3
+integer c
+
+    c = 0
+    for i=1 to 6 do
+        for j=3 to 6 do
+            q1 = z(x6[j],x6[i],1)
+            q2 = z(x6[j],x6[i],2)
+            q3 = z(x6[j],x6[i],3)
+            if not equal(q1,q2)
+            or not equal(q1,q3) then
+                Abort("q1!=q2 or q1!=q3\n")
+            end if
+--          ?q1
+            c += 1
+        end for
+    end for
+--  ?c
+    if c!=24 then Abort("c!=24\n") end if
+
+--printf(1," rt:%3.2f",{time()-t0})
+--if getc(0) then end if

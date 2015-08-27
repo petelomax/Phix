@@ -1,0 +1,172 @@
+--DEV port to Arwen, add to distro:
+-- As posted to EuForum 24/11/2012 by Derek Parnell
+include win32lib.ew 
+include std/math.e 
+
+integer starWindow
+
+integer starMap
+
+constant starShape =
+        {{},
+         {{1,0}},
+         {{1,1}},
+         {{0,1}},
+         {{1,0}, {1,1}},
+         {{1,0}, {1,1}, {0,1}},
+         {{-1,0}, {1,0}, {0, 1}, {0, -1}},
+         {{-1,-1}, {1,1}, {1, -1}, {-1, 1}},
+         {{-1,-1}, {0, -1}, {-1,1},{1,0}, {1,1}, {0,1}, {1,-1}, {0, -1}}
+        }
+
+constant deltadist = {2,3,5,8,13,21,34,55,89,144,233,377}
+constant colors = {1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,4,5}
+
+constant colorRGB =
+        {{#FF, #FF, #FF},
+         {#FF, #FF,   0},
+         {0,   #FF, #FF},
+         {#FF,   0,   0},
+         {0,     0, #FF}
+        }
+
+sequence starTable
+integer lX, hX, lY, hY, spaceWidth, spaceHeight
+
+procedure Generate_Star_Data()
+
+integer shape, dist, color
+atom theta
+atom bright
+sequence starcolor
+
+integer X, Y, dX, dY
+    starTable = {}
+
+    X = 0
+    Y = 0
+    lX = 0
+    hX = 0
+    lY = 0
+    hY = 0
+
+    -- Generate random data for a few (from 101 to 1000) stars 
+    for i=1 to 100+rand(900) do
+        shape = rand(length(starShape)) -- Assign a shape (size) 
+
+        -- Get the distance from the previous star 
+        dist  = deltadist[rand(length(deltadist))]
+        theta = rnd()*TWOPI
+        dX = floor(cos(theta)*dist)
+        dY = floor(sin(theta)*dist)
+        X = X+dX
+        Y = Y+dY
+
+        -- Set its color and brightness 
+        color = rand(length(colors))
+        bright = (25*rand(4))/100
+--DEV improve compiler error/warning on this:
+        starcolor = sq_floor(sq_mul(colorRGB[colors[color]],bright))
+--      starcolor = colorRGB[colors[color]]*bright
+
+        -- Add the star to the list 
+        starTable = append(starTable, {shape, X, Y, starcolor})
+
+        -- Capture the extent of the 'star space' generated.     
+        if X<lX then
+            lX = X
+        end if
+        if X>hX then
+            hX = X
+        end if
+
+        if Y<lY then
+            lY = Y
+        end if
+        if Y>hY then
+            hY = Y
+        end if
+
+    end for
+    spaceWidth = hX-lX+1
+    spaceHeight = hY-lY+1
+end procedure
+
+procedure Create_Stars()
+sequence winsize
+sequence currStar
+integer X
+integer Y
+sequence shape
+
+-- Find out how big the display window is right now. 
+    winsize = getCtlSize(starWindow)
+
+    -- Either create the pixmap or resize it. 
+    if starMap!=0 then
+        setCtlSize(starMap, winsize[1], winsize[2])
+    else
+        starMap = create(Pixmap, "", 0, 0, 0, winsize[1], winsize[2], 0)
+    end if
+
+    -- Clear the pixmap to all black 
+    setBackColor(starMap, 0) -- paint it black 
+
+    -- Draw each star onto the pixmap. 
+    for i=1 to length(starTable) do
+        currStar = starTable[i]
+
+        -- Calculate the actual X/Y of the star 
+        X = floor(winsize[1]*((currStar[2]-lX)/spaceWidth))
+        Y = floor(winsize[2]*(((currStar[3]-lY)/spaceHeight)))
+
+
+        -- set the initial pixel 
+        setPixel(starMap, X, Y, currStar[4])
+        -- draw the rest of the star's shape 
+        shape = starShape[currStar[1]]
+        for j=1 to length(shape) do
+            setPixel(starMap, X+shape[j][1], Y+shape[j][2], currStar[4])
+        end for
+
+    end for
+
+end procedure
+
+procedure onPaint(integer id, integer event, sequence parms)
+    if starMap=0 then
+        -- No stars yet, so I better create them. 
+        Create_Stars()
+    end if
+
+    -- Copy the pixmap to the display window 
+    copyBlt(starWindow, 0, 0, starMap)
+end procedure
+
+procedure onResize(integer id, integer event, sequence parms)
+    -- Changed the display window size, so I better redraw the pixmap 
+    Create_Stars()
+
+    -- Force the window to get the updated pixmap. 
+    repaintFG(id)
+end procedure
+
+procedure onKeyDown(integer id, integer event, sequence parms)
+    -- User wants to view a new set of stars. 
+    Generate_Star_Data()
+    Create_Stars()
+    repaintFG(id)
+end procedure
+
+procedure init_app()
+    Generate_Star_Data()
+    starMap = 0
+    starWindow  = create(Window, "Star Viewport - Press a key for new stars", 0, 0.15,0.15,0.70,0.70,0)
+    setHandler(starWindow, w32HPaint, routine_id("onPaint"))
+    setHandler(starWindow, w32HResize, routine_id("onResize"))
+    setHandler(starWindow, w32HKeyDown, routine_id("onKeyDown"))
+
+end procedure
+
+init_app()
+WinMain(starWindow, Normal)

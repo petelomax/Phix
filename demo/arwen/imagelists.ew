@@ -1,0 +1,265 @@
+
+-- code to manage a simplified set of Image lists
+
+include "dll_links.ew"
+
+--/**/include builtins\machine.e -- redundant, for orac
+include constants.ew -- redundant, for orac
+include misc_arwen.e -- redundant, for orac
+include structures.ew -- redundant, for orac
+--/**/include builtins\dll.e -- redundant, for orac
+
+constant NULL = 0
+object void
+
+
+-- handles of each imagelist
+global atom
+        hLarge,
+        hSmall,
+        hFTB_hot,
+        hFTB_normal,
+        hFTB_disabled
+
+        hLarge = 0
+        hSmall = 0
+        hFTB_hot = 0
+        hFTB_normal = 0
+        hFTB_disabled = 0
+
+-- imagelist classes
+--constant
+--      LARGE = 1,
+--      SMALL = 2,
+--      FTB = 3,
+--      
+--      FTB_HOT = 1,
+--      FTB_NORMAL = 2,
+--      FTB_DISABLED = 3
+
+-- image types (defined earlier in constants.ew)
+--              IMAGE_BITMAP= 0
+--              IMAGE_ICON  = 1
+--              IMAGE_CURSOR= 2
+
+sequence        ToolImageHandles        ToolImageHandles={}     -- sequence of the handles of all toolbar images available
+        
+sequence
+
+--      ImageClass,
+        ImageIndex,
+        ImageListHandle
+                -- each image has an id that refers to a list of other images
+
+--DEV to avoid warnings:
+ImageIndex = {}
+ImageListHandle = {}
+
+--global function loadCursor(object fName, integer iFlags)
+--      atom lpszName
+--      atom hwnd
+--
+---- iFlags can be:
+----            LR_DEFAULTCOLOR (default 0)
+----            LR_LOADFROMFILE
+----            LR_CREATEDIBSECTION
+----            LR_DEFAULTSIZE
+----            LR_LOADFROMFILE
+----            LR_LOADMAP3DCOLORS
+----            LR_LOADTRANSPARENT
+----            LR_MONOCHROME
+----            LR_SHARED
+--
+--      if sequence (fName) then -- load from file
+--              -- get pointer to file name
+--              lpszName = allocate_string(fName)
+--      else -- attempt to load oem resource
+--              lpszName = fName
+--      end if
+--
+--      -- ensure that LR_SHARED flag is asserted so that resource is not duplicated next time
+--      iFlags = or_bits( iFlags, LR_SHARED )
+--
+--      -- make the function call to load the Cursor
+--      hwnd = c_func(xLoadImage,
+--              {NULL,
+--              lpszName,
+--              IMAGE_CURSOR,
+--              LR_DEFAULTSIZE,
+--              LR_DEFAULTSIZE,
+--              iFlags} )
+--
+--      -- free memory if disk name was allocated
+--      if sequence (fName) then
+--              free(lpszName)
+--      end if
+--      
+--      return hwnd
+--              
+--      end function
+--
+--global function loadImage(sequence fName, integer iType, integer iFlags)
+---- load an **INDIVIDUAL** icon or a bitmap from a file.
+---- NB: more operations exist than can be accessed via this function
+----
+----    iType can be one of:
+----        IMAGE_ICON
+----        IMAGE_BITMAP
+----        IMAGE_CURSOR
+----
+---- iFlags can be:
+----        LR_DEFAULTCOLOR (default 0)
+----        LR_LOADFROMFILE
+----        LR_CREATEDIBSECTION
+----        LR_DEFAULTSIZE
+----        LR_LOADMAP3DCOLORS
+----        LR_LOADTRANSPARENT
+----        LR_MONOCHROME
+----        LR_SHARED
+----
+---- For more info see "LoadImage" in API
+----
+--atom lpszName
+--
+--  lpszName = allocate_StringZ(fName)
+--
+--  -- ensure that LR_LOADFROMFILE flag is asserted
+--  iFlags = or_bits(iFlags,or_bits(LR_LOADFROMFILE,LR_LOADMAP3DCOLORS))
+--
+--  return c_func(xLoadImage,{NULL,lpszName,iType,0,0,iFlags})
+--
+--end function
+--
+-- load a bitmap and cut it into pieces and return a sequence of image handles
+-- the original large bitmap is then discarded
+global function loadToolImages(sequence fName, integer NumImages, integer xDim, integer yDim)
+
+integer bytes, bWidth, bHeight
+atom lpvObject, hImage, hIcon, hdcMemImage, hdcMemIcon
+sequence Images
+
+        -- fName is the file name
+        -- NumImages is the Number of images to be built this way
+        -- xDim is the width of each image
+        -- yDim is the height of each image
+
+--      hImage = loadImage(getProgDir() & fName, IMAGE_BITMAP, LR_CREATEDIBSECTION)
+        hImage = loadImage(getAppDir() & fName, IMAGE_BITMAP, LR_CREATEDIBSECTION)
+
+        -- exit if load operation was unsuccessful
+        if hImage = NULL then
+                return 0
+        end if
+
+        -- get dimensions of bitmap
+        bytes = sizeofstruct(BITMAP)
+        lpvObject = allocate( bytes )
+        bytes = c_func(xGetObject, {hImage, bytes, lpvObject})
+        if bytes < BITMAP_bmPlanes then
+                free(lpvObject)
+                return 0
+        end if
+        bWidth = peek4u(lpvObject + BITMAP_bmWidth)
+        bHeight = peek4u(lpvObject + BITMAP_bmHeight)
+        free(lpvObject)
+
+
+        -- check dimensions of bitmap and exit if not enough space
+        if bWidth <= xDim or bHeight <= yDim then -- not enough for one image
+                return 0
+        end if
+
+        -- initialize sequence of images handles
+        Images = {}
+
+        -- create a memory dc for Image & Icon
+        hdcMemImage = c_func(xCreateCompatibleDC, {NULL})
+        hdcMemIcon = c_func(xCreateCompatibleDC, {NULL})
+        
+        -- select the Image into it's dc
+        void = c_func(xSelectObject, {hdcMemImage, hImage} )
+                        
+        for row = 1 to 999 do -- this Number is much larger then would be required for any realistic NumImagesber of images
+
+                for col = 1 to 10 do -- image width carries 10 image columns at the moment
+
+                        -- create bitmap with dimensions
+                        hIcon = c_func(xCopyImage, {hImage, IMAGE_BITMAP, xDim, yDim, 0})
+
+                        -- select the Icon temporarily into this dc
+                        void = c_func(xSelectObject, {hdcMemIcon, hIcon} )
+
+                        -- copy partial image of master bitmap into it
+                        void = c_func(xBitBlt, {
+                                hdcMemIcon,
+                                0,
+                                0,
+                                xDim,
+                                yDim,
+                                hdcMemImage,
+                                (xDim+1)*(col-1),
+                                (yDim+1)*(row-1),
+                                SRCCOPY
+                                 } )
+
+                        -- save handles
+                        ToolImageHandles &= hIcon -- save image into master list
+                        Images &= hIcon -- save handle onto list which is to be returned from this current call
+
+                        -- time to exit?
+                        if length(Images) >= NumImages then
+                                
+                                -- delete the DC's and the master image
+                                void = c_func(xDeleteDC, {hdcMemImage} )
+                                void = c_func(xDeleteDC, {hdcMemIcon} )
+                                void = c_func(xDeleteObject, {hImage} )
+
+                                -- exit
+                                return Images
+
+                        end if
+        
+                end for
+
+        end for
+
+        end function
+
+
+
+
+
+global procedure deleteToolImageHandles()
+        for i = 1 to length(ToolImageHandles) do
+                void = c_func(xDeleteObject, {ToolImageHandles[i]} )--deleteObject(ToolImageHandles[i])
+        end for
+        ToolImageHandles = {}
+        end procedure
+
+
+global procedure drawListImage(integer id, atom hDC, integer x, integer y)
+        atom hImageList
+        integer index
+
+        hImageList = ImageListHandle[id]
+        index = ImageIndex[id]
+
+        void = c_func(xImageList_Draw, {hImageList, index, hDC, C_INT, x, y} )
+
+        end procedure
+
+
+global procedure destroyImageList(atom hImageList)
+        if hImageList then
+                void = c_func(xImageList_Destroy, {hImageList} )
+        end if
+        end procedure
+
+
+global procedure destroyManagedImageLists()
+        destroyImageList(hLarge)
+        destroyImageList(hSmall)
+        destroyImageList(hFTB_hot)
+        destroyImageList(hFTB_normal)
+        destroyImageList(hFTB_disabled)
+        end procedure

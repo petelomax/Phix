@@ -1,0 +1,1337 @@
+
+--/**/include builtins\misc.e
+--/**/include builtins\machine.e
+--/**/include builtins\dll.e
+include message_box.ew
+
+procedure link_error(sequence name)
+    FatalErr("Couldn't link function:\n\n " & name & "()")  -- terminates with ?9/0 abort(1)
+end procedure
+
+---------------------
+
+-- dynamically link a C routine as a Euphoria/Phix function
+global function link_c_func(atom dll, sequence name, sequence args, atom result)
+integer handle
+    handle = define_c_func(dll, name, args, result)
+    if handle = -1 then link_error(name) end if
+    return handle
+end function
+
+-- dynamically link a C routine as a Euphoria/Phix procedure
+global function link_c_proc(atom dll, sequence name, sequence args)
+integer handle
+    handle = define_c_proc(dll, name, args)
+    if handle = -1 then link_error(name) end if
+    return handle
+end function
+
+-- open a dll file and get handle to it
+global function assign_dll(sequence dll_file)
+atom handle
+    handle = open_dll(dll_file)
+    if handle = NULL then link_error(dll_file) end if
+    return handle
+end function
+
+
+-- retrieve the machine adress of a Euphoria/Phix routine
+global function CallBack(integer r_id)
+atom addr
+
+    -- get 32-bit callback address
+    addr = call_back(r_id)
+
+    -- abort on error
+    if addr = -1 then
+        FatalErr("Call_Back request failed due to bad routine_id.\n")
+    end if
+    
+    -- return memory adress
+    return addr
+
+end function
+
+
+------------
+-- DLL FILES
+------------
+
+global constant
+    -- assign handles for required dll files
+    user32   = assign_dll("user32.dll"),
+    gdi32    = assign_dll("gdi32.dll"),
+    kernel32 = assign_dll("kernel32.dll"),
+    comdlg32 = assign_dll("comdlg32.dll"),
+    comctl32 = assign_dll("comctl32.dll"),
+    winmm    = assign_dll("winmm.dll"),
+    msvfw32  = assign_dll("msvfw32.dll"),
+    shell32  = assign_dll("shell32.dll"),
+    ole32    = assign_dll("ole32.dll")
+
+---------------------
+-- LINK DLL FUNCTIONS
+---------------------
+    --
+    -- Standard mapping from win32.hlp:  (not [yet] applied consistently to this file!)
+    --
+    -- BOOL ==> C_INT
+    -- COORD ==> C_UINT
+    -- DWORD ==> C_LONG or C_UINT
+    -- Hxxx ==> C_PTR
+    -- LPxxx ==> C_PTR
+    -- Pxxx ==> C_PTR
+    -- TCHAR ==> C_CHAR
+    -- WORD ==> C_USHORT
+    --
+
+--#without reformat
+global constant
+
+    C_PTR = C_POINTER,
+
+    xGetParent = link_c_func(user32, "GetParent",
+        {C_PTR},    --  HWND  hWnd  // handle of child window
+        C_PTR),     -- HWND
+
+    xSetParent = link_c_func(user32,"SetParent",
+        {C_PTR,     --  HWND  hwndChild,    // handle of window whose parent is changing
+         C_PTR},    --  HWND  hwndNewParent     // handle of new parent window
+        C_PTR),     -- HWND of the previous parent window.
+
+    xCloseHandle = link_c_func(kernel32, "CloseHandle",
+        {C_PTR},    --  HANDLE  hObject // handle of object to close
+        C_INT),     -- BOOL
+
+---------------------
+---- THREAD FUNCTIONS (Unlikely to work properly [when used 'raw'] on any interpreted language...)
+---------------------
+--  xCreateThread = link_c_func(kernel32, "CreateThread",
+--      {C_PTR,     --  LPSECURITY_ATTRIBUTES  lpThreadAttributes,  // address of thread security attributes
+--       C_UINT,    --  DWORD  dwStackSize, // initial thread stack size, in bytes
+--       C_PTR,     --  LPTHREAD_START_ROUTINE  lpStartAddress, // address of thread function
+--       C_PTR,     --  LPVOID  lpParameter,    // argument for new thread
+--       C_UINT,    --  DWORD  dwCreationFlags, // creation flags
+--       C_PTR},    --  LPDWORD  lpThreadId     // address of returned thread identifier
+--      C_PTR),     -- HANDLE
+--  xSuspendThread = link_c_func(kernel32, "SuspendThread",
+--      {C_PTR},    --  HANDLE  hThread     // handle to the thread
+--      C_UINT),    -- DWORD
+--  xResumeThread = link_c_func(kernel32, "ResumeThread",
+--      {C_PTR},    --  HANDLE  hThread     // identifies thread to restart
+--      C_UINT),    -- DWORD
+--
+------------------
+-- DEVICE CONTEXTS
+------------------
+    xCreateCompatibleDC = link_c_func(gdi32, "CreateCompatibleDC",
+        {C_PTR},    --  HDC  hdc    // handle of memory device context
+        C_PTR),     -- HDC
+
+    xDeleteDC = link_c_func(gdi32, "DeleteDC",
+        {C_PTR},    --  HDC  hdc    // handle of device context 
+        C_INT),     -- BOOL
+
+    xGetDC = link_c_func(user32, "GetDC",
+        {C_PTR},    --  HWND  hWnd  // handle of window
+        C_PTR),     -- HDC
+    
+    xGetDCEx = link_c_func(user32, "GetDCEx",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_PTR,     --  HRGN  hrgnClip, // handle of clip region
+         C_UINT},   --  DWORD  flags    // device-context creation flags
+        C_PTR),     -- HDC
+
+    xGetWindowDC = link_c_func(user32, "GetWindowDC",
+        {C_PTR},    --  HWND  hWnd  // handle of window
+        C_PTR),     -- HDC
+
+    xReleaseDC = link_c_func(user32, "ReleaseDC",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_PTR},    --  HDC  hdc    // handle of device context
+        C_INT),     -- BOOL
+
+    xBeginPaint = link_c_func(user32, "BeginPaint",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_PTR},    --  LPPAINTSTRUCT  lpPaint  // address of structure for paint information
+        C_PTR),     -- HDC
+
+    xEndPaint = link_c_proc(user32, "EndPaint",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_PTR}),   -- CONST PAINTSTRUCT  *lpPaint  // address of structure for paint data
+--      C_INT),     -- BOOL (function always returns true so linked as c_proc)
+
+------------------
+    xInvalidateRect = link_c_func(user32, "InvalidateRect",
+        {C_PTR,     --  HWND  hWnd, // handle of window with changed update region
+         C_PTR,     --  CONST RECT  * lpRect,   // address of rectangle coordinates
+         C_USHORT}, --  BOOL  bErase    // erase-background flag
+        C_USHORT),  -- BOOL
+
+    xInvalidateRgn  = link_c_func(user32, "InvalidateRgn",
+        {C_PTR,     --  HWND  hWnd, // handle of window with changed update region
+         C_PTR,     --  HRGN  hRgn, // handle of region to add
+         C_USHORT}, --  BOOL  bErase    // erase-background flag
+        C_USHORT),  -- BOOL
+------------------
+--  xValidateRgn    = link_c_func(user32, "ValidateRgn",
+--      {C_PTR,     --  HWND  hwnd, // handle of window
+--       C_PTR},    --  HRGN  hrgn  // handle of valid region
+--      C_INT),     -- BOOL
+
+    xGetCurrentObject = link_c_func(gdi32, "GetCurrentObject",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_UINT},   --  UINT  uObjectType   // object-type identifier
+        C_PTR),     -- HGDIOBJ
+
+    xGetStockObject = link_c_func(gdi32, "GetStockObject",
+        {C_INT},    --  int  fnObject   // type of stock object
+        C_INT),     -- HGDIOBJ GetStockObject(
+
+    xSelectObject = link_c_func(gdi32, "SelectObject",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR},    --  HGDIOBJ  hgdiobj    // handle of object
+        C_PTR),     -- HGDIOBJ
+
+    xDeleteObject = link_c_func(gdi32, "DeleteObject",
+        {C_PTR},    --  HGDIOBJ  hObject    // handle of graphic object
+        C_LONG),    -- BOOL
+
+    xGetObject = link_c_func(gdi32, "GetObjectA",
+        {C_PTR,     --  HGDIOBJ  hgdiobj,   // handle to graphics object of interest
+         C_LONG,    --  int  cbBuffer,      // size of buffer for object information 
+         C_PTR},    --  LPVOID  lpvObject   // pointer to buffer for object information  
+        C_INT),     -- int
+
+    xGetObjectType = link_c_func(gdi32, "GetObjectType",
+        {C_PTR},    --  HGDIOBJ  hgdiobj,   // handle to graphics object
+        C_LONG),    -- DWORD
+
+           
+----------
+-- BRUSHES
+----------
+    xCreateSolidBrush = link_c_func(gdi32, "CreateSolidBrush",
+        {C_UINT},   --  COLORREF  crColor   // brush color value
+        C_PTR),     -- HBRUSH
+
+----------
+-- COLOURS
+----------
+    xSetTextColor = link_c_func(gdi32, "SetTextColor",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR},    --  COLORREF  crColor   // text color
+        C_PTR),     -- COLORREF
+    xSetBkColor = link_c_func(gdi32, "SetBkColor",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR},    --  COLORREF  crColor   // background color value
+        C_PTR),     -- COLORREF
+
+-- SYSTEM COLOURS
+    xGetSysColor = link_c_func(user32, "GetSysColor",
+        {C_INT},    --  int  nIndex     // display element
+        C_LONG),    -- DWORD
+    xSetSysColors = link_c_func(user32, "SetSysColors",
+        {C_INT,     --  int  cDspElements,  // number of elements to change
+         C_PTR,     --  CONST INT  *lpnDspElements, // address of array of elements
+         C_LONG},   --  CONST COLORREF  *lpdwRgbValues  // address of array of RGB values
+        C_LONG),    -- BOOL
+
+----------
+-- back modes
+----------
+    xSetBkMode = link_c_func(gdi32, "SetBkMode",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT},    --  int  iBkMode    // flag specifying background mode
+        C_INT),     -- int
+
+----------------------------
+-- LINES & RECTANGLE DRAWING
+----------------------------
+    xDrawEdge = link_c_func(user32, "DrawEdge",
+        {C_PTR,     --  HDC hdc,    // handle of device context
+         C_PTR,     --  LPRECT qrc, // address of rectangle coordinates
+         C_UINT,    --  UINT edge,  // type of inner and outer edge to draw
+         C_UINT},   --  UINT grfFlags   // type of border
+        C_INT),     -- BOOL
+    xFillRect   = link_c_func(user32, "FillRect",
+        {C_PTR,     --  HDC  hDC,   // handle of device context
+         C_PTR,     --  CONST RECT  *lprc,  // address of structure with rectangle
+         C_PTR},    --  HBRUSH  hbr     // handle of brush
+        C_INT),     -- int
+    xFrameRect  = link_c_func(user32, "FrameRect",
+        {C_PTR,     --  HDC  hDC,   // handle of device context
+         C_PTR,     --  CONST RECT  * lprc, // address of rectangle coordinates
+         C_PTR},    --  HBRUSH  hbr     // handle of brush
+        C_INT),     -- int
+
+    xSetPixel = link_c_func(gdi32, "SetPixel",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int  X, // x-coordinate of pixel
+         C_INT,     --  int  Y, // y-coordinate of pixel
+         C_PTR},    --  COLORREF  crColor   // pixel color
+        C_PTR),     -- COLORREF
+    xGetPixel = link_c_func(gdi32, "GetPixel",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int  nXPos, // x-coordinate of pixel 
+         C_INT},    --  int  nYPos  // y-coordinate of pixel 
+        C_INT),     -- COLORREF
+
+    xMoveToEx = link_c_func(gdi32, "MoveToEx",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int  X, // x-coordinate of new current position
+         C_INT,     --  int  Y, // y-coordinate of new current position
+         C_PTR},    --  LPPOINT  lpPoint    // address of old current position
+        C_INT),     -- BOOL
+    xLineTo     = link_c_func(gdi32, "LineTo",
+        {C_PTR,     --  HDC  hdc,   // device context handle
+         C_INT,     --  int  nXEnd, // x-coordinate of line's ending point
+         C_INT},    --  int  nYEnd  // y-coordinate of line's ending point
+        C_INT),     -- BOOL
+
+    xRectangle = link_c_func(gdi32, "Rectangle",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int  nLeftRect,     // x-coord. of bounding rectangle's upper-left corner
+         C_INT,     --  int  nTopRect,      // y-coord. of bounding rectangle's upper-left corner
+         C_INT,     --  int  nRightRect,    // x-coord. of bounding rectangle's lower-right corner
+         C_INT},    --  int  nBottomRect    // y-coord. of bounding rectangle's lower-right corner
+        C_LONG),    -- BOOL
+
+    xPolygon = link_c_func(gdi32, "Polygon",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR,     --  const POINT *lpPoints
+         C_INT},    --  int nCount
+        C_LONG),    -- BOOL
+
+    xPolyPolygon = link_c_func(gdi32, "PolyPolygon",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR,     --  const POINT *lpPoints
+         C_PTR,     --  const INT *lpPolyCounts
+         C_INT},    --  int nCount
+        C_LONG),    -- BOOL
+
+    xEllipse = link_c_func(gdi32, "Ellipse",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int nLeftRect
+         C_INT,     --  int nTopRect,
+         C_INT,     --  int nRightRect,
+         C_INT},    --  int nBottomRect
+        C_LONG),    -- BOOL
+
+---------------
+-- TEXT & FONTS
+---------------
+    xDrawText = link_c_proc(user32, "DrawTextA",
+        {C_INT,     --  HDC  hDC,   // handle of device context
+         C_INT,     --  LPCTSTR  lpString,  // address of string to draw
+         C_INT,     --  int  nCount,    // string length, in characters
+         C_INT,     --  LPRECT  lpRect, // address of structure with formatting dimensions
+         C_INT}),   --  UINT  uFormat   // text-drawing flags
+--      C_INT       -- int height of the text
+    xDrawTextF = link_c_func(user32, "DrawTextA",
+        {C_INT,     --  HDC  hDC,   // handle of device context
+         C_INT,     --  LPCTSTR  lpString,  // address of string to draw
+         C_INT,     --  int  nCount,    // string length, in characters
+         C_INT,     --  LPRECT  lpRect, // address of structure with formatting dimensions
+         C_INT},    --  UINT  uFormat   // text-drawing flags
+        C_INT),     -- int height of the text
+
+    xDrawStatusText     = link_c_proc(comctl32, "DrawStatusTextA",
+        {C_PTR,     --  HDC hdc,        // Handle to the display context for the window.
+         C_PTR,     --  LPRECT  lprc,   // Pointer to a RECT structure, where text should be drawn
+         C_PTR,     --  LPCTSTR  pszText,   // Pointer to a null-terminated text string to display.
+         C_UINT}),  --  UINT  uFlags        // SBT_xxx
+
+    xGetTextExtentPoint32= link_c_func(gdi32, "GetTextExtentPoint32A",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR,     --  LPCTSTR  lpString,  // address of text string
+         C_INT,     --  int  cbString,  // number of characters in string
+         C_PTR},    --  LPSIZE  lpSize  // address of structure for string size
+        C_INT),     -- BOOL
+
+    xGetTextExtentPoint32W= link_c_func(gdi32, "GetTextExtentPoint32W",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR,     --  LPCTSTR  lpString,  // address of text string
+         C_INT,     --  int  cbString,  // number of characters in string
+         C_PTR},    --  LPSIZE  lpSize  // address of structure for string size
+        C_INT),     -- BOOL
+
+    xCreateFontIndirect = link_c_func(gdi32, "CreateFontIndirectA",
+        {C_PTR},    --  CONST LOGFONT  *lplf        // address of logical font structure
+        C_LONG),    -- HFONT (handle of a logical font)
+
+    xFillRgn = link_c_func(gdi32, "FillRgn",
+        {C_PTR,     --  HDC  hdc,   // handle of device context 
+         C_PTR,     --  HRGN  hrgn, // handle of region to be filled
+         C_PTR},    --  HBRUSH  hbr // handle of brush used to fill the region
+        C_INT),     -- BOOL
+
+    xFrameRgn = link_c_func(gdi32, "FrameRgn",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR,     --  HRGN  hrgn, // handle of region to be framed
+         C_PTR,     --  HBRUSH  hbr,    // handle of brush used to draw border
+         C_INT,     --  int  nWidth,    // width of region frame
+         C_INT},    --  int  nHeight    // height of region frame
+        C_INT),     -- BOOL
+
+    xPtInRegion = link_c_func(gdi32, "PtInRegion",
+        {C_PTR,     --  HRGN  hrgn, // handle of region
+         C_INT,     --  int  X,    // x-coordinate of point
+         C_INT},    --  int  Y      // y-coordinate of point
+        C_INT),     -- BOOL
+
+    xTextOut = link_c_proc(gdi32, "TextOutA",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int  nXStart,       // x-coordinate of starting position
+         C_INT,     --  int  nYStart,       // y-coordinate of starting position
+         C_PTR,     --  LPCTSTR  lpString,  // address of string
+         C_INT}),   --  int  cbString       // number of characters in string
+--      C_INT),     -- BOOL success
+
+    xExtTextOut = link_c_func(gdi32, "ExtTextOutA",
+        {C_PTR,     --  HDC hdc,    // handle of device context 
+         C_INT,     --  int X, // x-coordinate of reference point 
+         C_INT,     --  int Y, // y-coordinate of reference point 
+         C_INT,     --  UINT  fuOptions, // text-output options 
+         C_PTR,     --  CONST RECT  *lprc,  // optional clipping and/or opaquing rectangle 
+         C_PTR,     --  LPCTSTR lpString,   // points to string 
+         C_INT,     --  UINT  cbCount,  // number of characters in string 
+         C_PTR},    --  CONST INT * lpDx    // address of array of intercharacter spacing values  
+        C_INT),     -- BOOL success
+
+    xExtTextOutW = link_c_func(gdi32, "ExtTextOutW",
+        {C_PTR,     --  HDC hdc,    // handle of device context 
+         C_INT,     --  int X, // x-coordinate of reference point 
+         C_INT,     --  int Y, // y-coordinate of reference point 
+         C_INT,     --  UINT  fuOptions, // text-output options 
+         C_PTR,     --  CONST RECT  *lprc,  // optional clipping and/or opaquing rectangle 
+         C_PTR,     --  LPCTSTR lpString,   // points to string 
+         C_INT,     --  UINT  cbCount,  // number of characters in string 
+         C_PTR},    --  CONST INT * lpDx    // address of array of intercharacter spacing values  
+        C_INT),     -- BOOL success
+
+    xGetDeviceCaps = link_c_func(gdi32,"GetDeviceCaps",
+        {C_PTR,     --  HDC  hdc,   // device-context handle
+         C_INT},    --  int  nIndex // index of capability to query
+        C_INT),     -- int
+
+    xEnumFontFamiliesExA = link_c_func(gdi32,"EnumFontFamiliesExA",{C_LONG,C_LONG,C_PTR,C_LONG,C_LONG},C_INT),
+    xGetTextMetrics      = link_c_func(gdi32,"GetTextMetricsA",{C_PTR,C_PTR},C_LONG),
+
+    xMultiByteToWideChar = link_c_func(kernel32,"MultiByteToWideChar",
+        {C_INT,     --  UINT  CodePage,     // code page 
+         C_INT,     --  DWORD  dwFlags,     // character-type options 
+         C_PTR,     --  LPCSTR  lpMultiByteStr,     // address of string to map 
+         C_INT,     --  int  cchMultiByte,  // number of characters in string 
+         C_PTR,     --  LPWSTR  lpWideCharStr,      // address of wide-character buffer 
+         C_INT},    --  int  cchWideChar    // size of buffer 
+        C_INT),     -- int
+
+    xWideCharToMultiByte = link_c_func(kernel32,"WideCharToMultiByte",
+        {C_INT,     --  UINT  CodePage,     // code page 
+         C_INT,     --  DWORD  dwFlags,     // performance and mapping flags 
+         C_PTR,     --  LPCWSTR  lpWideCharStr,     // address of wide-character string 
+         C_INT,     --  int  cchWideChar,   // number of characters in string 
+         C_PTR,     --  LPSTR  lpMultiByteStr,      // address of buffer for new string 
+         C_INT,     --  int  cchMultiByte,  // size of buffer 
+         C_PTR,     --  LPCSTR  lpDefaultChar,      // address of default for unmappable characters  
+         C_PTR},    --  LPBOOL  lpUsedDefaultChar   // address of flag set when default char. used 
+        C_INT),     -- int
+
+---------
+-- CARETS   --PL
+---------
+    xCreateCaret        = link_c_func(user32, "CreateCaret", {C_PTR, C_PTR, C_SHORT, C_SHORT}, C_INT),
+--  xGetCaretBlinkTime  = link_c_func(user32, "GetCaretBlinkTime", {}, C_INT),
+    xSetCaretBlinkTime  = link_c_func(user32, "SetCaretBlinkTime", {C_UINT}, C_INT),
+    xDestroyCaret       = link_c_func(user32, "DestroyCaret", {}, C_INT),
+    xHideCaret          = link_c_func(user32, "HideCaret", {C_PTR}, C_INT),
+    xShowCaret          = link_c_func(user32, "ShowCaret", {C_PTR}, C_INT),
+--  xGetCaretPos        = link_c_func(user32, "GetCaretPos", {C_PTR}, C_INT),
+    xSetCaretPos        = link_c_func(user32, "SetCaretPos", {C_SHORT, C_SHORT}, C_INT),
+    
+----------------
+-- BITMAPS & GDI
+----------------
+    xGdiFlush               = link_c_func(gdi32, "GdiFlush", {}, C_INT),
+    xCreateCompatibleBitmap = link_c_func(gdi32, "CreateCompatibleBitmap", {C_PTR, C_INT, C_INT}, C_PTR),
+    xCreateBitmap           = link_c_func(gdi32, "CreateBitmap", {C_INT, C_INT, C_INT, C_INT,C_PTR}, C_PTR),
+    xCreateDIBSection       = link_c_func(gdi32,"CreateDIBSection",{C_PTR, C_PTR, C_UINT, C_PTR, C_PTR, C_PTR },C_PTR),
+    xGetDIBColorTable       = link_c_func(gdi32, "GetDIBColorTable", {C_PTR, C_UINT, C_UINT, C_PTR}, C_UINT),
+    xSetDIBColorTable       = link_c_func(gdi32, "SetDIBColorTable", {C_PTR, C_UINT, C_UINT, C_PTR}, C_UINT),
+    xCopyImage              = link_c_func(user32, "CopyImage", {C_PTR, C_UINT, C_INT, C_INT, C_UINT}, C_PTR),
+    xCreateDIBitmap         = link_c_func(gdi32, "CreateDIBitmap", {C_PTR, C_PTR, C_LONG, C_LONG, C_PTR, C_LONG}, C_PTR),
+
+    -- images, icons & cursors
+    xLoadImage              = link_c_func(user32, "LoadImageA",{C_PTR, C_PTR, C_UINT, C_INT, C_INT, C_UINT}, C_PTR),
+    xLoadIcon               = link_c_func(user32, "LoadIconA", {C_PTR, C_PTR}, C_PTR),
+    xDrawIcon               = link_c_func(user32, "DrawIcon", {C_PTR, C_INT, C_INT, C_PTR}, C_INT),
+
+    xDrawIconEx = link_c_func(user32, "DrawIconEx",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int  xLeft, // x-coordinate of upper left corner
+         C_INT,     --  int  yTop,  // y-coordinate of upper left corner
+         C_PTR,     --  HICON  hIcon,       // handle of icon to draw
+         C_INT,     --  int  cxWidth,     // width of the icon
+         C_INT,     --  int  cyWidth,       // height of the icon
+         C_INT,     --  UINT  istepIfAniCur,        // index of frame in animated cursor
+         C_PTR,     --  HBRUSH  hbrFlickerFreeDraw, // handle of background brush
+         C_INT},    --  UINT  diFlags       // icon-drawing flags
+        C_INT),     -- BOOL
+
+    xExtractIcon = link_c_func(shell32, "ExtractIconA",
+        {C_PTR,     --  HINSTANCE  hInst,   // instance handle
+         C_PTR,     --  LPCTSTR  lpszExeFileName,   // filename of file with icon
+         C_INT},    --  UINT  nIconIndex    // index of icon to extract
+        C_PTR),     -- HICON
+
+    xExtractIconEx = link_c_func(shell32, "ExtractIconExA",
+        {C_PTR,     --  LPCTSTR lpszFile
+         C_INT,     --  int nIconIndex
+         C_PTR,     --  HICON *phiconLarge
+         C_PTR,     --  HICON *phiconSmall
+         C_INT},    --  UINT nIcons
+        C_INT),     -- UINT
+
+    xCreateIconIndirect = link_c_func(user32,"CreateIconIndirect",
+        {C_PTR},    -- PICONINFO  piconinfo        // address of icon information structure
+        C_PTR),     -- HICON
+
+    xDestroyIcon = link_c_func(user32, "DestroyIcon",
+        {C_PTR},    --  HICON  hIcon        // handle of icon to destroy
+        C_INT),     -- BOOL
+
+    xLoadCursor             = link_c_func(user32, "LoadCursorA", {C_PTR, C_INT}, C_INT),
+    xLoadCursorFromFile     = link_c_func(user32, "LoadCursorFromFileA", {C_PTR}, C_INT),
+    xGetCursor              = link_c_func(user32, "GetCursor", {}, C_INT),  
+    xSetCursor              = link_c_func(user32, "SetCursor", {C_PTR}, C_INT),
+
+    xShowCursor             = link_c_func(user32, "ShowCursor",
+        {C_INT},    --  BOOL  bShow     // cursor visibility flag
+        C_INT),     -- int new display counter
+    
+    -- Draw Dib functions
+    xDrawDibOpen            = link_c_func(msvfw32, "DrawDibOpen", {}, C_PTR),
+    xDrawDibClose           = link_c_func(msvfw32, "DrawDibClose", {C_PTR}, C_UINT),
+    xDrawDibDraw            = link_c_func(msvfw32, "DrawDibDraw",{C_PTR,C_PTR,C_INT,C_INT,C_INT,C_INT,C_PTR,C_PTR,C_INT,C_INT,C_INT,C_INT,C_UINT}, C_INT),
+    xDrawDibSetPalette      = link_c_func(msvfw32, "DrawDibSetPalette", {C_PTR,C_PTR},C_INT),
+    xDrawDibProfileDisplay  = link_c_func(msvfw32, "DrawDibProfileDisplay", {C_PTR},C_INT),
+    
+-------------
+-- RASTER OPS
+-------------
+    xBitBlt         = link_c_func(gdi32, "BitBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_LONG}, C_INT),
+    xStretchBlt     = link_c_func(gdi32, "StretchBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG}, C_INT),
+    xStretchDIBits  = link_c_func(gdi32,"StretchDIBits",{C_PTR,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_PTR,C_PTR,C_UINT,C_LONG},C_INT),
+
+---------
+-- FOCUS 
+---------
+    xGetFocus               = link_c_func(user32, "GetFocus", {}, C_INT),
+    xSetFocus               = link_c_proc(user32, "SetFocus", {C_PTR}),
+    xDrawFocusRect          = link_c_func(user32, "DrawFocusRect", {C_PTR, C_PTR}, C_INT),
+
+
+--------------------
+-- GENERAL FUNCTIONS
+--------------------
+    xSystemParametersInfo = link_c_func(user32, "SystemParametersInfoA", {C_UINT, C_UINT, C_PTR, C_UINT}, C_INT),
+
+    xGetSystemMetrics = link_c_func(user32, "GetSystemMetrics", {C_INT}, C_INT),
+
+    xGetLastError   = link_c_func(kernel32, "GetLastError", {}, C_INT),
+    xSetLastError   = link_c_proc(kernel32, "SetLastError", {C_INT}),
+    xCommDlgExtendedError = link_c_func(comdlg32, "CommDlgExtendedError", {}, C_INT),
+
+    xGetVersionEx       = link_c_func(kernel32, "GetVersionExA", {C_PTR},C_UINT),
+
+--------------------------------
+-- (common) DIALOG BOX FUNCTIONS
+--------------------------------
+    xEndDialog          = link_c_func(user32, "EndDialog", {C_PTR, C_INT}, C_INT),
+
+    xGetOpenFileName    = link_c_func(comdlg32, "GetOpenFileNameA", {C_PTR}, C_LONG),
+    xGetSaveFileName    = link_c_func(comdlg32, "GetSaveFileNameA", {C_PTR}, C_LONG),
+--  xGetOpenFileNamePreview = link_c_func(msvfw32, "GetOpenFileNamePreview", {C_PTR}, C_LONG),
+    xChooseColor        = link_c_func(comdlg32, "ChooseColorA", {C_PTR}, C_LONG),
+--  xGetFileTitle       = link_c_func(comdlg32, "GetFileTitleA", {C_PTR, C_PTR, C_INT}, C_INT),
+--  xChooseFont         = link_c_func(comdlg32, "ChooseFontA", {C_PTR},C_LONG),
+--  xPrintDlg           = link_c_func(comdlg32, "PrintDlgA", {C_PTR}, C_LONG),
+--  xPageSetupDlg       = link_c_func(comdlg32, "PageSetupDlgA", {C_PTR}, C_INT),
+--  FindTextA           = link_c_func( comdlg32, "FindTextA", {C_LONG}, C_LONG),
+--  ReplaceTextA        = link_c_func( comdlg32, "ReplaceTextA", {C_LONG}, C_LONG),
+--  CommDlgExtendedErr  = link_c_func( comdlg32, "CommDlgExtendedError" , {}, C_LONG),
+--  w32FindReplaceMsg   = w32Func( RegisterWindowMessage, { FINDMSGSTRING })
+
+--------------------
+-- WINDOWS FUNCTIONS
+--------------------
+-- CREATION
+    xRegisterClassEx = link_c_func(user32, "RegisterClassExA",
+        {C_PTR},    --  CONST WNDCLASSEX FAR *lpwcx // address of structure with class data
+        C_PTR),     -- ATOM
+
+    xUnregisterClass    = link_c_func(user32, "UnregisterClassA",
+        {C_PTR,     --  LPCTSTR  lpszClass, // address of class name string
+         C_PTR},    --  HINSTANCE  hinst    // handle of application instance
+        C_LONG),    -- BOOL
+
+    xCreateWindowEx     = link_c_func(user32,"CreateWindowExA",
+        {C_LONG,    --  DWORD  dwExStyle,   // extended window style
+         C_PTR,     --  LPCTSTR  lpClassName,       // address of registered class name
+         C_PTR,     --  LPCTSTR  lpWindowName,      // address of window name
+         C_LONG,    --  DWORD  dwStyle,     // window style
+         C_INT,     --  int  x,     // horizontal position of window
+         C_INT,     --  int  y,     // vertical position of window
+         C_INT,     --  int  nWidth,        // window width
+         C_INT,     --  int  nHeight,       // window height
+         C_PTR,     --  HWND  hWndParent,   // handle of parent or owner window
+         C_PTR,     --  HMENU  hMenu,       // handle of menu or child-window identifier
+         C_PTR,     --  HANDLE  hInstance,  // handle of application instance
+         C_PTR},    --  LPVOID  lpParam     // address of window-creation data
+        C_PTR),     -- HWND
+
+-- EXISTENCE
+    xIsWindowEnabled    = link_c_func(user32, "IsWindowEnabled", {C_PTR}, C_USHORT),
+    xEnableWindow       = link_c_proc(user32, "EnableWindow", {C_PTR, C_LONG}),
+    xShowWindow = link_c_proc(user32, "ShowWindow",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_INT}),   --  int  nCmdShow   // show state of window
+
+    xUpdateWindow       = link_c_proc(user32, "UpdateWindow", {C_PTR}),
+
+    xDestroyWindow = link_c_func(user32, "DestroyWindow",
+        {C_PTR},    --  HWND  hWnd  // handle of window to destroy
+        C_LONG),    -- BOOL
+
+    --xCloseWindow      = link_c_func(user32, "CloseWindow", {C_PTR}, C_LONG),
+    xGetActiveWindow    = link_c_func(user32, "GetActiveWindow", {}, C_PTR),
+    
+-- ORDER
+    xSetForegroundWindow = link_c_proc(user32, "SetForegroundWindow",
+        {C_PTR}),   --  HWND  hwnd  // handle of window to bring to foreground
+  
+-- 31/10/10:
+--  xGetForegroundWindow    = link_c_func(user32, "GetForegroundWindow", {C_PTR}, C_PTR),
+    xGetForegroundWindow    = link_c_func(user32, "GetForegroundWindow", {}, C_PTR),
+
+    xGetDlgItem = link_c_func(user32, "GetDlgItem",
+        {C_PTR,     --  HWND  hDlg, // handle of dialog box
+         C_INT},    --  int  nIDDlgItem     // identifier of control
+        C_PTR),     -- HWND
+
+-- RELATIONSHIPS
+    xGetWindow           = link_c_func( user32, "GetWindow", {C_PTR, C_UINT}, C_PTR),
+    xChildWindowFromPoint= link_c_func( user32, "ChildWindowFromPoint", {C_PTR, C_PTR}, C_PTR),
+    xFindWindow          = link_c_func( user32, "FindWindowA", {C_PTR, C_PTR}, C_PTR),
+    xFindWindowEx        = link_c_func( user32, "FindWindowExA", {C_PTR, C_PTR, C_PTR, C_PTR}, C_PTR),
+
+-- APPEARANCE MODE
+    xIsIconic = link_c_func(user32,"IsIconic",
+        {C_PTR},    --  HWND  hWnd  // handle of window
+        C_INT),     -- BOOL
+
+    xIsZoomed = link_c_func(user32,"IsZoomed", {C_PTR}, C_INT),
+    xIsWindowVisible = link_c_func(user32,"IsWindowVisible", {C_PTR}, C_INT),
+    
+-- ATTRIBUTES
+    xGetWindowText = link_c_func(user32, "GetWindowTextA", {C_PTR}, C_PTR),
+    xSetWindowText = link_c_proc(user32, "SetWindowTextA", {C_PTR, C_PTR}),
+    xIsWindow = link_c_func(user32, "IsWindow",
+        {C_PTR},    --  HWND  hWnd         // handle of window
+        C_INT),     -- BOOL
+    
+-- MISC
+    xGetWindowLong = link_c_func(user32, "GetWindowLongA",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT},   --  int  nIndex     // offset of value to retrieve
+        C_LONG),    -- LONG
+
+    xSetWindowLong = link_c_func(user32, "SetWindowLongA", {C_PTR, C_INT, C_LONG}, C_LONG),
+    xSetClassLong = link_c_func(user32, "SetClassLongA", {C_PTR, C_INT, C_LONG}, C_PTR),
+
+-- TIMERS
+    xSetTimer           = link_c_proc(user32, "SetTimer", {C_PTR,C_UINT,C_UINT,C_PTR}),
+    xKillTimer          = link_c_proc(user32, "KillTimer", {C_PTR, C_UINT}),
+    
+----------------------
+-- SPACE & COORDINATES
+----------------------
+    xGetWindowRect      = link_c_func(user32, "GetWindowRect",
+        {C_PTR,     --
+         C_PTR},    --
+        C_LONG),
+
+    xGetClientRect      = link_c_func(user32, "GetClientRect", {C_PTR, C_PTR}, C_LONG),
+    xClientToScreen     = link_c_func(user32, "ClientToScreen", {C_PTR, C_PTR}, C_LONG),
+    xScreenToClient     = link_c_func(user32, "ScreenToClient", {C_PTR, C_PTR}, C_LONG),
+
+    xCreateRectRgn      = link_c_func(gdi32, "CreateRectRgn", {C_LONG, C_LONG,C_LONG,C_LONG},C_PTR),--PL
+    xSelectClipRgn      = link_c_func(gdi32, "SelectClipRgn", {C_PTR,C_PTR},C_LONG),            --PL
+--  xOffsetClipRgn      = link_c_func(gdi32, "OffsetClipRgn", {C_PTR, C_INT, C_INT}, C_INT),
+    
+    xMoveWindow         = link_c_func(user32, "MoveWindow", {C_PTR, C_INT, C_INT, C_INT, C_INT, C_LONG}, C_LONG),
+
+    xSetWindowPos = link_c_func(user32, "SetWindowPos",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_PTR,     --  HWND  hwndInsertAfter,  // placement-order handle
+         C_INT,     --  int  x,     // horizontal position
+         C_INT,     --  int  y,     // vertical position
+         C_INT,     --  int  cx,    // width
+         C_INT,     --  int  cy,    // height
+         C_UINT},   --  UINT  fuFlags   // window-positioning flags (SWP_xxx)
+        C_LONG),    -- BOOL
+
+    xGetWindowPlacement = link_c_func(user32,"GetWindowPlacement",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_PTR},    --  WINDOWPLACEMENT *  lpwndpl  // address of structure for position data
+        C_INT),     -- BOOL
+
+    xSetWindowPlacement = link_c_func(user32,"SetWindowPlacement",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_PTR},    --  WINDOWPLACEMENT *  lpwndpl  // address of structure for position data
+        C_INT),     -- BOOL
+
+    xGetMessagePos      = link_c_func(user32, "GetMessagePos", {}, C_UINT),
+    xGetCursorPos       = link_c_func(user32, "GetCursorPos", {C_PTR}, C_INT),
+------------
+-- MESSAGING
+------------
+    xGetQueueStatus         = link_c_func(user32, "GetQueueStatus", {C_UINT}, C_UINT),
+    XRegisterWindowMessage  = link_c_func(user32,"RegisterWindowMessageA", {C_PTR}, C_UINT),
+
+    xPeekMessage = link_c_func(user32, "PeekMessageA",
+        {C_PTR,     --  LPMSG  lpMsg,       // address of structure for message
+         C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  uMsgFilterMin,        // first message
+         C_UINT,    --  UINT  uMsgFilterMax,        // last message
+         C_UINT},   --  UINT  wRemoveMsg    // removal flags (PM_[NO]REMOVE)
+        C_INT),     -- BOOL
+
+    xGetMessage = link_c_func(user32, "GetMessageA",
+        {C_PTR,     --  LPMSG  lpMsg,       // address of structure with message
+         C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  wMsgFilterMin,        // first message
+         C_UINT},   --  UINT  wMsgFilterMax         // last message
+         C_INT),    -- BOOL
+
+    xIsDialogMessage        = link_c_func(user32, "IsDialogMessage", {C_PTR,C_PTR}, C_INT),
+
+    xTranslateMessage = link_c_proc(user32, "TranslateMessage",
+        {C_PTR}),   --  CONST MSG  *lpmsg   // address of structure with message
+        -- BOOL
+
+    xDispatchMessage = link_c_func(user32, "DispatchMessageA",
+        {C_PTR},    --  CONST MSG  * lpmsg  // address of structure with message
+        C_LONG),    -- LONG
+
+    xSendMessage            = link_c_func(user32, "SendMessageA",
+        {C_PTR,     --  HWND  hwnd, // handle of destination window
+         C_UINT,    --  UINT  uMsg, // message to send
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_LONG),    -- LRESULT
+
+    xPostMessage            = link_c_func(user32, "PostMessageA", {C_PTR, C_UINT, C_UINT, C_UINT}, C_LONG),
+
+    xPostQuitMessage = link_c_proc(user32, "PostQuitMessage",
+        {C_INT}),   --  int  nExitCode      // exit code
+
+    xDefWindowProc = link_c_func(user32, "DefWindowProcA",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  Msg,  // message identifier
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_PTR),     -- LRESULT
+
+    xCallWindowProc         = link_c_func(user32, "CallWindowProcA",    {C_PTR,C_PTR,C_UINT,C_UINT,C_UINT}, C_PTR),
+
+--------
+-- SOUND
+--------
+    xPlaySound              = link_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT}),
+
+--------------
+-- SCROLL BARS
+--------------
+    xGetScrollInfo          = link_c_func(user32, "GetScrollInfo", {C_PTR, C_INT, C_PTR}, C_INT),
+    xSetScrollInfo          = link_c_func(user32, "SetScrollInfo", {C_PTR, C_INT, C_PTR, C_INT}, C_INT),    
+
+    xGetScrollPos           = link_c_func(user32, "GetScrollPos", {C_PTR, C_INT}, C_INT),
+--  xSetScrollPos           = link_c_func(user32, "SetScrollPos", {C_PTR, C_INT, C_PTR, C_SHORT}, C_INT),
+
+--------
+-- MENUS -- indented items are superseded by a newer function
+--------
+--  xLoadMenu           = link_c_func(user32, "LoadMenuA", {C_PTR, C_PTR}, C_LONG),
+--  xLoadMenuIndirect   = link_c_func(user32, "LoadMenuIndirectA", {C_PTR}, C_PTR),
+--  xGetMenu            = link_c_func(user32, "GetMenu", {C_PTR}, C_PTR),
+    xSetMenu            = link_c_func(user32, "SetMenu", {C_PTR, C_PTR}, C_LONG),
+--  xHiliteMenuItem     = link_c_func(user32, "HiliteMenuItem", {C_PTR, C_PTR, C_UINT, C_UINT}, C_LONG),
+    xGetMenuString      = link_c_func(user32, "GetMenuStringA", {C_PTR, C_UINT, C_PTR, C_INT, C_UINT}, C_LONG),
+    xGetMenuState       = link_c_func(user32, "GetMenuState", {C_PTR, C_UINT, C_UINT}, C_UINT),
+    xDrawMenuBar        = link_c_func(user32, "DrawMenuBar", {C_PTR}, C_LONG),
+    xGetSystemMenu      = link_c_func(user32, "GetSystemMenu", {C_PTR, C_LONG}, C_PTR),
+    xCreateMenu         = link_c_func(user32, "CreateMenu", {}, C_PTR),
+    xCreatePopupMenu    = link_c_func(user32, "CreatePopupMenu", {}, C_PTR),
+    xDestroyMenu        = link_c_func(user32, "DestroyMenu", {C_PTR}, C_LONG),
+    xCheckMenuItem      = link_c_func(user32, "CheckMenuItem", {C_PTR, C_UINT, C_UINT}, C_LONG),
+    xEnableMenuItem     = link_c_func(user32, "EnableMenuItem", {C_PTR, C_UINT, C_UINT}, C_LONG),
+    xGetSubMenu         = link_c_func(user32, "GetSubMenu", {C_PTR, C_INT}, C_PTR),
+    xGetMenuItemID      = link_c_func(user32, "GetMenuItemID", {C_PTR, C_INT}, C_UINT),
+    xGetMenuItemCount   = link_c_func(user32, "GetMenuItemCount", {C_PTR}, C_INT),     
+
+    xGetMenuItemInfo    = link_c_func(user32, "GetMenuItemInfoA", {C_PTR, C_UINT, C_SHORT, C_PTR}, C_LONG),
+    xSetMenuItemInfo    = link_c_func(user32, "SetMenuItemInfoA", {C_PTR, C_UINT, C_SHORT, C_PTR}, C_LONG),
+
+    xInsertMenuItem     = link_c_func(user32, "InsertMenuItemA", {C_PTR, C_UINT, C_UINT, C_PTR}, C_UINT),
+--  xInsertMenu         = link_c_func(user32, "InsertMenuA", {C_PTR, C_UINT, C_UINT, C_UINT, C_PTR}, C_LONG),
+--  xAppendMenu         = link_c_func(user32, "AppendMenuA", {C_PTR, C_UINT, C_UINT, C_PTR}, C_PTR),
+    xModifyMenu         = link_c_func(user32, "ModifyMenuA", {C_PTR, C_UINT, C_UINT, C_UINT, C_PTR}, C_LONG),
+    xRemoveMenu         = link_c_func(user32, "RemoveMenu", {C_PTR, C_UINT, C_UINT}, C_LONG),
+    xDeleteMenu         = link_c_func(user32, "DeleteMenu", {C_PTR, C_UINT, C_UINT}, C_LONG),
+--DEV xDestroyMenu exists above...
+    xDestroymenu        = link_c_func(user32, "DestroyMenu", {C_PTR}, C_UINT),
+
+
+--  xSetMenuItemBitmaps = link_c_func(user32, "SetMenuItemBitmaps", {C_LONG, C_UINT, C_UINT, C_PTR, C_PTR}, C_LONG),
+--  xGetMenuCheckMarkDimensions = link_c_func(user32, "GetMenuCheckMarkDimensions", {}, C_LONG),
+    xTrackPopupMenu     = link_c_func(user32, "TrackPopupMenu",
+        {C_PTR,     --  HMENU hMenu,        // handle of pop-up menu
+         C_UINT,    --  UINT uFlags,        // screen-position and mouse-button flags
+         C_INT,     --  int x,      // horizontal position, in screen coordinates
+         C_INT,     --  int y,      // vertical position, in screen coordinates
+         C_INT,     --  int nReserved,      // reserved, must be zero
+         C_PTR,     --  HWND hWnd,  // handle of owner window
+         C_PTR},    --  CONST RECT * prcRect        // points to RECT that specifies no-dismissal area
+        C_LONG),    -- BOOL
+
+    xTrackPopupMenuEx   = link_c_func(user32, "TrackPopupMenuEx",
+        {C_PTR,     --  HMENU  hmenu,       
+         C_UINT,    --  UINT  fuFlags,      
+         C_INT,     --  int  x,     
+         C_INT,     --  int  y,     
+         C_PTR,     --  HWND  hwnd,         
+         C_PTR},    --  LPTPMPARAMS  lptpm  
+        C_LONG),    -- BOOL
+
+    xCheckMenuRadioItem = link_c_func(user32,"CheckMenuRadioItem",{C_PTR, C_UINT, C_UINT, C_UINT, C_UINT}, C_USHORT),
+
+-------------
+-- IMAGELISTS
+-------------
+    xImageList_Destroy = link_c_func(comctl32, "ImageList_Destroy",
+        {C_PTR},    --  HIMAGELIST  himl
+        C_INT),     -- BOOL
+
+    xImageList_Create = link_c_func(comctl32, "ImageList_Create",
+        {C_INT,     --  int cx (Specifies the width, in pixels, of each image.)
+         C_INT,     --  int cy (Specifies the height, in pixels, of each image.)
+         C_UINT,    --  UINT  flags (ILC_xxx values, usually ILC_COLOR8)
+         C_INT,     --  int  cInitial (Number of images that the image list initially contains.)
+         C_INT},    --  int  cGrow (?Number of images to grow by when resized?)
+        C_PTR),     -- HIMAGELIST (handle to the image list, NULL on failure)
+
+    xImageList_LoadImage    = link_c_func(comctl32, "ImageList_LoadImage", {C_PTR, C_PTR, C_INT, C_INT, C_UINT, C_UINT, C_UINT}, C_PTR),
+    xImageList_Draw = link_c_func(comctl32, "ImageList_Draw",
+        {C_PTR,     --  HIMAGELIST  himl
+         C_INT,     --  int  i
+         C_PTR,     --  HDC  hdcDst
+         C_INT,     --  int  x
+         C_INT,     --  int  y
+         C_UINT},   --  UINT  fStyle
+        C_INT),     -- BOOL
+
+    xImageList_AddIcon = link_c_func(comctl32, "ImageList_AddIcon",
+        {C_LONG,    --  HIMAGELIST  himl,   // handle to the image list
+         C_LONG},   --  HICON hicon         // handle to the icon or cursor
+        C_LONG),    -- int
+
+    xImageList_SetBkColor = link_c_func(comctl32, "ImageList_SetBkColor",
+        {C_LONG,    --  HIMAGELIST  himl
+         C_LONG},   --  COLORREF  clrBk
+        C_INT),     -- COLORREF
+
+    xImageList_BeginDrag = link_c_func(comctl32, "ImageList_BeginDrag",
+        {C_PTR,     --  HIMAGELIST  himlTrack
+         C_INT,     --  int  iTrack
+         C_INT,     --  int  dxHotspot
+         C_INT},    --  int  dyHotspot
+        C_INT),     -- BOOL
+
+    xImageList_DragEnter = link_c_func(comctl32,"ImageList_DragEnter",
+        {C_PTR,     --  HWND  hwndLock
+         C_INT,     --  int  x
+         C_INT},    --  int  y
+        C_INT),     -- BOOL
+
+    xImageList_DragMove = link_c_func(comctl32, "ImageList_DragMove",
+        {C_INT,     --  int  x
+         C_INT},    --  int  y
+        C_INT),     -- BOOL
+
+    xImageList_DragShowNolock = link_c_func(comctl32,"ImageList_DragShowNolock",
+        {C_INT},    --  BOOL  fShow // 
+        C_INT),     -- BOOL
+
+    xImageList_DragLeave = link_c_func(comctl32,"ImageList_DragLeave",
+        {C_PTR},    --  HWND  hwndLock
+        C_INT),     -- BOOL
+
+    xImageList_EndDrag = link_c_func(comctl32,"ImageList_EndDrag",
+        {},
+        C_INT),     -- BOOL
+
+    xImageList_Add = link_c_func(comctl32,"ImageList_Add",
+        {C_PTR,     --  HIMAGELIST  himl,   // handle to the image list
+         C_PTR,     --  HBITMAP  hbmImage,  // handle to the bitmap containing the image
+         C_PTR},    --  HBITMAP  hbmMask    // handle to the bitmap containing the mask
+        C_INT),     -- int
+
+    xImageList_AddMasked = link_c_func(comctl32,"ImageList_AddMasked",
+        {C_PTR,     --  HIMAGELIST  himl,   // handle to the image list
+         C_PTR,     --  HBITMAP  hbmImage,  // handle to the bitmap
+         C_PTR},    --  COLORREF  crMask    // color used to generate mask
+        C_INT),     -- int
+
+--  xImageList_GetIcon = link_c_func(comctl32,"ImageList_GetIcon",
+--      {C_PTR,     --  HIMAGELIST  himl,   // handle to the image list
+--       C_INT,     --  int  i              // index of the image
+--       C_UINT},   --  UINT  flags         // ILD_xxx
+--      C_PTR),     -- HICON
+
+    xImageList_Remove = link_c_func(comctl32,"ImageList_Remove",
+        {C_PTR,     --  HIMAGELIST  himl
+         C_INT},    --  int  i
+        C_INT),     -- BOOL
+--------
+-- init common controls PL 20/5/09
+--------
+    xInitCommonControls = link_c_proc(comctl32,"InitCommonControls",{}),
+    xInitCommonControlsEx = link_c_func(comctl32,"InitCommonControlsEx",{C_LONG}, C_INT),
+
+
+--------
+-- MOUSE 
+--------
+--  xTrackMouseEvent = link_c_proc(comctl32, "_TrackMouseEvent",{C_PTR}),
+    xTrackMouseEvent = link_c_proc(user32, "TrackMouseEvent",{C_PTR}),
+    xSetCapture      = link_c_func(user32, "SetCapture", {C_PTR}, C_PTR),
+    xGetCapture      = link_c_func(user32, "GetCapture", {}, C_PTR),
+    xReleaseCapture  = link_c_func(user32, "ReleaseCapture", {}, C_INT),
+
+--------
+-- KEYBOARD 
+--------
+    xVkKeyScan      = link_c_func(user32, "VkKeyScanA", {C_CHAR}, C_SHORT),
+    xGetKeyState = link_c_func(user32, "GetKeyState",
+        {C_INT},    --  int  nVirtKey       // virtual-key code
+        C_INT),     -- SHORT
+
+
+--  xTranslateAccelerator = link_c_func(user32, "TranslateAccelerator", {C_PTR, C_PTR, C_PTR}, C_INT),
+--  xCreateAcceleratorTable = link_c_func(user32, "CreateAcceleratorTableA", {C_PTR, C_INT}, C_PTR),
+--  xCopyAcceleratorTable = link_c_func(user32, "CopyAcceleratorTableA", {C_PTR, C_PTR,C_PTR}, C_INT),
+--  xDestroyAcceleratorTable = link_c_func(user32, "DestroyAcceleratorTable", {C_PTR}, C_INT),
+    
+--------
+-- SHELL
+--------
+    xShellExecute = link_c_func(shell32, "ShellExecuteA",
+        {C_LONG,    --  HWND  hwnd, // handle to parent window
+         C_PTR,     --  LPCTSTR  lpOperation,   // pointer to string that specifies operation to perform
+         C_PTR,     --  LPCTSTR  lpFile,    // pointer to filename string
+         C_PTR,     --  LPTSTR  lpParameters,   // pointer to string that specifies executable-file parameters
+         C_PTR,     --  LPCTSTR  lpDirectory,   // pointer to string that specifies default directory
+         C_LONG},   --  INT  nShowCmd   // whether file is shown when opened
+        C_PTR),     -- HINSTANCE
+
+    xShellExecuteEx = link_c_func(shell32,"ShellExecuteExA",
+        {C_PTR},    --  LPSHELLEXECUTEINFO  lpExecInfo      // pointer to SHELLEXECUTEINFO structure
+        C_LONG),    -- BOOL
+
+    xSHBrowseForFolder  = link_c_func(shell32, "SHBrowseForFolder", {C_PTR}, C_PTR),
+--  xSHGetPathFromIDList = link_c_func(shell32, "SHGetPathFromIDList", {C_ULONG, C_PTR}, C_ULONG),
+    xSHGetPathFromIDList = link_c_func(shell32,"SHGetPathFromIDListA",
+        {C_PTR,     --  PCIDLIST_ABSOLUTE pidl,
+         C_PTR},    --  LPTSTR pszPath (out)
+        C_INT),     -- BOOL
+
+    xSHParseDisplayName = link_c_func(shell32,"SHParseDisplayName",
+        {C_PTR,     --  LPCWSTR pszName, // wide string display name to parse.
+         C_PTR,     --  IBindCtx *pbc, // bind context, normally NULL
+         C_PTR,     --  PIDLIST_ABSOLUTE *ppidl, // ptr to ITEMIDLIST result.
+         C_LONG,    --  SFGAOF sfgaoIn, // attributes to query
+         C_PTR},    --  SFGAOF *psfgaoOut // "" result, optional
+        C_UINT),    -- HRESULT
+
+--  xSHGetMalloc        = link_c_func(shell32, "SHGetMalloc", {C_PTR}, C_PTR),
+    xSHAppBarMessage    = link_c_func(shell32, "SHAppBarMessage", {C_INT, C_PTR}, C_INT),
+
+    xSHGetFileInfo = link_c_func(shell32, "SHGetFileInfo",
+        {C_PTR,     --  LPCTSTR pszPath
+         C_UINT,    --  DWORD dwFileAttributes  (Ignored/we do not use SHGFI_USEFILEATTRIBUTES)
+         C_PTR,     --  SHFILEINFO *psfi
+         C_UINT,    --  UINT cbFileInfo (size of psfi)
+         C_UINT},   --  UINT uFlags
+        C_PTR),     -- DWORD_PTR
+
+    xShell_NotifyIcon = link_c_func(shell32,"Shell_NotifyIconA",
+        {C_ULONG,   --  DWORD dwMessage (NIM_XXX)
+         C_PTR},    --  PNOTIFYICONDATA lpdata
+        C_INT),     -- BOOL
+
+-------
+-- DIR
+-------
+    xGetWindowsDirectory = link_c_func(kernel32, "GetWindowsDirectoryA", {C_PTR, C_UINT}, C_UINT),
+    xGetSystemDirectory = link_c_func(kernel32, "GetSystemDirectoryA", {C_PTR, C_UINT}, C_UINT),
+    xCreateDirectory  = link_c_func(kernel32, "CreateDirectoryA",
+        {C_PTR,     --  LPCTSTR  lpPathName,    // pointer to a directory path string
+         C_PTR},    --  LPSECURITY_ATTRIBUTES  (NULL)
+        C_INT),     -- BOOL
+    xGetLogicalDriveStrings = link_c_func(kernel32, "GetLogicalDriveStringsA", {C_UINT,C_PTR}, C_UINT),
+    xGetDriveType = link_c_func(kernel32, "GetDriveTypeA", {C_PTR}, C_UINT),
+
+-------
+-- FILE
+-------
+    xCopyFile   = link_c_func(kernel32, "CopyFileA", {C_PTR, C_PTR, C_LONG},C_LONG),
+    xWriteFile  = link_c_func(kernel32, "WriteFile", {C_PTR, C_PTR, C_LONG, C_PTR, C_PTR}, C_INT),
+    xReadFile   = link_c_func(kernel32, "ReadFile",  {C_PTR, C_PTR, C_LONG, C_PTR, C_PTR}, C_INT),
+    -- xReadFileEx = link_c_func(kernel32, "ReadFile", {C_PTR,C_PTR,C_LONG,C_PTR,C_PTR,C_PTR},C_INT), 
+
+    xCreateFile = link_c_func(kernel32, "CreateFileA",
+        {C_PTR,     --  LPCTSTR  lpFileName,    // address of name of the file
+         C_LONG,    --  DWORD  dwDesiredAccess, // access (read-write) mode
+         C_LONG,    --  DWORD  dwShareMode, // share mode
+         C_PTR,     --  LPSECURITY_ATTRIBUTES  lpSecurityAttributes,    // address of security descriptor
+         C_LONG,    --  DWORD  dwCreationDistribution,  // how to create
+         C_LONG,    --  DWORD  dwFlagsAndAttributes,    // file attributes
+         C_PTR},    --  HANDLE  hTemplateFile   // handle of file with attributes to copy
+        C_PTR),     -- HANDLE
+
+    xDeleteFile = link_c_func(kernel32, "DeleteFileA",
+        {C_PTR},    --  LPCTSTR  lpFileName     // address of name of file to delete
+        C_INT),     -- BOOL
+--  xMoveFileEx = link_c_func(kernel32, "MoveFileExA",  -- Error 120 'call not implemented'
+--      {C_PTR,     --  LPCTSTR  lpExistingFileName,    // address of name of the existing file
+--       C_PTR,     --  LPCTSTR  lpNewFileName, // address of new name for the file
+--       C_LONG},   --  DWORD  dwFlags  // flag to determine how to move file 
+--      C_INT),     -- BOOL
+    xMoveFile = link_c_func(kernel32, "MoveFileA",
+        {C_PTR,     --  LPCTSTR  lpExistingFileName,    // address of name of the existing file
+         C_PTR},    --  LPCTSTR  lpNewFileName, // address of new name for the file
+        C_INT),     -- BOOL
+
+    xRemoveDir = link_c_func(kernel32, "RemoveDirectoryA",
+        {C_PTR},    --  LPCTSTR  lpszDir    // address of directory to remove
+        C_INT),     -- BOOL
+
+--DEV xCreateDirectory exists above...
+    xCreateDir  = link_c_func(kernel32, "CreateDirectoryA",
+        {C_PTR,     --  LPCTSTR  lpPathName,    // pointer to a directory path string
+         C_PTR},    --  LPSECURITY_ATTRIBUTES  (NULL)
+        C_INT),     -- BOOL
+
+------------
+-- CLIPBOARD courtesy Pete Lomax 31.1.05
+------------
+    xGlobalLock             = link_c_func(kernel32,"GlobalLock",{C_PTR},C_PTR),
+    xGlobalUnlock           = link_c_func(kernel32,"GlobalUnlock",{C_PTR},C_INT),
+    xGlobalSize             = link_c_func(kernel32,"GlobalSize",{C_PTR},C_INT),
+    xGlobalAlloc            = link_c_func(kernel32,"GlobalAlloc",{C_UINT,C_LONG},C_PTR),
+    xGlobalFree             = link_c_func(kernel32,"GlobalFree",{C_PTR},C_PTR),
+    xCloseClipboard         = link_c_proc(user32,"CloseClipboard",{}),
+    xEmptyClipboard         = link_c_func(user32,"EmptyClipboard",{},C_INT),
+    xGetClipboardData       = link_c_func(user32,"GetClipboardData",{C_UINT},C_UINT),
+    xIsClipboardFormatAvailable=link_c_func(user32,"IsClipboardFormatAvailable",{C_UINT},C_INT),
+    xOpenClipboard      = link_c_func(user32,"OpenClipboard",{C_UINT},C_INT),
+    xSetClipboardData       = link_c_func(user32,"SetClipboardData",{C_UINT,C_UINT},C_UINT),
+
+----------------
+-- Date and Time
+----------------
+    xGetDateFormat = link_c_func(kernel32,"GetDateFormatA",
+        {C_LONG,    --  LCID  Locale,       // locale for which date is to be formatted
+         C_LONG,    --  DWORD  dwFlags,     // flags specifying function options 
+         C_PTR,     --  CONST SYSTEMTIME *lpDate, // date to be formatted (NULL for current date)
+         C_PTR,     --  LPCTSTR  lpFormat,  // date format string (NULL if using locale default)
+         C_PTR,     --  LPTSTR  lpDateStr,  // buffer for storing formatted string
+         C_LONG},   --  int  cchDate        // size of buffer
+        C_LONG),    -- int (number of bytes written to/rqd for lpDateStr)
+
+    xGetTimeFormat = link_c_func(kernel32,"GetTimeFormatA",
+        {C_LONG,    --  LCID  Locale,       // locale for which time is to be formatted
+         C_LONG,    --  DWORD  dwFlags,     // flags specifying function options
+         C_PTR,     --  CONST SYSTEMTIME *  lpTime, // time to be formatted (NULL for current time)
+         C_PTR,     --  LPCTSTR  lpFormat,  // time format string (NULL if using locale default)
+         C_PTR,     --  LPTSTR  lpTimeStr,  // buffer for storing formatted string
+         C_LONG},   --  int  cchTime        // size, in bytes or characters, of the buffer
+        C_LONG),    -- int (number of bytes writtem to/rqd for lpTimeStr)
+
+    xFileTimeToSystemTime = link_c_func(kernel32,"FileTimeToSystemTime",
+        {C_PTR,     --  CONST FILETIME *  lpFileTime,   // pointer to file time to convert
+         C_PTR},    --  LPSYSTEMTIME  lpSystemTime  // pointer to structure to receive system time
+        C_INT),     -- BOOL
+
+    xGetSystemTime = link_c_proc(kernel32,"GetSystemTime",
+        {C_PTR}),   --  LPSYSTEMTIME lpSystemTime
+
+    xSystemTimeToFileTime = link_c_func(kernel32,"SystemTimeToFileTime",
+        {C_PTR,     --  const SYSTEMTIME *lpSystemTime,
+         C_PTR},    --  LPFILETIME lpFileTime
+        C_INT),     -- BOOL
+           
+------------------
+-- Process Control courtesy Pete Lomax 23.2.05
+------------------
+
+--  xGetStdHandle = link_c_func(kernel32, "GetStdHandle",
+--      {C_LONG},   --  DWORD  nStdHandle // input, output, or error device
+--      C_PTR),     -- HANDLE
+--
+--  xSetStdHandle = link_c_func(kernel32, "SetStdHandle",
+--      {C_LONG,    --  DWORD  IDStdHandle, // input, output, or error device
+--       C_PTR},    --  HANDLE hHandle // handle to be a standard handle
+--      C_INT),     -- BOOL
+--
+--  xCreatePipe = link_c_func(kernel32, "CreatePipe",
+--      {C_PTR,     --  PHANDLE  hReadPipe, // address of variable for read handle
+--       C_PTR,     --  PHANDLE  hWritePipe, // address of variable for write handle
+--       C_PTR,     --  LPSECURITY_ATTRIBUTES  lpPipeAttributes, // address of security attributes
+--       C_INT},    --  DWORD   nSize // number of bytes reserved for pipe
+--      C_INT),     -- BOOL
+
+    xGetCurrentProcess = link_c_func(kernel32, "GetCurrentProcess",{}, C_PTR), -- returns HANDLE
+
+    xDuplicateHandle = link_c_func(kernel32, "DuplicateHandle",
+        {C_PTR,     --  HANDLE hSourceProcessHandle, // handle of process with handle to duplicate
+         C_PTR,     --  HANDLE hSourceHandle, // handle to duplicate
+         C_PTR,     --  HANDLE hTargetProcessHandle, // handle of process to duplicate to
+         C_PTR,     --  LPHANDLE    lpTargetHandle, // address of duplicate handle
+         C_LONG,    --  DWORD   dwDesiredAccess, // access for duplicate handle
+         C_UCHAR,   --  BOOL  bInheritHandle, // handle inheritance flag
+         C_LONG},   --  DWORD   dwOptions // optional actions
+        C_INT),     -- BOOL
+
+    xGetStartupInfo = link_c_proc(kernel32, "GetStartupInfoA",
+        {C_PTR}),   --  lpStartupInfo       // address of STARTUPINFO structure 
+
+    xCreateProcess = link_c_func(kernel32, "CreateProcessA",
+        {C_PTR,     --  LPCTSTR lpApplicationName, // pointer to name of executable module
+         C_PTR,     --  LPTSTR lpCommandLine, // pointer to command line string
+         C_PTR,     --  LPSECURITY_ATTRIBUTES lpProcessAttributes, // pointer to process security attributes
+         C_PTR,     --  LPSECURITY_ATTRIBUTES   lpThreadAttributes, // pointer to thread security attributes
+         C_LONG,    --  BOOL  bInheritHandles, // handle inheritance flag 
+         C_ULONG,   --  DWORD   dwCreationFlags, // creation flags
+         C_PTR,     --  LPVOID lpEnvironment, // pointer to new environment block
+         C_PTR,     --  LPCTSTR  lpCurrentDirectory, // pointer to current directory name
+         C_PTR,     --  LPSTARTUPINFO   lpStartupInfo, // pointer to STARTUPINFO
+         C_PTR},    --  LPPROCESS_INFORMATION lpProcessInformation // pointer to PROCESS_INFORMATION
+        C_LONG),    -- BOOL 
+
+    xTerminateProcess = link_c_func(kernel32,"TerminateProcess",
+        {C_PTR,     --  HANDLE  hProcess,   // handle to the process
+         C_LONG},   --  UINT  uExitCode     // exit code for the process
+        C_LONG),    -- BOOL
+
+    xWaitForSingleObject = link_c_func(kernel32, "WaitForSingleObject",
+        {C_ULONG,   --  HANDLE hObject, // handle of object to wait for
+         C_ULONG},  --  DWORD   dwTimeout // time-out interval in milliseconds
+        C_ULONG),   -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
+
+    xWaitForDebugEvent = link_c_func(kernel32, "WaitForDebugEvent",
+        {C_PTR,     --  LPDEBUG_EVENT  lpde, // address of structure for event information
+         C_LONG},   --  DWORD  dwTimeout  // number of milliseconds to wait for event
+        C_LONG),    -- BOOL
+
+    xContinueDebugEvent = link_c_func(kernel32, "ContinueDebugEvent",
+        {C_LONG,    --  DWORD  dwProcessId, // process to continue 
+         C_LONG,    --  DWORD  dwThreadId,  // thread to continue
+         C_LONG},   --  DWORD  dwContinueStatus     // continuation status 
+        C_LONG),    -- BOOL
+
+    xReadProcessMemory = link_c_func(kernel32, "ReadProcessMemory",
+        {C_PTR,     --  HANDLE  hProcess,   // handle of the process whose memory is read  
+         C_PTR,     --  LPCVOID  lpBaseAddress,     // address to start reading
+         C_PTR,     --  LPVOID  lpBuffer,   // address of buffer to place read data
+         C_LONG,    --  DWORD  cbRead,      // number of bytes to read
+         C_PTR},    --  LPDWORD  lpNumberOfBytesRead        // address of number of bytes read
+        C_LONG),    -- BOOL
+
+    xWriteProcessMemory = link_c_func(kernel32, "WriteProcessMemory",
+        {C_PTR,     --  HANDLE  hProcess,   // handle of process whose memory is written to  
+         C_PTR,     --  LPVOID  lpBaseAddress,      // address to start writing to 
+         C_PTR,     --  LPVOID  lpBuffer,   // address of buffer to write data to
+         C_LONG,    --  DWORD  cbWrite,     // number of bytes to write
+         C_PTR},    --  LPDWORD  lpNumberOfBytesWritten     // actual number of bytes written 
+        C_LONG),    -- BOOL
+
+    xGetExitCodeProcess=link_c_func(kernel32, "GetExitCodeProcess",
+        {C_ULONG,   --  HANDLE hProcess, // handle to the process
+         C_ULONG},  --  LPDWORD  lpExitCode // address to receive termination status
+        C_ULONG),   -- BOOL
+
+--NOT SUPPORTED in win 95/98/NT:
+-- xCreateNamedPipe = link_c_func(kernel32, "CreateNamedPipeA",
+--      {C_PTR,     --  LPCTSTR  lpName, // address of pipe name 
+--       C_LONG,    --  DWORD  dwOpenMode, // pipe open mode 
+--       C_LONG,    --  DWORD  dwPipeMode, // pipe-specific modes
+--       C_LONG,    --  DWORD  nMaxInstances, // maximum number of instances  
+--       C_LONG,    --  DWORD  nOutBufferSize, // output buffer size, in bytes 
+--       C_LONG,    --  DWORD  nInBufferSize, // input buffer size, in bytes 
+--       C_LONG,    --  DWORD  nDefaultTimeOut, // time-out time, in milliseconds 
+--       C_PTR},    --  LPSECURITY_ATTRIBUTES  lpSecurityAttributes // address of security attributes structure 
+--      C_PTR),     -- HANDLE
+
+    xCreateMailslot = link_c_func(kernel32, "CreateMailslotA",
+        {C_PTR,     --  LPCTSTR lpName, // address of string for mailslot name
+         C_INT,     --  DWORD  nMaxMessageSize, // maximum message size
+         C_INT,     --  DWORD  lReadTimeout, // milliseconds before read time-out
+         C_PTR},    --  LPSECURITY_ATTRIBUTES  lpSecurityAttributes // address of security structure
+        C_PTR),     -- HANDLE
+
+--   xWaitForSingleObjectEx = link_c_func(kernel32, "WaitForSingleObject",
+--      {C_ULONG,   --  HANDLE hObject, // handle of object to wait for
+--       C_ULONG,   --  DWORD  dwTimeout, // time-out interval in milliseconds
+--       C_ULONG},  --  BOOL  fAlertable // return to execute I/O completion routine if TRUE
+--      C_ULONG),   -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, WAIT_IO_COMPLETION, or WAIT_TIMEOUT
+
+--  xCloseHandle = link_c_func(kernel32, "CloseHandle", {C_ULONG}, C_LONG),
+--  xSetConsoleTitle = link_c_func(kernel32, "SetConsoleTitleA",{C_PTR}, C_INT),
+--  xGetConsoleTitle = link_c_func(kernel32, "GetConsoleTitleA",{C_PTR, C_LONG}, C_INT),
+--  xAllocConsole = link_c_func(kernel32, "AllocConsole",{},C_INT),
+
+    xOpenProcess = link_c_func(kernel32, "OpenProcess",
+        {C_LONG,    --  DWORD  fdwAccess, // access flag
+         C_LONG,    --  BOOL  fInherit, // handle inheritance flag
+         C_LONG},   --  DWORD  IDProcess // process identifier
+        C_PTR),     -- HANDLE
+
+    xGetUserDefaultLangID = link_c_func(kernel32, "GetUserDefaultLangID",
+        {},         --  (no parameters)
+        C_UINT),    -- LANGID
+
+    xGetLocaleInfo = link_c_func(kernel32, "GetLocaleInfoA",
+        {C_LONG,    --  LCID  Locale,       // locale identifier 
+         C_LONG,    --  LCTYPE  LCType,     // type of information 
+         C_PTR,     --  LPTSTR  lpLCData,   // address of buffer for information 
+         C_INT},    --  int  cchData         // size of buffer 
+        C_INT),     -- int
+
+    xEnumWindows = link_c_func(user32, "EnumWindows",
+        {C_PTR,     --  WNDENUMPROC lpEnumFunc, // address of callback function
+         C_LONG},   --  LPARAM lParam // application-defined value
+        C_INT),     -- BOOL
+
+    xDragAcceptFiles = link_c_proc(shell32,"DragAcceptFiles",
+        {C_PTR,     --  HWND  hWnd, // handle of the registering window
+         C_INT}),   --  BOOL  fAccept // acceptance option
+
+    xDragQueryFile = link_c_func(shell32,"DragQueryFile",
+        {C_PTR,     --  HDROP  hDrop, // handle of structure for dropped files
+         C_INT,     --  UINT iFile, // index of file to query
+         C_PTR,     --  LPTSTR lpszFile, // buffer for returned filename
+         C_INT},    --  UINT  cch // size of buffer for filename
+        C_INT),     -- UINT
+
+    xDragFinish = link_c_proc(shell32,"DragFinish",
+        {C_PTR}),   -- HDROP  hDrop // handle of memory to free
+
+    xWaitForInputIdle = link_c_func(user32, "WaitForInputIdle",
+        {C_PTR,     --  HANDLE  hProcess,   // handle to process 
+         C_INT},    --  DWORD  dwTimeout    // time-out interval in milliseconds  
+        C_INT),     -- DWORD 0, WAIT_TIMEOUT, or -1 error (getLastError)
+
+    xLoadBitmap = link_c_func(user32,"LoadBitmapA",
+        {C_PTR,     --  HINSTANCE  hInstance,   // handle of application instance 
+         C_PTR},    --  LPCTSTR  lpBitmapName   // address of bitmap resource name 
+        C_PTR),     -- HBITMAP
+
+--  xSetMapMode=link_c_func(gdi32,"SetMapMode",
+--      {C_PTR,     --  HDC  hdc,   // handle of device context 
+--       C_INT},    --  int  fnMapMode  // new mapping mode
+--      C_INT),     -- int previous mapping mode
+
+    xCreatePen = link_c_func(gdi32,"CreatePen",
+        {C_INT,     --  int  fnPenStyle,    // pen style 
+         C_INT,     --  int  nWidth,    // pen width  
+         C_INT},    --  COLORREF  crColor   // pen color 
+        C_PTR),     -- HPEN handle to pen
+
+    xExtractAssociatedIcon = link_c_func(shell32,"ExtractAssociatedIconA",
+        {C_LONG,    --  HINSTANCE  hInst,   // application instance handle
+         C_PTR,     --  LPTSTR  lpIconPath, // path and filename of file for which icon is wanted
+         C_PTR},    --  LPWORD  lpiIcon     // pointer to icon index
+        C_PTR),     -- HICON
+
+    xSleep = link_c_proc(kernel32,"Sleep",
+        {C_INT}),   -- DWORD  cMilliseconds     // sleep time in milliseconds 
+
+    xGetWindowThreadProcessId = link_c_func(user32,"GetWindowThreadProcessId",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_PTR},    --  LPDWORD  lpdwProcessId  // address of variable for process identifier
+        C_PTR),     -- DWORD thread identifier
+
+--  xMouseEvent = link_c_proc(user32,"mouse_event",
+--      {C_INT,     --  DWORD  dwFlags, // flags specifying various motion/click variants
+--       C_INT,     --  DWORD  dx,  // horizontal mouse position or position change
+--       C_INT,     --  DWORD  dy,  // vertical mouse position or position change
+--       C_INT,     --  DWORD  cButtons,    // unused, reserved for future use, set to zero
+--       C_INT}),   --  DWORD  dwExtraInfo  // 32 bits of application-defined information
+
+    xKeybd_event = link_c_proc(user32,"keybd_event",
+        {C_CHAR,    --  BYTE  bVk,  // virtual-key code
+         C_CHAR,    --  BYTE  bScan,    // hardware scan code
+         C_LONG,    --  DWORD  dwFlags, // flags specifying various function options
+         C_LONG}),  --  DWORD  dwExtraInfo  // additional data associated with keystroke
+
+    xRegisterHotKey = link_c_func(user32,"RegisterHotKey",
+        {C_PTR,     --  HWND  hwnd, // window to receive hot-key notification
+         C_INT,     --  int  idHotKey,      // identifier of hot key
+         C_INT,     --  UINT  fuModifiers,  // key-modifier flags
+         C_INT},    --  UINT  uVirtKey         // virtual-key code
+        C_INT),     -- BOOL
+
+    xUnregisterHotKey = link_c_func(user32,"UnregisterHotKey",
+        {C_PTR,     --  HWND  hwnd, // window associated with hot key
+         C_INT},    --  int  idHotKey         // identifier of hot key
+        C_INT),     -- BOOL
+
+    xGetEnvironmentStrings = link_c_func(kernel32,"GetEnvironmentStringsW", -- (==A)
+        {},
+        C_PTR),     -- LPVOID
+        
+    xFreeEnvironmentStrings = link_c_func(kernel32,"FreeEnvironmentStringsW",
+        {C_PTR},    --  LPTSTR  lpszEnvironmentBlock
+        C_INT),     -- BOOL
+
+    xCoInitialize = link_c_func(ole32,"CoInitialize",
+        {C_PTR},    --  VOID* pvReserved // must be NULL
+        C_UINT),    -- HRESULT
+
+    xCoInitializeEx = link_c_func(ole32,"CoInitializeEx",
+        {C_PTR,     --  VOID* pvReserved // must be NULL
+         C_LONG},   --  DWORD dwCoInit // COINIT_APARTMENTTHREADED or COINIT_MULTITHREADED 
+        C_UINT),    -- HRESULT
+
+    xCoCreateInstance = link_c_func(ole32,"CoCreateInstance",
+        {C_PTR,     --  REFCLSID rclsid, // Class Id to create an instance of.
+         C_PTR,     --  IUnknown* pUnkOuter, // Optional outer unknown to allow aggregation with another object.
+         C_LONG,    --  DWORD dwClsContext, // Flags to restrict the location of the created instance.
+         C_PTR,     --  REFIID riid, // The Id of the interface of the instance to return.
+         C_PTR},    --  LPVOID* ppv // On return, contains a pointer to the specified interface of the instance.
+        C_UINT),    -- HRESULT
+
+    xSHCreateItemFromParsingName = link_c_func(shell32,"SHCreateItemFromParsingName",
+        {C_PTR,     --  PCWSTR pszPath, // A pointer to a display name
+         C_PTR,     --  IBindCtx* pbc, // bind context (use NULL)
+         C_PTR,     --  REFIID riid, // typically IID_ShellItem
+         C_PTR},    --  void** ppv // returned interface pointer, typically IShellItem.
+        C_UINT),    -- HRESULT
+
+    xCoTaskMemFree = link_c_proc(ole32,"CoTaskMemFree",
+        {C_PTR}),   --  VOID* pv
+
+endofdll = 0

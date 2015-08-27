@@ -1,0 +1,1681 @@
+--
+-- t47ltth.exw
+--
+--  Some scrappy code left over from development: localtype test harness.
+--  I had a total mental block over this, but in the end reached something
+--  perhaps less readily understandable but not far from the original plan.
+--  See pmain.e/Assignment for the code finally settled on. This code has 
+--  been added to the test set in case anyone should need it, for want of 
+--  anywhere better to put it. It does not really test anything, rather it
+--  is a test harness to ensure minor tweaks do not collapse the system.
+--
+--with trace
+constant T_integer=1, T_atom=3, T_string=8, T_sequence=12, T_object=15,     -- As per p.exw
+         I=1, A=3, S=8, P=12, O=15,
+         Ti=I+O, Ta=A+O, Ts=S+O, Tp=P+O, To=O+O,            -- Fake udt(builtin), eg type Ti(integer x)
+         Tti=Ti+O, Tta=Ta+O, Tts=Ts+O, Ttp=Tp+O, Tto=To+O   -- Fake udt(udt), eg type Tti(Ti x)
+--if not find({RHStype,Type,lprev,lnew,tchk},
+constant tset=
+            {{I,        I,  I,  0,0},       --int!=>int
+             {I,        A,  I,  0,0},       --int!=>int                             ** tc not rqd!
+             {I,        A,  A,  1,0,I},     --atm!=>int *** (should be atm->int)
+             {I,        O,  I,  0,0},       --int!=>int
+             {I,        O,  S,  1,0,I},     --str->int
+             {I,        O,  P,  1,0,I},     --seq->int
+             {I,        O,  O,  1,0,I},     --obj->int
+             {A,        I,  I,  0,1},       --int!=>atm
+             {A,        A,  A,  0,0},       --atm!=>atm
+             {A,        O,  I,  1,0,A},     --int->atm
+             {A,        O,  A,  0,0},       --atm!=>atm
+             {A,        O,  O,  1,0,A},     --obj->atm
+             {S,        S,  S,  0,0},       --str!=>str
+             {S,        P,  P,  1,0,S},     --seq!=>str *** (should be seq->str)
+             {S,        O,  A,  1,0,S},     --atm->str
+             {S,        O,  S,  0,0},       --str!=>str
+             {S,        O,  P,  1,0,S},     --seq->str
+             {S,        O,  O,  1,0,S},     --obj->str
+             {P,        S,  S,  0,1},       --str!=>seq
+             {P,        P,  P,  0,0},       --seq!=>seq
+             {P,        O,  I,  1,0,P},     --int->seq
+             {P,        O,  A,  1,0,P},     --atm->seq
+             {P,        O,  S,  1,0,P},     --str->seq
+             {P,        O,  P,  0,0},       --seq!=>seq
+             {P,        O,  O,  1,0,P},     --obj->seq
+             {O,        I,  I,  0,1},       --int->obj?! *** (should be int!=>int)
+             {O,        A,  I,  1,1,A},     --int->obj?! *** (should be int->atm)
+             {O,        A,  A,  0,1},       --atm->obj?! *** (should be atm!=>atm)
+             {O,        S,  S,  0,1},       --str->obj?! *** (should be str!=>str)
+             {O,        P,  P,  0,1},       --seq->obj?! *** (should be seq!=>seq)
+             {O,        O,  I,  1,0,O},     --int->obj
+             {O,        O,  P,  1,0,O},     --seq->obj
+             {O,        O,  O,  0,0,O},     --obj!=>obj
+--16 is type ti(integer):
+             {I,        Ti, Ti, 0,1},
+             {A,        Ti, Ti, 0,1},
+--           {S,        Ti, Ti, ?,1},
+--           {P,        Ti, Ti, ?,1},
+             {O,        Ti, Ti, 0,1},
+             {Ti,       Ti, Ti, 0,0},
+             {Ta,       Ti, Ti, 0,1},
+--           {Ts,       Ti, Ti, ?,1},
+--           {Tp,       Ti, Ti, ?,1},
+             {To,       Ti, Ti, 0,1},
+             {Tti,      Ti, Ti, 1,0,Tti},
+             {Ti,       Ti, Tti,1,0,Ti},
+             {Tti,      Ti, Tti,0,0},
+             {Tta,      Ti, Ti, 0,1},
+--           {Tts,      Ti, Ti, ?,1},
+--           {Ttp,      Ti, Ti, ?,1},
+             {Tto,      Ti, Ti, 0,1},
+             {Ti,       I,  Ti, 0,0},
+             {Ti,       I,  I,  1,0,Ti},
+             {Ti,       A,  I,  0,0},       -- NB [DEV] not handled by att1/2
+--18 is type ta(atom):
+             {I,        Ta, Ta, 0,1},   -- hmm? more valuable to keep Ta than I?
+             {A,        Ta, Ta, 0,1},
+--           {S,        Ta, Ta, ?,1},
+--           {P,        Ta, Ta, ?,1},
+             {O,        Ta, Ta, 0,1},
+             {Ti,       Ta, Ta, 0,1},
+             {Ta,       Ta, Ta, 0,0},
+--           {Ts,       Ta, Ta, ?,1},
+--           {Tp,       Ta, Ta, ?,1},
+             {To,       Ta, Ta, 0,1},
+             {Tti,      Ta, Ta, 0,1},
+             {Tta,      Ta, Ta, 1,0,Tta},
+             {Ta,       Ta, Tta,1,0,Ta},
+             {Tta,      Ta, Tta,0,0},
+--           {Tts,      Ta, Ta, ?,1},
+--           {Ttp,      Ta, Ta, ?,1},
+             {Tto,      Ta, Ta, 0,1},
+--23 is type ts(string):
+--           {I,        Ts, Ts, 0,1},
+--           {A,        Ts, Ts, 0,1},
+             {S,        Ts, Ts, 0,1},
+             {P,        Ts, Ts, 0,1},
+             {O,        Ts, Ts, 0,1},
+--           {Ti,       Ts, Ts, 0,1},
+--           {Ta,       Ts, Ts, 0,0},
+             {Ts,       Ts, Ts, 0,0},
+             {Tp,       Ts, Ts, 0,1},
+             {To,       Ts, Ts, 0,1},
+--           {Tti,      Ts, Ts, 1,0,Tti},
+--           {Tta,      Ts, Ts, 0,1},
+             {Tts,      Ts, Ts, 1,0,Tts},
+             {Tts,      Ts, Tts,0,0},
+             {Ts,       Ts, Tts,1,0,Ts},
+             {Ttp,      Ts, Ts, 0,1},
+             {Tto,      Ts, Ts, 0,1},
+--27 is type tp(seq):
+--           {I,        Tp, Tp, 0,1},
+--           {A,        Tp, Tp, 0,1},
+             {S,        Tp, Tp, 0,1},
+             {P,        Tp, Tp, 0,1},
+             {O,        Tp, Tp, 0,1},
+--           {Ti,       Tp, Tp, 0,1},
+--           {Ta,       Tp, Tp, 0,0},
+             {Ts,       Tp, Tp, 0,1},
+             {Tp,       Tp, Tp, 0,0},
+             {To,       Tp, Tp, 0,1},
+--           {Tti,      Tp, Tp, 1,0,Tti},
+--           {Tta,      Tp, Tp, 0,1},
+             {Tts,      Tp, Tp, 0,1},
+             {Ttp,      Tp, Tp, 1,0,Ttp},
+             {Tp,       Tp, Ttp,1,0,Tp},
+             {Ttp,      Tp, Ttp,0,0},
+             {Tto,      Tp, Tp, 0,1},
+--30 is type to(object):
+             {I,        To, To, 0,1},
+             {A,        To, To, 0,1},
+             {S,        To, To, 0,1},
+             {P,        To, To, 0,1},
+             {O,        To, To, 0,1},
+             {Ti,       To, To, 0,1},
+             {Ta,       To, To, 0,1},
+             {Ts,       To, To, 0,1},
+             {Tp,       To, To, 0,1},
+             {To,       To, To, 0,0},
+             {Tti,      To, To, 0,1},
+             {Tta,      To, To, 0,1},
+             {Tts,      To, To, 0,1},
+             {Ttp,      To, To, 0,1},
+             {Tto,      To, To, 1,0,Tto},
+             {To,       To, Tto,1,0,To},
+             {Tto,      To, Tto,0,0},
+--31 is type tti(ti):
+             {I,        Tti,Tti,0,1},
+             {A,        Tti,Tti,0,1},
+--           {S,        Tti,Tti,0,1},
+--           {P,        Tti,Tti,0,1},
+             {O,        Tti,Tti,0,1},
+             {Ti,       Tti,Tti,0,1},
+             {Ta,       Tti,Tti,0,1},
+--           {Ts,       Tti,Tti,0,1},
+--           {Tp,       Tti,Tti,0,1},
+             {To,       Tti,Tti,0,1},
+             {Tti,      Tti,Tti,0,0},
+             {Tta,      Tti,Tti,0,1},
+--           {Tts,      Tti,Tti,0,1},
+--           {Ttp,      Tti,Tti,0,1},
+             {Tto,      Tti,Tti,0,1},
+--33 is type tta(ta):
+             {I,        Tta,Tta,0,1},
+             {A,        Tta,Tta,0,1},
+--           {S,        Tta,Tta,0,1},
+--           {P,        Tta,Tta,0,1},
+             {O,        Tta,Tta,0,1},
+             {Ti,       Tta,Tta,0,1},
+             {Ta,       Tta,Tta,0,1},
+--           {Ts,       Tta,Tta,0,1},
+--           {Tp,       Tta,Tta,0,1},
+             {To,       Tta,Tta,0,1},
+             {Tti,      Tta,Tta,0,1},
+             {Tta,      Tta,Tta,0,0},
+--           {Tts,      Tta,Tta,0,1},
+--           {Ttp,      Tta,Tta,0,1},
+             {Tto,      Tta,Tta,0,1},
+--38 is type tts(ts):
+--           {I,        Tts,Tts,0,1},
+--           {A,        Tts,Tts,0,1},
+             {S,        Tts,Tts,0,1},
+             {P,        Tts,Tts,0,1},
+             {O,        Tts,Tts,0,1},
+--           {Ti,       Tts,Tts,0,1},
+--           {Ta,       Tts,Tts,0,1},
+             {Ts,       Tts,Tts,0,1},
+             {Tp,       Tts,Tts,0,1},
+             {To,       Tts,Tts,0,1},
+--           {Tti,      Tts,Tts,0,1},
+--           {Tta,      Tts,Tts,0,1},
+             {Tts,      Tts,Tts,0,0},
+             {Ttp,      Tts,Tts,0,1},
+             {Tto,      Tts,Tts,0,1},
+--42 is type ttp(tp):
+--           {I,        Ttp,Ttp,0,1},
+--           {A,        Ttp,Ttp,0,1},
+             {S,        Ttp,Ttp,0,1},
+             {P,        Ttp,Ttp,0,1},
+             {O,        Ttp,Ttp,0,1},
+--           {Ti,       Ttp,Ttp,0,1},
+--           {Ta,       Ttp,Ttp,0,1},
+             {Ts,       Ttp,Ttp,0,1},
+             {Tp,       Ttp,Ttp,0,1},
+             {To,       Ttp,Ttp,0,1},
+--           {Tti,      Ttp,Ttp,0,0},
+--           {Tta,      Ttp,Ttp,0,1},
+             {Tts,      Ttp,Ttp,0,1},
+             {Ttp,      Ttp,Ttp,0,0},
+             {Tto,      Ttp,Ttp,0,1},
+--45 is type tto(to):
+             {I,        Tto,Tto,0,1},
+             {A,        Tto,Tto,0,1},
+             {S,        Tto,Tto,0,1},
+             {P,        Tto,Tto,0,1},
+             {O,        Tto,Tto,0,1},
+             {Ti,       Tto,Tto,0,1},
+             {Ta,       Tto,Tto,0,1},
+             {Ts,       Tto,Tto,0,1},
+             {Tp,       Tto,Tto,0,1},
+             {To,       Tto,Tto,0,1},
+             {Tti,      Tto,Tto,0,1},
+             {Tta,      Tto,Tto,0,1},
+             {Tts,      Tto,Tto,0,1},
+             {Ttp,      Tto,Tto,0,1},
+             {Tto,      Tto,Tto,0,0},
+            -1}
+
+function att(sequence e)
+-- e is {RHStype,Type,lprev,lnew,tchk[,lnew]}
+--  lnew need only be present if lnew=1.
+integer RHStype,Type,lprev,lnew,tchk
+integer ptype, ntype, qtype, xtype
+    RHStype = e[1]
+    Type = e[2]
+    lprev = e[3]
+    lnew = e[4]
+    tchk = e[5]
+    --
+    -- Determine whether a type check is needed:
+    --  atom:=integer   n
+    --  integer:=atom   y
+    --  type ti(integer x) return 1 end type
+    --  type tti(ti x) return 1 end type
+    --  ti := tti       n
+    --  tti := ti       y
+    --
+    ptype=RHStype
+    xtype=RHStype
+    qtype=Type
+    while 1 do
+        if xtype>qtype and xtype>T_object then
+--          xtype = symtab[xtype][S_sig][2]
+            xtype -= 15
+            if xtype=qtype then     -- if RHS is superclass of LHS then
+                ptype=Type          --  avoid typecheck. eg int a, ti b a=b
+                exit
+            end if
+        else
+            if xtype<qtype              -- if LHS is superclass of RHS
+            and and_bits(xtype,qtype)   -- some overlap (not eg string=integer)
+            and qtype<=T_object         -- for builtins only
+            and Type<=T_object then     --  "
+                ptype=Type              --  avoid typecheck on eg atom=int, 
+            end if                      --   seq=str, obj=atom, etc.
+            exit
+        end if
+    end while
+
+    if Type!=ptype then
+        if not tchk then return 0 end if
+        ntype=Type      -- if we typecheck, use that as the new localtype
+    else
+        if tchk then return 0 end if
+        --
+        -- Determine the best new localtype in the no-typecheck case.
+        -- NB many strong assumptions that many cases, eg int=atom, 
+        --    have typechecked/avoid this path, are in abundance!
+        --
+        ntype=RHStype
+        if ntype>T_object then
+--          qtype=rootType(Type)
+            qtype=Type
+            while qtype>ntype and qtype>T_object do
+--              qtype = symtab[qtype][S_sig][2]
+                qtype -= 15
+            end while
+            if qtype<=T_object then
+--              xtype = rootType(ntype)
+                xtype = ntype
+                while xtype>T_object do
+--                  xtype = symtab[xtype][S_sig][2]
+                    xtype -= 15
+                end while
+                if xtype<qtype then
+                    ntype=xtype
+                end if
+            end if
+        end if
+    end if
+
+    if ntype!=lprev then
+        if not lnew then return 0 end if
+        if e[6]!=ntype then return 0 end if
+    else
+        if lnew then return 0 end if
+    end if
+
+    return 1
+end function
+
+--without warning -- att1/2 not used
+
+-- NB [DEV] not updated to handle the {16,3,1,0,0} case
+function att1(sequence e)
+-- e is {RHStype,Type,lprev,lnew,tchk[,lnew]}
+--  lnew need only be present if lnew=1.
+integer RHStype,Type,lprev,lnew,tchk
+integer ptype, ntype
+,wtype, qtype, xtype
+    RHStype = e[1]
+    Type = e[2]
+    lprev = e[3]
+    lnew = e[4]
+    tchk = e[5]
+    ptype=RHStype
+    ntype=RHStype
+--
+    if ntype=T_integer then
+        if Type=Ti then
+            ntype=Ti
+        elsif Type=Ta then
+            ntype=Ta
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tti then
+            ntype=Tti
+        elsif Type=Tta then
+            ntype=Tta
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=T_atom then
+        if Type=T_integer then
+            ntype=T_integer
+        elsif Type=Ti then
+            ntype=Ti
+        elsif Type=Ta then
+            ntype=Ta
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tti then
+            ntype=Tti
+        elsif Type=Tta then
+            ntype=Tta
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=T_string then
+        if Type=Ts then
+            ntype=Ts
+        elsif Type=Tp then
+            ntype=Tp
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tts then
+            ntype=Tts
+        elsif Type=Ttp then
+            ntype=Ttp
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=T_sequence then
+        if Type=T_string then
+            ntype=T_string
+        elsif Type=Ts then
+            ntype=Ts
+        elsif Type=Tp then
+            ntype=Tp
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tts then
+            ntype=Tts
+        elsif Type=Ttp then
+            ntype=Ttp
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=T_object then
+        if Type=T_integer then
+            ntype=T_integer
+        elsif Type=T_atom then
+            ntype=T_atom
+        elsif Type=T_string then
+            ntype=T_string
+        elsif Type=T_sequence then
+            ntype=T_sequence
+        elsif Type=Ti then
+            ntype=Ti
+        elsif Type=Ta then
+            ntype=Ta
+        elsif Type=Ts then
+            ntype=Ts
+        elsif Type=Tp then
+            ntype=Tp
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tti then
+            ntype=Tti
+        elsif Type=Tta then
+            ntype=Tta
+        elsif Type=Tts then
+            ntype=Tts
+        elsif Type=Ttp then
+            ntype=Ttp
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Ti then
+        if Type=T_atom then
+            ntype=T_atom
+        elsif Type=Ta then
+            ntype=Ta
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tti then
+            ntype=Tti
+        elsif Type=Tta then
+            ntype=Tta
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Ta then
+        if Type=Ti then
+            ntype=Ti
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tti then
+            ntype=Tti
+        elsif Type=Tta then
+            ntype=Tta
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Ts then
+        if Type=Tp then
+            ntype=Tp
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tts then
+            ntype=Tts
+        elsif Type=Ttp then
+            ntype=Ttp
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Tp then
+        if Type=Ts then
+            ntype=Ts
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tts then
+            ntype=Tts
+        elsif Type=Ttp then
+            ntype=Ttp
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=To then
+        if Type=Ti then
+            ntype=Ti
+        elsif Type=Ta then
+            ntype=Ta
+        elsif Type=Ts then
+            ntype=Ts
+        elsif Type=Tp then
+            ntype=Tp
+        elsif Type=Tti then
+            ntype=Tti
+        elsif Type=Tta then
+            ntype=Tta
+        elsif Type=Tts then
+            ntype=Tts
+        elsif Type=Ttp then
+            ntype=Ttp
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Tti then
+        if Type=Ta then
+            ntype=Ta
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tta then
+            ntype=Tta
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Tta then
+        if Type=Ti then
+            ntype=Ti
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tti then
+            ntype=Tti
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Tts then
+        if Type=Tp then
+            ntype=Tp
+        elsif Type=To then
+            ntype=To
+        elsif Type=Ttp then
+            ntype=Ttp
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Ttp then
+        if Type=Ts then
+            ntype=Ts
+--      elsif Type=Tp then
+--          ntype=Tp
+        elsif Type=To then
+            ntype=To
+        elsif Type=Tts then
+            ntype=Tts
+        elsif Type=Tto then
+            ntype=Tto
+        end if
+    elsif ntype=Tto then
+        if Type=Ti then
+            ntype=Ti
+        elsif Type=Ta then
+            ntype=Ta
+        elsif Type=Ts then
+            ntype=Ts
+        elsif Type=Tp then
+            ntype=Tp
+        elsif Type=Tti then
+            ntype=Tti
+        elsif Type=Tta then
+            ntype=Tta
+        elsif Type=Tts then
+            ntype=Tts
+        elsif Type=Ttp then
+            ntype=Ttp
+--      elsif Type=Tto then
+--          ntype=Tto
+        end if
+    end if
+
+    if ntype!=lprev then
+        if not lnew then return 0 end if
+        if e[6]!=ntype then return 0 end if
+    else
+        if lnew then return 0 end if
+    end if
+--
+--  while Type!=ptype do
+--      
+--  end while
+    if Type=T_integer then
+--Also Tti
+        if ptype=Ti then
+            ptype=T_integer
+        end if
+    elsif Type=T_atom then
+--What about Ta,Tta...
+        if ptype=T_integer then
+            ptype=T_atom
+        elsif ptype=Ti then
+            ptype=T_atom
+        end if
+    elsif Type=T_sequence then
+        if ptype=T_string then
+            ptype=T_sequence
+        end if
+    elsif Type=Ti then
+        if ptype=Tti then
+            ptype=Ti
+        end if
+    elsif Type=Ta then
+        if ptype=Tta then
+            ptype=Ta
+        end if
+    elsif Type=Ts then
+        if ptype=Tts then
+            ptype=Ts
+        end if
+    elsif Type=Tp then
+        if ptype=Ttp then
+            ptype=Tp
+        end if
+    elsif Type=To then
+        if ptype=Tto then
+            ptype=To
+        end if
+    end if
+
+    if Type!=T_object and Type!=ptype then
+        if not tchk then return 0 end if
+    else
+        if tchk then return 0 end if
+    end if
+
+if tchk then
+    wtype=Type
+else
+    wtype=RHStype
+
+--  if Type<=T_object then
+--      while wtype>T_object do
+--  --      wtype = symtab[wtype][S_sig][2]
+--          wtype -= 15
+--      end while
+--      if wtype>=Type and and_bits(wtype,Type) then
+--      if wtype<=T_object and and_bits(wtype,Type) then
+    if wtype<=T_object and wtype>Type and and_bits(wtype,Type) then
+        wtype=Type
+--else
+--  wtype=RHStype
+--      end if
+    else
+        qtype=Type
+--      while qtype>wtype do
+        while qtype>T_object and qtype>wtype do
+    --      qtype = symtab[qtype][S_sig][2]
+            qtype -= 15
+            if qtype=wtype then
+                wtype=Type
+                exit
+            end if
+        end while
+    --  if qtype>Type and and_bits(qtype,Type) then
+        if qtype<=T_object then
+            if wtype>T_object then
+                xtype = wtype
+                while xtype>T_object do
+    --              xtype = symtab[xtype][S_sig][2]
+                    xtype -= 15
+                end while
+                if xtype<qtype and and_bits(xtype,qtype) then
+                    wtype=Type
+                end if
+            else
+                if wtype>qtype and and_bits(wtype,qtype) then
+                    wtype=Type
+                end if
+            end if
+        end if
+    end if
+end if
+if wtype!=ntype then return 0 end if
+
+wtype=RHStype
+xtype=RHStype
+qtype=Type
+    while 1 do
+--  while xtype>T_object do
+--  while xtype>Type do
+    --              xtype = symtab[xtype][S_sig][2]
+--if xtype>Type then
+        if xtype>qtype and xtype>T_object then
+            xtype -= 15
+--          if xtype=Type then
+            if xtype=qtype then
+                wtype=Type
+                exit
+            end if
+--      elsif qtype>xtype and qtype>T_object then
+--          qtype -= 15
+--          if xtype=qtype then
+----                wtype=Type      -- or wtype=qtype?
+--              exit
+--          end if
+        else
+--  if not and_bits(xtype,qtype) then
+--  wtype=and_bits(xtype,qtype)
+--  wtype=or_bits(xtype,qtype)
+--          if xtype<qtype and qtype!=T_object and Type<=T_object then
+            if xtype<qtype and qtype<T_object and Type<=T_object then
+--  if wtype=0 then
+--trace(1)
+                wtype=Type
+            end if
+            exit
+        end if
+    end while
+
+if wtype!=ptype then return 0 end if
+--if wtype!=Type then return 0 end if
+
+
+    return 1
+end function
+
+--trace(1)
+--trace(1)
+-- NB [DEV] not updated to handle the {16,3,1,0,0} case
+function att2(sequence e)
+-- e is {RHStype,Type,lprev,lnew,tchk[,lnew]}
+--  lnew need only be present if lnew=1.
+integer RHStype,Type,lprev,lnew,tchk
+integer ptype
+    RHStype = e[1]
+    Type = e[2]
+    lprev = e[3]
+    lnew = e[4]
+    tchk = e[5]
+    ptype=RHStype
+
+    if ptype=T_integer then
+        if Type=T_integer then
+            if lprev=T_integer then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_atom then
+            if lprev=T_integer then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_atom then
+                if lnew!=1 then lnew=lnew/0 end if
+                if e[6]!=T_integer then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_object then
+            if lprev=T_integer then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_string then
+                if lnew!=1 then lnew=lnew/0 end if
+                if e[6]!=T_integer then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_sequence then
+                if lnew!=1 then lnew=lnew/0 end if
+                if e[6]!=T_integer then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_object then
+                if lnew!=1 then lnew=lnew/0 end if
+                if e[6]!=T_integer then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ti then
+            if lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+        return 0
+    elsif ptype=T_atom then
+        if Type=T_integer then
+            if lprev=T_integer then
+                if lnew then lnew=9/0 end if
+                if tchk!=1 then tchk=9/0 end if
+                return 1
+            end if
+        elsif Type=T_atom then
+            if lprev=T_atom then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=9/0 end if
+                return 1
+            end if
+        elsif Type=T_object then
+            if lprev=T_integer then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_atom then lnew=lnew/0 end if
+                if tchk then tchk=9/0 end if
+                return 1
+            elsif lprev=T_atom then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=9/0 end if
+                return 1
+            elsif lprev=T_object then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_atom then lnew=lnew/0 end if
+                if tchk then tchk=9/0 end if
+                return 1
+            end if
+        elsif Type=Ti then
+            if lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+        return 0
+    elsif ptype=T_string then
+        if Type=T_string then
+            if lprev=T_string then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_sequence then
+            if lprev=T_sequence then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_string then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_object then
+            if lprev=T_atom then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_string then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_string then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_sequence then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_string then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_object then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_string then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ts then
+            if lprev=Ts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+        return 0
+    elsif ptype=T_sequence then
+        if Type=T_string then
+            if lprev=T_string then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_sequence then
+            if lprev=T_sequence then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_object then
+            if lprev=T_integer then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_sequence then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_atom then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_sequence then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_string then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_sequence then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_sequence then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_object then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_sequence then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ts then
+            if lprev=Ts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+        return 0
+    elsif ptype=T_object then
+        if Type=T_integer then
+            if lprev=T_integer then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_atom then
+            if lprev=T_integer then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_atom then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_atom then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_string then
+            if lprev=T_string then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_sequence then
+            if lprev=T_sequence then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=T_object then
+            if lprev=T_integer then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_object then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_sequence then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=T_object then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=T_object then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ti then
+            if lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ts then
+            if lprev=Ts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Ti then
+        if Type=T_integer then
+            if lprev=T_integer then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Ti then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ti then
+            if lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Tti then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Ti then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Ta then
+        if Type=Ti then
+            if lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Tta then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Ta then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Ts then
+        if Type=Ts then
+            if lprev=Ts then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Tts then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Ts then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Tp then
+        if Type=Ts then
+            if lprev=Ts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Ttp then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Tp then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=To then
+        if Type=Ti then
+            if lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ts then
+            if lprev=Ts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Tto then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=To then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Tti then
+        if Type=Ti then
+            if lprev=Ti then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Tti then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Tta then
+        if Type=Ti then
+            if lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Tta then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Tts then
+        if Type=Ts then
+            if lprev=Ts then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Tts then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Ttp then
+        if Type=Ts then
+            if lprev=Ts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Ttp then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    elsif ptype=Tto then
+        if Type=Ti then
+            if lprev=Ti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ta then
+            if lprev=Ta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ts then
+            if lprev=Ts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tp then
+            if lprev=Tp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=To then
+            if lprev=To then
+                if not lnew then lnew=lnew/0 end if
+                if e[6]!=Tto then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            elsif lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tti then
+            if lprev=Tti then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tta then
+            if lprev=Tta then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tts then
+            if lprev=Tts then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Ttp then
+            if lprev=Ttp then
+                if lnew then lnew=lnew/0 end if
+                if tchk!=1 then tchk=tchk/0 end if
+                return 1
+            end if
+        elsif Type=Tto then
+            if lprev=Tto then
+                if lnew then lnew=lnew/0 end if
+                if tchk then tchk=tchk/0 end if
+                return 1
+            end if
+        end if
+    end if
+    return 0
+end function
+
+----lnew=0
+--  while 1 do
+----trace(1)
+----        if Type=ptype then exit end if
+--      if Type=ptype and ptype=lprev then
+--          if lnew!=0 then lnew=9/0 end if
+--          exit
+--      end if
+--      if ptype=T_integer then
+--          ptype = T_atom
+--      elsif ptype=T_string then
+--          ptype = T_sequence
+--      elsif ptype<=T_object then
+----trace(1)
+----if 0 then
+----            ptype = symtabN[S_ltype]
+--          ptype = lprev
+--      if ptype!=RHStype then
+----        if ptype>RHStype then
+----vtype = symtabN[S_vtype]
+--if (Type=T_integer and RHStype=T_atom)
+--or (Type=T_string and RHStype=T_sequence) then
+--  -- avoid degrading what type info we have...
+----DEV something is missing here....
+---- <<< is that: if RHStype>object then
+----                    ignore any ltype>RHStype
+----                else
+----                    ignore any ltype<RHStype
+----                end if
+----    if you have type ta(object o) end type ta a, and 
+----                type tb(ta a) end type tb b
+----    either (not sure which) a=b or b=a should not be
+----     promoting the type, at least I think it should not.
+----    Perhaps the thing to test is ta x tb y and whether 
+----     one of x=a y=b triggers a pointless typecheck?
+----    Equally though, perhaps x=b or y=a would save on a
+----     typecheck when/if we were doing this "wrong"?!
+--else
+----DEV temp:
+----    Warn("newltype",eqline,eqcol)
+--  if lnew!=1 then lnew=9/0 end if
+--  if ptype!=e[6] then ptype = 9/0 end if
+--end if
+--ptype = RHStype
+--      end if
+----end if
+--
+--          exit
+--      else
+----            ptype = symtab[ptype][S_sig][2]
+--          ptype -= 15
+--      end if
+--  end while
+--
+----tchk=0
+--  if Type!=T_object
+--  and Type!=ptype then
+----        tchk=1
+--      if tchk!=1 then tchk=9/0 end if
+--  else
+--      if tchk!=0 then tchk=9/0 end if
+--  end if
+--end function
+
+-- NB [DEV] att1/2 not updated to handle the {16,3,1,0,0} aka {Ti,A,I,0,0} case.
+for i=1 to length(tset)-1 do
+    if not att(tset[i]) then
+        trace(1)
+        if not att(tset[i]) then end if
+        if not att(tset[i]) then end if
+        if not att(tset[i]) then end if
+    end if
+end for
+-- get rid of a couple of unused warnings:
+constant r_att1 = routine_id("att1")
+constant r_att2 = routine_id("att2")
+if r_att1=r_att2 then ?9/0 end if

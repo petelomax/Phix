@@ -1,0 +1,93 @@
+track(sequence s, integer idx, track_mode m)
+============================================
+
+Whereas trace(1) is code-driven debugging, track(s,i,m) is data-driven.
+
+type track_mode enum READ=1,WRITE=2,BOTH=3
+
+**NB** DO NOT GET DISTRACTE BY THIS; GLOBAL ARE FINE FOR NOW.
+ <aside> when a parameter uses an enumerated type (implicitly an integer),
+         the callee can use the otherwise-out-of-scope values, eg:
+            type track_mode enum READ=1,WRITE=2,BOTH=3
+            procedure track(sequence s, integer idx, track_mode m)
+            end procedure
+         then:
+            track(s,i,WRITE) -- valid
+         whereas:
+            integer m = WRITE -- invalid (WRITE undefined/out of scope)
+        TEST: [DEV]
+          file1:
+            type thing enum READ=1
+            global function f(integer i, thing t)
+              return {i,t}
+            end function
+          file2:
+            type other enum READ=4
+            global function g(other o)
+              return o
+            end function
+          main:
+            ?f(g(READ),READ)
+          either prints {4,1} or raises a compilation error.
+          (a "type xxx enum" creates a flagged (K_enumt = #080000) S_Type 
+           entry, with a list of the enumerated fields (where?)...
+           We should allow "if track_mode(xxx) then", which returns true 
+           if the parameter (integer) is in the list, which in turn
+           suggests we should emit some auto-generated code.)
+ </aside>
+
+Note that track is a hll-defined routine in pdebug.e, and cannot be used
+with the -nodiag command line option. Unlike trace(), it can be called /
+entered directly into the debug window.
+
+A future option is to complement track() with track_var(), to provide much
+the same functionality for integers, atoms, strings, and whole sequences. 
+ (I suspect that track_var would really only work properly on global and
+  file-level variables, effectively being limited to "live" instances of
+  local variables and parameters, and would trigger "randomly" when they
+  drop out of scope and the memory gets used for something else, btw.)
+
+However track() is limited to elements of a sequence (and because this uses 
+the CPU debug registers, if s is a string it will monitor up to 4 chars).
+ (If you monitor the end of a string, it may trigger when the memory just
+  past that allocated for the string is accessed.)
+
+It is important to realise that track() works at the memory/hardware level, 
+after a=b then a reference to the monitored element of either will trigger 
+a debug event, irrespective of which you used to set the track with. Also:
+
+    sequence a,b
+        a = {1,2,3}
+        b = a
+        
+        track(a,3,WRITE)
+        
+        a[3] = 4
+        
+ will work fine, because the b=a occurred before the track(), which forces 
+ a "clone" of "a" as and when needed. However:
+
+    sequence a,b
+        a = {1,2,3}
+        
+        track(a,3,WRITE)
+        
+        b = a
+        a[3] = 4
+        a[3] = 5
+
+ will not work as expected: you need to use BOTH to catch the clone on the 
+ first assignment to a[3], the original track will still be looking at the 
+ original (unmodified) {1,2,3}, and you need a second track(a,3,WRITE|BOTH)
+ to set a monitor on the new {1,2,4}.
+
+Lastly, the number of active tracks is limited by your hardware, not much
+I can do about that if you exeed it (typically 4). [DEV]
+
+Generally speaking, data-driven debugging is harder than code-driven,
+precisely because it works at the memory/hardware level, that Phix tries
+very much to shield you from. You may find a "with profile_clone" report
+helps identify where/why track is not working as you expected.
+
+I freely admit that track() was implemented for the benefit of the compiler,
+where source->il->x86->packed was otherwise very hard to follow.

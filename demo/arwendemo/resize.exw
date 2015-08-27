@@ -1,0 +1,433 @@
+--
+-- resize.exw
+-- ==========
+--
+-- While working on pgui.exw, I had an idea for automatically resizing windows.
+--  Although not yet production-quality, this demonstrates the basic idea, for
+--  eventual inclusion into arwen (or axtra.ew). There is probably a significant
+--  amount of work remaining; the basic maths is "wild stab mk2", not very much 
+--  effort spent (/wasted) on that at all, I haven't thought of a way to "pin"
+--  things properly, but autoResize(pmain,{dbClose,RIGHT,...}) ought to suffice,
+--  and I have no idea whatsoever why on the registration tab exactly half of
+--  the controls seem to be pinned to the top and the other to the bottom.
+--
+-- Sorry about the mess, but y'know, work in progress and all that...
+--
+
+--/*
+include builtins\dll.e
+include builtins\machine.e
+include builtins\misc.e
+include builtins\sort.e
+include builtins\file.e
+include builtins\ppp.e
+include demo\arwen\misc_arwen.e
+include demo\arwen\message_box.ew -- stand alone message box dialog
+include demo\arwen\constants.ew -- Win32 constant declarations
+include demo\arwen\dll_links.ew -- Linking to various dll files
+include demo\arwen\structures.ew -- basic structure arrangement
+include demo\arwen\Quick_Allocations.ew -- code to manage pre-allocated memory blocks
+include demo\arwen\classes.ew -- predefined window/control class defaults
+include demo\arwen\arwen.ew
+--*/
+with trace
+include demo\arwen\arwen.ew
+--include demo\arwen\axtra.e
+
+with warning
+
+constant
+    pmain = create(Window,"resize demo (incomplete)",0,0,152,113,648,347,0),
+    TC = create(TabControl, "" , 0, pmain, 3,2,625,304,0),
+    demos = create(TabItem,"Demos",0,TC,0,0,0,0,0),
+    dcols = {{"Columns",55},{"Set",30},{"Dynamically",490}},
+    dlist = create(ListView,dcols,0,demos,1,4,615,122,{{LVS_SINGLESEL,LVS_SHOWSELALWAYS,LVS_OWNERDATA},0}),
+    dbRun = create(Button,"&Run",0,demos,0,132,75,30,0),
+    dlFilter = create(Label,"Fil&ter",0,demos,85,140,32,16,0),
+    dtFilter = create(EditText,"",0,demos,116,135,417,22,0),
+    dbClose = create(Button,"&Close",0,demos,542,131,75,30,0),
+    dSource = create(ListBox,"Source",0,demos,1,166,615,111,LBS_NOINTEGRALHEIGHT),
+    pdebug = create(TabItem,"Debug",0,TC,0,0,0,0,0),
+    dcode = create(Label,"Not implemented",0,pdebug,18,31,173,20,0),
+    isense = create(TabItem,"Intellisense",0,TC,0,0,0,0,0),
+    icode = create(Label,"Background intellisense processor for Edita",0,isense,3,10,243,20,0),
+    isactive = create(Label,"(inactive)",0,isense,4,30,173,20,0),
+    ilist = create(ListView,"",0,isense,5,52,606,220,0),
+    psettings = create(TabItem,"Settings",0,TC,0,0,0,0,0),
+    scode = create(Label,"Not implemented",0,psettings,20,33,173,20,0),
+    ffaptxt = "(fast, free, and painless; copies above to clipboard and opens browser)",
+    clawtxt = "(checks that the licence shown above actually works)",
+    pregister = create(TabItem,"Register",0,TC,0,0,0,0,0),
+    rclbl = create(Label,"Registration code",0,pregister,15,19,93,20,0),
+    lclbl = create(Label,"Licence code",0,pregister,13,158,85,20,0),
+    rrc1 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,18,334,20,0),
+    rrc2 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,35,334,20,0),
+    rrc3 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,52,334,20,0),
+    rrc4 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,69,334,20,0),
+    rNow = create(Button,"Register now",0,pregister,11,89,91,30,0),
+--  ffap = create(Label,ffaptxt,0,pregister,112,96,418,20,0),
+    ffap = create(Label,ffaptxt,0,pregister,112,96,350,20,0),
+    lic1 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,159,334,20,0),
+    lic2 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,176,334,20,0),
+    lic3 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,193,334,20,0),
+    lic4 = create(Label,"1234567890123456789012345678901234567890",0,pregister,115,210,334,20,0),
+    test = create(Button,"Test",0,pregister,11,229,89,30,0),
+--  claw = create(Label,clawtxt,0,pregister,109,237,355,20,0)
+    claw = create(Label,clawtxt,0,pregister,109,237,355,20,0)
+
+setFont({rrc1,rrc2,rrc3,rrc4,lic1,lic2,lic3,lic4},"Courier",8,0)
+
+    if dlist or dcode or icode or isactive or ilist or scode or rclbl or lclbl or ffap or claw or rNow then end if -- suppress warnings [DEV]
+
+integer focusOn
+
+--DEV:
+with trace
+sequence arctrls = {},
+         arorigs = {},
+         ardetails = {}
+constant /*D_CHILD=1, D_FIXED=2, D_COORDS=3,*/ D_VSUM=4/*, D_TABID=5*/
+
+--global 
+--function ardiag(integer id)
+--integer k
+--  k = find(id,arctrls)
+--  if k=0 then return 0 end if
+--  return ardetails[k]
+--end function
+
+-- -1 = skip, 0 = fixed in x and y, 1 = x variable, 2 = y variable (??), 3 = x and y variable:
+constant SKIP = -1, NONE = 0, HORIZ = 1, VERT = 2, BOTH = HORIZ+VERT
+constant fixinfo = { SKIP,  -- WINDOW (0)
+                     NONE,  -- BUTTON (1)
+                     SKIP,  -- MENU (2)
+                     HORIZ, -- EDIT (3)
+                     HORIZ, -- COMBO (4)
+                     BOTH,  -- LIST (5)
+                     NONE,  -- STATIC (6)
+                     BOTH,  -- PIXMAP (7)
+                     SKIP,  -- STATUS (8)
+                     SKIP,  -- SCROLLBAR (9)
+                     BOTH,  -- TRACKBAR (10)        -- ??
+                     BOTH,  -- PROGRESSBAR (11)     -- ??
+                     BOTH,  -- COMMON_CONTROL (12)
+                     HORIZ} -- HYPERTEXT (13)
+
+function get_children(integer id, integer tabid)
+-- internal/recursive function for autoResize()
+sequence res = {}
+--sequence mrect = {}
+sequence rect
+object children = getChildren(id)
+integer child, objtype, basetype, fixed
+--integer x,y,w,h
+
+    if sequence(children) then
+        for i=1 to length(children) do
+            child = children[i]
+            objtype = getObjectType(child)
+            basetype = getClassBase(objtype)
+            fixed = fixinfo[basetype+1]
+            if fixed!=-1 then
+--          if not find(basetype,{WINDOW,MENU,STATUS,SCROLLBAR}) then
+--              fixed = find(basetype,{BUTTON,STATIC,HYPERTEXT})!=0
+--/*
+    BUTTON          = 1,        -- button
+    MENU            = 2,        -- menu entities
+    EDIT            = 3,        -- edit
+    COMBO           = 4,        -- combo box
+    LIST            = 5,        -- list box
+    STATIC          = 6,        -- static
+    PIXMAP          = 7,        -- pixmap,
+    STATUS          = 8,        -- StatusBars & StatusFields
+    -- NB: previous classes of Common Controls included the scroll bars & track bars
+    SCROLLBAR       = 9,        -- scroll bar
+    TRACKBAR        = 10,       -- Track bar
+    PROGRESSBAR     = 11,
+    COMMON_CONTROL  = 12,       -- common controls  
+    HYPERTEXT       = 13        -- custom flat button mimics url control style
+--*/            
+--          {cx,cy,cw,ch} = getWindowRect(child)
+--          res = append(res,{child,cx,cy,cw,ch})
+-- GetClientRect
+-- GetWindowRect  -- screen coordinates
+-- ScreenToClient
+-- getClientCoords
+--              if length(mrect)=0 then mrect = getClientRect(pmain) end if
+--              rect = getWindowRect(child)
+--if child=dtFilter then trace(1) end if
+                rect = getClientCoords(child)
+--              {x,y,r,b} = getClientCoords(child)
+--              w = rect[3]-rect[1]
+--              h = rect[4]-rect[2]
+--              x = rect[1]--px
+--              y = rect[2]--py
+--if child=TC then
+----?mrect
+--  ?rect
+----    ?{px,py,x,y,w,h}
+--end if
+--              rect = sq_sub(rect,mrect)
+--if child=TC then
+--  ?rect
+--end if
+--              res = append(res, child&fixed&rect)
+--              res = append(res,{child,fixed,x,y,r,b})
+                res = append(res,{child,fixed,rect,0,tabid})
+                res &= get_children(child,tabid)
+            elsif objtype=TabItem then
+                -- note that the basetype of TabItems is kinda undefined (0); 
+                --      anyway we want to resize the TabControl and not the 
+                --      TabItems, but o/c include everything on the TabItems.
+                res &= get_children(child,id)
+            end if
+        end for
+    end if
+    return res
+end function
+
+--constant ABOVE = 1, BELOW = 2, LEFT = 3, RIGHT = 4
+--function variable(integer direction, integer idx, sequence children)
+function sum_var(sequence children, integer idx)
+integer l,t,r,b,tabid
+--integer z
+integer fixed, ctab
+--  if direction=ABOVE then
+--      z = children[idx][4]
+--  elsif direction=BELOW then
+--      z = children[idx][6]
+--  elsif direction=LEFT then
+--      z = children[idx][3]
+--  elsif direction=RIGHT then
+--      z = children[idx][5]
+--  else
+--      ?9/0
+--  end if
+integer sa=0, sb=0, sl=0, sr=0
+integer cl,ct,cr,cb,cw,ch
+    {?,?,{l,t,r,b},?,tabid} = children[idx]
+    for i=1 to length(children) do
+        {?,fixed,{cl,ct,cr,cb},?,ctab} = children[i]
+--      ctab = children[i][D_TABID]
+        if ctab=0 or tabid=0 or ctab=tabid then
+--          fixed = children[i][D_FIXED]
+            if fixed!=0 then
+--              {cl,ct,cr,cb} = children[i][D_COORDS]
+                {cw,ch} = {cr-cl,cb-ct}
+                if    cr<l then if and_bits(fixed,1) then sl+=cw end if
+                elsif cl>r then if and_bits(fixed,1) then sr+=cw end if
+                elsif cb<t then if and_bits(fixed,2) then sa+=ch end if
+                elsif ct>b then if and_bits(fixed,2) then sb+=ch end if
+                end if
+--              if    cr<l then sl+=cw
+--              elsif cl>r then sr+=cw
+--              elsif cb<t then sa+=ch
+--              elsif ct>b then sb+=ch
+--              end if
+--              if direction=ABOVE then
+--                  if children[i][6]<z then return 1 end if
+--              elsif direction=BELOW then
+--                  if children[i][4]>z then return 1 end if
+--              elsif direction=LEFT then
+--                  if children[i][5]<z then return 1 end if
+--              elsif direction=RIGHT then
+--                  if children[i][3]>z then return 1 end if
+--              else
+--                  ?9/0
+--              end if
+            end if
+        end if
+    end for
+    return {sa,sb,sl,sr}
+end function
+
+--global 
+procedure autoResize(integer id)--, sequence newsize={})
+--
+-- Log the specified window for automatic resizing.
+-- id should be a Window control which has been created pixel-perfect at
+--  the minimum allowed size (using say Edita/Tools/Window Painter). You
+--  must always leave at least 1 pixel gaps for this to work properly.
+-- the optional newsize parameter can be used to set a preferred initial
+--  size, larger than the minimum allowed size, or saved from a prior run.
+--  If newsize is length 2 (w,h) then it leaves the top left corner in the 
+--  same place, alternatively it may be of length 4 (x,y,w,h).
+-- autoResize should be called after all child controls have been created,
+--  typically once at the top level, but it can also be used directly and
+--  repeatedly as part of some higher-level (manual) resize operation.
+--
+-- Let me know if you find a layout this doesn't cope with very well (or 
+--  completely mangles); the first few releases (of this routine) will of 
+--  course be biased towards coping best with my personal layout styles.
+--
+--integer px,py
+integer x,y,w,h
+integer l,t,r,b,c
+integer k,child,fixed
+--,ctab
+--atom cx,cy,cw,ch
+sequence details
+integer ow,oh,nw,nh -- original and new widths and heights
+integer vl,va,vr,vb -- variable left/above/right/below
+integer tv
+--, mdetails
+--object children
+--  {px,py} = getWindowRect(id)
+--  {x,y,w,h} = getClientRect(id)
+    k = find(id,arctrls)
+    if k=0 then
+        arctrls &= id
+        k = length(arctrls)
+        {x,y,w,h} = getClientRect(id)
+        arorigs = append(arorigs,{w-x,h-y})
+--      details = {{id,x,y,w,h}} & get_children(id)
+--      details = {}
+--      children = getChildren(id)
+        details = get_children(id,0)
+--      mdetails = details
+        for i=1 to length(details) do
+--          if variable(ABOVE,i,details) then mdetails[i][4] /= h end if
+--          if variable(BELOW,i,details) then mdetails[i][6] /= h end if
+--          if variable(LEFT ,i,details) then mdetails[i][3] /= w end if
+--          if variable(RIGHT,i,details) then mdetails[i][5] /= w end if
+--          ctab = details[i][D_TABID]
+--          {l,t,r,b} = details[i][D_COORDS]
+--          details[i][D_VSUM] = sum_var(l,t,r,b,ctab,details)
+            details[i][D_VSUM] = sum_var(details,i)
+        end for
+--      for/while
+--          ... (getChildren etc...)
+--      <probably needs a second loop:>
+--          ( integers >=1 represent absolute offsets from x and y, 
+--            integers <=-1 represent absolute offsets from x+w and y+h,    [DEV...]
+--            or a fraction f(>0.0 & <1.0) represents x+f*w or y+f*h)
+--          details = append(details,{cx,cy,cw,ch})
+--      end for/while
+        ardetails = append(ardetails,details)
+    else
+--      ...
+        details = ardetails[k]
+        {ow,oh} = arorigs[k]
+        {x,y,w,h} = getClientRect(id)
+        {nw,nh} = {w-x,h-y}
+--      hh = floor(h/2)-35
+--      void = c_func(xMoveWindow,{getHwnd(TC),   x+2,y+2, w-4, h-4, 0})
+        for i=1 to length(details) do
+--!         {child,fixed,{l,t,r,b},{vl,va,vr,vb}} = details[i]
+            {child,fixed,{l,t,r,b},{va,vb,vl,vr}} = details[i]
+--          if not integer(cx) then cx = x+floor(w*cx) end if
+--          if not integer(cy) then cy = y+floor(h*cx) end if
+--          if not integer(cw) then cw = floor((x+w)*cw) end if
+--          if not integer(ch) then ch = floor((y+h)*ch) end if
+--if child=TC then
+if child=dtFilter then
+    ?details[i]
+end if
+            tv = vl+vr
+            if and_bits(fixed,HORIZ)!=0 then
+                tv += (r-l)
+                if vr=0 then
+                    r += (nw-ow)
+                else
+--                  r += floor((vr/tv)*(nw/ow)+0.5)-vr
+                    r += floor(((vr/tv)*(nw-(ow-tv)))+0.5)-vr
+                end if
+            end if
+            if vl!=0 then
+--              l += floor((vl/tv)*(nw/ow)+0.5)-vl
+                c = floor(((vl/tv)*(nw-(ow-tv)))+0.5)-vl
+                l += c
+                if and_bits(fixed,HORIZ)=0 then
+                    r += c
+                end if
+            end if
+            tv = va+vb
+            if and_bits(fixed,VERT)!=0 then
+                tv += (b-t)
+                if vb=0 then
+                    b += (nh-oh)
+                else
+--                  b += floor((vb/tv)*(nh/oh)+0.5)-vb
+                    b += floor(((vb/tv)*(nh-(oh-tv)))+0.5)-vb
+                end if
+            end if
+            if va!=0 then
+--              t += floor((va/tv)*(nh/oh)+0.5)-va
+                c = floor(((va/tv)*(nh-(oh-tv)))+0.5)-va
+                t += c
+                if and_bits(fixed,VERT)=0 then
+                    b += c
+                end if
+            end if
+if child=dtFilter then
+    ?{-1,l,t,r,b,-1}
+end if
+--          void = c_func(xMoveWindow,{getHwnd(child),cx,cy,cw,ch,0})
+            void = c_func(xMoveWindow,{getHwnd(child),l,t,r-l,b-t,0})
+            if getObjectType(child)=ListView then
+                resizeLVColumns(child)
+            end if
+        end for
+    end if
+end procedure
+
+--trace(1)
+    autoResize(pmain)
+--  ?ardiag(pmain)
+
+function pmainHandler(integer id, integer msg, atom wParam, object lParam)
+--integer fn
+--sequence chunk
+integer x,y,w,h,hh
+
+    if object(lParam) then end if
+
+    if msg=WM_PAINT then
+        if focusOn then
+            id = focusOn
+            focusOn = 0
+            setFocus(id)
+        end if
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_ESCAPE then
+            closeWindow(pmain)
+        end if
+    elsif msg=WM_SIZE and id=pmain then
+if 01 then
+        autoResize(pmain)
+else
+        --
+        -- This of course is the manual way to do it, and I was trying to
+        -- find a way to avoid coding this sort of stuff, in every single
+        -- application that I write...
+        --
+        {x,y,w,h} = getClientRect(pmain)
+--?getWindowRect(pmain)
+--?{{{x,y,w,h}}}
+        hh = floor(h/2)-35
+--?{{x+2,y+2, w-4, h-4}}
+        void = c_func(xMoveWindow,{getHwnd(TC),   x+2,y+2, w-4, h-4, 0})
+        void = c_func(xMoveWindow,{getHwnd(dlist),x+5,y+25,w-15,hh-5,0})
+        resizeLVColumns(dlist)
+        void = c_func(xMoveWindow,{getHwnd(dbRun),x+4,hh+25,75,30,0})
+        void = c_func(xMoveWindow,{getHwnd(dlFilter),x+85,hh+33,27,16,0})
+--?getClientCoords(dtFilter)
+--?{{x+114,hh+30,w-205,22}}
+        void = c_func(xMoveWindow,{getHwnd(dtFilter),x+114,hh+30,w-205,22,0})
+--?getClientCoords(dtFilter)
+        void = c_func(xMoveWindow,{getHwnd(dbClose),x+w-84,hh+25,75,30,0})
+        void = c_func(xMoveWindow,{getHwnd(dSource),x+5,hh+60,w-15,hh,0})
+        void = c_func(xMoveWindow,{getHwnd(ilist),x+10,y+95,w-25,h-110,0})
+        resizeLVColumns(ilist)
+end if
+    elsif msg=WM_GETMINMAXINFO then
+        poke4(lParam+MINMAXINFO_ptMinTrackSize+POINT_x,550)
+        poke4(lParam+MINMAXINFO_ptMinTrackSize+POINT_Y,340)
+    end if
+    return 0
+end function
+setHandler({pmain,rNow,test,TC,pregister},routine_id("pmainHandler"))
+
+    focusOn = demos
+    WinMain(pmain,SW_NORMAL)
+

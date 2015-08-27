@@ -1,0 +1,51 @@
+
+-- Description:
+--  Resize a title-less child window on one side only
+--  Shows how to resize a child in tune with the main window,
+--  and how to override the default minimum window size values.
+-- Keywords:
+--  setClassDefaults, toggleWindowTitle, WM_NCHITTEST,
+--  WM_GETMINMAXINFO, setBackColour, getSysColor
+-- Credit: translated from Tutorial by Don Phillips (31/12/01)
+
+include arwen.ew
+include axtra.ew
+
+constant MainWin = create(Window, "Example 02", 0, NULL, 25, 25, 300, 200, 0)
+	 setClassDefaults(Window, {WS_CHILD,WS_THICKFRAME},WS_EX_CLIENTEDGE)
+constant ToolWin = create(Window, "", 0, MainWin, 0, 0, 150, 27, 0)
+	 resetClassDefaults(Window)
+	 toggleWindowTitle(ToolWin)
+
+function MainHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+
+    if id = ToolWin then
+	if msg = WM_NCHITTEST then
+	    rect = getWindowRect(ToolWin)
+	    if loWord(lParam)<=rect[3] then
+		rect = getClientRect(ToolWin)
+		rect = clientToScreen(ToolWin,rect[3],rect[4])
+		if loWord(lParam)>rect[1] then
+		    return {HTRIGHT}
+		end if
+	    end if
+	    return {HTBORDER}
+	elsif msg = WM_GETMINMAXINFO then
+	    -- Override windows default of 112 pixels min width
+	    poke4(lParam + MINMAXINFO_ptMinTrackSize + POINT_x,0)
+--	    poke4(lParam + MINMAXINFO_ptMinTrackSize + POINT_Y,0)
+	end if
+    elsif id = MainWin then
+	if msg = WM_SIZE and wParam != SIZE_MINIMIZED then
+	    rect = getWindowRect(ToolWin)
+	    void = c_func(xMoveWindow,{getHwnd(ToolWin),0, 0, rect[3]-rect[1], lParam[4], 1})
+	end if
+    end if
+    return 0
+end function
+setHandler({MainWin,ToolWin},routine_id("MainHandler"))
+
+setBackColour(ToolWin, getSysColor(COLOR_DESKTOP))
+openWindow(ToolWin, SW_NORMAL)
+WinMain(MainWin, SW_NORMAL)

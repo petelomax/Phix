@@ -1,0 +1,56 @@
+--
+-- combo.exw
+--
+-- A simple demonstration program. 
+--
+-- groups: Contains lists of permitted values for each slot.
+--         Note that the length of each mini-set may be different.
+-- key(): A novel algorithm to quickly recreate any possible combination
+--        using only an integer code. The original challenge came from a
+--        locksmith who wanted to allocate keys for hotel rooms, and store 
+--        them in the smallest possible way. Clearly this algorithm has 
+--        other potential uses. See also (the later) perm.e/permutes.exw
+--
+-- The results are AAB, AAC, ACB, ACC, BAB, BAC, BCB, BCC.
+--
+-- Technical note: Slightly better performance may be possible by performing
+--                 the res = repeat(' ',length(groups)) only once. In other
+--                 words make res a file-level variable and key() a procedure 
+--                 that sets it. Of course to notice any gain, you would need 
+--                 to be getting billions of combinations, enough that setting 
+--                 res[i] once instead of twice per iteration is measurable.
+--                 I only mention this because who knows what someone might
+--                 try and adapt (/adopt?) this for.
+--
+
+sequence groups
+         groups={"AB","AC","BC"}
+
+function key(integer n)
+--returns the nth key
+sequence res
+integer w
+    n -= 1
+    res = repeat(' ',length(groups))
+    for i=length(res) to 1 by -1 do
+        w = remainder(n,length(groups[i]))
+        n = floor(n/length(groups[i]))
+        res[i] = groups[i][w+1]
+    end for
+    return res
+end function
+
+
+integer maxcomb -- product of group lengths
+    maxcomb = length(groups[1])
+    for i=2 to length(groups) do
+        maxcomb *= length(groups[i])
+    end for
+    for i=1 to maxcomb do
+        puts(1,key(i)&", ")
+    end for
+    puts(1,'\n')
+-- this is part of p -test, so leave this out:
+--  if getc(0) then end if
+
+--include ..\test\t02parms.exw  -- more FP...

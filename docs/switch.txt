@@ -1,0 +1,613 @@
+This document was written as part of the design/implementation of switch.
+(Therefore this may not strictly adhere to reality.)
+
+The if-construct has been enhanced to emit a branch table or conditional
+jumps, whichever the compiler thinks will be faster. Eg switch true/false 
+is always going to be slower as a jump table, you need about 8 branches 
+to "break even". A jump table usually causes an AGI stall and almost 
+inevitably incurs a branch misprediction, which flushes the pipeline and
+costs at least 8 clocks, on some recent/advanced processors even more.
+Modern processors are also quite astoundingly good at branch prediction,
+including spotting a whole range of loop patterns, but that occurs (in 
+hardware) at the instruction level, not at jump table entry level.
+
+Hence a switch statement emits if-construct-style il.
+
+Doing it this way yields the best benefits and also means:
+ * there is no need to modify legacy code (and make it incompatible with
+    previous versions of Phix/Eu).
+ * we can use the existing code analysis in the back end with no change.
+ * we can use the existing code elimination techniques in the back end.
+ * you can code "variable" switches (see below).
+
+There may be some situations where a switch statement emits less efficient
+code than the equivalent if-construct, particularly for "then exit|return".
+This is simply because the if-construct has been around longer. I will of 
+course try to rectify any such cases as and when reported, but it is only
+fair to let you know that I suspect such might happen from time to time.
+
+For more information, see test/swtime[N].exw and test/t??switch.exw.
+
+
+Checking for switchable if-constructs:
+======================================
+
+We begin by examining how to convert suitable existing if-constructs into
+jump tables.
+
+The theory is that "switch i case 3,5,7:" and "if i=3 or i=5 or i=7 then" 
+should be treated(/generate) exactly the same (il) code.
+
+At the opCtrl,IF:
+
+    opCtrl,IF,link[1]
+    opCtrl,ELSIF,link[4]
+    ({opLn|Jeq|Jnot} (opJne|opJif) [opLabel,scMerge[?],0,link[6]])
+    ...
+    opLabel,ifMerge,0,link[5]
+   [opLabel,endIfMerge,_,_]
+    opCtrl,ELSE,link[3]
+    opCtrl,END+IF,link[2]
+
+[1] check link[1] points to link[2], with opCtrl,END+IF before it.
+[2] check link[2] points to an opCtrl+2, and if it is an ELSE continue with link[3]
+[3] follow the chain checking for opCtrl,ELSIF|IF, until (after) we hit link[1];
+    for each such (opCtrl) entry on that chain do:
+        * if opLn[xx] then skip (processing of this opCtrl continues)
+        * elsif opJeq/opJnot
+            * if not scMerge or not same (lhs) var then switchable=0/exit
+            * for opJeq, if (rhs) not fixed integer then switchable=0/exit 
+            * update range
+            * switchable += 1
+            * orcount += 1
+            * (processing of this opCtrl continues)
+        * elsif opJne/Jif (must be last)
+            * if not ifMerge or not same (lhs) var then switchable=0/exit
+            * when checking link[4], ensure link[3] is preceded by an opLabel;
+               there may be an endIfMerge, which we skip, then if link[5] does
+               not point at the opJne's link then switchable=0/exit
+            * for opJne, if (rhs) not fixed integer then switchable=0/exit
+            * if non-zero, check for exactly orcount jumps to the opLabel which 
+              must immediately follow the opJne/Jif (ie follow link[6] back).
+              (the scMerge before link[6] is marked [?] as it does not currently
+               check it is scMerge, but I think it should)
+            * exit [IE/NB this is a switchable branch]
+        * else (any other opcode) then switchable=0/exit
+
+PS: There are alot of checks in the code that die with 9/0; future enhancements 
+    may trigger some of these and require they become switchable=0/exit instead.
+
+Emitting code:
+==============
+The most important thing is to leave analysis well alone; we can cope with code
+emit no problem. So we mark all the opCtrl as switched, then process that block 
+of instructions (ie {opLn|Jeq|Jnot} (opJne|opJif) [opLabel]) under the opCtrl.
+
+First, the jump table itself. We probably want a stack of "active switches", with
+opCtrl,SWITCH+IF pushing and opCtrl,SWITCH+END+IF popping. This will locate the
+start of the jump table proper (in x86) as well as any offsets/ranges/yada ya. We
+obviously limit the jump table size depending on both the range tested for, and 
+the valid (gvar-scanned) range of the control variable. (see also fallthrough)
+
+Before the jump table proper, obviously if we need it then test for control var
+being out-of-bounds, and emit jump(s) to the else/end (to be backpatched later).
+
+Of course the jumps are the things that update the jump table, eg opJne,i,4 just
+sets jump_table[4-start] to the current x86 offset.
+
+When we get to the opCtrl,SWITCH+ELSE/END+IF, fill in any remaining slots in the 
+jump table. Hence initially emit the table as a bunch of {%isAddr,0,0,-1}.
+
+The "stack" of switch statements needs:
+  1) the start location (x86) of the jump table,
+  2) the range it covers (as either from..to or from..length), 
+  3) the head of any bounds check jump chain.
+I suggest we have the integers:
+    switch_x86loc,      -- location of first jump table entry
+    switch_first,       -- value that equates to
+    switch_length,      -- doh, length of the jump table
+    switch_boundc, and  -- chain of bounds check jumps to backpatch
+    switch_stack_idx,   -- index to the stacks
+and stacks switch_x86locs[], switch_firsts[], switch_lengths[], switch_boundcs[].
+Initially, switch_stack_idx is -1, inc[dec]remented at opCtrl,SWITCH+[END+]IF; if
+non-zero when processing the IF, extend/store current vars before clobbering them,
+and if >0 (before decrement) after processing the END, restore them.
+
+Simply duplicate the handling for opLnXX, unchanged (it is all properly deferred).
+
+We need to apply standard skip() processing to the jumps (detach Jeq/Jnot as rqd,
+then the full-on skip may or may not apply to the Jne/if). IE: check the existing
+code to make sure we have not missed anything, and/or after each opCtrl, if no
+jump table entry was updated, just resume processing by looping round the opCtrls
+to locate the next (since they are linked backwards).
+
+Problems/detaching opLabels:
+===========================
+Suppose that i has been proved an integer in the range 2..4 (and of course that 
+the backend elects to output a jump table):
+  if i=2 then
+  elsif i=7 then
+  elsif i=4 then
+   if i=99 then
+   end if
+   <no code between the end if and the else>
+  else...
+Now (ie right now, existing if-construct handling) the i=7 branch is skipped. We
+detach the opLabel, and, as part of the opJne handling, skip all the intermediate 
+code. Step back to the i=2 branch: here we emit a jump, then update that jump at
+the opLabel. However if that jump is in the jump table, there is nothing for the 
+opLabel to patch. Logically we'd just detach the opLabel, but what if there is a
+skippable construct just before it, as shown on the i=4 branch. If we detach, or
+rather had previously detached the i=4 jump, then when skipping the i=99 jump it
+will run on over the opLabel with no jumps to it and clobber the else part.
+
+  <aside> This is what detach() in pilx86.e does, and skipping opLabels with no
+          remaining branches to them does occur. However I think the example
+          shown above may in fact be nonsense since the i=99 skip does stop...
+          Be my guest to just delete this J_SWITCHED stuff and see what happens,
+          however the "fallthrough" handling below definitely still needs it.
+  </aside>
+
+Hence I propose that instead of detaching these opLabels, we set the x86 offset
+to -53174 (a naff "leet" way of writing "swit(c)h"), on those jumps the opLabel
+[still] points to, that is, and expressly test for that value at the opLabel.
+
+constant J_SWITCHED = -53174    -- an opJne/eq/if/not x86 offset when it is not 
+                                -- a real jump but instead the corresponding jump 
+                                -- table entry was updated - with the address of
+                                -- where the jump would have been, rather than 
+                                -- the address the jump would have jumped to, btw.
+                                -- (btw: -53174 is a naff/"leet" "swit(c)h").
+
+Else and End If Processing:
+==========================
+Any bounds check (mentioned above as "(to be backpatched later)") must be linked
+to the appropriate (existing) opLabel. A small problem is we have no il jumps to 
+do that with, but fairly easily we use switch_boundc to keep (the head of) a 
+chain of x86 locations that need patching. We also need to perform that replace
+of any remaining -1 in the jump table as mentioned above.
+
+"Smart switch" processing:
+=========================
+The code:
+    j = 0
+    for i=1 to 4 do
+      switch i [without fallthrough]
+        case 1,2:
+            if showprogress then
+                puts(1,"i is 1 or 2\n")
+            end if
+            j += i
+        case 3:
+        case 4:
+            if showprogress then
+                puts(1,"i is 3 or 4\n")
+            end if      
+            j += i
+      end switch
+    end for
+    if j!=10 then ?9/0 end if
+(DEV obviously the above is to become part of test\tNNswitch.exw)
+should display
+    i is 1 or 2
+    i is 1 or 2
+    i is 3 or 4
+    i is 3 or 4
+(the : are optional, and/or "then" could be used instead)
+In other words "back-to-back" cases do not have the usual implied "break".
+This is something for DoSwitch() in pmain.e to deal with (which does not yet
+exist at the time of writing).
+
+Implementing "with fallthrough":
+===============================
+The following code:
+        for i=1 to 4 do
+            switch i with fallthrough
+              case 1: puts(1,"one ")
+              case 2: puts(1,"two ")
+              case 3: puts(1,"three ")
+            end switch
+        end for
+should output "one two three two three three" (DEV make me a test case)
+
+In this particular case, the jump table should be length 4, rather than
+length 3 plus a bound check (testing both for performance is a good idea)
+
+Effectively we need something like:
+        if i=1 then
+            puts(1,"one ")
+            #ilasm{jump_rel32,%isJmp,0,0,:label2}
+        end if
+        if i=2 then
+            #ilasm{::label2}
+            puts(1,"two ")
+            #ilasm{jump_rel32,%isJmp,0,0,:label3}
+        end if
+        if i=3 then
+            #ilasm{::label3}
+            puts(1,"three ")
+        end if
+(not that we actually need any opAsm, in fact we need opLabels, and we 
+ must stick to a linked ELSIF style with just the one opCtrl,END+IF)
+(I deliberately used "end if if" rather than "elsif" since we don't want
+ the pointless jumps the latter would emit, being consistent that is.)
+Should a jump table be generated, those jumps need to be opNop'd.
+Further, change the loop to "1 to 2" and we have a new problem:
+ the i=3 would normally be skipped and, as above, if we detach the jumps 
+ then we risk the skip running over the label3. So, as above, we use the
+ J_SWITCHED setting, *and* opNop the opJmp. (I haven't checked, but we
+ may need to relax a "[link-3]!=isJmp then ?9/0" test or two.)
+
+DEV: check that opNop leaves/sets lastop correctly...
+
+"Variable" switch statements
+============================
+As a plus-point to emitting if-construct style il in the front end and 
+converting (back) to a jump table in the back end, I wrote "you can code
+"variable" switch statements". Best shown by example:
+
+    procedure dosomething(integer action, stop, start, die)
+      switch action
+        case stop: running=false
+        case start: running=true
+        case die: terminate=true
+      end switch
+    end procedure
+
+    dosomething(i,1,0,-1)
+    ...
+    dosomething(j,1,2,3)
+
+Technically, that is no better than an if-construct, but you may simply 
+prefer to code it that way. Since "start" can be required by 0 or 2, 
+depending where it is called from, the above cannot be converted into a 
+fixed jump table. But there is no need to throw a wobbly just because 
+the case statement values aren't fixed.
+
+Of course the reverse may be true: an if-construct which looks completely
+variable to the front-end may in fact prove to consist entirely of known
+fixed integer values after the detailed analysis phase, so we can emit a
+jump table for it. That might be particularly useful for general purpose
+library code of which your program only exercises a small portion.
+
+One point not mentioned above is eg:
+    switch i
+      case default:
+      case 1:
+    end switch
+Logically, this is an "if-else-elsif" construct, which patently cannot be
+implemented using conditional jumps, at least not without shunting blocks
+of code about or inserting additional jumps. In such cases a flag is set, 
+which triggers an error if there is a problem generating a jump table.
+
+In case you need it, "switch <expr> with jump_table" will generate said
+error if for any reason a jump table is not generated. [DEV testme]
+
+
+
+Dead: (left here for reference)
+===============================
+--DEV 29/3/10:
+-- check for switchable constructs:
+--
+--1) all jumps act on same var
+--2) jne the norm (a plain =c).
+--      jif is also ok (ie treat "not i then" as "i=0 then")
+--3) {jeq}/jne/label allowed (=a or =b or =c).
+--      jnot is also ok (ie treat "not i or" as "i=0 or")
+--4) rhs must have init/bothInit must be 1 on all jumps
+--5) follow the jne to the label, must point directly back at the jne...... << YES!! <<
+--6) likewise in 3, label must link back through the {jeq}, and nowhere else.
+--7) "all int?" and min/max to be kept separately...
+--
+-- Add K_jumptable to pglobals/plist.e, and some S_Const entries...
+--
+if 1 then
+    pc += 2
+    if not isGscan then --  if emitline=0 then trace(1) end if
+        stmt = s5[pc-1]
+        if stmt=IF then
+                link = s5[pc]
+                tlink = s5[link]
+                if s5[tlink-2]!=opCtrl then ?9/0 end if
+                if s5[tlink-1]=ELSE then
+                    -- we have a default (no tests on this branch, obvs.)
+    --DEV so set a flag??
+                    link = tlink
+                    tlink = s5[tlink]
+                end if
+                switchable = 1
+                svar = 0
+                smin = MAXINT
+                smax = MININT
+                while 1 do
+                    if s5[tlink-2]!=opCtrl then ?9/0 end if
+                    if not find(s5[tlink-1],{ELSIF,IF}) then ?9/0 end if
+                    npc = tlink+1
+                    orcount = 0
+                    while 1 do
+                        opcode = s5[npc]
+                        -- (btw, the following if-construct is itself "switchable"!)
+                        if opcode=opLn
+                        or opcode=opLnp
+                        or opcode=opLnt
+                        or opcode=opLnpt then
+                            npc += 2
+                        elsif opcode=opJeq          -- eg "i=1 or"
+                           or opcode=opJnot then    -- eg "not i or"
+                            -- eg if not i or {i=1 or} i=2 then
+                            --      is equivalent to
+                            --    if i=0 or {i=1 or} i=2 then
+                            --      and generates
+                            --  opJnot,,, (not necessarily first)
+                            --  {opJeq,...}
+                            --  opJne (must be last)
+
+                            -- check these are "xxx or" cases:
+                            if s5[npc+1]!=scMerge then
+                                switchable = 0
+                                tlink = pc
+                                exit
+                            end if
+
+                            -- check all jumps act on same var:
+                            tvar = s5[npc+4]
+                            if svar=0 then
+                                svar = tvar
+                            elsif svar!=tvar then
+                                switchable = 0
+                                tlink = pc
+                                exit
+                            end if
+
+    --for reference only:
+    --    36:  opJnot,1,54,0,409,1,0,                opJnot,scMerge,tgt,link,p1,oii,lastparam
+    --    43:  opJne, 4,67,0,409,52,1,1,             opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+
+                            if opcode=opJeq then
+                                -- check rhs is init, save/collect isInteger
+                                bothInit = s5[npc+7]
+                                if not bothInit then
+                                    switchable = 0
+                                    tlink = pc
+                                    exit
+                                end if
+                                src2 = s5[npc+5]
+                                getSrc2()
+                                if slroot2=T_integer then
+                                    if smin>smin2 then smin=smin2 end if
+                                    if smax<smax2 then smax=smax2 end if
+                                else
+                                    switchable = 0
+                                    tlink = pc
+                                    exit
+                                end if
+                                npc += 8
+                            else -- opJnot (treat "not i or" as "i=0 or")
+                                npc += 7
+                            end if
+                            switchable += 1
+                            orcount += 1
+
+                        elsif opcode=opJne          -- eg "i=1 then"        \ must be
+                           or opcode=opJif then     -- eg "not i then"      /  last
+                            -- ("not i then" is equivalent to "i=0 then")
+
+                            if s5[npc+1]!=ifMerge then
+                                switchable = 0
+                                tlink = pc
+                                exit
+                            end if
+
+                            -- check all jumps act on same var:
+                            tvar = s5[npc+4]
+                            if svar=0 then
+                                svar = tvar
+                            elsif svar!=tvar then
+                                switchable = 0
+                                tlink = pc
+                                exit
+                            end if
+
+                            -- Immediately before the opCtrl we should find an opLabel,
+                            --  which should link (only) to this (final?) jump.
+                            --  (ie this enforces the "must be last" rule)
+
+    --for reference only:
+    --    66:  opLabel,4,0,52,                       opLabel,ifMerge,0/x86loc,link
+    --    70:  opCtrl,6,46,                          opCtrl,ELSIF,link
+    --                  ^ link (ie 72, tlink would be that 46 here, above the opJne/eq/not/if just processed)
+                            if s5[link-6]!=opLabel then ?9/0 end if
+                            if s5[link-5]=endIfMerge then
+                                link -= 4
+                                if s5[link-6]!=opLabel then ?9/0 end if
+                            end if
+                            if s5[link-5]!=ifMerge then ?9/0 end if
+                            if s5[link-3]!=npc+3 then
+                                switchable = 0
+                                tlink = pc
+                                exit
+                            end if
+
+
+    --for reference only:
+    --    36:  opJnot,1,54,0,409,1,0,                opJnot,scMerge,tgt,link,p1,oii,lastparam
+    --    43:  opJne, 4,67,0,409,52,1,1,             opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+
+                            if opcode=opJne then
+                                -- check rhs is init, save/collect isInteger
+                                bothInit = s5[npc+7]
+                                if not bothInit then
+                                    switchable = 0
+                                    tlink = pc
+                                    exit
+                                end if
+                                src2 = s5[npc+5]
+                                getSrc2()
+                                if slroot2=T_integer then
+                                    if smin>smin2 then smin=smin2 end if
+                                    if smax<smax2 then smax=smax2 end if
+                                else
+                                    switchable = 0
+                                    tlink = pc
+                                    exit
+                                end if
+                                npc += 8
+                            else -- opJif (treat "not i then" as "i=0 then")
+                                -- (rhs is implied literal 0)
+                                npc += 7
+                            end if
+                            switchable += 1     -- unnecessary (ERM, meybe not!!)
+
+                            --
+                            -- Sanity check:
+                            --
+                            if orcount then
+                                --
+                                -- We should now expect an opLabel, which links back exactly
+                                -- through "orcount" opJeq/not, and ends up with 0 at tlink+4:
+                                --
+-- for reference only:
+--     8:  opCtrl,2,120,                         opCtrl,IF,link
+--    11:  opJeq,1,30,0,409,24,1,1,              opJeq,scMerge,tgt,link,p2,p3,tii,bothInit
+--    19:  opJne,4,43,0,409,42,1,1,              opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+--    27:  opLabel,1,0,14,                       opLabel,scMerge,0/x86loc,link
+
+--    31:  opCtrl,6,10,                          opCtrl,ELSIF,link
+--    34:  opLn,5,                               --: elsif not i or i=7 then
+--    36:  opJnot,1,54,0,409,1,0,                opJnot,scMerge,tgt,link,p1,oii,lastparam
+--    43:  opJne, 4,67,0,409,52,1,1,             opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+--    51:  opLabel,1,0,39,                       opLabel,scMerge,0/x86loc,link
+
+--    68:  opCtrl,6,33,                          opCtrl,ELSIF,link
+--    71:  opLn,7,                               --: elsif i=7 or not i then
+--    73:  opJeq,1, 91,0,409,52,1,1,             opJeq,scMerge,tgt,link,p2,p3,tii,bothInit
+--    81:  opJif,4,104,0,409,1,0,                opJif,ifMerge,tgt,link,p1,oii,lastparam
+--    88:  opLabel,1,0,76,                       opLabel,scMerge,0/x86loc,link
+
+                                if s5[npc]!=opLabel then ?9/0 end if
+                                link = s5[npc+3]
+                                while 1 do
+                                    opcode = s5[link-3]
+                                    if opcode!=opJeq
+                                    and opcode!=opJnot then
+                                        ?9/0
+                                    end if
+                                    orcount -= 1
+                                    if orcount=0 then
+                                        if s5[link]!=0 then ?9/0 end if
+                                        if link!=tlink+4        -- no opLn/p/t/pt case
+                                        and link!=tlink+6 then  -- opLn/p/t/pt case
+                                            ?9/0
+                                        end if
+                                        exit
+                                    end if
+                                    link = s5[link]     -- [0] here is error!
+                                end while
+                            end if
+
+                            exit
+                        else
+                            switchable = 0
+                            tlink = pc
+                            exit
+                        end if
+                    end while
+                    link = tlink
+                    if link=pc then exit end if
+                    tlink = s5[link]
+                end while
+--              if switchable>2 then
+--DEV this is not enough ^^; "if i=1 elsif i=2 end if" is not worthwhile switchifying,
+--                              (which is precisely what the above test means)
+--    but what is the right number of elsifs to check for??
+--    (I suppose that depends on the code we end up emitting...)
+--              if switchable>3 then
+                if switchable>8 then    -- based on test/swtime results
+if 0 then   --DEV 0 for release!
+                    dbg = symtab[vi]
+                    dbg = dbg[S_FPno]
+                    dbg = filenames[dbg]
+                    if length(dbg)>2 then
+                        -- (command_line/p.exw prompt info is stored on filenames[1])
+                        --   (so "p test -flag" and "p\n ...source:test -flag\n" work the same,
+                        --    ie in the latter case command_line() would only get "p" from 
+                        --    kernel32:GetCommandLineA, to which it must add filenames[1] stuff)
+                        dbg = dbg[1..2]
+                    end if
+                    dbg &= emitline
+                    k = dbg[1]
+                    dbg[1] = filepaths[k]
+                    dbg = switchable&dbg
+                    printf(1,"switchable[%d] if-construct found\n (at %s%s, line %d)\n",dbg)
+--                  if getc(0) then end if
+end if
+                    --
+                    -- set the SWITCH bit on all opCtrl;
+                    -- this (opCtrl,IF) and all subsequent should set a flag for
+                    --  opJne/if/eq/not to save values/offsets rather than emit
+                    --  code (on some local stack [DEV]).
+                    
+
+    --else
+    --  puts(1,"not switchable!\n")
+                end if
+
+--      :  opLn,2,                               --: if i=1 or i=2 then
+--     8:  opCtrl,2,120,                         opCtrl,IF,link
+--    11:  opJeq,1,30,0,409,24,1,1,              opJeq,scMerge,tgt,link,p2,p3,tii,bothInit
+--    19:  opJne,4,43,0,409,42,1,1,              opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+--    27:  opLabel,1,0,14,                       opLabel,scMerge,0/x86loc,link
+--    31:  opLn,4,                               --:  puts(1,"umm")
+--          opPuts,24,410,
+--    36:  opJmp,5,117,0,                        opJmp,endIfMerge,tgt,link
+--    40:  opLabel,4,0,22,                       opLabel,ifMerge,0/x86loc,link
+--    44:  opCtrl,6,10,                          opCtrl,ELSIF,link
+--    47:  opLn,5,                               --: elsif i=3 then
+--    49:  opJne,4,69,0,409,43,1,1,              opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+--    57:  opLn,6,                               --:  puts(1,"umm")
+--          opPuts,24,410,
+--    62:  opJmp,5,117,39,                       opJmp,endIfMerge,tgt,link
+--    66:  opLabel,4,0,52,                       opLabel,ifMerge,0/x86loc,link
+--    70:  opCtrl,6,46,                          opCtrl,ELSIF,link
+--    73:  opLn,7,                               --: elsif i=4 and i>3 then      -- kills it
+--    75:  opJne,4,105, 0,409,49,1,1,            opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+--    83:  opJle,4,105,78,409,43,1,1,            opJle,ifMerge,tgt,link,p2,p3,tii,bothInit
+--    91:  opLn,8,                               --:  puts(1,"umm")
+--          opPuts,24,410,
+--    96:  opLn,9,                               --:--  elsif i=5 or j=6 then       -- kills it
+--    98:  opJmp,5,117,65,                       opJmp,endIfMerge,tgt,link
+--   102:  opLabel,4,0,86,                       opLabel,ifMerge,0/x86loc,link
+--   106:  opCtrl,14,72,                         opCtrl,ELSE,link
+--   109:  opLn,11,                              --:  puts(1,"umm")
+--          opPuts,24,410,
+--   114:  opLabel,5,0,101,                      opLabel,endIfMerge,0/x86loc,link
+--   118:  opCtrl,3,108,                         opCtrl,END+IF,link
+--
+--  special:
+--     6:  opLn,3,                               --: if not i then
+--     8:  opCtrl,2,145,                         opCtrl,IF,link
+--    11:  opJif,4,30,0,409,1,0,                 opJif,ifMerge,tgt,link,p1,oii,lastparam
+--    18:  opLn,4,                               --:  puts(1,"0\n")
+--    20:  opPuts,24,410,
+--    23:  opJmp,5,142,0,                        opJmp,endIfMerge,tgt,link
+--    27:  opLabel,4,0,14,                       opLabel,ifMerge,0/x86loc,link
+--    31:  opCtrl,6,10,                          opCtrl,ELSIF,link
+--    34:  opLn,5,                               --: elsif not i or i=7 then
+--    36:  opJnot,1,54,0,409,1,0,                opJnot,scMerge,tgt,link,p1,oii,lastparam
+--    43:  opJne, 4,67,0,409,52,1,1,             opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+--    51:  opLabel,1,0,39,                       opLabel,scMerge,0/x86loc,link
+--    55:  opLn,6,                               --:  puts(1,"umm")
+--    57:  opPuts,24,411,
+--    60:  opJmp,5,179,26,                       opJmp,endIfMerge,tgt,link
+--    64:  opLabel,4,0,46,                       opLabel,ifMerge,0/x86loc,link
+--    68:  opCtrl,6,33,                          opCtrl,ELSIF,link
+--    71:  opLn,7,                               --: elsif i=7 or not i then
+--    73:  opJeq,1, 91,0,409,52,1,1,             opJeq,scMerge,tgt,link,p2,p3,tii,bothInit
+--    81:  opJif,4,104,0,409,1,0,                opJif,ifMerge,tgt,link,p1,oii,lastparam
+--    88:  opLabel,1,0,76,                       opLabel,scMerge,0/x86loc,link
+--    92:  opLn,8,                               --:  puts(1,"umm")
+--    94:  opPuts,24,411,
+--          end if -- k and ifMerge/scMerge
+        end if -- IF
+

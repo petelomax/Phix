@@ -1,0 +1,181 @@
+--
+-- t28sprint.exw
+--
+-- Phix tests for the sprintf() function.
+--
+
+--/* Not required for Phix:
+type string(object s) return sequence(s) end type
+--*/
+constant showprogress=0
+
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+-- this got itself broken under O2:
+integer x
+        x = 0
+function fx(integer charflag)
+    x=0
+    if charflag='e' or (charflag='g' and (x>9 or x<-4)) then
+--      puts(1,"ERROR\n")
+--      if getc(0) then end if
+        return 0
+    end if
+    return 1
+end function
+
+if not fx('g') then Abort("fx error\n") end if
+
+if showprogress then puts(1,"sprintf1\n") end if
+
+
+if not equal(sprintf("%d",{-10}),"-10") then
+    Abort("sprintf(\"%d\",{-10})!=\"-10\"\n")
+end if
+if showprogress then puts(1,"sprintf2\n") end if
+
+if not equal(sprintf("%.10g",{1}),"1") then
+    Abort("sprintf(\"%.10g\",{1})!=\"1\"\n")
+end if
+if showprogress then puts(1,"sprintf3\n") end if
+
+if floor(1.99)!=1 then Abort("floor(1.99)!=1\n") end if -- not really part of this test,
+                                                        -- but let's not worry about that.
+if showprogress then puts(1,"sprintf4\n") end if
+
+if not equal(sprintf("%s\n",{"Hello Pete"}),"Hello Pete\n") then
+    Abort("sprintf err 1\n")
+end if
+if showprogress then puts(1,"sprintf5\n") end if
+
+if not equal(sprintf("%f\n",{10000}),"10000.000000\n") then
+    Abort("sprintf err 2\n")
+end if
+if showprogress then puts(1,"sprintf6\n") end if
+
+--
+--NOTE: This (below) does NOT work on exw (you get ***'s), but is
+--      fine on exw with pprntf.e (overriding the builtin), ie
+--      "exw t16sprintf.exw" with the following line uncommented
+--include ..\builtins\pprntf.e
+--      and does NOT work with "exw p.exw -c t28sprntf.exw", but is
+--      fine on p.exe [-c] t28sprntf.exw
+--      -- Obviously only the last case really matters.
+--      -- This behaviour is because Eu holds floats wrong, or 
+--      -- at least different to Phix, Fasm, C, and C++.
+--      -- This cropped up in the thread "Number Stability With Decimals"
+--      -- on EuForum in May 2006, the critical point being the exact
+--      -- binary representation of floating point numbers:
+--      -- http://openeuphoria.org/forum/16344.wc#16344
+--      -- also, see http://openeuphoria.org/forum/16333.wc#16333
+--      -- I should actually say that Eu is internally consistent, (as are
+--      -- Phix, Fasm, C, and C++) which is /far/ more important than 
+--      -- finding the exact same innards when you rip them all open.
+--      -- For this reason, "exw.exe -c p.exw" is not supported, instead 
+--      -- you should always use "p.exe -c p.exw" (or "p -cp").
+--
+if not equal(sprintf("%f\n",{1e308}),
+"10000000000000000000000000000000000000000000000000000000000000000000000000000000"&
+"00000000000000000000000000000000000000000000000000000000000000000000000000000000"&
+"00000000000000000000000000000000000000000000000000000000000000000000000000000000"&
+"000000000000000000000000000000000000000000000000000000000000000000000.000000\n") then
+--  Abort("sprintf err 3\n")
+    puts(1,sprintf("%f (sprintf err 3)\n",{1e308}))
+--
+-- exw (using exw's built-in sprintf) gives:
+--********************************************************************************
+--********************************************************************************
+--********************************************************************************
+--***************
+-- exw p.exw -c would (were it supported) give:
+--10000000000000005987520928604159705884839972435133822044844502930639940850633358
+--45854345595225877703832348631167195447619676160612367393595349378653275598665760
+--69494316010985861775270129154309786903198517588510859178193472645986181936458818
+--702991881987565141801309254969499456218727226289859066665599766626304.000000
+
+--DEV: 64-bit Phix gives:
+--1000000000000000008575876330031999210253739322195686619209876105120743696503959710424676161223896295640900620327732128489697429107699361158748821
+--5056779137194961885261941290251052488091625522111060836699732178726209915193827269298845558473247596970733163696067621662592402346165642203335694
+--9445092921122099453.219648
+
+--
+-- I think I know which of the three I prefer ;-))
+--
+-- I should of course point out that the latter is actually better than 99.999999%
+-- accurate and perfectly good enough for all practical purposes.
+--
+end if
+if showprogress then puts(1,"sprintf7\n") end if
+
+if not equal(sprintf("%e\n",{1e308}),"1.000000e+308\n") then
+    puts(1,sprintf("%e\n",{1e308}))
+    Abort("sprintf err 4\n")
+end if
+if showprogress then puts(1,"sprintf8\n") end if
+
+if not equal(sprintf("%8.0f\n",{0.678}),"       1\n") then
+    Abort("sprintf err 5\n")
+end if
+if showprogress then puts(1,"sprintf9\n") end if
+
+if not equal(sprintf("%8.0f\n",{11.67}),"      12\n") then
+    Abort("sprintf err 5b\n")
+end if
+if showprogress then puts(1,"sprintf10\n") end if
+
+if not equal(sprintf("%8.2f\n",{12345.678}),"12345.68\n") then
+    Abort("sprintf err 6\n")
+end if
+if showprogress then puts(1,"sprintf11\n") end if
+
+if not equal(sprintf("x%sy\n",{"fred"}),"xfredy\n") then
+    Abort("sprintf err 7\n")
+end if
+if showprogress then puts(1,"sprintf12\n") end if
+
+if not equal(sprintf("%d\n",{17}),"17\n") then
+    Abort("sprintf err 8\n")
+end if
+if showprogress then puts(1,"sprintf13\n") end if
+
+--if not equal(sprintf("%04x\n",{#ABC}),"0ABC\n") then
+if not find(sprintf("%04x\n",{#ABC}),{"0ABC\n","0abc\n"}) then
+    Abort("sprintf err 9\n")
+end if
+if showprogress then puts(1,"sprintf14\n") end if
+
+if not equal(sprintf("1 %d 1.0 %1.1f 0.0 %1.1f x %s\n",{1,1,0,"x"}),
+             "1 1 1.0 1.0 0.0 0.0 x x\n") then
+    Abort("sprintf err 10\n")
+end if
+if showprogress then puts(1,"sprintf15\n") end if
+
+if not equal(sprintf("%f\n",{1/3}),"0.333333\n") then
+    Abort("sprintf err 11\n")
+end if
+if showprogress then puts(1,"sprintf16\n") end if
+
+if not equal(sprintf("%f\n",{4503599627370495}),"4503599627370495.000000\n") then
+    puts(1,sprintf("%f (sprintf err 12)\n",{4503599627370495}))
+--  Abort("sprintf err 12\n")
+end if
+if showprogress then puts(1,"sprintf17\n") end if
+
+if not equal(sprintf("%7.2f",0.000015),"   0.00") then
+    Abort("sprintf err 13\n")
+end if
+if showprogress then puts(1,"sprintf18\n") end if
+
+if not equal(sprintf("%7.2f",0.005),"   0.00") then
+    puts(1,sprintf("%7.2f (sprintf err 14)\n",0.005))
+--  Abort("sprintf err 14\n")
+end if
+if showprogress then puts(1,"sprintf19\n") end if
+
+if not equal(sprintf("%7.2f",0.015),"   0.02") then
+    puts(1,sprintf("%7.2f (sprintf err 15)\n",0.015))
+--  Abort("sprintf err 15\n")
+end if
+if showprogress then puts(1,"sprintf20\n") end if
+
+--if getc(0) then end if

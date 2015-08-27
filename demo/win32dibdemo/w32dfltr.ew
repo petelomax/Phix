@@ -1,0 +1,525 @@
+-- Win32Dib : Fast bitmap manipulation for Win32Lib (24-bit graphics).
+-- FILTER LIBRARY
+
+-- Copyright (C) 2004 Tommy Carlier
+-- tommy.carlier@telenet.be
+-- http://users.telenet.be/tommycarlier
+
+include w32dcore.ew
+include w32dcolr.ew
+
+global procedure filterDib(sequence dib, sequence matrix, integer div, integer bias)
+-- Applies a matrix-filter to the bitmap:
+--  matrix is a 7x7 sequence with the multiplication-values
+--  div is the number to divide the result by
+--  bias is the number to add to the result
+--  new_pixel[y][x] = sum_of(matrix[i][j] * old_pixel[y-4+i][x-4+j]) / div + bias
+atom memory, mem_blue, mem_green, mem_red, temp_mem_blue, temp_mem_green, temp_mem_red, temp_mem
+integer width, height, new_width, new_height, new_bytes, counter, delta, blue, green, red, padding
+integer matrix_length
+sequence color, linear_matrix, pointers_blue, pointers_green, pointers_red
+    memory = dib[DibMemory]
+    width = dib[DibWidth]
+    height = dib[DibHeight]
+    padding = dib[DibPadding]
+    new_width = width + 6 -- the buffers have 3 pixels extra on the left and the right
+    new_height = height + 6 -- the buffers have 3 pixels extra on the top and the bottom
+    new_bytes = new_width * new_height -- 1 byte per pixel for every buffer
+    mem_blue = allocate(new_bytes) -- 3 buffers: each color-component (blue, green and red)
+    mem_green = allocate(new_bytes) -- has to be filtered separately
+    mem_red = allocate(new_bytes)
+
+    linear_matrix = repeat(0, 49) -- make a linear copy of the matrix: {{a, b, c, ...}, {d, e, f, ...}, ...} -> {a, b, c, ..., d, e, f, ...}
+    counter = 1
+    for i = 1 to 7 do
+	linear_matrix[counter .. counter+6] = matrix[i]
+	counter += 7
+    end for
+	
+    -- start copying the data from the bitmap to the 3 buffers
+    color = peek({memory, 3})
+    temp_mem_blue = mem_blue  temp_mem_green = mem_green  temp_mem_red = mem_red
+	
+    mem_set(temp_mem_blue , color[1], 4)  temp_mem_blue  += 4
+    mem_set(temp_mem_green, color[2], 4)  temp_mem_green += 4
+    mem_set(temp_mem_red  , color[3], 4)  temp_mem_red	 += 4
+	
+    for temp_memory = memory + 3 to memory + width * 3 by 3 do
+	color = peek({temp_memory, 3})
+	poke(temp_mem_blue , color[1])	temp_mem_blue  += 1
+	poke(temp_mem_green, color[2])	temp_mem_green += 1
+	poke(temp_mem_red  , color[3])	temp_mem_red   += 1
+    end for
+	
+    mem_set(temp_mem_blue , color[1], 3)  temp_mem_blue  += 3
+    mem_set(temp_mem_green, color[2], 3)  temp_mem_green += 3
+    mem_set(temp_mem_red  , color[3], 3)  temp_mem_red	 += 3
+	
+    for y = 1 to 2 do
+	mem_copy(temp_mem_blue , mem_blue , new_width)	temp_mem_blue  += new_width
+	mem_copy(temp_mem_green, mem_green, new_width)	temp_mem_green += new_width
+	mem_copy(temp_mem_red  , mem_red  , new_width)	temp_mem_red   += new_width
+    end for
+	
+    temp_mem = memory
+    for y = 1 to height do
+	color = peek({temp_mem, 3})
+	mem_set(temp_mem_blue , color[1], 4)  temp_mem_blue  += 4
+	mem_set(temp_mem_green, color[2], 4)  temp_mem_green += 4
+	mem_set(temp_mem_red  , color[3], 4)  temp_mem_red   += 4
+	temp_mem += 3
+	for x = 2 to width do
+	    color = peek({temp_mem, 3})
+	    poke(temp_mem_blue , color[1])  temp_mem_blue  += 1
+	    poke(temp_mem_green, color[2])  temp_mem_green += 1
+	    poke(temp_mem_red  , color[3])  temp_mem_red   += 1
+	    temp_mem += 3
+	end for
+	temp_mem += padding
+	mem_set(temp_mem_blue , color[1], 3)  temp_mem_blue  += 3
+	mem_set(temp_mem_green, color[2], 3)  temp_mem_green += 3
+	mem_set(temp_mem_red  , color[3], 3)  temp_mem_red   += 3
+    end for
+	
+    for y = 1 to 2 do
+	mem_copy(temp_mem_blue , temp_mem_blue	- new_width, new_width)  temp_mem_blue	+= new_width
+	mem_copy(temp_mem_green, temp_mem_green - new_width, new_width)  temp_mem_green += new_width
+	mem_copy(temp_mem_red  , temp_mem_red	- new_width, new_width)  temp_mem_red	+= new_width
+    end for
+    -- copying data from bitmap to buffers finished
+	
+    pointers_blue  = repeat(0, 49) -- pointers_X = precalculated matrix of pointers to pixel positions in the buffer X
+    pointers_green = repeat(0, 49)
+    pointers_red   = repeat(0, 49)
+    counter = 1  delta = 0
+    for i = 0 to 6 do
+	for j = 0 to 6 do
+	    pointers_blue [counter] = mem_blue	+ delta
+	    pointers_green[counter] = mem_green + delta
+	    pointers_red  [counter] = mem_red	+ delta
+	    counter += 1
+	    delta   += 1
+	end for
+	delta += new_width - 7
+    end for
+    matrix_length = 0
+    for i = 1 to 49 do
+	if linear_matrix[i] != 0 then
+	    matrix_length += 1
+	    linear_matrix[matrix_length] = linear_matrix[i]
+	    pointers_blue[matrix_length] = pointers_blue[i]
+	    pointers_green[matrix_length] = pointers_green[i]
+	    pointers_red[matrix_length] = pointers_red[i]
+	end if
+    end for
+	
+    temp_mem = memory
+    for y = 1 to height do
+	for x = 1 to width do
+	    blue = 0  green = 0  red = 0
+	    for i = 1 to matrix_length do -- X = sum_of(pointers_X[i] * matrix[i])
+		delta = linear_matrix[i]
+		blue  += peek(pointers_blue [i]) * delta  pointers_blue [i] += 1
+		green += peek(pointers_green[i]) * delta  pointers_green[i] += 1
+		red   += peek(pointers_red  [i]) * delta  pointers_red	[i] += 1
+	    end for -- X = floor(X / div) + bias
+	    blue  = floor(blue	/ div) + bias  if blue	< 0 then blue  = 0 elsif blue  > 255 then blue	= 255 end if
+	    green = floor(green / div) + bias  if green < 0 then green = 0 elsif green > 255 then green = 255 end if
+	    red   = floor(red	/ div) + bias  if red	< 0 then red   = 0 elsif red   > 255 then red	= 255 end if
+	    poke(temp_mem, {blue, green, red}) -- write the new pixel to the bitmap
+	    temp_mem += 3
+	end for
+--/**/	pointers_blue = sq_add(pointers_blue,6)     --	 -- Phix
+--/**/	pointers_green = sq_add(pointers_green,6)   --	 -- Phix
+--/**/	pointers_red = sq_add(pointers_red,6)	    --/* -- Phix
+	pointers_blue  += 6
+	pointers_green += 6
+	pointers_red   += 6			    --*/ -- RDS
+	temp_mem += padding
+    end for
+	
+    free(mem_blue) -- free the 3 buffers
+    free(mem_green)
+    free(mem_red)
+end procedure
+
+global procedure filterDibGray(sequence dib, sequence matrix, integer div, integer bias)
+-- Makes the bitmap gray and applies a matrix-filter to it:
+--  matrix is a 7x7 sequence with the multiplication-values
+--  div is the number to divide the result by
+--  bias is the number to add to the result
+--  new_pixel[y][x] = sum_of(matrix[i][j] * old_pixel[y-4+i][x-4+j]) / div + bias
+atom memory, mem_gray, temp_mem_gray, temp_mem
+integer width, height, new_width, new_height, new_bytes, counter, delta, gray, padding
+integer matrix_length
+sequence linear_matrix, pointers_gray
+    makeDibGray(dib)
+    memory = dib[DibMemory]
+    width = dib[DibWidth]
+    height = dib[DibHeight]
+    padding = dib[DibPadding]
+    new_width = width + 6 -- the buffers have 3 pixels extra on the left and the right
+    new_height = height + 6 -- the buffers have 3 pixels extra on the top and the bottom
+    new_bytes = new_width * new_height -- 1 byte per pixel for every buffer
+    mem_gray = allocate(new_bytes)
+
+    linear_matrix = repeat(0, 49) -- make a linear copy of the matrix: {{a, b, c, ...}, {d, e, f, ...}, ...} -> {a, b, c, ..., d, e, f, ...}
+    counter = 1
+    for i = 1 to 7 do
+	linear_matrix[counter .. counter+6] = matrix[i]
+	counter += 7
+    end for
+	
+    -- start copying the data from the bitmap to the buffer
+    gray = peek(memory)
+    temp_mem_gray = mem_gray
+	
+    mem_set(temp_mem_gray, gray, 4)  temp_mem_gray += 4
+	
+    for temp_memory = memory + 3 to memory + width * 3 by 3 do
+	gray = peek(temp_memory)
+	poke(temp_mem_gray, gray)  temp_mem_gray += 1
+    end for
+	
+    mem_set(temp_mem_gray, gray, 3)  temp_mem_gray += 3
+	
+    for y = 1 to 2 do
+	mem_copy(temp_mem_gray, mem_gray, new_width)  temp_mem_gray += new_width
+    end for
+	
+    temp_mem = memory
+    for y = 1 to height do
+	gray = peek(temp_mem)
+	mem_set(temp_mem_gray, gray, 4)  temp_mem_gray += 4
+	temp_mem += 3
+	for x = 2 to width do
+	    gray = peek(temp_mem)
+	    poke(temp_mem_gray, gray)  temp_mem_gray += 1
+	    temp_mem += 3
+	end for
+	temp_mem += padding
+	mem_set(temp_mem_gray, gray, 3)  temp_mem_gray += 3
+    end for
+	
+    for y = 1 to 2 do
+	mem_copy(temp_mem_gray, temp_mem_gray - new_width, new_width)  temp_mem_gray += new_width
+    end for
+    -- copying data from bitmap to buffer finished
+	
+    pointers_gray = repeat(0, 49) -- precalculated matrix of pointers to pixel positions in the buffer
+    counter = 1  delta = 0
+    for i = 0 to 6 do
+	for j = 0 to 6 do
+	    pointers_gray[counter] = mem_gray + delta
+	    counter += 1
+	    delta   += 1
+	end for
+	delta += new_width - 7
+    end for
+    matrix_length = 0
+    for i = 1 to 49 do
+	if linear_matrix[i] != 0 then
+	    matrix_length += 1
+	    linear_matrix[matrix_length] = linear_matrix[i]
+	    pointers_gray[matrix_length] = pointers_gray[i]
+	end if
+    end for
+	
+    temp_mem = memory
+    for y = 1 to height do
+	for x = 1 to width do
+	    gray = 0
+	    for i = 1 to matrix_length do -- gray = sum_of(pointers_gray[i] * matrix[i])
+		gray += peek(pointers_gray[i]) * linear_matrix[i]  pointers_gray[i] += 1
+	    end for -- gray = floor(gray / div) + bias
+	    gray = floor(gray / div) + bias
+	    if gray < 0 then mem_set(temp_mem, 0, 3)
+	    elsif gray > 255 then mem_set(temp_mem, 255, 3)
+	    else mem_set(temp_mem, gray, 3)
+	    end if
+	    temp_mem += 3
+	end for
+--/**/	pointers_gray = sq_add(pointers_gray,6)     --/* -- Phix
+	pointers_gray += 6			    --*/ -- RDS
+	temp_mem += padding
+    end for
+	
+    free(mem_gray) -- free the buffer
+end procedure
+
+global procedure filterDib3x3(sequence dib, sequence matrix, integer div, integer bias)
+-- Applies a matrix-filter to the bitmap:
+--  matrix is a 3x3 sequence with the multiplication-values
+--  div is the number to divide the result by
+--  bias is the number to add to the result
+--  new_pixel[y][x] = sum_of(matrix[i][j] * old_pixel[y-4+i][x-4+j]) / div + bias
+atom memory, mem_blue, mem_green, mem_red, temp_mem_blue, temp_mem_green, temp_mem_red, temp_mem
+integer width, height, new_width, new_height, new_bytes, counter, delta, blue, green, red, padding
+integer matrix_length
+sequence color, linear_matrix, pointers_blue, pointers_green, pointers_red
+    memory = dib[DibMemory]
+    width = dib[DibWidth]
+    height = dib[DibHeight]
+    padding = dib[DibPadding]
+    new_width = width + 2 -- the buffers have 1 pixel extra on the left and the right
+    new_height = height + 2 -- the buffers have 1 pixel extra on the top and the bottom
+    new_bytes = new_width * new_height -- 1 byte per pixel for every buffer
+    mem_blue = allocate(new_bytes) -- 3 buffers: each color-component (blue, green and red)
+    mem_green = allocate(new_bytes) -- has to be filtered separately
+    mem_red = allocate(new_bytes)
+
+    linear_matrix = repeat(0, 9) -- make a linear copy of the matrix: {{a, b, c, ...}, {d, e, f, ...}, ...} -> {a, b, c, ..., d, e, f, ...}
+    linear_matrix[1..3] = matrix[1]
+    linear_matrix[4..6] = matrix[2]
+    linear_matrix[7..9] = matrix[3]
+	
+    -- start copying the data from the bitmap to the 3 buffers
+    color = peek({memory, 3})
+    temp_mem_blue = mem_blue  temp_mem_green = mem_green  temp_mem_red = mem_red
+	
+    poke(temp_mem_blue , color[1])  temp_mem_blue  += 1
+    poke(temp_mem_green, color[2])  temp_mem_green += 1
+    poke(temp_mem_red  , color[3])  temp_mem_red   += 1
+	
+--  for temp_memory = memory + 3 to memory + width * 3 by 3 do
+    for z = 3 to width * 3 by 3 do
+--	color = peek({temp_memory, 3})
+	color = peek({memory+z, 3})
+	poke(temp_mem_blue , color[1])	temp_mem_blue  += 1
+	poke(temp_mem_green, color[2])	temp_mem_green += 1
+	poke(temp_mem_red  , color[3])	temp_mem_red   += 1
+    end for
+	
+    poke(temp_mem_blue , color[1])  temp_mem_blue  += 1
+    poke(temp_mem_green, color[2])  temp_mem_green += 1
+    poke(temp_mem_red  , color[3])  temp_mem_red   += 1
+	
+    temp_mem = memory
+    for y = 1 to height do
+	color = peek({temp_mem, 3})
+	poke(temp_mem_blue , color[1])	temp_mem_blue  += 1
+	poke(temp_mem_green, color[2])	temp_mem_green += 1
+	poke(temp_mem_red  , color[3])	temp_mem_red   += 1
+	for x = 1 to width do
+	    color = peek({temp_mem, 3})
+	    poke(temp_mem_blue , color[1])  temp_mem_blue  += 1
+	    poke(temp_mem_green, color[2])  temp_mem_green += 1
+	    poke(temp_mem_red  , color[3])  temp_mem_red   += 1
+	    temp_mem += 3
+	end for
+	poke(temp_mem_blue , color[1])	temp_mem_blue  += 1
+	poke(temp_mem_green, color[2])	temp_mem_green += 1
+	poke(temp_mem_red  , color[3])	temp_mem_red   += 1
+	temp_mem += padding
+    end for
+
+    mem_copy(temp_mem_blue , temp_mem_blue  - new_width, new_width)
+    mem_copy(temp_mem_green, temp_mem_green - new_width, new_width)
+    mem_copy(temp_mem_red  , temp_mem_red   - new_width, new_width)
+    -- copying data from bitmap to buffers finished
+	
+    pointers_blue  = repeat(0, 9) -- pointers_X = precalculated matrix of pointers to pixel positions in the buffer X
+    pointers_green = repeat(0, 9)
+    pointers_red   = repeat(0, 9)
+    counter = 1  delta = 0
+    for i = 0 to 2 do
+	for j = 0 to 2 do
+	    pointers_blue [counter] = mem_blue	+ delta
+	    pointers_green[counter] = mem_green + delta
+	    pointers_red  [counter] = mem_red	+ delta
+	    counter += 1
+	    delta   += 1
+	end for
+	delta += new_width - 3
+    end for
+    matrix_length = 0
+    for i = 1 to 9 do
+	if linear_matrix[i] != 0 then
+	    matrix_length += 1
+	    linear_matrix[matrix_length] = linear_matrix[i]
+	    pointers_blue[matrix_length] = pointers_blue[i]
+	    pointers_green[matrix_length] = pointers_green[i]
+	    pointers_red[matrix_length] = pointers_red[i]
+	end if
+    end for
+	
+    temp_mem = memory
+    for y = 1 to height do
+	for x = 1 to width do
+	    blue = 0  green = 0  red = 0
+	    for i = 1 to matrix_length do -- X = sum_of(pointers_X[i] * matrix[i])
+		delta = linear_matrix[i]
+		blue  += peek(pointers_blue [i]) * delta  pointers_blue [i] += 1
+		green += peek(pointers_green[i]) * delta  pointers_green[i] += 1
+		red   += peek(pointers_red  [i]) * delta  pointers_red	[i] += 1
+	    end for -- X = floor(X / div) + bias
+	    blue  = floor(blue	/ div) + bias  if blue	< 0 then blue  = 0 elsif blue  > 255 then blue	= 255 end if
+	    green = floor(green / div) + bias  if green < 0 then green = 0 elsif green > 255 then green = 255 end if
+	    red   = floor(red	/ div) + bias  if red	< 0 then red   = 0 elsif red   > 255 then red	= 255 end if
+	    poke(temp_mem, {blue, green, red}) -- write the new pixel to the bitmap
+	    temp_mem += 3
+	end for
+--/**/	pointers_blue = sq_add(pointers_blue,2)     --	 -- Phix
+--/**/	pointers_green = sq_add(pointers_green,2)   --	 -- Phix
+--/**/	pointers_red = sq_add(pointers_red,2)	    --/* -- Phix
+	pointers_blue  += 2
+	pointers_green += 2
+	pointers_red   += 2			    --*/ -- RDS
+
+	temp_mem += padding
+    end for
+	
+    free(mem_blue) -- free the 3 buffers
+    free(mem_green)
+    free(mem_red)
+end procedure
+
+global procedure filterDibGray3x3(sequence dib, sequence matrix, integer div, integer bias)
+-- Makes the bitmap gray and applies a matrix-filter to it:
+--  matrix is a 3x3 sequence with the multiplication-values
+--  div is the number to divide the result by
+--  bias is the number to add to the result
+--  new_pixel[y][x] = sum_of(matrix[i][j] * old_pixel[y-4+i][x-4+j]) / div + bias
+atom memory, mem_gray, temp_mem_gray, temp_mem
+integer width, height, new_width, new_height, new_bytes, counter, delta, gray, padding
+integer matrix_length
+sequence linear_matrix, pointers_gray
+    makeDibGray(dib)
+    memory = dib[DibMemory]
+    width = dib[DibWidth]
+    height = dib[DibHeight]
+    padding = dib[DibPadding]
+    new_width = width + 2 -- the buffers have 1 pixel extra on the left and the right
+    new_height = height + 2 -- the buffers have 1 pixel extra on the top and the bottom
+    new_bytes = new_width * new_height -- 1 byte per pixel for every buffer
+    mem_gray = allocate(new_bytes)
+
+    linear_matrix = repeat(0, 9) -- make a linear copy of the matrix: {{a, b, c, ...}, {d, e, f, ...}, ...} -> {a, b, c, ..., d, e, f, ...}
+    linear_matrix[1..3] = matrix[1]
+    linear_matrix[4..6] = matrix[2]
+    linear_matrix[7..9] = matrix[3]
+	
+    -- start copying the data from the bitmap to the buffer
+    gray = peek(memory)
+    temp_mem_gray = mem_gray
+	
+    poke(temp_mem_gray, gray)  temp_mem_gray += 1
+	
+--  for temp_memory = memory + 3 to memory + width * 3 by 3 do
+    for z = 3 to width * 3 by 3 do
+--	gray = peek(temp_memory)
+	gray = peek(memory+z)
+	poke(temp_mem_gray, gray)  temp_mem_gray += 1
+    end for
+	
+    poke(temp_mem_gray, gray)  temp_mem_gray += 1
+	
+    temp_mem = memory
+    for y = 1 to height do
+	gray = peek(temp_mem)
+	poke(temp_mem_gray, gray)  temp_mem_gray += 1
+	for x = 1 to width do
+	    gray = peek(temp_mem)
+	    poke(temp_mem_gray, gray)  temp_mem_gray += 1
+	    temp_mem += 3
+	end for
+	poke(temp_mem_gray, gray)  temp_mem_gray += 1
+	temp_mem += padding
+    end for
+	
+    mem_copy(temp_mem_gray, temp_mem_gray - new_width, new_width)
+    -- copying data from bitmap to buffer finished
+	
+    pointers_gray = repeat(0, 9) -- precalculated matrix of pointers to pixel positions in the buffer
+    counter = 1  delta = 0
+    for i = 0 to 2 do
+	for j = 0 to 2 do
+	    pointers_gray[counter] = mem_gray + delta
+	    counter += 1
+	    delta   += 1
+	end for
+	delta += new_width - 3
+    end for
+    matrix_length = 0
+    for i = 1 to 9 do
+	if linear_matrix[i] != 0 then
+	    matrix_length += 1
+	    linear_matrix[matrix_length] = linear_matrix[i]
+	    pointers_gray[matrix_length] = pointers_gray[i]
+	end if
+    end for
+	
+    temp_mem = memory
+    for y = 1 to height do
+	for x = 1 to width do
+	    gray = 0
+	    for i = 1 to matrix_length do -- gray = sum_of(pointers_gray[i] * matrix[i])
+		gray += peek(pointers_gray[i]) * linear_matrix[i]  pointers_gray[i] += 1
+	    end for -- gray = floor(gray / div) + bias
+	    gray = floor(gray / div) + bias
+	    if gray < 0 then mem_set(temp_mem, 0, 3)
+	    elsif gray > 255 then mem_set(temp_mem, 255, 3)
+	    else mem_set(temp_mem, gray, 3)
+	    end if
+	    temp_mem += 3
+	end for
+--/**/	pointers_gray = sq_add(pointers_gray,2)     --/* -- Phix
+	pointers_gray += 2			    --*/ -- RDS
+	temp_mem += padding
+    end for
+	
+    free(mem_gray) -- free the buffer
+end procedure
+
+global procedure detectDibEdges(sequence dib)
+-- Applies an edge detection-filter to the bitmap, showing the edges in the image
+    filterDibGray3x3(dib, {{-1, -1, -1},
+			   {-1,  8, -1},
+			   {-1, -1, -1}}, 1, 0)
+end procedure
+
+global procedure sharpenDib(sequence dib)
+-- Makes the bitmap a bit sharper, using a filter
+    filterDib3x3(dib, {{-1, -1, -1},
+		       {-1, 12, -1},
+		       {-1, -1, -1}}, 4, 0)
+end procedure
+
+global procedure subtleSharpenDib(sequence dib)
+-- Makes the bitmap a bit sharper, using a filter
+--  This routine is faster than sharpenDib, and the
+--  result is less sharp
+	filterDib3x3(dib, {{ 0, -1,  0},
+			   {-1,  8, -1},
+			   { 0, -1,  0}}, 4, 0)
+end procedure
+
+global procedure blurDib(sequence dib)
+-- Makes the bitmap a bit less sharp, using a filter
+    filterDib3x3(dib, {{1, 1, 1},
+		       {1, 3, 1},
+		       {1, 1, 1}}, 11, 0)
+end procedure
+
+global procedure subtleBlurDib(sequence dib)
+-- Makes the bitmap a bit less sharp, using a filter
+--  This routine is faster than blurDib, and the result
+--  is less blurry
+    filterDib3x3(dib, {{0, 1, 0},
+		       {1, 4, 1},
+		       {0, 1, 0}}, 8, 0)
+end procedure
+
+global procedure embossDib(sequence dib, sequence bgcolor)
+-- Embosses the bitmap, with a background color bgcolor
+    if bgcolor[1] = bgcolor[2] and bgcolor[2] = bgcolor[3] then -- gray background color
+	filterDibGray3x3(dib, {{-1, 0, 0},
+			       { 0, 0, 0},
+			       { 0, 0, 1}}, 1, bgcolor[1])
+    else
+	filterDibGray3x3(dib, {{-1, 0, 0},
+			       { 0, 0, 0},
+			       { 0, 0, 1}}, 1, 128)
+	colorizeDib(dib, bgcolor)
+    end if
+end procedure

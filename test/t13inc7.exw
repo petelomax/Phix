@@ -1,0 +1,52 @@
+--
+-- t13inc7.exw
+--
+-- Phix include tests. Thanks to Matt Lewis/Derek Parnell
+-- Does not work on RDS Euphoria pre 3.1.1.
+-- Phix knows to look in inc7/ for subsequent includes, which I predict 
+--  will never be supported in OpenEuphoria, unfortunately.
+--
+-- eric.exw defines name ("Eric") locally and includes bob.e and diane.e
+--  alice.e defines global sequence name ("Alice").
+--  bob.e includes alice.e and uses unqualified "name"
+--  chris.e defines global sequence name ("Chris").
+--  diane.e includes chris.e and uses unqualified "name"
+-- eric.exw completes the test by getting "name" via a routine in bob,
+--  via a routine in diane, locally, directly from alice, and directly 
+--  from chris.
+--
+-- eric.exw:
+--  include bob.e
+--    include alice.e
+--      global constant name = "Alice"
+--      <end of alice.e>
+--    if name!="Alice" then ?9/0 end if
+--    <end of bob.e>
+--  include diane.e
+--    include chris.e
+--      global constant name = "Chris"
+--      <end of chris.e>
+--    if name!="Chris" then ?9/0 end if -- [**]
+--    <end of diane.e>
+--  <end of eric.exw>
+--
+-- The point is that diane.e works for eric exactly the same as it did
+-- when diane created it, rather than crash over a missing namespace
+-- qualifier at [**]. If eric.exw itself referenced name, then you'd
+-- get the 'qualifier needed' message, but within diane.e, name gets
+-- automatically resolved to the one in chris.e because diane.e 
+-- included that file (and did not include alice.e). So Eric can use
+-- all these files and have them work as they did when independently
+-- created, without having to edit anything except, perhaps, his own
+-- files.
+--
+-- Caveat: This does not apply to overidden builtins. Should alice.e
+-- override, I dunno, say "length()", then there is a pretty good
+-- chance that diane.e will be broken, unless she too decides it is
+-- a grand idea to override "length()".
+--
+without warning -- lots of unused stuff in here
+
+include inc7\eric.exw
+puts(1,"done\n")
+--include erin.exm  -- now correctly "forgets" inc7 at EOF of eric.exw.

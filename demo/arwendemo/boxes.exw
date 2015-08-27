@@ -1,0 +1,86 @@
+--
+-- boxes.exw
+--
+--/*
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+include ..\..\builtins\misc.e
+--*/
+include arwen.ew
+
+constant main = create(Window,"",0,0,0,0,600,400,0),
+--       mainHwnd = getWindowHwnd(main),
+         mainDC = getPrivateDC(main),
+         mainTimer = createTimer()
+
+constant xRectangle = link_c_func(gdi32, "Rectangle",
+                                  {C_PTR,   --  HDC  hdc,           // handle of device context
+                                   C_INT,   --  int  nLeftRect,     // x-coord. of upper-left corner
+                                   C_INT,   --  int  nTopRect,      // y-coord. of upper-left corner
+                                   C_INT,   --  int  nRightRect,    // x-coord. of lower-right corner
+                                   C_INT},  --  int  nBottomRect    // y-coord. of lower-right corner
+                                  C_LONG)   -- BOOL
+
+constant NULL_BRUSH = 5,
+         NullBrushID = c_func(xGetStockObject,{NULL_BRUSH})
+
+function rgb(integer r, integer g, integer b)
+    return r+g*#100+b*#10000
+end function
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+integer width, height
+integer color, filled, x1, y1, x2, y2
+atom hBrush
+atom hPen
+atom prev
+
+    if msg=WM_TIMER then
+        if wParam=mainTimer then
+            repaintWindow(main,False)
+        end if
+
+    elsif msg=WM_PAINT then
+        {x1,y1,x2,y2} = getWindowRect(main)
+        width = x2-x1
+        height = y2-y1
+
+        for i=1 to 10+rand(20) do
+            x1 = rand(width)
+            y1 = rand(height)
+            x2 = rand(width)
+            y2 = rand(height)
+            color = rgb(rand(255), rand(255), rand(255))
+            filled = (rand(10)=10)
+--          filled = (rand(2)=1)
+
+            -- draw a rectangle, with a suitable pen and brush
+
+            hPen = c_func(xCreatePen, {0,1,color})
+            prev = c_func(xSelectObject,{mainDC,hPen})
+            void = c_func(xDeleteObject,{prev})
+            if filled then
+                hBrush = c_func(xCreateSolidBrush,{color})
+            else
+                hBrush = NullBrushID
+            end if
+            prev = c_func(xSelectObject,{mainDC,hBrush})
+            void = c_func(xDeleteObject,{prev})
+            void = c_func(xRectangle, {mainDC, x1, y1, x2, y2})
+        end for
+    elsif msg=WM_CHAR and wParam=VK_ESCAPE then
+        closeWindow(main)
+    elsif msg=WM_CLOSE then
+        releaseDC(id,mainDC)
+        stopTimer(mainTimer)
+        if object(lParam) then end if   -- suppress warnings
+    end if
+    return 0
+end function
+setHandler(main, routine_id("mainHandler"))
+
+    startTimer(mainTimer,main,100)  -- (10 times a second)
+    setBackColour(main, BrightWhite)
+
+    WinMain(main,SW_NORMAL)
+

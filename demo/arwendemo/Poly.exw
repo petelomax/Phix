@@ -1,0 +1,157 @@
+--
+-- Poly.exw
+-- ========
+--
+-- Just a couple of things I found on the intenet while investigating graphics
+--  (at the very start of my first ever foray into such things)
+--
+
+-- it would be better to have a set of points, and polygons defined using indexes to those points.
+--  - reduces the workload on transforming the points. (see Arwen32dibdemo\demo_cube.exw for that)
+-- start simple: a 345 triangle
+--  move viewpoint (or origin, if Ctrl down?) left right, up down (or forward back, if Shift down). [orbital/linear?]
+--  sin = opposite/hypotenuse
+--  cos = adjacent/hypotenuse
+--  tan = opposite/adjacent     (SOHCAHTOA)
+
+--constant polypoints = {   150,150,
+--                      300,150,
+--                      300,300,
+--                      150,300,
+----                        150,150,
+--                      225,225,
+--                      
+--                      200,200,
+--                      250,200,
+--                      250,250,
+--                      200,250,
+----                        200,200,
+--                      225,225,
+--                      
+--                      150,150,
+--                      200,150,
+--                      200,200,
+--                      150,200,
+----                        150,150,
+--                      175,175,
+--                      
+--                      100,100,
+--                      150,100,
+--                      150,150,
+--                      100,150,
+----                        100,100}
+--                      125,125}
+--
+--constant counts = {5,5,5,5}
+
+constant PointNumMax = 14
+sequence polypoints = repeat(0,(PointNumMax+3)*(PointNumMax-2))
+sequence counts = repeat(0,PointNumMax-2)
+integer cidx = 1
+integer X, Y
+    
+    for p = 3 to PointNumMax do
+        counts[p-2] = p
+        for i = 1 to p do
+            X = floor(cos(2 * PI * i / p) * 50 + 50.5 + 110 * (p - 3))
+            polypoints[cidx] = X
+            cidx += 1
+            Y = floor(sin(2 * PI * i / p) * 50 + 50.5)
+            polypoints[cidx] = Y
+            cidx += 1
+        end for
+    end for
+
+constant rainbow = {"red","orange","yellow","green","blue","indigo","violet"}
+                    -- (see axtra.ew for other named colours you can use)
+
+--with trace
+include arwen.ew
+include axtra.ew    -- GetNamedColour
+
+constant main = create(Window,"Poly",0,0,50,50,600,400,0),
+         mainHwnd = getWindowHwnd(main),
+         mainDC = getPrivateDC(main)
+
+sequence vShapes -- DEV{x1,y1,x1,y2,text,pixelwidth,pen,brush}
+         vShapes = {}
+
+procedure setShapes()
+integer cidx, pidx, c
+integer b, g, r
+sequence pens, brushes
+integer width, colour
+
+    pens = repeat(0,length(rainbow))
+    brushes = repeat(0,length(rainbow))
+    for i=1 to length(rainbow) do
+        {b,g,r} = GetNamedColour(rainbow[i])
+        colour = rgb(r,g,b)
+        width = 1
+        pens[i] = c_func(xCreatePen,{PS_SOLID,width,colour})
+        brushes[i] = c_func(xCreateSolidBrush,{colour})
+    end for
+    cidx = 1
+    pidx = 1
+    vShapes = repeat(0,length(counts))
+    for i=1 to length(counts) do
+        c = counts[i]
+        vShapes[i] = {polypoints[pidx..pidx+c*2-1],{c},pens[cidx],brushes[cidx]}
+        pidx += c*2
+        cidx += 1
+        if cidx>length(rainbow) then cidx = 1 end if
+    end for
+end procedure
+
+--?arctan(1)    -- 0.7853981634
+--?arctan(1)/(2*PI)*360 -- 45
+--arccos(-0.50985)  =  120.654°
+--?arccos(-0.50985)             --  2.105806743
+--?arccos(-0.50985)/(2*PI)*360    --    120.6538388
+
+function mHandler(integer id, integer msg, atom wParam, object lParam)
+atom hBrush
+atom hPen
+sequence points, counts
+atom pPoints, pCounts
+
+    if msg=WM_SIZE then
+        void = c_func(xInvalidateRect,{mainHwnd,NULL,0})    -- w/o erase...
+        void = c_func(xSendMessage,{mainHwnd,WM_PAINT,0,0})
+    elsif msg=WM_PAINT then
+        for i=1 to length(vShapes) do
+            {points,counts,hPen,hBrush} = vShapes[i]
+            void = c_func(xSelectObject,{mainDC,hPen})
+            void = c_func(xSelectObject,{mainDC,hBrush})
+            pPoints = allocate(length(points)*4)
+            poke4(pPoints,points)
+            if length(counts)=1 then
+                void = c_func(xPolygon, {mainDC,pPoints,counts[1]})
+            else
+                pCounts = allocate(length(counts)*4)
+                poke4(pCounts,counts)
+                void = c_func(xPolyPolygon, {mainDC,pPoints,pCounts,length(counts)})
+                free(pCounts)
+            end if
+            free(pPoints)
+        end for
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(main)
+        end if
+    elsif msg=WM_CLOSE then
+        releaseDC(id,mainDC)
+        if lParam then end if   -- suppress warnings
+    end if
+    return 0
+end function
+setHandler(main, routine_id("mHandler"))
+
+procedure Main()
+    setShapes()
+    setBackColour(main, BrightWhite)
+    WinMain(main,SW_NORMAL)
+end procedure
+Main()
+
+

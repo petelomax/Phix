@@ -1,0 +1,26 @@
+
+-- Description:
+--  Trapping WM_NCHITTEST is a powerful technique!
+-- Keywords:
+--  setClassDefaults, toggleWindowTitle, WM_NCHITTEST,
+--  WM_GETMINMAXINFO, setBackColour, getSysColor
+-- Credit: translated from Tutorial by Don Phillips (31/12/01)
+
+include arwen.ew
+
+constant
+MainWin     = create(Window, "I dont respond to events", 0, NULL, 25, 25, 300, 200, 0),
+CloseBtn    = create(Button, "Close", 0, MainWin, 10, 10, 150, 20, 0)
+
+function MainHandler(integer id, integer msg, atom wParam, object lParam)
+    if wParam or object(lParam) then end if	-- suppress warnings
+    if id = MainWin then
+	if msg = WM_NCHITTEST then return {HTNOWHERE} end if
+    elsif id = CloseBtn then
+	if msg = WM_COMMAND then closeWindow(MainWin) end if
+    end if
+    return 0
+end function
+setHandler({MainWin,CloseBtn},routine_id("MainHandler"))
+
+WinMain(MainWin, SW_NORMAL)

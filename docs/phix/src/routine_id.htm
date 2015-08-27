@@ -1,0 +1,228 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">routine_id</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica"> integer rid = routine_id(string st)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>Return an integer id number, known as a
+          <font color="#030303">
+           <b>routine id</b>
+          </font>, for a user-defined Euphoria
+             procedure or function. The name of the procedure or function
+             is given by the string sequence st. -1 is returned if the named
+             routine cannot be found.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>The id number can be passed to call_proc() or call_func(), to indirectly
+             call the routine named by st.
+          <br>
+          <br>
+             The routine named by st must be visible, i.e. callable, at the
+             place where routine_id() is used to get the id number. Indirect calls to the
+             routine can appear earlier in the program than the definition
+             of the routine, but the id number can only be obtained in code that 
+             comes
+          <i>after</i> the definition of the routine - see example 2 below.
+          <br>
+          <br> 
+             Once obtained, a valid
+          <font color="#030303">
+           <b>routine id</b>
+          </font>
+             can be used at
+          <font color="#020202">
+           <b>
+            <i>any</i>
+           </b>
+          </font> place 
+             in the program to call a routine indirectly via call_proc()/call_func().
+          <br>
+             Some typical uses of routine_id() are:
+          <br>
+             1. Creating a subroutine that takes another routine as a parameter. (See
+                  Example 2 below)
+          <br>
+             2. Setting up an Object-Oriented system.
+          <br>
+             3. Defining a call_back(). (See
+          <a href="cffi.htm">Calling C Functions</a>)
+          <br>
+          <br>
+             Note that C routines, callable by Euphoria, also have routine ids.
+             See define_c_proc() and define_c_func().
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+procedure foo()
+    puts(1, "Hello World\n")
+end procedure
+constant r_foo_num = routine_id("foo")
+call_proc(r_foo_num, {})    -- same as calling foo()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> foo</font><font color="#0000FF">()
+</font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Hello World\n"</font><font color="#0000FF">)
+</font><font color="#008080">end procedure
+constant</font><font color="#000000"> r_foo_num</font><font color="#0000FF"> =</font><font color="#800080"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"foo"</font><font color="#0000FF">)
+</font><font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">r_foo_num</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)   </font><font color="#000080"> -- same as calling foo()</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+function apply_to_all(sequence s, integer f)
+-- apply a specified function to all elements of a sequence
+sequence result = {}
+    for i=1 to length(s) do
+        -- we can call add1() here, even if it is not in scope
+        result = append(result, call_func(f, {s[i]}))
+    end for
+    return result
+end function
+
+function add1(atom x)
+-- (this may be a private function in a different file)
+    return x + 1
+end function
+
+? apply_to_all({1, 2, 3}, routine_id("add1"))  -- displays {2,3,4}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> apply_to_all</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> f</font><font color="#0000FF">)
+</font><font color="#000080">-- apply a specified function to all elements of a sequence
+</font><font color="#004080">sequence</font><font color="#000000"> result</font><font color="#0000FF"> = {}
+</font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> do
+</font><font color="#000080">        -- we can call add1() here, even if it is not in scope
+</font><font color="#000000">        result</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">result</font><font color="#0000FF">,</font><font color="#7060A8"> call_func</font><font color="#800000">(</font><font color="#000000">f</font><font color="#0000FF">,</font><font color="#800080"> {</font><font color="#000000">s</font><font color="#00FF00">[</font><font color="#000000">i</font><font color="#00FF00">]</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#008080">    end for
+    return</font><font color="#000000"> result
+</font><font color="#008080">end function
+
+function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> x</font><font color="#0000FF">)
+</font><font color="#000080">-- (this may be a private function in a different file)
+</font><font color="#008080">    return</font><font color="#000000"> x</font><font color="#0000FF"> +</font><font color="#000000"> 1
+</font><font color="#008080">end function
+
+</font><font color="#0000FF">?</font><font color="#000000"> apply_to_all</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800080"> routine_id</font><font color="#800000">(</font><font color="#008000">"add1"</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#000080"> -- displays {2,3,4}</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="call_proc.htm">call_proc</a>,
+          <a href="call_func.htm">call_func</a>,
+          <a href="call_back.htm">call_back</a>,
+          <a href="define_c_func.htm">define_c_func</a>,
+          <a href="define_c_proc.htm">define_c_proc</a>,
+          <a href="cffi.htm">Calling C Functions</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+          When possible the routine_id is resolved at compile-time, but (especially for constructed strings) can be left until run-time.
+          There is also an inline assembler compiler directive of the same name, which <i>must</i> however be resolved at compile-time,
+          and (implementation details can be found in pilasm.e) forward references are explicitly disallowed.
+          <br>
+          <br>
+          <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+           <div class="codeSnippetContainerCodeContainer">
+            <div class="codeSnippetToolBar">
+             <div class="codeSnippetToolBarText">
+              <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_12a65b96-c3ab-4175-936c-8e1295c81946');">Copy</a>
+             </div>
+            </div>
+            <div id="CodeSnippetContainerCode_12a65b96-c3ab-4175-936c-8e1295c81946" class="codeSnippetContainerCode" dir="ltr">
+             <div style="color:Black;">
+<!--eucode>
+    #ilASM{
+            ...
+            mov edx,routine_id(open)            -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- (symtab[open][S_Ltot])
+            call :%opFrame
+            pop dword[ebp]                      -- filepath
+            pop dword[ebp-4]                    -- openmode
+            mov [ebp+16],:openret
+            jmp $_il                            -- (symtab[open][S_il])
+          ::openret
+            ...
+          }
+</eucode-->
+<pre>
+<font color="#000000">    #</font><font color="#008080">ilASM</font><font color="#0000FF">{
+            ..</font><font color="#000000">.
+            mov edx</font><font color="#0000FF">,</font><font color="#800080">routine_id</font><font color="#800000">(</font><font color="#7060A8">open</font><font color="#800000">)           </font><font color="#000080"> -- mov edx,imm32 (sets K_ridt)
+</font><font color="#000000">            mov ecx</font><font color="#0000FF">,</font><font color="#000000">$_Ltot                     </font><font color="#000080"> -- (symtab[open][S_Ltot])
+</font><font color="#7060A8">            call</font><font color="#000000"> :%opFrame
+            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#800000">]                     </font><font color="#000080"> -- filepath
+</font><font color="#000000">            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#0000FF">-</font><font color="#000000">4</font><font color="#800000">]                   </font><font color="#000080"> -- openmode
+</font><font color="#000000">            mov</font><font color="#800000"> [</font><font color="#000000">ebp</font><font color="#0000FF">+</font><font color="#000000">16</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">:openret
+            jmp $_il                           </font><font color="#000080"> -- (symtab[open][S_il])
+</font><font color="#000000">          ::openret
+</font><font color="#0000FF">            ..</font><font color="#000000">.
+</font><font color="#0000FF">          }</font>
+</pre>
+             </div>
+            </div>
+           </div>
+          </div>
+            Note that there are no quotes around the routine name when invoked in this manner within #ilASM. As shown, $_Ltot and $_il can be used to obtain the equivalent
+            fixed constant literal values from the symtab entry corresponding to the most recent routine_id directive. It is currently coded to issue an error if you forget
+            to use all three, routine_id first. The statement mov edx,routine_id(open) is compiled to and executes as (say) "mov edx,118", and also sets the K_ridt (known 
+            routine_id target) flag on symtab[open], therefore forcing full parameter typechecking.
+            <br>
+            <br>
+            The above example is taken from builtins\VM\pfileioN.e (wherein you can find 32 and 64-bit versions with proper reference counting) and implements a hll open() 
+            statement. Of course the latter is much easier, and this method should only be used when some other reason makes it necessary, in this specific case that would
+            be a combination of getting these things into the optable (so that pfileioN.e does not have to be recompiled every time when interpreting) and the subsequent 
+            implications for thread-safety (in top-level code).
+         </td>
+        </tr>
+       </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

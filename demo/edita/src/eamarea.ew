@@ -1,0 +1,179 @@
+--
+-- eamarea.ew
+--
+-- Routines to handle the message area.
+--
+
+global sequence maRect -- original size saved in recalculateClipRect()
+
+function mareaHandler(integer id, integer msg, atom wParam, object lParam)
+integer HTwhat, isControl
+sequence rect
+
+--sequence xCH
+
+    if id then end if   -- suppress warnings
+    --
+    -- suppress all normal edit actions, but allow selection, scrolling, and copy
+-- 6/3/2010 ^ why?! 
+-- (It should now mostly work, but of course the editor proper remains in control)
+    --
+    isControl = getKeyState(VK_CONTROL)
+-- 15/12/2012:
+    if msg=WM_CHAR
+    or msg=WM_KEYDOWN
+    or msg=WM_KEYUP
+    or msg=WM_SYSKEYDOWN
+    or msg=WM_SYSKEYUP
+    or msg=WM_SYSCHAR then
+        void = sendMessage(Main,msg,wParam,lParam)
+        return {0}
+--  if msg=WM_CHAR
+--  and wParam<' '
+--  and (wParam!=13 or isControl)   -- Special: allow Return but Ctrl M => Main
+--  and not find(wParam,    -- except:
+--              {1,         --  Ctrl A (select all),        [btw, does not work]
+--               3,         --  Ctrl C (copy)
+--               8,         --  Backspace
+--
+--
+--               9,         --  tab
+--               22,        --  Ctrl V (paste)
+--               24,        --  Ctrl X (cut)
+--               25,        --  Ctrl Y (redo)               [btw, does not work]
+--               26         --  Ctrl Z (undo)
+--              }) then
+--  -- ("[btw, does not work]" above means they do nothing on a standard MLE, but
+--  --  letting them through to mangle main text when focus is on MA is far worse.)
+--
+----xCH = "<ctrl  "&wParam+'@'&">"
+----setText(Main,"WM_CHAR "&xCH&" => Main")
+--      void = sendMessage(Main,WM_CHAR,wParam,lParam)  -- added 6/3/2010
+--      return {0}
+----18/6/10:
+--  elsif msg=WM_KEYDOWN then
+--      void = sendMessage(Main,WM_KEYDOWN,wParam,lParam)
+--      return {0}
+--
+--  elsif msg=WM_KEYDOWN and not find(wParam,{VK_PRIOR,VK_NEXT,VK_END,VK_HOME,
+--                                            VK_LEFT,VK_UP,VK_RIGHT,VK_DOWN,
+--                                            VK_BACK,VK_TAB,VK_CLEAR,VK_RETURN,
+--                                            VK_INSERT,VK_DELETE
+--                                            }) then
+----setText(Main,sprintf("WM_KEYDOWN %d ignored",wParam))
+--      return {0}
+    elsif msg = WM_SETCURSOR then
+        hideCaret()
+        HTwhat = loWord(lParam)
+        if HTwhat = HTCLIENT then
+            softSetFocus(MA)
+        elsif HTwhat != HTTOP then
+            if not isFilePanelVIS or not find(HTwhat,{HTLEFT,HTTOPLEFT}) then
+                return {0}  -- no strange/unusable cursors thanks
+            end if
+        end if
+    elsif msg = WM_SIZING then
+        if wParam!=WMSZ_TOP then
+            if not isFilePanelVIS or not find(wParam,{WMSZ_LEFT,WMSZ_TOPLEFT}) then
+                -- cancel the event.
+                if atom(lParam) then
+                    poke4(lParam,maRect)
+                    return {1}
+                end if
+                return maRect
+            end if
+            if atom(lParam) then
+                lParam = peek4s( {lParam, 4} )
+            end if
+            --
+            -- Left side change first...
+            --
+            rect = getWindowRect(Main)
+            isFilePanelWidth = lParam[1] - (rect[1] + 4)
+        end if
+        if find(wParam,{WMSZ_TOP,WMSZ_TOPLEFT}) then
+            if atom(lParam) then
+                lParam = peek4s( {lParam, 4} )
+            end if
+            --
+            -- Then top size change...
+            --
+            isMessageHeight = lParam[4] - lParam[2]
+        end if
+        hideCaret()
+        void=sendMessage(Main,WM_SIZE,0,0)
+--Added 19/3/2010:
+---- (removed for release, more tweaking, esp with the menus, is rqd)
+----    elsif not find(msg,{WM_SHOWWINDOW,WM_WINDOWPOSCHANGING,WM_WINDOWPOSCHANGED,
+----                        WM_GETMINMAXINFO,WM_NCCALCSIZE,WM_MOVE,WM_SIZE,
+----                        WM_PAINT,WM_NCPAINT,WM_ERASEBKGND,WM_CTLCOLOREDIT,
+----                        WM_NCHITTEST,WM_IME_SETCONTEXT,WM_SETFOCUS,
+----                        WM_COMMAND,WM_MOUSEMOVE,WM_LBUTTONDOWN,WM_LBUTTONUP,
+----                        WM_LBUTTONDBLCLK,WM_RBUTTONDOWN,WM_RBUTTONUP,
+----                        WM_RBUTTONDBLCLK,WM_MBUTTONDOWN,WM_MBUTTONUP,
+----                        WM_MBUTTONDBLCLK,WM_MOUSELEAVE,WM_NCMOUSEMOVE,674,
+----                        WM_MOUSEACTIVATE,WM_CANCELMODE,WM_CAPTURECHANGED,
+----                        WM_KILLFOCUS,WM_IME_NOTIFY,WM_CHAR,WM_KEYDOWN,WM_KEYUP,
+----                        WM_UNDO,EM_SETSEL,EM_REPLACESEL,WM_TIMER,WM_CONTEXTMENU,
+----                        WM_MENUSELECT,EM_GETLINE,EM_GETLINECOUNT,WM_ENTERIDLE,
+----                        WM_HELP,WM_CUT,WM_COPY,WM_DESTROYCLIPBOARD
+----
+----}) then
+----if not find(msg,{WM_SYSKEYDOWN,WM_SYSKEYUP,WM_SYSCHAR,WM_SYSCOMMAND,77}) then
+--  elsif find(msg,{WM_SYSKEYDOWN,WM_SYSKEYUP,WM_SYSCHAR,WM_SYSCOMMAND}) then
+----        ?msg
+----        if getc(0) then end if
+----end if
+--      void = sendMessage(Main,msg,wParam,lParam)
+--  elsif not find(msg,{WM_CTLCOLOREDIT,WM_ERASEBKGND,WM_NCHITTEST,WM_NCPAINT,WM_PAINT,
+--                      WM_KILLFOCUS,WM_GETMINMAXINFO,WM_WINDOWPOSCHANGING,
+--                      WM_NCMOUSEMOVE,WM_COMMAND,WM_MOUSEMOVE,WM_LBUTTONDOWN,
+--                      WM_LBUTTONUP,WM_LBUTTONDBLCLK,WM_RBUTTONDOWN,WM_RBUTTONUP,
+--                      WM_RBUTTONDBLCLK,WM_MBUTTONDOWN,WM_MBUTTONUP,WM_MBUTTONDBLCLK,
+--                      WM_IME_SETCONTEXT,WM_NCMOUSELEAVE,WM_MOUSELEAVE,WM_MOVE,WM_SIZE,
+--                      WM_SETFOCUS,WM_SHOWWINDOW,WM_WINDOWPOSCHANGED,WM_NCCALCSIZE,
+--                      WM_IME_NOTIFY,WM_INPUTLANGCHANGEREQUEST,WM_SYSCOMMAND,WM_TIMER,
+--                      WM_MOUSEACTIVATE,WM_CAPTURECHANGED}) then
+--      ?{msg,wParam,lParam}
+    end if
+    return 0
+end function
+setHandler(MA, routine_id("mareaHandler"))
+
+--global sequence taRect -- original size saved in recalculateClipRect()
+--
+----with trace
+--function tareaHandler(integer id, integer msg, atom wParam, object lParam)
+--integer HTwhat
+----sequence rect
+--  if id then end if   -- suppress warnings
+--  if msg = WM_SETCURSOR then
+--      hideCaret()
+--      HTwhat = loWord(lParam)
+--      if HTwhat = HTCLIENT then
+--          softSetFocus(Main)
+--      elsif HTwhat != HTRIGHT then
+--          return {0}  -- no strange/unusable cursors thanks
+--      end if
+--  elsif msg = WM_SIZING then
+--      if wParam!=WMSZ_RIGHT then
+--          -- cancel the event.
+--          if atom(lParam) then
+--              poke4(lParam,taRect)
+--              return {1}
+--          end if
+--          return taRect
+--      end if
+--      if atom(lParam) then
+--          lParam = peek4s( {lParam, 4} )
+--      end if
+--      --
+--      -- Right side change only...
+--      --
+--      isFilePanelWidth = lParam[3]
+--      hideCaret()
+--      void=sendMessage(Main,WM_SIZE,0,0)
+--  end if
+--  return 0
+--end function
+--setHandler(TV, routine_id("tareaHandler"))

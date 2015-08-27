@@ -1,0 +1,153 @@
+-- Win32Dib demo: demonstrates the tile-procedure
+
+--without warning
+include w32dcore.ew  -- only the core-library is necessary
+
+object dib, dib2, tile_dib, info_dib
+integer trans_x, trans_y, canvas_width, canvas_height, width, height, width2, height2, x, y
+integer info_width, info_height, logo_drawing
+sequence trans_color
+atom t
+integer frames, running
+
+    dib = loadDib("demo.bmp")
+    if not sequence(dib) then
+        if message_box("Can't load bitmap 'demo.bmp'.", "Error", MB_ICONERROR) then end if
+        abort(0)
+    end if
+    width = dib[DibWidth]
+    height = dib[DibHeight]
+
+    dib2 = loadDib("demo2.bmp")
+    if not sequence(dib2) then
+        if message_box("Can't load bitmap 'demo2.bmp'.", "Error", MB_ICONERROR) then end if
+        abort(0)
+    end if
+    width2 = dib2[DibWidth]
+    height2 = dib2[DibHeight]
+
+    info_dib = 0
+    tile_dib = 0
+    canvas_width = 0
+    canvas_height = 0
+    info_width = 0
+    info_height = 0
+    logo_drawing = 0
+
+    trans_color = {255, 255, 255}
+    x = 0
+    y = 0
+
+constant win = create(Window, "Win32Dib bitmap tiling demo", 0, Default, Default, 480, 300, 0)
+
+procedure winPaint(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if -- suppress warnings
+    if sequence(tile_dib) then
+        drawDib(win, tile_dib, 0, 0, 0, 0, canvas_width-1, canvas_height-1)
+    end if
+end procedure
+setHandler(win, w32HPaint, routine_id("winPaint"))
+
+procedure winResize(integer self, integer event, sequence parms)
+sequence rect
+    if self or event or sequence(parms) then end if -- suppress warnings
+    rect = getClientRect(win)
+    if sequence(tile_dib) then killDib(tile_dib) end if
+    canvas_width = rect[3]
+    canvas_height = rect[4]
+    if canvas_width=0 or canvas_height=0 then tile_dib = 0  return end if
+    tile_dib = newDib(canvas_width, canvas_height)
+    trans_x = canvas_width-width2
+    trans_y = canvas_height-height2
+end procedure
+setHandler(win, w32HResize, routine_id("winResize"))
+
+procedure winClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if -- suppress warnings
+    logo_drawing += 1
+    if logo_drawing>2 then logo_drawing = 0 end if
+end procedure
+setHandler(win, w32HClick, routine_id("winClick"))
+
+procedure winClose(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if -- suppress warnings
+    running = False
+end procedure
+setHandler(win, w32HClose, routine_id("winClose"))
+
+procedure winActivate(integer self, integer event, sequence parms)
+sequence info_text, rect
+atom handle
+--object filename
+--      filename = getOpenFileName(
+--                      win,
+--                      "C:\\P3\\win32dib\\.",
+----                        "C:\\P3\\win32dib\\*.e*",
+--                      {"Dialog Flags", {OFN_ALLOWMULTISELECT},
+--                        "Eu files", "*.exw; *.ew; *.e",
+--                        "txt files", "*.txt",
+--                        "All Files", "*.*" } )
+--      filename=getOpenFileName(0,"",   {"Dialog Flags", {OFN_ALLOWMULTISELECT},
+--                            "txt Files", "*.txt" ,
+--                            "All Files", "*.*" } )
+
+    if self or event or sequence(parms) then end if -- suppress warnings
+    if not sequence(tile_dib) then return end if
+    info_text = "Click inside the window to change the drawing of the logo."
+    setFont(win, "Verdana", 8, Bold)
+    rect = getTextExtent(win, info_text)
+    info_width = rect[1]+3
+    info_height = rect[2]+3
+    handle = create(Pixmap, "", win, 0, 0, info_width, info_height, 0)
+    setFont(handle, "Verdana", 8, Bold)
+    setPenColor(handle, BrightWhite)
+    drawRectangle(handle, True, 0, 0, info_width, info_height)
+    setTextColor(handle, Black)
+    for i=0 to 2 do
+        for j=0 to 2 do
+            wPuts({handle, j, i}, info_text)
+        end for
+    end for
+    setTextColor(handle, Yellow)
+    wPuts({handle, 1, 1}, info_text)
+    info_dib = newDib(info_width, info_height)
+    copyToDib(info_dib, handle, 0, 0, 0, 0, info_width-1, info_height-1)
+    destroy(handle)
+
+    t = time()
+    frames = 0
+    running = True
+    while running do
+        x += 2  if x>=width then x = 0 end if
+        y += 2  if y>=height then y = 0 end if
+        if sequence(tile_dib) then
+            tileDibToDib(tile_dib, dib, x, y, 0, 0, width-1, height-1, {}, 255)
+            drawDibToDib(tile_dib, info_dib, 0, 0, 0, 0, info_width-1, info_height-1, trans_color, 255)
+            if logo_drawing=0 then drawDibToDib(tile_dib, dib2, trans_x, trans_y, 0, 0, width2-1, height2-1, trans_color, 127)
+            elsif logo_drawing=1 then drawDibToDib(tile_dib, dib2, trans_x, trans_y, 0, 0, width2-1, height2-1, trans_color, 255)
+            end if
+        end if
+        frames += 1
+        if time()-t>2 then
+            setText(win, sprintf("%g FPS", frames/2))
+            frames = 0
+            t = time()
+        end if
+        repaintWindow(win)
+        doEvents(win)
+    end while
+end procedure
+setHandler(win, w32HActivate, routine_id("winActivate"))
+
+procedure winEvent(integer self, integer event, sequence parms)
+    if parms[1]=WM_ERASEBKGND then -- suppress the erasing of the background: eliminates flickering
+        if self or event then end if -- suppress warnings
+        returnValue(1)
+    end if
+end procedure
+setHandler(win, w32HEvent, routine_id("winEvent"))
+
+WinMain(win, Normal)
+killDib(dib)
+killDib(dib2)
+    if sequence(tile_dib) then killDib(tile_dib) end if

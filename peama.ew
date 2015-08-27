@@ -1,0 +1,187 @@
+--
+-- peama.ew
+--
+--  Slightly modified version (of Edita\eama.ew) for Phix.
+--  Does not attempt xl("Edita"), ie if you change
+--      C:\Program Files\Edita\[or wherever]lang\elng_ENG[or whatever].txt
+--  such that "Edita"!="Edita", then you'll only get warnings etc on the
+--  console window, not in Edita's message area.
+--  I have also stripped out the "closeExisting" functionality.
+--
+-- Monitor application. This is a standard include file which allows output 
+-- from an application to be shown in the message area of Edita.
+--
+-- After including this file, just call eamsg(text), which returns True on
+-- success or False on failure. text may be any object, however it is
+-- recommended you explicitly use sprint, since eg passing a sequence of 
+-- integers may work as you expect when some or all are <32, but then 
+-- suddenly put out "ABC" instead of the desired {65,66,67}.
+--
+-- Using eamsg() instead of "Capture Console Output" is recommended for
+-- GUI programs.
+-- 
+-- Can also be used to integrate a program with edita, returning the current
+-- open file name, etc.
+--
+
+--include arwen.ew -- not needed, can be used in any (exw) program.
+include builtins\dll.e
+include builtins\machine.e
+include builtins\misc.e
+
+constant
+    True = (1=1),
+    False = (1=0),
+    CD_CONS = #20050226,    -- text to appear in message area (like Captured console output)
+    CD_EDITA = #20050228,   -- Are you really Edita?
+    CD_ISENS = #20130505,   -- intellisense ready/still active
+    WM_COPYDATA = 74,
+    WM_GETTEXT = 13,
+    WM_GETTEXTLENGTH = 14,
+    user32 = open_dll("user32.dll")
+
+    if user32 = NULL then
+        puts(1,"Error opening user32")
+        if getc(0) then end if abort(0)
+    end if
+
+constant 
+    xSendMessage = define_c_func(user32, "SendMessageA",
+        {C_POINTER, --  HWND  hwnd, // handle of destination window
+         C_UINT,    --  UINT  uMsg, // message to send
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_LONG),    -- LRESULT (depends on whatever processes the message, so use object)
+    xEnumWindows = define_c_func(user32, "EnumWindows",
+        {C_POINTER, --  WNDENUMPROC  lpEnumFunc,    // address of callback function
+         C_LONG},   --  LPARAM  lParam  // application-defined value
+        C_INT)      -- BOOL
+
+    if xSendMessage=-1 then
+        puts(1,"Error defining SendMessage")
+        if getc(0) then end if abort(0)
+    end if
+    if xEnumWindows=-1 then
+        puts(1,"Error defining EnumWindows")
+        if getc(0) then end if abort(0)
+    end if
+
+atom mainHwnd
+     mainHwnd = 0
+
+object void      
+
+constant Edita = "Edita",
+         minlength = length(Edita)
+
+function EnumWindowsProc(atom hwnd, atom lParam)
+atom mem
+integer len
+sequence text
+atom CDS
+integer isEdita
+    if lParam then end if   -- suppress warnings
+    len = c_func(xSendMessage, {hwnd, WM_GETTEXTLENGTH, 0, 0})
+    if len>=minlength then
+        len += 1
+        mem = allocate(len)
+        len = c_func(xSendMessage, {hwnd, WM_GETTEXT, len, mem})
+        text = peek({mem, len})
+        free(mem)
+        if match(Edita,text)=1 then
+            CDS = allocate(12)
+            poke4(CDS,{CD_EDITA,0,0})
+            isEdita = (c_func(xSendMessage,{hwnd, WM_COPYDATA, NULL, CDS})=CD_EDITA)
+            free(CDS)
+            if isEdita then
+                mainHwnd = hwnd
+                return 0    -- cease enumeration
+            end if
+        end if
+    end if  
+    return 1    -- continue enumeration
+end function
+constant cb_EnumWindowsProc = call_back(routine_id("EnumWindowsProc"))
+
+function stringify(object o)
+object c
+sequence x
+    if not sequence(o) then
+        x = sprint(o)
+    else
+        x = o
+        for i=length(x) to 1 by -1 do
+            c = x[i]
+            if not integer(c) or c>#FF then
+                x = sprint(o)
+                exit
+            end if
+            if c<' ' then
+                if c='\n' then
+                    x = x[1..i-1]&"\r\n"&x[i+1..length(x)]  -- being sent to EditText, use CRLF format
+                elsif c='\t' then
+                    x = x[1..i-1]&"\\t"&x[i+1..length(x)]
+                else
+                    x = sprint(o)
+                    exit
+                end if
+            end if
+        end for
+    end if
+
+    if length(x)<2 or not equal(x[length(x)-1..length(x)],"\r\n") then
+        x &= "\r\n"
+    end if
+    return x
+end function
+
+function setmainHwnd()
+    if mainHwnd=0 then
+        -- (If Phix has 200 errors/warnings to display but Edita is
+        --  not running (or worse not responding), we seriously only 
+        --  want to try this once, that is instead of pause/hang for
+        --  15-30 seconds between each one...)
+        mainHwnd = -1
+        void = c_func(xEnumWindows,{cb_EnumWindowsProc,NULL})   -- set mainHwnd
+    end if
+    if mainHwnd=-1 then
+--      puts(1,"Edita not running?")
+        return False
+    end if
+    return True
+end function
+
+global function eamsg(object text)
+-- make the text appear in edita's message area.
+-- returns 1 on success, 0 on failure.
+integer res, lt
+atom mem, CDS
+    if not setmainHwnd() then return 0 end if
+    text = stringify(text)
+    lt = length(text)
+    mem = allocate(lt+1)
+    if not mem then return 0 end if
+    poke(mem, text)
+    poke(mem+lt, 0)
+    CDS = allocate(12)
+    poke4(CDS,{CD_CONS,lt+1,mem})
+    res = (c_func(xSendMessage, {mainHwnd, WM_COPYDATA, NULL, CDS}) = CD_EDITA)
+    free(CDS)
+    free(mem)
+    return res
+end function
+
+global function getEditaHwnd() -- (for pgui.exw)
+    if setmainHwnd() then return mainHwnd end if
+    return 0
+end function
+
+global procedure sendCDISENS()
+atom CDS
+    if setmainHwnd() then
+        CDS = allocate(12)
+        poke4(CDS,{CD_ISENS,0,0})
+        void = c_func(xSendMessage,{mainHwnd, WM_COPYDATA, NULL, CDS})
+        free(CDS)
+    end if
+end procedure

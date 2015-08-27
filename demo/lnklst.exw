@@ -1,0 +1,111 @@
+--
+-- lnklst.exw
+--
+--  Demo of inserting into an ordered doubly-linked list.
+--
+--  If you fancy a play with this, one thing I'd like is to improve
+--  the performance of partially ordered merges; for example with a
+--  big N, insert the odd numbers (ie 1,3,5,... in that order), and
+--  then insert the even numbers (ie 2,4,6,... in that order), only
+--  do it faster than this algorithm. The idea is that by having a 
+--  "current cursor", insert should be faster than always starting 
+--  with "first". Of course it must continue to work correctly for 
+--  random insertion.
+--  
+puts(1,"started...\n")
+
+constant N=10
+--constant N=3
+integer first,last,next,this
+sequence nxt, prv
+    first = 0
+    last = 0
+    nxt = repeat(0,N)
+    prv = repeat(0,N)
+
+procedure insert(integer k)
+--k = find(0,nxt)
+?k
+--?nxt
+--?prv
+--if k=3 then trace(1) end if
+    if last then
+        if nxt[last]!=-1 then ?9/0 end if
+    end if
+    if first then
+        if prv[first]!=-1 then ?9/0 end if
+        if k<first then
+            nxt[k] = first
+            prv[k] = -1
+            prv[first] = k
+            first = k
+        else
+            this = first
+            while 1 do
+                next = nxt[this]
+                if next=-1 or next>k then exit end if
+                this = next
+            end while
+            nxt[this] = k
+            nxt[k] = next
+            prv[k] = this
+            if next=-1 then
+                last = k
+            else
+                prv[next] = k
+            end if
+        end if
+    else
+        first = k
+        nxt[k] = -1
+        prv[k] = -1
+        last = k
+    end if
+end procedure
+
+sequence rN
+integer k, tmp
+    -- create a list of 1..N:
+    rN = repeat(0,N)
+    for i=1 to N do
+        rN[i]=i
+    end for
+    -- shuffle it:
+    for i=1 to N do
+        k = rand(i)
+        tmp = rN[i]
+        rN[i] = rN[k]
+        rN[k] = tmp
+    end for
+--  ?rN
+--  rN={3,1,2}
+    -- then insert:
+    for i=1 to N do
+--      if i=N then trace(1) end if
+        insert(rN[i])
+    end for
+
+    -- and finally check the results:
+constant ok = {"ok: ","oops: "}
+sequence en,ep -- expected nxt/prv
+--for N=10, these should be:
+--       en = {2,3,4,5,6,7,8,9,10,-1},
+--       ep = {-1,1,2,3,4,5,6,7,8,9}
+--for N=2, these should be:
+--       en = {2,-1},
+--       ep = {-1,1}
+
+    en = repeat(0,N)
+    ep = repeat(0,N)
+    en[N] = -1
+    ep[1] = -1
+    for i=1 to N-1 do
+        en[i] = i+1
+        ep[i+1] = i
+    end for
+
+puts(1,ok[1+(first!=1)]) puts(1,"first:") ?first
+puts(1,ok[1+(last!=N)]) puts(1,"last:") ?last
+puts(1,ok[1+not equal(nxt,en)]) puts(1,"nxt:") ?nxt
+puts(1,ok[1+not equal(prv,ep)]) puts(1,"prv:") ?prv
+if getc(0) then end if

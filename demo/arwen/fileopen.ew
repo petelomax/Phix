@@ -1,0 +1,438 @@
+--
+-- fileopen.ew
+--
+-- Replacement for getOpenFileName and getSaveFileName, using the Vista+ COM approach.
+--  newGetOpenFileName() and newGetSaveFileName()
+--  Should still work on windows XP [DEV testme] but not tested on anything earlier.
+--
+-- Adds a custom dropdown for ANSI/UTF8/UTF16LE/UTF16BE, as per Notepad, and likewise
+--  automatically updates said dropdown as files are selected.
+--
+-- This is my first serious foray into COM in Phix; pCom.ew is a bare bones and barely
+--  documented library written expressly for inclusion of this into Edita.
+--
+
+--with trace
+include pCom.ew
+
+global constant ENC_NONE    = 0,
+                ENC_ANSI    = 1,
+                ENC_UTF8    = 2,
+                ENC_UTF16LE = 3,
+                ENC_UTF16BE = 4     -- (rare case)
+
+global constant Encodings = {"ANSI","UTF8","UTF16LE","UTF16BE"}
+
+constant atom pFileDialogCustomize = allocate(4)    -- (set/retrieved in filedialog())
+
+string encfilename
+
+function getEncoding(string filename)
+integer encoding = 0
+integer fn
+object line
+    fn = open(filename,"rb")
+    if fn!=-1 then
+        encfilename = filename
+        line = gets(fn)
+        close(fn)
+        encoding = ENC_ANSI
+        if not atom(line) then
+            if length(line)>=3
+            and equal(line[1..3],{#EF,#BB,#BF}) then
+                encoding = ENC_UTF8
+            elsif length(line)>=2 then
+                if equal(line[1..2],{#FF,#FE}) then
+                    encoding = ENC_UTF16LE
+                elsif equal(line[1..2],{#FE,#FF}) then
+                    encoding = ENC_UTF16BE
+                end if
+            end if
+        end if
+    end if
+    return encoding
+end function
+
+--
+-- Part 1: A basic, static, IFileDialogEvents object to intercept file selection and
+--         set the custom encoding drop down added below (same as the one in Notepad).
+--
+function fn_IFileDialogEvents_OnSelectionChange(atom this, atom pFileDialog)
+atom psiCurrent = allocate(4)
+atom pName = 0
+atom ppName = allocate(4)
+string sres
+integer encoding
+
+    if this then end if     -- suppress warnings
+    -- (note: the next call will fail when there is no current selection, which will always
+    --        be the case when this is called for the first time at startup, hence the 0.)
+    if cominvk_imm(pFileDialog,IFileDialog_GetCurrentSelection,{psiCurrent},0)=S_OK then
+        if cominvk(psiCurrent,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
+            pName = peek4u(ppName)
+        end if
+        {} = cominvk(psiCurrent,IShellItem_Release,{})
+    end if
+    free(psiCurrent)
+    free(ppName)
+    if pName!=0 then
+        sres = peek_unicode_string(pName)
+        c_proc(xCoTaskMemFree,{pName})
+        encoding = getEncoding(sres)
+        if encoding!=0 then
+            {} = cominvk(pFileDialogCustomize,IFileDialogCustomize_SetSelectedControlItem,{100,encoding})
+        end if
+    end if
+    return S_OK
+end function
+constant cb_IFileDialogEvents_OnSelectionChange = call_back(routine_id("fn_IFileDialogEvents_OnSelectionChange"))
+
+-- Dummy routines to complete the interface:
+--  (I left the complete skeleton intact in case anyone wants to revive or extend it)
+function fn_IFileDialogEvents_QueryInterface(atom this, atom riid, atom ppv)
+without warning
+--  if equalGUID(riid, IID_IUnknown)
+--  or equalGUID(riid, IID_IFileDialogEvents) then
+--      poke4(ppv,this)
+--      return S_OK
+--  end if
+    poke4(ppv,NULL)
+    return E_NOINTERFACE
+end function
+constant cb_IFileDialogEvents_QueryInterface = call_back(routine_id("fn_IFileDialogEvents_QueryInterface"))
+
+-- As our IFileDialogeEvents is statically allocated, we don't need refcounting, so use a dummy routine for both AddRef and Release
+--function fn_IFileDialogEvents_AddRef(atom this)
+function fn_IFileDialogEvents_DummyRef(atom this)
+-- used for AddRef and Release
+without warning
+--integer res = peek4s(this+4)+1
+--  poke4(this+4,res)
+--  return res
+    return 1
+end function
+constant cb_IFileDialogEvents_DummyRef = call_back(routine_id("fn_IFileDialogEvents_DummyRef"))
+
+--function fn_IFileDialogEvents_Release(atom this)
+--without warning
+----integer res = peek4s(this+4)+1
+----    poke4(this+4,res)
+----    return res
+--  return 1
+--end function
+--constant cb_IFileDialogEvents_Release = call_back(routine_id("fn_IFileDialogEvents_Release"))
+
+--function fn_IFileDialogEvents_OnFileOk(atom this, atom pFileDialog)
+function fn_IFileDialogEvents_Dummy1(atom this, atom pFileDialog)
+-- used for OnFileOk, OnFolderChange, and OnTypeChange
+without warning
+    return S_OK
+end function
+constant cb_IFileDialogEvents_Dummy1 = call_back(routine_id("fn_IFileDialogEvents_Dummy1"))
+
+--function fn_IFileDialogEvents_OnFolderChanging(atom this, atom pFileDialog, atom pShellItem)
+function fn_IFileDialogEvents_Dummy2(atom this, atom pFileDialog, atom pShellItem)
+-- used for OnFolderChanging (the only one with this signature)
+without warning
+    return S_OK -- (E_NOTIMPL would be the same)
+end function
+constant cb_IFileDialogEvents_Dummy2 = call_back(routine_id("fn_IFileDialogEvents_Dummy2"))
+
+--function fn_IFileDialogEvents_OnFolderChange(atom this, atom pFileDialog)
+--without warning
+--  return S_OK
+--end function
+--constant cb_IFileDialogEvents_OnFolderChange = call_back(routine_id("fn_IFileDialogEvents_OnFolderChange"))
+
+--function fn_IFileDialogEvents_OnShareViolation(atom this, atom pFileDialog, atom pShellItem, atom pResponse)
+function fn_IFileDialogEvents_Dummy3(atom this, atom pFileDialog, atom pShellItem, atom pResponse)
+-- used for OnShareViolation and OnOverWrite
+without warning
+    return E_NOTIMPL
+end function
+constant cb_IFileDialogEvents_Dummy3 = call_back(routine_id("fn_IFileDialogEvents_Dummy3"))
+
+--function fn_IFileDialogEvents_OnTypeChange(atom this, atom pFileDialog)
+--without warning
+--  return S_OK
+--end function
+--constant cb_IFileDialogEvents_OnTypeChange = call_back(routine_id("fn_IFileDialogEvents_OnTypeChange"))
+
+--function fn_IFileDialogEvents_OnOverwrite(atom this, atom pFileDialog, atom pShellItem, atom pResponse)
+--without warning
+--  return E_NOTIMPL
+--end function
+--constant cb_IFileDialogEvents_OnOverwrite = call_back(routine_id("fn_IFileDialogEvents_OnOverwrite"))
+
+-- Our statically allocated IFileDialogEvents. 
+--  We are only interested in intercepting the selection change,
+--  so most of these methods (including QueryInterface) are dummy.
+constant atom pIFileDialogEvents = create_com_object({cb_IFileDialogEvents_QueryInterface,
+                                                      cb_IFileDialogEvents_DummyRef,            -- AddRef
+                                                      cb_IFileDialogEvents_DummyRef,            -- Release
+                                                      cb_IFileDialogEvents_Dummy1,              -- OnFileOk
+                                                      cb_IFileDialogEvents_Dummy2,              -- OnFolderChanging
+                                                      cb_IFileDialogEvents_Dummy1,              -- OnFolderChange
+                                                      cb_IFileDialogEvents_OnSelectionChange,
+                                                      cb_IFileDialogEvents_Dummy3,              -- OnShareViolation
+                                                      cb_IFileDialogEvents_Dummy1,              -- OnTypeChange
+                                                      cb_IFileDialogEvents_Dummy3               -- OnOverwrite
+                                                    })
+
+
+--
+-- Part 2 (of 2). Add this drop-down to the dialog:
+--
+constant atom Encoding  = unicode_string("Encoding:")
+constant atom Ansi      = unicode_string("Ansi")
+constant atom Utf8      = unicode_string("Unicode (UTF-8)")
+constant atom Utf16le   = unicode_string("Unicode (UTF-16LE)")
+constant atom Utf16be   = unicode_string("Unicode (UTF-16BE)")
+
+--
+-- Helper routines
+--
+
+atom flags
+function set_Filters(atom pFileDialog, object filters, object extension)
+-- Helper routine, factored out of filedialog()
+--
+-- filters can be NULL or something like { {"Text Document (*.txt)", "*.txt"}, 
+--                                         {"All Documents (*.*)", "*.*"} }
+-- extension can be NULL or {idx,"doc"[,flags]} or {idx,NULL,[flags]}:
+--  idx is an index to filters, to set the default type index. If filters is
+--  NULL then idx is ignored, conversely if extension is NULL then an idx of
+--  1 is assumed. The second "doc" part specifies a default file extension, 
+--  ie/eg "fred" is actually saved as "fred.doc" (and is not worth setting
+--  during file open). Note that manually changing the filter drop-down (if 
+--  present) will automatically override this. The third "flags" part, if
+--  present, allows additional options such as FOS_ALLOWMULTISELECT.
+--
+integer res = 1
+atom pFilters
+atom pExtension
+integer d_idx = 1
+atom pFlags
+
+    if filters!=NULL then
+        pFilters = COMDLG_FILTERSPEC(filters)
+        if extension!=NULL then
+            d_idx = extension[1]
+        end if
+        if cominvk(pFileDialog,IFileDialog_SetFileTypes,{length(filters),pFilters})!=S_OK
+        or cominvk(pFileDialog,IFileDialog_SetFileTypeIndex,{d_idx})!=S_OK then
+            res = 0
+        end if
+        free(pFilters)
+    end if
+    flags = FOS_FORCEFILESYSTEM
+    if extension!=NULL then
+        pFlags = allocate(4)
+        if length(extension)>=3 then
+            flags = or_bits(flags,extension[3])
+        end if
+        if cominvk(pFileDialog,IFileDialog_GetOptions,{pFlags})!=S_OK
+        or cominvk(pFileDialog,IFileDialog_SetOptions,{or_bits(peek4u(pFlags),flags)})!=S_OK then
+            res = 0
+        end if
+        free(pFlags)
+        extension = extension[2]
+    end if
+    if extension!=NULL then
+        pExtension = unicode_string(extension)
+        if cominvk(pFileDialog,IFileDialog_SetDefaultExtension,{pExtension})!=S_OK then
+            res = 0
+        end if
+        free(pExtension)
+    end if
+    return res
+end function
+
+function add_encoding_dropdown(integer encoding)
+-- Helper routine, factored out of filedialog()
+integer res = 1
+    if encoding!=0 then
+        if cominvk(pFileDialogCustomize,IFileDialogCustomize_StartVisualGroup,{10,Encoding})!=S_OK
+        or cominvk(pFileDialogCustomize,IFileDialogCustomize_AddComboBox,{100})!=S_OK
+        or cominvk(pFileDialogCustomize,IFileDialogCustomize_AddControlItem,{100,1,Ansi})!=S_OK
+        or cominvk(pFileDialogCustomize,IFileDialogCustomize_AddControlItem,{100,2,Utf8})!=S_OK
+        or cominvk(pFileDialogCustomize,IFileDialogCustomize_AddControlItem,{100,3,Utf16le})!=S_OK
+        or cominvk(pFileDialogCustomize,IFileDialogCustomize_AddControlItem,{100,4,Utf16be})!=S_OK
+        or cominvk(pFileDialogCustomize,IFileDialogCustomize_SetSelectedControlItem,{100,encoding})!=S_OK
+        or cominvk(pFileDialogCustomize,IFileDialogCustomize_EndVisualGroup,{})!=S_OK then
+            res = 0
+        end if
+    end if
+    return res
+end function
+
+constant OPEN=1, SAVE=2,
+         clsids = {CLSID_FileOpenDialog,CLSID_FileSaveDialog},
+         iids   = { IID_IFileOpenDialog, IID_IFileSaveDialog}
+
+function filedialog(integer fmode, integer hWnd, object filters, object extension, object default_folder, integer encoding)
+--
+-- Based on the msdn Common Item Dialog sample, see
+--  http://msdn.microsoft.com/en-us/library/windows/desktop/bb776913
+--
+object res = 0
+atom pFileDialog = allocate(4)
+integer I_SetFolder = IFileDialog_SetDefaultFolder
+atom pDefaultFolder, pShellItem = NULL
+atom dwCookie, psiResult, pEnc, ppName, pName
+atom pShellItemArray, pShellItemArrayCount
+
+    encfilename = ""
+    {} = c_func(xCoInitialize,{NULL})
+    if c_func(xCoCreateInstance,{clsids[fmode],NULL,CLSCTX_INPROC_SERVER,iids[fmode],pFileDialog})=S_OK then
+        if default_folder!=NULL then
+            if length(default_folder)=1
+            and sequence(default_folder[1]) then
+                default_folder = default_folder[1]
+                I_SetFolder = IFileDialog_SetFolder -- (forcefully overrides any recently used default)
+            end if
+            --Bugfix 8/7/14. If the folder does not exist then crop until it does, and if default_folder is
+            --               say H:\blah and the H: drive has been unplugged, pretend that NULL was passed,
+            --               that is, rather than just quietly return 0 and offer absolutely no explanation!
+            pShellItem = allocate(4)
+            while 1 do
+                pDefaultFolder = unicode_string(default_folder)
+                res = c_func(xSHCreateItemFromParsingName,{pDefaultFolder,NULL,IID_IShellItem,pShellItem})
+                free(pDefaultFolder)
+                if res=S_OK then exit end if
+                for i=length(default_folder) to 1 by -1 do
+                    if find(default_folder[i],"\\/") then
+                        default_folder = default_folder[1..i-1]
+                        res = S_OK
+                        exit
+                    end if
+                end for
+                if res!=S_OK then
+                    free(pShellItem)
+                    pShellItem = NULL
+                    default_folder = NULL
+                    exit
+                end if
+            end while
+            res = 0
+        end if
+        if default_folder=NULL
+        or (pShellItem!=NULL and cominvk(pFileDialog,I_SetFolder,{peek4u(pShellItem)})=S_OK) then
+            if set_Filters(pFileDialog,filters,extension) then
+                if and_bits(flags,FOS_ALLOWMULTISELECT) then
+                    if fmode!=OPEN then ?9/0 end if  -- (IFileOpenDialog_GetResults must be available!)
+                    encoding = 0
+                end if
+                if encoding=0
+                or cominvk(pFileDialog,IFileDialog_QueryInterface,{IID_IFileDialogCustomize,pFileDialogCustomize})=S_OK then
+                    if add_encoding_dropdown(encoding) then
+                        dwCookie = allocate(4)
+                        if fmode=SAVE
+                        or encoding=0
+                        or cominvk(pFileDialog,IFileDialog_Advise,{pIFileDialogEvents,dwCookie})=S_OK then
+                            if cominvk(pFileDialog,IFileDialog_Show,{hWnd})=S_OK then
+                                psiResult = allocate(4)
+                                ppName = allocate(4)
+                                if and_bits(flags,FOS_ALLOWMULTISELECT) then
+                                    pShellItemArray = allocate(4)
+                                    if cominvk(pFileDialog,IFileOpenDialog_GetResults,{pShellItemArray})=S_OK then
+                                        pShellItemArrayCount = allocate(4)
+                                        if cominvk(pShellItemArray,IShellItemArray_GetCount,{pShellItemArrayCount})=S_OK then
+                                            res = repeat(0,peek4s(pShellItemArrayCount))
+                                            for i=1 to length(res) do
+                                                if cominvk(pShellItemArray,IShellItemArray_GetItemAt,{i-1,psiResult})!=S_OK then exit end if
+                                                if cominvk(psiResult,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
+                                                    pName = peek4u(ppName)
+                                                    res[i] = peek_unicode_string(pName)
+                                                    c_proc(xCoTaskMemFree,{pName})
+                                                end if
+                                                {} = cominvk(psiResult,IShellItem_Release,{})
+                                            end for
+                                        end if
+                                        {} = cominvk(pShellItemArray,IShellItemArray_Release,{})
+                                        free(pShellItemArrayCount)
+                                    end if
+                                    free(pShellItemArray)
+                                else
+                                    pEnc = allocate(4)
+                                    if (encoding=0 or cominvk(pFileDialogCustomize,IFileDialogCustomize_GetSelectedControlItem,{100,pEnc})=S_OK)
+                                    and cominvk(pFileDialog,IFileDialog_GetResult,{psiResult})=S_OK then
+                                        if cominvk(psiResult,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
+                                            pName = peek4u(ppName)
+                                            res = peek_unicode_string(pName)
+                                            c_proc(xCoTaskMemFree,{pName})
+                                            if encoding!=0 then
+--                                              res = {peek4s(pEnc),res}
+                                                if res=encfilename  then
+--?{res,encfilename}
+                                                    encoding = peek4s(pEnc)
+                                                else
+                                                    encoding = getEncoding(res)
+                                                end if
+                                                res = {encoding,res}
+                                            end if
+                                        end if
+                                        {} = cominvk(psiResult,IShellItem_Release,{})
+                                    end if
+                                    free(pEnc)
+                                end if
+                                free(ppName)
+                                free(psiResult)
+                            end if
+                            if encoding!=0 and fmode=OPEN then
+                                {} = cominvk(pFileDialog,IFileDialog_Unadvise,{peek4u(dwCookie)})
+                            end if
+                        end if -- SAVE, encoding=0, or Advise=S_OK
+                        free(dwCookie)
+                    end if -- add_encoding_dropdown
+                    if encoding!=0 then
+                        {} = cominvk(pFileDialogCustomize,IFileDialogCustomize_Release,{})
+                    end if
+                end if -- get_FileDialogCustomise
+            end if  -- set_Filters
+        end if  -- SHCreateItemFromParsingName/SetDefaultFolder
+        if default_folder!=NULL and pShellItem!=NULL then
+            {} = cominvk(pShellItem,IShellItem_Release,{})
+            free(pShellItem)
+        end if
+        {} = cominvk(pFileDialog,IFileDialog_Release,{})
+    end if -- CoCreateInstance
+    free(pFileDialog)
+    return res
+end function
+
+global function newGetOpenFileName(atom hWnd=NULL, object filters=NULL, object extension=NULL, object default_folder=NULL, integer encoding=1)
+--
+-- hWnd is, obviously enough, the [optional] handle of a window you would like to act as the parent of the open/save dialog.
+-- filters can be NULL or something like { {"Text Document (*.txt)", "*.txt"}, 
+--                                         {"All Documents (*.*)", "*.*"} }
+-- extension can be NULL or {idx,"doc"[,flags]} or {idx,NULL[,flags]}:
+--  idx is an index to filters, to set the default type index. If filters is NULL then idx is ignored, conversely if extension is 
+--  NULL then an idx of 1 is assumed. The second "doc" part specifies a default file extension, ie/eg "fred" is actually saved as 
+--  "fred.doc" (and is not worth setting during file open). Note that manually changing the filter drop-down (if present) will
+--  automatically override this. The third "flags" part, if present, allows additional options such as FOS_ALLOWMULTISELECT.
+-- Specifying a default folder of say "C:\temp" causes the standard behaviour of setting the folder to use if there is not a
+--  recently used folder value available. Specifying a default folder of {"C:\temp"} overrides any recently used folder value.
+--  Edita, for example, uses the latter to force open/save in the directory associated with the current file tab, however most
+--  applications would not benefit from such brutally forceful behaviour.
+-- Specifying an encoding of 0 suppresses the encoding drop-down, otherwise specify 1..4 for default(ansi)/utf8/utf16le/utf16be.
+--  eg .reg files should [as opposed to must] always be stored as utf16le; so removing the option avoids potential mishap,
+--  or .avi/mp3/jpg files: anything selected would have to be completely ignored anyway. Note that when encoding is set 0,
+--  the result is a single string, whereas when left as the default or explicitly specified this returns {encoding,name},
+--  or 0 if the user cancels the operation. Note that FOS_ALLOWMULTISELECT can only be specified on open (not save), and 
+--  both automatically suppresses the custom encoding drop-down, and returns an array of strings, with no encoding flags.
+--
+-- Returns: 0                        - if user cancels the operation
+--          {"name","name","name"}   - if (not cancelled and) FOS_ALLOWMULTISELECT is specified
+--          "name"                   - if (not cancelled and not FOS_ALLOWMULTISELECT and) encoding is set to 0
+--          {encoding(=1..4),"name"} - if none of the above are true
+--
+    return filedialog(OPEN,hWnd,filters,extension,default_folder,encoding)
+end function
+
+global function newGetSaveFileName(atom hWnd=NULL, object filters=NULL, object extension=NULL, object default_folder=NULL, integer encoding=1)
+-- for parameter details see newGetOpenFileName
+    return filedialog(SAVE,hWnd,filters,extension,default_folder,encoding)
+end function
+
+

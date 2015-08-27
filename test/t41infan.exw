@@ -1,0 +1,175 @@
+--
+-- t41infnan.exw
+-- =============
+--
+-- Tests for inf and nan handling.
+--
+-- Only equality and non-equality tests for inf and nan are supported, the other four
+-- relational tests (<, <=, >, >=) yield undefined results if either operand is inf or nan.
+--
+-- Note that +inf and -inf are treated as different values, as are +nan and -nan.
+--
+-- You should be able to use find and match with impunity, however the result from compare
+-- is not guaranteed to be correct when non-zero, although you can rely on zero to mean
+-- the two operands are genuinuely equal, whether they contain inf, nan, both, or neither.
+--
+-- Lastly, note that the RDS Eu product appears to have flaws in this area, though I stand
+--  ready to be corrected by someone who understands the IEEE rulings on handling nans
+--  better than I do. What I have done in Phix is allow for example "if x=nan then" to
+--  operate as common sense suggests, rather than (afaict) be completely meaningless.
+--
+constant showprogress=0
+
+atom inf,nan
+    inf = 1e300 * 1e300
+    nan = -(inf / inf)
+
+-- try to avoid any ref-level optimisations in the back end by comparing inf with inf2,
+--  eg equal(inf,inf) will yield true early, without bothering to look at whatever it 
+--                    is that the two matching refs are actually referring to.
+atom inf2,nan2
+    inf2 = 1e300 * 1e300
+    nan2 = -(inf2 / inf2)
+
+atom x,y,z
+
+constant true=1, false=0
+
+integer abortCode,
+        abortCode2
+        abortCode=0
+        abortCode2=0
+
+integer lastlen
+        lastlen=0
+
+procedure P(sequence msg)
+integer l
+    l=length(msg)
+    if l=2 then                 -- ie "ok"
+        if showprogress then
+            puts(1,' '&msg)     -- no CR
+        end if
+    else
+        if showprogress then
+            if lastlen=2 then puts(1,"\n") end if
+        end if
+        puts(1,msg&'\n')
+        abortCode+=1
+    end if
+    lastlen=l
+end procedure
+
+procedure Q(sequence msg)
+integer k
+    k=match("expected",msg)
+    if (k=3 and msg[1]=msg[12])                     -- IE/EG "1 expected 1"
+    or (k=5 and equal(msg[1..3],msg[14..16])) then  -- IE/EG "nan expected nan"
+        if showprogress then
+            puts(1,msg)
+        end if
+    else
+        puts(1,msg)
+        abortCode2+=1
+    end if
+end procedure
+--/*
+global 
+type string(object x) return sequence(x) end type
+include ..\builtins\misc.e
+--*/
+if not equal(sprint({inf,nan}),"{inf,nan}") then P("not equal(sprint({inf,nan}),\"{inf,nan}\")") end if
+if not equal(sprint({-inf,-nan}),"{-inf,-nan}") then P("not equal(sprint({-inf,-nan}),\"{-inf,-nan}\")") end if
+if not equal(sprintf("nan %d nan %f inf %d inf %f\n", {nan,nan,inf,inf} ),
+                    "nan nan nan nan inf inf inf inf\n") then P("sndnfidif != nnnniiii\n") end if
+
+x=10    if x=inf then P("ERROR 1") else P("ok") end if
+x=10    if inf=x then P("ERROR 2") else P("ok") end if
+x=inf2  if x=inf then P("ok") else P("ERROR 3") end if
+x=inf2  if inf=x then P("ok") else P("ERROR 4") end if
+
+x=10    if x!=inf then P("ok") else P("ERROR 5") end if
+x=10    if inf!=x then P("ok") else P("ERROR 6") end if
+x=inf2  if x!=inf then P("ERROR 7") else P("ok") end if
+x=inf2  if inf!=x then P("ERROR 8") else P("ok") end if
+
+x=10    if x=nan then P("ERROR 9") else P("ok") end if          -- fails on RDS Eu
+x=10    if nan=x then P("ERROR 10") else P("ok") end if         -- fails on RDS Eu
+x=nan2  if x=nan then P("ok") else P("ERROR 11") end if
+x=nan2  if nan=x then P("ok") else P("ERROR 12") end if
+
+x=10    if x!=nan then P("ok") else P("ERROR 13") end if        -- fails on RDS Eu
+x=10    if nan!=x then P("ok") else P("ERROR 14") end if        -- fails on RDS Eu
+x=nan2  if x!=nan then P("ERROR 15") else P("ok") end if
+x=nan2  if nan!=x then P("ERROR 16") else P("ok") end if
+
+x=inf2  if x!=nan then P("ok") else P("ERROR 17") end if        -- fails on RDS Eu
+x=inf2  if nan!=x then P("ok") else P("ERROR 18") end if        -- fails on RDS Eu
+x=inf2  if x=nan then P("ERROR 19") else P("ok") end if         -- fails on RDS Eu
+x=inf2  if nan=x then P("ERROR 20") else P("ok") end if         -- fails on RDS Eu
+
+x=nan2  if x!=inf then P("ok") else P("ERROR 21") end if        -- fails on RDS Eu
+x=nan2  if inf!=x then P("ok") else P("ERROR 22") end if        -- fails on RDS Eu
+x=nan2  if x=inf then P("ERROR 23") else P("ok") end if         -- fails on RDS Eu
+x=nan2  if inf=x then P("ERROR 24") else P("ok") end if         -- fails on RDS Eu
+
+
+x=10    y=(x!=nan) if y then P("ok") else P("ERROR 25") end if  -- fails on RDS Eu
+x=10    y=(nan!=x) if y then P("ok") else P("ERROR 26") end if  -- fails on RDS Eu
+x=nan2  y=(x!=nan) if y then P("ERROR 27") else P("ok") end if
+x=nan2  y=(nan!=x) if y then P("ERROR 28") else P("ok") end if
+
+if showprogress then
+    if lastlen=2 then puts(1,"\n") end if
+end if
+if abortCode then
+    puts(1,"some errors, press Enter to continue...\n")
+    if getc(0) then end if
+end if
+
+x = nan2
+y = 10
+z = inf2
+                                                                             -- RDS:     -- Pve:
+Q(sprintf("%d expected %d [1 R:1 1 P:1 1]\n", {x = nan, true}))             --  1   1   --  1   1   (same)
+Q(sprintf("%d expected %d [2 R:0 0 P:0 0]\n", {x != nan, false}))           --  0   0   --  0   0   (same)
+Q(sprintf("%d expected %d [3 R:1*0 P:0 0]\n", {y = nan, false}))            --  1   0   --  0   0   (better)
+Q(sprintf("%d expected %d [4 R:0*1 P:1 1]\n", {y != nan, true}))            --  0   1   --  1   1   (better)
+Q(sprintf("%d expected %d [5 R:1*0 P:0 0]\n", {10 = nan, false}))           --  1   0   --  0   0   (better)
+Q(sprintf("%d expected %d [6 R:0*1 P:1 1]\n", {10 != nan, true}))           --  0   1   --  1   1   (better)
+Q(sprintf("%d expected %d [7 R:1 1 P:1 1]\n", {x = nan, true}))             --  1   1   --  1   1   (same)
+Q(sprintf("%d expected %d [8 R:1*0 P:0 0]\n", {x = inf, false}))            --  1   0   --  0   0   (better)
+Q(sprintf("%d expected %d [9 R:1*0 P:0 0]\n", {x = 10, false}))             --  1   0   --  0   0   (better)
+Q(sprintf("%d expected %d [10 R:n n P:n n]\n", {x + 5, nan}))               -- nan nan  --  nan nan (same)
+Q(sprintf("%d expected %d [11 R:n n P:n n]\n", {nan, nan}))                 -- nan nan  --  nan nan (same)
+Q(sprintf("%d expected %d [12 R:i i P:i i]\n", {inf, inf}))                 -- inf inf  --  inf inf (same)
+Q(sprintf("%d expected %d [13 R:0 0 P:0 0]\n", {equal(10,nan), false}))     --  0   0   --  0   0   (same)
+Q(sprintf("%d expected %d [14 R:1 1 P:1 1]\n", {not equal(10,nan), true}))  --  1   1   --  1   1   (same)
+Q(sprintf("%d expected %d [15 R:1 1 P:1 1]\n", {equal(nan,nan), true}))     --  1   1   --  1   1   (same)
+Q(sprintf("%d expected %d [16 R:1*0 P:0 0]\n", {10 = nan, false}))          --  1   0   --  0   0   (better)
+Q(sprintf("%d expected %d [17 R:0*1 P:1 1]\n", {not (10 = nan), true}))     --  0   1   --  1   1   (better)
+Q(sprintf("%d expected %d [18 R:0 1 P:1 1]\n", {nan = nan, true}))          --  0   1   --  1   1   (better)
+Q(sprintf("%d expected %d [19 R:1*0 P:0 0]\n", {nan = inf, false}))         --  1   0   --  0   0   (better)
+Q(sprintf("%d expected %d [20 R:0*1 P:1 1]\n", {nan!=inf, true}))           --  0   1   --  1   1   (better)
+Q(sprintf("%d expected %d [21 R:1*0 P:0 0]\n", {z = nan, false}))           --  1   0   --  0   0   (better)
+Q(sprintf("%d expected %d [22 R:0*1 P:1 1]\n", {z != nan, true}))           --  0   1   --  1   1   (better)
+Q(sprintf("%d expected %d [23 R:1 1 P:1 1]\n", {z = inf, true}))            --  1   1   --  1   1   (same)
+Q(sprintf("%d expected %d [24 R:0 0 P:0 0]\n", {z != inf, false}))          --  0   0   --  0   0   (same)
+
+-- Added 28/08/2013:
+x = 1/inf
+if x!=0 then
+    puts(1,"1/inf!=0\n")
+    abortCode2+=1
+end if
+
+if abortCode2 then
+    puts(1,"some errors, press Enter to continue...\n")
+    if getc(0) then end if
+    abortCode+=abortCode2
+end if
+if abortCode then abort(abortCode) end if
+
+puts(1,"done\n")
+--if getc(0) then end if
+

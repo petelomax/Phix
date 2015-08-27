@@ -1,0 +1,664 @@
+--
+-- eaisense.ew
+--
+--  Ctrl space pops up a list of identifiers starting with the characters already typed, or if there
+--              is only one possible completion, and the cursor is at eol, it gets displayed inline.
+--  Ctrl shift space shows a tooltip (incomplete; text is always just "This is an intellitip", for now)
+--  Ctrl hover shows a link to the definition.
+--
+--  Achieved by invoking an instance of pw.exe to compile to the cursor (quite a few changes, 
+--      mainly in ptok.e, were needed on the other side too).
+--  The commandline to use is obtained from previously deduced project information.
+--   (if intellisense is not working try running Edita\Tools\Verify edita.edb)
+--
+
+include easynclr.e as synclr -- (for setting the autocomplete data)
+
+-- isFile is filepaths[currfile]&fn = filenames[currfile];
+-- isMain is deduced from the project data
+sequence isMain, -- eg "C:\\Program Files (x86)\\Edita\\Edita.exw"
+         isFile, -- eg "C:\\Program Files (x86)\\Edita\\src\\eaisense.ew"
+         isPkey -- partial key, or "0" rather than ""
+integer isLine, -- CursorY+1
+        isCol,  -- MapToByte(selX(=<start of word>))
+        isMode  -- 2 = Info, 1 = intellilink, 0 = lookup, -1 = quit
+                -- 3 = intellitip
+
+global constant CD_ISENS = #20130505    -- intellisense ready
+
+constant isense = create(Window,"intellisense",0,Main,463,449,200,350,0),
+         isHwnd = getHwnd(isense)
+constant isListBox = create(ListBox,"",0,isense,2,1,191,316,{{LBS_DISABLENOSCROLL,LBS_NOINTEGRALHEIGHT},0}),
+         isLBhwnd = getHwnd(isListBox)
+
+removeStyle(isense, WS_CAPTION+WS_THICKFRAME)
+removeStyle(isListBox, {0,WS_EX_CLIENTEDGE})
+setVisible(isense, False)
+
+procedure Ferror(sequence msg)
+    void = proemh(xl("Error"),msg,0)
+end procedure
+
+function Quote(sequence s)
+    if find(' ',s) then
+        s = '\"'&s&'\"'
+    end if
+    return s
+end function
+
+procedure RunIntellisense(integer imode)
+-- invoke "pw -isense" (it will fire back CD_ISENS/call show_intellisense() when done)
+sequence cmd
+
+    cmd = getExtRunWith("intellisense")
+    if not length(cmd) then
+        cmd = getExtRunWith("exw")
+        -- (eafext.ew should have set this up by now)
+        if not length(cmd) then return end if
+    end if
+--  cmd = sprintf("%s -isense %s %d %d %s %d %s",
+    cmd = sprintf("%s -isense %s %d %d \"%s\" %d %s",
+                  {Quote(cmd),Quote(isFile),isLine,isCol,isPkey,imode,Quote(isMain)})
+--?cmd
+--/**/  sysproc(cmd)
+end procedure
+
+procedure resize()
+sequence rect
+integer x, y, w, h
+    -- position isense
+    rect = getClientRect(Main)
+    h = rect[4]
+    x = rect[1]+CaretPosX --+CharWidth
+    y = rect[2]+CaretPosY+CharHeight+2
+    if y+(350-40)>h then
+        y = CaretPosY-(350-40)
+    end if
+    rect = getClientRect(isense)
+    w = rect[3]
+    h = rect[4]
+    void = c_func(xMoveWindow, {isHwnd, x, y, w, h, 0})
+    -- and fill it with the listbox
+    void = c_func(xMoveWindow, {isLBhwnd, 0, 0, w, h, 0})
+end procedure
+
+integer need_to_save
+        need_to_save = 1
+
+global procedure get_intellisense(integer imode)
+-- imode=0: User has keyed Ctrl Space (or timer?)
+-- imode=1: User has clicked on a Ctrl Hover link
+-- imode=2: User has clicked the Info menu entry
+-- imode=3: User has keyed Ctrl Shift Space (intellitip)
+--string fp, fn -- no (database names/strings are usually retrieved as dword-sequences)
+sequence fp, fn
+sequence data
+integer parent
+integer possible -- added 31/01/14
+sequence oneline
+integer scanup
+
+    parent = 0
+    possible = 0
+    if currfile then
+        if need_to_save then
+            if not saveCurr() then return end if
+        end if
+        fp = filepaths[currfile]
+        fn = filenames[currfile]
+        isFile = fp&fn
+        if not match("\\builtins",fp) then
+scanup = 1
+while scanup do -- (added 4/4/14: scan all the way up "..")
+            data = getProjectSet(fp, fn)
+            if length(data)>2 and data[2][2]=".." then
+                -- included by multiple things; try to find something we recognise
+                for i=3 to length(data) do
+--/**/              {?,fn,fp,parent} = data[i]
+                    if parent!=2 then -- (ie look through ".."'s children only)
+                        if possible>0 then
+--/**/                      {?,fn,fp,parent} = data[possible]
+                            exit
+                        end if
+                        --DEV give the option of compiling it standalone?
+                        --    pick one of the following parents?
+                        --    use history of things recently run?
+                        Ferror("eaisense: cannot resolve multiple includes")
+                        return
+                    end if
+                    if find(LowerCase(fn),{"arwen.ew","win32lib.ew"}) then scanup = 0 exit end if
+                    if not find(LowerCase(fn),{"ex.pro","pth.exw"}) then
+                        if possible=0 then
+                            possible = i
+-- 4/4/14 you know what: anything will do!
+--                      else
+--                          possible = -1
+                        end if
+                    end if
+                end for
+            else
+                for i=1 to length(data) do
+                    if data[i][2]=fn
+                    and data[i][3]=fp then
+                        parent = i
+                        while not find(LowerCase(fn),{"arwen.ew","win32lib.ew"}) do
+--/**/                      {?,fn,fp,parent} = data[parent]
+                            if parent=0 then exit end if
+                        end while
+                        exit
+                    end if
+                end for
+                exit
+            end if
+end while
+        end if -- not builtins
+        isMain = fp&fn
+        isMode = imode
+        if isMode=0 then    -- normal (partial key) lookup
+            isLine = CursorY+1
+            selectWord(0)
+            oneline = ExpandTabs(filetext[currfile][isLine])
+            isPkey = oneline[selX+1..CursorX]
+            isCol = MapToByte(oneline,selX)
+        -- (else {pKey,Line,Col} set in intellilinkgo)
+        end if
+--      RunIntellisense(isMode!=0)
+        if isMode=3 then
+            RunIntellisense(isMode)
+        else
+            RunIntellisense(isMode!=0)
+        end if
+    end if
+end procedure
+
+sequence data   -- (from %TMP%\isense.txt, as used in isenseHandler etc)
+
+integer justDblClick
+        justDblClick = 0
+
+function isenseHandler(integer id, integer msg, atom wParam, object lParam)
+integer idx
+--/**/string text
+--/*
+sequence text
+--*/
+
+    if object(lParam) or id then end if -- suppress warnings
+    if msg=WM_LBUTTONDBLCLK then
+        justDblClick = 1    -- (avoids focus/cursor reposition issues)
+    elsif msg=WM_LBUTTONUP then
+        if justDblClick then
+            justDblClick = 0
+            msg = WM_KEYDOWN
+            wParam = VK_RETURN
+        end if
+    end if
+    if msg=WM_KEYDOWN then
+        if wParam=VK_RETURN then
+            idx = getIndex(isListBox)
+            if idx=0 and length(data)=1 then
+                idx = 1
+            end if
+            if idx>=1 and idx<=length(data) then
+                text = data[idx]
+                if length(isPkey)=0 or match(isPkey,text)=1 then
+                    text = text[length(isPkey)+1..length(text)]
+                    if length(text) then
+                        addAction(INSERTBLOCK,{text})
+                        InsertBlock({text})
+                    end if
+                end if
+            end if
+        end if
+        if wParam=VK_ESCAPE
+        or wParam=VK_RETURN then
+            closeWindow(isense)
+            setVisible(isense, False)
+            removeFocus(isListBox)
+            setFocus(Main)
+        elsif wParam=VK_DELETE
+           or wParam=VK_BACK then
+            void = sendMessage(Main,msg,wParam,lParam)
+            void = call_func(r_CharInput,{' ',1,0})
+        end if
+--  elsif not find(msg,{2,6,8,13,14,28,70,71,130,131,134,144,641,642,799}) then
+    elsif msg=WM_CHAR
+      and not find(wParam,{13,27}) then -- (not return or escape)
+--      ?{msg,wParam,lParam}
+--if getc(0) then end if
+        void = sendMessage(Main,msg,wParam,lParam)
+        need_to_save = 0
+        void = call_func(r_CharInput,{' ',1,0})
+        need_to_save = 1
+        return {1}
+    end if
+    return 0
+end function
+setHandler({isense,isListBox},routine_id("isenseHandler"))
+
+-- Tool tips
+integer
+    tooltipControl     -- id of tooltip control
+    -- defaults
+    tooltipControl  = 0
+integer intellitipactive
+        intellitipactive = 0
+
+atom toolTipHwnd, TI
+
+--DEV
+--constant TTM_GETTOOLINFO = 8,
+--       TTM_SETTOOLINFO = 
+--
+--TTM_GETTOOLINFO = (WM_USER    + 53) TTM_SETTOOLINFO = (WM_USER + 54) T
+--TTM_GETTOOLINFOA As Long = (WM_USER + 8)
+--#define TTM_SETTOOLINFOA      (WM_USER+9)
+--+#define TTM_SETTOOLINFOW      (WM_USER+54)
+constant TTM_GETTOOLINFOA = (WM_USER+8),
+         TTM_SETTOOLINFOA = (WM_USER+9)
+
+procedure setTipHint(integer id, sequence text)
+sequence rect
+integer x, y
+    if id then end if
+    rect = getClientRect(Main)
+    x = rect[1]+CaretPosX
+    y = rect[2]+CaretPosY+CharHeight+2
+    if not tooltipControl then
+        tooltipControl = create(ToolTip,"",0,0,0,0,0,0,0)
+--      tooltipControl = create(ToolTip,"",0,0,0,0,0,0,or_all({WS_POPUP,TTS_NOPREFIX,TTS_BALLOON}))
+        toolTipHwnd = getHwnd(tooltipControl)
+        TI = allocate(sizeofstruct(TOOLINFO))
+        poke4(TI + TI_cbSize,   sizeofstruct(TOOLINFO))
+--      poke4(TI + TI_uFlags,   TTF_IDISHWND + TTF_SUBCLASS)
+--      poke4(TI + TI_uFlags,   TTF_IDISHWND + TTF_TRACK + TTF_ABSOLUTE)
+        poke4(TI + TI_uFlags,   TTF_TRACK)
+        poke4(TI + TI_hwnd,     toolTipHwnd)
+--      poke4(TI + TI_uId,      tooltipControl)
+--      poke4(TI + TI_hinst,    instance())
+        poke4(TI + TI_lpszText, allocate_StringZ(text))
+        void = c_func(xSendMessage,{toolTipHwnd,TTM_ADDTOOLA,0,TI})
+    else
+        void = c_func(xSendMessage,{toolTipHwnd,TTM_GETTOOLINFOA,0,TI})
+        poke4(TI + TI_lpszText, allocate_StringZ(text))
+        void = c_func(xSendMessage,{toolTipHwnd,TTM_SETTOOLINFOA,0,TI})
+    end if
+--  poke4(TI + TI_uId, getHwnd(id))
+--  poke4(TI + TI_rect + RECT_left, x)
+--  poke4(TI + TI_rect + RECT_top, y)
+--  poke4(TI + TI_rect + RECT_right, x+40)
+--  poke4(TI + TI_rect + RECT_bottom, y+40)
+--  TOOLINFO        = new_struct(), --Win32.hlp:
+--  TI_cbSize       = struc(C_LONG),    --UINT
+--  TI_uFlags       = struc(C_LONG),    --UINT
+--  TI_hwnd         = struc(C_POINTER), --HWND
+--  TI_uId          = struc(C_LONG),    --UINT
+--  TI_rect         = struc(RECT),      --RECT
+--  TI_hinst        = struc(C_POINTER), --HINSTANCE
+--  TI_lpszText     = struc(C_POINTER), --LPTSTR
+--
+--  -- Define RECT/SMALL_RECT Structure
+--  RECT        = new_struct(), 
+--  RECT_left   = struc(C_LONG),
+--  RECT_top    = struc(C_LONG),
+--  RECT_right  = struc(C_LONG),
+--  RECT_bottom = struc(C_LONG),
+
+--  void = c_func(xSendMessage,{toolTipHwnd,TTM_ADDTOOLA,0,TI})
+--  void = c_func(xSendMessage,{toolTipHwnd,TTM_ACTIVATE,0,0})
+    void = c_func(xSendMessage,{toolTipHwnd,TTM_ACTIVATE,1,0})
+    intellitipactive = 1
+    void = c_func(xSendMessage,{toolTipHwnd,TTM_TRACKACTIVATE,1,TI})
+--  void = c_func(xSendMessage,{toolTipHwnd,TTM_TRACKPOSITION,0,x*#10000+y}) -- (LPARAM)MAKELONG(pt.x + 10, pt.y - 20));
+    void = c_func(xSendMessage,{toolTipHwnd,TTM_TRACKPOSITION,0,y*#10000+x}) -- (LPARAM)MAKELONG(pt.x + 10, pt.y - 20));
+--      if ObjectClass[id]=COMBO and ObjectExtra[id]!=UNDEFINED then
+----        if ObjectType[id]=ComboDropDown then
+--          poke4(TI + TI_uId, getHwnd(ObjectExtra[id]))
+--          void = c_func(xSendMessage,{toolTipHwnd,TTM_ADDTOOLA,0,TI})
+--      end if
+end procedure
+
+--with trace
+global procedure show_intellisense()
+-- we just got sent a CD_ISENS message (ie %TMP%\isense.txt is ready)
+integer ifn
+object line
+sequence oneline
+-- it crashed 9/7/14...
+--string info
+sequence info
+integer k
+string text
+
+    ifn = open(getenv("TMP")&"\\isense.txt","r")
+    if ifn=-1 then
+        Ferror("eaisense: cannot open isense.txt")
+        return
+    end if
+    data = {}
+    while 1 do
+        line = gets(ifn)
+        if atom(line) then exit end if
+--/**/  data = append(data,trim(line))
+    end while
+    close(ifn)
+    if isMode=0 then -- lookup
+        oneline = ExpandTabs(filetext[currfile][CursorY+1])
+        if CursorX=length(oneline) and length(data)=1 then
+            if isVisible(isense) then
+                if isenseHandler(isListBox, WM_KEYDOWN, VK_ESCAPE, 0) then end if
+            end if
+            synclr:autocomplete(isPkey,data[1])
+            paintCursorY()
+        else
+            deleteItem(isListBox, 0)
+            if length(data)=0 and length(isPkey)!=0 then
+                data = {"Nowt starts \""&isPkey&"\""}
+            end if
+            void = insertItem(isListBox, data, 0)
+            if isVisible(isense)=False then
+                resize()
+                openWindow(isense, SW_NORMAL)
+                setVisible(isense, True)
+--              addFocus(isense)
+                addFocus(isListBox)
+--              setFocus(isListBox)
+            end if
+            c_proc(xSetForegroundWindow,{mainHwnd})
+            setFocus(isListBox)
+        end if
+    elsif isMode=3 then -- intellitip
+        if length(data)=1 then
+            text = data[1]
+        else
+            text = "(forward) routine "&isPkey&" not declared"
+        end if
+        setTipHint(Main, text)
+    else -- intellilink
+        if length(data)=1 then
+            data = data[1]
+--          -- special handling for as-yet-not-included autoincludes: (as per the following line in ptok.e)
+--          printf(ifn,"Defined in psym.e as an autoinclude; %s not yet resolved, see %sbuiltins\\%s\n",{name,rootpath,call_func(r_getBuiltinName,{symidx})})
+            if match("Defined in psym.e as an autoinclude; ",data)=1 then
+                data = data[length("Defined in psym.e as an autoinclude; ")+1..length(data)]
+                k = match(" not yet resolved, see ",data)
+                if isPkey!=data[1..k-1]
+                or isMode!=1 then
+                    void = proemh("Oops","isPkey mismatch",0)   -- (should never trigger)
+                else
+                    isMain = data[k+length(" not yet resolved, see ")..length(data)]
+                    isFile = isMain
+--                  isMode = 1
+                    isLine = 0  -- signals a retry builtin (full) parse
+                    isCol = 0
+                    RunIntellisense(isMode!=0)
+                end if
+            elsif match("Defined in",data)=1 then
+                void = proemh(xlQ("Builtin"),data,0)        
+            elsif match("A locally declared namespace",data)=1
+               or match("The filename to include",data)=1 then
+                void = proemh("Erm...",data,0)      
+            else
+                if isMode=2 then
+                    line = jumpToErrorInFile(data,-1)
+                    info = ""
+                    if sequence(line) then
+                        oneline = LowerCase(cleanUpPath(line[1]))
+                        for i=1 to length(filepaths) do
+                            if equal(LowerCase(filepaths[i]&filenames[i]),oneline) then
+                                if line[2]<=length(filetext[i]) then
+                                    info = "\n\n"&filetext[i][line[2]]
+                                end if
+                                exit
+                            end if
+                        end for
+                    end if
+if 0 then
+                    void = proemh(xlQ("Info"),data&info,0)
+else --DEV just could not get this to work: (FIXED 17/6/14, SoftSetFocus tweak rqd)
+--                  if proemh(xlQ("Info"),data&info,{"Goto","OK",MB_DEFBUTTON2})=1 then
+--trace(1)
+--                  k = proemh(xlQ("Info"),data&info,{"Goto","OK",MB_DEFBUTTON2})
+                    info = data&info
+                    k = proemh(xlQ("Info"),info,{"Goto","OK",MB_DEFBUTTON2})
+--?k -- 0, no matter what... (I get non-0 just fine in a simple test program)
+                    if k=1 then
+--?data
+                        void = jumpToErrorInFile(data,1)
+--?void
+                    end if
+end if
+                else
+                    void = jumpToErrorInFile(data,1)
+                end if
+            end if
+        elsif length(data)=0 then
+            void = proemh(xlQ("Undefined"),isPkey,0)
+        else
+            void = proemh(xlQ("Multiple definitions"),isPkey,0)
+        end if
+    end if
+end procedure
+
+integer firsttime
+        firsttime = 1
+sequence wlc
+
+global procedure intellilink(sequence word, integer line, integer col)
+--
+-- note: this module should expect a steady stream of trackMouseEvent/WM_MOUSEHOVER
+--       messages for the exact same word/line/col, and filter them accordingly.
+--       
+integer ch1
+    ch1 = word[1]
+    if (ch1<'0' or ch1>'9')
+    and (firsttime or chovline!=line or chovfrom!=col or wlc!={word,line,col}) then
+        firsttime = 0
+        wlc = {word,line,col}
+--DEV temp: (left in, does no harm)
+        if chovline!=0 then
+            chovline -= 1
+            paintLines(chovline, chovline)
+        end if
+        chovline = line
+        chovfrom = col
+        chovto = col+length(word)-1
+        line -= 1
+        paintLines(line, line)
+    end if
+end procedure
+
+global procedure intellilinkgo()
+-- WM_LBUTTONUP after WM_LBUTTONDBLCLK on word in font 5 (=underline) beginning at chovline, chovto;
+--  i.e. the user has just double-clicked on an active intellilink.
+--/**/  {isPkey,isLine,isCol} = wlc
+--/**/  get_intellisense(1)
+end procedure
+
+global procedure intellitip()
+--DEV not implemented
+--/**/string text
+--/*
+sequence text
+--*/
+--sug: (alternatively invoke the compiler and get a string built from the [last] routine call)
+--!/*
+--      if currfile then
+--          rcX = CursorX
+--          rcY = CursorY
+--      end if
+--      eaqj:intellitip = 1
+--      eaqj:F1help(0)
+--      eaqj:intellitip = 0
+--      text = eaqj:intellitiptext
+--ALT:
+--  we should have a bracelevel thing to control whether we go back a line or not...
+--  see also F1Help in eaqj.ew (duplicate code here rather then fudge that, methinks)...
+--  text = "move(cursor)"
+--  text = "(forward) routine %s not declared"
+
+sequence oneline
+integer StartCh, EndCh
+integer ch, nextch, bracelevel
+
+    rcX = CursorX
+    rcY = CursorY
+
+    -- select the word under the cursor (or mouse), if any.
+    oneline = ExpandTabs(filetext[currfile][rcY+1])
+    EndCh = rcX
+    ch = ')'
+    while EndCh<length(oneline) do
+        ch = oneline[EndCh+1]
+        if ch='.' then exit end if
+        if ch<=128 and wordChar[ch+1]!=TokenChar then exit end if
+        EndCh += 1
+    end while
+    nextch = ch
+    StartCh = rcX
+    while 1 do
+        while StartCh>0 do
+            ch = oneline[StartCh]
+            if ch='.' then exit end if
+            if ch<=128 and wordChar[ch+1]!=TokenChar then exit end if
+            StartCh -= 1
+        end while
+        text = oneline[StartCh+1..EndCh]
+--?{text,nextch,StartCh,EndCh}
+--
+--          if Xtrans and isEu then
+--              fWord = FtoK(word)
+--              if equal(fWord,word) then
+--                  fWord = FtoB(word)
+--              end if
+--              word = fWord
+--          end if
+--
+        if nextch='(' then
+--DEV:
+--          p -isense mode=2...
+--DEV needs work in ptok.e:
+--          text = "p -isense "&text
+            isLine = rcY+1
+            isCol = MapToByte(oneline,StartCh-1)
+            isPkey = text
+            isMode = 3
+            get_intellisense(isMode)
+            text = ""   -- done when we get a CD_ISENS message
+-- we just got sent a CD_ISENS message (ie %TMP%\isense.txt is ready)
+            exit
+        end if
+        --
+        -- Scan back looking for surrounding function then.
+        --
+        bracelevel = 1
+        while StartCh>0 do
+            ch = oneline[StartCh]
+            if find(ch,")}]") then
+                bracelevel += 1
+            elsif find(ch,"({[") then
+                bracelevel -= 1
+            elsif bracelevel=0 then
+                ch = oneline[StartCh]
+                if ch<=128 and ch!='.' and wordChar[ch+1]=TokenChar then exit end if
+            end if
+            nextch = ch
+            StartCh -= 1
+        end while
+        if StartCh=0 then
+--          text = "bCfwd handling incomplete(?)"
+            text = "" -- stay mute... [DEV]
+--/*
+check bracketforward...
+--constant B_line=1, B_blockcomment=2, B_level=3, B_closesrqd=4
+-- each element is {line, blockcomment, level, sequence}, where
+-- line is the _first_ line this carry forward occured on,
+-- blockcomment is 1 if a block comment carries over the end of this line,
+-- level is the number of carry forward brackets (may be -ve),
+-- sequence is {} for level <=0, else chunk of closeRqd.
+--  Note that closeRqd is a lifo stack, hence after ([,
+--  closeRqd will be ")]", not "])".
+
+procedure getBrktCfwd(integer lineno=rcY)
+    exactmatch = 0
+    if sequence(bCfwd) then
+        for i=length(bCfwd) to 1 by -1 do
+            bci = bCfwd[i][B_line]
+            if rcY>bci then
+                rcY = bci
+                startblockcomment = bCfwd[i][B_blockcomment]
+                startlevel = bCfwd[i][B_level]
+                startCfwd = bCfwd[i][B_closesrqd]
+                closeRqd[1..startlevel] = startCfwd
+                return
+            elsif lineno=bCfwd[i][B_line] then
+                exactmatch = 1
+            end if
+        end for
+--  end if
+    startblockcomment = 0
+    startlevel = 0
+    startCfwd = {}
+    return
+end procedure
+--*/
+            exit
+        end if
+        EndCh = StartCh
+    end while
+--  text = "This is an intellitip"
+    if length(text) then
+        setTipHint(Main, text)
+    end if
+end procedure
+
+global procedure clearintellitip()
+    if intellitipactive then
+        intellitipactive = 0
+        void = c_func(xSendMessage,{toolTipHwnd,TTM_ACTIVATE,0,0})
+    end if
+end procedure
+
+
+global procedure ISInfo()
+-- User has held down Ctrl, got a hoverlink, right clicked, and selected the Info option.
+--DEV/temp:
+integer k
+if 0 then
+        k = proemh(xlQ("Info"),"info",{"Goto","OK",MB_DEFBUTTON2})
+?k -- 0, no matter what... (I get non-0 just fine in a simple test program)
+else
+--/**/  {isPkey,isLine,isCol} = wlc
+--/**/  get_intellisense(2)
+end if
+end procedure
+--global constant 
+r_ISInfo=routine_id("ISInfo")
+
+--/*
+--DWORD WINAPI GetTempPath(
+--  _In_     DWORD nBufferLength,
+--  _Out_  LPTSTR lpBuffer
+--);
+--
+--getenv("TMP")
+--*/
+
+--/*
+--constant lockfile = getenv("TMP")&"\\isense.lock"
+--integer fn
+--constant range={}
+--  fn = open(lockfile,"rb")
+--  if fn=-1 then
+--      fn = open(lockfile,"wb")
+--      if fn=-1 then ?9/0 end if
+--      puts(fn,"lock")
+--      close(fn)
+--      fn = open(lockfile,"rb")
+--      if fn=-1 then ?9/0 end if
+--  end if
+--  ?lock_file(fn,LOCK_EXCLUSIVE,range)
+--  unlock_file(fn,range)
+--  close(fn)
+--*/
+

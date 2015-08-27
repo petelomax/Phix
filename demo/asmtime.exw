@@ -1,0 +1,61 @@
+--
+-- asmtime.exw
+--
+--  Quick test I wrote to prove that adding a cmp eax,imm32 after an incref/decref
+--  is essentially free, speedwise. The inc/dec are 3 clocks and pairable in uv,
+--  the cmp is 1 clock pairable in uv as well, and since the inc and dec work on
+--  the same memory they cannot pair, the two loops take the same time (give or
+--  take a few hundredths of a second).
+--
+--  This allows us to attempt an incref/decref without additionally checking for
+--  unassigned variables; pdiag.e maps an e30ume (unknown machine exception) to
+--  e92vhnbaav (variable has not been assigned a value) when it spots the inc/dec
+--  followed by a cmp eax,imm32. (The imm32 is a variable_id/symtab index.) In 
+--  pseudo code it means we (pilx86.e) can emit:
+--
+--          if o>=h4 then -- (not integer)
+--              incref
+--              <cmp eax,varno>
+--          end if
+--
+--  rather than something like:
+--
+--          if o>h4 then
+--              incref
+--          elsif o==h4 then
+--              RTerror("unassigned",varno)
+--          end if
+--
+--  and yet still get meaningful errors, at (almost) no cost to performance.
+--  (Of course by that I mean the ever-so-slightly-larger files, with proper
+--   error handling, well worth it for my money, will incur an ever-so-slight 
+--   penalty, compared to slightly smaller files with no error handling.)
+--
+--  Of course I have included this in the Phix distribution because it could be
+--  a handy template for use in other similar assembly code experiments.
+--
+
+constant LIMIT=200_000_000 -- (adjust to get a time between say 0.5 and 10 seconds)
+                           -- (but not greater than 1_073_741_823 [for loop limit])
+atom t0,t1,t2
+t0 = time()
+t2 = 1.5
+puts(1,"started\n")
+for i=1 to LIMIT do
+    #ilASM{ mov esi,[t2]
+            add dword[ebx+esi*4-8],1
+            sub dword[ebx+esi*4-8],1
+          }
+end for
+t1 = time()
+for i=1 to LIMIT do
+    #ilASM{ mov esi,[t2]
+            add dword[ebx+esi*4-8],1
+            cmp eax,5
+            sub dword[ebx+esi*4-8],1
+            cmp eax,5
+          }
+end for
+t2 = time()
+printf(1,"without cmp:%3.2f, with cmp:%3.2f\n",{t1-t0,t2-t1})
+if getc(0) then end if

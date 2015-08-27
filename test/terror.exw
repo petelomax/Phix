@@ -1,0 +1,1574 @@
+--
+-- terror.exw - test Phix error and warning handling
+--
+-- TODO:
+--  *** Allow a last line of "etc." to match anything... [DONE]
+--  Export/Import need to save/load the flags somehow...
+--  SUG: save/restore the filter over nwin open [DONE]
+--  BUG: ebSave, ebCancel do not respond to VK_RETURN like they should. [DONE]
+--  BUG: ebCancel still moves down a record; it should not. [FIXED]
+--  Ctrl Delete to remove a test. [DONE]
+--  fix window painter to do a decent job on this!! (see mLV)   [FIXED, I THINK]
+--      (also fix that mainTitle thing)  [DONE]
+--  restore layout position.
+--      (we should keep the original and convert current to it, iyswim)
+--  strip paths from error (erm...)
+--  not RDS flag?
+--  interpret AND compile, extra message if they differ [DONE]
+--  flags/checkboxes on item: interpret compile [IC] [DONE]
+--  As you do runAll, update mLV/source/Expected. ([DONE but doEvents missing?])
+--  Add an Import screen, prompt for filename and whether to empty db first.
+--
+--DEV done above, I think: [needs testing in terror.exw!]
+--              --
+--              -- If you have opFrame / mov a,b / mov c,d / opCall, where b or d is
+--              --  unassigned (a,c are parameters of the routine about to be called),
+--              --  then the e92 will try to locate the failure address within the 
+--              --  routine about to be called; pop (at most one not yet active) frame 
+--              --  and try again:
+--              --
+--
+-- Note that it is impractical to perform exhaustive testing of subscript errors.
+-- There could be thousands if not hundreds of thousands of possible error cases,
+-- and it can be quite difficult to predict what calls eg opRepe1is not opRepe1
+-- or at least write hll code which does actually test the low level operations 
+-- you intended it to. Of course it is perfectly reasonable to expect all errors
+-- to be properly reported and/or remedied quickly. All I have really done here
+-- is add any that "went wrong wrongly", as and when they got fixed.
+--
+without trace
+--/*
+include ..\builtins\dll.e
+include ..\builtins\machine.e
+include ..\builtins\misc.e
+include ..\builtins\sort.e
+include ..\builtins\file.e
+include ..\builtins\get.e
+include ..\builtins\ppp.e
+include ..\demo\arwen\misc_arwen.e
+include ..\demo\arwen\message_box.ew
+include ..\demo\arwen\constants.ew
+include ..\demo\arwen\dll_links.ew
+include ..\demo\arwen\structures.ew
+include ..\demo\arwen\Quick_Allocations.ew
+include ..\demo\arwen\classes.ew
+--*/
+without trace
+--/**/include ..\builtins\syswait.ew
+include ..\demo\arwen\arwen.ew
+include ..\demo\arwen\axtra.ew
+include ..\builtins\database.e
+--DEV newEmit
+with trace
+
+--/**/  constant t00 = "t00.exw",
+--/*
+        constant t00 = "test\\t00.exw",
+--*/
+                 err = "ex.err"
+
+--/*
+constant p_err = allocate_string(err)
+--*/
+
+sequence cl, cinterpret, crun
+--integer k
+    cl = command_line()
+    if equal(cl[1],cl[2]) then
+--      void = messageBox("Error","Terror should not be run compiled\n"&
+--                                "(it gets p[w].exe from the command line)",MB_OK)
+--      abort(0)
+        cl = "..\\pw"
+    else
+        cl = cl[1]
+    end if
+    if find(' ',cl) then
+        cl = '\"' & cl & '\"'
+    end if
+    cinterpret = cl & " -batch " & t00
+--?cinterpret
+    crun = cl & " -batch -c " & t00
+
+--constant k32 = open_dll("kernel32.dll"),
+----         xCopyFile = define_c_func(k32,"CopyFileA",
+----            {C_POINTER, --  LPCTSTR  lpExistingFileName,    // address of name of an existing file
+----             C_POINTER, --  LPCTSTR  lpNewFileName, // address of filename to copy to
+----             C_LONG},   --  BOOL  bFailIfExists     // flag for operation if file exists
+----            C_INT),     -- BOOL
+----         xDeleteFile = define_c_func(k32,"DeleteFileA",
+----            {C_POINTER},--  LPCTSTR  lpFileName     // address of name of file to delete
+----            C_INT),     -- BOOL
+--       xSleep = define_c_proc(k32,"Sleep",
+--          {C_LONG})   --  DWORD cMilliseconds // sleep time in milliseconds
+
+constant mainTitle = "Test Phix error and warning handling"
+constant main = create(Window,mainTitle,0,0,358,0,580,538,0)
+constant mFile = create(Menu,"&File",0,main,12,7,0,0,0)
+constant mExport = create(MenuItem,"Export",0,mFile,0,0,0,0,0)
+constant mImport = create(MenuItem,"Import",0,mFile,0,0,0,0,0)
+constant mExit = create(MenuItem,"Exit",0,mFile,0,0,0,0,0)
+constant mHelp = create(Menu,"&Help",0,main,0,0,0,0,0)
+constant mInstructions = create(MenuItem,"Instructions",0,mHelp,0,0,0,0,0)
+constant mLV = create(ListView,
+                        {{"Name",50},
+                         {"Last Modified",100},
+                         {"Last Run",100},
+                         {"Flags",30}},
+                        0,main,9,9,543,174,
+                        {{LVS_SINGLESEL,LVS_SHOWSELALWAYS,LVS_OWNERDATA},0})
+constant mbOne = create(Button,"Run &One",0,main,14,187,75,30,0)
+constant mbAll = create(Button,"Run &All",0,main,99,187,75,30,0)
+constant mbEdit = create(Button,"&Edit",0,main,181,187,75,28,0)
+constant mlFilter = create(Label,"Fil&ter",0,main,303,196,33,16,0)
+constant mtFilter = create(EditText,"",0,main,342,193,121,22,0)
+constant mbClose = create(Button,"&Close",0,main,476,189,75,30,0)
+constant mlSource = create(Label,"&Source",0,main,9,222,57,17,0)
+constant mtSource = create(ListBox,"Source",0,main,10,237,542,82,0)
+constant mlExpect = create(Label,"E&xpected",0,main,10,328,57,15,0)
+constant mtExpect = create(ListBox,"Expect",0,main,9,345,542,130,0)
+
+-- The insert/edit window
+constant nwin = create(Window,"",0,main,404,188,574,389,0)
+constant nlName = create(Label,"&Name",0,nwin,17,18,33,16,SS_OWNERDRAW)
+constant ntName = create(EditText,"",0,nwin,56,14,121,22,0)
+constant nlSource = create(Label,"&Source",0,nwin,16,46,57,17,0)
+constant ntSource = create(MultiEditText,"Source",0,nwin,14,66,542,82,0)
+constant nlExpect = create(Label,"&Expected",0,nwin,15,157,57,15,0)
+constant ntExpect = create(MultiEditText,"Expect",0,nwin,13,177,542,130,0)
+constant ntCompile = create(CheckBox,"Compile",0,nwin,13,321,85,20,0)
+constant ntInterpret = create(CheckBox,"Interpret",0,nwin,135,322,85,20,0)
+constant nbOK = create(Button,"&OK",0,nwin,418,319,52,25,0)
+constant nbCancel = create(Button,"&Cancel",0,nwin,481,319,75,24,0)
+
+-- The Error window.
+constant ewin = create(Window,"Error",0,main,203,53,605,233,0)
+constant elName = create(Label,"",0,ewin,12,11,572,16,0)
+constant elActual = create(Label,"&Actual (ie from just running it!)",0,ewin,12,31,171,15,0)
+--constant etActual = create(MultiEditText,"Actual",0,ewin,12,60,566,99,0)
+--DEV
+constant etActual = create(ListBox,"Actual",0,ewin,12,48,566,99,0)
+constant ebSave = create(Button,"&Save",0,ewin,11,158,75,25,0)
+constant ebCrash = create(Button,"Crash",0,ewin,410,158,75,25,0)
+constant ebCancel = create(Button,"&Cancel",0,ewin,503,158,75,25,0)
+
+--      setEnable(etActual,False)
+--      setEnable(mtSource,False)
+--      setEnable(mtExpect,False)
+--      setEnable(elName,False)
+
+constant hmLV = getHwnd(mLV),
+         hmbAll = getHwnd(mbAll),
+         hmbOne = getHwnd(mbOne),
+         hmbEdit = getHwnd(mbEdit),
+         hmlFilter = getHwnd(mlFilter),
+         hmtFilter = getHwnd(mtFilter),
+         hmbClose  = getHwnd(mbClose),
+
+         hmlSource = getHwnd(mlSource),
+         hmtSource = getHwnd(mtSource),
+         hmlExpect = getHwnd(mlExpect),
+         hmtExpect = getHwnd(mtExpect),
+
+         hntSource = getHwnd(ntSource),
+         hnlExpect = getHwnd(nlExpect),
+         hntExpect = getHwnd(ntExpect),
+         hntCompile = getHwnd(ntCompile),
+         hntInterpret = getHwnd(ntInterpret),
+         hnbOK     = getHwnd(nbOK),
+         hnbCancel = getHwnd(nbCancel),
+
+         hetActual = getHwnd(etActual),
+         hebSave   = getHwnd(ebSave),
+         hebCrash  = getHwnd(ebCrash),
+         hebCancel = getHwnd(ebCancel)
+
+constant LVxstyle=or_all({LVS_EX_FULLROWSELECT,LVS_EX_HEADERDRAGDROP})
+    void = sendMessage(mLV,LVM_SETEXTENDEDLISTVIEWSTYLE,0,LVxstyle)
+
+    setFont(mtSource,"Courier",8,0)
+    setFont(mtExpect,"Courier",8,0)
+    setFont(etActual,"Courier",8,0)
+
+-- tests[i] is {name,lastmod,lastrun,src,err,flags}, but on the database
+-- key is name, and 
+-- data is {lastmod,lastrun,src,err,flags}, ie one less than these constants
+constant T_name = 1,
+         T_lastmod = 2,
+         T_lastrun = 3,
+         T_src = 4,
+         T_err = 5,
+         T_flags = 6
+
+-- a T_flags value of 0 means "everything".
+constant NOCOMPILE  = #01,
+         NOINTERP   = #02
+
+sequence tests
+
+sequence fmap   -- 'real' indexes after filtering effects
+         fmap = {}
+
+procedure Abort(sequence msg)
+    puts(1,msg)
+    ?9/0
+end procedure
+
+function datestring(object d)
+-- d is {y-1900,m,d,...} from the date() function.
+-- return it in dd/mm/yyyy hh:mm:ss format.
+integer tmp
+    if not sequence(d) then
+        return "-"
+    end if
+    tmp = d[1]
+    d[1] = d[3]
+    d[3] = 1900+tmp
+    return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
+end function
+
+procedure setFilters(integer clearifempty, object focus)
+-- called whenever the text in mtFilter changes
+-- clearifempty is 1 if filter should be cleared when nowt selected
+-- focus should be 0 if no focus action is required, else a string
+--  to cause focus to be set to the required LVitem.
+sequence ftxt, wasfmap, ti
+integer k
+object name
+object tiErr -- bugfix
+    ftxt = lower(getText(mtFilter))
+    wasfmap = fmap
+    fmap = repeat(0,db_table_size())
+    k = 0
+    for i=1 to length(fmap) do
+        ti = tests[i]
+        tiErr = ti[T_err]
+        name = ti[T_name]
+        if length(ftxt)=0
+        or match(ftxt,lower(name))
+        or match(ftxt,lower(ti[T_src]))
+        or not sequence(tiErr)
+        or match(ftxt,lower(tiErr))
+        or match(ftxt,datestring(ti[T_lastmod])) 
+        or match(ftxt,datestring(ti[T_lastrun])) then
+            k += 1
+            fmap[k] = i
+            if sequence(focus)
+            and focus=name then
+                focus = k
+            end if
+        end if
+    end for
+    if k=0 and clearifempty then
+        setText(mtFilter,"")
+        k = length(fmap)
+        for i=1 to k do
+            fmap[i] = i
+        end for
+    end if
+    if not equal(fmap,wasfmap) then
+        setLVItemCount(mLV,k)
+        deleteItem(mtSource,0)  -- empty list
+        deleteItem(mtExpect,0)  -- empty list
+    end if
+    if integer(focus) and focus!=0 then
+        setIndex(mLV,focus)
+    end if
+end procedure
+
+integer resumeOn
+        resumeOn = 0
+integer resumeOnFocus
+        resumeOnFocus = 0
+
+constant htxt = "This program automates error testing for Phix. Short code snippets are run under\n"&
+                "\"-batch\", and ex.err is checked to ensure that it contains the expected content.\n"&
+                "Note that \"success testing\" is performed by \"p -test\".\n\n"& 
+
+                "While you can edit and insert records, in no way is this program meant to\n"&
+                "implement a \"slick\" edit/run cycle. You should normally create tests externally.\n"&
+                "File/Export creates a plain text file, terror.txt, which is shipped with Phix and\n"&
+                "is automatically loaded into terror.edb on creation. Should you create a bunch of\n"&
+                "new tests you think may be useful, just send me that file and I'll happily merge it.\n"&
+                "(More often, of course, I expect individual tests/bugs to arrive one at a time.)\n"&
+                "File/Import can be run after modifying that file, or you can just delete terror.edb.\n\n"&
+                
+                "Help/Instructions (F1) displays this text.\n"&
+                "Press F2 to rename an entry.\n"&
+                "Press Insert to add an entry (copy/paste from your usual development setup).\n"&
+                "Run One (F5) runs the currently selected item.\n"&
+                " If the result is not as expected a confirmation screen is shown; you should always\n"&
+                " press Cancel if there is any problem with the error, rather than Save bad 'uns.\n"&
+                " Put \"[etc]\" in the results to only check the first few lines.\n"&
+                " Obviously, things like \"variable ???-1??? has not been assigned a value\", and\n"&
+                " \"error in myfile.exw line -1\" are what this (terror.exw) should guard against.\n"&
+--              "Run All (F6) runs all tests (as Filtered, see below).\n"&
+                "Run All (F6) runs all tests (unfiltered, name order). Ctrl F6 can be used (again with\n"&
+                " no filters and in name order) to run from a particular test to the end.\n"&
+                "Edit (Enter) displays the source and expected result. Note that when editing,\n"&
+                " Return inserts a new line, while Escape and Alt-F4 effect a cancel, so you have to\n"&
+                " click on OK or press Alt-O (or ctrl-tab to the OK button) to save any changes,\n"&
+                " or you can just press F5 to save and run (and maybe cancel if needed).\n"&
+                "While you can edit the Filter directly, you can also press any graphical key or\n"&
+                " Delete while the focus is elsewhere to change it. Since the Delete key acts on the\n"&
+                " filter, you must use Ctrl or Shift Delete to remove a record.\n"&
+                "File/Exit, Close, and Escape terminate the program.\n\n"&
+                
+                "Some tests may appear to be redundant duplicates. If intrigued you could always\n"&
+                "try comparing \"-d\" and/or \"-d!\" listings. Note that file-level and global variables\n"&
+                "live at a single fixed address, whereas parameters and local variables live at\n"&
+                "[ebp-N], hence some errors (esp unassigned var) need several similar tests.\n\n"&
+
+                "NB: There is no inherent problem with getting a (slightly) different error message\n"&
+                "    from interpretation and compilation, as long as both make sense. In fact if any\n"&
+                "    of pdiag.e, pprntf.e, pgetpath.e, pcurrdir.e, or ppp.e have their \"without debug\"\n"&
+                "    removed, then the ex.err will be different, at least for run-time errors. Also,\n"&
+                "    values from say allocate() change on interpreted/compiled/Phix version.\n"&
+                "    Create a copy and set the run flags, or do interpretation first and plant an\n"&
+                "    \"[etc]\", which limits how far it checks, and then switch compilation back on.\n"&
+                "    Also be aware of the existence and effects of Edita/Options/Reformat ex.err,\n"&
+                "    which of course does /not/ apply to the expected results you see here.\n\n"&
+
+                "Lastly, this (specifically F6) can be quite slow. Trust me: You do not care either.\n"&
+                "When interpreting Phix defers whatever it can until an error, and performs extra\n"&
+                "analysis during compilation, all to improve normal/success performance. Also, an\n"&
+                "antivirus program can get real busy (and effectively hog the cpu) when this runs."
+        
+procedure help()
+    void = messageBox("Instructions",htxt,MB_OK)
+end procedure
+
+integer focusOnPaint        -- set focus here on next WM_PAINT (if not zero)
+        focusOnPaint = 0
+
+sequence eres -- the actual result [DEV rename?]
+
+function eHandler(integer id, integer msg, atom wParam, object lParam)
+-- handler for error window
+sequence name,error,d,data
+sequence rect
+integer r, eY, r1, r2, r3, r4
+integer k
+
+    if object(lParam) then end if -- suppress warnings
+    if msg=WM_CHAR then
+        if wParam=VK_RETURN
+        or wParam=' ' then
+            if id=ebSave
+            or id=ebCrash
+            or id=ebCancel then
+                msg = WM_COMMAND
+            end if
+        end if
+    end if
+    if  msg=WM_CLOSE
+    or (msg=WM_CHAR and wParam=VK_ESCAPE)
+    or (msg=WM_COMMAND and id=ebCancel) then
+        resumeOn = 0
+        setVisible(ewin,False)
+        setFocus(mLV)
+    elsif msg=WM_COMMAND then
+        if id=ebSave then
+--if 0 then
+            k = getIndex(mLV)
+--?k
+            k = fmap[k]
+--?k
+--DEV ioob here, k was 47 then 0 (opJif in filter)
+            name = tests[k][T_name]
+--else
+--          name =
+--end if
+            d = date()
+            r = db_find_key(name)
+            if r<=0 then
+                void = messageBox("Error","db_find_key failed[1]",MB_OK)
+                resumeOn = 0
+            else
+                data = db_record_data(r)
+                data[T_lastmod-1] = d
+                data[T_lastrun-1] = d
+--DEV oh pig!
+--              error = getText(etActual)
+                error = eres
+                data[T_err-1] = error
+                db_replace_data(r,data)
+                data = prepend(data,name)
+                tests[k] = data
+                -- and update the main window
+--DEV should this be FillListBox? [YES!]
+--              setText(mtExpect,error)
+                FillListBox(mtExpect,error)
+            end if
+            setFilters(1,name)
+            void = sendMessage(mLV, LVM_UPDATE, 0, 0)
+            setVisible(ewin,False)
+            setFocus(mLV)
+            if resumeOn then
+                void = sendMessage(mLV, WM_KEYDOWN, VK_DOWN, 0)
+            end if
+        elsif id=ebCrash then
+            ?9/0
+        end if
+    elsif msg=WM_PAINT then
+        if focusOnPaint then
+            -- If you openWindow/setFocus, Windows kindly ignores you,
+            --  especially if a window has already been seen before.
+            -- I can only assume this is a deliberate M$ tactic to make
+            --  life frustrating and difficult for non-M$ programmers?
+            -- Delaying the setFocus/xSetFocus to the WM_PAINT is a
+            --  highly recommended standard tactic to employ.
+            setFocus(focusOnPaint)
+            focusOnPaint = 0
+            resumeOn = resumeOnFocus
+            resumeOnFocus = 0
+        end if
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_F1 then
+            help()
+        elsif wParam=VK_F5 then
+            setVisible(ewin,False)
+            setFocus(mLV)
+            void = sendMessage(mLV, WM_KEYDOWN, VK_F5, 0)
+        end if
+    elsif msg=WM_SIZE then
+        rect = getClientRect(ewin)
+        r1 = rect[1]
+        r2 = rect[2]
+        r3 = rect[3]-22
+        r4 = rect[4]-35
+        eY = r4-r2-65
+        void = c_func(xMoveWindow,{hetActual, 10,      55, r3,   eY, 1})
+        void = c_func(xMoveWindow,{hebSave, r1+5,      r4, 60,   25, 1})
+        void = c_func(xMoveWindow,{hebCrash, r3-157,   r4, 75,   25, 1})
+        void = c_func(xMoveWindow,{hebCancel, r3-64,   r4, 75,   25, 1})
+    end if
+    return 0
+end function
+setHandler({ewin,elActual,etActual,ebSave,ebCrash,ebCancel},routine_id("eHandler"))
+
+integer nlNameColour
+
+procedure setNameColour(string txt)
+    if length(txt)=0 then
+        nlNameColour = BrightRed
+    else
+        nlNameColour = Black
+        for i=1 to length(tests) do
+            if txt=tests[i][T_name] then
+                nlNameColour = BrightRed
+                exit
+            end if
+        end for
+    end if
+    setEnable(nbOK,nlNameColour=Black)
+    setText(mtFilter,txt)
+    setFilters(0,txt)
+end procedure
+
+procedure FillListBox(integer id, sequence text)
+sequence line
+integer k
+    deleteItem(id,0)    -- empty list
+    while length(text) do
+        k = find('\n',text)
+        if k then
+            line = text[1..k-1]
+            while 1 do
+                k += 1
+                if k>length(text) then
+                    text = ""
+                    exit
+                end if
+                if not find(text[k],"\n\r") then
+                    text = text[k..-1]
+                    exit
+                end if
+            end while
+        else
+            line = text
+            text = ""
+        end if
+        void = insertItem(id,line,0)
+    end while
+--  -- set scroll index to be in relative to cursor place in file
+--  if ind>9 and ind<tally then
+--      setIndex(id, Min(ind+5,tally))
+--  end if
+--  setIndex(id, ind)
+end procedure
+
+constant EHINT = "(use Run to auto-fill this)"
+
+integer sendF5
+        sendF5=0
+
+sequence wasFilter
+
+function nHandler(integer id, integer msg, atom wParam, object lParam)
+-- handler for new/edit window
+sequence name,source,error,d,data
+sequence rect
+integer r, r1, r2, r3, r4
+integer k
+sequence rectSource, rectExpect
+integer heightSrc, heightExp
+integer ctot, cnew, c2
+string txt
+object c
+atom hDC
+integer flags
+
+    if  msg=WM_CLOSE
+    or (msg=WM_CHAR and wParam=VK_ESCAPE)
+    or (msg=WM_COMMAND and id=nbCancel) then
+        setVisible(nwin,False)
+--?wasFilter
+        setText(mtFilter,wasFilter)
+        setFilters(1,getText(ntName))
+        setFocus(mLV)
+    elsif (msg=WM_CHAR and wParam=VK_RETURN) then
+        if id=nbOK
+        or id=nbCancel then
+            msg = WM_COMMAND
+        end if
+    end if
+    if msg=WM_COMMAND then
+        if id=ntName then
+            txt = getText(ntName)
+            setNameColour(txt)
+--          repaintWindow(nlName)
+            repaintWindow(nlName,False)
+        elsif id=nlName then
+            if isEnabled(ntName) then
+                setFocus(ntName)
+            end if
+        elsif id=nlSource then
+            setFocus(ntSource)
+        elsif id=nlExpect then
+            setFocus(ntExpect)
+        elsif id=ntCompile then
+            if not isChecked(ntCompile) then
+                setCheck(ntInterpret,True)
+            end if
+        elsif id=ntInterpret then
+            if not isChecked(ntInterpret) then
+                setCheck(ntCompile,True)
+            end if
+        elsif id=nbOK then
+            name = getText(ntName)
+            source = getText(ntSource)
+            error = getText(ntExpect)
+            flags = 0
+            if not isChecked(ntCompile) then flags += NOCOMPILE end if
+            if not isChecked(ntInterpret) then flags += NOINTERP end if
+            if error=EHINT then error = "" end if
+            d = date()
+            if isEnabled(ntName) then   -- insert
+                r = db_find_key(name)
+                if r>0 then ?9/0 end if
+                data = {d,0,source,error,flags} -- {lastmod,lastrun,src,err,flags}
+                if db_insert(name,data)!=DB_OK then
+                    void = messageBox("Error","db_insert failed[1]",MB_OK)
+                else
+                    data = prepend(data,name)
+                    tests = append(tests,data)
+                    k = length(tests)
+                    setLVItemCount(mLV,k)
+                end if
+            else                        -- edit
+                k = getIndex(mLV)
+--k = 1
+--DDEV ioob here...
+                k = fmap[k]
+                if name!=tests[k][T_name] then ?9/0 end if
+                r = db_find_key(name)
+                if r<=0 then
+--?name -- "opFind02"
+?{r,name,string(name),length(name)}
+    r = db_find_key("opFind02")
+?r
+                    void = messageBox("Error","db_find_key failed[2]",MB_OK)
+                else
+                    data = db_record_data(r)    -- {lastmod,lastrun,src,err,flags}
+                    -- (-1 because T_name/key not on the front)
+                    data[T_lastmod-1] = d
+                    data[T_lastrun-1] = 0
+                    data[T_src-1] = source
+                    data[T_err-1] = error
+                    data[T_flags-1] = flags
+                    db_replace_data(r,data)
+                    data = prepend(data,name)
+                    tests[k] = data
+                    -- and update the main window
+--                  setText(mtSource,source)
+--                  setText(mtExpect,error)
+                    FillListBox(mtSource,source)
+                    FillListBox(mtExpect,error)
+                end if
+            end if
+            setVisible(nwin,False)
+            setText(mtFilter,wasFilter)
+            setFocus(mLV)
+            setFilters(1,name)
+            void = sendMessage(mLV, LVM_UPDATE, 0, 0)
+            if sendF5 then
+                sendF5=0
+                void = sendMessage(mLV, WM_KEYDOWN, VK_F5, 0)
+            end if
+        end if
+    elsif msg=WM_PAINT then
+        if focusOnPaint then
+            -- If you openWindow/setFocus, Windows kindly ignores you,
+            --  especially if a window has already been seen before.
+            -- I can only assume this is a deliberate M$ tactic to make
+            --  life frustrating and difficult for non-M$ programmers?
+            -- Delaying the setFocus/xSetFocus to the WM_PAINT is a
+            --  highly recommended standard tactic to employ.
+            setFocus(focusOnPaint)
+            focusOnPaint = 0
+            resumeOn = resumeOnFocus
+            resumeOnFocus = 0
+        end if
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_F1 then
+            help()
+        elsif wParam=VK_F5 then
+            sendF5=1
+            void = sendMessage(nbOK, WM_COMMAND, nbOK, 0)
+        end if
+    elsif msg=WM_SIZE and id=nwin then
+        rect = getClientRect(nwin)
+        r1 = rect[1]
+        r2 = rect[2]
+        r3 = rect[3]-25
+        r4 = rect[4]-35
+        rectSource = getWindowRect(ntSource)
+        heightSrc = rectSource[4]-rectSource[2]
+        rectExpect = getWindowRect(mtExpect)
+        heightExp = rectExpect[4]-rectExpect[2]
+        --
+        -- first, adjust heights of the two EditTexts.
+        --
+        ctot = heightSrc + heightExp
+        cnew = r4-r2-108
+        c2 = floor(cnew/2)
+        ctot -= heightSrc
+        heightSrc = c2
+        cnew -= c2
+        heightExp = cnew
+        --
+        -- and reposition the EditTexts top down...
+        --
+        void = c_func(xMoveWindow,{hntSource,  14, 66,    r3, heightSrc, 1})
+        void = c_func(xMoveWindow,{hnlExpect,  14, heightSrc+75, r3, 15, 1})
+        void = c_func(xMoveWindow,{hntExpect,  14, heightSrc+95, r3, heightExp, 1})
+        --
+        -- but buttons/checkboxes from the bottom up
+        --
+        void = c_func(xMoveWindow,{hntCompile,   13,     r4, 85,     20, 1})
+        void = c_func(xMoveWindow,{hntInterpret, 135,    r4, 85,     20, 1})
+        void = c_func(xMoveWindow,{hnbOK,        r3-154, r4, 75,     25, 1})
+        void = c_func(xMoveWindow,{hnbCancel,    r3-64,  r4, 75,     25, 1})
+    elsif msg = WM_DRAWITEM then    -- SS_OWNERDRAW items (nlName)
+        hDC = peek4u(lParam + DIS_hDC)
+        id = peek4u(lParam + DIS_CtlID)
+        if not id then
+            id = c_func(xGetWindowLong, { peek4u(lParam + DIS_hwndItem), GWL_USERDATA }) --getID
+        end if
+        if id = nlName then
+            c = nlNameColour
+        else ?9/0
+        end if
+        void = c_func(xSetTextColor, {hDC,  c} )
+        c_proc(xDrawText, {hDC, allocate_StringZ( getText(id) ), -1, lParam + DIS_rcItem, DT_RIGHT} )
+    elsif msg=WM_SETFOCUS 
+      and id=ntExpect then
+        if getText(ntExpect)=EHINT then
+            setText(ntExpect,"")
+        end if
+    end if
+    return 0
+end function
+setHandler({nwin,nlName,ntName,nlSource,ntSource,nlExpect,ntExpect,nbOK,nbCancel},
+           routine_id("nHandler"))
+
+procedure tEdit()
+object txt
+integer k
+sequence tk
+integer flags
+    k = getIndex(mLV)
+    if k then
+        wasFilter = getText(mtFilter)
+--printf(1,"wasFilter:=%s\n",{wasFilter})
+        k = fmap[k]
+        tk = tests[k]
+        txt = tk[T_name]
+        setText(nwin,"Edit")
+        setText(ntName,txt)
+        txt = tk[T_src]
+        setText(ntSource,txt)
+        txt = tk[T_err]
+        setText(ntExpect,txt)
+        flags = tk[T_flags]
+        setCheck(ntCompile,and_bits(flags,NOCOMPILE)=0)
+        setCheck(ntInterpret,and_bits(flags,NOINTERP)=0)
+
+        setEnable(ntName,False)
+        nlNameColour = Black
+        setEnable(nbOK,True)
+        openWindow(nwin,SW_NORMAL)
+--might yet need this..
+--      focusOnPaint = mtExpect     -- setFocus(mtExpect), delayed
+        resumeOnFocus = 0
+--      setFilters(0)   --DEV on close!
+    end if
+end procedure
+
+function x86match(sequence res, sequence tkerr, integer partial)
+--
+-- match if the only difference(s) are from "Program Files" vs "Program Files (x86)".
+--
+-- partial is True if we've just chopped "[etc]" off the end of tkerr.
+--
+--  I had a bunch of tests generated on 32-bit and this was (initially) quicker then
+--  editing them all by hand, plus I now have a 64-bit windows 7 box with XP mode,
+--  (which is a 32-bit system running on a VM) and this lets me move things between 
+--  them, plus anyone else on a 32-bit box loading the terror.txt I create ought not 
+--  to have to reverse any " (x86)" edits I made. Plus this will come in handy when
+--  I (finally) get round to a 64-bit version of Phix.
+--
+integer j,k,l,m
+    while 1 do
+        k = match("\r\n\r\n",tkerr)
+        if k=0 then exit end if
+        tkerr[k..k+1] = ""
+    end while
+    while 1 do
+        k = match("\r\n\r\n",res)
+        if k=0 then exit end if
+        res[k..k+1] = ""
+    end while
+    while 1 do
+        k = match("<no value>",tkerr)
+        if k=0 then exit end if
+        tkerr[k+3..k+3] = ""
+    end while
+    while 1 do
+        k = match("<no value>",res)
+        if k=0 then exit end if
+        res[k+3..k+3] = ""
+    end while
+    while 1 do
+        l = length(tkerr)
+        m = length(res)
+        if m<l then return False end if
+        if partial and m>l then
+            if res[1..l]=tkerr then return True end if
+        else
+            if res=tkerr then return True end if        
+        end if
+        j = match("Program Files",res)
+        if j=0 then return False end if
+        k = match("Program Files",tkerr)
+        if k!=j then return False end if
+-- added 5/2/2013:
+        if res[1..j]!=tkerr[1..j] then return False end if
+        res = res[j+13..$]
+        if length(res)>=6 and res[1..6]=" (x86)" then
+            res = res[7..$]
+        end if
+        tkerr = tkerr[j+13..$]
+        if length(tkerr)>=6 and tkerr[1..6]=" (x86)" then
+            tkerr = tkerr[7..$]
+        end if
+--puts(1,"x86match (res)\n")
+--pp(res)
+--puts(1,"x86match (tkerr)\n")
+--pp(tkerr)
+    end while
+--  return True
+end function
+
+object edbg
+--object dbg
+
+--with trace
+function run(integer k)
+integer fn, ch, etcidx
+sequence tk, res, rres, tkerr
+sequence d, data
+integer r
+integer flags
+object key
+
+    setIndex(mLV,k)
+
+    tk = tests[k]
+    fn = open(t00,"w")
+    if fn=-1 then
+        void = messageBox("Error","Cannot open "&t00&" for write",MB_OK)
+        return 0
+    end if
+
+    puts(fn,tk[T_src])
+    close(fn)
+
+--DEV subroutine this:
+--DEV if interp:
+flags = tk[T_flags]
+if and_bits(flags,NOINTERP)=0 then
+    DeleteFile(err)
+
+--/**/  void = system_wait(cinterpret)
+--/*
+        void = system_exec(cinterpret,0)
+--*/
+
+    fn = open(err,"rb")
+
+    if fn=-1 then
+        void = messageBox("Error (interpreted)","Cannot open "&err&" for read",MB_OK)
+        return 0
+    end if
+    void = seek(fn,-1)
+    res = repeat(' ',where(fn))
+    void = seek(fn,0)
+    for i=1 to length(res) do
+        ch = getc(fn)
+        res[i] = ch
+    end for
+    close(fn)
+--DEV etcidx = match("Program Files (x86)",res)
+--    if etcidx then
+--      trace(1)
+--    end if
+end if
+
+-- and repeat for run:
+
+--DEV if run:
+if and_bits(flags,NOCOMPILE)=0 then
+    DeleteFile(err)
+
+--/**/  void = system_wait(crun)
+
+--/*
+        void = system_exec(crun,0)
+--*/
+
+    fn = open(err,"rb")
+
+    if fn=-1 then
+        void = messageBox("Error (compiled)","Cannot open "&err&" for read",MB_OK)
+        return 0
+    end if
+    void = seek(fn,-1)
+    rres = repeat(' ',where(fn))
+    void = seek(fn,0)
+    for i=1 to length(rres) do
+        ch = getc(fn)
+        rres[i] = ch
+    end for
+    close(fn)
+end if
+
+    tkerr = tk[T_err]
+    etcidx = match("[etc]",tkerr)
+    for i=1 to 2 do
+        if etcidx then
+            if i=1 then
+                while etcidx>1 do
+                    etcidx-=1
+                    ch = tkerr[etcidx]
+                    if ch!='\n' then
+                        if ch!='\r' then exit end if
+                    end if
+                end while
+                tkerr = tkerr[1..etcidx]
+            end if
+            if and_bits(flags,NOINTERP)=0 then
+                if etcidx<length(res)
+                and x86match(res,tkerr,True) then
+                    res = tkerr
+                    if i=2 then res &= "\r\n[etc]" end if
+                end if
+            end if
+            if and_bits(flags,NOCOMPILE)=0 then
+                if etcidx<length(rres)
+                and x86match(rres,tkerr,True) then
+                    rres = tkerr
+                    if i=2 then rres &= "\r\n[etc]" end if
+                end if
+            end if
+            exit
+        end if
+        if and_bits(flags,NOCOMPILE) then exit end if
+        etcidx = match("Global & Local Variables",rres)
+        if etcidx=0 then exit end if
+        etcidx += length("Global & Local Variables")
+--              while etcidx>1 do
+--                  etcidx-=1
+--                  ch = tkerr[etcidx]
+--                  if ch!='\n' then
+--                      if ch!='\r' then exit end if
+--                  end if
+--              end while
+--              tkerr = tkerr[1..etcidx]
+        tkerr = rres[1..etcidx]
+    end for
+
+if and_bits(flags,NOINTERP)=0 then
+    if and_bits(flags,NOCOMPILE)=0 then
+        if not equal(res,rres) then
+--dbg = {res,rres}
+--?9/0
+            void = messageBox("Error","'Compile' and 'Interpret' results differ\n"&
+                                      "(use \"[etc]\" or the run checkboxes)",MB_OK)
+--          return 0
+            -- ensure ewin gets opened:
+            if equal(res,tkerr) then
+                tkerr = rres
+            end if
+        end if
+    end if
+else
+    if and_bits(flags,NOCOMPILE)=0 then
+        res = rres
+    else
+        void = messageBox("Error","Neither 'Compile' nor 'Interpret' checked",MB_OK)
+        return 0
+    end if
+end if
+    
+--  if not equal(res,tkerr) then
+--puts(1,"opLen02b\n")
+--pp(res)
+--pp(tkerr)
+
+    if not x86match(res,tkerr,False) then
+edbg = {res,tkerr}
+--      setText(ewin,"Error in test "&)
+        setText(elName,tk[T_name])
+--      setText(etActual,res)
+        eres = res
+        FillListBox(etActual,res)
+        openWindow(ewin,SW_NORMAL)
+        focusOnPaint = ebSave       -- setFocus(ebSave), delayed
+        return -1
+    end if
+    d = date()
+    tests[k][T_lastrun] = d
+    key = tests[k][T_name]
+    r = db_find_key(key)
+    data = db_record_data(r)
+    data[T_lastrun-1] = d
+--?data
+    db_replace_data(r,data)
+    void = sendMessage(mLV, LVM_UPDATE, 0, 0)
+    return 1
+end function
+
+procedure runOne()
+integer i, k
+    i = getIndex(mLV)
+    if i then
+        k = fmap[i]
+        if run(k)=1 then
+            void = sendMessage(mLV, WM_KEYDOWN, VK_DOWN, 0)
+        end if
+    end if
+end procedure
+
+procedure setTitle()
+    setText(main,sprintf("%s (%d tests)",{mainTitle,length(tests)}))
+end procedure
+
+--DEV this should filter/use the order in the LV
+procedure runAll(integer from)
+integer r
+integer l
+    resumeOn = 0
+    l = length(tests)
+    for i=from to l do
+        setText(main,sprintf("running test %d/%d [%s]",{i,l,tests[i][T_name]}))
+        doEvents(0)
+        r = run(i)
+        if r<=0 then
+            if r=-1 and i<l then
+--              resumeOn = i+1
+                resumeOnFocus = i+1
+            end if
+            exit
+        end if
+    end for
+    setTitle()
+    doEvents(0)
+end procedure
+
+procedure db_load()
+object key
+object data
+    tests = {}
+    for i=db_table_size() to 1 by -1 do
+        key = db_record_key(i)
+        data = db_record_data(i)
+        if sequence(data) then
+            tests = prepend(tests,prepend(data,key))
+        else
+            db_delete_record(i)
+        end if
+    end for
+    setTitle()
+    fmap = {}       -- (force full redisplay)
+    setFilters(0,0)
+end procedure
+
+integer SortColumn, Sign
+
+function CompareSortColumn(sequence s1,sequence s2)
+    return Sign*compare(s1[SortColumn],s2[SortColumn])
+end function
+constant rCSC = routine_id("CompareSortColumn")
+
+integer switchDBfocus
+        switchDBfocus = 0
+
+function LVFormat(integer lRow, integer lColumn)
+object d
+integer flags
+
+    if lRow>length(tests) then return "??" end if
+    if lColumn=0 then   -- no icon
+        return 0
+    end if
+    lRow = fmap[lRow]
+--DEV
+if lRow=0 then
+    d = "???[lRow=0]"
+else
+    d = tests[lRow][lColumn]
+    if lColumn=T_lastmod
+    or lColumn=T_lastrun then
+        return datestring(d)
+    elsif lColumn=4 then
+        d = ""
+        flags = tests[lRow][T_flags]
+        if and_bits(flags,NOINTERP)=0 then d &= 'i' end if
+        if and_bits(flags,NOCOMPILE)=0 then d &= 'c' end if
+    end if
+end if
+    return d
+end function
+setLVFormatRoutine(mLV,routine_id("LVFormat"))
+
+integer fn
+sequence line
+integer lineno
+function GetLine(integer skip_comments)
+object this
+    while 1 do
+        lineno += 1
+        this = gets(fn)
+        if atom(this) then
+            line = ""
+            return 0
+        end if
+        while length(this)
+        and find(this[length(this)],"\r\n") do
+            this = this[1..length(this)-1]
+        end while
+        if not skip_comments
+        or match("--",this)!=1 then
+            if length(this) then exit end if
+        end if
+    end while
+    line = this
+    return 1
+end function
+
+procedure Ibort(sequence msg)
+    Abort(sprintf("terror.txt line %d:%s",{lineno,msg}))
+end procedure
+
+--DEV temp (todo: proper directory handling)
+--constant Itxt = "C:\\Program Files\\Phix\\test\\terror.txt"
+constant Itxt = "terror.txt"
+
+--with trace
+procedure Import()
+-- error is now optional; and if you change the error but not the source
+-- it will be ignored...
+sequence name, source, error, root
+object original
+integer flags, r, k
+--trace(1)
+    fn = open(Itxt,"r")
+    if fn=-1 then
+        void = messageBox("Warning","terror.txt not found",MB_OK)
+    else
+--C:\Program Files (x86)\Phix\test\terror.txt:1
+--                        9876543210987654321
+--C:\Program Files\Phix\test\terror.txt:1
+--trace(1)
+        root = get_proper_path(Itxt)
+        {root,name} = extractPathAndName(root)
+        if name!=Itxt then ?9/0 end if
+        if root[-6..-1]!="\\test\\" then ?9/0 end if
+        root = root[1..-6]
+        lineno = 0
+        if not GetLine(1) then Ibort("terror.txt empty?") end if
+        while length(line) do
+            if match("name:",line)!=1 then Ibort("name: expected") end if
+            name = trim(line[6..length(line)])
+            if length(name)=0 then Ibort("name expected") end if
+            if not GetLine(1)
+            or not equal(line,"source:") then
+                Ibort("source: expected")
+            end if
+            source = ""
+            error = ""
+            while 1 do
+                if not GetLine(0) then
+                    if length(source) then exit end if
+                    Ibort("unexpected end of file")
+                end if
+--              if equal(line,"error:")
+--              or match(line,"error[")=1 then
+                if match("error:",line)=1
+                or match("error[",line)=1 then
+                    flags = 0
+                    if line[6]='[' then
+                        if line[8]=']' then
+                            if line[7]='C' then
+                                flags = NOINTERP
+                            elsif line[7]='I' then
+                                flags = NOCOMPILE
+                            else
+                                ?9/0
+                            end if
+--                      elsif line[9]=']' then
+                        else
+                            ?9/0
+                        end if
+                    end if
+                    while 1 do
+                        if not GetLine(0) then exit end if
+                        if match("name:",line)=1 then exit end if
+                        k = match("C:\\Program Files (x86)\\Phix\\",line)
+                        if k then
+                            line = line[1..k-1]&root&line[k+length("C:\\Program Files (x86)\\Phix\\")..$]
+                        else
+                            k = match("C:\\Program Files\\Phix\\",line)
+                            if k then
+                                line = line[1..k-1]&root&line[k+length("C:\\Program Files\\Phix\\")..$]
+                            end if
+                        end if
+                        error &= line & "\r\n"
+                    end while
+                    exit
+                end if
+                if match("name:",line)=1 then exit end if
+                source &= line & "\r\n"
+            end while
+            --
+            -- db key is name, records are {lastmod,lastrun,source,error,flags}
+            --                              (as per T_xxx constants, less 1)
+            --
+            r = db_find_key(name)
+            if r>0 then
+                original = db_record_data(r)
+                if atom(original) then
+                    db_delete_record(r)
+                    r = 0
+                elsif source!=original[T_src-1]
+                   or (length(error) and error!=original[T_err-1])
+                   or flags!=original[T_flags-1] then
+                    original[T_lastmod-1] = date()
+                    original[T_lastrun-1] = 0
+                    original[T_src-1] = source
+                    if length(error) then
+                        original[T_err-1] = error
+                    end if
+                    original[T_flags-1] = flags
+                    db_replace_data(r,original)
+                end if
+            end if
+            if r<=0 then
+                if db_insert(name,{date(),0,source,error,flags})!=DB_OK then
+                    Ibort("db_insert error")
+                end if
+            end if
+        end while
+        close(fn)
+        void = messageBox("Success","terror.txt loaded",MB_OK)
+    end if
+    db_load()
+end procedure
+
+procedure Export()
+sequence name, source, error, ti
+integer flags
+    fn = open(Itxt,"w")
+    if fn=-1 then
+        void = messageBox("Error",Itxt&" cannot be opending for writing",MB_OK)
+    else
+        for i=1 to length(tests) do
+            ti = tests[i]
+            name = ti[T_name]
+            source = ti[T_src]
+            error = ti[T_err]
+            flags = ti[T_flags]
+            printf(fn,"name:%s\n",{name})
+            puts(fn,"source:\n")
+            printf(fn,"%s\n",{source})
+            if flags!=0 then
+                source = ""
+                if and_bits(flags,NOCOMPILE)=0 then source &= 'C' end if
+                if and_bits(flags,NOINTERP)=0 then source &= 'I' end if
+                if length(source)=2 then ?9/0 end if
+                printf(fn,"error[%s]:\n",{source})
+            else
+                puts(fn,"error:\n")
+            end if
+            printf(fn,"%s\n",{error})
+        end for
+        close(fn)
+        void = messageBox("Success","terror.txt written",MB_OK)
+    end if
+end procedure
+
+without trace
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect, rectLV, rectSource, rectExpect
+integer heightLV,
+        heightSrc,
+        heightExp
+sequence ftxt
+integer ctot
+sequence c0
+integer c1, c2, cnew, crem
+integer r1, r2, r3, r4
+integer i, k
+atom addr
+sequence newname, oldname
+integer r
+sequence data
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE
+        or (id=mbClose and wParam=VK_RETURN) then
+            if id=mtFilter then
+                setFocus(mLV)
+            else
+                closeWindow(main)
+            end if
+        elsif wParam=VK_RETURN then
+            if id=mbAll then
+                msg = WM_COMMAND
+            elsif id=mbOne then
+                msg = WM_COMMAND
+            elsif id=mtFilter then
+                setFocus(mLV)
+            elsif id=mLV then
+                msg = WM_COMMAND
+                id = mbEdit
+            end if
+        elsif wParam=' '
+          and find(id,{mbOne,mbAll,mbEdit,mbClose}) then
+            msg = WM_COMMAND
+        elsif id!=mtFilter then
+            if wParam>=' ' and wParam<='z' then
+                setText(mtFilter,getText(mtFilter)&wParam)
+                setFilters(0,0)
+            elsif wParam=VK_BACK then
+                ftxt = getText(mtFilter)
+                if length(ftxt) then
+                    setText(mtFilter,ftxt[1..length(ftxt)-1])
+                    setFilters(0,0)
+                end if
+            end if
+        end if
+    elsif id=mLV then
+        if msg=WM_NOTIFY then
+            if wParam=LVN_COLUMNCLICK then
+                id = lParam[1]
+                SortColumn = id
+                Sign = lParam[2]
+                tests = custom_sort(rCSC,tests)
+                setFilters(0,0)
+                void = sendMessage(mLV,LVM_UPDATE,0,0)
+            elsif wParam=LVN_ITEMCHANGED then
+                lParam = getIndex(id)
+                if lParam>0 then
+                    lParam = fmap[lParam]
+--                  setText(mtSource,tests[lParam][T_src])
+--                  setText(mtExpect,tests[lParam][T_err])
+                    FillListBox(mtSource,tests[lParam][T_src])
+                    FillListBox(mtExpect,tests[lParam][T_err])
+                    --SetFlags(tests[lParam][T_flags])
+                end if
+            elsif wParam=LVN_ENDLABELEDITA then
+                k = peek4s(lParam+LVDISPINFO_LVITEM+LVITEM_iItem)
+                if k>=0 then
+                    addr = peek4s(lParam+LVDISPINFO_LVITEM+LVITEM_pszText)
+                    if addr!=0 then
+                        newname = peek_string(addr)
+                        oldname = tests[k+1][T_name]
+                        if newname!=oldname then
+                            r = db_find_key(oldname)
+                            if r<=0 then
+                                void = messageBox("Error","db_find_key failed[3]",MB_OK)
+                            else
+                                data = db_record_data(r)
+                                db_delete_record(r)
+                                if db_insert(newname,data)!=DB_OK then
+                                    void = messageBox("Error","db_insert failed[3]",MB_OK)
+                                else
+                                    tests[k+1][T_name] = newname
+                                end if
+                            end if
+                        end if
+                    end if
+                end if
+--          elsif wParam=LVN_BEGINLABELEDITA then
+--              poke4(lParam+LVDISPINFO_LVITEM+LVITEM_iSubItem,3)   -- No effect!
+--              return {1}
+--              k = peek4s(lParam+LVDISPINFO_LVITEM+LVITEM_iItem)
+--              if k>=0 then
+--                  void = c_func(xMoveWindow,{eHndl, 10,      55, r3,   20, 1})
+--              end if
+            end if
+        elsif msg=WM_LBUTTONDBLCLK then
+            tEdit()
+        end if
+    elsif msg=WM_SIZE and id=main then
+        rect = getClientRect(main)
+        r1 = rect[1]
+        r2 = rect[2]
+        r3 = rect[3]
+        r4 = rect[4]
+        rectLV = getWindowRect(mLV)
+        heightLV = rectLV[4]-rectLV[2]
+        rectSource = getWindowRect(mtSource)
+        heightSrc = rectSource[4]-rectSource[2]
+        rectExpect = getWindowRect(mtExpect)
+        heightExp = rectExpect[4]-rectExpect[2]
+        --
+        -- first, adjust all heights (LV 50%, Source/Expected 25% each).
+        --
+        ctot = heightLV + heightSrc + heightExp
+        cnew = r4-r2-98
+--      c2 = floor((heightLV/ctot)*cnew)
+        c2 = floor(cnew/2)
+        ctot -= heightLV
+        heightLV = c2
+        cnew -= c2
+--      c2 = floor((heightSrc/ctot)*cnew)
+        c2 = floor(cnew/2)
+        ctot -= heightSrc
+        heightSrc = c2
+        cnew -= c2
+        heightExp = cnew
+        --
+        -- and reposition from the bottom up
+        --
+        r4 -= heightExp
+        void = c_func(xMoveWindow,{hmtExpect,  r1+5,    r4-10,    r3-10, heightExp, 1})
+        r4 -= 28
+        void = c_func(xMoveWindow,{hmlExpect, r1+5, r4,         160,        25, 1})
+        r4 -= heightSrc
+        void = c_func(xMoveWindow,{hmtSource,  r1+5,    r4-10,    r3-10, heightSrc, 1})
+        r4 -= 28
+        void = c_func(xMoveWindow,{hmlSource, r1+5, r4,       35,   25, 1})
+        void = c_func(xMoveWindow,{hmLV,    r1+2,   r2+2,   r3-4,r4-39,1})
+        void = c_func(xMoveWindow,{hmbOne,  r1+5,   r4-30,    60,   25,1})
+        void = c_func(xMoveWindow,{hmbAll,  r1+75,  r4-30,    60,   25,1})
+        void = c_func(xMoveWindow,{hmbEdit, r1+145, r4-30,    60,   25,1})
+        void = c_func(xMoveWindow,{hmlFilter,r1+215, r4-25,   35,   25,1})
+        void = c_func(xMoveWindow,{hmtFilter,r1+240, r4-30,r3-r1-320,25,1})
+        void = c_func(xMoveWindow,{hmbClose, r3-65, r4-30,    60,   25,1})
+
+--DEV try resizeLVColumns(mLV)
+        --
+        -- Resize the columns to fit, proportionally, leaving 29 pixels for 
+        -- the vertical scrollbar (which may not be present)
+        --
+        if not getKeyState(VK_MENU) then    -- Alt key not depressed
+            c0 = repeat(0,4)
+            ctot = 0
+            for i=1 to length(c0) do
+                c1 = sendMessage(mLV,LVM_GETCOLUMNWIDTH,i-1,0)
+                c0[i] = c1
+                ctot += c1
+            end for
+            cnew = r3-8-18
+            crem = ctot
+            void = c_func(xSendMessage,{hmLV,WM_SETREDRAW,0,0})
+            for i=1 to length(c0) do
+                c1 = c0[i]
+                c2 = floor((c1/crem)*cnew)
+                void = sendMessage(mLV,LVM_SETCOLUMNWIDTH,i-1,c2)
+                crem -= c1
+                cnew -= c2
+--4/6/2012 bug here...
+            end for
+            void = c_func(xSendMessage,{hmLV,WM_SETREDRAW, 1, 0})
+        end if
+    end if
+    if msg=WM_COMMAND then
+        if id = mbOne then
+            runOne()
+        elsif id = mbAll then
+--          if length(getText(mtFilter)) then
+--              setText(mtFilter,"")
+--              setFilters(0,0)
+--          end if
+            runAll(1)
+        elsif id=mlFilter then
+            setFocus(mtFilter)
+        elsif id=mtFilter then
+            setFilters(0,0)
+        elsif id=mbEdit then
+            tEdit()
+        elsif id=mExport then
+            Export()
+        elsif id=mImport then
+            Import()
+        elsif id=mbClose
+           or id=mExit then
+            closeWindow(main)
+        elsif id=mInstructions then
+            help()
+        elsif id=mlSource then
+            setFocus(mtSource)
+        elsif id=mlExpect then
+            setFocus(mtExpect)
+        end if
+    elsif msg=WM_SETFOCUS then
+        if switchDBfocus then   -- only on startup
+            switchDBfocus=0
+            SortColumn = 1
+            Sign = 1
+            setFilters(0,0)
+            setIndex(mLV,1)
+            setFocus(mLV)
+            return {0}
+        end if
+        if resumeOn then
+            runAll(resumeOn)
+        end if
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_F1 then
+            help()
+        elsif wParam=VK_F2 then
+            addStyle(mLV,LVS_EDITLABELS)
+            k = getIndex(mLV)
+            if k then
+                void = sendMessage(mLV,LVM_EDITLABEL,k-1,0)
+            end if
+        elsif wParam=VK_F5 then
+            runOne()
+        elsif wParam=VK_F6 then
+            if getKeyState(VK_CONTROL) then
+                k = getIndex(mLV)
+                runAll(k)
+            else
+                runAll(1)
+            end if
+        elsif wParam=VK_INSERT then
+            setText(nwin,"Insert")
+            setText(ntName,"")
+            setText(ntSource,"")
+            setText(ntExpect,EHINT)
+            setCheck(ntCompile,True)
+            setCheck(ntInterpret,True)
+            nlNameColour = BrightRed
+            setEnable(ntName,True)
+            setEnable(nbOK,False)
+            wasFilter = getText(mtFilter)
+            openWindow(nwin,SW_NORMAL)
+        elsif wParam=VK_DELETE then
+            if getKeyState(VK_CONTROL)
+            or getKeyState(VK_SHIFT) then
+--DEV
+--              void = messageBox("Delete record","Not implemented",MB_OK)
+                i = getIndex(mLV)
+                if i then
+                    k = fmap[i]
+--                  if run(k)=1 then
+--                      void = sendMessage(mLV, WM_KEYDOWN, VK_DOWN, 0)
+--                  end if
+                    r = db_find_key(tests[k][T_name])
+                    if r then
+                        db_delete_record(r)
+                        tests[k..k] = {}
+                        k = length(tests)
+                        setLVItemCount(mLV,k)
+                        if i>1 then i-=1 end if
+                        setIndex(mLV,i)
+--                      setFilters(1,0)
+--                      void = sendMessage(mLV, WM_KEYDOWN, VK_DOWN, 0)
+                    else
+                        void = messageBox("Error reading record","Delete record",MB_OK)
+                    end if
+                else
+                    void = messageBox("No record selected","Delete record",MB_OK)
+                end if
+            elsif id!=mtFilter then
+                ftxt = getText(mtFilter)
+                if length(ftxt) then
+                    setText(mtFilter,ftxt[1..length(ftxt)-1])
+                    setFilters(0,0)
+                else
+                    void = messageBox("Filter empty","Use Shift or Ctrl Delete to remove a test",MB_OK)
+                end if
+            end if
+        end if
+    end if
+    return 0
+end function
+setHandler({main,
+            mFile,mExport,mImport,mExit,mHelp,mInstructions,
+            mLV,mbAll,mbOne,mlFilter,mtFilter,mbClose,
+            mlSource,mtSource,mlExpect,mtExpect},
+            routine_id("mainHandler"))
+
+procedure db_init()
+integer create_table
+integer eCode, dCode
+    create_table = 0
+    eCode = db_open("terror",DB_LOCK_NO)
+    if eCode!=DB_OK then
+--DEV  this don't behave at all right when terror.edb is open in Edita\Tools\DatabaseViewer...
+--?eCode
+        dCode = eCode
+        eCode = db_create("terror",DB_LOCK_EXCLUSIVE)
+        if eCode!=DB_OK then
+            Abort("Error error creating terror.edb\n")
+        end if
+        create_table = 1
+    else
+        eCode = db_select_table("tests")
+        if eCode!=DB_OK then
+--?{eCode}
+            dCode = eCode
+            create_table = 1
+        end if
+    end if
+    if create_table then
+        eCode = db_create_table("tests")
+        if eCode!=DB_OK then
+            Abort("Error error creating tests table\n")
+        end if
+        Import()
+    end if
+    db_load()
+end procedure
+db_init()
+
+switchDBfocus = 1
+WinMain(main,SW_NORMAL)
+db_close()
+
+

@@ -1,0 +1,616 @@
+--
+-- eafonts.ew
+--
+-- PickFont() routine.
+--
+-- Todo: remove the old EnumFontFamilies
+--       use ini file (see very end)
+--
+-- It would be nice to re-check for new fonts each time [DEV]
+--  the window is opened. 
+
+--/* 4.0.2
+include builtins\machine.e
+include builtins\misc.e
+include builtins\dll.e
+--*/
+
+integer PFwin       -- the main window round here
+integer initF
+        initF=0
+
+
+integer PFftxt,PFface,PFszbx,PFsize,PFstxt,PFOK,PFcncl
+
+sequence faces, sizes, truetype
+         faces={"SYSTEM_FIXED_FONT","ANSI_FIXED_FONT","OEM_FIXED_FONT","DEVICE_DEFAULT_FONT"}
+constant stockFaces={SYSTEM_FIXED_FONT,ANSI_FIXED_FONT,OEM_FIXED_FONT,DEVICE_DEFAULT_FONT}
+                    ----    27x5            24x4            21x3            32x6 (approx in mm)
+         sizes=repeat(0,length(faces))  -- additional sizes are held in sequences
+         truetype=repeat(0,length(faces))
+
+constant LOGPIXELSY=90,
+         PPLISH=c_func(xGetDeviceCaps,{mainDC, LOGPIXELSY}) -- Pixels Per Logical Inch of Screen Height
+
+integer FaceIdx,        -- index into faces
+        PointIdx        -- index into sizes[FaceIdx], if FaceIdx>=5
+--atom  PointSize       -- last actual selected pointsize, for closest matching.
+--sequence FaceName     -- selected face name
+
+sequence fontDCs        -- DC store for all fonts yet displayed (else zero)
+
+
+function nearest(sequence set, atom n)
+-- return the index in set of the nearest match to n.
+-- set is assumed to be sorted lowest first.
+integer ls
+    if n<=set[1] then return 1 end if
+    ls = length(set)
+    if n>=set[ls] then return ls end if
+    while ls>1 and n<set[ls] do
+        ls-=1
+    end while
+    if n-set[ls]<=set[ls+1]-n then return ls end if
+    return ls+1
+end function
+
+                                    -- {EA_Bold, EA_Italic, EA_Bold+EA_Italic, EA_Normal}
+constant hWeight={700,400,700,400}, --{FW_BOLD,FW_NORMAL,FW_BOLD,FW_NORMAL}
+         hItalic={  0,  1,  1,  0}  -- {False, True,      False, True}
+
+procedure applyFont()
+--
+-- Assign the selected font to mainDC and reset the repaint flag.
+--
+atom tm, font
+integer testForBold
+atom lf
+
+    testForBold=0
+    tm=allocate(sizeofstruct(TEXTMETRIC))
+    if FaceIdx>=5 then
+        hFont=fontDCs[FaceIdx][PointIdx]
+        if atom(hFont) then
+            testForBold=1
+            hFont=repeat(0,5)
+            lf = allocate(sizeofstruct(LOGFONT))
+            mem_set(lf,0,sizeofstruct(LOGFONT))
+            poke4(lf + LOGFONT_lfHeight,    floor(-PPLISH*sizes[FaceIdx][PointIdx]/72))
+            poke4(lf + LOGFONT_lfCharSet,   1)  -- DEFAULT_CHARSET 
+            poke(lf + LOGFONT_lfFaceName,   faces[FaceIdx]&0)
+            for i=1 to 5 do
+                if i = 5 then
+                    poke4(lf + LOGFONT_lfWeight,    hWeight[4])
+                    poke(lf + LOGFONT_lfItalic,     hItalic[4])
+                    poke(lf + LOGFONT_lfUnderline,  1)
+                else
+                    poke4(lf + LOGFONT_lfWeight,    hWeight[i])
+                    poke(lf + LOGFONT_lfItalic,     hItalic[i])
+                end if
+                hFont[i] = c_func(xCreateFontIndirect,{lf})
+            end for
+            free(lf)
+            fontDCs[FaceIdx][PointIdx] = hFont
+            void = selectObject(mainDC, hFont[1])   -- Apply Bold
+            void = c_func(xGetTextMetrics,{mainDC,tm})
+            CharWidth = peek4u(tm+tmAveCharWidth)
+        end if
+        font = hFont[4]
+--      void = selectObject(mainDC, hFont[4])   -- also in setIdle, but needed here for text metrics
+    else
+        hFont = fontDCs[FaceIdx]
+        if hFont=0 then
+            hFont = c_func(xGetStockObject, { stockFaces[FaceIdx] } )
+            fontDCs[FaceIdx] = hFont
+        end if
+        font = hFont
+--      void = selectObject(mainDC, hFont)  -- also in setIdle, but needed here for text metrics
+    end if
+    void = selectObject(mainDC, font)   -- also in setIdle, but needed here for text metrics
+--  void = selectObject(getPrivateDC(MA), font)
+    void = sendMessage( MA, WM_SETFONT, font, 1 )
+
+    void=c_func(xGetTextMetrics,{mainDC,tm})
+    if testForBold then
+        -- If widths not the same, disable Bold.
+        if not equal(CharWidth,peek4u(tm+tmAveCharWidth)) then
+            void = c_func(xDeleteObject,{hFont[1]}) -- Delete Bold
+            void = c_func(xDeleteObject,{hFont[3]}) -- Delete Bold+Italics
+            hFont[1] = hFont[4]                     -- EA_Bold:=EA_Normal
+            hFont[3] = hFont[2]                     -- EA_Bold+EA_Italics:=EA_Italics
+            fontDCs[FaceIdx][PointIdx] = hFont
+        end if
+    end if
+    enableBoldItal()    -- in eacolor.e
+    CharHeight = peek4u(tm+tmHeight)
+    CharWidth = peek4u(tm+tmAveCharWidth)
+    free(tm)
+    lastFont = 4
+    void = sendMessage(Main,WM_SIZE,0,0)
+    void = sendMessage(Main,WM_SETFOCUS,0,0)
+    paintall()
+    if currfile then
+        if isWordWrapON then    -- added 21/5/07
+            rebuildWraps(currfile,0)    -- ""
+            wrapped[currfile] = 0       -- ""
+        end if
+        forceCursorOnscreen()   -- added 30/4/07
+    end if
+end procedure
+
+integer InitFaceIdx, InitPointIdx
+
+function closeHandler(integer id, integer msg, atom wParam, object lParam)
+-- I think we need this because xDefWindowProc will destroy() the window,
+-- whereas this won't, even if it does nothing. See the WM_CLOSE handling
+-- in arwen.ew, WndProc; it only destroys the window if it is PrimaryWindowId
+-- (and I don't have a copy of the source of xDefWindowProc...)
+-- However, it is ideal for the OK button anyway ;-))
+    if wParam or object(lParam) then end if -- suppress warwning messages
+    if msg = WM_CHAR then
+        if wParam = VK_ESCAPE then
+            id = PFcncl
+            msg = WM_COMMAND
+        elsif wParam = VK_RETURN then
+            msg = WM_COMMAND
+        end if
+    end if
+    if msg = WM_COMMAND then
+        if id = PFcncl then     -- cancel
+            FaceIdx=InitFaceIdx
+            PointIdx=InitPointIdx
+            applyFont()
+        -- else assume PFOK
+        end if
+        msg = WM_CLOSE
+    end if
+    if msg = WM_CLOSE then
+        isFaceName = faces[FaceIdx]
+        if FaceIdx>=5 then
+            isPointSize = sizes[FaceIdx][PointIdx]
+        end if
+        removeFocus(PFwin)
+        setVisible(PFwin,False)
+        setFocus(Main)
+        return 1
+    end if
+    return 0
+--case msg of
+-- WM_CHAR: case wParam of 
+--          VK_ESCAPE: id = PFcncl
+--          VK_RETURN: break
+--          else: return
+--        end case
+-- WM_COMMAND:
+--      if id=PFcncl then
+--          FaceIdx=InitFaceIdx
+--          PointIdx=InitPointIdx
+--          applyFont()
+--      end if
+-- WM_CLOSE:
+--      isFaceName = faces[FaceIdx]
+--      if FaceIdx>=5 then
+--          isPointSize = sizes[FaceIdx][PointIdx]
+--      end if
+--      setVisible(PFwin,False)
+--      return 1
+--end case
+--return 0
+end function
+
+function faceHandler(integer id, integer msg, atom wParam, object lParam)
+-- Set the new font face up and apply instantly.
+    if msg=WM_COMMAND and wParam=LBN_SELCHANGE then
+        if id=PFftxt then
+            setFocus(PFface)
+        elsif id=PFface then
+            FaceIdx=getIndex(PFface)
+            deleteItem(PFsize,0)    -- empty list
+            if FaceIdx>=5 then
+                setEnable({PFstxt,PFsize},True)
+                for i=1 to length(sizes[FaceIdx]) do
+                    void = insertItem(PFsize,sprint(sizes[FaceIdx][i]),0)
+                end for
+                PointIdx=nearest(sizes[FaceIdx],isPointSize)
+                setIndex(PFsize,PointIdx)
+                setEnable(PFszbx,truetype[FaceIdx])
+                setText(PFszbx,getItem(PFsize,PointIdx))
+            else
+                setText(PFszbx,"")
+                setEnable({PFstxt,PFszbx,PFsize},False)
+            end if
+        elsif id = PFstxt then
+            setFocus(PFsize)
+        elsif id = PFsize then
+            PointIdx=getIndex(PFsize)
+            setText(PFszbx,getItem(PFsize,PointIdx))
+            isPointSize=sizes[FaceIdx][PointIdx]
+        end if
+        applyFont()
+    elsif msg=WM_CHAR then
+        if wParam=VK_RETURN then return closeHandler(PFOK,msg,wParam,lParam) end if
+        if wParam=VK_ESCAPE then return closeHandler(PFcncl,msg,wParam,lParam) end if
+    end if
+    return 0
+end function
+
+
+constant d19="123456789",
+         d09="0123456789"
+
+function makeNumber(sequence text)
+--
+-- deal with user entered point size.
+-- text should be n, nn, n.n, or nn.n, and 
+--  not start with "0" or end with ".0".
+-- a result of zero indicates it is not a number
+--
+integer ln, tens, digits, fractions
+    ln=length(text)
+    if ln=1 then    -- must be "1".."9"
+        digits = find(text[1],d19)
+        return digits 
+    elsif ln=2 then -- must be "10".."99"
+        tens=find(text[1],d19)
+        digits=find(text[2],d09)
+        if tens and digits then
+            return tens*10+digits-1
+        end if
+    elsif ln=3 then -- must be "1.1".."9.9"
+        if text[2]='.' then
+            digits=find(text[1],d19)
+            fractions=find(text[3],d19)
+            if digits and fractions then
+                return digits+fractions*0.1
+            end if
+        end if
+    elsif ln=4 then -- must be "10.1".."99.9"
+        if text[3]='.' then
+            tens=find(text[1],d19)
+            digits=find(text[2],d09)
+            fractions=find(text[4],d19)
+            if tens and digits and fractions then
+                return tens*10+digits-1+fractions*0.1
+            end if
+        end if
+    end if
+    return 0
+end function
+
+function newHandler(integer id, integer msg, atom wParam, object lParam)
+--
+-- handle the edittext input, user creating new (truetype) size.
+--
+sequence newtext
+atom newsize
+sequence sizelist
+-- Set the new font face up and apply instantly.
+    if object(lParam) then end if -- suppress warnings  
+    if msg=WM_COMMAND and id=PFszbx and wParam=EN_CHANGE 
+    and FaceIdx>=5 and truetype[FaceIdx] then
+        newtext=getText(PFszbx)
+        newsize=makeNumber(newtext)
+        if newsize then -- a valid number text string
+            sizelist=sizes[FaceIdx]
+            PointIdx=find(newsize,sizelist)
+            if not PointIdx then
+                -- ripple sort into position (setting PointIdx)
+                sizelist&=newsize
+                PointIdx=length(sizelist)
+                while PointIdx>1 and newsize<sizelist[PointIdx-1] do
+                    sizelist[PointIdx]=sizelist[PointIdx-1]
+                    PointIdx-=1
+                end while
+                sizelist[PointIdx]=newsize                  
+                sizes[FaceIdx]=sizelist
+                -- create a new DC entry (of 0)
+                fontDCs[FaceIdx]=fontDCs[FaceIdx][1..PointIdx-1]&0&
+                                 fontDCs[FaceIdx][PointIdx..length(fontDCs[FaceIdx])]
+                -- update screen
+                void = insertItem(PFsize,newtext,PointIdx)
+                -- and last selected pointsize
+                isPointSize=newsize
+            end if
+            setIndex(PFsize,PointIdx)
+            applyFont()
+        end if
+    elsif msg=WM_CHAR then
+        if wParam=VK_RETURN then return closeHandler(PFOK,msg,wParam,lParam) end if
+        if wParam=VK_ESCAPE then return closeHandler(PFcncl,msg,wParam,lParam) end if
+    end if
+    return 0
+end function
+
+
+procedure PickFont()
+sequence screensize
+    InitFaceIdx=FaceIdx
+    InitPointIdx=PointIdx
+    if not initF then
+        screensize=getScreenSize()
+        PFwin = create(Window, xl("Select Font"), 0, Main,screensize[1]-375-320,10,320,260,0)
+
+        PFftxt = create(Label, xl("Face"), 0, PFwin, 10,10,100, 20,0)
+        PFface = create(ListBox," ", 0, PFwin, 10,30,200, 160, WS_TABSTOP)
+        PFstxt = create(Label, xl("Size"), 0, PFwin, 240,10,60, 20,0)
+        PFszbx = create(EditText," ", 0, PFwin, 240,30,60, 20, WS_TABSTOP)
+        PFsize = create(ListBox," ", 0, PFwin, 240,50,60, 140, WS_TABSTOP)
+
+        void = insertItem(PFface,faces,0)
+    
+        PFOK = create(Button,  xl("OK"), 0, PFwin, 60,190,80, 25,BS_DEFPUSHBUTTON+WS_TABSTOP)
+        PFcncl = create(Button,  xl("Cancel"), 0, PFwin, 180,190,80, 25,WS_TABSTOP)
+
+        setHandler({PFwin,PFOK,PFcncl},routine_id("closeHandler"))
+        setHandler({PFftxt,PFface,PFstxt,PFsize},routine_id("faceHandler"))
+        setHandler(PFszbx,routine_id("newHandler"))
+
+        initF=1
+    end if
+    setIndex(PFface,FaceIdx)
+    void=faceHandler(PFface,WM_COMMAND,LBN_SELCHANGE,0)
+    addFocus(PFwin)
+    openWindow(PFwin, SW_NORMAL)
+    setFocus(PFface)
+end procedure
+global constant r_PickFont=routine_id("PickFont")
+
+global procedure EnlargeFontSize(integer X)
+-- X is +1 for Ctrl E (enlarge), -1 for Ctrl R (reduce)
+atom newsize
+sequence sizelist
+
+    if not getKeyState(VK_SHIFT) then
+        setText(SB6,xl("Use Ctrl+Shift E/R to enlarge/reduce font size"))
+        clearSB6 = 1
+        return
+    end if
+    if FaceIdx>=5 then
+        sizelist=sizes[FaceIdx]
+        if truetype[FaceIdx] then
+            newsize=sizelist[PointIdx]+X
+            if newsize>0 then
+                PointIdx=find(newsize,sizelist)
+                if not PointIdx then
+                    -- ripple sort into position (setting PointIdx)
+                    sizelist&=newsize
+                    PointIdx=length(sizelist)
+                    while PointIdx>1 and newsize<sizelist[PointIdx-1] do
+                        sizelist[PointIdx]=sizelist[PointIdx-1]
+                        PointIdx-=1
+                    end while
+                    sizelist[PointIdx]=newsize                  
+                    sizes[FaceIdx]=sizelist
+                    -- create a new DC entry (of 0)
+                    fontDCs[FaceIdx]=fontDCs[FaceIdx][1..PointIdx-1]&0&
+                                     fontDCs[FaceIdx][PointIdx..length(fontDCs[FaceIdx])]
+                end if
+                applyFont()
+            end if
+        else
+            if X=+1 then
+                if PointIdx<length(sizelist) then
+                    PointIdx+=1
+                    applyFont()
+                end if
+            elsif PointIdx>1 then
+                PointIdx-=1
+                applyFont()
+            end if
+        end if
+    end if
+end procedure
+
+
+constant TMPF_TRUETYPE=#04
+
+sequence SizeList
+--integer charset
+
+function EnumFontFamExProc(atom logfont, atom textmetric, atom fonttype, atom appdata)
+sequence onefont
+integer pandf
+atom Size
+--, acw, mcw
+    if fonttype or appdata then end if -- supppress warnings
+    pandf=peek(textmetric + tmPitchAndFamily)
+--onefont=peek_string(logfont + LOGFONT_lfFaceName)
+--acw = peek4s(textmetric+tmAveCharWidth)
+--mcw = peek4s(textmetric+tmMaxCharWidth)
+    if and_bits(pandf,#01)=0 then --fixed pitch font
+--  or equal(onefont,"Monaco") then -- fudge
+--if acw=mcw then
+        onefont=peek_string(logfont + LOGFONT_lfFaceName)
+        if not find(onefont,faces) then
+            faces=append(faces,onefont)
+            if and_bits(pandf,TMPF_TRUETYPE)=0 then
+--              sizes=append(sizes,{})  -- built via EnumFontSizesProc() in a mo...
+                sizes=append(sizes,peek(textmetric+tmCharSet))
+                truetype=append(truetype,False)
+            else
+                sizes=append(sizes,{8,9,10,11,12,14,16,18,20,22,24,26,28,36,48,72}) -- std set for tt fonts
+                truetype=append(truetype,True)
+            end if
+        elsif and_bits(pandf,TMPF_TRUETYPE)=0 then
+            Size=peek4u(textmetric+tmHeight)-peek4u(textmetric+tmInternalLeading)
+            if not find(Size,SizeList) then
+                SizeList=append(SizeList,Size)
+                -- ripple sort into position.
+                for i=length(SizeList)-1 to 1 by -1 do
+                    if SizeList[i]<Size then exit end if
+                    SizeList[i+1]=SizeList[i]
+                    SizeList[i]=Size
+                end for
+            end if
+        end if
+--else
+--if not find(onefont,{
+--"System",
+--"MS Serif",
+--"MS Sans Serif",
+--"Small Fonts",
+--"Modern",
+--"Marlett",
+--"News Gothic MT",
+--"Lucida Handwriting",
+--"Lucida Sans",
+--"Lucida Sans Unicode",
+--"Book Antiqua",
+--"Century Gothic",
+--"Calisto MT",
+--"Abadi MT Condensed Light",
+--"Copperplate Gothic Bold",
+--"Copperplate Gothic Light",
+--"Matisse ITC",
+--"Tempus Sans ITC",
+--"Westminster",
+--"Tahoma",
+--"Arial",
+--"Times New Roman",
+--"Wingdings",
+--"Symbol",
+--"Arial Black",
+--"Comic Sans MS",
+--"Impact",
+--"Verdana",
+--"Webdings",
+--"Haettenschweiler",
+--"Arial Narrow",
+--"Bookshelf Symbol 1",
+--"Bookshelf Symbol 2",
+--"Bookshelf Symbol 3",
+--"Bookshelf Symbol 4",
+--"Bookshelf Symbol 5",
+--"Bookman Old Style",
+--"Monotype Sorts",
+--"Garamond",
+--"MS Outlook",
+--"Bookshelf Symbol",
+--"Georgia",
+--"Trebuchet MS"}) then
+--  printf(1,"%s acw:%d mcw:%d\n",{onefont,acw,mcw})
+--end if
+    end if
+    return 1 -- continue enumerations (0 quits)
+end function
+
+----Callback routine:
+--function EnumFontSizesProc(atom Logfont, atom Textmetric, atom nFontType, atom lParam)
+----Enum font sizes for non-truetype fonts only
+--
+--atom Size
+--  if Logfont or nFontType or lParam then end if   -- suppress warnings
+--
+----  fTrueType=peek(Textmetric+tmPitchAndFamily)
+----  fTrueType=and_bits(fTrueType,TMPF_TRUETYPE)
+--
+----  Height=peek4u(Textmetric+tmHeight)
+----  InLead=peek4u(Textmetric+tmInternalLeading)
+----  Size=Height-InLead
+--  Size=peek4u(Textmetric+tmHeight)-peek4u(Textmetric+tmInternalLeading)
+--
+--  if not find(Size,SizeList) then
+--      SizeList=append(SizeList,Size)
+--      -- ripple sort into position.
+--      for i=length(SizeList)-1 to 1 by -1 do
+--          if SizeList[i]<Size then exit end if
+--          SizeList[i+1]=SizeList[i]
+--          SizeList[i]=Size
+--      end for
+--  end if
+--  charset=peek(Textmetric+tmCharSet)
+--
+--  return 1
+--end function
+--constant lpEnFontSizeProc = call_back(routine_id("EnumFontSizesProc"))
+
+function zeroStruct(object x)
+    if atom(x) then return 0 end if
+    for i=1 to length(x) do
+        x[i]=zeroStruct(x[i])
+    end for
+    return x
+end function
+
+global procedure buildFontSet()
+atom hDC
+--atom lpFontName
+sequence sizelist   --DEV re-use SIzeList
+atom cbid
+atom lf
+
+    hDC=c_func(xGetDC,{NULL})
+    lf = allocate(sizeofstruct(LOGFONT))
+    mem_set(lf,0,sizeofstruct(LOGFONT))
+    hFont=0
+    poke(lf + LOGFONT_lfCharSet,    1)      -- DEFAULT_CHARSET 
+    poke(lf + LOGFONT_lfFaceName,   0)      -- (null string)
+    poke(lf + LOGFONT_lfPitchAndFamily, 0)  -- rqd by api
+    cbid = CallBack(routine_id("EnumFontFamExProc"))
+    void = c_func(xEnumFontFamiliesExA,{hDC,lf,cbid,0,0})
+    for i=5 to length(faces) do
+        FaceIdx=i
+--      if equal(sizes[i],{}) then  -- a non true type font
+        if atom(sizes[i]) then  -- a non true type font (set to the charset)
+            SizeList={}
+--          lpFontName=allocate_string(faces[i])
+--          void=c_func(xEnumFontFamilies,{hDC,lpFontName,lpEnFontSizeProc,0})
+--          free(lpFontName)
+            poke(lf + LOGFONT_lfCharSet,    sizes[i])   -- repeat with actual charset
+            poke(lf + LOGFONT_lfFaceName,   faces[i]&0) -- and actual face name
+            void = c_func(xEnumFontFamiliesExA,{hDC,lf,cbid,0,0})
+--          sizes[i]=floor(SizeList*72/PPLISH+0.499)
+            sizes[i]=SizeList
+            for j = 1 to length(SizeList) do
+                sizes[i][j]=floor(SizeList[j]*72/PPLISH+0.499)
+            end for
+        end if
+    end for
+    void=c_func(xReleaseDC,{NULL,hDC})
+--  fontDCs=sizes*0
+    fontDCs=zeroStruct(sizes)
+    FaceIdx=1   -- default to first stock font (SYSTEM_FIXED_FONT)
+    PointIdx=0
+    for i=1 to length(faces) do
+        if equal(UpperCase(isFaceName),UpperCase(faces[i])) then
+            FaceIdx=i
+            if FaceIdx>=5 then
+                if truetype[FaceIdx] then
+                    PointIdx=find(isPointSize,sizes[FaceIdx])
+                    if not PointIdx then
+                        sizelist=sizes[FaceIdx]
+                        -- ripple sort into position (setting PointIdx)
+                        sizelist&=isPointSize
+                        PointIdx=length(sizelist)
+                        while PointIdx>1 and isPointSize<sizelist[PointIdx-1] do
+                            sizelist[PointIdx]=sizelist[PointIdx-1]
+                            PointIdx-=1
+                        end while
+                        sizelist[PointIdx]=isPointSize
+                        sizes[FaceIdx]=sizelist
+                        -- create a new DC entry (of 0)
+                        fontDCs[FaceIdx]=fontDCs[FaceIdx][1..PointIdx-1]&0&
+                                         fontDCs[FaceIdx][PointIdx..length(fontDCs[FaceIdx])]
+                    end if
+                else
+                    PointIdx=nearest(sizes[FaceIdx],isPointSize)
+                end if
+--          else
+--              PointIdx=0
+            end if
+            exit
+        end if
+    end for
+    applyFont()
+    free(lf)
+end procedure
+
+--      void = PickFont("Terminal",100)
+--      void = PickFont("OEM_FIXED_FONT",100)
+--FaceName="Lucida Console" --DEV from ini file
+--FaceName="ANSI_FIXED_FONT"
+--FaceName="Courier New"
+--PointSize=10  --DEV from ini file
+
+--buildFontSet()    -- now done much later
+--applyFont()

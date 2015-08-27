@@ -1,0 +1,165 @@
+--constant sTopLeft=#DA,        dTopLeft=#C9,
+--       sHorizontal=#C4,   dHorizontal=#CD,
+--       sTopT=#C2,         dTopT=#CB,
+--       sTopRight=#BF,     dTopRight=#BB,
+--       sVertical=#B3,     dVertical=#BA,
+--       sLeftT=#C3,        dLeftT=#CC,
+--       s4Way=#C5,         d4Way=#CE,
+--       sRightT=#B4,       dRightT=#B9,
+--       sBtmLeft=#C0,      dBtmLeft=#C8,
+--       sBtmT=#C1,         dBtmT=#CA,
+--       sBtmRight=#D9,     dBtmRight=#BC
+--
+--constant sTopLeft=#DA,
+--       sHorizontal=#C4,
+--       sTopRight=#BF,
+--       sVertical=#B3,
+--       sBtmLeft=#C0,
+--       sBtmRight=#D9
+
+constant sTopLeft=#DA,
+         sHorizontal=#CD,
+         sTopT=#C2,
+         sTopRight=#BB,
+         sVertical=#BA,
+         sLeftT=#C3,
+         s4Way=#C5,
+         sRightT=#B4,
+         sBtmLeft=#C8,
+         sBtmT=#C1,
+         sBtmRight=#BC
+
+constant dTopLeft=#C9,
+         dHorizontal=#CD,
+         dTopT=#CB,
+         dTopRight=#BB,
+         dVertical=#BA,
+         dLeftT=#CC,
+         d4Way=#CE,
+         dRightT=#B9,
+         dBtmLeft=#C8,
+         dBtmT=#CA,
+         dBtmRight=#BC
+
+sequence image
+integer j
+integer nH, nV  -- no or horizontal/vertial lines to draw
+constant msg = "Press Q or q to exit..."
+
+    image = repeat(' ',80*24)
+    j = length(image)-82
+    for i=length(msg) to 1 by -1 do
+        image[j] = msg[i]
+        j -= 1
+    end for
+    nH = -1
+    nV = -1
+
+while 1 do
+    j = 1
+    for i=1 to 24 do
+        image[j] = sVertical
+        j += 78
+        image[j] = sVertical
+        j += 1
+        image[j] = '\n'
+        j += 1
+    end for
+    image[1] = sTopLeft
+    image[79] = sTopRight
+    j = 80*23
+    for i=2 to 78 do
+        image[i] = sHorizontal
+        image[i+j] = sHorizontal
+    end for
+    image[j+1] = sBtmLeft
+    image[j+79] = sBtmRight
+    if (nH/24)<(nV/79) then
+        if nH<22 then nH+=1 elsif nV<77 then nV+=1 end if
+--      if nH<22 then nH+=1 elsif nV<77 then nV+=1 else nH=0 nV=0 end if
+    else
+        if nV<77 then nV+=1 end if
+    end if
+    j = 81
+    for i=1 to nH do
+        image[j] = sLeftT
+        for k=j+1 to j+77 do
+            image[k] = sHorizontal
+        end for
+        image[j+78] = sRightT
+        j += 80
+    end for
+    for i=1 to nV do
+        image[i+1] = sTopT
+        j = i+81
+        for k=2 to 23 do
+            if k-2<nH then
+                image[j] = s4Way
+            else
+                image[j] = sVertical
+            end if
+            j += 80
+        end for
+        image[j] = sBtmT
+    end for
+
+position(1,1)
+puts(1,image)
+if find(get_key(),"qQ") then exit end if
+--if find(wait_key(),"qQ") then exit end if
+--sleep(1)
+
+    j = 1
+    for i=1 to 24 do
+        image[j] = dVertical
+        j += 78
+        image[j] = dVertical
+        j += 1
+        image[j] = '\n'
+        j += 1
+    end for
+    image[1] = dTopLeft
+    image[79] = dTopRight
+    j = 80*23
+    for i=2 to 78 do
+        image[i] = dHorizontal
+        image[i+j] = dHorizontal
+    end for
+    image[j+1] = dBtmLeft
+    image[j+79] = dBtmRight
+
+    j = 81
+    for i=1 to nH do
+        image[j] = dLeftT
+        for k=j+1 to j+77 do
+            image[k] = dHorizontal
+        end for
+        image[j+78] = dRightT
+        j += 80
+    end for
+    for i=1 to nV do
+        image[i+1] = dTopT
+        j = i+81
+        for k=2 to 23 do
+            if k-2<nH then
+                image[j] = d4Way
+            else
+                image[j] = dVertical
+            end if
+            j += 80
+        end for
+        image[j] = dBtmT
+    end for
+
+--  image[2] = dTopT
+--  image[81] = dLeftT
+--  image[82] = d4Way
+--  image[159] = dRightT
+--  image[j+2] = dBtmT
+
+position(1,1)
+puts(1,image)
+if find(get_key(),"qQ") then exit end if
+--/**/sleep(0.1)
+end while
+

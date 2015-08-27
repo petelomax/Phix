@@ -1,0 +1,784 @@
+
+include misc_arwen.e
+--/**/include builtins\dll.e -- needed for the defined size constants, ie: C_POINTER, C_UINT, etc..
+
+-- code to manage structures
+sequence
+    ListOfStructures    -- holds sizes of each structure
+
+integer
+    CurrentStructure,   -- points to latest structure being built
+    LatestSize          -- current size of latest structure being built
+
+------------------------------------
+
+-- PL 14/8: 3* global added; it is not recommended you use these...
+global -- PL 14/8
+function new_struct()
+    ListOfStructures &= 0
+    CurrentStructure = length(ListOfStructures)
+    LatestSize = 0
+    return CurrentStructure
+    end function
+
+
+-- changed from sizeof() to sizeofstruct() 22/04/14 for OE 4.1
+global function sizeofstruct(integer id)
+    return ListOfStructures[id]
+    end function
+
+
+global -- PL 14/8
+function struc(integer sType)
+    integer disp, size
+    disp = LatestSize
+    if sType > #00FFFFFF then -- this type is defined in dll.e
+        size = and_bits(sType, #00FFFFFF)
+    else
+        size = ListOfStructures[sType]
+    end if
+    LatestSize += size
+    ListOfStructures[CurrentStructure] = LatestSize
+    return disp
+    end function
+
+global -- PL 14/8
+function anySize(integer size) -- allow arbitrary sized elements
+    return or_bits(#01000000, size)
+    end function
+
+
+-- initialize structure list
+ListOfStructures = {}
+
+global constant
+
+    -- Define RECT/SMALL_RECT Structure
+    RECT        = new_struct(), 
+    RECT_left   = struc(C_LONG),
+    RECT_top    = struc(C_LONG),
+    RECT_right  = struc(C_LONG),
+    RECT_bottom = struc(C_LONG),
+
+    SMALL_RECT          = new_struct(), 
+    SMALL_RECT_left     = struc(C_SHORT),
+    SMALL_RECT_top      = struc(C_SHORT),
+    SMALL_RECT_right    = struc(C_SHORT),
+    SMALL_RECT_bottom   = struc(C_SHORT),
+
+    -- Define POINT/S Structure
+    POINT       = new_struct(),
+    POINT_x     = struc(C_LONG),
+    POINT_Y     = struc(C_LONG),
+
+    POINTS      = new_struct(),
+    POINTS_x    = struc(C_SHORT),
+    POINTS_Y    = struc(C_SHORT),
+
+    -- Define COORD Structure
+    COORD       = new_struct(),
+    COORD_x     = struc(C_SHORT),
+    COORD_Y     = struc(C_SHORT),
+
+    -- Define SIZE Structure
+    SIZE    = new_struct(),
+    SIZE_cx = struc(C_LONG),
+    SIZE_cy = struc(C_LONG),
+
+    -- Define PAINTSTRUCT Structure
+    PAINTSTRUCT             = new_struct(),
+    PAINTSTRUCT_hdc         = struc(C_LONG),
+    PAINTSTRUCT_fErase      = struc(C_UINT),
+    PAINTSTRUCT_rcPaint     = struc(RECT),
+    PAINTSTRUCT_fRestore    = struc(C_UINT),
+    PAINTSTRUCT_fIncUpdate  = struc(C_UINT),
+    PAINTSTRUCT_rgbReserved = struc(anySize(32)),
+
+----------------------------
+
+    -- Define RGBQUAD Structure     
+    RGBQUAD             = new_struct(),
+    RGBQUAD_rgbBlue     = struc(C_UCHAR),
+    RGBQUAD_rgbGreen    = struc(C_UCHAR),
+    RGBQUAD_rgbRed      = struc(C_UCHAR),
+    RGBQUAD_rgbReserved = struc(C_UCHAR),
+
+
+    -- Define BITMAP Structure
+    BITMAP              = new_struct(),
+    BITMAP_bmType       = struc(C_LONG),
+    BITMAP_bmWidth      = struc(C_LONG),
+    BITMAP_bmHeight     = struc(C_LONG),
+    BITMAP_bmWidthBytes = struc(C_LONG),
+    BITMAP_bmPlanes     = struc(C_USHORT),
+    BITMAP_bmBitsPixel  = struc(C_USHORT),
+    BITMAP_bmBits       = struc(C_POINTER), 
+
+    -- Define BITMAPINFOHEADER  Structure
+    BITMAPINFOHEADER    = new_struct(),
+    BIH_biSize          = struc(C_UINT),
+    BIH_biWidth         = struc(C_LONG),
+    BIH_biHeight        = struc(C_LONG),
+    BIH_biPlanes        = struc(C_USHORT),
+    BIH_biBitCount      = struc(C_USHORT),
+    BIH_biCompression   = struc(C_UINT),
+    BIH_biSizeImage     = struc(C_UINT),
+    BIH_biXPelsPerMeter = struc(C_LONG),
+    BIH_biYPelsPerMeter = struc(C_LONG),
+    BIH_biClrUsed       = struc(C_UINT),
+    BIH_biClrImportant  = struc(C_UINT),
+    
+    -- Define BITMAPINFO Structure
+    BITMAPINFO              = new_struct(),
+    BITMAPINFO_bmiHeader    = struc(BITMAPINFOHEADER),
+    BITMAPINFO_bmiColors    = struc(anySize(256*sizeofstruct(RGBQUAD))),
+
+    -- Define BITMAPFILEHEADER  Structure
+    BITMAPFILEHEADER        = new_struct(),
+    BFH_bfType              = struc(C_USHORT), 
+    BFH_bfSize              = struc(C_UINT),
+    BFH_bfReserved1         = struc(C_SHORT),
+    BFH_bfReserved2         = struc(C_SHORT),
+    BFH_bfOffBits           = struc(C_UINT),
+
+    -- Define DIBSECTION Structure
+    DIBSECTION              = new_struct(),
+    DS_BITMAP               = struc(BITMAP),
+    DS_BITMAPINFOHEADER     = struc(BITMAPINFOHEADER),
+    DS_Bitfields_1          = struc(C_LONG),
+    DS_Bitfields_2          = struc(C_LONG),
+    DS_Bitfields_3          = struc(C_LONG),
+    DS_hSection             = struc(C_LONG), 
+    DS_Offset               = struc(C_LONG),
+
+----------------------------
+    
+    -- Define WNDCLASSEX Structure
+    WNDCLASSEX                  = new_struct(),
+    WNDCLASSEX_cbSize           = struc(C_LONG), 
+    WNDCLASSEX_style            = struc(C_LONG), 
+    WNDCLASSEX_lpfnWndProc      = struc(C_POINTER), 
+    WNDCLASSEX_cbClsExtra       = struc(C_LONG), 
+    WNDCLASSEX_cbWndExtra       = struc(C_LONG), 
+    WNDCLASSEX_hInstance        = struc(C_LONG), 
+    WNDCLASSEX_hIcon            = struc(C_LONG), 
+    WNDCLASSEX_hCursor          = struc(C_LONG), 
+    WNDCLASSEX_hbrBackground    = struc(C_LONG), 
+    WNDCLASSEX_lpszMenuName     = struc(C_POINTER), 
+    WNDCLASSEX_lpszClassName    = struc(C_POINTER), 
+    WNDCLASSEX_hIconSm          = struc(C_LONG),
+
+
+  -- Define MSG Structure
+    MSG             = new_struct(),
+    MSG_hwnd        = struc(C_POINTER),
+    MSG_message     = struc(C_UINT),
+    MSG_wParam      = struc(C_UINT),
+    MSG_lParam      = struc(C_UINT),
+    MSG_time        = struc(C_LONG),
+    MSG_pt          = struc(POINT),
+
+    -- Define SCROLLINFO Structure
+    SCROLLINFO              = new_struct(),
+    SCROLLINFO_cbSize       = struc(C_UINT),
+    SCROLLINFO_fMask        = struc(C_UINT),
+    SCROLLINFO_nMin         = struc(C_INT),
+    SCROLLINFO_nMax         = struc(C_INT),
+    SCROLLINFO_nPage        = struc(C_UINT),
+    SCROLLINFO_nPos         = struc(C_INT),
+    SCROLLINFO_nTrackPos    = struc(C_INT),
+
+    -- Define TBBUTTON Structure
+    TBBUTTON                = new_struct(),
+    TBBUTTON_iBitmap        = struc(C_INT),
+    TBBUTTON_idCommand      = struc(C_INT),
+    TBBUTTON_fsState        = struc(C_UCHAR),
+    TBBUTTON_fsStyle        = struc(C_UCHAR),
+    TBBUTTON_dwData         = struc(C_LONG),
+    TBBUTTON_iString        = struc(C_INT),
+
+    -- Define TBADDBITMAP Structure
+    TBADDBITMAP         = new_struct(),
+    TBADDBITMAP_hInst   = struc(C_LONG),
+    TBADDBITMAP_nID     = struc(C_UINT),
+
+    -- Define OPENFILENAME Structure
+    OPENFILENAME            = new_struct(),
+    OFN_lStructSize         = struc(C_UINT),
+    OFN_hwndOwner           = struc(C_POINTER),
+    OFN_hInstance           = struc(C_POINTER),
+    OFN_lpstrFilter         = struc(C_POINTER),
+    OFN_lpstrCustomFilter   = struc(C_POINTER),
+    OFN_nMaxCustFilter      = struc(C_UINT),
+    OFN_nFilterIndex        = struc(C_UINT),
+    OFN_lpstrFile           = struc(C_POINTER),
+    OFN_nMaxFile            = struc(C_UINT),
+    OFN_lpstrFileTitle      = struc(C_POINTER),
+    OFN_nMaxFileTitle       = struc(C_UINT),
+    OFN_lpstrInitialDir     = struc(C_POINTER),
+    OFN_lpstrTitle          = struc(C_POINTER),
+    OFN_Flags               = struc(C_UINT),
+    OFN_nFileOffset         = struc(C_USHORT),
+    OFN_nFileExtension      = struc(C_USHORT),
+    OFN_lpstrDefExt         = struc(C_POINTER),
+    OFN_lCustData           = struc(C_UINT),
+    OFN_lpfnHook            = struc(C_POINTER),
+    OFN_lpTemplateName      = struc(C_POINTER),
+
+    -- Define MENUITEMINFO Structure
+    MENUITEMINFO            = new_struct(),
+    MII_cbSize              = struc(C_UINT),
+    MII_fMask               = struc(C_UINT),
+    MII_fType               = struc(C_UINT),
+    MII_fState              = struc(C_UINT),
+    MII_wID                 = struc(C_UINT),
+    MII_hSubMenu            = struc(C_POINTER),
+    MII_hbmpChecked         = struc(C_POINTER),
+    MII_hbmpUnchecked       = struc(C_POINTER),
+    MII_dwItemData          = struc(C_UINT),
+    MII_dwTypeData          = struc(C_POINTER),
+    MII_cch                 = struc(C_UINT),
+
+    -- Define TC_ITEM Structure
+    TC_ITEM                 = new_struct(),
+    TC_ITEM_mask            = struc(C_UINT),
+    TC_ITEM_lpReserved1     = struc(C_UINT),
+    TC_ITEM_lpReserved2     = struc(C_UINT),
+    TC_ITEM_pszText         = struc(C_POINTER),
+    TC_ITEM_cchTextMax      = struc(C_INT),
+    TC_ITEM_iImage          = struc(C_INT), 
+    TC_ITEM_lParam          = struc(C_UINT),
+
+    -- Define MEASUREITEMSTRUCT Structure
+    MEASUREITEMSTRUCT   = new_struct(),
+    MIS_CtlType         = struc(C_UINT),
+    MIS_CtlID           = struc(C_UINT),
+    MIS_itemID          = struc(C_UINT),
+    MIS_itemWidth       = struc(C_UINT),
+    MIS_itemHeight      = struc(C_UINT),
+    MIS_itemData        = struc(C_UINT),
+
+    -- Define DRAWITEMSTRUCT Structure
+    DRAWITEMSTRUCT      = new_struct(),
+    DIS_CtlType         = struc(C_UINT),
+    DIS_CtlID           = struc(C_UINT),
+    DIS_itemID          = struc(C_UINT),
+    DIS_itemAction      = struc(C_UINT),
+    DIS_itemState       = struc(C_UINT),
+    DIS_hwndItem        = struc(C_POINTER),
+    DIS_hDC             = struc(C_POINTER),
+    DIS_rcItem          = struc(RECT),
+    DIS_itemData        = struc(C_UINT),
+
+    -- Define LOGFONT Structure
+    LOGFONT                 = new_struct(),
+    LOGFONT_lfHeight        = struc(C_LONG),
+    LOGFONT_lfWidth         = struc(C_LONG),
+    LOGFONT_lfEscapement    = struc(C_LONG),
+    LOGFONT_lfOrientation   = struc(C_LONG),
+    LOGFONT_lfWeight        = struc(C_LONG),
+    LOGFONT_lfItalic        = struc(C_UCHAR),
+    LOGFONT_lfUnderline     = struc(C_UCHAR),
+    LOGFONT_lfStrikeOut     = struc(C_UCHAR),
+    LOGFONT_lfCharSet       = struc(C_UCHAR),
+    LOGFONT_lfOutPrecision  = struc(C_UCHAR),
+    LOGFONT_lfClipPrecision = struc(C_UCHAR),
+    LOGFONT_lfQuality       = struc(C_UCHAR),
+    LOGFONT_lfPitchAndFamily= struc(C_UCHAR),
+    LOGFONT_lfFaceName      = struc(anySize(32)), -- null terminated string. must not exceed 32 chars including null terminator
+
+    -- Define NONCLIENTMETRICS Structure
+    NONCLIENTMETRICS        = new_struct(),
+    NCM_cbSize              = struc(C_UINT),
+    NCM_iBorderWidth        = struc(C_INT),
+    NCM_iScrollWidth        = struc(C_INT),
+    NCM_iScrollHeight       = struc(C_INT),
+    NCM_iCaptionWidth       = struc(C_INT),
+    NCM_iCaptionHeight      = struc(C_INT),
+    NCM_lfCaptionFont       = struc(LOGFONT),
+    NCM_iSmCaptionWidth     = struc(C_INT),
+    NCM_iSmCaptionHeight    = struc(C_INT),
+    NCM_lfSmCaptionFont     = struc(LOGFONT),
+    NCM_iMenuWidth          = struc(C_INT),
+    NCM_iMenuHeight         = struc(C_INT),
+    NCM_lfMenuFont          = struc(LOGFONT),
+    NCM_lfStatusFont        = struc(LOGFONT),
+    NCM_lfMessageFont       = struc(LOGFONT),
+
+    -- Define WINDOWPOS Structure
+    WINDOWPOS               = new_struct(),
+    WINDOWPOS_hwnd          = struc(C_POINTER),
+    WINDOWPOS_InsertAfter   = struc(C_POINTER),
+    WINDOWPOS_x             = struc(C_INT),
+    WINDOWPOS_y             = struc(C_INT),
+    WINDOWPOS_cx            = struc(C_INT),
+    WINDOWPOS_cy            = struc(C_INT),
+    WINDOWPOS_flags         = struc(C_UINT),
+
+    -- Define NCCALCSIZE_PARAMS Structure
+    NCCALCSIZE_PARAMS       = new_struct(),
+    NCCSP_RECT_NewWin       = struc(RECT),
+    NCCSP_RECT_OldWin       = struc(RECT),
+    NCCSP_RECT_Client       = struc(RECT),
+    NCCSP_lppos             = struc(WINDOWPOS),
+
+
+    -- Define TC_HITTESTINFO Structure
+    TC_HITTESTINFO          = new_struct(),
+    TC_HITTESTINFO_pt       = struc(POINT),
+    TC_HITTESTINFO_flags    = struc(C_UINT),
+
+
+    -- Define TRACKMOUSEEVENT Structure
+    TRACKMOUSEEVENT         = new_struct(),
+    TME_cbSize              = struc(C_UINT),
+    TME_dwFlags             = struc(C_UINT),
+    TME_hwndTrack           = struc(C_POINTER),
+    TME_dwHoverTime         = struc(C_UINT),
+
+    -- Define CHOOSECOLOR Structure (PL)
+    CHOOSECOLOR             = new_struct(),     --Win32.hlp/win32lib:
+    CC_lStructSize          = struc(C_LONG),    --DWORD/Dword
+    CC_hwndOwner            = struc(C_LONG),    --HWND/Long
+    CC_hInstance            = struc(C_LONG),    --HWND/Long
+    CC_rgbResult            = struc(C_LONG),    --COLORREF/Long
+    CC_lpCustColors         = struc(C_LONG),    --COLORREF*/Long
+    CC_Flags                = struc(C_LONG),    --DWORD/Dword
+    CC_lCustData            = struc(C_LONG),    --LPARAM/Long
+    CC_lpfnHook             = struc(C_LONG),    --LPCCHOOKPROC/Long
+    CC_lpTemplateName       = struc(C_POINTER), --LPCTSTR/Lpsz
+
+    -- Define TEXTMETRIC Structure (PL)
+    TEXTMETRIC              = new_struct(),     --Win32.hlp/win32lib:
+    tmHeight                = struc(C_LONG),    --LONG/Long
+    tmAscent                = struc(C_LONG),    --LONG/Long
+    tmDescent               = struc(C_LONG),    --LONG/Long
+    tmInternalLeading       = struc(C_LONG),    --LONG/Long
+    tmExternalLeading       = struc(C_LONG),    --LONG/Long
+    tmAveCharWidth          = struc(C_LONG),    --LONG/Long
+    tmMaxCharWidth          = struc(C_LONG),    --LONG/Long
+    tmWeight                = struc(C_LONG),    --LONG/Long
+    tmOverhang              = struc(C_LONG),    --LONG/Long
+    tmDigitizedAspectX      = struc(C_LONG),    --LONG/Long
+    tmDigitizedAspectY      = struc(C_LONG),    --LONG/Long
+    tmFirstChar             = struc(C_UCHAR),   --BCHAR/Byte
+    tmLastChar              = struc(C_UCHAR),   --BCHAR/Byte
+    tmDefaultChar           = struc(C_UCHAR),   --BCHAR/Byte
+    tmBreakChar             = struc(C_UCHAR),   --BCHAR/Byte
+    tmItalic                = struc(C_CHAR),    --BYTE/Byte
+    tmUnderlined            = struc(C_CHAR),    --BYTE/Byte
+    tmStruckOut             = struc(C_CHAR),    --BYTE/Byte
+    tmPitchAndFamily        = struc(C_CHAR),    --BYTE/Byte
+    tmCharSet               = struc(C_CHAR),    --BYTE/Byte
+    ntmFlags                = struc(C_LONG),    --??/Long
+    ntmSizeEM               = struc(C_LONG),    --??/Long
+    ntmCellHeight           = struc(C_LONG),    --??/Long
+    ntmAveWidth             = struc(C_LONG),    --??/Long
+
+--  -- Define ACCEL Structure
+--  ACCEL                   = new_struct(),
+--  ACCEL_fVirt             = struc(C_UCHAR),
+--  ACCEL_key               = struc(C_USHORT),
+--  ACCEL_cmd               = struc(C_USHORT),
+
+    -- Define LVCOLUMN Structure (PL)
+    LVCOLUMN                = new_struct(),     --Win32.hlp/win32lib:
+    LVCOLUMN_mask           = struc(C_LONG),    --UINT/Long
+    LVCOLUMN_fmt            = struc(C_LONG),    --int/Long
+    LVCOLUMN_cx             = struc(C_LONG),    --int/Long
+    LVCOLUMN_pszText        = struc(C_POINTER), --LPTSTR/Lpsz
+    LVCOLUMN_cchTextMax     = struc(C_LONG),    --int/Long
+    LVCOLUMN_iSubItem       = struc(C_LONG),    --int/Long
+    LVCOLUMN_iImage         = struc(C_LONG),    --??/Long
+    LVCOLUMN_iOrder         = struc(C_LONG),    --??/Long
+
+    -- Define LVITEM Structure --PLlv
+    LVITEM                  = new_struct(),     --Win32.hlp/win32lib:
+    LVITEM_mask             = struc(C_LONG),    --UNIT/Long
+    LVITEM_iItem            = struc(C_LONG),    --int/Long
+    LVITEM_iSubItem         = struc(C_LONG),    --int/Long
+    LVITEM_state            = struc(C_UINT),    --UINT/UInt
+    LVITEM_stateMask        = struc(C_UINT),    --UINT/UInt
+    LVITEM_pszText          = struc(C_POINTER), --LPTSTR/Lpsz
+    LVITEM_cchTextMax       = struc(C_LONG),    --int/Long
+    LVITEM_iImage           = struc(C_LONG),    --int/Long
+    LVITEM_lParam           = struc(C_LONG),    --LPARAM/Long
+    LVITEM_iIndent          = struc(C_LONG),    --??/Long
+    LVITEM_iGroupId         = struc(C_LONG),    --??/Long
+    LVITEM_cColumns         = struc(C_LONG),    --??/Long
+    LVITEM_puColumns        = struc(C_LONG),    --??/Long
+
+    -- Define LVFINDINFO Structure
+    LVFINDINFO              = new_struct(),     --Win32.hlp/win32lib:
+    LVFI_flags              = struc(C_LONG),    --UNIT/Long
+    LVFI_psz                = struc(C_POINTER), --LPCTSTR/Lpsz
+    LVFI_lParam             = struc(C_LONG),    --LPARAM/Long
+    LVFI_pt                 = struc(POINT),     --POINT/Long*2
+    LVFI_vkDirection        = struc(C_LONG),    --UNIT/Long
+
+    -- Define NMHDR Structure
+    NMHDR               = new_struct(),
+    NMHDR_hwndFrom      = struc(C_POINTER),
+    NMHDR_idFrom        = struc(C_UINT),
+    NMHDR_code          = struc(C_UINT),
+
+    -- Define NM_LISTVIEW structure --PLlv
+    NMLISTVIEW              = new_struct(),     --Win32.hlp/win32lib:
+    NMLISTVIEW_HDR          = struc(NMHDR),
+    NMLISTVIEW_iItem        = struc(C_LONG),    --int/Long
+    NMLISTVIEW_iSubItem     = struc(C_LONG),    --int/Long
+    NMLISTVIEW_uNewState    = struc(C_UINT),    --UINT/UInt
+    NMLISTVIEW_uOldState    = struc(C_UINT),    --UINT/UInt
+    NMLISTVIEW_uChanged     = struc(C_UINT),    --UINT/UInt
+    NMLISTVIEW_ptActionX    = struc(C_LONG),    --POINT/Long
+    NMLISTVIEW_ptActionY    = struc(C_LONG),    -- ("")/Long
+    NMLISTVIEW_lParam       = struc(C_LONG),    --LPARAM/Long
+
+    -- define LVDISPINFO structure for ListViews
+    LVDISPINFO              = new_struct(),
+    LVDISPINFO_NMHDR        = struc(NMHDR),
+    LVDISPINFO_LVITEM       = struc(LVITEM),
+
+    -- define HITTESTINFO structure for ListViews
+    -- can also be used for TreeViews, with iSubItem unused.
+    HITTESTINFO                     = new_struct(),
+    LVHITTESTINFO_ptX               = struc(C_LONG),
+    LVHITTESTINFO_ptY               = struc(C_LONG),
+    LVHITTESTINFO_flags             = struc(C_UINT),
+    LVHITTESTINFO_iItem             = struc(C_LONG),
+    LVHITTESTINFO_iSubItem          = struc(C_LONG),
+
+
+    -- define BROWSEINFO structure for getSelectFolder()
+    BROWSEINFO                      = new_struct(),
+    BI_hwndOwner                    = struc(C_POINTER),
+    BI_pidlRoot                     = struc(C_POINTER),
+    BI_pszDisplayName               = struc(C_POINTER),
+    BI_lpszTitle                    = struc(C_POINTER),
+    BI_ulFlags                      = struc(C_UINT),
+    BI_lpfn                         = struc(C_POINTER),
+    BI_lParam                       = struc(C_UINT),
+    BI_iImage                       = struc(C_INT),
+
+    -- Define SECURITY_ATTRIBUTES structure
+    SECURITY_ATTRIBUTES             = new_struct(),
+    SA_nLength                      = struc(C_LONG),    -- DWORD
+    SA_lpSecurityDescriptor         = struc(C_POINTER), -- LPVOID
+    SA_bInheritHandle               = struc(C_LONG),    -- BOOL
+
+    -- Define PROCESS_INFORMATION structure (PL)
+    PROCESS_INFORMATION             = new_struct(),     --Win32.hlp:
+    PROCESS_INFORMATION_hProcess    = struc(C_POINTER), -- HANDLE
+    PROCESS_INFORMATION_hThread     = struc(C_POINTER), -- HANDLE
+    PROCESS_INFORMATION_dwProcessId = struc(C_LONG),    -- DWORD
+    PROCESS_INFORMATION_dwThreadId  = struc(C_LONG),    -- DWORD
+
+    -- Define STARTUPINFO structure (PL)
+    STARTUPINFO                 = new_struct(),     --Win32.hlp:
+    STARTUPINFO_cb              = struc(C_LONG),    -- DWORD
+    STARTUPINFO_lpReserved      = struc(C_POINTER), -- LPTSTR
+    STARTUPINFO_lpDesktop       = struc(C_POINTER), -- LPTSTR
+    STARTUPINFO_lpTitle         = struc(C_POINTER), -- LPTSTR
+    STARTUPINFO_dwX             = struc(C_LONG),    -- DWORD
+    STARTUPINFO_dwY             = struc(C_LONG),    -- DWORD
+    STARTUPINFO_dwXSize         = struc(C_LONG),    -- DWORD
+    STARTUPINFO_dwYSize         = struc(C_LONG),    -- DWORD
+    STARTUPINFO_dwXCountChars   = struc(C_LONG),    -- DWORD
+    STARTUPINFO_dwYCountChars   = struc(C_LONG),    -- DWORD
+    STARTUPINFO_dwFillAttribute = struc(C_LONG),    -- DWORD
+    STARTUPINFO_dwFlags         = struc(C_LONG),    -- DWORD
+    STARTUPINFO_wShowWindow     = struc(C_SHORT),   -- WORD
+    STARTUPINFO_cbReserved2     = struc(C_SHORT),   -- WORD
+    STARTUPINFO_lpReserved2     = struc(C_POINTER), -- LPBYTE
+    STARTUPINFO_hStdInput       = struc(C_POINTER), -- HANDLE
+    STARTUPINFO_hStdOutput      = struc(C_POINTER), -- HANDLE
+    STARTUPINFO_hStdError       = struc(C_POINTER), -- HANDLE
+
+
+    -- Define TOOLINFO structure
+    TOOLINFO        = new_struct(), --Win32.hlp:
+    TI_cbSize       = struc(C_LONG),    --UINT
+    TI_uFlags       = struc(C_LONG),    --UINT
+    TI_hwnd         = struc(C_POINTER), --HWND
+    TI_uId          = struc(C_LONG),    --UINT
+    TI_rect         = struc(RECT),      --RECT
+    TI_hinst        = struc(C_POINTER), --HINSTANCE
+    TI_lpszText     = struc(C_POINTER), --LPTSTR
+ 
+--PLtv
+    TVITEM                  = new_struct(),
+    TVITEM_mask             = struc(C_LONG),    -- UINT/UInt,
+    TVITEM_hItem            = struc(C_POINTER), -- HTREEITEM/Long,
+    TVITEM_state            = struc(C_LONG),    -- UINT/UInt,
+    TVITEM_stateMask        = struc(C_LONG),    -- UINT/UInt,
+    TVITEM_pszText          = struc(C_POINTER), -- LPSTR/Lpsz,
+    TVITEM_cchTextMax       = struc(C_LONG),    -- int/Long,
+    TVITEM_iImage           = struc(C_LONG),    -- int/Long,
+    TVITEM_iSelectedImage   = struc(C_LONG),    -- int/Long,
+    TVITEM_cChildren        = struc(C_LONG),    -- int/Long,
+    TVITEM_lParam           = struc(C_LONG),    -- LPARAM/Long,
+
+    TVINSERTSTRUCT              = new_struct(),
+    TVINSERTSTRUCT_hParent      = struc(C_POINTER), -- HTREEITEM/Long,
+    TVINSERTSTRUCT_hInsertAfter = struc(C_POINTER), -- HTREEITEM/Long,
+    TVINSERTSTRUCTITEM          = struc(TVITEM),
+
+    TVDISPINFO              = new_struct(),
+    TVDISPINFO_NMHDR        = struc(NMHDR),
+    TVDISPINFO_TVITEM       = struc(TVITEM),
+
+    TVHITTESTINFO           = new_struct(),
+    TVHT_pt                 = struc(POINT),
+    TVHT_flags              = struc(C_INT),
+    TVHT_hItem              = struc(C_POINTER),
+
+    -- Define NM_TREEVIEW structure
+    NMTREEVIEW              = new_struct(),
+    NMTREEVIEW_HDR          = struc(NMHDR),
+    NMTREEVIEW_action       = struc(C_LONG),
+    NMTREEVIEW_itemOld      = struc(TVITEM),
+    NMTREEVIEW_itemNew      = struc(TVITEM),
+    NMTREEVIEW_ptDrag       = struc(POINT),
+
+-- 13/5/09:
+    REBARBANDINFO               = new_struct(),
+    REBARBANDINFO_cbSize        = struc(C_UINT),    --UINT/UInt
+    REBARBANDINFO_fMask         = struc(C_UINT),    --UINT/UInt
+    REBARBANDINFO_fStyle        = struc(C_UINT),    --UINT/UInt
+    REBARBANDINFO_clrFore       = struc(C_LONG),    --Long
+    REBARBANDINFO_clrBack       = struc(C_LONG),    --Long
+    REBARBANDINFO_lpText        = struc(C_POINTER), --LPTSTR/Lpsz
+    REBARBANDINFO_cchTextMax    = struc(C_LONG),    --int/Long
+    REBARBANDINFO_iImage        = struc(C_LONG),    --Long
+    REBARBANDINFO_hwndChild     = struc(C_LONG),    --Long
+    REBARBANDINFO_cxMinChild    = struc(C_LONG),    --Long
+    REBARBANDINFO_cyMinChild    = struc(C_LONG),    --Long
+    REBARBANDINFO_cx            = struc(C_LONG),    --Long
+    REBARBANDINFO_hbmBack       = struc(C_LONG),    --Long
+    REBARBANDINFO_wID           = struc(C_UINT),    --UINT/UInt
+    REBARBANDINFO_cyChild       = struc(C_UINT),    --UINT/UInt
+    REBARBANDINFO_cyMaxChild    = struc(C_UINT),    --UINT/UInt
+    REBARBANDINFO_cyIntegral    = struc(C_UINT),    --UINT/UInt
+    REBARBANDINFO_cxIdeal       = struc(C_UINT),    --UINT/UInt
+    REBARBANDINFO_lParam        = struc(C_LONG),    --Long
+    REBARBANDINFO_cxHeader      = struc(C_UINT),    --UINT/UInt
+
+-- not actually used yet (only for attaching imagelists anyway)
+--  REBARINFO                   = new_struct(),
+--  REBARINFO_cbSize            = struc(C_UINT),    --UINT/UInt
+--  REBARINFO_fMask             = struc(C_UINT),    --UINT/UInt
+--  REBARINFO_himl              = struc(C_LONG),    --Long
+
+    INITCOMMONCONTROLSEX        = new_struct(),
+    INITCOMMONCONTROLSEX_dwSize = struc(C_LONG),    -- Long/
+    INITCOMMONCONTROLSEX_dwICC  = struc(C_LONG),    -- Long/
+
+--13/5 ends
+
+    -- Define SYSTEMTIME structure
+    SYSTEMTIME              = new_struct(),
+    SYSTEMTIME_wYear        = struc(C_SHORT), --WORD
+    SYSTEMTIME_wMonth       = struc(C_SHORT), --WORD
+    SYSTEMTIME_wDayOfWeek   = struc(C_SHORT), --WORD
+    SYSTEMTIME_wDay         = struc(C_SHORT), --WORD
+    SYSTEMTIME_wHour        = struc(C_SHORT), --WORD
+    SYSTEMTIME_wMinute      = struc(C_SHORT), --WORD
+    SYSTEMTIME_wSecond      = struc(C_SHORT), --WORD
+    SYSTEMTIME_wMillisecs   = struc(C_SHORT), --WORD
+
+    -- Define APPBARDATA Structure
+    APPBARDATA                  = new_struct(),
+    APPBARDATA_cbSize           = struc(C_LONG),    -- DWORD sizeofstruct(APPBARDATA)
+    APPBARDATA_hWnd             = struc(C_POINTER), -- HWND handle of appbar
+    APPBARDATA_uCallbackMessage = struc(C_UINT),
+    APPBARDATA_uEdge            = struc(C_UINT),
+    APPBARDATA_rc               = struc(RECT),
+    APPBARDATA_lParam           = struc(C_LONG),
+
+    -- Define WINDOWPLACEMENT Structure
+    WINDOWPLACEMENT                     = new_struct(),
+    WINDOWPLACEMENT_length              = struc(C_UINT),
+    WINDOWPLACEMENT_flags               = struc(C_UINT),
+    WINDOWPLACEMENT_showCmd             = struc(C_UINT),
+    WINDOWPLACEMENT_ptMinPosition       = struc(POINT),
+    WINDOWPLACEMENT_ptMaxPosition       = struc(POINT),
+    WINDOWPLACEMENT_rcNormalPosition    = struc(RECT),
+
+    MINMAXINFO                      = new_struct(),
+    MINMAXINFO_ptReserved           = struc(POINT),
+    MINMAXINFO_ptMaxSize            = struc(POINT),
+    MINMAXINFO_ptMaxPosition        = struc(POINT),
+    MINMAXINFO_ptMinTrackSize       = struc(POINT),
+    MINMAXINFO_ptMaxTrackSize       = struc(POINT),
+
+    -- Define FILETIME Structure
+    FILETIME                    = new_struct(),
+    FILETIME_dwLowDateTime      = struc(C_LONG),
+    FILETIME_dwHighDateTime     = struc(C_LONG),
+
+    -- Define FINDDATA Structure
+    FINDDATA                    = new_struct(),
+    FINDDATA_dwAttr             = struc(C_LONG),
+    FINDDATA_ftCreationTime     = struc(FILETIME),
+    FINDDATA_ftLastAccessTime   = struc(FILETIME),
+    FINDDATA_ftLastWriteTime    = struc(FILETIME),
+    FINDDATA_nFileSizeHigh      = struc(C_LONG),
+    FINDDATA_nFileSizeLow       = struc(C_LONG),
+    FINDDATA_res2               = struc(anySize(8)),    -- reserved
+    FINDDATA_cFileName          = struc(anySize(260)),
+    FINDDATA_cAltFileName       = struc(anySize(14)),
+
+    -- Define SHELLEXECUTEINFO structure
+    SHELLEXECUTEINFO                = new_struct(),     --Win32.hlp    win32lib(?):
+    SHELLEXECUTEINFO_cbSize         = struc(C_LONG),    -- DWORD        DWord
+    SHELLEXECUTEINFO_fMask          = struc(C_LONG),    -- ULONG        Long
+    SHELLEXECUTEINFO_hwnd           = struc(C_POINTER), -- HWND         Hndl
+    SHELLEXECUTEINFO_lpVerb         = struc(C_POINTER), -- LPCSTR       Ptr
+    SHELLEXECUTEINFO_lpFile         = struc(C_POINTER), -- LPCSTR       Ptr
+    SHELLEXECUTEINFO_lpParameters   = struc(C_POINTER), -- LPCSTR       Ptr
+    SHELLEXECUTEINFO_lpDirectory    = struc(C_POINTER), -- LPCSTR       Ptr
+    SHELLEXECUTEINFO_nShow          = struc(C_INT),     -- int          Integer
+    SHELLEXECUTEINFO_hInstApp       = struc(C_POINTER), -- HINSTANCE    Hndl
+    SHELLEXECUTEINFO_lpIDList       = struc(C_POINTER), -- LPVOID       Ptr
+    SHELLEXECUTEINFO_lpClass        = struc(C_POINTER), -- LPCSTR       Ptr
+    SHELLEXECUTEINFO_hkeyClass      = struc(C_POINTER), -- HKEY         Hndl
+    SHELLEXECUTEINFO_dwHotKey       = struc(C_LONG),    -- DWORD        DWord
+    SHELLEXECUTEINFO_hIcon          = struc(C_POINTER), -- HANDLE       Hndl
+    SHELLEXECUTEINFO_hProcess       = struc(C_POINTER), -- HANDLE       Hndl
+
+    -- Define SHFILEINFO structure
+    SHFILEINFO                      = new_struct(),
+    SHFILEINFO_hIcon                = struc(C_POINTER),     -- HICON hIcon
+    SHFILEINFO_iIcon                = struc(C_UINT),        -- int iIcon
+    SHFILEINFO_dwAttributes         = struc(C_LONG),        -- DWORD dwAttributes
+    SHFILEINFO_szDisplayName        = struc(anySize(260)),  -- TCHAR szDisplayName[MAX_PATH]
+    SHFILEINFO_szTypeName           = struc(anySize(80)),   -- TCHAR szTypeName[80]
+
+    -- Define DEBUG_EVENT structure
+    DEBUG_EVENT                     = new_struct(),     --Win32.hlp    win32lib(?):
+    DEBUG_EVENT_dwDebugEventCode    = struc(C_LONG),    -- DWORD        N/A
+    DEBUG_EVENT_dwProcessId         = struc(C_LONG),    -- DWORD        N/A
+    DEBUG_EVENT_dwThreadId          = struc(C_LONG),    -- DWORD        N/A
+    DEBUG_EVENT_u                   = struc(anySize(88)),-- union       N/A
+
+    -- Define EXCEPTION_RECORD structure
+    EXCEPTION_RECORD                                = new_struct(),     --Win32.hlp
+    EXCEPTION_RECORD_ExceptionCode                  = struc(C_LONG),    -- DWORD
+    EXCEPTION_RECORD_ExceptionFlags                 = struc(C_LONG),    -- DWORD
+    EXCEPTION_RECORD_ExceptionRecord                = struc(C_POINTER), -- *ExceptionRecord
+    EXCEPTION_RECORD_ExceptionAddress               = struc(C_POINTER), -- PVOID
+    EXCEPTION_RECORD_NumberParameters               = struc(C_LONG),    -- DWORD
+    EXCEPTION_RECORD_ExceptionInformation           = struc(anySize(60)),-- DWORD[EXCEPTION_MAXIMUM_PARAMETERS]
+
+    -- Define EXCEPTION_DEBUG_INFO structure (in DEBUG_EVENT_u)
+    EXCEPTION_DEBUG_INFO                            = new_struct(),     --Win32.hlp
+    EXCEPTION_DEBUG_INFO_ExceptionRecord            = struc(EXCEPTION_RECORD),
+    EXCEPTION_DEBUG_INFO_dwFirstChance              = struc(C_LONG),    -- DWORD
+
+    -- Define CREATE_THREAD_DEBUG_INFO structure (in DEBUG_EVENT_u)
+    CREATE_THREAD_DEBUG_INFO                        = new_struct(),     --Win32.hlp
+    CREATE_THREAD_DEBUG_INFO_hThread                = struc(C_POINTER), -- HANDLE
+    CREATE_THREAD_DEBUG_INFO_lpThreadLocalBase      = struc(C_POINTER), -- LPVOID
+    CREATE_THREAD_DEBUG_INFO_lpStartAddress         = struc(C_POINTER), -- LPTHREAD_START_ROUTINE
+
+    -- Define CREATE_PROCESS_DEBUG_INFO structure (in DEBUG_EVENT_u)
+    CREATE_PROCESS_DEBUG_INFO                       = new_struct(),     --Win32.hlp
+    CREATE_PROCESS_DEBUG_INFO_hFile                 = struc(C_POINTER), -- HANDLE
+    CREATE_PROCESS_DEBUG_INFO_hProcess              = struc(C_POINTER), -- HANDLE
+    CREATE_PROCESS_DEBUG_INFO_hThread               = struc(C_POINTER), -- HANDLE
+    CREATE_PROCESS_DEBUG_INFO_lpBaseOfImage         = struc(C_POINTER), -- LPVOID
+    CREATE_PROCESS_DEBUG_INFO_dwDebugInfoFileOffset = struc(C_LONG),    -- DWORD
+    CREATE_PROCESS_DEBUG_INFO_nDebugInfoSize        = struc(C_LONG),    -- DWORD
+    CREATE_PROCESS_DEBUG_INFO_lpThreadLocalBase     = struc(C_POINTER), -- LPVOID
+    CREATE_PROCESS_DEBUG_INFO_lpStartAddress        = struc(C_POINTER), -- LPTHREAD_START_ROUTINE
+    CREATE_PROCESS_DEBUG_INFO_lpImageName           = struc(C_POINTER), -- LPVOID
+    CREATE_PROCESS_DEBUG_INFO_fUnicode              = struc(C_SHORT),   -- WORD
+
+    -- Define EXIT_THREAD_DEBUG_INFO structure (in DEBUG_EVENT_u)
+    EXIT_THREAD_DEBUG_INFO                          = new_struct(),     --Win32.hlp
+    EXIT_THREAD_DEBUG_INFO_dwExitCode               = struc(C_LONG),    -- DWORD
+ 
+    -- Define EXIT_PROCESS_DEBUG_INFO structure (in DEBUG_EVENT_u)
+    EXIT_PROCESS_DEBUG_INFO                         = new_struct(),     --Win32.hlp
+    EXIT_PROCESS_DEBUG_INFO_dwExitCode              = struc(C_LONG),    -- DWORD
+
+    -- Define LOAD_DLL_DEBUG_INFO structure (in DEBUG_EVENT_u)
+    LOAD_DLL_DEBUG_INFO                             = new_struct(),     --Win32.hlp
+    LOAD_DLL_DEBUG_INFO_hFile                       = struc(C_POINTER), -- HANDLE
+    LOAD_DLL_DEBUG_INFO_lpBaseOfDll                 = struc(C_POINTER), -- LPVOID
+    LOAD_DLL_DEBUG_INFO_dwDebugInfoFileOffset       = struc(C_LONG),    -- DWORD
+    LOAD_DLL_DEBUG_INFO_nDebugInfoSize              = struc(C_LONG),    -- DWORD
+    LOAD_DLL_DEBUG_INFO_lpImageName                 = struc(C_POINTER), -- LPVOID
+    LOAD_DLL_DEBUG_INFO_fUnicode                    = struc(C_SHORT),   -- WORD
+ 
+    -- Define UNLOAD_DLL_DEBUG_INFO structure (in DEBUG_EVENT_u)
+    UNLOAD_DLL_DEBUG_INFO                           = new_struct(),     --Win32.hlp
+    UNLOAD_DLL_DEBUG_INFO_lpBaseOfDll               = struc(C_POINTER), -- LPVOID
+
+    -- Define OUTPUT_DEBUG_STRING_INFO structure (in DEBUG_EVENT_u)
+    OUTPUT_DEBUG_STRING_INFO                        = new_struct(),     --Win32.hlp
+    OUTPUT_DEBUG_STRING_INFO_lpDebugStringData      = struc(C_POINTER), -- LPSTR
+    OUTPUT_DEBUG_STRING_INFO_fUnicode               = struc(C_SHORT),   -- WORD
+    OUTPUT_DEBUG_STRING_INFO_nDebugStringLength     = struc(C_SHORT),   -- WORD
+
+    -- Define RIP_INFO structure (in DEBUG_EVENT_u)
+    RIP_INFO                                        = new_struct(),     --Win32.hlp
+    RIP_INFO_dwError                                = struc(C_LONG),    -- DWORD
+    RIP_INFO_dwType                                 = struc(C_LONG),    -- DWORD
+
+    OSVERSION                           = new_struct(),         --Win32.hlp                 win32lib(?):
+    OSV_dwSize                          = struc(C_LONG),        -- DWORD                     DWord
+    OSV_dwMajorVersion                  = struc(C_LONG),        -- DWORD                     DWord
+    OSV_dwMinorVersion                  = struc(C_LONG),        -- DWORD                     DWord
+    OSV_dwBuildNumber                   = struc(C_LONG),        -- DWORD                     DWord
+    OSV_dwPlatformId                    = struc(C_LONG),        -- DWORD                     DWord
+    OSV_szCSDVersion                    = struc(anySize(128)),  -- TCHAR szCSDVersion[128]  {128,Byte}
+--  SIZEOF_OSVERSIONINFO       = w32allotted_sofar(),
+    OSV_wServicePackMajor               = struc(C_SHORT),       --                           Word
+    OSV_wServicePackMinor               = struc(C_SHORT),       --                           Word
+    OSV_wSuiteMask                      = struc(C_SHORT),       --                           Word
+    OSV_wProductType                    = struc(C_UCHAR),       --                           Byte
+    OSV_wReserved                       = struc(C_UCHAR),       --                           Byte
+--  SIZEOF_OSVERSIONINFOEX   = w32allotted_size(),
+--  ID_OSVERSIONINFOEX     = {{w32CurrentStructure()}}
+
+    NOTIFYICONDATA                                  = new_struct(),         --(google)
+    NOTIFYICONDATA_cbSize                           = struc(C_LONG),        -- DWORD
+    NOTIFYICONDATA_hWnd                             = struc(C_PTR),         -- HWND
+    NOTIFYICONDATA_uID                              = struc(C_UINT),        -- UINT
+    NOTIFYICONDATA_uFlags                           = struc(C_UINT),        -- UINT
+    NOTIFYICONDATA_uCallbackMessage                 = struc(C_UINT),        -- UINT
+    NOTIFYICONDATA_hIcon                            = struc(C_PTR),         -- HICON
+    NOTIFYICONDATA_szTip                            = struc(anySize(64)),   -- TCHAR szTip[64]
+    -- (nb minimalist version, compatible with all versions of shell32.dll;
+    --      in particular not supporting balloon tips, ie Win2000+ )
+
+    ICONINFO                                        = new_struct(),         --(google)
+    NOTIFYICONDATA_fIcon                            = struc(C_LONG),        -- BOOL
+    NOTIFYICONDATA_xHotspot                         = struc(C_LONG),        -- DWORD
+    NOTIFYICONDATA_yHotspot                         = struc(C_LONG),        -- DWORD
+    NOTIFYICONDATA_hbmMask                          = struc(C_PTR),         -- HBITMAP
+    NOTIFYICONDATA_hbmColor                         = struc(C_PTR),         -- HBITMAP
+
+endofstruc = 0  
+
+--
+-- Standard mapping from win32.hlp:  (not [yet] applied consistently to this file!)
+--
+-- BOOL ==> C_LONG
+-- DWORD ==> C_LONG
+-- HANDLE ==> C_PTR
+-- HBITMAP ==> C_PTR
+-- HICON ==> C_PTR
+-- HWND ==> C_PTR
+-- TCHAR[nn] ==> anySize(nn)
+-- UINT ==> C_UINT
+--
+    --? COORD ==> C_UINT
+    --? Hxxx ==> C_PTR
+    --? LPxxx ==> C_PTR
+    --? Pxxx ==> C_PTR
+    --? TCHAR ==> C_CHAR
+    --? WORD ==> C_USHORT
+    --
+

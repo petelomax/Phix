@@ -1,0 +1,1386 @@
+--
+-- pgdemo.ew
+-- =========
+--
+--  Part of pgui.exw; as much code as possible for the demo tab should reside in here.
+--
+
+constant htxt = "Lists all *.exw files in the \"Phix\\demo\" directory and any sub-directories that "&
+                "contain \"demo\" in their name.\n\n"&
+
+                "Character input (whether focus is on the Filter or not) automatically updates "&
+                "the Filter and ListView contents. The filter performs a full text search (just "&
+                "the main *.exw file, not files it includes, but the majority of demos should be "&
+                "short single files anyway), so you can enter (eg) TrackPopupMenu to quickly locate "&
+                "demos that use a particular function. "&
+                "You can also sort on any column. When a file is selected it shows the source code, "&
+                "ideally starting with a helpful summary comment, in the lower half of the screen. "&
+                "If you type \"cool\" it will list my personal favourites.\n\n"&
+                
+                "Press F5 or click on the Run button to launch the selected program. \n"&
+                "There is no special checking for errors when running programs this way.\n"&
+                "Console applications should probably have a final getc(0) or similar, except for "&
+                "those used in \"p -test\" (mandle, combo, and takeuchi). \n\n"&
+                
+                "Right click on an entry for more options. Columns(F4) lets you specify additional "&
+                "fields, Enums(F3) lets you specify drop-downs that can be used in Columns, and "&
+                "Amend(F2) lets you set/alter them on the currently selected record. "&
+                "\"Edit with Edita\" and \"Run\" should be perfectly self-explanatory.\n\n"&
+                
+                "Note that \"Run\" is deliberately rather basic; to actually study something in any "&
+                "detail, and/or resolve any errors, obviously open it in Edita and run it from there; "&
+                "then you have syntax colouring, parameterised run (command line parameters), jump to "&
+                "error, find in files, project tree, help, etc. Alternatively \"Copy command\" simply "&
+                "puts the command it would Run on the clipboard, so more detailed testing/debugging "&
+                "from a command line window (etc) is that bit easier."
+        
+global procedure Help()
+    void = messageBox("Demos",htxt,MB_OK)
+end procedure
+
+
+
+global constant C_Name = 1, C_width = 2, C_align = 3
+--global sequence columns = {{"Directory",180,0},
+--                         {"Name",50,0}}
+-- moved to pgui.exe 4/6/15 (for exwc)
+--global sequence columns
+--              columns = {{"Directory",180,0},
+--                         {"Name",50,0}}
+                columns = {{"Directory",180,0},
+                           {"Name",80,0},
+                           {"Size",50,1},
+                           {"Modified",110,0},
+                           {"LastRun",110,0},
+                           {"Broken",80,0},
+                           {"Text",80,0}}
+sequence cmap
+-- moved to pgui.exe 4/6/15 (for exwc)
+--global sequence cflags
+--              cflags = repeat({0,1,1,0},length(columns)) -- {format, active, column, subtype}
+constant CT_fmt = 1, CT_active = 2, CT_column = 3, CT_subtype = 4
+constant FORMATS = {"text","integer","date","enum","size"}
+constant F_text = 1, F_int = 2, F_date = 3, F_enum = 4, F_size = 5
+constant DATETYPES = {"modified", "last run"}   -- (subtypes for CT_fmt==F_date)
+constant DT_modified = 1, DT_lastrun = 2
+                cflags = {{0,1,1,0},
+                          {0,1,1,0},
+                          {F_size,1,1,0},
+                          {F_date,1,1,DT_modified},
+                          {F_date,1,1,DT_lastrun},
+                          {F_enum,1,2,2},
+                          {F_text,1,3,0}}
+
+-- NB: cflags[k][CT_column] is both a flag and a column number. >0 means on, <0 means off.
+--      data is stored in Tfiles[k][data][abs(cflags[CTcolumn])] (iyswim), 
+--      except that Tfiles[k][data][1] is always used to store lastrun.
+--      column numbers are allocated (by manually scanning cflags) on the first time we try to 
+--      store something. If [CT_fmt] is F_date(3) and [CT_subtype] is DT_lastrun(2) the column 
+--      is implicitly 1. Otherwise a [CT_column] of 1 (or -1) means "not yet allocated".
+--      As things stand, column numbers never get released or reused.
+
+global sequence directories
+global sequence files
+global constant T_dir = 1, T_name = 2   -- indexes to files
+sequence fileinfo
+--type tfi(sequence s)
+--sequence d
+--  for i=1 to length(s) do
+--      if files[i][T_name]="CircularBuffer.exw" then
+----            ?files[i]
+----            ?s[i]
+--          d = {files[i],s[i]}
+--          if s[i][3][1]!='f' then ?9/0 end if
+--          exit
+--      end if
+--  end for
+--  return 1
+--end type
+--tfi fileinfo
+sequence modified
+sequence sizes
+sequence fulltext
+-- moved to pgui.exw 4/6/15 (for exwc)
+--global sequence enums
+--global sequence esets
+
+include pgdb.ew
+
+--
+-- tags (with no filters) is a simple table of 1..N which is sorted by clicking 
+-- on the listview columns. When windows/the listview asks for record N we just
+-- simply get record[tags[N]] instead. Both files and fulltext are indexed with
+-- that same method, and remain completely unchanged by filtering/sorting etc.
+-- As/when any filter gets applied, some of those 1..N go missing (and are easy
+-- to replace/reconstruct should the filter later be removed or replaced).
+--
+sequence tags   -- {1,2,3,...length(files)}, sorted/filtered as rqd.
+
+
+procedure dload(sequence path)
+object d
+integer k
+string name
+    k = find(path,directories)
+    if k=0 then
+        directories = append(directories,path)
+        k = length(directories)
+        pgdbAddDir(path)
+    end if
+    d = dir(path)
+    if atom(d) then
+        files = append(files,{k,"**error**"})
+    else
+        for i=1 to length(d) do
+            name = d[i][1]
+            if find('d',d[i][2]) then
+                if match("demo",lower(name))
+                or match("rosetta",lower(name)) then
+                    dload(path&"\\"&name)
+                end if
+            elsif match(".exw",lower(name)) then
+                files = append(files,{k,name}) -- (any more columns should be held in parallel arrays like fulltext)
+                fileinfo = append(fileinfo,pgdbGetFileInfo(k,name))
+                modified = append(modified,d[i][4..9])
+                sizes = append(sizes,d[i][3])
+                fulltext = append(fulltext,0)
+            end if
+        end for
+    end if
+end procedure
+
+function get_file_text(integer i)
+-- i is a real index to files/fulltext (ie it has been tags[]'d)
+string path
+object res
+integer fn, ch
+    res = fulltext[i]
+    if atom(res) then
+        path = directories[files[i][T_dir]]&"\\"&files[i][T_name]
+        fn = open(path,"rb")
+        if fn=-1 then
+            res = "cannot open file "&path
+        else
+--DEV use get_text()
+            res = ""
+            while 1 do
+                ch = getc(fn)
+                if ch=-1 then exit end if
+                res &= ch
+            end while
+            close(fn)
+        end if
+        fulltext[i] = res
+    end if
+    return res
+end function
+
+procedure FillListBox(integer id, integer idx)
+sequence text
+sequence line
+integer k
+    text = get_file_text(tags[idx])
+    deleteItem(id,0)    -- empty list
+    while length(text) do
+        k = find('\n',text)
+        if k then
+            line = text[1..k-1]
+            while 1 do
+                k += 1
+                if k>length(text) then
+                    text = ""
+                    exit
+                end if
+                if not find(text[k],"\n\r") then
+                    text = text[k..length(text)]
+                    exit
+                end if
+            end while
+        else
+            line = text
+            text = ""
+        end if
+        void = insertItem(id,line,0)
+    end while
+end procedure
+
+procedure resetcolumns()
+integer colno
+    while sendMessage(dlist,LVM_DELETECOLUMN,0,0) do end while
+    cmap = repeat(0,length(columns))
+    colno = 1
+    for i=1 to length(columns) do
+        if cflags[i][CT_active]
+        and cflags[i][CT_column]>0 then
+            insertLVColumn(dlist,columns[i],i)
+            cmap[colno] = i
+            colno += 1
+        end if
+    end for
+    resizeLVColumns(dlist)
+end procedure
+
+function datestring(object d)
+-- d is {y-1900,m,d,...} from the date() function.
+-- return it in dd/mm/yyyy hh:mm:ss format.
+    if not sequence(d) then
+        return "-"
+    end if
+--!/**/ {d[1],d[3]} = {d[3],d[1]+1900}
+--/**/  {d[1],d[3]} = {d[3],d[1]}
+--/*
+        d[1..3] = {d[3],d[2],d[1]+1900}
+--*/
+    return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
+end function
+
+constant KB = 1024,
+         MB = KB*KB,
+         GB = KB*MB,
+    --
+    -- the following written so that a single change to sw affects all:
+    --
+    sw = 11,                                -- size width of 11 characters
+    dpsfmt = sprintf("%%%d.2f%%s",sw-2),    -- with decimal places and suffix    -- eg/ie "%9.2f%s"
+    sfmt = sprintf("%%%d.0f%%s",sw-2),      -- no d.p, but still suffix          -- eg/ie "%9.0f%s"
+    bfmt = sprintf("%%%d.0f",sw)            -- no d.p, no suffix (size in bytes) -- eg/ie "%11.0f"
+
+function Size00(atom filesize, atom factor, sequence suffix)
+-- common code for Size function, to avoid ".00" displaying
+sequence res, params
+    params = {floor(filesize/factor),suffix}
+    if remainder(filesize,factor) then
+        res = sprintf(dpsfmt, params)           -- eg 9.2GB
+        if equal(res[sw-4..sw-2],".00") then
+            res = sprintf(sfmt, params)         -- eg   9MB (not "9.00MB" when really 9.00004701MB)
+        end if
+    else
+        res = sprintf(sfmt, params)             -- eg 100KB (that is, when really 100.00000000KB)
+    end if
+    return res
+end function    
+
+function Size(atom filesize)
+    if filesize>=GB then
+        return Size00(filesize,GB,"GB")
+    elsif filesize>=MB then
+        return Size00(filesize,MB,"MB")
+    elsif filesize>=KB then
+        return Size00(filesize,KB,"KB")
+    end if
+    return sprintf(bfmt, filesize)              -- eg     0 (ie absolute size in bytes)
+end function
+
+integer amendable   -- for use in Amend()   -- (set to F_text, F_int, or F_enum)
+sequence subtypes   -- ""
+integer scol        -- ""
+function LVFormat(integer lRow, integer lColumn)
+object d
+sequence fi
+integer fmt, subtype, col
+
+    if lColumn=0 then   -- no icon
+        return 0
+    end if
+    lRow = tags[lRow]
+    fi = files[lRow]
+    amendable = 0
+    lColumn = cmap[lColumn]
+    if lColumn=1 then
+        d = directories[fi[T_dir]]
+    elsif lColumn=2 then
+        d = fi[T_name]
+    else
+        fmt = cflags[lColumn][CT_fmt]   -- F_text=1, F_int=2, F_date=3, F_enum=4, F_size=5
+        if fmt<=F_text then
+            amendable = F_text
+            d = fileinfo[lRow]
+            if atom(d) then
+                d = ""
+            else
+                col = cflags[lColumn][CT_column]
+                if col<0 then col = 0-col end if
+                if col<=1 or col>length(d) then
+                    d = ""
+                else
+                    d = d[col]
+                end if
+            end if
+        elsif fmt=F_int then
+            amendable = F_int
+            d = fileinfo[lRow]
+            if atom(d) then
+                d = "0"
+            else
+                col = cflags[lColumn][CT_column]
+                if col<0 then col = 0-col end if
+                if col<=1 or col>length(d) then
+                    d = "0"
+                else
+                    d = sprintf("%d",d[col])
+                end if
+            end if
+        elsif fmt=F_date then
+            subtype = cflags[lColumn][CT_subtype]
+            if subtype<=DT_modified then
+                d = datestring(modified[lRow])
+            elsif subtype=DT_lastrun then
+                d = fileinfo[lRow]
+                if atom(d) then
+                    d = "-"
+                else
+                    d = datestring(d[1])
+                end if
+            else
+                ?9/0
+            end if
+        elsif fmt=F_enum then
+            amendable = F_enum
+            subtype = cflags[lColumn][CT_subtype]
+            if subtype<1 then subtype=1 end if
+            subtypes = esets[subtype]
+            d = fileinfo[lRow]
+            scol = cflags[lColumn][CT_column]
+            if scol<0 then scol = 0-scol end if
+            if atom(d) or scol<=1 or scol>length(d) then
+                scol = 1
+            else
+                scol = d[scol]
+                if scol<1 then scol = 1 end if
+            end if
+            d = subtypes[scol]
+        elsif fmt=F_size then
+            d = Size(sizes[lRow])
+        else
+            ?9/0
+        end if
+    end if
+--5/6/15:
+if sequence(d) then
+    for i=1 to length(d) do
+        if not atom(d[i]) then ?9/0 end if
+    end for
+end if
+    return d
+end function
+
+--integer SortColumn = 1, Sign = 1
+integer SortColumn, Sign
+        SortColumn = 1
+        Sign = 1
+
+function CompareSortColumn(integer t1,integer t2)
+-- (t1 and t2 are elements from tags[] to be "compared"/tag sorted)
+--integer c = 0
+integer c
+integer fmt, subtype
+object o1, o2
+integer col
+    c = 0
+    if SortColumn>2 then
+        fmt = cflags[SortColumn][CT_fmt]    -- F_text=1, F_int=2, F_date=3, F_enum=4, F_size=5
+        if fmt<=F_text
+        or fmt=F_int then
+            col = cflags[SortColumn][CT_column]
+            if col<0 then col = 0-col end if
+            o1 = fileinfo[t1]
+            if sequence(o1) then
+                if col<=1 or col>length(o1) then
+                    o1 = 0
+                else
+                    o1 = o1[col]
+                end if
+            end if
+            o2 = fileinfo[t2]
+            if sequence(o2) then
+                if col<=1 or col>length(o2) then
+                    o2 = 0
+                else
+                    o2 = o2[col]
+                end if
+            end if
+--DEV bad error handling when o2 unassigned (comment out all the o2 stuff above)
+            c = compare(o1,o2)
+        elsif fmt=F_date then
+            subtype = cflags[SortColumn][CT_subtype]
+            if subtype<=DT_modified then
+                c = compare(modified[t1],modified[t2])
+            elsif subtype=DT_lastrun then
+                o1 = fileinfo[t1]
+                if sequence(o1) then
+                    o1 = o1[1]
+                end if
+                o2 = fileinfo[t2]
+                if sequence(o2) then
+                    o2 = o2[1]
+                end if
+                c = compare(o1,o2)
+            else
+                ?9/0
+            end if
+        elsif fmt=F_enum then
+            col = cflags[SortColumn][CT_column]
+            if col<0 then col = 0-col end if
+            if col>1 then
+                o1 = fileinfo[t1]
+                if sequence(o1) then
+                    if col>length(o1) then
+                        o1 = 0
+                    else
+                        o1 = o1[col]
+                    end if
+                end if
+                o2 = fileinfo[t2]
+                if sequence(o2) then
+                    if col>length(o2) then
+                        o2 = 0
+                    else
+                        o2 = o2[col]
+                    end if
+                end if
+                c = compare(o1,o2)
+            end if
+        elsif fmt=F_size then
+            c = compare(sizes[t1],sizes[t2])
+        else
+            ?9/0
+        end if
+    else
+        c = compare(lower(files[t1][SortColumn]),lower(files[t2][SortColumn]))
+    end if
+    if c=0 then
+        if SortColumn!=2 then
+            c = compare(lower(files[t1][2]),lower(files[t2][2]))
+        else
+            c = compare(files[t1][1],files[t2][1])
+        end if
+    end if
+    return Sign*c
+end function
+constant rCSC = routine_id("CompareSortColumn")
+
+global procedure setFilters()
+-- called whenever the text in dtFilter changes
+sequence ftxt, fi
+sequence wastags
+integer k, ok
+string name,text
+integer focus
+    focus = getIndex(dlist)
+    if focus!=0 then
+        focus = tags[focus]
+    end if
+    ftxt = lower(getText(dtFilter))
+    wastags = tags
+    tags = repeat(0,length(files))
+    k = 0
+    for i=1 to length(files) do
+        fi = files[i]
+        name = fi[T_name]
+        if length(ftxt)=0
+        or match(ftxt,lower(name)) then
+            ok = 1
+        else
+            text = get_file_text(i)
+            ok = match(ftxt,lower(text))!=0
+        end if
+        if ok then
+            k += 1
+            tags[k] = i
+        end if
+    end for
+    tags = tags[1..k]
+    tags = custom_sort(rCSC,tags)
+    if not equal(tags,wastags) then
+        setLVItemCount(dlist,k)
+        deleteItem(dSource,0)   -- empty list
+    end if
+    setIndex(dlist,find(focus,tags))
+end procedure
+
+global procedure Notify(atom wParam, object lParam)
+integer focus
+    if wParam=LVN_COLUMNCLICK then
+--/**/  {SortColumn,Sign} = lParam
+--/*
+        SortColumn = lParam[1]
+        Sign = lParam[2]
+--*/
+        SortColumn = cmap[SortColumn]
+        focus = getIndex(dlist)
+        if focus>0 then
+            focus = tags[focus]
+        end if
+        tags = custom_sort(rCSC,tags)
+        setIndex(dlist,find(focus,tags))
+        repaintWindow(dlist,False)
+    elsif wParam=LVN_ITEMCHANGED then
+        lParam = getIndex(dlist)
+        if lParam>0 then
+            FillListBox(dSource,lParam)
+        end if
+-- after db/F2... (note we cannot edit dir or name anyway)
+--  elsif wParam=LVN_ENDLABELEDITA then
+--      k = peek4s(lParam+LVDISPINFO_LVITEM+LVITEM_iItem)
+--      if k>=0 then
+--          addr = peek4s(lParam+LVDISPINFO_LVITEM+LVITEM_pszText)
+--          if addr!=0 then
+--              newname = peek_string(addr)
+--              oldname = tests[k+1][T_name]
+--              if newname!=oldname then
+--                  r = db_find_key(oldname)
+--                  if r<=0 then
+--                      void = messageBox("Error","db_find_key failed[3]",MB_OK)
+--                  else
+--                      data = db_record_data(r)
+--                      db_delete_record(r)
+--                      if db_insert(newname,data)!=DB_OK then
+--                          void = messageBox("Error","db_insert failed[3]",MB_OK)
+--                      else
+--                          tests[k+1][T_name] = newname
+--                      end if
+--                  end if
+--              end if
+--          end if
+--      end if
+    end if
+end procedure
+
+integer init
+        init = 0
+
+--constant integer LVxstyle = or_bits(LVS_EX_FULLROWSELECT,LVS_EX_HEADERDRAGDROP)
+constant LVxstyle = or_bits(LVS_EX_FULLROWSELECT,LVS_EX_HEADERDRAGDROP)
+
+global procedure Init()
+
+    if not init then
+        init = 1
+        directories = {}
+        files = {}
+        tags = {}
+        fulltext = {}
+        fileinfo = {}
+        modified = {}
+        sizes = {}
+        pgdbinit(croot&"\\demo\\arwendemo\\pgui\\")
+        dload(croot&"demo")
+--      ?directories
+--      ?files
+        void = sendMessage(dlist,LVM_SETEXTENDEDLISTVIEWSTYLE,0,LVxstyle)
+        resetcolumns()
+        setFilters()
+        setLVFormatRoutine(dlist,routine_id("LVFormat"))
+        setFocus(dlist)
+--/*
+--  elsif id=dlist then
+--      elsif msg=WM_LBUTTONDBLCLK then
+--          tEdit()
+--      end if
+--
+--*/
+    end if
+end procedure
+
+global procedure Run(integer copycommand)
+integer i, fidx, k
+string name, path, cmd
+sequence d
+    i = getIndex(dlist)
+    if i then
+        fidx = tags[i]
+        k = files[fidx][T_dir]
+        name = files[fidx][T_name]
+        d = date()
+        if atom(fileinfo[fidx]) then
+            fileinfo[fidx] = {d}
+        else
+            fileinfo[fidx][1] = d
+        end if
+        pgdbSetFileInfo(k,name,fileinfo[fidx])
+--      {} = sendMessage(dlist, LVM_UPDATE, 0, 0)
+        void = sendMessage(dlist, LVM_UPDATE, 0, 0)
+        path = directories[k]&"\\"&name
+        if copycommand then
+            cmd = crun
+            if cmd[1]='\"' then
+                cmd = cmd[2..-2]
+            end if
+            if match(croot,cmd)=1 then
+                cmd = cmd[length(croot)+1..$]
+            end if
+            if length(cmd)>4
+            and equal(cmd[-4..-1],".exe") then
+                cmd = cmd[1..-5]
+            end if
+            if find(' ',cmd) then
+                cmd = '\"' & cmd & '\"'
+            end if
+            if match(croot,path)=1 then
+                path = path[length(croot)+1..$]
+            end if
+            if find(' ',path) then
+                path = '\"' & path & '\"'
+            end if
+            cmd &= " "&path
+            setClipboardText(cmd)
+--?cmd
+        else
+            if find(' ',path) then
+                path = '\"' & path & '\"'
+            end if
+            cmd = crun&" "&path
+--          void = system_wait(cmd)
+            sysproc(cmd)
+        end if
+    end if
+end procedure
+
+global procedure ShowCount()
+sequence htxt
+    htxt = sprintf("showing %d of %d demos",{length(tags),length(files)})
+    void = messageBox("Demos",htxt,MB_OK)
+end procedure
+
+global procedure PopMenu()
+atom msg_pos
+integer x, y
+
+    setEnable(M_Cewe,eHwnd!=0)
+    -- get the mouse position in *Screen* coords
+    msg_pos = c_func( xGetMessagePos, {} )
+    x = and_bits(msg_pos, #FFFF)
+    y = floor(msg_pos / #10000) 
+    void = c_func(xTrackPopupMenu, {getHwnd(M_Cmnu),
+                                    TPM_LEFTALIGN+TPM_RIGHTBUTTON,
+                                    x, y, 0, getHwnd(pmain), NULL} )
+end procedure
+
+integer ainit
+        ainit=0
+constant Awin=create(Window,"Amend",0,pmain,812,279,507,526,0)
+--constant Adir=create(Label,"Adir",0,Awin,9,12,471,20,0)
+--constant Afile=create(Label,"Afile",0,Awin,9,33,471,20,0)
+-- (more labels and input fields get added dynamically)
+sequence Alabels, Afields, Afinfo
+
+integer row -- of item being amended
+
+function allocate_column()
+integer c
+integer res
+    res = 2
+    for i=1 to length(cflags) do
+        c = cflags[i][CT_column]
+        if c<0 then c = 0-c end if
+        if c>=res then res = c+1 end if
+    end for
+    return res
+end function
+
+function toNumber(sequence txt)
+integer ch, res
+    res = 0
+    for i=1 to length(txt) do
+        ch = txt[i]
+        if ch<'0' or ch>'9' then return 0 end if
+        res = res*10+ch-'0'
+    end for
+    return res
+end function
+
+
+function amendHandler(integer id, integer msg, atom wParam, object lParam)
+integer k,colno,c, tr
+sequence column, flags
+object fi, o
+--,last
+--atom addr
+--object w
+--integer fmt
+--object c
+--atom hDC
+
+    if object(lParam) then end if   -- suppress warnings
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(Awin)
+        end if
+    elsif msg=WM_COMMAND then
+        k = find(id,Afields)
+        if k!=0 then
+--/**/      {colno,amendable} = Afinfo[k]
+--/*
+            colno = Afinfo[k][1]
+            amendable = Afinfo[k][2]
+--*/
+            column = columns[colno]
+            flags = cflags[colno]
+--          k = getIndex(DClv) --??
+            c = flags[CT_column]
+            if c<0 then c = 0-c end if
+            if c<=1 then
+                c = allocate_column()
+                if flags[CT_column]<0 then
+                    flags[CT_column] = -c
+                else
+                    flags[CT_column] = c
+                end if
+                cflags[colno] = flags
+                pgdbSaveColumns()
+            end if
+            tr = tags[row]
+            fi = fileinfo[tr]
+            if atom(fi) then
+                fi = repeat(0,c)
+            else
+                while length(fi)<c do
+                    fi = append(fi,0)
+                end while
+            end if
+            if amendable=F_text then
+                o = getText(id)
+            elsif amendable=F_int then
+                o = toNumber(getText(id))
+            elsif amendable=F_enum then
+                o = getIndex(id)
+--              if i!=0 then
+--              end if
+            else
+                ?9/0
+            end if
+--          if fi[c]!=o then
+            if not equal(fi[c],o) then
+                fi[c] = o
+                fileinfo[tr] = fi
+                pgdbSetFileInfo(files[tr][T_dir],files[tr][T_name],fi)
+            end if
+        end if
+--/*
+--          k = getIndex(DClv)
+--          if k!=0 then
+--
+--              elsif id=DCalign then
+--
+--
+--      if id=DCadd then
+--          columns = append(columns,{"New Column",80,0})
+----DEV CT_column
+--          cflags = append(cflags,{0,1,1,0})
+--          k = length(columns)
+--          setLVItemCount(DClv,k)
+--          setIndex(DClv,k)
+--          setFocus(DClv)
+--          {} = sendMessage(DClv,WM_KEYDOWN,VK_F2,0)
+--      elsif id=DChelp then
+--          DCHelp()
+--      else
+--          k = getIndex(DClv)
+--          if k!=0 then
+--              if id=DCwidth then
+--                  w = getInteger(getText(DCwidth))
+--                  if integer(w) then
+--                      columns[k][C_width] = w
+--                      lblwColour = Black
+--                  else
+--                      lblwColour = BrightRed
+--                  end if
+--                  repaintWindow(DClblw,False)
+--              elsif id=DCalign then
+--                  columns[k][C_align] = getIndex(DCalign)-1
+--              elsif id=DCformat then
+--                  fmt = getIndex(DCformat)
+--                  cflags[k][CT_fmt] = fmt
+--                  setDCsubtype(fmt)
+--              elsif id=DCactive then
+--                  cflags[k][CT_active] = isChecked(DCactive)
+--              elsif id=DCcolumn then
+--                  !cflags[k][CT_column] = isChecked(DCcolumn)
+--              elsif id=DCsubtype then
+--                  cflags[k][CT_subtype] = getIndex(DCsubtype)
+--              end if
+--          end if
+--      end if
+--*/
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_F1 then
+--          DCHelp()
+        end if
+    elsif msg=WM_CLOSE then
+--      pgdbSaveColumns()
+--      resetcolumns()
+    end if
+    return 0
+end function
+constant r_AmendHandler = routine_id("amendHandler")
+setHandler(Awin,r_AmendHandler)
+
+
+global procedure Amend()
+integer flabel, field
+sequence txt
+integer x,y
+--,w
+    row = getIndex(dlist)
+    if row then
+        if ainit then
+            -- This is pretty brutal (use of destroy), but I can't be 
+            --  bothered to pick through trying to reuse things if the
+            --  column definitions etc happen to have been updated. It
+            --  needed a fix (or 2) to arwen/destroy() [30/07/2013].
+--          setHandler(Afields,-1)  -- (not sure if this helps any)
+            void = destroy(Afields)
+            void = destroy(Alabels)
+        end if
+        Alabels = {}
+        Afields = {}
+        Afinfo = {}
+        y = 10
+        for i=1 to length(columns) do
+            if cflags[i][CT_active] then
+                txt = columns[i][1]
+--              w = columns[i][2]
+                x = 10
+--              flabel = create(Label,txt,0,Awin,x,y,w,20,0)
+                flabel = create(Label,txt,0,Awin,x,y,100,20,0)
+                Alabels = append(Alabels,flabel)
+                x += 100
+                txt = LVFormat(row, i)
+                if amendable>0 then
+--if ainit then
+--  if txt="fred" then
+--      trace(1)
+--  end if
+--end if
+                    if amendable=F_text then
+                        field = create(EditText,txt,0,Awin,x,y,200,23,0)
+                    elsif amendable=F_int then
+                        field = create(EditText,txt,0,Awin,x,y,50,23,{{ES_RIGHT,ES_NUMBER},0})
+                    elsif amendable=F_enum then
+                        field = create(ComboDropDownList,{},0,Awin,x,y,85,94,0)
+                        -- (subtypes and scol were set in LVformat, btw)
+                        void = insertItem(field, subtypes, 0)
+                        setIndex(field,scol)
+                    else
+                        ?9/0
+                    end if
+                    -- (added to catch a bug, now fixed, but may as well leave this here:)
+                    if field=-1 then ?9/0 end if
+                    Afields = append(Afields,field)
+                    Afinfo = append(Afinfo,{i,amendable})
+                else
+                    flabel = create(Label,txt,0,Awin,x,y,471-x,20,0)
+                    Alabels = append(Alabels,flabel)
+                end if
+                y += 20
+            end if
+        end for
+        ainit = 1
+        setHandler(Afields,r_AmendHandler)
+        openWindow(Awin,SW_NORMAL)
+    end if
+end procedure
+
+integer cinit
+        cinit = 0
+constant DCwin=create(Window,"Define Columns",0,pmain,601,26,333,375,0)
+constant LVstyle=or_all({LVS_OWNERDATA, LVS_SINGLESEL, LVS_SHOWSELALWAYS})
+constant DClv = create(ListView,{{"Name",120,0}},0,DCwin,7,7,304,229,LVstyle)
+constant DCadd = create(Button,"&Add",0,DCwin,5,239,75,30,0)
+constant DChelp = create(Button,"&Help",0,DCwin,237,240,75,30,0)
+constant DClblw = create(Label,"&Width",0,DCwin,8,281,39,15,SS_OWNERDRAW)
+constant DCwidth = create(EditText,"0",0,DCwin,45,275,36,23,{{ES_RIGHT,ES_NUMBER},0})
+constant DCalign = create(ComboDropDownList,"",0,DCwin,94,276,85,94,0)
+constant DCformat = create(ComboDropDownList,"",0,DCwin,191,276,83,22,0)
+constant DCactive=create(CheckBox,"Ac&tive",0,DCwin,9,309,61,20,0)
+constant DCcolumn=create(CheckBox,"&Column",0,DCwin,75,309,64,20,0)
+constant DCsubtype = create(ComboDropDownList,"",0,DCwin,226,308,83,146,0)
+
+constant DCretset = {DClv,DCwidth,DCalign,DCformat,DCactive,DCcolumn,DCsubtype}
+
+constant DCht = "This has turned into a bit of an experiment in run-time user customisation.\n\n"&
+
+                "The column names \"Directory\" and \"Name\" should probably not be altered.\n\n"&
+
+                "Add new fields as desired, eg group, class, last run, modified, size, "&
+                "error, broken, quality, useful, todo, etc. As the developer of Phix, my primary "&
+                "concern is which ones are broken, whereas a novice might want to mark those "&
+                "already studied and/or those they need to come back to, while others might want "&
+                "to tag things on some sort of per-project basis. To cater for this I allow any "&
+                "number of additional and sortable user-defined columns to be added.\n\n"&
+
+                "The column widths get proportionally adjusted to make things fit the containing "&
+                "window, and each field can be aligned left (default), right, or centre. "&
+                "The formats (text, integer, date (subtypes modified, last run), enum, and size) "&
+                "are handled in pgdemo.ew\\LVFormat (you may want to look there for more clues). "&
+                "The enums format allows selection of user-defined groups (F3 from main window). "&
+                "When the format is subtyped (ie date or enum) a second selector appears in the "&
+                "bottom right hand corner. "&
+                "Unchecking the \"Active\" checkbox makes it behave like the column never "&
+                "existed (without discarding anything already entered). "&
+                "The \"Column\" checkbox controls whether the new field appears on the main "&
+                "screen or only on the Amend (F2 from main window) dialogue.\n\n"&
+                "Press F2 (here) to edit an existing record name, and/or return/tab to or click "&
+                "on the other settings that you want to change.\n\n"&
+                
+                "Note there is no confirm or undo other than deleting/restoring pgui.edb"
+
+procedure DCHelp()
+    void = messageBox("Columns",DCht,MB_OK)
+end procedure
+
+procedure setDCsubtype(integer fmt)
+integer visible
+sequence options
+
+    visible = (fmt=3 or fmt=4)
+    setVisible(DCsubtype,visible)
+    if visible then
+        deleteItem(DCsubtype, 0)
+        if fmt=3 then
+            options = DATETYPES
+        elsif fmt=4 then
+            options = enums
+        else
+            ?9/0
+        end if
+        void = insertItem(DCsubtype, options, 0)
+        setIndex(DCsubtype, cflags[getIndex(DClv)][CT_subtype])
+    end if
+end procedure
+
+function DCFormat(integer lRow, integer lColumn)
+object crc
+--object flags
+integer fmt
+
+    if lColumn=0 then   -- no icon
+        return 0
+    end if
+    if lColumn!=1 then ?9/0 end if
+    crc = columns[lRow][lColumn]
+    if lRow=getIndex(DClv) then
+        setText(DCwidth,sprintf("%d",columns[lRow][C_width]))
+        setIndex(DCalign,columns[lRow][C_align]+1)
+        if cflags[lRow]=0 then
+            cflags[lRow] = {0,1,1,0}    -- format, active, column, enum
+        end if
+        fmt = cflags[lRow][CT_fmt]  -- F_text=1, F_int=2, F_date=3, F_enum=4, F_size=5
+        setIndex(DCformat,fmt)
+        setDCsubtype(fmt)
+        setCheck(DCactive,cflags[lRow][CT_active])
+        setCheck(DCcolumn,(cflags[lRow][CT_column]>0))
+    end if
+    return crc
+end function
+
+--DEV this should be an auto-include or something...
+function getInteger(sequence numstr)
+--
+-- Return the (positive) integer value of a string.
+-- "" is treated as 0. {} is returned on error.
+--
+atom n
+integer ch
+    n=0
+    for i=1 to length(numstr) do
+        ch=numstr[i]-'0'
+        if ch<0 or ch>9 then return {} end if
+        n=n*10+ch
+        if not integer(n) then return {} end if
+    end for
+    return n
+end function
+
+integer lblwColour
+
+function DCHandler(integer id, integer msg, atom wParam, object lParam)
+integer k,last
+atom addr
+--string newname, oldname
+object w
+integer fmt
+object c
+atom hDC
+integer col
+--integer x,y,w,h,hh
+--string ftxt
+--integer k
+--atom pItemIdx
+--atom eHndl, pRect
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(DCwin)
+        elsif wParam=VK_RETURN then
+            k = find(id,DCretset)
+            if k then
+                last = length(DCretset)-1+isVisible(DCsubtype)
+                if k<last then
+                    setFocus(DCretset[k+1])
+                end if
+            end if
+        end if
+    elsif msg=WM_COMMAND then
+        if id=DCadd then
+            columns = append(columns,{"New Column",80,0})
+            cflags = append(cflags,{0,1,1,0})
+            k = length(columns)
+            setLVItemCount(DClv,k)
+            setIndex(DClv,k)
+            setFocus(DClv)
+            void = sendMessage(DClv,WM_KEYDOWN,VK_F2,0)
+        elsif id=DChelp then
+            DCHelp()
+        else
+            k = getIndex(DClv)
+            if k!=0 then
+                if id=DCwidth then
+                    w = getInteger(getText(DCwidth))
+                    if integer(w) then
+                        columns[k][C_width] = w
+                        lblwColour = Black
+                    else
+                        lblwColour = BrightRed
+                    end if
+                    repaintWindow(DClblw,False)
+                elsif id=DCalign then
+                    columns[k][C_align] = getIndex(DCalign)-1
+                elsif id=DCformat then
+                    fmt = getIndex(DCformat)
+                    cflags[k][CT_fmt] = fmt
+                    setDCsubtype(fmt)
+                elsif id=DCactive then
+                    cflags[k][CT_active] = isChecked(DCactive)
+                elsif id=DCcolumn then
+                    col = cflags[k][CT_column]
+                    if isChecked(DCcolumn) then
+                        if col<0 then col = 0-col end if
+                    else
+                        if col>0 then col = 0-col end if
+                    end if
+                    cflags[k][CT_column] = col
+                elsif id=DCsubtype then
+                    cflags[k][CT_subtype] = getIndex(DCsubtype)
+                end if
+            end if
+        end if
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_F1 then
+            DCHelp()
+        elsif wParam=VK_F2 then
+            if id=DClv then
+--Edit()
+                addStyle(DClv,LVS_EDITLABELS)
+                k = getIndex(DClv)
+                if k>2 then
+                    void = sendMessage(DClv,LVM_EDITLABEL,k-1,0)
+                else
+                    void = sendMessage(DClv,WM_CHAR,VK_RETURN,0)
+                end if
+            end if
+        end if
+    elsif msg=WM_NOTIFY and id=DClv then
+        if wParam=LVN_ENDLABELEDITA then
+            k = peek4s(lParam+LVDISPINFO_LVITEM+LVITEM_iItem)
+            if k>=0 then
+                addr = peek4s(lParam+LVDISPINFO_LVITEM+LVITEM_pszText)
+                if addr!=0 then
+                    columns[k+1][C_Name] = peek_string(addr)
+                    -- and "tab" to next field
+                    void = sendMessage(DClv,WM_CHAR,VK_RETURN,0)
+                end if
+            end if
+        end if
+    elsif msg = WM_DRAWITEM then    -- SS_OWNERDRAW items which have NOT been setTextColour'd.
+        hDC = peek4u(lParam+DIS_hDC)
+        id = peek4u(lParam+DIS_CtlID)
+        if id=0 then
+            id = c_func(xGetWindowLong,{peek4u(lParam+DIS_hwndItem),GWL_USERDATA}) --getID
+        end if
+        if id=DClblw then
+            c = lblwColour
+        else ?9/0
+        end if
+        void = c_func(xSetTextColor,{hDC,c})
+        c_proc(xDrawText,{hDC,allocate_StringZ(getText(id)),-1,lParam+DIS_rcItem,DT_RIGHT})
+    elsif msg=WM_CLOSE then
+        pgdbSaveColumns()
+        resetcolumns()
+    end if
+    return 0
+end function
+setHandler({DCwin,DClv,DCadd,DChelp,
+            DClblw,DCwidth,DCalign,DCformat,
+            DCactive,DCcolumn,DCsubtype},
+            routine_id("DCHandler"))
+
+
+global procedure Columns()
+    if not cinit then
+        cinit = 1
+        removeStyle(DCwin,or_all({WS_THICKFRAME,WS_MINIMIZEBOX,WS_MAXIMIZEBOX}))
+        void = sendMessage(DClv,LVM_SETEXTENDEDLISTVIEWSTYLE,0,LVxstyle)
+        lblwColour = Black
+        deleteItem(DCalign, 0)
+        void = insertItem(DCalign, {"left","right","centre"}, 0)
+        deleteItem(DCformat, 0)
+        void = insertItem(DCformat, FORMATS, 0)
+        setLVItemCount(DClv,length(columns))
+        setLVFormatRoutine(DClv,routine_id("DCFormat"))
+        resizeLVColumns(DClv)
+    end if
+    
+    openWindow(DCwin,SW_NORMAL)
+
+--DEV
+-- base on eafext? (no edit)
+-- see tedb for showing details? flags should be checkboxes, plenty of them
+
+--/*
+--constant DTLwin=create(Window,"Record Details",0,STwin,40,40,819,382,0)
+--
+--constant DTLview=create(ListView,DTLcos2,0,DTLwin,2,2,216,360,{{LVS_SINGLESEL,LVS_SHOWSELALWAYS,LVS_OWNERDATA},0})
+--
+--  elsif msg = WM_SIZE then
+--      rect=getClientRect(DTLwin)
+--      DTLrect=getWindowRect(DTLwin)
+----        DTLrect[3..4]-=DTLrect[1..2]        -- 2.4 bug
+--      DTLrect[3]=DTLrect[3]-DTLrect[1]
+--      DTLrect[4]=DTLrect[4]-DTLrect[2]
+--      if DTLstr[3] then
+--          void=c_func( xMoveWindow, {getHwnd(DTLview), rect[1]+2, rect[2]+2, rect[3]-4, rect[4]-4-length(DTLcols)*18, 1} )
+--          for i = length(DTLcols) to 1 by -1 do
+--              rect[4]=rect[4]-18
+--              if i<=length(DTLlabs) then  --not quite sure why this is needed...
+--                  void=c_func( xMoveWindow, {getHwnd(DTLlabs[i]), rect[1]+2, rect[4], rect[3]-4, 18, 1} )
+--              end if
+--          end for
+--      else
+--          void=c_func( xMoveWindow, {getHwnd(DTLview), rect[1]+2, rect[2]+2, rect[3]-4, rect[4]-4, 1} )
+--      end if
+--      --
+--      -- Resize the columns to fit, proportionally, leaving 29 pixels for 
+--      -- the vertical scrollbar (which may not be present)
+--      --
+--      if not getKeyState(VK_MENU) then    -- Alt key not depressed
+--          c0=repeat(0,length(DTLcols))
+--          ctot=0
+--          for i=1 to length(c0) do
+--              c1=sendMessage(DTLview,LVM_GETCOLUMNWIDTH,i-1,0)
+--              c0[i]=c1
+--              ctot+=c1
+--          end for
+--          cnew=0
+--          for i=1 to length(c0)-1 do
+--              c1=floor((c0[i]/ctot)*(rect[3]-29))
+--              c0[i]=c1
+--              cnew+=c1
+--          end for
+--          c0[length(c0)]=rect[3]-29-cnew
+--          void = c_func(xSendMessage, {getHwnd(DTLview), WM_SETREDRAW, 0, 0} )
+--          for i=1 to length(c0) do
+--              void=sendMessage(DTLview,LVM_SETCOLUMNWIDTH,i-1,c0[i])
+--              DTLcols[i][2]=c0[i]
+--          end for
+--          void = c_func(xSendMessage, {getHwnd(DTLview), WM_SETREDRAW, 1, 0} )
+--      end if
+--  elsif msg = WM_MOVE then
+--      DTLrect=getWindowRect(DTLwin)
+--      DTLrect[3]=DTLrect[3]-DTLrect[1]
+--      DTLrect[4]=DTLrect[4]-DTLrect[2]
+--
+----function STlboxHandler(integer id, integer msg, atom wParam, object lParam)
+--
+--  elsif (msg = WM_LBUTTONUP and justDblClick)
+--     or (msg = WM_CHAR and wParam = VK_RETURN) then
+----trace(1)
+--      justDblClick=0
+--      currtbl=getItem(STlbox,0)
+--      if length(currtbl) then
+--          if getColumnDefinitions(0) then
+--              if DBselect(currdb,currtbl) then
+--                  --
+--                  -- Delete all existing columns and rebuild.
+--                  --
+--                  for i=noofDTLcols to 1 by -1 do
+--                      void = sendMessage(DTLview, LVM_DELETECOLUMN, i-1, 0)
+--                  end for
+--                  noofDTLcols = length(DTLcols)
+--                  for i=1 to noofDTLcols do
+--                      onecol=DTLcols[i]
+--                      if atom(onecol[1]) then
+--                          onecol={onecol,0,0}
+--                      end if
+--                      while length(onecol)<3 do
+--                          onecol&=0
+--                      end while
+--                      DTLcols[i]=onecol
+--                      insertLVColumn(DTLview, onecol , i)
+--                  end for
+--                  if length(DTLrect) then
+--                      void=c_func( xMoveWindow, getHwnd(DTLwin)&DTLrect&1 )
+--                  end if
+--                  if DTLstr[3] then
+--                      while noofDTLcols > length(DTLlabs) do
+--                          DTLlabs&=create(Label,"",0,DTLwin,0,0,0,0,0)
+--                      end while
+--                  end if
+--                  for i = 1 to length(DTLlabs) do
+--                      setText(DTLlabs[i],"")
+--                      setVisible(DTLlabs[i],i<=noofDTLcols and DTLstr[3])
+--                  end for                     
+--                  void = sendMessage(DTLwin, WM_SIZE, 0, 0)   -- adjust column widths
+--                  setLVItemCount(DTLview,db_table_size())
+--                  DataLoaded=0
+--                  openWindow(DTLwin,SW_NORMAL)
+--              end if
+--          end if
+--      end if
+
+--*/
+-- Tcolumns,        -- Key is id, data is {name,width,rec,flags}
+-- Hide - disabled if another Column already has this checked.
+--
+--global sequence columns = {{"Directory",80,0},
+--                         {"Name",50,0}} -- code quality, group, class, last run, last modified, size, error, rec
+--                                                  -- type (mandatory, system, integer, enum, text, date, size)
+--                                                  -- (hidden/visible), (column/detail)
+--
+--  resetcolumns()
+end procedure
+
+integer einit
+        einit = 0
+constant DEwin=create(Window,"Define Enums",0,pmain,601,26,255,231,0)
+constant DEnuml = create(Label,"Names",0,DEwin,5,5,50,20,0)
+constant DEnums = create(ComboBox,"",  0, DEwin, 5, 25, 105, 160, 0)
+constant DEvall = create(Label,"Values",0,DEwin,126,4,50,20,0)
+constant DEvals = create(ComboBox,"",  0, DEwin, 125, 25, 105, 160, 0)
+
+constant DEht = "An enum is a set of values that can be used on a column.\n\n"&
+
+                "For example, you could define \"yesno\" as {\"yes\",\"no\"}.\n\n"&
+
+                "Create as many sets of as many values as you like, there are no known limits. "&
+                "Note that the first entry is always the default, so you might need (eg) both "&
+                "\"yesno\" and \"noyes\".\n\n"&
+
+                "As yet you can only add things, there is no ability to edit or delete anything, sorry!"
+
+procedure DEHelp()
+    void = messageBox("Enums",DEht,MB_OK)
+end procedure
+
+function DEHandler(integer id, integer msg, atom wParam, object lParam)
+string text
+sequence fullset
+integer k
+
+    if object(lParam) then end if -- suppress warnings
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(DEwin)
+        end if
+    elsif msg=WM_COMMAND then
+        if id=DEnums then 
+--          if wParam=CBN_SELCHANGE then
+--              text = getItem(id,0)
+--              setText(STATUS, text)
+                k = getIndex(DEnums)
+                setEnable(DEvals,k!=0)
+                if k!=0 then
+                    deleteItem(DEvals, 0)
+                    void = insertItem(DEvals, esets[k], 0)
+                end if
+--          end if
+        end if
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_F1 then
+            DEHelp()
+        elsif wParam=VK_ESCAPE then
+            closeWindow(DEwin)
+        elsif wParam=VK_RETURN then
+            if id=DEnums
+            or id=DEvals then 
+                text = getText(id)
+                if length(text) then
+                    fullset = getItem(id,{1,getCount(id)})
+                    k = find(text,fullset)
+                    if k = 0 then
+                        void = insertItem(id, text, 0)
+                        if id=DEnums then
+                            enums = append(enums,text)
+                            esets = append(esets,{})
+                        else
+                            k = getIndex(DEnums)
+                            esets[k] = append(esets[k],text)
+                        end if
+                        k = getCount(id)
+                    end if
+                    setIndex(id,k)
+                end if
+            end if
+        end if
+    elsif msg=WM_CLOSE then
+        pgdbSaveEnums()
+    end if
+    return 0
+end function
+setHandler({DEwin,DEnums,DEnuml,DEvals,DEvall},routine_id("DEHandler"))
+-- and the hidden edit controls for those comboboxes:
+setHandler(getChildren(DEnums),routine_id("DEHandler"))
+setHandler(getChildren(DEvals),routine_id("DEHandler"))
+
+global procedure Enums()
+    if not einit then
+        einit = 1
+        removeStyle(DEwin,or_all({WS_THICKFRAME,WS_MINIMIZEBOX,WS_MAXIMIZEBOX}))
+        deleteItem(DEnums, 0)
+        void = insertItem(DEnums, enums, 0)
+        setEnable(DEvals,False)
+    end if
+    
+    openWindow(DEwin,SW_NORMAL)
+
+end procedure
+
+--global constant CDS=allocate(12) -- (also used by pgisense.ew)
+--printf(1,"CDS is #%08x\n",CDS)
+constant CD_EDITA = #20050228    -- Are you really Edita?
+constant CD_OPEN  = #20050227    -- "Edit with Edita" - local files, no special handling
+
+global function checkEdita()
+-- (also used by pgisense.ew)
+atom CDS = allocate(12)
+integer isEdita
+    poke4(CDS,{CD_EDITA,0,0})
+    isEdita = (c_func(xSendMessage,{eHwnd, WM_COPYDATA, getHwnd(pmain), CDS})=CD_EDITA)
+    free(CDS)
+    if isEdita then return 1 end if
+    void = messageBox("Error","Edita not responding",MB_OK)
+    return 0
+end function
+
+global procedure EditWithEdita()
+integer i
+sequence fti
+string path
+atom CDS
+    i = getIndex(dlist)
+    if i then
+        fti = files[tags[i]]
+        path = directories[fti[T_dir]]&"\\"&fti[T_name]
+        if checkEdita() then
+            CDS = allocate(12)
+            poke4(CDS,{CD_OPEN,length(path),allocate_StringZ(path)})
+            void = c_func(xSendMessage, {eHwnd, WM_COPYDATA, NULL, CDS})
+            free(CDS)
+            c_proc(xSetForegroundWindow,{eHwnd})
+        end if
+    end if
+end procedure
+
+

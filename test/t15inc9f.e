@@ -1,0 +1,1 @@
+global constant f=6

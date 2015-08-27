@@ -1,0 +1,53 @@
+--
+-- scratchg.exw
+-- ============
+--
+-- A basic template for graphics programs
+--
+include ..\arwen\arwen.ew
+include ..\arwen\axtra.ew
+
+constant main = create(Window, "Boids 3D on Arwen", 0, 0, 20, 20, 625, 690, 0),
+         mainDC = getPrivateDC(main),
+         backDC = c_func(xCreateCompatibleDC, {NULL}),  -- the background
+         viewDC = c_func(xCreateCompatibleDC, {NULL})   -- with animation etc
+
+constant MainTimer = createTimer()
+
+integer dw = 0, dh = 0
+atom bmBack, bmView
+integer bmX = 0, bmY = 0    -- actual size of the bitmaps
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_SIZE then
+        {{},{},dw,dh} = getClientRect(main)
+        if dw>bmX or dh>bmY then
+            -- we need bigger bitmaps
+            bmBack = c_func(xCreateCompatibleBitmap, {mainDC, dw, dh})
+            {} = deleteObject(selectObject(backDC,bmBack))
+            bmView = c_func(xCreateCompatibleBitmap, {mainDC, dw, dh})
+            {} = deleteObject(selectObject(viewDC,bmView))
+            {bmX,bmY} = {dw,dh}
+        end if
+    elsif msg=WM_PAINT then
+        -- start with a fresh copy of the background
+        void = c_func(xBitBlt,{viewDC,0,0,dw,dh,backDC,0,0,SRCCOPY})
+        -- do your own drawing here! (eg rosetta/animate_pendulum.exw)
+        setPenColor(#909090)
+        drawRectangleh(viewDC, False, 10, 10, dw/2, dh/2)
+        void = c_func(xBitBlt,{mainDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
+    elsif msg=WM_TIMER then
+        repaintWindow(main)
+    elsif msg=WM_SHOWWINDOW then
+        startTimer(MainTimer,main,33)
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(main)
+        if id or object(lParam) then end if -- suppress warnings
+    end if
+    return 0
+end function
+setHandler({main},routine_id("mainHandler"))
+
+WinMain(main, SW_NORMAL)
+

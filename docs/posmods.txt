@@ -1,0 +1,113 @@
+Modifications needed to win32lib to make it Phix compatible.
+================================================================
+
+After these changes, the file(s) work equally on Phix and RDS Eu.
+Naturally, all line numbers are very rough guide only; search for the
+text when making these changes (if lost).
+
+win32lib.ew:
+12799: implicit sequence op in function adjustBrightness(),
+--/**/	lRGB = sq_floor(sq_mul(lRGB,pAdjustment))	--/* Pve
+    lRGB = floor( lRGB * pAdjustment )			-- RDS */
+
+14783: implicit sequence op in function getLVAllChecked(),
+replaced:
+    return lItems+1
+with:
+    return lItems
+and previous:
+    lItems &= i
+with:
+    lItems &= i+1
+
+15846: implicit sequence op in function createMouseTrap(),
+--/**/	    pRect[3..4] = sq_sub(pRect[3..4],pRect[1..2])		    --/* Pve
+	    pRect[3..4] -= pRect[1..2]					    -- RDS */
+
+20835: implicit sequence op in function getRect(),
+--/**/	    retval = sq_sub(retval,(xy & xy))		    --/* Pve
+	    retval -= (xy & xy) 			    -- RDS */
+
+21552: implict sequence op in function drawText(),
+--/**/	poke4(lRect, sq_add(rect[1..4],lBorders))	--/* Pve
+    poke4(lRect, rect[1..4]+lBorders)			-- RDS */
+
+21637: as 21552 but this time in function textRect()
+
+23893: implicit sequence op in function getSelection(),
+	   replaced:
+			msg = {w32fetch( CR, CHARRANGE_cpMin ), w32fetch( CR, CHARRANGE_cpMax )} + 1
+		with:
+			msg = {w32fetch( CR, CHARRANGE_cpMin )+1, w32fetch( CR, CHARRANGE_cpMax )+1}
+
+26847: implicit sequence op in function textToBitmap(),
+--/**/	s = sq_eq(s,' ')	--/* Pve
+    s = ( s = ' ' )		-- RDS */
+
+27473: implicit sequence op in function copyToBitmapFile(),
+deleted:
+    image -= 1
+and replaced:
+	    scanline[column] = index
+with:
+	    scanline[column] = index-1
+
+28212: implicit sequence op in procedure setClientRect(),
+--/**/	diff = sq_sub(getCtlSize( id ),sq_sub(client[3 .. 4],client[1 .. 2]))	    --/* Pve
+    diff = getCtlSize( id ) - (client[3 .. 4] - client[1 .. 2]) 		    -- RDS */
+
+29013: implicit sequence ops in function isScreenPointIn(),
+--/**/	lScreenRect[3..4] = sq_sub(lScreenRect[3..4],lScreenRect[1..2]) 	    --/* Pve
+    lScreenRect[3..4] -= lScreenRect[1..2]					    -- RDS */
+and:
+--/**/	lScreenRect[3..4] = sq_add(lScreenRect[3..4],sq_sub(lScreenRect[1..2],1))   --/* Pve
+    lScreenRect[3..4] += lScreenRect[1..2]-1					    -- RDS */
+
+29470: implicit sequence ops in function createMousePointer(),
+--/**/	maskBits = sq_eq(image,' ')	    --/* Pve
+    maskBits = ( image = ' ' )		    -- RDS */
+and:
+--/**/	maskBits = sq_eq(image,'.')	    --/* Pve
+    maskBits = (image = '.')		    -- RDS */
+
+30356: Phix block comments can begin with "--/*" (this case was correctly
+		detected with the error "missing closing block comment", and such
+		comments display correctly using the latest[DEV] version of Edita):
+	   replaced:
+				--/* Begin Tone Skoda --
+		with:
+				--!/* Begin Tone Skoda --
+
+31029: implicit sequence op in function hitTestLV(),
+replaced:
+	lItem = {w32fetch(ht,LVHITTESTINFO_iItem),
+		 w32fetch(ht,LVHITTESTINFO_iSubItem)} + 1--find( iItem, tvitem_handle )
+with:
+	lItem = {w32fetch(ht,LVHITTESTINFO_iItem)+1,
+		 w32fetch(ht,LVHITTESTINFO_iSubItem)+1}
+
+32788: bug found in function setDefaultProcessing(). vOldVal was defined as
+		a sequence, yet r_defaultProcessing is an integer. Changed to
+		integer vOldVal.
+
+34041: implicit sequence op in function hitTestTT( ),
+--/**/	pt = sq_sub(mouse,op)			--/* Pve
+    pt = mouse - op				-- RDS */
+
+w32support.e:
+2755: implicit sequence op in function w32rand32(),
+--/**/	d = sq_mul(vOldSeed,d)	    --/* Pve
+    d = vOldSeed * d		    -- RDS */
+
+=========================================================================
+That's really it. Being generous, 18 changes is all it needed, which is 
+not very many considering that win32lib is around 45,000 lines of code.
+Oh, once the above changes are in place, put "(Phix compatible)" in
+a comment in the first 10 lines of win32lib, to suppress warnings. The 
+remainder documents some optional, but recommended changes (you tend to 
+notice a few things about a source when developing a compiler!)
+=========================================================================
+
+Part2 [optional] TBC... I've got some notes somewhere...
+
+-- ends --

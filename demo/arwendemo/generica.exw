@@ -1,0 +1,534 @@
+--
+-- generica.exw
+-- ============
+--
+--   A demonstration of features common to many applications, including:
+--
+--      Menus
+--      File Open/Save/SaveAs dialogs
+--      Printing [dev]
+--      Toolbars
+--      Tooltips
+
+-- This is a translation of generic.exw by D Cuny from win32lib to arwen.
+
+-- TODO:
+--  Use the new fileopen, including unicode support
+--  Implement basic print, and print preview
+
+--/**/with gui
+
+--with trace
+--without warning
+--include safe.e
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+include ..\..\builtins\misc.e
+--/**/include arwen.ew
+--/**/include axtra.ew
+--/* RDS Eu:
+include ..\arwen\arwen.ew
+include ..\arwen\axtra.ew
+--*/
+include tbar_xpm.e      -- pixmap library
+
+constant
+    Ver     = "Version 2.2",
+    App     = "Generic Demo",
+    CrLf    = { '\r', '\n' },
+    Cr      = '\r',
+    Lf      = '\n',
+
+    Atitle  = "About " & App,                   -- about title
+    Atext   = (App & " " & Ver & CrLf &         -- about text
+               "Simple Editor" & CrLf &
+               "Demonstrates Arwen Features")
+
+
+-- name of the currently open file
+sequence openFileName
+         openFileName = ""
+
+-- default file types the app recognizes
+constant FileTypes = {"dialog flags", {OFN_ALLOWMULTISELECT},
+                      "Text File", "*.TXT",
+                      "Euphoria Program", "*.EX;*.EXW;*.E;*.EW",
+                      "All Files", "*.*" }
+
+
+constant SCB = getSysColor(COLOR_BTNFACE)
+
+-----------------------------------------------------------------------------
+function ToolbarButton(integer toolbar, object tooltip, object xpm)
+--
+-- create a button in the toolbar (here always GTools)
+-- if tooltip is 0, creates a seperation instead.
+-- tooltip can be "" if no hint text is required.
+-- xpm can be an included constant or a freshly open file handle.
+--
+integer button
+atom dib
+
+    if equal(tooltip,'-') then  -- seperator
+        void = create(ToolSep,"",0,toolbar,0,0,0,0,0)
+        return 0
+    end if
+    if atom(xpm) and xpm<=2 then ?9/0 end if
+
+    -- convert the xpm to a dib, converting transparent colours to the button colour:
+    dib = createDIBfromXPM(xpm, SCB)
+--?{dib,tooltip}
+--printf(1,"{#%08x,%s}\n",{dib,tooltip})
+    if dib=NULL then puts(1,"oops, dib is NULL\n") end if   -- sanity check
+    button = create(PictureButton, "", dib, toolbar, 0, 0, 28, 28, 0)
+    if length(tooltip) then setHint(button, tooltip) end if
+    return button
+end function
+
+-----------------------------------------------------------------------------
+-- THE CONTROLS
+-----------------------------------------------------------------------------
+
+constant
+-- The window
+    Generic = create(Window, "Untitled - " & App, 0, 0, 100, 100, 400, 310, 0),
+
+-- The toolbar
+    GTools  = create(ToolBar, "", 0, Generic, 0, 0, 24, 32, 0),
+    GToolHwnd = getHwnd(GTools),
+
+-- The status bar
+    GStatus = create(StatusBar, "", 0, Generic, 0, 0, 0, 0, 0),
+    GSBfld0 = create(StatusField,"", 0, GStatus, 0, 0, 3, 0, 0 ), -- Win95 bug
+    GSBfld1 = create(StatusField,"", 0, GStatus, 0, 0, 200, 0, 0 ),
+    GSBfld2 = create(StatusField,"", 0, GStatus, 0, 0, 235, 0, 0 ),
+
+-- The text edit box
+    GText = create(MultiEditText, "", 0, Generic, 4, 45, 385, 192, ES_NOHIDESEL),
+    GTextHwnd = getHwnd(GText),
+
+-- The menus
+    FileMenu    = create(Menu,  "&File",    0,Generic, 0, 0, 0, 0, 0),
+    MenuNew     = create(MenuItem, "&New",  0,FileMenu, 0, 0, 0, 0, 0),
+    MenuOpen    = create(MenuItem, "&Open", 0,FileMenu, 0, 0, 0, 0, 0),
+    MenuSep1    = create(MenuItem, "-",     0,FileMenu, 0, 0, 0, 0, 0),
+    MenuSave    = create(MenuItem, "&Save", 0,FileMenu, 0, 0, 0, 0, 0),
+    MenuSaveAs  = create(MenuItem, "Save &As", 0,FileMenu, 0, 0, 0, 0, 0),
+    MenuSep2    = create(MenuItem, "-",     0,FileMenu, 0, 0, 0, 0, 0),
+--  MenuPrint   = create(MenuItem, "Print", 0,FileMenu, 0, 0, 0, 0, 0),
+--  MenuSep3    = create(MenuItem, "-",     0,FileMenu, 0, 0, 0, 0, 0),
+    MenuClose   = create(MenuItem, "&Close",    0,FileMenu, 0, 0, 0, 0, 0),
+
+    EditMenu    = create(Menu,  "&Edit",    0,Generic, 0, 0, 0, 0, 0),
+    MenuUndo    = create(MenuItem, "&Undo", 0,EditMenu, 0, 0, 0, 0, 0),
+    MenuSep4    = create(MenuItem, "-",     0,EditMenu, 0, 0, 0, 0, 0),
+    MenuCut     = create(MenuItem, "Cu&t",  0,EditMenu, 0, 0, 0, 0, 0),
+    MenuCopy    = create(MenuItem, "&Copy", 0,EditMenu, 0, 0, 0, 0, 0),
+    MenuPaste   = create(MenuItem, "&Paste",    0,EditMenu, 0, 0, 0, 0, 0),
+    MenuDelete  = create(MenuItem, "De&lete",   0,EditMenu, 0, 0, 0, 0, 0),
+
+    HelpMenu    = create(Menu, "&Help", 0,Generic, 0, 0, 0, 0, 0),
+    MenuAbout   = create(MenuItem, "&About " & App & "...", 0,HelpMenu, 0, 0, 0, 0, 0),
+
+-- Toolbar buttons
+    n2_xpm = new_xpm,
+--  n2_xpm = open("C:\\Program\\Files\\demo\\xpm\\run.xpm","r")     -- works fine, btw.
+--  n2_xpm = open("C:\\Program\\Files\\demo\\xpm\\s2.xpm","r")      -- 256 colour test (OK)
+--  n2_xpm = open("C:\\Program\\Files\\demo\\xpm\\s257.xpm","r")    -- 257 colour test (OK)
+    ToolNew     = ToolbarButton(GTools, "New",  n2_xpm),
+    ToolOpen    = ToolbarButton(GTools, "Open", open_xpm),
+    ToolSave    = ToolbarButton(GTools, "Save", save_xpm),
+    ToolSaveAs  = ToolbarButton(GTools, "Save As", save_as_xpm),
+--  ToolPrint   = ToolbarButton(GTools, "Print",    print_xpm),
+    ToolClose   = ToolbarButton(GTools, "Close",    close_xpm),
+
+    ToolSep1    = ToolbarButton(GTools, '-',    0),
+    ToolUndo    = ToolbarButton(GTools, "Undo", undo_xpm),
+    ToolCut     = ToolbarButton(GTools, "Cut",  cut_xpm),
+    ToolCopy    = ToolbarButton(GTools, "Copy", copy_xpm),
+    ToolPaste   = ToolbarButton(GTools, "Paste",    paste_xpm),
+    ToolDelete  = ToolbarButton(GTools, "Trash",    trash_xpm),
+
+    ToolSep2    = ToolbarButton(GTools, '-',    0),
+    ToolAbout   = ToolbarButton(GTools, "Help", help_xpm),
+
+    Normal = 0
+
+    if MenuSep1 or MenuSep2 --or MenuSep3
+    or MenuSep4 or ToolSep1 or ToolSep2
+    or GSBfld0 then end if                      -- suppress warnings
+
+    setFont(GText, "Courier New", 10, Normal)
+    setFont(GStatus, "Arial", 12, Normal)
+    setText(GSBfld1,"Ready")
+
+--atom dib
+--  dib = createDIBfromXPM(open("C:\\P3\\bmp\\dcxpm\\s2.xpm","r"), getSysColor(COLOR_BTNFACE))
+--WM_SETICON
+--setIcon(Generic, dib)
+
+
+
+-----------------------------------------------------------------------------
+procedure setOpenFileName(sequence fName)
+
+    -- save the name of the open file
+    -- update the title bar of the window
+
+    sequence shortName, lDir
+
+    -- save name
+    openFileName = fName
+
+    -- truncate path from name
+    shortName = fName
+    for i = length(fName) to 1 by -1 do
+        if fName[i] = '\\' then
+            shortName = fName[i+1..length(fName)]
+            lDir = fName[1..i]
+            exit
+        end if
+    end for
+
+    -- update title bar
+    setText(Generic, shortName & " - " & App)
+    setText(GSBfld2,lDir)
+
+end procedure
+
+
+procedure newFile()
+    setText(Generic, "Untitled - " & App)
+    openFileName = ""
+    setText(GText, "")
+end procedure
+
+-----------------------------------------------------------------------------
+procedure openFile()
+-- read a file into the MLE
+integer handle
+sequence buffer
+object fName, data
+
+    -- get the file name
+
+    fName = getOpenFileName(Generic, "", FileTypes,0)
+
+    if atom(fName) then
+        setText(GSBfld2,"No File Selected")
+        return
+    end if
+
+    fName = fName[1]
+    handle = open(fName, "r")
+
+    buffer = {}
+    while 1 do
+        data = gets(handle)
+        if atom(data) then exit end if      -- eof
+
+        -- replace { ... \n } with { ... \r, \n }
+--      data = data[1..length(data)-1] & CrLf
+        data[length(data)] = Cr
+--      data=append(data,Lf)
+
+        -- append
+        buffer = buffer & data & Lf
+
+    end while
+
+    -- close the file
+    close(handle)
+
+    -- place the data in the mle
+    setText(GText, buffer)
+
+    -- set file name
+    setOpenFileName(fName)
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+procedure saveFile(sequence fName)
+-- write the current data out as a file
+integer handle, lFound
+sequence lBuffer
+
+    if length(fName) = 0 then
+        void = messageBox("Save Error",
+                          "Please select a file name.",
+                          MB_ICONHAND)
+        return
+    end if
+
+    -- open the file
+    handle = open(fName, "w")
+    if handle = -1 then
+        -- give message and exit
+        void = messageBox("Save File Error",
+                          "Unable to create the file " & fName,
+                          MB_ICONHAND)
+        return
+    end if
+
+    -- Get all of the text.
+    lBuffer = getText(GText)
+    -- replace CRLF with LF
+    while 1 do
+        lFound = match(CrLf, lBuffer)
+        if lFound = 0 then exit end if
+        lBuffer = lBuffer[1..lFound-1] &
+                  Lf &
+                  lBuffer[lFound+2..length(lBuffer)]
+    end while
+
+    -- replace CR with LF
+    while 1 do
+        lFound = find(Cr, lBuffer)
+        if lFound = 0 then exit end if
+        lBuffer = lBuffer[1..lFound-1] &
+                  Lf &
+                  lBuffer[lFound+1..length(lBuffer)]
+    end while
+
+    -- write the file
+    puts(handle, lBuffer)
+
+    -- close the file
+    close(handle)
+
+    -- set file name
+    setOpenFileName(fName)
+
+end procedure
+
+procedure saveAs()
+object fName
+    fName = getSaveFileName(Generic, openFileName, FileTypes,0)
+    if sequence(fName) then
+        saveFile(fName)
+    end if
+end procedure
+
+
+---- flag for printing errors
+--integer printErr
+--
+-------------------------------------------------------------------------------
+----no printer support [yet] in arwen!
+----
+--function printPage(sequence doc)
+---- prints document on page
+---- returns amount of document not printed yet
+--integer pageY, fontY, y, z
+--sequence result
+--
+--
+--  -- is the document empty?
+--  if length(doc) = 0 then
+--      -- do nothing
+--      return doc
+--  end if
+--
+--  -- start a new page
+----    if not startPage() then
+--      -- set error and return empty sequence
+--      printErr = True
+--      return {}
+----    end if
+--
+--  -- get the attributes of font
+----    result = getFontSize(Printer)
+--  fontY = result[2]
+--
+--  -- get the attributes of the page
+----    result = getCtlSize(Printer)
+--  pageY = result[2]
+--
+--  -- start at top of page
+--  y = 0
+--
+--  z = 1
+--  while z <= length(doc) do
+--
+--      -- out of space?
+--      if y + fontY > pageY then
+--          exit
+--      end if
+--
+--      -- print on page
+----        setPenPosition(Printer, 0, y)
+----        wPuts(Printer, doc[z])
+--
+--      -- move down a line
+--      y+=fontY
+--      z+=1
+--
+--  end while
+--
+--  -- end the page
+----    if not endPage() then
+--      -- flag printer error
+--      printErr = True
+----    end if
+--
+--  -- return the unprinted portion
+--  return doc[z..length(doc)]
+--
+--end function
+--
+-------------------------------------------------------------------------------
+--procedure printDoc(sequence doc, sequence jobName)
+--object result
+--
+--  -- empty?
+--  if length(doc) = 0 then
+--      -- do nothing
+--      return
+--  end if
+--
+----    result = getPageSetup()
+--  if not sequence(result) then return end if
+--
+----    if not startDoc(jobName) then
+--      printErr = True
+----    end if
+--
+--  -- until end of document or error
+--  while length(doc) != 0
+--  and   not printErr do
+--      -- send document to printer; returns unprinted amount
+--      doc = printPage(doc)
+--  end while
+--
+--  -- end the document
+----    if not endDoc() then
+--      printErr = True
+----    end if
+--
+--end procedure
+--
+--
+-------------------------------------------------------------------------------
+--function breakText(sequence text)
+---- text returned from the MLE is delimited with CrLf.
+---- break the text into seperate lines
+--integer at
+--sequence doc
+--sequence lEOL
+--
+--  -- convert into lines
+--  at = match(CrLf, text)
+--  if at != 0 then
+--      lEOL = CrLf
+--  else
+--      at = find(Cr, text)
+--      if at != 0 then
+--          lEOL = {Cr}
+--      else
+--          lEOL = {Lf}
+--      end if
+--  end if
+--  doc = {}
+--  while 1 do
+--
+--      -- look for an end of line
+--      at = match(lEOL, text)
+--      if at = 0 then
+--
+--          -- any text remaining?
+--          if length(text) then
+--              doc = append(doc, text)
+--          end if
+--
+--          -- leave loop
+--          exit
+--
+--      end if
+--
+--      -- add text to document
+--      doc = append(doc, text[1..at-1])
+--
+--      -- remove from text
+--      text = text[at+length(lEOL)..length(text)]
+--
+--  end while
+--
+--  return doc
+--
+--end function
+--
+-------------------------------------------------------------------------------
+--procedure printFile()--integer self, integer even, sequence parms)
+---- print document on printer
+--sequence result, doc
+--
+--  -- get the entire document text
+----    doc = getRichText(GText ,-1)
+--  doc = getText(GText)
+--
+--  -- break into seperate lines
+--  doc = breakText(doc)
+--
+--  printErr = False
+--
+--  -- select the printer
+----    result = getPrinter()
+--  if length(result) = 0 then
+--      -- user cancelled
+--      return
+--  end if
+--
+--  setFont(Printer, "Courier New", 10, Normal)
+--
+--  printDoc(doc, App)
+--
+----    releasePrinter()
+--
+--  if printErr then
+--      -- display an error message
+--      void = messageBox("Error Printing File",
+--                        "Print File Error",
+--                        MB_ICONHAND)
+--  end if
+--
+--end procedure
+
+
+function gHandler(integer id, integer msg, atom wParam, object lParam)
+    if atom(wParam) then end if -- suppress warnings
+    if msg = WM_SIZE then
+        if id=Generic then
+            -- resize the MultiEditText control to fit
+            void=c_func(xMoveWindow, {GTextHwnd, lParam[1]+5, lParam[2]+5, lParam[3]-10, lParam[4]-50, 1})
+            -- and the toolbar(dev ??)
+            void=c_func(xMoveWindow, {GToolHwnd, 0, 0, lParam[3], 32, 1})
+
+        end if
+--  elsif msg=WM_SETFOCUS and id = GTools then  -- WS_TABSTOP removed from ToolBars and PictureButtons...
+--      setFocus(GText)     --DEV 
+    elsif msg=WM_COMMAND then
+        if    id=MenuNew    or id=ToolNew then      newFile()
+        elsif id=MenuOpen   or id=ToolOpen then     openFile()
+        elsif id=MenuSave   or id=ToolSave then     saveFile(openFileName)
+        elsif id=MenuSaveAs or id=ToolSaveAs then   saveAs()
+--      elsif id=MenuPrint  or id=ToolPrint then    printFile()
+        elsif id=MenuClose  or id=ToolClose then    closeWindow(Generic)
+        elsif id=MenuUndo   or id=ToolUndo then     void = sendMessage(GText, WM_UNDO, 0, 0)
+        elsif id=MenuCut    or id=ToolCut then      void = sendMessage(GText, WM_CUT, 0, 0)
+        elsif id=MenuCopy   or id=ToolCopy then     void = sendMessage(GText, WM_COPY, 0, 0)
+        elsif id=MenuPaste  or id=ToolPaste then    void = sendMessage(GText, WM_PASTE, 0, 0)
+        elsif id=MenuDelete or id=ToolDelete then   void = sendMessage(GText, WM_CLEAR, 0, 0)
+        elsif id=MenuAbout  or id=ToolAbout then    void = messageBox(Atitle,Atext,MB_ICONINFORMATION)
+        end if
+    end if
+    return 0
+end function
+setHandler({Generic,FileMenu,EditMenu,HelpMenu,--MenuPrint,
+            GTools,ToolNew,ToolOpen,ToolSave,ToolSaveAs,--ToolPrint,
+            ToolClose,ToolUndo,ToolCut,ToolCopy,ToolPaste,ToolDelete,ToolAbout},
+           routine_id("gHandler"))
+
+WinMain(Generic, SW_NORMAL)
+

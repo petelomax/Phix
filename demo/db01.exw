@@ -1,0 +1,76 @@
+--
+-- db01.exw
+-- ========
+--
+-- Simple console-mode demo of opening/creating a database, and
+-- adding records, in this case of times this program run.
+--
+include ..\builtins\sort.e
+include ..\builtins\misc.e
+include ..\builtins\file.e
+include ..\builtins\machine.e
+include ..\builtins\get.e
+include ..\builtins\database.e
+sequence data
+data = {{0,0,0,0,0},
+        {1,1,1,1,1},
+        {2,2,2,2,2},
+        {3,3,3,3,3}}
+
+integer recordnumber
+
+if db_open("data.edb",DB_LOCK_NO)=DB_OPEN_FAIL then
+    if db_create("data.edb",DB_LOCK_NO)!=DB_OK then
+        puts(1,"error creating database")
+        abort(0)
+    end if
+    puts(1,"new database created\n")
+end if
+if db_select_table("data")!=DB_OK then
+    if db_create_table("data")!=DB_OK then
+        puts(1,"error creating data table")
+        abort(0)
+    end if
+    puts(1,"new table created\n")
+end if
+
+recordnumber=db_find_key(1)
+if recordnumber<0 then
+    if db_insert(1,data)!=DB_OK then
+        puts(1,"error writing data")
+        abort(0)
+    end if
+    puts(1,"new record added\n")
+else
+    data=db_record_data(recordnumber)
+    for i=1 to length(data) do
+        data[i][1]=data[i][1]+1
+    end for
+    db_replace_data(recordnumber,data)
+end if
+
+?data
+
+-- added 30/12/13:
+--string str
+sequence str
+recordnumber=db_find_key(2)
+if recordnumber<0 then
+    if db_insert(2,"string\n")!=DB_OK then
+        puts(1,"error writing string")
+        abort(0)
+    end if
+    str = "new record added\n"
+else
+    str = db_record_data(recordnumber)
+end if
+
+?str
+--?string(str)
+
+db_close()
+
+puts(1,"Finished. Press Enter...")
+if getc(0) then end if
+puts(1,"\n")
+

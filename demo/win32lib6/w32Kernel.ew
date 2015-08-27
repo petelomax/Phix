@@ -1,0 +1,78 @@
+--/topic Constant
+--/const kernel32
+--/desc Windows Library: Memory and Basic Windows Core
+
+global constant
+    kernel32    = registerw32Library("kernel32.dll"),  -- memory
+
+    xGetVersionEx       = registerw32Function(kernel32, "GetVersionExA", {C_POINTER},C_UINT),
+-- memory
+    xGlobalAlloc        = registerw32Function(kernel32, "GlobalAlloc", {C_UINT, C_LONG}, C_POINTER),
+    xGlobalFree         = registerw32Function(kernel32, "GlobalFree", {C_POINTER}, C_POINTER),
+    xDeleteFile         = registerw32Function(kernel32, "DeleteFileA",{C_POINTER},C_LONG),
+    xMoveFile           = registerw32Function(kernel32, "MoveFileA",{C_POINTER,C_POINTER}, C_LONG),
+    xCopyFile           = registerw32Function(kernel32, "CopyFileA",{C_POINTER,C_POINTER, C_LONG},C_LONG),
+    xCreateDirectory    = registerw32Function(kernel32, "CreateDirectoryA",{C_POINTER, C_POINTER}, C_INT),
+    xGetCurrentDirectory = registerw32Function(kernel32, "GetCurrentDirectoryA",{C_LONG,C_POINTER}, C_LONG),
+    xSetCurrentDirectory = registerw32Function(kernel32, "SetCurrentDirectoryA",{C_POINTER}, C_LONG),
+    xGetFullPathName    = registerw32Function(kernel32, "GetFullPathNameA",{ C_POINTER, C_LONG, C_POINTER, C_POINTER}, C_LONG),
+    xGetLongPathName    = registerw32Function(kernel32, "GetLongPathNameA",{ C_POINTER, C_POINTER, C_LONG}, C_LONG),
+    xGetShortPathName    = registerw32Function(kernel32, "GetLongPathNameA",{ C_POINTER, C_POINTER, C_LONG}, C_LONG),
+    xGetTempPath        = registerw32Function(kernel32, "GetTempPathA", {C_LONG, C_POINTER}, C_INT),
+    xGetTempFileName    = registerw32Function(kernel32, "GetTempFileNameA", {C_POINTER, C_POINTER, C_UINT, C_POINTER}, C_INT),
+    xGlobalLock         = registerw32Function(kernel32, "GlobalLock", {C_POINTER}, C_POINTER),
+    xGlobalUnlock       = registerw32Function(kernel32, "GlobalUnlock",{C_POINTER},C_INT),
+    xGlobalSize         = registerw32Function(kernel32, "GlobalSize", {C_POINTER},C_INT),
+    xExitProcess        = registerw32Procedure(kernel32,"ExitProcess",{C_INT}),
+    xGetLastError       = registerw32Function(kernel32, "GetLastError", {}, C_INT ),
+    xSetLastError       = registerw32Procedure(kernel32, "SetLastError",{C_INT}),
+    xCreateMutex        = registerw32Function(kernel32, "CreateMutexA",{C_POINTER,C_INT,C_POINTER},C_LONG),
+    xReleaseMutex       = registerw32Function(kernel32, "ReleaseMutex",{C_LONG}, C_LONG),
+    xCloseHandle        = registerw32Function(kernel32, "CloseHandle",{C_LONG}, C_LONG),
+    xlstrcat            = registerw32Function(kernel32,"lstrcat",{C_POINTER, C_POINTER},C_POINTER),
+    xlstrcmp            = registerw32Function(kernel32,"lstrcmp",{C_POINTER,C_POINTER},C_INT),
+    xlstrcmpi           = registerw32Function(kernel32,"lstrcmpi",{C_POINTER,C_POINTER},C_INT),
+    xlstrcpy            = registerw32Function(kernel32,"lstrcpy",{C_POINTER,C_POINTER},C_POINTER),
+    xlstrcpyn           = registerw32Function(kernel32,"lstrcpyn",{C_POINTER,C_POINTER, C_INT},C_POINTER),
+    xlstrlen            = registerw32Function(kernel32,"lstrlen",{C_POINTER},C_INT),
+    xSetFileAttributes  = registerw32Function(kernel32,"SetFileAttributesA",{C_POINTER, C_ULONG}, C_LONG),
+    ---- System Time Date
+    xGetSystemTime      = registerw32Procedure(kernel32,"GetSystemTime", {C_POINTER}),
+    xGetLocalTime       = registerw32Procedure(kernel32,"GetLocalTime", {C_POINTER}),
+    xSetUnhandledExceptionFilter = registerw32Function(kernel32,"SetUnhandledExceptionFilter",{C_POINTER},C_UINT),
+
+-- Constants
+    ERROR_ALREADY_EXISTS = 183,
+    EXCEPTION_EXECUTE_HANDLER = 1,
+    EXCEPTION_CONTINUE_SEARCH = 0,
+    EXCEPTION_CONTINUE_EXECUTION = -1,
+
+    ATTR_NORMAL   = #00,   -- #00 is valid only if used alone.
+    ATTR_READONLY = #01,   --   The other attributes can be added.
+    ATTR_HIDDEN   = #02,
+    ATTR_SYSTEM   = #04,
+    ATTR_DIR      = #10,   -- #10 is ignored by set_attr().
+    ATTR_ARCHIVE  = #20   --   To create a directory, use the
+                          --   CreateDirectory() function.
+
+global constant
+  dwOSVersionInfoSize = w32allot(DWord),
+  dwMajorVersion = w32allot(DWord),
+  dwMinorVersion = w32allot(DWord),
+  dwBuildNumber = w32allot(DWord),
+  dwPlatformId = w32allot(DWord),
+  szCSDVersion = w32allot({128, Byte}),
+  SIZEOF_OSVERSIONINFO = w32allotted_sofar(),
+  wServicePackMajor = w32allot(Word),
+  wServicePackMinor = w32allot(Word),
+  wSuiteMask = w32allot(Word),
+  wProductType = w32allot(Byte),
+  wReserved = w32allot(Byte),
+  SIZEOF_OSVERSIONINFOEX = w32allotted_size()
+
+
+
+global function getLastError()
+    return w32Func(xGetLastError,{})
+end function
+global constant GetLastError = xGetLastError

@@ -1,0 +1,73 @@
+--
+-- t45aod.exw
+--
+-- Assignment on declaration tests
+--  Failure was a memory leak: see list.asm after "p -d t45",
+--  and notice the (big) difference between a1=1 and a2=2.
+--  Clearly if the latter just did a "mov a2,2" then there
+--  would be a 4.3 floating around unreferenced on the heap!
+--  We now count the number of forward calls and look out
+--  for unresolved-at-compile-time-routine_ids.
+--
+puts(1,"started\n")
+atom a1,a2,a3,a4,a5,a6
+
+a1 = 1		    -- mov ok
+atom aod1 aod1 = 1  -- "" (or K_noclr, ie put the 1 in at compile-time)
+--/**/atom odd1 = 1 -- ""
+--/**/atom odd2 = 1.5
+
+--/**/p1()
+
+a2 = 2		    -- mov NOT ok (need cmp h4..dealloc)
+atom aod2 aod2 = 2  -- "" [this was the bug]
+
+procedure p1()
+    a1 = 1.1+1.2
+    aod1 = 1.1+1.3
+    a2 = 2.1+2.2
+    aod2 = 2.1+2.3
+    odd1 = odd2
+end procedure
+
+a3=3		    -- mov ok
+atom aod3 aod3 = 3  -- "" (or K_noclr, ie put the 3 in at compile-time)
+
+integer r_p1 = routine_id("p1") -- resolved at compile-time, no effect
+if r_p1 then end if -- suppress unused warning
+
+a4 = 4		    -- mov ok
+atom aod4 aod4 = 4  -- "" (or K_noclr, ie put the 4 in at compile-time)
+
+integer r_p2 = routine_id("p2") -- (ps: ignore the unresolved warning)
+if r_p2 then end if -- suppress unused warning
+
+--Note: the assignment on declaration optimisation (of "no dealloc") is 
+--	permanently disabled once we hit an unresolved routine_id. That
+--	is not the case for forward calls, such as the p1() above, since
+--	we can renable it when p1 is found (and backpatched).
+--	I suppose I should say that it is is significantly easier to base
+--	that on routine_id, rather than attempting to track where that 
+--	routine_id gets stored and/or used in call_proc/func/back (!!).
+
+a5=5		    -- mov NOT ok
+atom aod5 aod5=5    -- ""
+
+procedure p2()
+    a3 = 3.1+3.2
+    aod3 = 3.1+3.3
+    a4 = 4.1+4.2
+    aod4 = 4.1+4.3
+    a5 = 5.1+5.2
+    aod5 = 5.1+5.3
+    a6 = 6.1+6.2
+end procedure
+
+a6=6	-- mov not ok [it just gets too messy to track things]
+	-- I suppose if we managed to spot "p2" in pmain.e, then maybe we
+	--  could have "no_of_unresolved_rtnids -= 1", but no way could 
+	--  it do "p"&"2", let alone a "sequence routine_name" variable 
+	--  or routine parameter, so not much point really..
+
+puts(1,"finished\n")
+

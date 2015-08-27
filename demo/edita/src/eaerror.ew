@@ -1,0 +1,839 @@
+--
+-- proemh.
+--
+--  Professional Error Message Handler, or
+--  Pete's Ridiculously Over-engineered Error Message Handler ;-))
+--
+--with trace
+--procedure hiccup()
+---- erm, some duplicate call or something....
+--  trace(1)
+--  trace(1)
+--end procedure
+--without trace
+
+-- TODO:
+--  CR/Esc handling; Esc & Alt F4 should be ignored if SC_CLOSE is disabled.
+--  modal (optional?) behaviour - use is() function
+--  consistency of returned result with message_box/messageBox 
+--   (though obviously, if there is a prompt it returns a sequence).
+--  default buttons
+
+-- This can be used just like message_box/messageBox (with the title
+-- before the message):
+--
+--  void = proemh(Title, Message, Style)
+--
+-- Title should be a plain text string.
+--
+-- Message may be a single text string (with embedded \n if required),
+--  or a sequence of length 3..5, containing:
+--   source: A single line of something in error. Embedded tab characters
+--     [1]   will be expanded to at most 4 spaces. If the line is too long
+--           then the start/end will be replaced with '...' The box can be
+--           (manually) resized so that more text is displayed. Note that 
+--           the message box is deliberately NOT enlarged to ensure this
+--           all fits (theoretically, you could be doing a block search for
+--           an entire if-clause, dozens or even hundreds of lines, or 
+--           perhaps more realistically, a "line length too long" message
+--           might be looking at thousands, or even hundreds of thousands of
+--           characters). Any embedded linefeed and return characters will
+--           be shown as "\n" and "\r" respectively.
+--   carat: An integer indicating a position, 0 if none. If there are any
+--     [2]   embedded tabs still in source, they should count as 1 char.
+--           if source is very long, it is clipped such that the carat
+--           remains on screen, if possible.
+--   message: a single text string, with embedded \n if required. The 
+--     [3]   message box is resized to ensure this is fully displayed.
+--   input (optional): prompt and styles for an EditText input field
+--     [4,   The message box is resized to ensure the input is at least 
+--      5]   20 pixels wide. Style can be ES_NUMBER, etc.
+--
+-- If you want an input but no source/carat, pass {"",0,msg,prompt[,style]}.
+--
+-- Style may be an integer, or a sequence of integers, or a sequence of
+--   button texts followed by an optional style integer. The message box is
+--   resized to ensure all buttons and ten-point gaps fit.
+--
+-- Examples:
+--  proemh("Error","This is an error",0)
+--  proemh( "Error",
+--          {"a=16",3,"Line 56: Illegal value:16","Change to",ES_NUMBER},
+--          {"Edit File","Use Default","Abort","OK",MB_DEFBUTTON3})
+--
+
+--include arwen.ew
+
+--/* 4.0.2
+include builtins\dll.e
+include builtins\machine.e
+--*/
+
+
+--with trace
+
+--
+-- Standard constants compatible with msgbox.e and message_box.ew:
+--
+--global constant 
+--
+----DEV unattempted*9:
+--  MB_APPLMODAL    = #00,      -- User must respond before doing something else
+--  MB_SYSTEMMODAL  = #1000,    -- All applications suspended until user responds
+--  MB_TASKMODAL    = #2000,    -- Similar to MB_APPLMODAL 
+--  MB_TOPMOST      = #40000,
+--
+--  MB_DEFAULT_DESKTOP_ONLY = #20000,  
+--  
+--  MB_DEFBUTTON1 = #00,    -- First button is default button
+--  EM_DEFBUTTON2 = #100,   -- Second button is default button
+--  MB_DEFBUTTON3 = #200,   -- Third button is default button
+--  MB_DEFBUTTON4 = #300,   -- Fourth button is default button
+----<unattempted*9 ends>
+--
+--  EM_OK               = #00,  -- Message box contains one push button: OK
+--  EM_OKCANCEL         = #01,  -- Message box contains OK and Cancel
+--  MB_ABORTRETRYIGNORE = #02,  -- Abort, Retry, Ignore
+--  EM_YESNOCANCEL      = #03,  -- Message box contains Yes, No, and Cancel
+--  MB_YESNO            = #04,  -- Message box contains Yes and No
+--  MB_RETRYCANCEL      = #05,  -- Message box contains Retry and Cancel
+--
+----DEV uh?
+--  MB_USERICON         = 128,
+--
+--  MB_ICONASTERISK     = #40,
+--  MB_ICONERROR        = #10, 
+--  EM_ICONEXCLAMATION  = #30, -- Exclamation-point appears in the box
+--  MB_ICONHAND         = MB_ICONERROR,        -- A hand appears
+--  MB_ICONINFORMATION  = MB_ICONASTERISK,-- Lowercase letter i in a circle appears
+--  MB_ICONQUESTION     = #20,    -- A question-mark icon appears
+--  MB_ICONSTOP         = MB_ICONHAND,
+--  MB_ICONWARNING      = EM_ICONEXCLAMATION,
+--
+----DEV unattempted*5:
+--  MB_RIGHT                = #80000,   -- Windows 95: The text is right-justified
+--  MB_RTLREADING           = #100000,  -- Windows 95: For Hebrew and Arabic systems
+--  MB_SERVICE_NOTIFICATION = #40000, -- Windows NT: The caller is a service 
+--  MB_SETFOREGROUND        = #10000,   -- Message box becomes the foreground window 
+--  MB_HELP                 = #4000,        -- Windows 95: Help button generates help event
+----<unattempted*5 ends>
+--
+----DEV unattempted*7:
+---- Return values from MessageBox() 
+----    IDERROR = 0,    -- FAILURE (constant doesn't exist)
+--  EROK        = 1,    -- OK button was selected.
+--  ERCANCEL    = 2,    -- Cancel button was selected.
+--  IDABORT     = 3,    -- Abort button was selected.
+--  IDRETRY     = 4,    -- Retry button was selected.
+--  IDIGNORE    = 5,    -- Ignore button was selected.
+--  ERYES       = 6,    -- Yes button was selected. 
+--  IDNO        = 7     -- No button was selected.
+----<unattempted*7 ends>
+
+--DEV suggestion:
+--global constant
+--  MB_Error="Error",
+--  MB_Warning="Warning",
+--  IDONE   = -1,
+--  IDTWO   = -2,
+--  IDTHREE = -3,
+--  IDFOUR  = -4
+
+--global 
+integer proWin
+
+integer proInit,
+        proSource,isVisible_proSource,
+        proCarat,isVisible_proCarat,
+        proMessage,
+        proPrompt,isVisible_proPrompt,
+        proInput, lpSTRlen
+
+    proInit=0
+
+atom proWinHwnd,proWinDC,proSourceHwnd,proCaratHwnd,proMessageHwnd,
+     proPromptHwnd,proPromptDC,
+     proInputHwnd, originalEditStyle, lpSTR, lpSIZE, lpRECT
+     lpSIZE=0
+
+sequence sourceMsg, mainMsg, promptMsg, buttonTexts
+integer CaratPos
+
+integer i55 -- 55 if icon (eg MB_ICONSTOP), 0 if none
+
+constant icons={IDI_HAND,IDI_QUESTION,IDI_EXCLAMATION,IDI_ASTERISK,IDI_WINLOGO,IDI_APPLICATION}
+integer icon
+
+sequence proButtons, proButtonHwnd
+
+integer basicSetUpDone  -- don't process WM_SIZE arising from initial xMoveWindow etc.
+
+integer pukkaWidth, pukkaHeight
+
+integer iconX, iconY
+
+procedure mangleInnards()
+-- reposition everything based on DT_CALCRECT sizings.
+sequence rect
+integer rX,rY,rW,rH,dX,dX1,dY,minWid
+integer lenSTR, ldone,rdone,npos
+sequence modSrc
+sequence buttonLengths
+integer gap
+
+    basicSetUpDone=0
+
+    rect=getClientRect(proWin)
+    rX=rect[1]+10 rY=rect[2]+10 rW=rect[3]-rX rH=rect[4]
+
+    if isVisible_proSource then
+        modSrc=sourceMsg
+        ldone=0 rdone=0
+        npos=CaratPos
+        while 1 do
+            poke(lpSTR,modSrc)
+            lenSTR=length(modSrc)
+            poke4(lpRECT,{0,0,0,0})
+            c_proc(xDrawText,{proWinDC,lpSTR,lenSTR,lpRECT,DT_CALCRECT+DT_NOPREFIX+DT_SINGLELINE})
+            if peek4s(lpRECT+8)<=rW-10 then exit end if
+            --
+            -- chop bits off the string..
+            --
+            if floor(npos*100/lenSTR)>40 then
+                --
+                -- shave a character off the start
+                --
+                if ldone=0 then
+                    modSrc="..."&modSrc[2..length(modSrc)]
+                    npos+=2
+                    ldone=1
+                else
+                    modSrc[4]='.'
+                    modSrc=modSrc[2..length(modSrc)]
+                    npos-=1
+                end if
+            else
+                --
+                -- shave a character off the end
+                --
+                if rdone=0 then
+                    modSrc=modSrc[1..length(modSrc)-1]&"..."
+                    rdone=1
+                else
+                    if length(modSrc)<4 then exit end if
+                    modSrc[length(modSrc)-3]='.'
+                    modSrc=modSrc[1..length(modSrc)-1]
+                end if
+            end if
+        end while
+        dY=peek4s(lpRECT+12)
+        dX=peek4s(lpRECT+8)
+        void=c_func( xMoveWindow, {proSourceHwnd, rX, rY, dX, dY, 1} )
+        setText(proSource,modSrc)
+        rY+=dY --+5
+        if isVisible_proCarat then
+            if npos>1 then
+                c_proc(xDrawText,{proWinDC,lpSTR,npos-1,lpRECT,DT_CALCRECT+DT_NOPREFIX+DT_SINGLELINE})
+                dX=peek4s(lpRECT+8)
+            else
+                dX=0
+            end if
+            poke(lpSTR,'^')
+            c_proc(xDrawText,{proWinDC,lpSTR,1,lpRECT,DT_CALCRECT+DT_NOPREFIX+DT_SINGLELINE})
+            dX1=peek4s(lpRECT+8)
+            if npos<=length(modSrc) then
+                poke(lpSTR,modSrc[npos])
+                c_proc(xDrawText,{proWinDC,lpSTR,1,lpRECT,DT_CALCRECT+DT_NOPREFIX+DT_SINGLELINE})
+                dX+=floor((peek4s(lpRECT+8)-dX1)/2)
+--          else
+--              dX+=dX1
+            end if
+            void=c_func( xMoveWindow, {proCaratHwnd, rX+dX, rY, dX1, dY, 1} )
+            rY+=dY
+        end if
+--      rY+=0
+    end if
+    iconX=rX  iconY=rY      -- save for later use, if an icon is wanted
+    -- set the width first
+    void=c_func( xMoveWindow, {proMessageHwnd, rX+i55, rY, rW-10-i55, 40, 1} )
+    poke(lpSTR,mainMsg)
+    poke4(lpRECT,{0,0,0,0})
+    c_proc(xDrawText,{proWinDC,lpSTR,length(mainMsg),lpRECT,DT_CALCRECT+DT_NOPREFIX})
+    dX=peek4s(lpRECT+8)+i55
+    dY=peek4s(lpRECT+12)
+    pukkaWidth=Max(dX+30,200)   -- set initial width
+
+    void=c_func( xMoveWindow, {proMessageHwnd, rX+i55, rY, rW-10-i55, dY, 1} )
+    if i55 and dY<i55-10 then
+        dY=i55-10
+    end if
+    rY+=dY+10
+    if isVisible_proPrompt then
+        poke(lpSTR,promptMsg)
+        c_proc(xDrawText,{proPromptDC,lpSTR,length(promptMsg),lpRECT,DT_CALCRECT+DT_NOPREFIX+DT_SINGLELINE})
+        dX=peek4s(lpRECT+8)
+        if dX+70>pukkaWidth then
+            pukkaWidth=dX+70
+        end if
+        void=c_func( xMoveWindow, {proPromptHwnd, rX, rY+3, dX, 20, 1} )
+        void=c_func( xMoveWindow, {proInputHwnd, rX+dX+5, rY, rW-dX-15, 20, 1} )
+        rY+=40
+    end if
+    buttonLengths=repeat(0,length(buttonTexts))
+    minWid=0
+    gap=20
+--minWid=10
+--gap=10
+    for i=1 to length(buttonTexts) do
+        poke(lpSTR,buttonTexts[i])
+        c_proc(xDrawText,{proPromptDC,lpSTR,length(buttonTexts[i]),
+                          lpRECT,DT_CALCRECT+DT_NOPREFIX+DT_SINGLELINE})
+        dX=peek4s(lpRECT+8)+20  +30 --DEV 14/7
+        buttonLengths[i]=dX
+        minWid+=dX+gap
+    end for
+--DEV this is probably too fancy for my own good & I think introduces a bug...
+    if minWid>rW and gap=20 then
+        gap=10
+        minWid-=10*(length(buttonTexts)-1)
+    end if
+
+    if minWid+10>pukkaWidth then
+        pukkaWidth=minWid+10
+    end if
+    rW=floor((rW-minWid)/2)+15
+    for i=1 to length(buttonTexts) do
+        dX=buttonLengths[i]
+        void=c_func( xMoveWindow, {proButtonHwnd[i], rW, rY+10, dX, 30, 1} )
+        rW+=dX+gap
+    end for
+    pukkaHeight=rY+80
+
+    basicSetUpDone=1
+
+end procedure
+
+integer whatever,   -- the button pressed
+        defBtn,     -- the default button
+        escBtn      -- the escape button
+
+--UGH, bind bug:
+--constant r_addFocus=routine_id("addFocus"),
+--       r_removeFocus=routine_id("removeFocus")
+
+integer proWinVisible
+        proWinVisible=False
+procedure closeProWin()
+integer r_removeFocus
+    proWinVisible=False
+    setVisible(proWin,False)
+    r_removeFocus = routine_id("removeFocus")
+    if r_removeFocus!=-1 then
+        call_proc(r_removeFocus,{proWin})
+    end if
+end procedure
+
+sequence buttonKeys
+--4/8/14:
+integer setFocusButton setFocusButton = 0
+
+--with trace
+function proWinHandler(integer id, integer msg, atom wParam, object lParam)
+    if id or wParam or object(lParam) then end if   -- suppress warnings
+    if msg = WM_CHAR then
+--trace(1)
+        if wParam = VK_RETURN and defBtn then
+            whatever = defBtn
+--?{1,whatever,defBtn}
+            closeProWin()
+--          closeWindow(proWin)
+        elsif wParam = VK_ESCAPE and escBtn then
+            whatever = escBtn
+--?{2,whatever,escBtn}
+            closeProWin()
+--          closeWindow(proWin)
+        else
+            whatever = find(UpperCase(wParam),buttonKeys)
+--?{3,whatever}
+            if whatever then closeProWin() end if
+        end if
+    elsif msg = WM_CLOSE then
+        if defBtn then
+            whatever=defBtn
+--?{4,whatever,defBtn}
+        end if
+        closeProWin()
+        return 1
+    elsif msg = WM_KEYDOWN then
+        if find(wParam,{VK_RIGHT,VK_DOWN}) then
+            defBtn+=1
+            if defBtn>length(buttonTexts) then defBtn=1 end if
+        elsif find(wParam,{VK_LEFT,VK_UP}) then
+            defBtn-=1
+            if defBtn<1 then defBtn=length(buttonTexts) end if
+        end if
+        setFocus(proButtons[defBtn])
+    end if
+    if msg = WM_SIZE and basicSetUpDone then
+        mangleInnards()
+    elsif msg = WM_PAINT then
+        if i55 then
+            void=c_func(xDrawIcon, {proWinDC,iconX,iconY,c_func(xLoadIcon,{NULL,icon})})
+        end if
+        if setFocusButton then
+            setFocus(setFocusButton)
+            setFocusButton = 0
+        end if
+    elsif msg = WM_COMMAND then
+        whatever = find(id,proButtons)
+--?{5,whatever}
+        if whatever then
+            defBtn=whatever -- (added 9/6/14)
+--?{6,whatever,defBtn}
+            closeProWin()
+--          closeWindow(proWin)
+        end if
+    elsif msg = WM_SETFOCUS then
+        whatever = find(id,proButtons)
+--?{7,whatever}
+        if whatever and setFocusButton=0 then
+            defBtn=whatever
+--?{8,whatever,defBtn}
+        end if
+    end if
+    return 0
+end function
+
+--integer useThisParent
+--      useThisParent=0
+--
+---- added 21/11/2005:
+--global procedure proemhUseThisParent(integer id)
+--  useThisParent = id
+--end procedure
+
+function findNewParent()
+atom hwnd
+--  if useThisParent then return useThisParent end if
+    hwnd = c_func(xGetActiveWindow,{})
+    if hwnd=NULL then
+--      ?9/0 --??
+        return 0
+--      return mainHwnd
+    else
+        return getParentWindow(c_func(xGetWindowLong, { hwnd, GWL_USERDATA }))
+    end if
+end function
+
+integer oldPID
+
+--constant xSetClassLong=link_c_func(user32,"SetClassLongA",{C_POINTER,C_INT,C_LONG},C_LONG)
+--constant GCL_HICON=(-14)
+
+constant LOGPIXELSY=90
+object PpliSH
+       PpliSH=0
+procedure createPro()
+atom w
+    oldPID=findNewParent()
+    proWin=create(Window,"",0,oldPID,100,190,100,190,0)--{0,WS_EX_TOOLWINDOW})
+    proWinHwnd=getHwnd(proWin)
+w=c_func(xGetWindowLong,{proWinHwnd,GWL_STYLE})
+w=xor_bits(w,and_bits(w,WS_MAXIMIZEBOX+WS_MINIMIZEBOX))
+--w=xor_bits(w,and_bits(w,WS_SYSMENU+WS_MAXIMIZEBOX+WS_MINIMIZEBOX))
+--w=xor_bits(w,and_bits(w,WS_SYSMENU))
+--w=xor_bits(w,and_bits(w,WS_CAPTION))
+w=c_func(xSetWindowLong,{proWinHwnd,GWL_STYLE,w})
+--void=c_func(xSetClassLong,{proWinHwnd,GCL_HICON,NULL})
+--void = sendMessage(proWin, WM_SETICON, 0, NULL)
+--void = sendMessage(proWin, WM_SETICON, 1, NULL)
+--  IDI_HAND                = 32513, -- red circle with stocky x inside - fatal error
+--  IDI_QUESTION        = 32514, -- Speech bubble with ? inside
+--  IDI_EXCLAMATION = 32515, -- Yellow triangle with ! inside
+--  IDI_ASTERISK        = 32516, -- Speech bubble with i inside
+
+--DEV 21/11 did nowt anyways...
+--setIcon(proWin,c_func(xLoadIcon, {NULL, IDI_ASTERISK}))
+
+    proWinDC=getPrivateDC(proWin)
+--  proWinDC=getDC(proWin)
+if equal(PpliSH,0) then
+    PpliSH=c_func(xGetDeviceCaps,{getPrivateDC(proWin), LOGPIXELSY}) -- Pixels Per Logical Inch of Screen Height
+end if
+    proSource=create(Label,"",0,proWin,10,10,50,20,SS_NOPREFIX+SS_LEFTNOWORDWRAP)
+    proSourceHwnd=getHwnd(proSource)
+    proCarat=create(Label,"^",0,proWin,10,20,50,20,SS_NOPREFIX+SS_LEFTNOWORDWRAP)
+    proCaratHwnd=getHwnd(proCarat)
+    proMessage=create(Label,"",0,proWin,10,30,50,20,SS_NOPREFIX)
+    proMessageHwnd=getHwnd(proMessage)
+    proPrompt=create(Label,"",0,proWin,10,40,50,20,0)
+    proPromptHwnd=getHwnd(proPrompt)
+    proPromptDC=getDC(proPrompt)
+    void = c_func( xSelectObject, {proPromptDC, c_func(xGetStockObject, { DEFAULT_GUI_FONT } )} )
+    proInput=create(EditText,"",0,proWin,50,40,50,20,0)
+    proInputHwnd=getHwnd(proInput)
+    originalEditStyle=c_func(xGetWindowLong,{proInputHwnd,GWL_STYLE})
+    buttonTexts={}
+    proButtons={}
+    proButtonHwnd={}
+    setHandler(proWin,routine_id("proWinHandler"))
+    lpSTRlen=0
+if lpSIZE=0 then
+    lpSIZE=allocate(sizeofstruct(SIZE))
+    lpRECT=allocate(sizeofstruct(RECT))
+end if
+    proInit=1
+end procedure
+
+constant isTabWidth=4
+constant SPACE=' ', TAB='\t'
+constant CRLF="\r\n", CRLFT={"\\r","\\n"}
+function eerrExpandTabs(sequence text,integer updateCaratPos, integer replaceCRLF)
+-- Replace any tabs with spaces. Copy of the one in eatabs.e
+-- Enhanced to replace linefeed and newline characters.
+integer tab, k
+
+    while 1 do
+        tab=find(TAB,text)
+        if not tab then exit end if
+        k=isTabWidth-remainder(tab-1,isTabWidth)
+        text=text[1..tab-1]&repeat(SPACE,k)&text[tab+1..length(text)]
+        if updateCaratPos and tab<=CaratPos then
+            CaratPos+=k-1
+        end if
+    end while
+    if replaceCRLF then
+        for i=1 to 2 do
+            while 1 do
+                tab=find(CRLF[i],text)
+                if not tab then exit end if
+                text=text[1..tab-1]&CRLFT[i]&text[tab+1..length(text)]
+                if updateCaratPos and tab<=CaratPos then
+                    CaratPos+=1
+                end if
+            end while
+        end for
+    end if
+    return text
+end function
+
+constant SC_CLOSE=#F060
+
+--integer parentID
+--      parentID=0
+--global procedure setErrParent(integer pID)
+---- avoid reparenting issues if we can?
+--  if not proInit then -- sorry, too late
+--      parentID=pID
+--  end if
+--end procedure
+
+-- made global 17/6/14, for SoftSetFocus tweak:
+global integer inProemh
+        inProemh=0
+without trace
+global function proemh(sequence title, sequence message, object style)
+-- See notes at start of program
+object EditStyle
+--, EditStyleEx
+--atom oldEditStyle
+integer k, newButton, newPID, s
+sequence rect
+atom hMenu
+integer enableClose
+sequence buttonRes
+integer r_addFocus
+
+    while inProemh do   -- hmmm...
+--      doEvents(0)
+        doAllEvents()
+    end while
+
+--  if inProemh then
+--      hiccup()
+--      return 0
+--  end if
+    inProemh=1
+    basicSetUpDone=0
+    if not proInit then
+        createPro()
+    else
+        newPID=findNewParent()
+        if newPID!=oldPID then
+--          reparentControl(proWin,newPID)
+--void = destroy(proSource)
+--void = destroy(proCarat)
+--void = destroy(proMessage)
+--void = destroy(proPrompt)
+--void = destroy(proInput)
+            void = destroy(proWin)
+            createPro()
+            oldPID=newPID
+        end if
+    end if
+    setText(proWin,title)
+    isVisible_proSource=False
+    isVisible_proCarat=False
+    isVisible_proPrompt=False
+    if length(message) and sequence(message[1]) then
+        if length(message[1]) then
+            setVisible(proSource,True)
+            isVisible_proSource=True
+            CaratPos=message[2]
+            sourceMsg=eerrExpandTabs(message[1],1,1)
+            if length(sourceMsg)+4>lpSTRlen then
+                if lpSTRlen then
+                    free(lpSTR)
+                end if
+                lpSTRlen=and_bits(length(sourceMsg)+7,#FFFFFFFC)
+                lpSTR=allocate(lpSTRlen)
+            end if
+            isVisible_proCarat=(CaratPos!=0)
+            setVisible(proCarat,isVisible_proCarat)
+        else
+            setVisible({proSource,proCarat},False)
+        end if
+        if length(message)>3 then
+            setVisible({proPrompt,proInput},True)
+            isVisible_proPrompt=True
+            promptMsg=message[4]
+            if length(promptMsg)>lpSTRlen then
+                if lpSTRlen then
+                    free(lpSTR)
+                end if
+                lpSTRlen=and_bits(length(promptMsg)+3,#FFFFFFFC)
+                lpSTR=allocate(lpSTRlen)
+            end if
+            setText(proPrompt,promptMsg)
+            if length(message)=5 then
+                EditStyle=message[5]
+                if sequence(EditStyle) then
+--DEV I don't think we need extended styles anyway?
+--                  EditStyleEx=EditStyle[2]
+--                  if sequence(EditStyleEx) then
+--                      EditStyleEx=or_all(EditStyleEx)
+--                  end if
+--                  oldEditStyleEx=c_func(xGetWindowLongor_bits(EditStyleEx
+--                  void = c_func(xSetWindowLong,{proInputHwnd,GWL_EXSTYLE,EditStyleEx})
+--                  EditStyle=EditStyle[1]
+--                  if sequence(EditStyle) then
+                        EditStyle=or_all(EditStyle)
+--                  end if
+                end if
+--printf(1,"%0x8",originalEditStyle)
+                EditStyle=or_bits(EditStyle,originalEditStyle)
+                void = c_func(xSetWindowLong,{proInputHwnd,GWL_STYLE,EditStyle})
+            end if
+        else
+            setVisible({proPrompt,proInput},False)
+        end if
+        message=message[3]
+    else
+        setVisible({proSource,proCarat,proPrompt,proInput},False)
+    end if
+    mainMsg=eerrExpandTabs(message,0,0)--&'\n'
+    if length(mainMsg)>lpSTRlen then
+        if lpSTRlen then
+            free(lpSTR)
+        end if
+        lpSTRlen=and_bits(length(mainMsg)+3,#FFFFFFFC)
+        lpSTR=allocate(lpSTRlen)
+    end if
+    setText(proMessage,mainMsg)
+    enableClose=1
+    escBtn=0
+    buttonRes={}
+    buttonKeys=""
+    if sequence(style) then
+        buttonTexts=style
+        style=0
+        while 1 do
+            k=length(buttonTexts)
+            if k=0 then
+                buttonTexts={"OK"}
+                buttonRes={IDOK}
+                exit
+            end if
+            if sequence(buttonTexts[k]) then exit end if
+            style=or_bits(style,buttonTexts[k])
+            buttonTexts=buttonTexts[1..k-1]
+        end while
+        for i=1 to length(buttonTexts) do
+            k=find('&',buttonTexts[i])
+            if k=0 then exit end if
+--          if k=length(buttonTexts[i]) then ?9/0 end if
+            buttonKeys=append(buttonKeys,UpperCase(buttonTexts[i][k]))
+        end for
+    else
+        s=and_bits(style,#07)
+        if s=MB_OK then
+            buttonTexts={"OK"}
+            buttonRes={IDOK}
+        elsif s = MB_OKCANCEL then
+            buttonTexts={"OK","Cancel"}
+            buttonRes={IDOK,IDCANCEL}
+            escBtn=2
+        elsif s = MB_ABORTRETRYIGNORE then
+            buttonTexts={"&Abort","&Retry","&Ignore"}
+            buttonKeys="ARI"
+            buttonRes={IDABORT,IDRETRY,IDIGNORE}
+            enableClose=0
+        elsif s = MB_YESNOCANCEL then
+            buttonTexts={"&Yes","&No","Cancel"}
+            buttonKeys="YN"
+            buttonRes={IDYES,IDNO,IDCANCEL}
+            escBtn=3
+        elsif s = MB_YESNO then
+            buttonTexts={"&Yes","&No"}
+            buttonKeys="YN"
+            buttonRes={IDYES,IDNO}
+            enableClose=0
+        elsif s = MB_RETRYCANCEL then
+            buttonTexts={"&Retry","Cancel"}
+            buttonKeys="R"
+            buttonRes={IDRETRY,IDCANCEL}
+            escBtn=2
+        else ?9/0   -- unknown style!
+        end if
+    end if  
+    i55 = 0 -- no icon by default
+    s=and_bits(style/16,#7)
+    if s then
+        i55=55
+        icon=icons[s]
+    end if
+    --
+    -- enable/disable the close button:
+    --
+    hMenu=c_func(xGetSystemMenu,{proWinHwnd,False})
+    defBtn=1
+    if enableClose then
+        void=c_func(xEnableMenuItem,{hMenu,SC_CLOSE,or_bits(MF_BYCOMMAND,MF_ENABLED)})
+        defBtn=and_bits(style/256,#3)+1
+        if not escBtn then
+            escBtn=defBtn
+        end if
+    else
+        void=c_func(xEnableMenuItem,{hMenu,SC_CLOSE,or_bits(MF_BYCOMMAND,MF_GRAYED)})
+    end if
+
+    for i=1 to length(buttonTexts) do
+        if i>length(proButtons) then
+            newButton=create(Button,buttonTexts[i],0,proWin,0,0,75,30,0)
+            setHandler(newButton,routine_id("proWinHandler"))
+            proButtons=append(proButtons,newButton)
+            proButtonHwnd=append(proButtonHwnd,getHwnd(newButton))
+        else
+            setText(proButtons[i],buttonTexts[i])
+        end if
+        setVisible(proButtons[i],True)
+    end for
+    for i=length(buttonTexts)+1 to length(proButtons) do
+        setVisible(proButtons[i],False)
+    end for
+
+--  pukkaWidth=0
+--  pukkaHeight=0
+    mangleInnards()
+--  rect=floor((getScreenSize()-{pukkaWidth,pukkaHeight})/2)
+    rect=getScreenSize()
+    rect[1]=floor((rect[1]-pukkaWidth)/2)
+    rect[2]=floor((rect[2]-pukkaHeight)/2)
+    void=c_func( xMoveWindow, {proWinHwnd, rect[1],rect[2]+25,pukkaWidth+20,pukkaHeight,1})
+--  if ??? then
+        mangleInnards()
+--  end if
+
+    -- 4/8/14
+    if defBtn>=1 and defBtn<=length(proButtons) then
+        setFocusButton = proButtons[defBtn]
+    end if
+
+    basicSetUpDone=1
+    proWinVisible=True
+    openWindow(proWin,SW_NORMAL)
+    r_addFocus=routine_id("addFocus")
+    if r_addFocus !=-1 then
+        call_proc(r_addFocus,{proWin})
+    end if
+--  addFocus(proWin)
+    whatever=0
+--?{0,whatever}
+--  while isVisible(proWin) do
+    while proWinVisible do
+        -- It's OK, this idles properly.
+        -- System Monitor shows <1% Processor Usage.
+--      doEvents(0)
+        doAllEvents()
+    end while
+    inProemh=0
+
+    if length(buttonRes) then
+        if whatever>=1 and whatever<=length(buttonRes) then
+            defBtn=whatever
+        end if
+        if defBtn>=1 and defBtn<=length(buttonRes) then
+            return buttonRes[defBtn]
+        end if
+--      return buttonRes[whatever]
+    end if
+    return whatever
+end function
+
+atom oldFont
+--DEV rework these to do it after destroy/createPro...
+-- (Edita does not currently use them)
+global procedure proFont(sequence FaceName,integer pointsize)
+-- set the font to be used in the message box.
+atom lf, hFont
+    if not proInit then createPro() end if
+    lf=allocate(sizeofstruct(LOGFONT))
+    mem_set(lf,0,sizeofstruct(LOGFONT))
+    poke4(lf + LOGFONT_lfHeight,    floor(-PpliSH*pointsize/72))
+    poke4(lf + LOGFONT_lfCharSet,   1)  -- DEFAULT_CHARSET 
+    poke(lf + LOGFONT_lfFaceName,   FaceName&0)
+    hFont = c_func(xCreateFontIndirect,{lf})
+--?hFont
+--  hFont = c_func(xGetStockObject, { DEFAULT_GUI_FONT } )
+    free(lf)
+    void = c_func( xSelectObject, {proWinDC, hFont} )
+    oldFont = sendMessage(proSource, WM_GETFONT, 0, 0)
+--  void = sendMessage(proWin, WM_SETFONT, hFont, True) -- no help
+    void = sendMessage(proSource, WM_SETFONT, hFont, True)
+    void = sendMessage(proCarat, WM_SETFONT, hFont, True)
+    void = sendMessage(proMessage, WM_SETFONT, hFont, True)
+end procedure
+global procedure proFontRestore()
+    void = sendMessage(proWin, WM_SETFONT, oldFont, True)
+    void = sendMessage(proSource, WM_SETFONT, oldFont, True)
+    void = sendMessage(proCarat, WM_SETFONT, oldFont, True)
+    void = sendMessage(proMessage, WM_SETFONT, oldFont, True)
+end procedure
+
+----TEST CODE:
+--
+--constant Main=create(Window,"Test",0,0,10,10,100,150,0),
+--       B1 = create(Button,"Press me",0,Main,10,10,75,30,0),
+--       B2 = create(Button,"Or me",0,Main,10,50,75,30,0)
+--
+--
+--function mainHandler(integer id, integer msg, atom wParam, object lParam)
+--  if wParam or object (lParam) then end if    -- suppress warnings
+--  if msg=WM_COMMAND then
+--      if id=B1 then
+--          proFont("Courier New",8)
+--          setText(B1,sprint(proemh( "Error",
+--      {"\ta=16\tyadyayaydyayaysdyasdasdasdaysd",4,
+--       "Line 56: Illegal value\\n in some thing\\n or other somewhere",
+--       "Change to",ES_NUMBER},
+--        {"Edit File","Use Default","Abort","OK",MB_DEFBUTTON3+MB_ICONERROR})))
+--          proFontRestore()
+--      elsif id=B2 then
+--          setText(B2,sprint(proemh("Err","Msg",0)))
+----            setText(B2,sprint(proemh("Err","Msg",MB_YESNO+MB_ICONEXCLAMATION)))
+--      end if
+--  end if
+--  return 0
+--end function
+--setHandler(Main,routine_id("mainHandler"))
+--WinMain(Main,SW_NORMAL)

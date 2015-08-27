@@ -1,0 +1,483 @@
+Jumps and Labels
+================
+This section documents the implementation of branching. In my attempts 
+to justify the status quo, simply writing this down has already lead to 
+several improvements, including a near complete rewrite of Expr(). Some
+suggestions for further improvements remain. This document assumes, of
+necessity, deeply intimate familarity with the code, and is extremely,
+even brutally, detailed. Let me know of any bits you find even more
+confusing than the rest, that you think I should try and rewrite.
+
+Update: the switch statement relies heavily on opCtrl, not documented 
+        here, and specifically "default not last" introduces a new
+        form of "forward jump", which the following does not cover.
+        (28/8/2012)
+Note this document long predates the introduction of inline assembly
+and hence asm jumps and global labels are not covered at all.
+
+These are the il instructions created during the parser (pmain.e):
+
+        opLabel,mergeSet,0/x86loc,link
+
+        opJmp,mergeSet,tgt/x86loc,link
+
+Also:
+        opJcc,mergeSet,tgt,link,src,src2,tii,bothInit
+        opJif/Jnot,mergeSet,tgt,link,src,oii
+        opJtyp,mergeSet,tgt,link,src,invert,ltype
+        opJbits,mergeSet,tgt,link,opcode,src,src2,invert
+        opJlen,mergeSet,tgt,link,tmp,p2,invert
+--?     opJlen,mergeSet,tgt,link,p1,tvar,isInit,invert
+        opJnotx,mergeSet,tgt,link,src,src2,invert
+
+See jmpex.txt for an explanation of the additional parameters on these;
+for the rest of this document I shall pretend eveything is an opJmp.
+For the moment, we shall also ignore mergeSet. Also, note that opJmp is 
+a virtual opcode: there is no code whatsoever in the virtual machine/
+back-end, instead it is translated directly to a machine code jump, and
+will automatically be shortened to byte-offset form whenever possible.
+
+At this point I should perhaps inform/remind you that the main or only
+difference between interpretation and compilation, apart from source-
+level tracing/profiling, is the amount of analysis we perform on the 
+intermediate code; in both cases it is converted to machine code for 
+actual execution. To keep it simple, from now on assume compilation.
+
+It may help to create a small test file, and both run "p -d test" and
+examine the resulting list.asm, and run "p -dumpil -nodiag test" and 
+examine the resulting ildump.txt (the -nodiag leaves out pdiag.e to
+prevent ildump being massive even for tiny test files, but of course
+means you get minimal diagnostics [and no ex.err] should anything go 
+wrong). You could also run "p -d! test" and several other combinations
+to investigate the difference between interpretation and compilation,
+but it is probably wiser to leave that until later.
+
+-------------------------------- === --------------------------------
+
+When we emit jump instructions in pmain.e, the link field is a backpatch link
+for all forward jumps, one of exitBP, EndIfBP, exprBP, scBP, or ifBP, which
+we shall examine later. When we reach a jump target, we emit an opLabel and 
+relink all the appropriate jumps to it, eg/ie (backpatch() in pmain.e):
+
+    if scBP>0 then
+        scBP = backpatch(scBP,0,scMerge)
+    end if
+
+where backpatch() is (simplified):
+
+function backpatch(integer bplink, integer bpmin, integer mergeSet)
+--
+-- plant a label and point (some) previous jumps to it.
+--
+-- NB: Should NOT be called if nowt to backpatch!
+--
+integer s5len, bpnext
+
+    s5 &= {opLabel,mergeSet,0,bplink}
+    s5len = length(s5)
+    while 1 do
+        s5[bplink-1] = s5len
+        bpnext = s5[bplink]
+        if bpnext=bpmin then exit end if
+        bplink = bpnext
+    end while
+    s5[bplink] = 0 -- remember to break the chain!
+
+    return bpmin
+end function
+
+[Aside: technically we do not need a link from the (forward) jump to 
+        the opLabel to implement the jump correctly, but we do need 
+        such a link for handling mergeSets, as explained later. ]
+
+[Aside2: The bpmin field is needed for expressions such as
+
+            if a and ((b and c) or (d and e)) then
+
+        The "inner" and's, "(b and c)" and "(d and e)" end up on the 
+        same chain as the "outer" "(a and tmp)", so obviously we need 
+        to limit how far back the backpatching goes. Such expressions 
+        can of course be nested to any depth without problem. This is 
+        covered in much more detail below. ]
+
+There is only one case of a backward jump, being end while. In this case we
+emit an opLabel at the start of the loop, remember where it is, and use that
+address directly in the link field of the jump at the end while.
+
+At the end of pmain.e, all links on jumps point to an opLabel's link field;
+s5[link-3] must be opLabel. At the same time the opLabels link points down a
+(0-terminated) chain of jumps to it, and the 0/x86loc field is always 0.
+It is also worth noting that all conditional jumps are forward (again at the
+end of pmain.e), it is only opJmp which can be either forward (eg over an
+elsif or else) or backward (eg/ie end while). Branch straightening may occur
+later, but that only occurs in the x86 representation, never in il.
+
+In pilx86.e we convert the il (aka "s5") into the x86 representation (aka 
+"x86"). When we find a forward jump, we emit the binary x86 and set the tgt
+field in the il to locate the offset (always dword at this stage) as follows:
+
+            emitHex6j(jcode,0)                  -- jcc xxx (to be backpatched)
+(or         emitHex5j(0)                        -- jmp xxx (to be backpatched))
+            s5[pc+2] = length(x86)
+
+So, 1: the opLabel's link field (s5) points down a list of jumps to it,
+    2: each Jmp's link (s5) points to the opLabel's link field.
+    3: each Jmp's x86loc field (s5) now holds an offset into the x86 binary,
+    4: the jmp's (x86) offset is 0, waiting to be backpatched later:
+
+When we find an opLabel, we apply backpatching (in pilx86) as follows:
+
+        tgt = pc+3                          -- opLabel's link field
+        x86tloc = length(x86)               -- opLabel's x86 offset
+        while 1 do
+            tgt = s5[tgt]
+            if tgt=0 then exit end if
+            wrk = s5[tgt-1]                 -- Jmp's x86 offset
+            k = x86tloc-wrk
+            x86[wrk] = k
+        end while
+        s5[pc+2] = x86tloc                  -- save Label's x86 offset
+
+
+So, 1: the opLabel's x86loc field (s5) holds an offset into the x86 binary,
+    2: all jmps to this lable in x86 are now proper relative offsets.
+
+Additionally we can apply some sanity tests:
+            if tgt>pc then ?9/0 end if  -- bckwd jmps should not be linked
+            if s5[tgt-2]!=mergeSet then ?9/0 end if
+to ensure we are merging the correct register states at each jump to here.
+
+When we find a backward jump, we simply:
+    
+        if tgt<pc then                      -- a backward jump
+            tgt = s5[tgt-1]                 -- saved x86 offset
+            joffset = tgt-(length(x86)+5)
+            emitHex5j(joffset)
+--      else
+--          emitHex5j(0)                    -- jmp xxx (backpatched later)
+--          s5[pc+2] = length(x86)
+        end if
+
+I have shown the code for handling forward jumps, as already discussed
+above, commented out. In the backward jump case we have immediately 
+placed a proper x86 offset rather than a 0 for later backpatching.
+
+Note: Jumps and labels in #ilasm constructs are treated quite differently.
+      (See pops.e for more details.)
+
+So far we have seen how we link jumps and labels together four times:
+    first in pmain.e as an il backpatch chain,
+    second in pmain.e as pointers to the opLabel's link field,
+    third in pilx86.e as an x86 backpatch chain,
+    fourth in pilx86.e as proper x86 offsets.
+
+While this may seem over-complicated, it is important that all jumps
+point to an opLabel at the end of pmain.e/start of pilx86.e, as we shall 
+discover later when we examine the mergeSet/flag handling. In the above 
+we really only covered simple tests, next we must look at expressions 
+involving and/or as well as explain the five backpatch sets mentioned 
+above, namely exitBP, EndIfBP, exprBP, scBP, and ifBP.
+
+                            --- == ---
+
+The central routine in the parser is Expr, which always leaves one test
+"in hand"/in the core workspace, opstack. A simple expression such as "a"
+is simply left in opstack, equally "a=1" leaves opJeq,a,1 in opstack (it
+is up to the callee, eg DoIf, to invert). The expression "a and b and c"
+generates Jnot,a and Jnot,b on exprBP (the "fail" [short-circuit] path),
+and c is left on opstack. The expression "a=1 and b=2 and c=3" generates 
+Jne,a,1 and Jne,b,2 on exprBP, with Jeq,c,3 in opstack. The expression
+"a or b or c" leaves Jif,a and Jif,b on scBP (aka the "succeed" [short-
+circuit] path), and c is left on opstack. And finally the expression
+"a=1 or b=2 or c=3" leaves Jeq,a,1 and Jeq,b,2 on scBP, and Jeq,c,3 in
+opstack. The important rules to remember are:
+
+    last var/condition -> opstack
+    "and"'s LHS -> invert -> exprBP (aka fail chain)
+    "or"'s LHS -> noinvert -> scBP (aka succeed chain)
+    if exprBP=0 and scBP=0 then expression was "simple"/in opstack
+
+(Technically the last case is exprBP=wasExprBP and scBP=wasScBP.)
+
+Now Expr() is called from many places, here we shall just consider the
+difference between calling it from DoIf() and Assignment(). Leaving the
+last var/condition in opstack is crucial for the Assignment case, ie/eg
+    b = a
+which obviously just stores opstack in b, and
+    b = a=1
+which translates the opJeq,a,1 on the top of the stack to opSeq,b,a,1,
+much simpler than emitting a (backpatch-able) jump and then attempting 
+to set b from that somehow. However that is precisely what must be done 
+if the RHS expression is more complex, for example:
+    b = a=1 or b=2 or c=3
+Well, as we said above we have Jeq,a,1 and Jeq,b,2 on scBP, and Jeq,c,3
+in opstack. Clearly we must backpatch those scBP to somewhere that sets
+b=1, and we have the power to invert/notinvert the Jeq on opstack, so it
+makes sense to jump over a set b=0 and join up with the scBP, ie by not
+inverting the jump, roughly speaking:
+
+************************************************************************
+*** DEV: makeBool() has been added to pmain.e since this was written ***
+************************************************************************
+
+    if scBP>0 then
+        -- store compound expression as boolean:
+        scBP = Branch(noinvert,,,scBP)
+        emit(mov,b,0)
+        emit(jmp,done)
+        backpatch scBP to here
+        emit(mov,b,1)
+        label(done)
+    else
+        ...
+    end if
+
+The other case is similar:
+    b = a=1 and b=2 and c=3
+As we said above this leaves Jne,a,1 and Jne,b,2 on exprBP, with Jeq,c,3 
+in opstack. This time the exprBP must jump to a set b=0 and again we have
+some choice over what to do with the content of opstack. Naturally it
+makes sense to combine this with the scBP handling:
+
+    if exprBP>0 or scBP>0 then
+        -- store compound expression as boolean:
+        scBP = Branch(noinvert,,,scBP)
+        backpatch exprBP (fail) to here             -- <<< new <<<
+        emit(mov,b,0)
+        emit(jump,done)
+        backpatch scBP (succeed) to here
+        emit(mov,b,1)
+        label(done)
+    else
+        ...
+    end if
+
+[Update: I believe this is now all done properly by makeBool():]
+Note: This is not quite as ideally implemented as it might be. Instead
+of mov,b,0 we end up doing a mov,tmp,0 and later a mov,b,tmp. However,
+in time, I expect such minor issues can be ironed out fairly easily.
+(Try, eg, calling Expr from Assignment with toBool=0, and then invoking
+ makeBool passing tidx in BN, and I think 0s in wasSc/ExprBP..?) [DEV]
+
+Of course Expr() must also handle nested compound expressions such as
+"a and (b or c) and d". Any inner expression must be viewed as having
+(its own private) "fail" and "succeed" chains which must be correctly
+hooked into the outer/containing expression. In the above case, when
+"b or c" succeeds, we just continue with the test on d, whereas if it
+fails, the whole outer test fails. In contrast, "a or (b and c) or d"
+is the opposite, with inner failure leading to continued testing and
+inner success making the whole outer test succeed.
+
+In practice this is trivially dealt with, by linking an "and"'s sub-
+expression's scBP (succeed) to the next condition and leaving exprBP
+joined to the outer expression, and linking an "or"'s sub-expression
+exprBPs (fail) to the next condition and leaving any scBP joined to
+the outer expression's scBP. Originally we created new, separate and
+private chains for sub-expressions, then laboriously relinked them
+into the outer expression; whereas we now extend the existing chains
+but only process them back to the original start (see wasSc/ExprBP).
+(That be the royal we: me and my computer! ;-)
+
+That pretty much concludes scBP and exprBP handling, it is time to
+examine the remaining xxxBP chains. At this point I was expecting to
+be able to say that exitBP is pretty obvious, but there are quite a
+few i's to dot and t's to cross:
+    1: It is initially -1 to indicate invalid/not in a loop.
+    2: exitBP of -1 is used in Assignment for "not in a loop" test,
+       specifically when not in a loop and a variable has not been
+       previously assigned, we can omit any deallocation for global
+       (file-level) vars - as long as we are not in a routine and  
+       no forward calls are outstanding, and local (routine-level) 
+       vars (this time with no such caveats).
+    3: DoExit (checks it is not -1 and) extends exitBP.
+    4: DoIf treats "then exit" specially, otherwise it would jump
+       over the jump to the exit point/end loop. It also moves any
+       scBP (succeed chain, as left by Expr) entries onto exitBP, as
+       well as extending it with the "in hand" condition on opstack.
+    5: DoWhile/DoFor are responsible for managing nested loops, ie
+        saving/restoring existing exitBP and starting a new chain.
+    6: At while top exprBP (the fail chain) is moved to exitBP,
+        plus the "in hand" condition atop opstack. The initial
+        "no iterations" case of DoFor is handled manually.
+    7: At end while/for the exitBP chain is backpatched to the next 
+        instruction, after jump loopTop/opEndFor.
+
+The ifBP and EndIfBP chains are used in DoIf:
+    1: EndIfBP is in fact local to DoIf, and links the unconditional
+        jumps before each elsif/else to the end if.
+    2: ifBP is also local to DoIf, set from the exprBP (fail chain),
+        and extended by the "in hand" condition left on opstack, for
+        each (conditional) branch (of the if-construct).
+    3: After each unconditional EndIfBP jump, and at end if, the ifBP
+        chain is backpatched to the next instruction.
+
+-------------------------------- === --------------------------------
+
+
+Finally we reach the important mergeSet,flag handling. A great deal of 
+information about this can be found in pilx86.e, here we start from the 
+very basics and largely ignore most of the technical implementation 
+details already adequately covered there.
+
+There are five mergeSets, scMerge(=1), exprMerge(=2), exitMerge(=3), 
+ifMerge(=4), and endIfMerge(=5), which correspond to the xxBP chains.
+There is one other case: DoIf treats "then return" in procedures a bit
+like "then exit" mentioned above, only this time it uses a mergeSet of
+isOpCode (#100) and link of opRetf, which pilx86 translates directly to
+jumps to opRetf, with no impact on mergeSets/reginfo. </aside>
+
+I shall avoid waxing lyrical about the benefits of tracking what vars
+are available in registers, except to state that it is a jolly fine way
+not only to avoid unnecessary loads but also several AGI stalls. I will
+admit that the current implementation of loadReg/spareReg is based on a 
+naieve most-recently-used state, unchanged from strictly one-pass days, 
+and could probably be improved by collecting details of what variables
+we need/no longer need and/or what registers we would prefer them to be
+in (eg opSubse1 [non-inlined] wants index in edi and sequence in esi).
+Or perhaps a brand new scheme based on linear scan register allocation 
+or even graph colouring - left as an exercise for the intrepid reader.
+
+I compiled the following code using "p -d test.exw":
+
+procedure test(integer a, integer b, integer c)
+    if a and b then
+        puts(1,"1\n")
+    elsif a or b or c then
+        puts(1,"2\n")
+    end if
+    puts(1,"3\n")
+end procedure
+    for a=0 to 1 do
+        for b=0 to 1 do
+            for c=0 to 1 do
+                test(a,b,c)
+            end for
+        end for
+    end for
+
+and obtained the following listing, in which I have replaced binary/analysis 
+with backpatch links and opLabel points [and notes in square brackets]:
+
+;     2 procedure test(integer a, integer b, integer c)
+;     3     if a and b then
+    mov edi,[#0040E148] (a)               ;#0040D0F6
+    test edi,edi                          ;#0040D0FC
+    je #0040D11C                          ;#0040D0FE    -- exprBP[1]
+    mov ecx,[#0040E14C] (b)               ;#0040D100
+    test ecx,ecx                          ;#0040D106
+    je #0040D11C                          ;#0040D108    -- exprBP -> ifBP[2]
+;     4         puts(1,"1\n")
+    mov edi,1                             ;#0040D10A
+    mov edx,[#0040E300] (symtab[389])     ;#0040D10F
+    call opPuts                           ;#0040D115
+    jmp #0040D143                         ;#0040D11A    -- endIfBP[3]
+;     5     elsif a or b or c then                      -- opLabel ifMerge[4]: above ifBP relinked to here
+    test edi,edi                          ;#0040D11C
+    jne #0040D133                         ;#0040D11E    -- scBP[5]
+    mov esi,[#0040E14C] (b)               ;#0040D120
+    test esi,esi                          ;#0040D126
+    jne #0040D133                         ;#0040D128    -- scBP[6]
+    mov eax,[#0040E150] (c)               ;#0040D12A
+    test eax,eax                          ;#0040D12F
+    je #0040D143                          ;#0040D131    -- ifBP[7]
+;     6         puts(1,"2\n")                           -- opLabel scMerge[8]: above scBP relinked to here
+    mov edi,1                             ;#0040D133
+    mov edx,[#0040E304] (symtab[390])     ;#0040D138
+    call opPuts                           ;#0040D13E
+;     7     end if                                      -- opLabel if/endIfMerge[9]: if/EndIfBP relinked here
+;     8     puts(1,"3\n")
+    mov edi,1                             ;#0040D143
+    mov edx,[#0040E308] (symtab[391])     ;#0040D148
+    call opPuts                           ;#0040D14E
+;     9 end procedure
+    jmp opRetf                            ;#0040D153
+
+Also, here is the il (obtained via -dumpil), with corresponding [n] markers:
+
+   1:  opLn,2,
+   3:  opTchk,386,          [dev 14/6/10 opTchk now takes 3 parameters]
+   5:  opTchk,387,
+   7:  opTchk,388,
+   9:  opLn,3,
+  11:  opJnot,386,1,ifMerge,0,35,           -- exprBP[1]
+  17:  opJnot,387,1,ifMerge,0,35,           -- ifBP[2]
+  23:  opLn,4,
+  25:  opPuts,122,389,
+  28:  opJmp,endIfMerge,0,72,               -- endIfBP[3]
+  32:  opLabel,ifMerge,-1,0,                -- opLabel[4]
+  36:  opLn,5,
+  38:  opJif,386,1,scMerge,0,59,            -- scBP[5]
+  44:  opJif,387,1,scMerge,0,59,            -- scBP[6]
+  50:  opJnot,388,1,ifMerge,0,68,           -- ifBP[7]
+  56:  opLabel,scMerge,1,0,                 -- opLabel[8]
+  60:  opLn,6,
+  62:  opPuts,122,390,
+  65:  opLabel,ifMerge,1,0,                 -- opLabel[9]
+  69:  opLabel,endIfMerge,1,0,              -- ""
+  73:  opLn,8,
+  75:  opPuts,122,391,
+  78:  opLn,9,
+  80:  opRetf,
+
+ Aside: The three opTchk have been proved unnecessary as parameters a,b,c
+        are only ever passed integers, and hence no code has been emitted 
+        for them in this particular case. Obviously you can see that the
+        var-ids for a,b,c are 386,387,388 respectively. Also 122 is the
+        var-id of a constant 1 and 389/390/391 the strings "1/2/3\n".
+ Aside2: The above does not show any attempt at peephole optimisations/
+        instruction re-scheduling, though this is planned. Ideally we 
+        would move the load ecx at 0040D100 above the test esi at 0040D0FC
+        to remove the dependency on load esi at 0040D0F6; which would, of 
+        course, completely change the analysis detailed below.
+ Aside3: There may be another way to further improve the above code. The 
+        test on edi at 0040D11C is unnecessary; the jump from 0040D0FE 
+        could go straight to testing b, and the jump from 0040D108 knows 
+        a is non-zero so could go straight to 0040D133 (with removal of 
+        code at 0040D11C and 0040D11E changing a few addresses). This is 
+        left as an exercise for the reader!
+
+Manual analysis of the above yields:
+
+At #0040D0FE, [a] is in edi
+At #0040D108, [a] is in edi, [b] is in ecx
+At #0040D10A, [a] is in edi, [b] is in ecx
+At #0040D11A, we have no reliable reginfo (opPuts just called)
+At #0040D11C, [a] is in edi (common to 0040D0FE and 0040D108)
+At #0040D11E, [a] is in edi
+At #0040D128, [a] is in edi, [b] is in esi
+At #0040D131, [a] is in edi, [b] is in esi, [c] is in eax
+At #0040D133, [a] is in edi (common to 0040D11E/0040D128/0040D131)
+At #0040D143, we have no reliable reginfo (common to 0040D11A/0040D131)
+
+Hence at 0040D11C we can avoid reloading [a], but not [b]. Unfortunately I
+did not pick a better example showing more register re-usage/avoided loads,
+but at least it shows jump/label relinking quite well.
+
+To achieve this analysis programatically, we merge() the current register
+info with sets saved at each of the backpatch points, ie trash any reginfo
+which is not common to both, and/or following an unconditional branch, we
+restore register info by merging just the backpatch points.
+
+As I mentioned (twice) above, the only backward jumps in il are from end
+while statements, and as we clear reginfo at the top of all loops there
+is no special processing needed for them. This also means that an opLabel
+can effectively be used as "end of set". Another useful property is that
+while these sets nest inside each other, and sets of different types (ie
+1..5 aka scMerge..endIfMerge) may be completely mixed up, sets of the
+same type never actually interleave. Determining the "start of new set"
+is equally trivial: is this jump pointing at the same opLabel's link
+field as our "current" set?
+
+------------------------------- THE END -------------------------------
+
+Epilog: Traditional compiler theory involves creating abstract syntax
+trees, single static assignment form, directed acyclic graphs, graph
+colouring, etc. However we don't really have the luxury of such things
+for a hybrid interpreter/compiler. Instead we stick to a simple flat
+table format, and back this approach up with detailed assembly level
+listings to prove the results are acceptable, or better. Clearly there
+will always be room for improvement, provided we can keep costs down.
+
+---------------------------- REALLY THE END ----------------------------
+
+

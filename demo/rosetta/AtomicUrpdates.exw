@@ -1,0 +1,183 @@
+--
+-- demo\rosetta\AtomicUrpdates.exw
+-- ===============================
+--
+--  (I changed the name from AtomicUpdates to AtomicUrpdates to stop getting UAC prompts...)
+--  [DEV must try that manifest change, see pglobals.e]
+--
+-- Using a single lock to keep things simple.
+-- Sample output shows it managing nearly 3,000,000 iterations per second, split between two threads;
+--  if only one thread is created, therefore no lock contention, -> over 6,000,000 iter/s.
+-- (ie uncontended locks are twice as fast as contended locks, because there are no waiters to release)
+--
+
+constant nBuckets = 20
+sequence buckets = tagset(nBuckets)     -- {1,2,3,..,20}
+constant bucket_cs = init_cs()          -- critical section
+atom equals = 0, rands = 0              -- operation counts
+integer terminate = 0                   -- control flag
+
+procedure mythreads(integer eq)
+-- if eq then equalise else randomise
+integer b1,b2,amt
+    while not terminate do
+        b1 = rand(nBuckets)
+        b2 = rand(nBuckets)
+        if b1!=b2 then                  -- (test not actually needed)
+            enter_cs(bucket_cs)
+            if eq then
+                amt = floor((buckets[b1]-buckets[b2])/2)
+                equals += 1
+            else
+                amt = rand(buckets[b1]+1)-1
+                rands += 1
+            end if
+            buckets[b1] -= amt
+            buckets[b2] += amt
+            leave_cs(bucket_cs)
+        end if
+    end while
+    exit_thread(0)
+end procedure
+
+procedure display()
+    enter_cs(bucket_cs)
+    ?{sum(buckets),equals,rands,buckets}
+--  printf(1,"%d,%d,%d,%s\n",{sum(buckets),equals,rands,sprint(buckets)})
+    leave_cs(bucket_cs)
+end procedure
+
+display()
+
+constant threads = {create_thread(routine_id("mythreads"),{1}), -- equalise
+                    create_thread(routine_id("mythreads"),{0})} -- randomise
+
+constant ESC = #1B
+while not find(get_key(),{ESC,'q','Q'}) do
+    sleep(1)
+    display()
+end while
+terminate = 1
+wait_thread(threads)
+delete_cs(bucket_cs)
+puts(1,"done")
+if getc(0) then end if
+
+include ..\..\test\t02parms.exw     -- more FP...
+
+
+--/*
+Sample output:
+{210,0,0,{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}}
+{210,1326977,1619458,{14,17,10,7,9,6,8,5,9,7,6,10,14,12,12,14,13,15,12,10}}
+{210,2637987,3137483,{10,7,4,31,1,11,5,6,16,11,9,15,9,13,15,5,5,10,6,21}}
+{210,3973762,4619906,{22,38,9,17,9,10,12,0,3,0,13,11,2,39,4,11,9,0,0,1}}
+{210,5327923,6082436,{1,0,0,9,23,1,33,7,1,43,8,17,1,6,30,0,24,2,3,1}}
+{210,6671482,7561288,{12,11,2,9,11,4,11,9,13,9,9,20,19,10,10,8,11,11,12,9}}
+{210,7950733,9131581,{7,9,10,8,11,8,13,12,11,5,6,8,11,16,15,14,15,11,11,9}}
+{210,9272164,10625022,{4,8,28,2,13,13,6,32,12,5,10,4,28,1,12,9,4,9,4,6}}
+{210,10615451,12117282,{10,17,18,2,7,13,10,2,12,4,19,10,18,12,9,5,12,11,8,11}}
+{210,11912322,13610386,{10,7,15,11,12,8,12,10,15,14,10,7,9,10,8,11,8,10,13,10}}
+{210,13243566,15099214,{8,12,11,7,12,13,13,8,9,9,16,10,10,8,10,10,8,10,13,13}}
+done
+--*/
+--/*
+    thread repeat {
+        every (b1|b2) := ?nBuckets   # OK if same!
+        critical mtx: transfer((buckets[b1] - buckets[b2])/2, b1, b2)
+        }
+    thread repeat {
+        every (b1|b2) := ?nBuckets   # OK if same!
+        critical mtx: transfer(integer(?buckets[b1]), b1, b2)
+        }
+    wait(thread repeat {
+        delay(500)
+        critical mtx: {
+            every (sum := 0) +:= !buckets
+            writes("Sum: ",sum)
+            if \showBuckets then every writes(" -> "|right(!buckets, 4))
+            }
+        write()
+        if (nShows -:= 1) <= 0 then break
+        })
+
+ 
+--*/
+--/* Eu version:
+function move(sequence s, integer amount, integer src, integer dest)
+    if src < 1 or src > length(s) or dest < 1 or dest > length(s) or amount < 0 then
+        return -1
+    else
+        if src != dest and amount then
+            if amount > s[src] then
+                amount = s[src]
+            end if
+            s[src] -= amount
+            s[dest] += amount
+        end if
+        return s
+    end if
+end function
+ 
+sequence buckets
+buckets = repeat(100,10)
+ 
+procedure equalize()
+    integer i, j, diff
+    while 1 do
+        i = rand(length(buckets))
+        j = rand(length(buckets))
+        diff = buckets[i] - buckets[j]
+        if  diff >= 2 then
+            buckets = move(buckets, floor(diff / 2), i, j)
+        elsif diff <= -2 then
+            buckets = move(buckets, -floor(diff / 2), j, i)
+        end if
+--      task_yield()
+    end while
+end procedure
+ 
+procedure redistribute()
+    integer i, j
+    while 1 do
+        i = rand(length(buckets))
+        j = rand(length(buckets))
+        if buckets[i] then
+            buckets = move(buckets, rand(buckets[i]), i, j)
+        end if
+--      task_yield()
+    end while
+end procedure
+--*/
+ 
+--?sum(tagset(20))  -- 210
+
+-- autoinclude:
+--function sum(sequence s)
+--  integer sum
+--  sum = 0
+--  for i = 1 to length(s) do
+--      sum += s[i]
+--  end for
+--  return sum
+--end function
+ 
+-- [DEV] multitasking is not yet implemented
+--/*
+atom task
+ 
+task = task_create(routine_id("equalize"), {})
+task_schedule(task, 1)
+ 
+task = task_create(routine_id("redistribute"), {})
+task_schedule(task, 1)
+ 
+task_schedule(0, {0.5, 0.5})
+ 
+for i = 1 to 24 do
+    print(1,buckets)
+    printf(1," sum: %d\n", {sum(buckets)})
+    task_yield()
+end for
+--*/
+

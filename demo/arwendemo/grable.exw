@@ -1,0 +1,103 @@
+include arwen.ew
+
+constant win = create(Window, "Demo", 0, 0, 20, 20, 400, 280, 0)
+constant tool_bar = create(ToolBar, "", 0, win, 0, 0, 30, 20, 0)
+constant button = create(PushButton, "shuffle", 0, tool_bar,
+			 0, 0, 100, 30, 0)
+constant edit = create(MultiEditText,
+		       "I found that if you paste some Euphoria code into rich edit\r\n" &
+		       " and click shuffle, it converts it to C++",
+		       0, win, 0, 40, 350, 200, or_all({ES_NOHIDESEL})),
+	 editHwnd = getHwnd(edit)
+
+constant Menu_Edit	     = create(Menu,	"&Menu",      0, win,0, 1, 0, 0, 0)
+constant MenuItem_Cut	     = create(MenuItem, "Cu&t",       0, Menu_Edit,0, 2, 0, 0, 0)
+constant MenuItem_Copy	     = create(MenuItem, "&Copy",      0, Menu_Edit,0, 3, 0, 0, 0)
+constant MenuItem_Paste      = create(MenuItem, "&Paste",     0, Menu_Edit,0, 4, 0, 0, 0)
+constant MenuItem_Delete     = create(MenuItem, "&Delete",    0, Menu_Edit,0, 5, 0, 0, 0)
+constant MenuItem_Select_All = create(MenuItem, "Select&All", 0, Menu_Edit,0, 6, 0, 0, 0)
+
+sequence wordch
+	 wordch = repeat(0,255)
+	 wordch['a'..'z'] = 1
+	 wordch['A'..'Z'] = 1
+	 wordch['_'] = 1
+
+function create_words()
+sequence word, RE_text, output
+integer char
+    word = {}
+    output = {}
+    RE_text = getText(edit)
+    for m = 1 to length(RE_text) do
+	char = RE_text[m]
+	if wordch[char] then
+	    word &= char--add to word
+	    if m = length(RE_text) then
+		output = append(output, word)
+	    end if
+	else
+	    if length(word) then
+		output = append(output, word)
+		word = {}--start a new word
+	    end if
+	    output = append(output, {char})
+	end if
+    end for
+    return output
+end function
+
+function Scramble(sequence s)--from genfunc.e
+integer len, k
+object temp
+    len = length(s)
+    for i = 1 to len do
+	k = rand(len)
+	temp = s[k]
+	s[k] = s[i]
+	s[i] = temp
+    end for
+    return s
+end function
+
+procedure shuffle_spelling()
+--leave the first and last letters intact to maintain legibility.
+sequence words, output, mid
+    output = {}
+    words = create_words()
+    for n = 1 to length(words) do
+	if length(words[n]) > 3 then
+	    mid = Scramble(words[n][2..length(words[n])-1])
+	    words[n] = words[n][1] & mid & words[n][length(words[n])]
+	end if
+	output &= words[n]
+    end for
+
+    setText(edit, output)
+end procedure
+
+function MainHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_COMMAND then
+	if id=button then
+	    shuffle_spelling()
+	elsif id=MenuItem_Cut then
+	    void = sendMessage(edit,WM_CUT,0,0)
+	elsif id=MenuItem_Copy then
+	    void = sendMessage(edit,WM_COPY,0,0)
+	elsif id=MenuItem_Paste then
+	    void = sendMessage(edit,WM_PASTE,0,0)
+	elsif id=MenuItem_Delete then
+	    void = sendMessage(edit,WM_CLEAR,0,0)
+	elsif id=MenuItem_Select_All then
+	    void = sendMessage(edit,EM_SETSEL,0,-1)
+	else
+	    if wParam then end if -- suppress warnings
+	end if
+    elsif msg=WM_SIZE then
+	void = c_func(xMoveWindow,{editHwnd,lParam[1]+5,lParam[2]+5,lParam[3]-10,lParam[4]-50,1})
+    end if
+    return 0
+end function
+setHandler({win,button,Menu_Edit},routine_id("MainHandler"))
+
+WinMain(win, SW_NORMAL)

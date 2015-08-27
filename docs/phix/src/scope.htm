@@ -1,0 +1,212 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Scope</h1>
+      <div id="mainSection">
+        A symbol&rsquo;s
+       <i>scope</i> is the portion of the program where that symbol&rsquo;s
+        declaration is in effect, i.e. where that symbol is
+       <i>visible</i>.
+       <br>
+       <br>
+        In Phix, every variable must be declared before it is used. You can read a Phix program
+        from beginning to end without encountering any variables that have not been defined yet.
+       <br>
+       <br>
+        You can explicitly declare a forward routine that will be defined later, or just invoke
+        it implicitly. Most of the builtin routines (excepting those with an include statement 
+        in the Syntax section) are in fact effectively declared as explicit forward global 
+        routines, in psym.e/syminit().
+       <br>
+       <br>
+        Implicit forward routine calls are assumed to be local and generate a compilation error 
+        if still unresolved at the end of the file. If the routine is actually global (and not 
+        a typo) there must be an explicit forward global routine statement, and that must occur 
+        before the first (implicit) call. If the compiler can unambiguously resolve an implicit 
+        local routine to a global routine, it will, but at the same time also issue a warning.
+       <br>
+       <br>
+         Procedures, functions and types can call themselves
+       <i>recursively</i>. Mutual recursion, where routine A calls routine B which 
+         directly or indirectly calls routine A, is fully supported.
+       <br>
+       <br>
+         It is also possible to call a routine that comes later in the source using the special 
+         functions 
+       <font color="#030303">
+        <b>routine_id()</b>,
+       </font>
+         and either
+       <font color="#030303">
+        <b>call_func()</b>
+       </font> or
+       <font color="#030303">
+        <b>call_proc()</b>,
+       </font> see
+       <a href="dcall.htm">Library Routines - Dynamic Calls
+       </a>. This mechanism was the only means of making a forward call in RDS Eu, and may
+        therefore be quite prevalent in legacy code.
+       <br>
+       <br>
+       <a name=scope></a>
+         A symbol is defined from the point where it is declared to the end of its
+       <font color="#030303">
+        <b>scope</b>.
+       </font>
+         The scope of a variable declared inside a procedure or function (a
+       <font color="#030303">
+        <b>private</b>
+       </font> variable) ends
+         at the end of the procedure or function. The scope
+         of all other variables, constants, procedures, functions and types ends at
+         the end of the source file in which they are declared and they are referred
+         to as
+       <font color="#030303">
+        <b>local</b>
+       </font>,
+         unless the keyword
+       <font color="#030303">
+        <b>global</b>
+       </font> precedes
+         their declaration, in which case their scope extends indefinitely.
+       <br>
+       <br>
+         When you include a Phix file in a main file (see
+       <a href="specialtop.htm">Special Top-Level Statements</a>),
+         only the variables and routines declared using the
+       <font color="#030303">
+        <b>global</b>
+       </font> keyword are
+         accessible or even visible to the main file. The other, non-global,
+         declarations in the included file are forgotten at the end of
+         the included file, and you will get an error message, "not declared", if you
+         try to use them in the main file.
+       <br>
+       <br>
+         The
+       <font color="#030303">
+        <b>global</b>
+       </font> keyword
+         makes it clear which symbols can be used externally,
+         and which symbols are strictly for internal use within the include file.
+         This information is helpful when maintaining or enhancing the file,
+         or when learning how to use the file.
+       <br>
+       <br>
+       <blockquote>
+        <b>Compatibility Note:</b> OpenEuphoria has private and export qualifiers as well as 
+         global. Phix simply treats all three identically. The "priorities" handling as documented
+         in psym.e addresses pretty much the same concerns but in a completely different manner.
+       </blockquote>
+        Sometimes, when using include files
+        developed by others, you will encounter a naming conflict.
+        One of the include file authors has used the same name for a global symbol
+        as one of the other authors. If you have the source, you can
+        simply edit one of the include files to correct the problem, but then
+        you would have repeat this process whenever a new version of the include
+        file was released. Phix has a simpler way to solve this. Using
+        an extension to the include statement, you can say for example:
+<!--eucode>
+     include johns_file.e as john
+     include bills_file.e as bill
+     john:x += 1
+     bill:x += 2
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">     include</font><font color="#000000"> johns_file.e as john
+</font><font color="#008080">     include</font><font color="#000000"> bills_file.e as bill
+     john:x</font><font color="#0000FF"> +=</font><font color="#000000"> 1
+     bill:x</font><font color="#0000FF"> +=</font><font color="#000000"> 2</font>
+</pre>
+       In this case, the variable x was declared in two different files,
+        and you want to refer to both variables in your file.
+        Using the
+       <i>namespace identifier</i> of either john or bill, you can
+        attach a prefix to x to indicate which x you are referring to.
+        We sometimes say that john refers to one
+       <i>namespace</i>, while bill 
+        refers to another distinct
+       <i>namespace</i>. 
+        You can attach a namespace identifier
+        to any user-defined variable, constant, procedure or function. You can do it
+        to solve a conflict, or simply to make things clearer. A namespace identifier
+        has local scope. It is known only within the file that declares it,
+        i.e. the file that contains the include statement. Different files
+        might define different namespace identifiers to refer to the same 
+        included file.
+       <br>
+       <br>
+         Phix encourages you to restrict the scope of symbols. If all symbols were
+         automatically global to the whole program, you might have a lot of
+         naming conflicts, especially in a large program consisting of files
+         written by many different programmers. A naming conflict might cause
+         a compiler error message, or it could lead to a very subtle bug, where
+         different parts of a program accidentally modify the same variable without
+         being aware of it.
+         Try to use the most restrictive scope that you can. Make variables
+       <font color="#030303">
+        <b>private</b>
+       </font> to
+         one routine where possible, and where that is not possible, make them
+       <font color="#030303">
+        <b>local</b>
+       </font> to a file, rather than
+       <font color="#030303">
+        <b>global</b>
+       </font> to the whole program.
+       <br>
+       <br>
+         When Phix looks up the declaration of a symbol, it first checks the current routine, 
+        then the current file, then globals in other files. At least that is the simple version,
+        see the comments in psym.e for more detailed technical information. Symbols that are more 
+        localized will temporarily
+       <i>override</i> symbols that are more globalized,
+         without any error message occurring.
+       <br>
+       <br>
+       <font color="#030303">
+        <b>Constant</b>
+       </font> declarations must be
+         outside of any subroutine. Constants can be global or local, but 
+         not
+       <font color="#030303">
+        <b>private</b>.
+       </font>
+       <br>
+       <br>
+         Variable declarations inside a subroutine must all appear at the beginning,
+         before the executable statements of the subroutine.
+       <br>
+       <br>
+         Declarations at the top level, outside of any subroutine, must really
+         be at the very top. They cannot be nested inside a loop or
+       <a href="if.htm">if-statement</a>.
+       <br>
+       <br>
+       <a name=loop_scope></a>
+         The controlling variable used in a
+       <a href="for.htm">for-loop</a> is special. 
+         If a variable of that name has not been decleared in the immediately surrounding
+         scope, it is automatically declared at the beginning of the loop, and its scope 
+         ends at the end of the for-loop. If the loop is inside a function or procedure, 
+         the loop variable is a private variable and may only assume the identity of 
+         another private variable. When the loop is at the top level, outside of any 
+         function or procedure, the loop variable is a local variable and may assume the
+         identity of a previous local or global variable that has been declared in the
+         same file, but not a global from any other file. You can use the same name in 
+         many different for-loops as long as the loops are not nested. You do not have
+         to declare loop variables as you would other variables. However should you
+         chose to, you should use type integer, as Phix does not allow floating point
+         for loops.
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

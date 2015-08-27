@@ -1,0 +1,105 @@
+--
+-- t48init.exw
+--
+--  *** NB improved [S_Init] settings are *** NOT IMPLEMENTED *** [DEV]
+--
+--  *It is crucial that no var is marked as init when it might not be.*
+--
+--  The "0} -- should be 1" below are acceptable but suboptimal,
+--  whereas a "1 } -- should be 0" would indicate a serious bug.
+--
+-- Note that for real programs, [S_Init] settings are better than 80%
+--  sound. We are only missing some deductions from conditional tests
+--  and the "merging" (and) of init status from multiple if-branches,
+--  as long as the if construct has an else-clause, that is.
+--
+-- Gains from better init settings will most likely be less than 1%,
+--  and may cost more to implement than they save. Also note that eg
+--      while a and (b or c) do c=1 end while
+--  can only mark/leave "a" as init after the loop, nowt else, so it
+--  is hardly worth doing anything with loops if you want my opinion.
+--
+-- On the plus side, even in this sorry state this test caught a bug.
+--  (it was wrongly marking vars init in short-circuit cases)
+--
+-- #isinit{} emits no code, just performs a simple compile-time test.
+-- "" is prefixed with "--/**/" to prevent RDS Eu throwing wobblies.
+--
+-- caution: future improvements (not currently planned) to "if 1=1"
+--          and "if integer(x)" may (accidentally) invalidate some
+--          or all of these (#isinit) tests. Use -d to check.
+--
+without warning
+
+        if 1=1 then abort(0) end if -- avoids unassigned errors
+        -- (a plain abort(0) at toplevel would stop compilation)
+        -- (we just want to test this compiles, not that it runs)
+        -- As noted in Phix.chm\abort.htm\Technicalia, the above
+        -- does not terminate a p -test run or count as an error.
+
+integer x,y,z
+        if integer(x) then
+--/**/      #isinit{x,0}    -- should be 1  (works for "if x then")
+            y=1
+            z=1
+--/**/      #isinit{y,1}
+--/**/      #isinit{z,1}
+        else
+--/**/      #isinit{x,0}    -- should be 1
+--/**/      #isinit{y,0}
+--/**/      #isinit{z,0}
+            z=2
+        end if
+--/**/  #isinit{x,0}        -- should be 1 (first entry(/test) should be permanent)
+--/**/  #isinit{y,0}
+--/**/  #isinit{z,0}        -- should be 1 ("else" present and init on all branches)
+        if x=5 then
+--/**/      #isinit{x,1}
+        end if
+--/**/  #isinit{x,0}        -- should be 1
+        if y then           
+--/**/      #isinit{y,1}
+        end if
+--/**/  #isinit{y,0}        -- should be 1
+
+integer t,u,v,w
+        if u or v then          
+--/**/      #isinit{u,1}
+--/**/      #isinit{v,0}
+        end if
+--/**/  #isinit{u,0}        -- should be 1
+--/**/  #isinit{v,0}
+        if t and w then         
+--/**/      #isinit{t,1}
+--/**/      #isinit{w,0}    -- should be 1 here...
+        else
+--/**/      #isinit{t,0}    -- should be 1
+--/**/      #isinit{w,0}    -- ...but must be 0 here
+        end if
+--/**/  #isinit{t,0}        -- should be 1
+--/**/  #isinit{w,0}
+
+
+-- the example given in isinit() in pmain.e:
+integer i, blah
+--blah=0
+        if blah then
+--/**/      #isinit{i,0}
+            i = 1
+--/**/      #isinit{i,1}
+        elsif blah then     -- should be 1 (-d shows opJif, not test)
+--/**/      #isinit{i,0}
+        else
+--/**/      #isinit{i,0}
+            i = 2
+--/**/      #isinit{i,1}
+        end if
+--/**/  #isinit{i,0}
+        if blah then
+            i = 1
+        else
+            i = 2
+        end if
+--      #isinit{i,1}    -- ideally perhaps, since i was init on every
+                        -- branch, but in practice we don't do this.
+

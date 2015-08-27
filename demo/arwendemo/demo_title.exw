@@ -1,0 +1,46 @@
+--
+-- title-less window demo
+--
+-- Note for win98 users: If you want to hide the title and allow Maximise/Restore,
+--  then you'll find that win98 does not correctly enable/display these options in
+--  the alt-space/right click on taskbar menu. 'X', and 'R' below show one possible 
+--  way to address this. This problem has been fixed in later versions of Windows.
+--
+--/* Not required for Phix:
+include ..\..\builtins\dll.e
+include ..\..\builtins\machine.e
+--*/
+include arwen.ew
+include axtra.ew    -- toggleWindowTitle(), showWindow()
+
+constant etxt = "Press Escape to quit, T to toggle titlebar",
+         xmax = ", X to maximise",
+         rest = ", R to restore",
+         main = create(Window,etxt,0,0,100,100,400,300,0),
+         tlbl = create(Label,"",0,main,10,10,400,25,0)
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_KEYDOWN then
+        if wParam=VK_ESCAPE then        closeWindow(main)
+        elsif find(wParam,"tT") then    toggleWindowTitle(main)
+        elsif find(wParam,"xX") then    showWindow(main,SW_MAXIMIZE)    -- example fix for win98
+                                        setText(tlbl,etxt&rest)
+        elsif find(wParam,"rR") then    showWindow(main,SW_NORMAL)      -- ""
+                                        setText(tlbl,etxt&xmax)
+        elsif id or object(lParam) then end if  -- suppress warnings
+    end if
+    return 0
+end function
+setHandler(main,routine_id("mainHandler"))
+
+if rand(30)<=10 then
+    toggleWindowTitle(main)             -- start demo without a title, 1/3 of the time.
+end if
+
+if rand(30)<=25 then
+    setText(tlbl,etxt&xmax)
+    WinMain(main, SW_NORMAL)
+else
+    setText(tlbl,etxt&rest)
+    WinMain(main, SW_MAXIMIZE)
+end if

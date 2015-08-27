@@ -1,0 +1,380 @@
+--
+-- eabind.ew
+--
+
+--/* 4.0.2
+include builtins\dll.e
+include builtins\file.e
+--*/
+
+constant
+    BindWin      = create(Window,       xl("Bind or Shroud"),   0, Main, 120, 174, 799, 225, 0)
+constant
+    bindDC       = getPrivateDC(BindWin),
+    RadioPhix    = create(RadioButton,  xl("Phix"),             0, BindWin,   7, 10, 57, 20, 0),
+    RadioBind    = create(RadioButton,  xl("Bind (RDS Eu)"),    0, BindWin,  67, 10, 97, 20, 0),
+    RadioShroud  = create(RadioButton,  xl("Shroud (RDS Eu)"),  0, BindWin, 166, 11,111, 20, 0),
+    Clear        = create(CheckBox,     xl("Clear"),            0, BindWin, 279,  8, 90, 25, 0),
+    List         = create(CheckBox,     xl("List"),             0, BindWin, 370,  8, 90, 25, 0),
+    Quiet        = create(CheckBox,     xl("Quiet"),            0, BindWin, 460,  8, 90, 25, 0),
+    Debug        = create(CheckBox,     xl("Debug"),            0, BindWin, 550,  8, 90, 25, 0),
+    Console      = create(CheckBox,     xl("Console"),          0, BindWin, 642,  7, 90, 25, 0),
+    SrcLbl       = create(Label,        xl("File:"),            0, BindWin,  12, 42, 84, 20, SS_RIGHT),
+    SrcFile      = create(EditText,     "",                     0, BindWin, 102, 38,473, 21, 0),
+    SrcBtn       = create(Button,       "..",                   0, BindWin, 582, 37, 20, 21, 0),
+    IconLbl      = create(Label,        xl("Icon:"),            0, BindWin,  13, 67, 84, 20, SS_RIGHT),
+    IconFile     = create(EditText,     "",                     0, BindWin, 102, 66,473, 21, 0),
+    IconBtn      = create(Button,       "..",                   0, BindWin, 582, 66, 20, 21, 0),
+    OutLbl       = create(Label,        xl("As:"),              0, BindWin,  12, 95, 84, 20, SS_RIGHT),
+    OutFile      = create(EditText,     "",                     0, BindWin, 102, 93,541, 22, 0),
+    CmdLbl       = create(Label,        xl("Command:"),         0, BindWin,  13,125, 84, 20, SS_RIGHT),
+    CmdTxt       = create(EditText,     "",                     0, BindWin, 102,122,541, 22, 0),
+    OKBtn        = create(Button,       xl("OK"),               0, BindWin, 493,158, 49, 24, BS_DEFPUSHBUTTON),
+    CancelBtn    = create(Button,       xl("Cancel"),           0, BindWin, 553,158, 88, 24, 0)
+
+
+atom euversion      -- set in Bind()
+
+sequence iconfile
+atom icon
+     icon = 0
+integer isExwExtn
+
+procedure setExwExtn()
+sequence path, extn
+    path = extractPathAndName(getText(SrcFile))
+    extn = extractNameAndExtn(path[2])
+    extn = LowerCase(extn[2])
+    isExwExtn = equal(extn, "exw")
+end procedure
+
+procedure setTarget(sequence FileName, sequence line)
+sequence path, extn
+    path = extractPathAndName(FileName)
+    extn = extractNameAndExtn(path[2])
+    extn = LowerCase(extn[2])
+    isExwExtn = equal(extn, "exw")
+    setText(SrcFile, FileName)
+    if length(line) then
+        setText(OutFile,path[1]&line)
+    else
+        setText(OutFile,"")
+    end if
+end procedure
+
+procedure setCmdLine()
+sequence text
+
+    if isChecked(RadioBind) then
+        if isExwExtn then -- Windows
+            text = "bindw "
+            if euversion>=2.5 then
+                if isChecked(Console) then
+                    text &= "-con "
+                end if
+            end if
+            if length(iconfile) and equal(iconfile,getText(IconFile)) then
+                text &= "-icon \"" & iconfile & "\" "
+            end if
+        else             -- DOS
+            text = "bind "
+        end if
+    else -- isChecked(RadioShroud)
+        text = "shroud "
+    end if
+
+    if euversion=2.4 then
+        if isChecked(Clear) then
+            text &= "-clear "
+        end if
+    else
+        if isChecked(Debug) then
+            text &= "-full_debug "
+        end if
+    end if
+    if isChecked(List) then
+        text &= "-list "
+    end if
+
+    if isChecked(Quiet) then
+        text &= "-quiet "
+    end if
+
+    if length(getText(OutFile)) then
+        text &= "-out \""&getText(OutFile)&"\" "
+    end if
+    setText(CmdTxt,text&'\"'&getText(SrcFile)&'\"')
+end procedure
+
+procedure setBindIcon(sequence pathfile)
+    if length(pathfile) then
+        icon = c_func(xLoadImage,{NULL,allocate_StringZ(pathfile),IMAGE_ICON,0,0,LR_LOADFROMFILE})
+        if icon>0 then -- success
+            setIcon(BindWin, icon)
+            void = c_func(xDrawIcon, {bindDC,610,60,icon})
+            setText(IconFile,pathfile)
+            iconfile = pathfile
+        end if
+    end if
+end procedure
+
+integer setFocusOKBtn setFocusOKBtn = 0
+
+without trace
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+
+    if msg=WM_CHAR then
+        if wParam=VK_RETURN then
+            id = OKBtn
+            msg = WM_COMMAND
+        elsif wParam=VK_ESCAPE then
+            id = CancelBtn
+            msg = WM_COMMAND
+        end if
+    end if
+    if msg=WM_PAINT and icon>0 then
+        if isChecked(RadioBind) and isExwExtn then
+            void = c_func(xDrawIcon, {bindDC,610,60,icon})
+        end if
+        if setFocusOKBtn then
+            setFocus(OKBtn)
+            setFocusOKBtn = 0
+        end if
+    elsif msg=WM_SIZE then
+        setFocusOKBtn = 1
+    elsif msg=WM_COMMAND then
+        if find(id,{RadioBind,RadioShroud}) then
+            if lParam=1 then
+                setCheck(RadioBind,id=RadioBind)
+                setCheck(RadioShroud,id=RadioShroud)
+            end if
+        elsif find(id,{List,Console,Clear,Quiet,Debug}) then
+            if lParam=1 then    -- accelerator key
+                setCheck(id,not isChecked(id))
+            else                -- space bar or mouse click
+                setCheck(id,isChecked(id))
+            end if
+        elsif id=SrcBtn then
+            lParam = getOpenFileName(BindWin, "", {xl("Euphoria/Phix files"), "*.e;*.ex;*.ew;*.exw"}, 0, NULL)
+            if sequence(lParam) and length(lParam)=1 then
+                setTarget(lParam[1],"")
+            end if
+        elsif id=IconBtn then
+            lParam = getOpenFileName(BindWin, "", {xl("Icon files"), "*.ico"}, 0, NULL)
+            if sequence(lParam) and length(lParam)=1 then
+                setBindIcon(lParam[1])
+            end if
+        elsif id=OKBtn then
+            system(getText(CmdTxt), 2)
+            removeFocus(BindWin)
+            setVisible(BindWin,False)
+            setFocus(Main)
+        elsif id=CancelBtn then
+            removeFocus(BindWin)
+            setVisible(BindWin,False)
+            setFocus(Main)
+        end if
+        if id!=CmdTxt then
+            setCmdLine()
+            setExwExtn()
+            if isChecked(RadioBind) and isExwExtn then
+                if not isVisible(IconFile) then
+                    setVisible({IconLbl,IconFile,IconBtn},True)
+                    if euversion>=2.5 then
+                        setVisible(Console,True)
+                    end if
+                end if
+            else
+                if isVisible(IconFile) then
+                    setVisible({IconLbl,IconFile,IconBtn,Console},False)
+                    repaintWindow(BindWin,False)    -- clear the icon
+                end if
+            end if
+        end if
+    end if
+    return 0
+end function
+setHandler({BindWin,RadioBind,RadioShroud,List,Console,Clear,Quiet,Debug,SrcLbl,SrcFile,SrcBtn,
+            IconLbl,IconFile,IconBtn,OutLbl,OutFile,CmdLbl,CmdTxt,OKBtn,
+            CancelBtn},routine_id("mainHandler"))
+
+
+--DEV explain the options fully in the manual:
+--setHint(Clear,"Clear - Keep the source code in human-readable form. Unused routines and "&
+--             "constants will be deleted, and comments and some whitespace will be removed, "&
+--             "but the code will be otherwise unchanged. The original variable and routine "&
+--             "names will be preserved, except where a naming conflict arises between merged "&
+--             "files. Use this option when you want to ship a single source file, and you "&
+--             "don't mind if people can see your code. If an error occurs while a user is "&
+--             "running your program, the *.err file will be readable. If you shroud your "& [DEV *.err]
+--             "program, the *.err file will contain short, meaningless names, and will be "&
+--             "very difficult to understand.")
+--  elsif self = List then
+--      info = "List - Produce a listing in deleted.txt of the routines and constants that "&
+--             "were deleted, as well as any symbols that had to be renamed."
+
+--      infoBox("BINDING - This will process a file as Shrouding does. It then combines your "
+--          &" shrouded, possibly scrambled, file with the Public Domain Edition .exe "
+--          &"to make a lone executable file that can be used/distributed. "
+--          &"Each time this file is run a check is performed to detect any corruption.")
+--  elsif isChecked(RadioShroud) then
+--      setText(OKBtn, "SHROUD")
+--      infoBox("SHROUDING - This will combine all program code into a "
+--              &"single file. Comments and blank lines are removed. "
+--              &"Keywords become 1-byte codes. Variable names "
+--              &"are encrypted."
+--              &" Any Shroud options chosen by the user will further manipulate the file.")
+
+sequence phixdir    -- set by Bind. "" (the empty string) means Phix not found
+--with trace
+procedure Bind()
+object eudir
+object line
+integer c, c2
+sequence cl
+
+    if currfile then
+        if actionsave[currfile]!=actionptr[currfile] then
+            if not saveCurr() then return end if
+        end if
+
+        eudir = getenv("EUDIR")
+        if atom(eudir) then
+            eudir = "C:\\Euphoria"
+        end if
+        if sequence(dir(eudir & "\\source\\bind.ex")) then
+            euversion = 3.0
+        elsif sequence(dir(eudir & "\\bin\\bind.il")) then
+            euversion = 2.5
+        elsif sequence(dir(eudir & "\\bin\\bind.ex")) then
+            euversion = 2.4
+            setVisible(Console,False)
+        else
+            void = messageBox("Error","Cannot find bind.il or bind.ex;\n"&
+                              "Euphoria must be registered to bind/shroud\n"&
+                              "(DEV: with Phix, just use \"p -c xxx\")\n"&
+                              "(I haven't gotten around to this yet)",0)
+--DEV
+            setEnable({RadioBind,RadioShroud},False)
+            setEnable({Clear,List,Quiet,Debug,Console},False)
+            setVisible({List,Quiet,Console},False)
+            euversion = 0 -- Force Phix
+--          return
+        end if
+        cl = command_line()
+        cl = extractPathAndName(cl[1])
+trace(1)
+        phixdir = cl[1]&"pw.exe"
+        if atom(dir(phixdir)) then
+            phixdir = cl[1]&"p.exe"
+            if atom(dir(phixdir)) then
+                phixdir = "C:\\Program Files\\Phix\\pw.exe"
+                if atom(dir(phixdir)) then
+                    phixdir = "C:\\Program Files\\Phix\\p.exe"
+                    if atom(dir(phixdir)) then
+                        phixdir = ""
+                    end if
+                end if
+            end if
+        end if
+
+        setVisible(Clear,euversion=2.4)
+        setCheck(Clear,euversion=2.4)
+        setVisible(Debug,euversion>=2.5)
+        setCheck(Debug,euversion>=2.5)
+
+        setCheck(RadioPhix,True)
+        setCheck(RadioBind,False)
+        setCheck(RadioShroud,False)
+        iconfile = eudir & "\\bin\\euphoria.ico"
+
+        if length(filetext[currfile]) then
+            line = filetext[currfile][1]
+        else
+            line = ""
+        end if
+        if sequence(line) and match("--",line)=1 then
+            if equal(line,"--Parse:Skip") then
+                if length(filetext[currfile])>=2 then
+                    line = filetext[currfile][2]
+                else
+                    line = ""
+                end if
+            end if
+            if match("Bind:",line)=3 then
+                line = line[8..length(line)]
+                setCheck(RadioBind,True)
+                setCheck(RadioShroud,False)
+            elsif match("Shroud:",line)=3 then
+                line = line[10..length(line)]
+                setCheck(RadioBind,False)
+                setCheck(RadioShroud,True)
+            else
+                line = ""
+            end if
+            if length(line) then
+                c = match("-clear",line)
+                if c then
+                    if euversion=2.4 then
+                        setCheck(Clear, True)
+                    end if
+                    line = line[1..c-1]&line[c+6..length(line)]
+                end if
+                c = match("-con",line)
+                if c then
+                    if euversion>=2.5 then
+                        setCheck(Console, True)
+                    end if
+                    line = line[1..c-1]&line[c+4..length(line)]
+                end if
+                c = match("-list",line)
+                if c then
+                    setCheck(List,True)
+                    line = line[1..c-1]&line[c+5..length(line)]
+                end if
+                c = match("-quiet",line)
+                if c then
+                    setCheck(Quiet, True)
+                    line = line[1..c-1]&line[c+6..length(line)]
+                end if
+                c = match("-debug",line)
+                if c then
+                    if euversion>=2.5 then
+                        setCheck(Debug, True)
+                    end if
+                    line = line[1..c-1]&line[c+6..length(line)]
+                end if
+                c = match("-icon",line)
+                if c then
+                    c2 = match(".ico",line)
+                    if not c2 then
+                        void = messageBox("Error","-icon w/out .ico",0)
+                        return
+                    end if
+                    iconfile = line[c+6..c2+3]
+                    line = line[c2+5..length(line)]
+                end if
+                while length(line) and line[length(line)]<=' ' do
+                    line = line[1..length(line)-1]
+                end while
+                while length(line) and line[1]<=' ' do
+                    line = line[2..length(line)]
+                end while
+            end if
+        else
+            line = ""
+        end if
+
+        setTarget(filepaths[currfile]&filenames[currfile],line)
+        setVisible({IconLbl,IconFile,IconBtn},isChecked(RadioBind) and isExwExtn)
+        if euversion>=2.5 then
+            setVisible(Console,isChecked(RadioBind) and isExwExtn)
+        end if
+
+        setText(IconFile,iconfile)
+        setBindIcon(iconfile)
+        addFocus(BindWin)
+        openWindow(BindWin, SW_NORMAL)
+    end if
+end procedure
+global constant r_Bind = routine_id("Bind")

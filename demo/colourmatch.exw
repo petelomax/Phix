@@ -1,0 +1,244 @@
+--
+-- colourmatch.e
+--
+-- A puzzle solver. Please read the puzzle description and before continuing
+-- or running the program, try to imagine how you might solve it.
+-- This program mostly uses brute force. Why these patterns work, and others 
+-- do not is still an interesting challenge. I partly understand it, but only 
+-- "get" two out of three solutions by hand, even now. The main reason I wrote
+-- this program is to prove there *are* three answers. I still dabble with
+-- the puzzle itself - just memorizing the solutions is shameful.
+--
+-- According to legend, Marco Polo returned with a puzzle from China in 1295,
+-- consisting of eight square tiles, each with a red, blue, green and yellow
+-- dot on each corner. Two pairs of tiles happen to be identical, though that
+-- is probably coincidental rather than intrinsic to the puzzle.
+-- The challenge is to place them in a overlapped-X pattern such that all 
+-- ajacent dots are the same colour. There are not one but three solutions,
+-- each with a different colour in the centre.
+--
+-- Well I might be wrong but it seems there are actually 4 solutions...
+--
+-- This picture should be more horizontal (think XX), but one solution is:
+--
+--      +---+
+--      |r g|
+--      |b y|
+--  +---+---+---+       -- note 3 blues, 3 yellows
+--  |r b|b y|y g|
+--  |y g|g r|r b|
+--  +---+---+---+---+   -- note 3 greens, 4 reds, 3 blues
+--      |g r|r b|b y|
+--      |b y|y g|g r|
+--      +---+---+---+   -- note 3 yellows, 3 greens
+--          |y g|
+--          |b r|
+--          +---+
+--
+-- A better picture can be found at http://www.discoverthis.com/color-match.html
+-- If you can afford to buy one, and like these things, I recommend it. This is 
+-- nice (especially when tactile), simple, but deceptively difficult.
+--
+-- Naievely, there are over 2.6 billion permutations, but most
+-- of course are invalid by the second or third tile placed.
+-- Less naive maths still suggests over 160,000 possiblities, but
+-- it turns out the computer only has to check 1132 placements,
+-- which of course it does in the blink of an eye.
+-- Questions, comments are welcome.
+--
+
+-- label the tiles
+--      1
+--     234
+--      567
+--       8
+-- label the corners of each tile (for easier rotation)
+--      12
+--      43
+
+-- the tiles (all with red top left, reordered so middle 6 are unique):
+constant tiles={"rbgy","rbgy","rbyg","rygb","rybg","rgyb","rgby","rgby"},
+--
+-- The list of matches which must occur as we place each tile:
+--  (refer to the above number scheme)
+--
+cm={{},         -- tile 1 has no match requirements
+    {2,1,4},    -- tile 2:corner 2 must match tile 1 corner 4
+    {1,2,2,     -- tile 3:corner 1 must match tile 2 corner 2,
+     4,2,3,     --        corner 4 must match tile 2 corner 3,
+     2,1,3},    --    and corner 2 must match tile 1 corner 3
+    {1,3,2,     -- tile 4:corner 1 must match tile 3 corner 2,
+     4,3,3},    --    and corner 4 must match tile 3 corner 3
+    {1,3,4,     -- tile 5:corner 1 must match tile 3 corner 4,
+     2,3,3},    --    and corner 2 must match tile 3 corner 3   
+    {1,5,2,     -- tile 6:corner 1 must match tile 5 corner 2,
+     4,5,3,     --        corner 4 must match tile 5 corner 3,
+     2,4,3},    --    and corner 2 must match tile 4 corner 3
+    {1,6,2,     -- tile 7:corner 1 must match tile 6 corner 2,
+     4,6,3},    --    and corner 4 must match tile 6 corner 3
+    {1,6,4,     -- tile 8:corner 1 must match tile 6 corner 4,
+     2,6,3}}    --    and corner 2 must match tile 6 corner 3
+
+integer t   -- tile being processed
+    t=1
+sequence onetile        -- for rotation
+sequence used           -- set of tiles in use at this search point
+    used=repeat(0,8)
+sequence grid           -- tiles as placed (and some old garbage)
+    grid=repeat(0,8)
+
+sequence solfound       -- list of solutions found
+    solfound={}
+
+--sequence solf2 solf2={}
+
+function rb2(sequence s)
+-- reverse-by-2 the tiles...
+-- (because the solver may find a mirror image solution)
+integer rlower, n, n2
+sequence t, rtile
+
+    n = length(s)
+    n2 = floor(n/2)+1
+    t = repeat(0, n)
+    rlower = 1
+    for rupper = n to n2 by -1 do
+        rtile = s[rlower]
+        rtile = rtile[3..4]&rtile[1..2]
+        t[rupper] = rtile
+        rtile = s[rupper]
+        rtile = rtile[3..4]&rtile[1..2]
+        t[rlower] = rtile
+        rlower += 1
+    end for
+    return t
+end function
+
+integer tries
+        tries=0
+        
+procedure complete()
+--
+-- tile t just successfully played, finish the board.
+--
+integer corner, colour
+sequence cmt
+    tries += 1
+    t += 1                  -- attempt to place next tile
+    for i=1 to 8 do
+        if not find(i,used) then    -- tile not yet used:
+            --
+            -- pick the tile and rotate to get at least first corner match
+            --
+            onetile = tiles[i]
+            cmt = cm[t]
+            corner = cmt[1]                 -- corner to match
+            colour = grid[cmt[2]][cmt[3]]   -- colour to match
+            while onetile[corner]!=colour do -- rotate until one point matches
+                onetile = onetile[4] & onetile[1..3]
+            end while
+            for j=4 to length(cmt) by 3 do -- check remaining corners match
+                if onetile[cmt[j]]!=grid[cmt[j+1]][cmt[j+2]] then
+                    colour = 0 exit -- no!
+                end if
+            end for
+            if colour then  -- all corners match
+                used[t] = i -- mark tile as used
+                grid[t] = onetile -- plant it
+                if t=8 then -- solution!
+                    if not find(grid,solfound) then
+                        if not find(rb2(grid),solfound) then
+                            solfound=append(solfound,grid)
+--                          solf2 = append(solf2,used)
+--                      else
+--                          solf2 = append(solf2,grid)
+--                          solf2 = append(solf2,rb2(grid))
+                        end if
+                    end if
+                else
+                    complete()
+                end if
+                used[t] = 0 -- tile no longer used
+            end if
+        end if
+    end for
+    t -= 1  -- re-attempt to place a previous tile
+end procedure
+
+    --
+    -- Start off by playing each of the 6 unique tiles in position1, 
+    -- in each possible rotation.
+    --
+    for i=2 to 7 do     -- each unique tile
+        onetile = tiles[i]
+        used[1] = i
+        for r=1 to 4 do -- each rotation
+            grid[1] = onetile 
+            complete()
+            onetile = grid[1]   -- nasty bug!
+            onetile = onetile[4]&onetile[1..3]  
+        end for
+    end for
+
+printf(1,"%d solutions found in %d tries:\n",{length(solfound),tries})
+
+constant outline={
+"     +---+         ",
+"     |x x|         ",  -- tile 1       (i=2)
+"     |x x|         ",
+" +---+---+---+     ",
+" |x x|x x|x x|     ",  -- tiles 2,3,4  (i=5)
+" |x x|x x|x x|     ",
+" +---+---+---+---+ ",
+"     |x x|x x|x x| ",  -- tiles 5,6,7  (i=8)
+"     |x x|x x|x x| ",
+"     +---+---+---+ ",
+"         |x x|     ",  -- tile 8       (i=11)
+"         |x x|     ",
+"         +---+     "}
+
+sequence out
+         out=repeat({},length(outline))
+
+sequence image
+procedure draw(sequence s)
+integer k
+sequence st
+    image = outline
+    t = 1                                   -- draw each tile in turn
+    for i=2 to length(image)-1 by 3 do      -- each "x x" top_pair_line [2,5,8,11], as commented above
+        while 1 do
+            k=find('x',image[i])            -- while any blanks to fill this line
+            if not k then exit end if
+            st = s[t]
+            image[i][k] = st[1]             -- top left
+            image[i][k+2] = st[2]           -- top right
+            image[i+1][k] = st[4]           -- btm left
+            image[i+1][k+2] = st[3]         -- btm right
+            t += 1
+        end while
+    end for
+    if t!=9 then t=9/0 end if
+    for i=1 to length(image) do -- as we [now] know there are only 4 solutions,
+        out[i] &= image[i]      --  create 'out' for nicer display.
+    end for
+end procedure
+
+--include ../builtins/ppp.e
+--pp(solfound)
+--pp(solf2)
+--pp(tiles)
+--if getc(0) then end if
+
+for i=1 to length(solfound) do
+    draw(solfound[i])
+--  for j=1 to length(image) do
+--      puts(1,image[j]&'\n')
+--  end for
+--  if getc(0) then end if
+end for
+for i=1 to length(out) do
+    puts(1,out[i]&'\n')
+end for
+
+if getc(0) then end if

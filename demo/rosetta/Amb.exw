@@ -1,0 +1,63 @@
+--
+-- demo\rosetta\Amb.exw
+-- ====================
+--
+-- Define and give an example of the Amb operator. ["The ambiguous selector"]
+-- The Amb operator takes some number of expressions (or values if that's simpler in the language) and 
+-- nondeterministically yields the one or fails if given no parameter, amb returns the value that doesn't 
+-- lead to failure.
+-- The example is using amb to choose four words from the following strings:
+-- set 1: "the" "that" "a"
+-- set 2: "frog" "elephant" "thing"
+-- set 3: "walked" "treaded" "grows"
+-- set 4: "slowly" "quickly"
+-- It is a failure if the last character of word 1 is not equal to the first character of word 2, and 
+-- similarly with word 2 and word 3, as well as word 3 and word 4. (the only successful sentence is 
+-- "that thing grows slowly").
+
+-- Fairly simple rescursive solution, version 1:
+
+function amb1(sequence sets, object res=0, integer idx=1)
+integer ch = 0
+integer pass = 0
+    if idx>length(sets) then
+        pass = 1
+    else
+        if res=0 then
+            res = repeat(0,length(sets))
+        else
+            ch = sets[idx-1][res[idx-1]][$]
+        end if
+        for k=1 to length(sets[idx]) do
+            if ch=0 or sets[idx][k][1]=ch then
+                res[idx] = k
+                {pass,res} = amb1(sets,res,idx+1)
+                if pass then exit end if
+            end if
+        end for
+    end if
+    return {pass,res}
+end function
+
+procedure Amb_Problem1()
+sequence sets = {{"the","that","a"},
+                 {"frog","elephant","thing"},
+                 {"walked","treaded","grows"},
+                 {"slowly","quickly"}}
+integer pass
+sequence res
+    {pass,res} = amb1(sets)
+    if pass then
+        puts(1,"success: ")
+        for i=1 to length(sets) do
+            res[i] = sets[i][res[i]]
+        end for
+        ?res
+    else
+        puts(1,"failure\n")
+    end if
+    if getc(0) then end if
+end procedure
+
+    Amb_Problem1()
+

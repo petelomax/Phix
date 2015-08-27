@@ -1,0 +1,89 @@
+--
+-- demo_resizing.exw
+--
+
+include arwen.ew
+
+constant DEMO = create(Window, "Demo of how to enforce specific sizes of windows - please resize windows #1 to #3 but move #4 & #5", 0, 0, 10,10,700,639,0)
+
+constant DEMO1 = create(Window, "#1 Fixed minimum size",                    0, DEMO, 40, 50,300,150,0)
+constant DEMO2 = create(Window,  "#2 Fixed maximum size",                   0, DEMO,380, 50,300,150,0)
+constant DEMO3 = create(Window,  "#3 Max/min sizes are bounded",            0, DEMO, 40,220,300,150,0)
+constant DEMO4 = create(Window,  "#4 Top-Left corner restricted to region", 0, DEMO,380,220,300,150,0)
+constant DEMO5 = create(Window,  "#5 Totally Fixed",                        0, DEMO,200,420,300,150,0)
+
+fixWindow(DEMO5)    -- New routine 18/6/7
+
+
+constant IDS = {DEMO,DEMO1,DEMO2,DEMO3,DEMO4,DEMO5}
+
+    for i=1 to 5 do
+        void = create(StatusBar,  "", 0, IDS[i],0,0,0,0,0)
+    end for
+    -- PL create the 6th statusbar without a sizegrip:
+    --   (arwen modified 18/6/07: 9th param to create(StatusBar) 
+    --    must be sequence of length 3 with [3]=0 to do this).
+    void = create(StatusBar,  "", 0, IDS[6],0,0,0,0,{0,0,0})
+
+function handler(integer id, integer msg, atom wParam, object lParam)
+integer x, y
+sequence rect
+
+    if msg=WM_ACTIVATE then
+        if id=DEMO then
+            for i=2 to 6 do
+                openWindow(IDS[i], SW_NORMAL)
+            end for
+        end if
+        if wParam then end if -- suppress warning
+
+    elsif msg=WM_SIZING 
+       or msg=WM_MOVING then
+
+        if id=DEMO5 then                    -- totally fixed
+            return {200,420,500,570}
+        end if
+
+        rect = lParam
+        x = rect[3]-rect[1]
+        y = rect[4]-rect[2]
+
+        if msg=WM_SIZING then
+            if id=DEMO1 then                    -- fixed minimum size
+                if x<150 then x = 150 end if
+                if y<100 then y = 100 end if
+
+            elsif id=DEMO2 then                 -- fixed maximum size
+                if x>400 then x = 400 end if
+                if y>250 then y = 250 end if
+
+            elsif id=DEMO3 then                 -- fixed min and max size
+                if x<100 then x = 100 end if
+                if y<150 then y = 150 end if
+                if x>400 then x = 400 end if
+                if y>250 then y = 250 end if
+
+            end if
+
+        else -- msg = WM_MOVING then
+            if id=DEMO4 then
+                if rect[1]<300 then rect[1] = 300 end if
+                if rect[1]>500 then rect[1] = 500 end if
+                if rect[2]<100 then rect[2] = 100 end if
+                if rect[2]>300 then rect[2] = 300 end if
+            end if
+
+        end if
+        rect[3] = rect[1]+x
+        rect[4] = rect[2]+y
+        return rect
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(DEMO)
+    end if
+    return 0
+end function
+
+setHandler(IDS, routine_id("handler"))
+
+WinMain(DEMO, SW_NORMAL)

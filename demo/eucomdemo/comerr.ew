@@ -1,0 +1,435 @@
+-- comerr.ew
+-- COM error handling
+--    eucom: allows euphoria programs to use COM objects
+--    Copyright (C) 2007  Matt Lewis
+--
+--    This library is free software; you can redistribute it and/or
+--    modify it under the terms of the GNU Library General Public
+--    License as published by the Free Software Foundation
+--    version 2 of the License.
+--
+--    This library is distributed in the hope that it will be useful,
+--    but WITHOUT ANY WARRANTY; without even the implied warranty of
+--    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+--    Library General Public License for more details.
+--
+--    You should have received a copy of the GNU Library General Public
+--    License along with this library; if not, write to the Free
+--    Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+include file.e
+
+sequence  errnum, errmsg
+global integer errout
+
+errnum = {}
+errmsg = {}
+
+--/topic Errors
+--/proc reg_com_error( sequence errors )
+-- Registers an error for later handling.
+--/i errors is a sequence of error numbers and messages:<br>
+-- { {1,"error 1"},...} <br>
+--These errors can then be reported to the user.  Most common COM error
+--values and messages are initialized, so you should only have to register
+--object specific errors.
+
+global procedure reg_com_error( sequence errors )
+    for i = 1 to length( errors ) do
+        errnum &= errors[i][1]
+        errmsg = append( errmsg, errors[i][2] )
+    end for
+end procedure
+
+global constant nullout = open( "NUL", "w" )
+errout = nullout
+
+--/topic Errors
+--/proc print_com_error( sequence out )
+--Prints a string to /i errout
+--/i errout is a file number set by a call to /com_err_out.  The default value
+--for errout is NULL, so no error reporting is done.
+
+global procedure print_com_error( sequence out )
+	if errout > 0 then
+	    puts(errout,out)
+	    flush(errout)		
+	end if
+
+end procedure
+
+--/topic Errors
+--/proc com_err_out( integer out )
+--Sets the error output file
+--If /i out is negative, then it specifies a [negative] routine_id that will
+--be called in case of a COM error.  The routine_id should point to a procedure
+--that takes an atom and a sequence, which will be the error number and the
+--error message.
+global procedure com_err_out( integer out )
+    errout = out
+end procedure
+
+--/topic Errors
+--/proc com_error( atom err )
+--Outputs an error message
+--If an HRESULT other than 0 (S_OK) is returned from a function, the user may
+--call /b com_error to send error output to /i errout.  Many EuCOM /API functions
+--do this automatically.
+global procedure com_error( atom err )
+    integer ix
+    sequence msg
+
+    ix = find( err, errnum )
+    if ix then
+        msg = errmsg[ix]
+    else
+        msg = "Unknown error"
+    end if
+
+	if errout < 0 then
+		call_proc( -errout, { err, msg })
+	else
+	    printf(errout, "%08x: %s\n", {err, msg})
+	    flush(errout)
+	end if
+end procedure
+
+constant com_errors = 
+{
+{ 2147549183, "Catastrophic failure" },
+{ 2147024883, "The Data is invalid " },
+{ 2147500033, "Not implemented" },
+{ 2147942414, "Ran out of memory" },
+{ 2147942487, "One or more arguments are invalid" },
+{ 2147500034, "No such interface supported" },
+{ 2147500035, "Invalid pointer" },
+{ 2147942406, "Invalid handle" },
+{ 2147500036, "Operation aborted" },
+{ 2147500037, "Unspecified error" },
+{ 2147942405, "General access denied error" },
+{ 2147483649, "Not implemented" },
+{ 2147483650, "Ran out of memory" },
+{ 2147483651, "One or more arguments are invalid" },
+{ 2147483652, "No such interface supported" },
+{ 2147483653, "Invalid pointer" },
+{ 2147483654, "Invalid handle" },
+{ 2147483655, "Operation aborted" },
+{ 2147483656, "Unspecified error" },
+{ 2147483657, "General access denied error" },
+{ 2147483658, "The data necessary to complete this operatio not yet available" },
+{ 2147500038, "Thread local storage failure" },
+{ 2147500039, "Get shared memory allocator failure" },
+{ 2147500040, "Get memory allocator failure" },
+{ 2147500041, "Unable to initialize class cache" },
+{ 2147500042, "Unable to initialize RPC services" },
+{ 2147500043, "Cannot set thread local storage channel control" },
+{ 2147500044, "Could not allocate thread local storage channe control" },
+{ 2147500045, "The user supplied memory allocator i unacceptable" },
+{ 2147500046, "The OLE service mutex already exists" },
+{ 2147500047, "The OLE service file mapping already exists" },
+{ 2147500048, "Unable to map view of file for OLE service" },
+{ 2147500049, "Failure attempting to launch OLE service" },
+{ 2147500050, "There was an attempt to call CoInitialize  second time while single threaded" },
+{ 2147500051, "A Remote activation was necessary but was no allowed" },
+{ 2147500052, "A Remote activation was necessary but the serve name provided was invalid" },
+{ 2147500053, "The class is configured to run as a security i different from the caller" },
+{ 2147500054, "Use of Ole1 services requiring DDE windows i disabled" },
+{ 2147500055, "A RunAs specification must be A RunAs specification must be <domain name>\\<user name> or simply <user name>.            " },
+{ 2147500056, "The server process could not be started. Th pathname may be incorrect. " },
+{ 2147500057, "The server process could not be started as th configured identity. The pathname may b incorrect or unavailable. " },
+{ 2147500058, "The server process could not be started becaus the configured identity is incorrect. Check th username and password." },
+{ 2147500059, "The client is not allowed to launch this server." },
+{ 2147500060, "The service providing this server could not b started." },
+{ 2147500061, "This computer was unable to communicate with th computer providing the server." },
+{ 2147500062, "The server did not respond after being launched." },
+{ 2147500063, "The registration information for this server i inconsistent or incomplete." },
+{ 2147500064, "The registration information for this interfac is inconsistent or incomplete." },
+{ 2147500065, "The operation attempted is not supported." },
+{ 2147745792, "Invalid OLEVERB structure" },
+{ 2147745793, "Invalid advise flags" },
+{ 2147745794, "Can't enumerate any more, because the associate data is missing" },
+{ 2147745795, "This implementation doesn't take advises" },
+{ 2147745796, "There is no connection for this connection ID" },
+{ 2147745797, "Need to run the object to perform this operation" },
+{ 2147745798, "There is no cache to operate on" },
+{ 2147745799, "Uninitialized object" },
+{ 2147745800, "Linked object's source class has changed" },
+{ 2147745801, "Not able to get the moniker of the object" },
+{ 2147745802, "Not able to bind to the source" },
+{ 2147745803, "Object is static; operation not allowed" },
+{ 2147745804, "User cancelled out of save dialog" },
+{ 2147745805, "Invalid rectangle" },
+{ 2147745806, "compobj.dll is too old for the ole2.dl initialized" },
+{ 2147745807, "Invalid window handle" },
+{ 2147745808, "Object is not in any of the inplace active states" },
+{ 2147745809, "Not able to convert object" },
+{ 2147745810, "Not able to perform the operation because objec is not given storage yet" },
+{ 2147745892, "Invalid FORMATETC structure" },
+{ 2147745893, "Invalid DVTARGETDEVICE structure" },
+{ 2147745894, "Invalid STDGMEDIUM structure" },
+{ 2147745895, "Invalid STATDATA structure" },
+{ 2147745896, "Invalid lindex" },
+{ 2147745897, "Invalid tymed" },
+{ 2147745898, "Invalid clipboard format" },
+{ 2147745899, "Invalid aspect(s)" },
+{ 2147745900, "tdSize parameter of the DVTARGETDEVICE structur is invalid" },
+{ 2147745901, "Object doesn't support IViewObject interface" },
+{ 2147746048, "Trying to revoke a drop target that has not bee registered" },
+{ 2147746049, "This window has already been registered as a dro target" },
+{ 2147746050, "Invalid window handle" },
+{ 2147746064, "Class does not support aggregation (or clas object is remote)" },
+{ 2147746065, "ClassFactory cannot supply requested class" },
+{ 2147746112, "Error drawing view" },
+{ 2147746128, "Could not read key from registry" },
+{ 2147746129, "Could not write key to registry" },
+{ 2147746130, "Could not find the key in the registry" },
+{ 2147746131, "Invalid value for registry" },
+{ 2147746132, "Class not registered" },
+{ 2147746133, "Interface not registered" },
+{ 2147746160, "Cache not updated" },
+{ 2147746176, "No verbs for OLE object" },
+{ 2147746177, "Invalid verb for OLE object" },
+{ 2147746208, "Undo is not available" },
+{ 2147746209, "Space for tools is not available" },
+{ 2147746240, "OLESTREAM Get method failed" },
+{ 2147746241, "OLESTREAM Put method failed" },
+{ 2147746242, "Contents of the OLESTREAM not in correct format" },
+{ 2147746243, "There was an error in a Windows GDI call whil converting the bitmap to a DIB" },
+{ 2147746244, "Contents of the IStorage not in correct format" },
+{ 2147746245, "Contents of IStorage is missing one of th standard streams" },
+{ 2147746246, "There was an error in a Windows GDI call whil converting the DIB to a bitmap." },
+{ 2147746256, "OpenClipboard Failed" },
+{ 2147746257, "EmptyClipboard Failed" },
+{ 2147746258, "SetClipboard Failed" },
+{ 2147746259, "Data on clipboard is invalid" },
+{ 2147746260, "CloseClipboard Failed" },
+{ 2147746272, "Moniker needs to be connected manually" },
+{ 2147746273, "Operation exceeded deadline" },
+{ 2147746274, "Moniker needs to be generic" },
+{ 2147746275, "Operation unavailable" },
+{ 2147746276, "Invalid syntax" },
+{ 2147746277, "No object for moniker" },
+{ 2147746278, "Bad extension for file" },
+{ 2147746279, "Intermediate operation failed" },
+{ 2147746280, "Moniker is not bindable" },
+{ 2147746281, "Moniker is not bound" },
+{ 2147746282, "Moniker cannot open file" },
+{ 2147746283, "User input required for operation to succeed" },
+{ 2147746284, "Moniker class has no inverse" },
+{ 2147746285, "Moniker does not refer to storage" },
+{ 2147746286, "No common prefix" },
+{ 2147746287, "Moniker could not be enumerated" },
+{ 2147746288, "CoInitialize has not been called." },
+{ 2147746289, "CoInitialize has already been called." },
+{ 2147746290, "Class of object cannot be determined" },
+{ 2147746291, "Invalid class string" },
+{ 2147746292, "Invalid interface string" },
+{ 2147746293, "Application not found" },
+{ 2147746294, "Application cannot be run more than once" },
+{ 2147746295, "Some error in application program" },
+{ 2147746296, "DLL for class not found" },
+{ 2147746297, "Error in the DLL" },
+{ 2147746298, "Wrong OS or OS version for application" },
+{ 2147746299, "Object is not registered" },
+{ 2147746300, "Object is already registered" },
+{ 2147746301, "Object is not connected to server" },
+{ 2147746302, "Application was launched but it didn't register  class factory" },
+{ 2147746303, "Object has been released" },
+{ 2148007937, "Attempt to create a class object failed" },
+{ 2148007938, "OLE service could not bind object" },
+{ 2148007939, "RPC communication failed with OLE service" },
+{ 2148007940, "Bad path to object" },
+{ 2148007941, "Server execution failed" },
+{ 2148007942, "OLE service could not communicate with the objec server" },
+{ 2148007943, "Moniker path could not be normalized" },
+{ 2148007944, "Object server is stopping when OLE servic contacts it" },
+{ 2148007945, "An invalid root block pointer was specified" },
+{ 2148007952, "An allocation chain contained an invalid lin pointer" },
+{ 2148007953, "The requested allocation size was too large" },
+{ 2147614721, "Unknown interface." },
+{ 2147614723, "Member not found." },
+{ 2147614724, "Parameter not found." },
+{ 2147614725, "Type mismatch." },
+{ 2147614726, "Unknown name. " },
+{ 2147614727, "No named arguments." },
+{ 2147614728, "Bad variable type." },
+{ 2147614729, "Exception occurred." },
+{ 2147614730, "Out of present range." },
+{ 2147614731, "Invalid index." },
+{ 2147614732, "Unknown language." },
+{ 2147614733, "Memory is locked." },
+{ 2147614734, "Invalid number of parameters." },
+{ 2147614735, "Parameter not optional." },
+{ 2147614736, "Invalid callee." },
+{ 2147614737, "Does not support a collection." },
+{ 2147647510, "Buffer too small." },
+{ 2147647512, "Old format or invalid type library." },
+{ 2147647513, "Old format or invalid type library." },
+{ 2147647516, "Error accessing the OLE registry." },
+{ 2147647517, "Library not registered." },
+{ 2147647527, "Bound to unknown type." },
+{ 2147647528, "Qualified name disallowed." },
+{ 2147647529, "Invalid forward reference, or reference t uncompiled type." },
+{ 2147647530, "Type mismatch." },
+{ 2147647531, "Element not found." },
+{ 2147647532, "Ambiguous name." },
+{ 2147647533, "Name already exists in the library." },
+{ 2147647534, "Unknown LCID." },
+{ 2147647535, "Function not defined in specified DLL." },
+{ 2147649725, "Wrong module kind for the operation." },
+{ 2147649733, "Size may not exceed 64K." },
+{ 2147649734, "Duplicate ID in inheritance hierarchy." },
+{ 2147649743, "Incorrect inheritance depth in standard OL hmember." },
+{ 2147650720, "Type mismatch." },
+{ 2147650721, "Invalid number of arguments." },
+{ 2147650722, "I/O Error." },
+{ 2147650723, "Error creating unique tmp file." },
+{ 2147654730, "Error loading type library/DLL." },
+{ 2147654787, "Inconsistent property functions." },
+{ 2147654788, "Circular dependency between types/modules." },
+{ 2147680257, "Unable to perform requested operation." },
+{ 2147680258, "%1 could not be found." },
+{ 2147680259, "The path %1 could not be found." },
+{ 2147680260, "There are insufficient resources to open anothe file." },
+{ 2147680261, "Access Denied." },
+{ 2147680262, "Attempted an operation on an invalid object." },
+{ 2147680264, "There is insufficient memory available t complete operation." },
+{ 2147680265, "Invalid pointer error." },
+{ 2147680274, "There are no more entries to return." },
+{ 2147680275, "Disk is write-protected." },
+{ 2147680281, "An error occurred during a seek operation." },
+{ 2147680285, "A disk error occurred during a write operation." },
+{ 2147680286, "A disk error occurred during a read operation." },
+{ 2147680288, "A share violation has occurred." },
+{ 2147680289, "A lock violation has occurred." },
+{ 2147680336, "%1 already exists." },
+{ 2147680343, "Invalid parameter error." },
+{ 2147680368, "There is insufficient disk space to complet operation." },
+{ 2147680496, "Illegal write of non-simple property to simpl property set." },
+{ 2147680506, "An API call exited abnormally." },
+{ 2147680507, "The file %1 is not a valid compound file." },
+{ 2147680508, "The name %1 is not valid." },
+{ 2147680509, "An unexpected error occurred." },
+{ 2147680510, "That function is not implemented." },
+{ 2147680511, "Invalid flag error." },
+{ 2147680512, "Attempted to use an object that is busy." },
+{ 2147680513, "The storage has been changed since the las commit." },
+{ 2147680514, "Attempted to use an object that has ceased t exist." },
+{ 2147680515, "Can't save." },
+{ 2147680516, "The compound file %1 was produced with a incompatible version of storage." },
+{ 2147680517, "The compound file %1 was produced with a newe version of storage." },
+{ 2147680518, "Share.exe or equivalent is required fo operation." },
+{ 2147680519, "Illegal operation called on non-file base storage." },
+{ 2147680520, "Illegal operation called on object with extan marshallings." },
+{ 2147680521, "The docfile has been corrupted." },
+{ 2147680528, "OLE32.DLL has been loaded at the wrong address." },
+{ 2147680769, "The file download was aborted abnormally. Th file is incomplete." },
+{ 2147680770, "The file download has been terminated." },
+{ 2147549185, "Call was rejected by callee." },
+{ 2147549186, "Call was canceled by the message filter." },
+{ 2147549187, "The caller is dispatching an intertas SendMessage call and cannot call out vi PostMessage." },
+{ 2147549188, "The caller is dispatching an asynchronous cal and cannot make an outgoing call on behalf o this call." },
+{ 2147549189, "It is illegal to call out while inside messag filter." },
+{ 2147549190, "The connection terminated or is in a bogus stat and cannot be used any more. Other connection are still valid." },
+{ 2147549191, "The callee (server [not server application]) i not available and disappeared; all connection are invalid. The call may have executed." },
+{ 2147549192, "The caller (client) disappeared while the calle (server) was processing a call." },
+{ 2147549193, "The data packet with the marshalled paramete data is incorrect." },
+{ 2147549194, "The call was not transmitted properly; th message queue was full and was not emptied afte yielding." },
+{ 2147549195, "The client (caller) cannot marshal the paramete data - low memory, etc." },
+{ 2147549196, "The client (caller) cannot unmarshal the retur data - low memory, etc." },
+{ 2147549197, "The server (callee) cannot marshal the retur data - low memory, etc." },
+{ 2147549198, "The server (callee) cannot unmarshal th parameter data - low memory, etc." },
+{ 2147549199, "Received data is invalid; could be server o client data." },
+{ 2147549200, "A particular parameter is invalid and cannot b (un)marshalled." },
+{ 2147549201, "There is no second outgoing call on same channe in DDE conversation." },
+{ 2147549202, "The callee (server [not server application]) i not available and disappeared; all connection are invalid. The call did not execute." },
+{ 2147549440, "System call failed." },
+{ 2147549441, "Could not allocate some required resourc (memory, events, ...)" },
+{ 2147549442, "Attempted to make calls on more than one threa in single threaded mode." },
+{ 2147549443, "The requested interface is not registered on th server object." },
+{ 2147549444, "RPC could not call the server or could not retur the results of calling the server." },
+{ 2147549445, "The server threw an exception." },
+{ 2147549446, "Cannot change thread mode after it is set." },
+{ 2147549447, "The method called does not exist on the server." },
+{ 2147549448, "The object invoked has disconnected from it clients." },
+{ 2147549449, "The object invoked chose not to process the cal now. Try again later." },
+{ 2147549450, "The message filter indicated that the applicatio is busy." },
+{ 2147549451, "The message filter rejected the call." },
+{ 2147549452, "A call control interfaces was called with invali data." },
+{ 2147549453, "An outgoing call cannot be made since th application is dispatching an input-synchronou call." },
+{ 2147549454, "The application called an interface that wa marshalled for a different thread." },
+{ 2147549455, "CoInitialize has not been called on the curren thread." },
+{ 2147549456, "The version of OLE on the client and serve machines does not match." },
+{ 2147549457, "OLE received a packet with an invalid header." },
+{ 2147549458, "OLE received a packet with an invalid extension." },
+{ 2147549459, "The requested object or interface does not exist." },
+{ 2147549460, "The requested object does not exist." },
+{ 2147549461, "OLE has sent a request and is waiting for  reply." },
+{ 2147549462, "OLE is waiting before retrying a request." },
+{ 2147549463, "Call context cannot be accessed after cal completed." },
+{ 2147549464, "Impersonate on unsecured calls is not supported." },
+{ 2147549465, "Security must be initialized before an interfaces are marshalled or unmarshalled. I cannot be changed once initialized." },
+{ 2147549466, "No security packages are installed on thi machine or the user is not logged on or there ar no compatible security packages between th client and server." },
+{ 2147549467, "Access is denied." },
+{ 2147549468, "Remote calls are not allowed for this process." },
+{ 2147549469, "The marshalled interface data packet (OBJREF) ha an invalid or unknown format." },
+{ 2147614719, "An internal error occurred." },
+{ 2148073473, "Bad UID." },
+{ 2148073474, "Bad Hash." },
+{ 2148073475, "Bad Key." },
+{ 2148073476, "Bad Length." },
+{ 2148073477, "Bad Data." },
+{ 2148073478, "Invalid Signature." },
+{ 2148073479, "Bad Version of provider." },
+{ 2148073480, "Invalid algorithm specified." },
+{ 2148073481, "Invalid flags specified." },
+{ 2148073482, "Invalid type specified." },
+{ 2148073483, "Key not valid for use in specified state." },
+{ 2148073484, "Hash not valid for use in specified state." },
+{ 2148073485, "Key does not exist. " },
+{ 2148073486, "Insufficient memory available for the operation." },
+{ 2148073487, "Object already exists." },
+{ 2148073488, "Access denied." },
+{ 2148073489, "Object was not found. " },
+{ 2148073490, "Data already encrypted." },
+{ 2148073491, "Invalid provider specified." },
+{ 2148073492, "Invalid provider type specified." },
+{ 2148073493, "Provider's public key is invalid." },
+{ 2148073494, "Keyset does not exist." },
+{ 2148073495, "Provider type not defined." },
+{ 2148073496, "Provider type as registered is invalid." },
+{ 2148073497, "The keyset is not defined." },
+{ 2148073498, "Keyset as registered is invalid." },
+{ 2148073499, "Provider type does not match registered value." },
+{ 2148073500, "The digital signature file is corrupt." },
+{ 2148073501, "Provider DLL failed to initialize correctly." },
+{ 2148073502, "Provider DLL could not be found." },
+{ 2148073503, "The Keyset parameter is invalid." },
+{ 2148073504, "An internal error occurred." },
+{ 2148073505, "A base error occurred." },
+{ 2148204545, "The specified trust provider is not known on thi system." },
+{ 2148204546, "The trust verification action specified is no supported by the specified trust provider." },
+{ 2148204547, "The form specified for the subject is not on supported or known by the specified trus provider." },
+{ 2148204548, "The subject is not trusted for the specifie action." },
+{ 2148204549, "Error due to problem in ASN.1 encoding process." },
+{ 2148204550, "Error due to problem in ASN.1 decoding process." },
+{ 2148204551, "Reading / writing Extensions where Attributes ar appropriate, and visa versa." },
+{ 2148204552, "Unspecified cryptographic failure." },
+{ 2148204553, "The size of the data could not be determined." },
+{ 2148204554, "The size of the indefinite-sized data could no be determined." },
+{ 2148204555, "This object does not read and write self-sizin data. " },
+{ 2148204800, "No signature was present in the subject." },
+{ 2148204801, "A required certificate is not within its validit period." },
+{ 2148204802, "The validity periods of the certification chai do not nest correctly" },
+{ 2148204803, "A certificate that can only be used as a end-entity is being used as a CA or visa versa" },
+{ 2148204804, "A path length constraint in the certificatio chain has been violated" },
+{ 2148204805, "An extension of unknown type that is labele 'critical' is present in a certificate" },
+{ 2148204806, "A certificate is being used for a purpose othe than that for which it is permitted" },
+{ 2148204807, "A parent of a given certificate in fact did no issue that child certificate" },
+{ 2148204808, "A certificate is missing or has an empty valu for an important field, such as a subject o issuer name" },
+{ 2148204809, "A certification chain processed correctly, bu terminated in a root certificate which isn' trusted by the trust provider" },
+{ 2148204810, "A chain of certs didn't chain as they should in a certain application of chaining." }
+}
+
+reg_com_error( com_errors )
+

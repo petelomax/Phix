@@ -1,0 +1,253 @@
+--/**/with console
+
+--  demo/g0th.exw, a simple test harness for pgets0.ew.
+
+--/* not rqd for Phix:
+include ..\builtins\dll.e
+include ..\builtins\machine.e
+global 
+type string(object s) return sequence(s) end type
+--*/
+
+include ..\pgets0.ew
+
+if 0 then
+--/**/          clipBoard(PASTE)
+--/**/          printf(1,"clip:%s, size:%d\n",{clip,size})
+
+--/**/          clip = clip
+--/**/          size = size
+--/**/          clipBoard(COPY)
+
+--/**/          clipBoard(PASTE)
+--/**/          printf(1,"clip:%s, size:%d\n",{clip,size})
+if getc(0) then end if
+abort(0)
+end if
+
+--;calling convention (via #ilasm only):                octal:         binary:          code:
+--;  mov edx,p1         ; addr of target            272         BA imm32        mov edx,imm32
+--;  call opGetRand                                 350         E8 rel32        call rel32
+atom R
+if 0 then
+    #ilASM{lea edx,[R]
+           call %opGetRand}
+    printf(1,"rand seed:%08x\n",R)
+    ?R
+end if
+
+if 0 then
+    clipBoard(PASTE)
+    if size!=8 then
+        puts(1,"error: size!=8\n")
+        if getc(0) then end if
+--      abort(0)
+    else
+        R=0
+        for i=1 to 8 do
+            R = R*16 + (clip[i]-'0')
+        end for
+        ?R
+        set_rand(R)
+        #ilASM{lea edx,[R]
+               call %opGetRand}
+        printf(1,"rand seed:%08x\n",R)
+        ?R
+    end if
+    ?size
+    ?length(clip)
+    ?clip[-1]
+    ?clip
+    size = 9    -- include trailing null (else you get a \n)
+    clip = repeat(' ',8)
+    for i=8 to 1 by -1 do
+        -- (see <mini-lecture> in pglobals.e)
+--global string randString
+-- Used to select a random entry to minimise long dependency chains.
+--
+-- <mini-lecture:>
+--
+--  Ideally we would only process a routine after all the places that 
+--  call it have been processed, so we have a better idea of what all 
+--  the parameters are.
+--    <aside>
+--      Although obviously that's not possible for mutually recursive
+--      routines, and of course globals and file-level variables can 
+--      act as implicit parameters, so we don't have a clear-cut list 
+--      to work from anyway (to find some "better processing order"). 
+--    </aside>
+--  While we have that better idea at the end of each iteration, it 
+--  can lead to n-squared iterations, especially it seems following
+--  a "define before use" declaration order, since then we naturally
+--  anaylse each routine before any of the places it is called from.
+--   (Of course a "last-first" order might offer an improvement on
+--    legacy code, but it would have the opposite effect on any new 
+--    code that makes heavy use of forward references.)
+--  Doing things in a more random order means that (in the best of a 
+--  worst case situation) on average it should finalise twice as many 
+--  routines per iteration. (Or variables. Same deal btw, for a bunch 
+--  of related var assignments as routine calls, though that's harder 
+--  to think about, and -almost- completely wrong to reorder.)
+--
+--  In such a worst-case situation, there's only one permutation that
+--  leads to n-squared behaviour, all the others are (n-1) squared or
+--  better, and of course the probability of always hitting the worst
+--  permutation on every iteration quickly gets much smaller as n gets
+--  bigger, as long as we keep changing our permutations, that is.
+--
+--  In practice, this has no measurable effect on the vast majority 
+--  of source files, but every so often the difference can be utterly
+--  staggering. My all-time record stands at 1736 iterations, though 
+--  some seemingly irrelevant changes to getSrc/storeDest in pilx87.e 
+--  have since shifted the goalposts, and I have not seen one over 
+--  about 16 (with this stuff disabled that is) for quite a while.
+--
+--  Under "p -c p", we must use exactly the same order on each of the 
+--  four phases for verification purposes, so this gets stored on the 
+--  clipboard. Mixing things up a bit probably trebles effectiveness 
+--  of some test files. Lastly, should this cause some intermittent
+--  problem, you can of course just set it to repeat('0',20), or the
+--  specific value which caused a problem in order to track it down.
+--
+-- </mini-lecture>
+
+
+--      clip[i] = rand('z'-'0')+'0'
+        clip[i] = and_bits(R,#0F)+'0'
+        R = floor(R/#10)
+    end for
+    ?clip
+    clipBoard(COPY)
+    if getc(0) then end if
+    abort(0)
+end if
+
+constant user32 = open_dll("user32.dll"),
+         xBeep = define_c_proc(user32, "MessageBeep", {C_INT}),
+         stdBeep = {-1}
+
+sequence tab3
+        tab3 = {"apple","apricot","pear"}
+
+constant lt3 = length(tab3)
+
+integer tabidx
+        tabidx=lt3
+
+function keyHandler(integer ch, integer virtKey, sequence r)
+--
+-- return value: atoms are ignored and input continues.
+--               a sequence s of length 1 is treated specially,
+--               if s[1] is a sequence or an atom < ' ' then
+--               input is terminated and that value is returned
+--               (ie to the gets0() call), otherwise s is the
+--               new/replacement value of input (obviously to
+--               leave the input as-is, just return eg 0).
+--
+integer newidx
+sequence t
+    if ch=0 then
+        newidx = 0
+        if virtKey=G0_UP then
+--          newidx = tabidx
+--          if tabidx>1 then newidx = tabidx-1 end if
+            newidx = tabidx-1
+            if newidx=0 then newidx = 1 end if
+        elsif virtKey=G0_DOWN then
+--          newidx = tabidx
+--          if tabidx<lt3 then newidx = tabidx+1 end if
+            newidx = tabidx+1
+            if newidx>lt3 then newidx = lt3 end if
+        elsif virtKey=G0_PGUP then
+            newidx = 1
+        elsif virtKey=G0_PGDN then
+            newidx = lt3
+        elsif virtKey=G0_F1 then
+--DEV F1 for help in processCommandLine, var lookup in pdebug:
+--          puts(1,"\nF1 keyed\n")
+            return {"?\n",0,G0_CTRLZ}
+--      elsif virtKey=G0_F2 then
+--          -- this now triggers divide by zero; use {str,pos,ch}.
+--          return "F2 keyed"
+        elsif virtKey=G0_F7 then
+            if lt3 then
+                for i=1 to lt3 do
+                    puts(1,'\n'&tab3[i])
+                end for
+                puts(1,"\nuse (pg) up/down to select:")
+                cpos = 0
+                newidx = tabidx
+            else
+                puts(1,"\nempty:")
+            end if
+        elsif virtKey=G0_F8 then
+            if tabidx>1 then newidx = tabidx-1 else newidx = lt3 end if
+        else
+            c_proc(xBeep,stdBeep)
+            return 0
+        end if
+        if newidx then
+            tabidx = newidx
+--          return {tab3[tabidx],-1,0}
+            return {tab3[tabidx],0,0}
+        end if
+    elsif ch<G0_BACK                -- ctrl ABDEFG
+       or ch=11                     -- ctrl K
+       or (ch>=14 and ch<=25) then  -- ctrl NOPQRSTUWXY
+        -- ignore funny chars (smiley faces etc)
+        -- (C is copy, H is BS, I is TAB, J is LF,
+        --  L is clear, M is cr, V is paste, Z is EOF)
+        c_proc(xBeep,stdBeep)
+        return 0
+--  elsif equal(r,"ca") and ch='t' then
+--      return {"catalogue",3,0}
+----        return {"catalogue",2,ch}   -- works equally well
+    elsif cpos=lr or cpos+overstrike=lr then
+        -- if adding a char or replacing last char
+        if overstrike and cpos<lr then
+            r[cpos+1] = ch
+        else
+            r &= ch
+        end if
+        for i=1 to lt3 do
+            t = tab3[i]
+            if match(r,t)=1 then
+                newidx = i
+                -- found a match, check it is unique
+                for j=i+1 to lt3 do
+                    t = tab3[j]
+                    if match(r,t)=1 then
+                        newidx = 0
+                        exit
+                    end if
+                end for
+                if newidx then
+                    t = tab3[newidx]
+                    if not equal(r,t) then
+                        tabidx = newidx
+                        return {t,cpos,ch}
+                    end if
+                end if
+                exit
+            end if
+        end for
+    end if
+    return ch
+end function
+constant r_keyHander = routine_id("keyHandler")
+
+object x
+for i=1 to 5 do
+    puts(1,"Input:")
+--  x = gets0(r_keyHander,tab3[tabidx],0)
+    tabidx += 1
+    if tabidx>lt3 then tabidx = lt3 end if
+    x = gets0(r_keyHander,"",0)
+puts(1,"<>\n")
+--  ?x
+puts(1,x)
+end for
+
+g0close()
+
+

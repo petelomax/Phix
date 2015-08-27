@@ -1,0 +1,122 @@
+-- mc.exw
+-- Month Calendar
+without warning
+include win32lib.ew
+
+constant
+    Win = create(Window, "Month Calendar Demo", 0, 100, 100, 600, 400, 0),
+    SB	= create(StatusBar, "", Win, 0, {200,400,-1}, 0, 0, 0),
+    MC1 = create(MonthCalendar, "Single Calendar", Win, 20, 20, 0, 0, 0),
+    DB	= create(PushButton, "Get Date", Win, 21, 0, 90, 20, 0),
+    MC2 = create(MonthCalendar, "Range Calendar", Win, 320, 20, 0, 0, MCS_MULTISELECT),
+    DR	= create(PushButton, "Get Range", Win, 320, 0, 90, 20, 0),
+    SL	= create(VTrackBar, "", Win, 0, 20, 15, 115, 0)
+
+setMaxDateRange(MC2, 21)
+setScrollRange(SL, 5, 26)
+
+procedure DB_onClick(integer self, integer event, sequence parms)
+    object sdate
+    atom ok
+    sdate = getSelectedDate(MC1)
+    if atom(sdate) then
+	ok = message_box("Selection Invalid", "Selected Date", MB_ICONHAND + MB_OK)
+	return
+    end if
+    ok = message_box("Long:\t" & formatDate(sdate, LongDate) & '\n' &
+		     "Medium:\t" & formatDate(sdate, MediumDate) & '\n' &
+		     "Short:\t" & formatDate(sdate, ShortDate) & '\n',
+		     "Selected Day", MB_OK)
+end procedure
+
+procedure DR_onClick(integer self, integer event, sequence parms)
+    sequence daterange, dtxt, title
+    atom ok
+    daterange = getSelectedDateRange(MC2)
+    if equal(daterange[1], daterange[2]) then
+	dtxt = formatDate(daterange[1], LongDate)
+	title = "Selected Date"
+    else
+	dtxt = formatDate(daterange[1], ShortDate) & " through " &
+	       formatDate( daterange[2], ShortDate)
+	title = "Selected Range"
+    end if
+    ok = message_box(dtxt, title, MB_OK)
+end procedure
+
+procedure onSelect(integer self, integer event, sequence parms)
+
+    if length(parms) = 0 then
+	return
+    end if
+
+    if equal(parms[1], parms[2]) then
+	setText({SB,1}, formatDate(parms[1], LongDate))
+	setText({SB,2}, "")
+    else
+	setText({SB,1}, formatDate(parms[1], ShortDate))
+	setText({SB,2}, formatDate(parms[2], ShortDate))
+    end if
+
+end procedure
+
+
+procedure Scroll_SL(integer self, integer event, sequence parms)
+
+    atom lRect1, lRect2
+    integer lWidth
+    integer lHeight
+    integer lMinWidth
+
+    setFont(MC1, "Arial", getScrollPos(SL), Normal)
+    lRect1 = acquire_mem(0,SIZEOF_RECT)
+    VOID = sendMessage(MC1, MCM_GETMINREQRECT, 0, lRect1)
+    lMinWidth = sendMessage(MC1, MCM_GETMAXTODAYWIDTH, 0, 0)
+
+    lWidth = 20 + w32fetch(lRect1, rectRight) -  w32fetch(lRect1, rectLeft)
+    if lWidth < lMinWidth then
+	lWidth = lMinWidth
+    end if
+
+    lHeight = 20 + w32fetch(lRect1, rectBottom) -  w32fetch(lRect1, rectTop)
+    setCtlSize(MC1,  lWidth, lHeight)
+
+    setFont(MC2, "Arial", getScrollPos(SL), Normal)
+    lRect2 = acquire_mem(0,SIZEOF_RECT)
+    VOID = sendMessage(MC2, MCM_GETMINREQRECT, 0, lRect2)
+
+    lWidth = 20 + w32fetch(lRect2, rectRight) -  w32fetch(lRect2, rectLeft)
+    lHeight = 20 + w32fetch(lRect2, rectBottom) -  w32fetch(lRect2, rectTop)
+    setCtlSize(MC2,  lWidth, lHeight)
+
+
+    setCtlPosition(MC2, lWidth + 90 + w32fetch(lRect1, rectLeft) , 20)
+    setCtlPosition(DR, lWidth + 90 + w32fetch(lRect1, rectLeft) + 1 , 0)
+
+    setClientRect(Win, 2 * lWidth + 90 + w32fetch(lRect1, rectLeft) + 40, lHeight + 40)
+
+    w32release_mem(lRect1)
+    w32release_mem(lRect2)
+
+end procedure
+
+setHandler(DB, w32HClick, routine_id("DB_onClick"))
+setHandler(DR, w32HClick, routine_id("DR_onClick"))
+setHandler({MC2,MC1}, w32HChange, routine_id("onSelect"))
+setHandler(SL, w32HScroll, routine_id("Scroll_SL"))
+
+setScrollPos(SL, 9)
+
+WinMain(Win, Normal)
+
+
+
+
+
+
+
+
+
+
+
+

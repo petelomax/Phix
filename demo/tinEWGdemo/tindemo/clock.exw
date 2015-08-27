@@ -1,0 +1,57 @@
+-- A simple Demo to show how to manage a Bitmap in a resizeable Window
+-- Just Displays the actual Time. Program Terminates if you Right Click into the Window.
+-- 2012 Andreas Wagner amdi@indonesianet.de
+
+include ..\tinewg.ew
+
+constant Timer2 = 2
+constant WindowX = 400,
+         WindowY = 200
+atom     backbuffer
+
+
+procedure paint()
+sequence rect
+    rect = GetClientRect(WinHwnd)   -- Get the actual size of the Window
+    CopyMBToControl(backbuffer,0,0,WindowX,WindowY,WinHwnd,0,0,rect[3],rect[4])  -- Resize and Paste the backbuffer to the Window
+end procedure
+
+procedure time_proc()
+-- Draws the actual Time to the backbuffer and paste it to the Window
+sequence d
+atom hour,minute,second
+    SetPenColor(CL_BLACK)                                        -- Choose a nice color for the background
+    DrawPolygon({0,0,WindowX,0,WindowX,WindowY,0,WindowY},True)  -- fill the 'backbuffer' with a black rectangle
+    SetPenColor(CL_RED)                                          -- Choose a nice color for the text
+    d = date()
+    {hour,minute,second} = d[4..6]
+    d = sprintf("%02d:%02d:%02d",{hour,minute,second})          -- create the string
+    DrawString(floor(WindowX/5),floor(WindowY/4),d)             -- and print it
+    paint()                                                     -- paste the 'backbuffer' to the window
+end procedure
+
+procedure Eventloop()
+    while 1 do
+        {} = WaitEvent()
+        if Event=RClick
+        or (Event=Key and EventItem=KEY_ESCAPE) then
+            exit
+        elsif Event=Time and EventItem=Timer2 then
+            time_proc()
+        end if
+    end while
+end procedure
+
+WindowType = StandardWin                        -- A resizeable Window
+
+{} = Window("Clock",floor((ScreenWidth()/2)-WindowX/2),floor((ScreenHeight()/2)-WindowY/2),WindowX,WindowY)
+constant font1 = NewFont("Arial",50,0,0,0)
+SetDrawingFont(font1)
+backbuffer = NewMB(WindowX,WindowY)         -- A memory bitmap the same size than the Windows Clientarea
+SetDrawingMB(backbuffer)                    -- Every Drawing from now on goes to 'backbuffer' (just to be sure)
+time_proc()                                 -- Make sure the 'backbuffer' is filled and the window painted after it appeares on screen
+SetWinTimer(1000,Timer2)                    -- Sets the windows timer 2 to 1 second intervall
+SetDrawingProc(WinHwnd,routine_id("paint")) -- Make sure the 'backbuffer' is copyied to the window every time the window needs to repaint
+
+Eventloop()
+CloseApp(0)

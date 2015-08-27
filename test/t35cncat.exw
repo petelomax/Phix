@@ -1,0 +1,417 @@
+--
+-- t35concat.exw
+--
+-- Phix tests for concatenation (& operator):
+--  This program also provides a pretty thorough work-out for reference counting and 
+--  the associated internal checks that we have freed every single byte allocated.
+--/**/with console
+--
+-- Don't bother trying to run this under RDS Eu!!!
+
+constant showprogress=0
+
+procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+string s,t
+sequence p
+object O
+--atom t0 t0=time()
+
+sequence abc,def,s123,s456
+
+string x,y
+--string st	-- TYPE ERROR (correct - it gets set to {"s","t"})
+sequence st,xy
+
+integer I
+atom N
+string S
+sequence P
+
+--for i=1 to 1000 do
+
+    if showprogress then puts(1,"concat01\n") end if
+
+    -- Note: RDS Eu dies on this file, first line:
+    if 1&2!={1,2} then Abort("1&2!={1,2}\n") end if
+    if 1&#7FFFFFFF!={1,#7FFFFFFF} then Abort("1&#7FFFFFFF!={1,#7FFFFFFF}\n") end if
+    if #7FFFFFFF&1!={#7FFFFFFF,1} then Abort("#7FFFFFFF&1!={#7FFFFFFF,1}\n") end if
+    if #7FFFFFFF&#7FFFFFFF!={#7FFFFFFF,#7FFFFFFF} then 
+	Abort("#7FFFFFFF&#7FFFFFFF!={#7FFFFFFF,#7FFFFFFF}\n") end if
+    if 'a'&""!="a" then Abort("\'a\'&\"\"!=\"a\"\n") end if
+    if ""&'a'!="a" then Abort("\"\"&\'a\'!=\"a\"\n") end if
+    if 'a'&'b'!="ab" then Abort("'a'&'b'!=\"ab\"\n") end if
+    p="ab"
+    p='a'&p
+    if p!="aab" then Abort("p!=\"aab\"\n") end if
+    p='a'&p
+    if p!="aaab" then Abort("p!=\"aaab\"\n") end if
+    p='a'&p
+    if p!="aaaab" then Abort("p!=\"aaaab\"\n") end if
+    p='a'&p
+    if p!="aaaaab" then Abort("p!=\"aaaaab\"\n") end if
+    p='a'&p
+    if p!="aaaaaab" then Abort("p!=\"aaaaaab\"\n") end if
+    p='a'&p
+    if p!="aaaaaaab" then Abort("p!=\"aaaaaaab\"\n") end if
+    p='a'&p
+    if p!="aaaaaaaab" then Abort("p!=\"aaaaaaaab\"\n") end if
+
+    if showprogress then puts(1,"concat02\n") end if
+
+    if -5&"abc"!={-5,'a','b','c'} then Abort("-5&\"abc\"!={-5,\'a\',\'b\',\'c\'}\n") end if
+    if 'a'&"bc"!="abc" then Abort("\'a\'&\"bc\"!=\"abc\"\n") end if
+    if 2&{1}!={2,1} then Abort("2&{1}!={2,1}\n") end if
+
+    if 1&{1,2,3,4,5}!={1,1,2,3,4,5} then 
+	Abort("1&{1,2,3,4,5}!={1,1,2,3,4,5}\n") end if
+    p=1&{2,3,4,5}
+    if p!={1,2,3,4,5} then Abort("p!={1,2,3,4,5}\n") end if
+
+    p=1&p
+    if p!={1,1,2,3,4,5} then Abort("p!={1,1,2,3,4,5}\n") end if 
+
+    p=1&(1&{2,3,4,5})
+    if p!={1,1,2,3,4,5} then Abort("p!={1,1,2,3,4,5}\n") end if 
+    p=1&1&{2,3,4,5}
+    if p!={1,1,2,3,4,5} then Abort("p!={1,1,2,3,4,5}\n") end if 
+
+    p=1&p
+    if p!={1,1,1,2,3,4,5} then Abort("p!={1,1,1,2,3,4,5}\n") end if
+
+    p=1&p
+    if p!={1,1,1,1,2,3,4,5} then Abort("p!={1,1,1,1,2,3,4,5}\n") end if 
+
+    if 1&{1,2,3,4,5,6}!={1,1,2,3,4,5,6} then 
+	Abort("1&{1,2,3,4,5,6}!={1,1,2,3,4,5,6}\n") end if
+    p=1&{2,3,4,5,6,7}
+    if p!={1,2,3,4,5,6,7} then Abort("p!={1,2,3,4,5,6,7}\n") end if
+    p=1&p
+    if p!={1,1,2,3,4,5,6,7} then 
+	Abort("1&{1,2,3,4,5,6,7}!={1,1,2,3,4,5,6,7}\n") end if
+
+    if showprogress then puts(1,"concat03\n") end if
+
+--
+-- Now, repeat all of the above, only the other way round!
+--=========================================================
+--
+
+    p="ab"
+    p=p&'a'
+    if p!="aba" then Abort("p!=\"aba\"\n") end if
+    p&='a'
+    if p!="abaa" then Abort("p!=\"abaa\"\n") end if
+    p=p&'a'
+    if p!="abaaa" then Abort("p!=\"abaaa\"\n") end if
+    p&='a'
+    if p!="abaaaa" then Abort("p!=\"abaaaa\"\n") end if
+    p=p&'a'
+    if p!="abaaaaa" then Abort("p!=\"abaaaaa\"\n") end if
+    p&='a'
+    if p!="abaaaaaa" then Abort("p!=\"abaaaaaa\"\n") end if
+    p=p&'a'
+    if p!="abaaaaaaa" then Abort("p!=\"abaaaaaaa\"\n") end if
+
+    if showprogress then puts(1,"concat04\n") end if
+
+    if "abc"&-5!={'a','b','c',-5} then Abort("\"abc\"&-5!={\'a\',\'b\',\'c\',-5}\n") end if
+    if "bc"&'a'!="bca" then Abort("\"bc\"&\'a\'!=\"bca\"\n") end if
+    if {2}&1!={2,1} then Abort("{2}&1!={2,1}\n") end if
+    if {1,2,3,4,5}&1!={1,2,3,4,5,1} then 
+	Abort("{1,2,3,4,5}&1!={1,2,3,4,5,1}\n") end if
+    p={2,3,4,5}&1
+    if p!={2,3,4,5,1} then Abort("p!={2,3,4,5,1}\n") end if
+
+    p=p&1
+    if p!={2,3,4,5,1,1} then Abort("p!={2,3,4,5,1,1}\n") end if 
+
+    p={2,3,4,5}&1&6
+    if p!={2,3,4,5,1,6} then Abort("p!={2,3,4,5,1,6}\n") end if 
+
+    p&=1
+    if p!={2,3,4,5,1,6,1} then Abort("p!={2,3,4,5,1,6,1}\n") end if
+
+    p=p&1
+    if p!={2,3,4,5,1,6,1,1} then Abort("p!={2,3,4,5,1,6,1,1}\n") end if 
+
+    if {1,2,3,4,5,6}&1!={1,2,3,4,5,6,1} then 
+	Abort("{1,2,3,4,5,6}&1!={1,2,3,4,5,6,1}\n") end if
+    p={2,3,4,5,6,7}&1
+    if p!={2,3,4,5,6,7,1} then Abort("p!={2,3,4,5,6,7,1}\n") end if
+    p&=1
+    if p!={2,3,4,5,6,7,1,1} then 
+	Abort("{2,3,4,5,6,7,1}&1!={2,3,4,5,6,7,1,1}\n") end if
+
+    if showprogress then puts(1,"concat05\n") end if
+
+
+    if "ab"&"cd"!="abcd" then Abort("\"ab\"&\"cd\"!=abcd\n") end if
+
+    if "ab"&{3,4}!={'a','b',3,4} then Abort("\"ab\"&{3,4}!={a,b,3,4}\n") end if
+
+    if {1,2}&"cd"!={1,2,'c','d'} then Abort("{1,2}&\"cd\"!={1,2,c,d}\n") end if 
+
+    if {1,2}&{3,4}!={1,2,3,4} then Abort("{1,2}&{3,4}!={1,2,3,4}\n") end if
+
+
+    if showprogress then puts(1,"concat06\n") end if
+
+--
+-- Finally, allocate things on the fly to check incref etc...
+--
+    if ("ab"&'c')&("de"&'f')!="abcdef" then
+	Abort("(\"ab\"&\'c\')&(\"de\"&\'f\')!=\"abcdef\"\n") end if
+
+    if ("ab"&'c')&({4,5}&6)!={'a','b','c',4,5,6} then
+	Abort("(\"ab\"&\'c\')&({4,5}&6)!={'a','b','c',4,5,6}\n") end if
+    
+    if ({1,2}&3)&("de"&'f')!={1,2,3,'d','e','f'} then
+	Abort("({1,2}&3)&(\"de\"&\'f\')!={1,2,3,'d','e','f'}\n") end if
+
+    if ({1,2}&3)&({3,4}&5)!={1,2,3,3,4,5} then
+	Abort("({1,2}&3)&({4,5}&6)!={1,2,3,4,5,6}\n") end if
+
+    abc="ab"&'c'
+    def="de"&'f'
+    s123={1,2}&3
+    s456={4,5}&6
+
+    if abc&def!="abcdef" then
+	Abort("abc&def!=\"abcdef\"\n") end if
+
+    if abc&s456!={'a','b','c',4,5,6} then
+	Abort("sbc&s456!={'a','b','c',4,5,6}\n") end if
+    
+    if s123&def!={1,2,3,'d','e','f'} then
+	Abort("s123&def!={1,2,3,'d','e','f'}\n") end if
+
+    if s123&s456!={1,2,3,4,5,6} then
+	Abort("s123&s456!={1,2,3,4,5,6}\n") end if
+
+    if showprogress then puts(1,"concat07\n") end if
+
+    s="s"
+    t="t"
+    st={s,t}
+    x="x"
+    y="y"
+    xy={x,y}
+    if st&xy!={"s","t","x","y"} then
+	Abort("st&xy!={s,t,x,y}\n") end if
+
+    if #7FFFFFFF-5&#7FFFFFFF-6!=#7FFFFFFF-5&#7FFFFFFF-6 then
+	Abort("#7FFFFFFF-5&#7FFFFFFF-6!=#7FFFFFFF-5&#7FFFFFFF-6\n") end if
+
+    if {st,xy}&{st,xy}!={st,xy,st,xy} then
+	Abort("{st,xy}&{st,xy}!={st,xy,st,xy}\n") end if
+
+
+    if showprogress then puts(1,"concat08\n") end if
+
+-- OK, Let's do this properly!!!
+-- Note the following tests care much less about equality (ie that & is returning 
+-- the correct results) than they do about alloc/dealloc & incref/decref.
+-- In fact, on that point, I'll not even bother to test for equality.
+
+--type check failure (good!)
+--  I=#7FFFFFFF-10	-- make sure it is on the heap
+    I=#3FFFFFFF-10	-- make sure it is on the heap
+    N=1.1+2.2		-- ""
+    S="ab"&"cd" 	 -- ""
+    P={I,N,S}		-- ""
+    O=1
+    if O then end if	-- suppress unused warning
+
+    O=0&0
+    O=0&'a'
+    O=0&I
+    O=0&#7FFFFFFF-10
+    O=0&1.5
+    O=0&N
+    O=0&1.1+2.2
+    O=0&"abc"
+    O=0&S
+    O=0&"ab"&"cd"
+    O=0&{1,2}
+    O=0&P
+    O=0&{I,N,S}
+    if showprogress then puts(1,"concat11\n") end if
+    O='a'&0
+    O='a'&'a'
+    O='a'&I
+    O='a'&#7FFFFFFF-10
+    O='a'&1.5
+    O='a'&N
+    O='a'&1.1+2.2
+    O='a'&"abc"
+    O='a'&S
+    O='a'&"ab"&"cd"
+    O='a'&{1,2}
+    O='a'&P
+    O='a'&{I,N,S}
+    O=I&0
+    O=I&'a'
+    O=I&I
+
+    O=I&#7FFFFFFF-10
+    O=I&1.5
+    O=I&N
+    O=I&1.1+2.2
+    O=I&"abc"
+    O=I&S
+    O=I&"ab"&"cd"
+    O=I&{1.2}
+    O=I&P
+    O=I&{I,N,S}
+    if showprogress then puts(1,"concat12\n") end if
+
+    O=#7FFFFFFF-10&0
+    O=#7FFFFFFF-10&'a'
+    O=#7FFFFFFF-10&I
+    O=#7FFFFFFF-10&#7FFFFFFF-10
+    O=#7FFFFFFF-10&1.5
+    O=#7FFFFFFF-10&N
+    O=#7FFFFFFF-10&1.1+2.2
+    O=#7FFFFFFF-10&"abc"
+    O=#7FFFFFFF-10&S
+    O=#7FFFFFFF-10&"ab"&"cd"
+    O=#7FFFFFFF-10&{1.2}
+    O=#7FFFFFFF-10&P
+    O=#7FFFFFFF-10&{I,N,S}
+    O=1.5&0
+    O=1.5&'a'
+    O=1.5&I
+    O=1.5&#7FFFFFFF-10
+    O=1.5&1.5
+    O=1.5&N
+
+    O=1.5&1.1+2.2
+    O=1.5&"abc"
+    O=1.5&S
+    O=1.5&"ab"&"cd"
+    O=1.5&{1,2}
+    O=1.5&P
+    O=1.5&{I,N,S}
+    if showprogress then puts(1,"concat13\n") end if
+
+    O=N&0
+    O=N&'a'
+    O=N&I
+    O=N&#7FFFFFFF-10
+    O=N&1.5
+    O=N&N
+    O=N&1.1+2.2
+    O=N&"abc"
+    O=N&S
+    O=N&"ab"&"cd"
+    O=N&{1,2}
+    O=N&P
+    O=N&{I,N,S}
+    O=1.1+2.2&0
+    O=1.1+2.2&'a'
+    O=1.1+2.2&I
+    O=1.1+2.2&#7FFFFFFF-10
+    O=1.1+2.2&1.5
+    O=1.1+2.2&N
+    O=1.1+2.2&1.1+2.2
+    O=1.1+2.2&"abc"
+    O=1.1+2.2&S
+
+    O=1.1+2.2&"ab"&"cd"
+    O=1.1+2.2&{1,2}
+    O=1.1+2.2&P
+    O=1.1+2.2&{I,N,S}
+    if showprogress then puts(1,"concat14\n") end if
+
+    O="abc"&0
+    O="abc"&'a'
+    O="abc"&I
+    O="abc"&#7FFFFFFF-10
+    O="abc"&1.5
+    O="abc"&N
+    O="abc"&1.1+2.2
+    O="abc"&"abc"
+    O="abc"&S
+    O="abc"&"ab"&"cd"
+    O="abc"&{1,2}
+    O="abc"&P
+    O="abc"&{I,N,S}
+    O=S&0
+    O=S&'a'
+    O=S&I
+    O=S&#7FFFFFFF-10
+    O=S&1.5
+    O=S&N
+    O=S&1.1+2.2
+    O=S&"abc"
+    O=S&S
+    O=S&"ab"&"cd"
+    O=S&{1,2}
+    O=S&P
+
+    O=S&{I,N,S}
+    if showprogress then puts(1,"concat15\n") end if
+
+    O="ab"&"cd"&0
+    O="ab"&"cd"&'a'
+    O="ab"&"cd"&I
+    O="ab"&"cd"&#7FFFFFFF-10
+    O="ab"&"cd"&1.5
+    O="ab"&"cd"&N
+    O="ab"&"cd"&1.1+2.2
+    O="ab"&"cd"&"abc"
+    O="ab"&"cd"&S
+    O="ab"&"cd"&"ab"&"cd"
+    O="ab"&"cd"&{1,2}
+    O="ab"&"cd"&P
+    O="ab"&"cd"&{I,N,S}
+    O={1,2}&0
+    O={1,2}&'a'
+    O={1,2}&I
+    O={1,2}&#7FFFFFFF-10
+    O={1,2}&1.5
+    O={1,2}&N
+    O={1,2}&1.1+2.2
+    O={1,2}&"abc"
+    O={1,2}&S
+    O={1,2}&"ab"&"cd"
+    O={1,2}&{1,2}
+    O={1,2}&P
+    O={1,2}&{I,N,S}
+    if showprogress then puts(1,"concat16\n") end if
+
+    O=P&0
+    O=P&'a'
+
+    O=P&I
+    O=P&#7FFFFFFF-10
+    O=P&1.5
+    O=P&N
+    O=P&1.1+2.2
+    O=P&"abc"
+    O=P&S
+    O=P&"ab"&"cd"
+    O=P&{1,2}
+    O=P&P
+    O=P&{I,N,S}
+    O={I,N,S}&0
+    O={I,N,S}&'a'
+    O={I,N,S}&I
+    O={I,N,S}&#7FFFFFFF-10
+    O={I,N,S}&1.5
+    O={I,N,S}&N
+    O={I,N,S}&1.1+2.2
+    O={I,N,S}&"abc"
+    O={I,N,S}&S
+    O={I,N,S}&"ab"&"cd"
+    O={I,N,S}&{1,2}
+    O={I,N,S}&P
+    O={I,N,S}&{I,N,S}
+
+    if showprogress then puts(1,"concat20\n") end if
+
+--end for
+
+--printf(1," rt:%3.2f",{time()-t0})
+--if getc(0) then end if

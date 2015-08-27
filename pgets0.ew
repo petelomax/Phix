@@ -1,0 +1,574 @@
+--
+-- pgets0.ew
+--
+-- Alternative hll implementation of gets(0), aka console string input.
+--  **NB** does not work with console redirection.
+--  Used in the compiler by processCommandLine() in p.exw and is planned
+--      to be used by pdebug.e, when I get round to it.
+--  Usage: r = gets0(r_keyHander, default_result).
+--  See additional notes in function gets0() below (especially the list
+--      of benefits to using it in processCommandLine).
+--
+--!!/**/with console
+--with trace
+
+constant STD_INPUT_HANDLE   = -10,
+--/*
+         STD_OUTPUT_HANDLE  = -11,
+--*/
+         ENABLE_PROCESSED_INPUT = 1,
+         C_PTR = C_POINTER,
+         KEY_EVENT = 1
+
+--/* not rqd for Phix:
+include builtins\dll.e
+include builtins\machine.e
+atom xWriteConsole, stdout, backspace3, bytes_count
+--*/
+
+object void
+atom kernel32, xAllocConsole, xGetStdHandle, xSetConsoleMode, xReadConsoleInput,
+     lpBuffer, 
+     lpEventsRead, stdin
+
+constant lpEventType    = 0,    -- WORD EventType
+         lpKeyDown      = 4,    -- BOOL bKeyDown
+--       lpRptCount     = 8,    -- WORD wRepeatCount
+         lpVirtKey      = 10,   -- WORD wVirtualKeyCode
+--       lpScanCode     = 12,   -- WORD wVirtualScanCode
+         lpKeyChar      = 14    -- union WCHAR/CHAR AsciiChar
+--       lpKeyState     = 16    -- DWORD dwControlKeyState
+
+
+-- clipboard support:
+atom xGlobalLock, xGlobalUnlock, xGlobalSize, xGlobalAlloc, xGlobalFree,
+     user32, xCloseClipboard, xEmptyClipboard, xGetClipboardData,
+     xIsClipboardFormatAvailable, xOpenClipboard, xSetClipboardData,
+     xGetActiveWindow
+constant CF_TEXT = 1,
+         GMEM_CLIPBOARD = #2002 --GMEM_MOVEABLE(#2) + GMEM_DDESHARE(#2000)
+
+integer cinit       -- 0=totally uninitialised, 1=clipboard done,
+        cinit=0     -- 2=console donw, 3=clip+console done
+
+procedure Cinit(integer iflags) 
+        if cinit=0 then
+            kernel32 = open_dll("kernel32.dll")
+        end if
+        if and_bits(iflags,2) then
+            -- console support:
+            xAllocConsole = define_c_func(kernel32,"AllocConsole",
+                {},         --  no parameters
+                C_INT)      -- BOOL
+            xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
+                {C_LONG},   --  DWORD  nStdHandle   // input, output, or error device
+                C_PTR)      -- HANDLE
+            xSetConsoleMode = define_c_func(kernel32,"SetConsoleMode",
+                {C_PTR,     --  HANDLE  hConsole,   // handle of console input or screen buffer
+                 C_LONG},   --  DWORD  fdwMode  // input or output mode to set
+                C_INT)      -- BOOL
+            xReadConsoleInput = define_c_func(kernel32,"ReadConsoleInputA",
+                {C_PTR,     --  HANDLE  hConsoleInput,      // handle of a console input buffer 
+                 C_PTR,     --  PINPUT_RECORD  pirBuffer,   // address of the buffer for read data 
+                 C_INT,     --  DWORD  cInRecords,  // number of records to read 
+                 C_PTR},    --  LPDWORD  lpcRead    // address of number of records read 
+                C_LONG)     -- BOOL
+--/*
+            xWriteConsole = define_c_func(kernel32,"WriteConsoleA",
+                {C_PTR,     --  HANDLE  hConsoleOutput,     // handle of a console screen buffer 
+                 C_PTR,     --  CONST VOID  *lpvBuffer,     // address of buffer to write from
+                 C_INT,     --  DWORD  cchToWrite,  // number of characters to write
+                 C_PTR,     --  LPDWORD  lpcchWritten,      // address of number of characters written
+                 C_PTR},    --  LPVOID  lpvReserved         // reserved
+                C_LONG)     -- BOOL
+--*/
+            lpBuffer = allocate(20)
+            lpEventsRead = allocate(4)   
+            void = c_func(xAllocConsole,{})
+            stdin = c_func(xGetStdHandle,{STD_INPUT_HANDLE})
+--/*
+            stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
+            bytes_count = allocate(4)
+            backspace3 = allocate(4)
+            poke(backspace3,{8,32,8,0})
+--*/
+        end if
+
+        if and_bits(iflags,1) then
+            -- clipboard support:
+            xGlobalLock                 = define_c_func(kernel32,"GlobalLock",{C_PTR},C_PTR)
+            xGlobalUnlock               = define_c_func(kernel32,"GlobalUnlock",{C_PTR},C_INT)
+            xGlobalSize                 = define_c_func(kernel32,"GlobalSize",{C_PTR},C_INT)
+            xGlobalAlloc                = define_c_func(kernel32,"GlobalAlloc",{C_UINT,C_LONG},C_PTR)
+            xGlobalFree                 = define_c_func(kernel32,"GlobalFree",{C_PTR},C_PTR)
+            user32 = open_dll("user32.dll")
+            xCloseClipboard             = define_c_proc(user32,"CloseClipboard",{})
+            xEmptyClipboard             = define_c_func(user32,"EmptyClipboard",{},C_INT)
+            xGetClipboardData           = define_c_func(user32,"GetClipboardData",{C_UINT},C_UINT)
+            xIsClipboardFormatAvailable = define_c_func(user32,"IsClipboardFormatAvailable",{C_UINT},C_INT)
+            xOpenClipboard              = define_c_func(user32,"OpenClipboard",{C_UINT},C_INT)
+            xSetClipboardData           = define_c_func(user32,"SetClipboardData",{C_UINT,C_UINT},C_UINT)
+            xGetActiveWindow            = define_c_func(user32,"GetActiveWindow", {}, C_PTR )
+        end if
+
+        cinit = or_bits(cinit,iflags)
+end procedure
+
+global string clip
+global integer size = -1
+
+global constant COPY=1,     -- store size bytes from clip to the clipboard
+                            --  (note length(clip) is allowed to be >= size)
+                PASTE=2     -- retrieve clip and set size
+
+global procedure clipBoard(integer mode)
+atom hClip, pData
+atom cHwnd
+integer wassize
+    wassize = size
+    size = -1
+    if not and_bits(cinit,1) then Cinit(1) end if
+    cHwnd = c_func(xGetActiveWindow, {})
+    if c_func(xOpenClipboard,{cHwnd}) then
+        if mode=COPY then
+            if c_func(xEmptyClipboard,{}) then
+--              hClip = c_func(xGlobalAlloc,{GMEM_CLIPBOARD,size+1})
+                hClip = c_func(xGlobalAlloc,{GMEM_CLIPBOARD,wassize+1})
+                if hClip then
+                    pData = c_func(xGlobalLock,{hClip})
+                    if pData then
+--                      khres = 0
+                        poke(pData,clip)
+                        size = wassize
+                        poke(pData+size,0)
+                        void = c_func(xGlobalUnlock,{hClip})
+                        void = c_func(xSetClipboardData,{CF_TEXT,hClip})
+                    else
+                        void = c_func(xGlobalFree,{hClip})
+                    end if
+                end if
+            end if
+        elsif mode=PASTE then
+            size = -1
+            if c_func(xIsClipboardFormatAvailable,{CF_TEXT}) then
+                hClip = c_func(xGetClipboardData,{CF_TEXT})
+                pData = c_func(xGlobalLock,{hClip})
+                if pData then
+                    size = c_func(xGlobalSize,{hClip})
+                    clip = peek({pData,size})
+                    void = c_func(xGlobalUnlock,{hClip})
+                    size = find(0,clip)
+                    if size then
+                        size -= 1
+                        clip = clip[1..size]
+                    else
+                        size = length(clip)
+                    end if
+                end if
+            end if
+        else
+            ?9/0    -- unknown mode parameter
+        end if
+        c_proc(xCloseClipboard,{})
+    end if
+end procedure
+-- /clipboard support
+
+--object o
+--o=0
+--o=C_PTR
+--?C_PTR
+global constant G0_BACK     = 8,
+                G0_TAB      = 9,
+                G0_LF       = 10,           -- aka '\r'
+                G0_CLEAR    = 12,           -- Ctrl L
+                G0_CR       = 13            -- aka '\n'
+       constant G__SHIFT    = 16,
+                G__CONTROL  = 17,
+                G__MENU     = 18,
+                G__CAPSLOCK = 20
+global constant G0_CTRLZ    = 26,
+                G0_ESCAPE   = 27,
+                G0_PGUP     = 33,
+                G0_PGDN     = 34
+       constant G__END      = 35,
+                G__HOME     = 36,
+                G__LEFT     = 37
+global constant G0_UP       = 38
+       constant G__RIGHT    = 39
+global constant G0_DOWN     = 40
+       constant G__INSERT   = 45,
+                G__DELETE   = 46
+global constant G0_F1       = 112,
+                G0_F2       = 113,
+--              G0_F3       = 114,
+--              G0_F4       = 115,
+--              G0_F5       = 116,
+--              G0_F6       = 117,
+                G0_F7       = 118,
+                G0_F8       = 119
+       constant G__NUMLOCK  = 144
+
+constant G__SKIP = {G__SHIFT,G__CONTROL,G__MENU,G__CAPSLOCK,G__NUMLOCK,
+                    G__HOME,G__END,G__LEFT,G__RIGHT,G__INSERT,G__DELETE}
+
+function peek2u(atom addr)
+    return peek(addr) + peek(addr+1)*#100
+end function
+
+-- The RDS Eu console puts() routine does not seem to cope with displaying backspaces:
+
+procedure back(integer n)
+    for i=1 to n do
+--/**/  puts(1,G0_BACK)
+--/*
+        poke(lpBuffer+lpKeyChar,G0_BACK)
+        void = c_func(xWriteConsole,{stdout,lpBuffer+lpKeyChar, 1, bytes_count, 0})
+--*/
+    end for
+end procedure
+
+procedure kill(integer i)
+    for j=1 to i do
+--/**/  puts(1,{8,32,8})
+--/*
+        void = c_func(xWriteConsole,{stdout, backspace3, 3, bytes_count, 0})
+--*/
+    end for
+end procedure
+
+global integer cpos, lr, overstrike, firstch, g0_addcr
+               g0_addcr = 1
+
+global function gets0(integer r_keyhandler, string default_result, integer epos)
+--global function gets0(integer r_keyhandler=-1, string default_result="", integer epos=-1)     --DEV/SUG
+--
+-- Alternative hll implementation of gets(0), aka console string input.
+--  **NB** does not work with console redirection.
+--  Allows individual keystrokes to be intercepted and acted on.
+--  Used by processCommandLine() in p.exw and (planned) by pdebug.e.
+--
+--  Usage:
+--      r = gets0(r_keyHander, default_result).
+--
+--  where r_keyHander is a function_id which accepts three parameters:
+--       ch: if zero see virtKey, else a normal ascii character or one of:
+--           G0_BACK, TAB, LF, CLEAR, CR, CTRLZ, or ESCAPE.
+--       virtKey: only used if ch is zero, can be tested for one of:
+--           G0_PGUP, PGDN, UP, DOWN, F1, F2, F7, or F8, possibly others.
+--          (for both the above you should note that the G__XXX constants 
+--           are local constants, and are not passed on to r_keyHander.)
+--       r is a copy of the current input, for partial matching etc.
+--          cpos, lr, and overstrike are also global for reference/update.
+--          cpos is the cursor position, 0 for 1st, lr for after last.
+--          lr is the length of r, overstrike if toggled by G__INSERT.
+--
+--  The return value of r_keyHandler can be:
+--      0: ignore this keystroke,
+--      a normal ascii char or BACK..ESCAPE as above (process normally),
+--      a sequence of length 3, containing in order:
+--          1) a replacement string.
+--          2) a new cpos, or -1 for "at end".
+--          3) an updated ch. If this is zero, no more processing occurs
+--              on that character, if it is G0_CTRLZ(26) then input is 
+--              terminated, otherwise process the character normally - 
+--              typically this is used to advance cpos etc.
+--
+--  The return value of gets0() is always a sequence:
+--    "" for escape/ctrl z at empty prompt,
+--    "\n" for return
+--    "xxx" if user terminated input using ctrl z
+--    "xxx\n" if user terminated input using return
+--    unless you have manually set g0_addcr to 0 (and it is your
+--    responsibility to set it back to 1 if needed), in which case
+--    the \n do not get appended.
+--
+-- processCommandLine() uses this to achieve the following aims:
+--  F7 lists the prompt history (kept in p.ini).
+--  F8 selects previous entry, wrapping around at the top.
+--  up/down select previous/next entries.
+--  page up/down select first/last entries.
+--  a partial match can be auto-completed.
+--  the previous entries can be edited:
+--      Left/Right/Home/End move the cursor as expected.
+--      Insert (invisibly) toggles insert(default)/overstrike mode.
+--      Delete/Backspace work as expected.
+--      Ctrl L performs a clear to end of field.
+--      Ctrl C/V can be used (entire prompt only, since we have no
+--      means of establishing a partial block selection, though) to
+--      copy to or paste from the windows clipboard.
+--  entries longer than (78-length_of_prompt) can be input. (only applies
+--      when running RDS Eu; Phix builtin gets(0) never had this problem)
+--  an escape kills the default_result, or if none quits the program.
+--  F1 shows the help (by pretending "?\n" was input).
+--
+-- I will have a similar list for pdebug.e, when I get round to it.
+--
+-- Known buglette:
+--  Some display hiccups occur on RDS Eu which are not evident on Phix.
+--  (Occurs when holding down the up/down keys, amongst other things.)
+--
+-- See also:
+--  demo/g0th.exw, a simple test harness for this routine.
+--
+-- Warning: this can be tough to debug, as trace(1) interferes with it,
+--          quite inevitably, as to be expected, and quite madly/badly.
+--
+string r, s
+object khres
+integer ch, keyDown, virtKey
+integer check_k3
+
+    if and_bits(cinit,3)!=3 then Cinit(3) end if
+    puts(1,default_result)
+    r = default_result
+    lr = length(r)
+    if epos=-1 then
+        epos = lr
+    end if
+    cpos = epos -- 0 is on 1st char, lr is after last char
+    back(lr-cpos)
+    ch = 0
+    overstrike = 0
+    firstch = 1
+    void = c_func(xSetConsoleMode,{stdin,0})    -- disable ENABLE_PROCESSED_INPUT
+
+--  trace(1)    -- NB: ** BAD IDEA! **
+
+    while 1 do
+        void = c_func(xReadConsoleInput,{stdin,lpBuffer,1,lpEventsRead})    -- one char at a time
+        if peek2u(lpBuffer+lpEventType)=KEY_EVENT then
+            keyDown = peek4s(lpBuffer+lpKeyDown)
+            if keyDown then
+                ch = peek(lpBuffer+lpKeyChar)
+                virtKey = 0
+                khres = ch
+                check_k3 = 0
+                if ch=0 then
+                    virtKey = peek2u(lpBuffer+lpVirtKey)
+                    if not find(virtKey,G__SKIP) then
+                        khres = call_func(r_keyhandler,{ch,virtKey,r})
+                        check_k3 = 1
+                    end if
+                elsif ch=3 then     -- Ctrl C (copy)
+--                  khres = 1
+                    size = lr
+                    clip = r
+                    clipBoard(COPY)
+--                  if khres then
+--                      puts(1,"Ctrl C failed \n")
+--                  end if
+                    khres = 0
+                elsif ch=22 then    -- Ctrl V (paste)
+--                  puts(1,"Ctrl V\n")
+                    size = 0
+                    clipBoard(PASTE)
+                    khres = 0
+                    if size then
+                        if clip[size]='\n' then
+                            clip = clip[1..size-1]
+                        end if
+                        khres = {clip,-1,0}
+                    end if
+                elsif ch!=G0_CLEAR then
+                    khres = call_func(r_keyhandler,{ch,0,r})
+                    check_k3 = 1
+                end if
+                if sequence(khres) then
+                    lr = length(r)  -- "old" length
+                    if lr then
+                        if cpos>lr then
+                            kill(cpos-lr)
+                            cpos = lr
+                        else
+                            puts(1,repeat(' ',lr-cpos))
+                            kill(lr)
+                        end if
+                    end if
+                    lr = length(khres)  -- "new" length
+                    if lr=3 then
+                        void = khres[1]
+                        if sequence(void) then
+                            cpos = khres[2]
+                            ch = khres[3]
+                            khres = void
+                            lr = length(khres)
+                            if cpos=-1 then
+                                cpos = lr
+                            end if
+                            firstch = -1    -- (prevent that firstch=1 below)
+                        end if
+                    elsif check_k3 then
+                        ?9/0
+                    end if
+                    r = khres
+                    if ch!=G0_CTRLZ then
+                        puts(1,r)
+                        if virtKey=G0_F8 then
+                            back(lr)
+                            cpos = 0
+                        else
+                            if cpos<lr then
+                                back(lr-cpos)
+                                overstrike = 1
+                            end if
+                        end if
+                    end if
+                    if firstch=-1 then
+                        firstch=0
+                    elsif cpos=0 then
+                        firstch = 1
+                    end if
+                else
+                    ch = khres
+                end if
+                if ch=0 then            -- virtual keys (mostly ignored)
+                    if virtKey=G__LEFT then
+                        if cpos>0 then
+                            cpos -= 1
+                            back(1)
+                        end if
+                    elsif virtKey=G__RIGHT then
+                        if cpos<lr then
+                            cpos += 1
+                            ch = r[cpos]
+                            puts(1,ch)
+                        end if
+                    elsif virtKey=G__HOME then
+                        if cpos then
+                            back(cpos)
+                            cpos = 0
+                        end if
+                    elsif virtKey=G__END then
+                        if cpos<lr then
+                            s = r[cpos+1..lr]
+                            puts(1,s)
+                            cpos = lr       
+                        end if
+                    elsif virtKey=G__INSERT then
+                        overstrike = not overstrike
+                    elsif virtKey=G__DELETE then
+                        if lr then
+                            if cpos<lr then
+                                s = r[cpos+2..lr]
+                                r = r[1..cpos]
+                                r &= s
+                                puts(1,s)
+                                puts(1,' ')
+                                back(length(s)+1)
+                                lr -= 1
+                            else
+                                kill(1)
+                                lr -= 1
+                                r = r[1..lr]
+                                cpos -= 1
+                            end if
+                        end if
+                    end if
+                elsif ch=G0_BACK then
+--                  if lr then
+                    if cpos then    -- 10/01/10
+                        kill(1)
+                        if cpos<lr then
+                            s = r[cpos+1..lr]
+                            cpos -= 1
+                            r = r[1..cpos]
+                            r &= s
+                            puts(1,s)
+                            puts(1,' ')
+                            back(length(s)+1)
+                            lr -= 1
+                        else
+                            lr -= 1
+                            r = r[1..lr]
+                            cpos -= 1
+                        end if
+                    end if
+                elsif ch=G0_TAB then    -- ignore tab
+                elsif ch=G0_CLEAR       -- Ctrl L
+                   or ch=G0_ESCAPE then
+                    if cpos<lr then
+                        puts(1,repeat(' ',lr-cpos))
+                        kill(lr-cpos)
+                        r = r[1..cpos]
+                    end if
+                    if ch=G0_ESCAPE then
+                        if lr then
+                            if cpos then
+                                kill(cpos)
+                                r = ""
+                                cpos = 0
+                            end if
+                        else
+                            ch = G0_CTRLZ       -- terminate input (on key up)
+                        end if
+                    end if
+                    lr = cpos
+                elsif ch!=G0_CTRLZ then     -- Ctrl Z (terminates input on key up)
+                    if ch='\r'
+                    or ch='\n' then
+                        if g0_addcr then
+                            r &= '\n'
+                        end if
+                        exit
+                    end if
+                    if firstch then
+                        if lr then
+                            if cpos<lr then
+                                puts(1,repeat(' ',lr-cpos))
+--                              kill(lr-cpos)
+--                              r = r[1..cpos]
+                            end if
+--                          if cpos then
+--                              kill(cpos)
+                                cpos = 0
+--                          end if
+                            kill(lr)
+                            r = ""
+                            lr = 0
+                        end if
+--                      firstch = 0
+                    end if
+                    puts(1,ch)
+                    if cpos<lr then
+                        s = r[cpos+1+overstrike..lr]
+                        r = r[1..cpos]
+                        r &= ch
+                        if length(s) then
+                            r &= s
+                            puts(1,s)
+                            puts(1,' ')
+                            back(length(s)+1)
+                        end if
+                        lr += 1-overstrike
+                    else
+                        r &= ch
+                        lr += 1
+                    end if
+                    cpos += 1
+                    firstch = 0
+                end if
+            elsif ch=G0_CTRLZ then
+                exit
+            end if
+        end if
+    end while
+    void = c_func(xSetConsoleMode,{stdin,ENABLE_PROCESSED_INPUT})
+    if cpos<lr then
+        if r[lr]='\n' then
+            lr -= 1
+        end if
+        s = r[cpos+1..lr]
+        puts(1,s)
+    end if
+    return r
+end function
+
+global procedure g0close()
+    if and_bits(cinit,2) then
+        free(lpBuffer)
+        free(lpEventsRead)
+    end if
+end procedure
+
+

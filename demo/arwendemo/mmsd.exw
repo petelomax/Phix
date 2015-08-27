@@ -1,0 +1,66 @@
+
+-- Description:
+--  Similar but not a copy of Chapter 10 - Windows 2000 Graphics API Black Book
+--   (Coriolis & Damon Chandler), highly recommended for Serious Programmers.
+-- Keywords:
+--  Mapping mode, scaling, Viewport, DrawText, setFont
+-- Credit: translated from Euman's advanc.exw (in demos with win32lib).
+-- (..\Win32Demo\Advanc.exw is the win32lib version of this)
+
+include arwen.ew    
+
+constant
+    MainWin = create(Window, "Mapping Mode Scaling Demo", 0, NULL, 25, 25, 300, 200, 0),
+    xSetGraphicsMode    = define_c_func(gdi32,"SetGraphicsMode",{C_POINTER,C_INT},C_INT),
+    xSetMapMode         = define_c_func(gdi32,"SetMapMode",{C_POINTER,C_INT},C_INT),
+    xSetViewportExtEx   = define_c_func(gdi32,"SetViewportExtEx",{C_LONG,C_INT,C_INT,C_INT},C_INT),
+    xSetWindowExtEx     = define_c_func(gdi32,"SetWindowExtEx",{C_LONG,C_INT,C_INT,C_POINTER},C_INT),
+    xEllipse            = define_c_func(gdi32,"Ellipse",{C_POINTER,C_INT,C_INT,C_INT,C_INT},C_LONG),
+    GM_ADVANCED = 2,
+    MM_ANISOTROPIC = 8,
+    MainWinDC = getDC(MainWin),
+    pInitExtent = allocate(16),
+    pText = allocate_string("Euman's Demo on arwen"),
+    DT_CVCS = or_all({DT_CENTER,DT_VCENTER,DT_SINGLELINE}),
+    InitRect = getClientRect(MainWin)
+
+constant InitExtent = MainWinDC & InitRect                          -- for xEllipse
+constant DrawTextX = {MainWinDC, pText, -1, pInitExtent, DT_CVCS}   -- for xDrawText
+
+    poke4(pInitExtent, InitRect)
+    void = c_func(xSetMapMode,{MainWinDC,MM_ANISOTROPIC})
+    void = c_func(xSetGraphicsMode,{MainWinDC, GM_ADVANCED})
+    void = c_func(xSetWindowExtEx,{MainWinDC,InitRect[3],InitRect[4],0})  
+    setFont(MainWin, "Times New Roman", 16, 0)
+
+integer Drawing Drawing = 0
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+sequence CurExtent
+    if id=MainWin then
+        if msg=WM_PAINT then
+            if MainWinDC!=0
+            and Drawing=0 then
+                Drawing = 1  
+                CurExtent = getClientRect(MainWin)
+                if c_func(xSetViewportExtEx,{MainWinDC,CurExtent[3],CurExtent[4],0}) then
+                    -- These don't change, the mapping mode does it!
+                    void = c_func(xEllipse,InitExtent)  
+                    c_proc(xDrawText,DrawTextX)
+                end if
+                Drawing = 0
+            end if
+        elsif msg=WM_CLOSE then
+            releaseDC(MainWin,MainWinDC)
+            if atom(wParam) or object(lParam) then end if   -- (suppress warnings)
+        elsif msg=WM_CHAR
+          and wParam=VK_ESCAPE then
+            closeWindow(MainWin)
+        end if
+    end if
+    return 0
+end function
+setHandler(MainWin, routine_id("mainHandler"))
+
+WinMain(MainWin, SW_NORMAL)
+

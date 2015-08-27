@@ -1,0 +1,135 @@
+--
+-- t39rndio.exw
+-- ============
+--  This program first creates a 30K (binary) file of nulls, 
+--  then creates a 30K sequence of random data,
+--  then randomly writes/checks blocks up to 2000(bsize) bytes.
+--  It terminates when we've managed to output every byte.
+--  The number of iterations usually required depends on bsize:
+--      200:  3..15
+--      2000:  100..300     (default setting)
+--      20000:  2000..3000
+--
+--  Main purpose is to stress test the buffering in file i/o,
+--  reading/writing blocks over buffer boundaries, within existing
+--  buffers, forcing buffer flushes and reading new buffers, reading 
+--  what has just been written or what was written ages ago, and 
+--  otherwise generally rattling the cage.
+--
+--/**/with console
+
+--with trace
+atom t
+    t=time()
+
+--/* Not Phix
+include ..\builtins\sort.e
+include ..\builtins\misc.e
+include ..\builtins\file.e
+--include ..\builtins\ppp.e
+--*/
+
+sequence fimage,    -- 30K, initially all 0
+         desired    -- 30K, 1..255 then rand()
+
+integer fn
+
+constant fsize=300000,
+         bsize=2000-0
+set_rand(0)
+
+constant WRITE=1,   -- see main loop
+         VERIFY=2
+
+--constant actions = {"Write","Verify"}
+
+integer ch, idx
+
+fn = open("test.dat","wb")
+if fn=-1 then ?9/0 end if
+if where(fn)!=0 then ?9/0 end if
+fimage = repeat(0,fsize)
+puts(fn,fimage)
+--for i=1 to fsize do
+--  puts(fn,0)
+--end for
+if where(fn)!=fsize then ?9/0 end if
+close(fn)
+
+desired = repeat(0,fsize)
+for i255=1 to 255 do
+    if i255>fsize then exit end if
+    desired[i255] = i255
+end for
+for i256=256 to fsize do
+    desired[i256] = rand(256)-1
+end for
+
+integer p,l,loops, w
+
+fn = open("test.dat","ub")
+
+puts(1,"running...\n")
+--ppOpt({pp_Pause,0})
+loops=0
+while not equal(fimage,desired) do
+    loops+=1
+    -- write a random chunk then verify a random chunk:
+    for action=WRITE to VERIFY do   -- (1 to 2)
+        p = rand(fsize)-1
+        l = rand(bsize)-1
+        if seek(fn,p)!=0 then ?9/0 end if
+        w = where(fn)
+        if w!=p then ?9/0 end if
+--printf(1,"loop: %d(%s), w=%d, p=%d, l=%d\n",{loops,actions[action],w,p,l})
+        for imain=1 to l do
+            idx = p+imain
+            if idx>fsize then
+                -- 'wrap' block to start of file
+                if seek(fn,0)!=0 then ?9/0 end if
+--puts(1,"wrap\n")
+                for j=1 to l-imain do
+                    if action=WRITE then
+                        ch = desired[j]
+                        puts(fn,ch)
+                        fimage[j] = ch
+                    elsif action=VERIFY then
+                        ch = getc(fn)
+                        if fimage[j]!=ch then ?9/0 end if
+                    else
+                        ?9/0
+                    end if
+                end for
+                p=0
+                l-=imain
+                exit
+            end if
+            if action=WRITE then
+                ch = desired[idx]
+                puts(fn,ch)
+                fimage[idx] = ch
+            elsif action=VERIFY then
+                ch = getc(fn)
+                if fimage[idx] != ch then ?9/0 end if
+            else
+                ?9/0
+            end if
+--?where(fn)
+        end for
+        w = where(fn)
+        if w!=p+l then
+            printf(1,"w!=p+l (%d!=%d+%d)\n",{w,p,l})
+            ?9/0
+        end if
+    end for
+end while
+close(fn)
+fn=open("test.dat","rb")
+for ifinal=1 to fsize do
+    ch=getc(fn)
+    if ch!=fimage[ifinal] then ?9/0 end if
+    if ch!=desired[ifinal] then ?9/0 end if
+end for
+close(fn)
+printf(1,"test complete in %d iterations, %3.2f seconds\n",{loops,time()-t})
+--if getc(0) then end if

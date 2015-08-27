@@ -1,0 +1,128 @@
+--
+-- t29for.exw
+--
+-- Phix tests:
+--  This is the original design/test of "for" loops.
+--  This is not a well designed test, because if anything does go wrong 
+--  it will be hard to track down. Just don't model another test on it.
+--  There are a few hacks in here 'cos & ain't working...
+--  [update: & now works, but any forgotten hacks have not been removed]
+--
+--/**/ with console 4.0 -- Phix: make a console app when compiling.
+
+without trace
+--without warning
+without type_check
+
+--/* Not required for Phix (the string type is builtin):
+type string(object s)
+object c
+    if atom(s) then return 0 end if
+    for k = 1 to length(s) do
+        c=s[k]
+        if not integer(c) then return 0 end if
+        if c<0 then return 0 end if
+        if c>#FF then return 0 end if
+    end for
+    return 1
+end type
+--*/
+
+--include misc.e
+
+procedure test()
+--string res1, res2
+sequence res1, res2 -- A fairer test for Eu
+integer i, byamt2
+integer total,  toti
+atom t0 t0=time()
+        total=0 toti=0
+
+puts(1,"for test started\n")
+for tt=1 to 100 do
+    for initval=-10 to 10 do
+    --puts(1,"outer\n")
+        for limitval=-10 to 10 do
+            for byamt=-10 to 10 do
+--          for byamt=2 to 10 do
+--printf(1,"init %d, limit %d, by %d\n",{initval,limitval,byamt})
+                total+=1
+                --
+                -- mimic this:
+                --
+    --          res2={}
+                res2=""
+    --          if byamt then   for j=initval to limitval by byamt do res2&=j end for
+--              if byamt then   for j=initval to limitval by byamt do res2&='x' toti+=1 end for
+                if byamt then
+                        for j=initval to limitval by byamt do
+                             res2&='x'
+                             toti+=1
+                        end for
+    --          else            for j=initval to limitval          do res2&=j end for
+                else            for j=initval to limitval          do res2&='x' toti+=1 end for
+                end if
+                --
+                -- like so:
+                --
+    --          res1={}
+                res1=""
+                i=initval
+    
+                byamt2=byamt
+                if byamt=0 then
+                    byamt2=1
+                    if initval>limitval then
+                        byamt2=-1
+                    end if
+                end if
+                while 1 do
+                    if byamt<0 then
+                        if i<limitval then exit end if
+                    else
+                        if i>limitval then exit end if
+                    end if
+    --              res1&=i
+                    res1&='x'
+                    if length(res1)>25 then exit end if -- bug! 
+                    i+=byamt2
+                end while
+    
+    --DEV:
+    --          if not equal(res1,res2) then
+                if length(res1)!=length(res2) then
+    --              printf(1,": for j=%d to %d [by %d] %s %s\n",
+    --                        {initval,limitval,byamt,sprint(res1),sprint(res2)})
+                    puts(1,sprintf("FAIL %d %d %d, %d!=%d\n",
+                                    {initval,limitval,byamt,length(res1),length(res2)}))
+                    if getc(0) then end if
+                end if
+            end for
+        end for
+    --puts(1,"\n")
+    end for
+    --DEV:
+    --if total!=power(21,3) then puts(1,"incorrect loop count\n") end if    -- 9261
+    if tt=1 then
+        if total!=9261 then puts(1,"incorrect loop count\n") abort(1) end if
+        if toti!=13963 then puts(1,"incorrect loop count(2)\n") abort(1) end if
+    end if
+--  if time()-t0 > 45 then
+    if time()-t0 > 24 then
+        -- it takes about 6 minutes (372 seconds) on the hll interpreter,
+        -- which gets real tedious when you forget about the tt count.
+        -- [note hll interpreter is written for testing, not speed, and 
+        --  might have with trace and/or setc2 which will take hours...]
+        puts(1,"timed out (hll interpreter running?)\n")
+        exit
+    end if
+end for
+
+printf(1," rt:%3.2f seconds\n",{time()-t0})
+end procedure
+test()
+puts(1,"t29for.exw done\n")
+--/* Not Phix
+puts(1,"completed (it's more fun to run this under Phix!)\n")
+if getc(0) then end if
+--*/

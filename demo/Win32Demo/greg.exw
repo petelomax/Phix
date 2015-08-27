@@ -1,0 +1,64 @@
+include Win32Lib.ew
+without warning
+
+integer r_Box_onResize
+
+procedure makeEditBox(integer box, integer image, integer edit, object icon)
+    setUserProperty(box, "Image", image)
+    setUserProperty(box, "Edit", edit)
+    addStyle(box, {WS_BORDER,WS_EX_CLIENTEDGE})
+    removeStyle(edit, {WS_BORDER,WS_EX_CLIENTEDGE})
+    setWindowBackColor(image, getSysColor(COLOR_WINDOW))
+    setIcon(image, icon)
+    setHandler(box, w32HResize, r_Box_onResize)
+end procedure
+
+procedure Box_onResize(integer pSelf, integer pEvent, sequence pParams)
+
+object image, edit
+sequence rect
+
+    image = getUserProperty(pSelf, "Image")
+    edit  = getUserProperty(pSelf, "Edit")
+
+    rect = getClientRect(pSelf)
+    setRect(image[1], 0, 0, 16, rect[4], w32True)
+    setRect(edit[1], 16, 0, rect[3]-16, rect[4], w32True)
+
+end procedure
+r_Box_onResize = routine_id("Box_onResize")
+
+constant
+    Main	= create(Window, "EditText w/image", 0, Default, Default, 480, 70, 0),
+    Box 	= create(Window, "", Main, 0, 0, 0, 0, {WS_CHILD+WS_VISIBLE+WS_TABSTOP}), -- mind your styles here
+    Image	= create(Icon, "", Box, 0, 0, 0, 0, 0),
+    Edit	= create(EditText, "", Box, 0, 0, 0, 0, 0),
+    Btn 	= create(Button, "Click", Main, 0, 0, 0, 0, WS_TABSTOP)
+
+    makeEditBox(Box, Image, Edit, extractIcon({"..\\DemoResources\\pilcrow.ico", 1}))
+
+
+procedure Main_onResize(integer pSelf, integer pEvent, sequence pParams)
+
+    setRect(Box, 10, 9, {w32Edge,-100}, 22, w32True)
+    setRect(Btn, {w32AltEdge,-90}, 8, 80, 24, w32True)
+
+end procedure
+setHandler(Main, w32HResize, routine_id("Main_onResize"))
+
+procedure Box_onFocus(integer pSelf, integer pEvent, sequence pParams)
+
+    setFocus(Edit)
+
+end procedure
+setHandler(Box, w32HGotFocus, routine_id("Box_onFocus"))
+
+procedure Btn_onClick(integer pSelf, integer pEvent, sequence pParams)
+
+    VOID = message_box('"' & getText(Edit) & '"', "Text", MB_ICONINFORMATION)
+
+end procedure
+setHandler(Btn, w32HClick, routine_id("Btn_onClick"))
+
+WinMain(Main, Normal)
+

@@ -1,0 +1,114 @@
+--
+-- cbr.exw
+--
+--  The following demonstrates call by reference handling in Phix.
+--
+--   (occurs automatically for /local/ params assigned to the LHS)
+--
+
+--  DEV: more work needed. This sort of works, but recent changes
+--       have obviously mullered something: the add(add(lt)) test
+--       is clearly broken, the add(lt) is doing pointless decref
+--       testing. Plus I could probably utilise SideEffects here..
+--       But I need to press on with other stuff... (sorry)
+
+--
+--  You should see the second loop achieve about 300 times as many
+--  iterations as the first. If you run this on RDS Eu, expect very 
+--  different results, nearer 1:1.
+--
+--  Of course, the reason for the huge difference is that "t &=1" 
+--  has to leave table undamaged; if it is a shared reference to it
+--  then a copy has to be made; which turns out a bit pointless when 
+--  the calling statement is going to overwrite it anyway.
+--
+--DEV I uncommented it ...
+--  In the second/lt loop, the commented out code shows how you might
+--  explicitly "localise" a global/file-level table. Clearly if add()
+--  attempted to reference or modify the Gvar, then it could operate
+--  very differently when explicitly modified like that compared to
+--  when it is left unaltered. Conversely, there is no way add() can 
+--  get its mucky paws on "lt", so we can do what we like to that.
+--
+--  Internally, the local variable lt becomes unassigned over the 
+--  call, which avoids the copy-on-write overheads. I suppose it 
+--  could be mildly confusing at first in an ex.err, but unless you
+--  have seriously mangled the parameter, so you can no longer say
+--  what it was called with, things should still be clear enough.
+--
+--  Update: add2 and calling variations added to test for cases 
+--          when we must not perform cbr. Clearly in the last case
+--          of "lt = add2(add(lt),lt)" we cannot set lt unassigned
+--          over the add(lt) call else we will have nowt left to
+--          pass to add2, and hence "t &= 1" must still clone.
+--
+--/**/with console
+
+sequence table
+
+function add(sequence t)
+    t &= 1
+    t[1] += 1
+    return t
+end function
+
+--function add2(sequence t, sequence s)
+----    return t&length(s)
+----    t[2] = s[1]
+--  t &= s[1]
+--  t[1] += 1
+--  return t
+--end function
+
+--procedure test(integer what)
+procedure test()
+sequence lt
+--sequence t1
+atom t
+integer l1, l2
+--  table = repeat(0,5000)
+--  table = add(table)
+--  lt = repeat(0,5000)
+--  lt = add(lt)
+
+--  t = time()+what
+    t = time()+1
+--  table = {}
+    table = repeat(0,5000)
+
+    while time()<=t do
+        table = add(table)                  -- no pbr
+--      table = add(add(table))             -- no pbr
+--      table = add2(add(table),table)      -- no pbr
+    end while
+    l1 = table[1]
+
+--  t = time()+what
+    t = time()+1
+    table = repeat(0,5000)
+--  lt = repeat(0,5000)
+
+    while time()<=t do
+
+        lt = table
+        table = {}
+
+        lt = add(lt)                        -- pbr
+--      lt = add(add(lt))                   -- pbr  [oops,broken]
+--      lt = add2(add(lt),lt)               -- no pbr
+
+        table = lt
+        lt = {}
+
+    end while
+--  l2 = lt[1]
+    l2 = table[1]
+
+--  if what then
+        printf(1,"%d:%d, or 1:%3.2f\n",{l1,l2,l2/l1})
+        if getc(0) then end if
+--  end if
+end procedure
+--test(0)
+--test(1)
+test()

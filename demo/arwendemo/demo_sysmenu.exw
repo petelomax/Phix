@@ -1,0 +1,44 @@
+--
+-- demo_sysmenu.exw
+-- ================
+--
+-- Example for changing the system menu, so it can only minimize/restore the window.
+--
+
+include arwen.ew
+
+setClassDefaults(Window, {WS_SYSMENU,WS_MINIMIZEBOX}, 0)
+-- (the above removes WS_MAXIMISEBOX, not central to this demo)
+
+constant WIN   = create(Window, "Demo to modify System Menu", 0,0, 100,100,400,240, 0)
+constant CLOSE = create(Button, "Close window",            0, WIN, 150,160,100, 25, 0)
+
+procedure init()
+atom hSysMenu
+integer count
+
+    hSysMenu = c_func(xGetSystemMenu, {getWindowHwnd(WIN), False})
+    if hSysMenu then
+        count = c_func(xGetMenuItemCount, {hSysMenu})
+        if count then
+--      if 0 then -- (replace above with this if you want to check what it is normally like)
+            -- (Menu count is 1-based; MF_BY_POSITION is 0-based)
+            void = c_func(xDeleteMenu, {hSysMenu, count-1, MF_BYPOSITION})   -- Remove "Close" entry
+            void = c_func(xDeleteMenu, {hSysMenu, count-2, MF_BYPOSITION})   -- Remove seperator
+            -- Note that removing the "Close" entry also magically disables the top right "X".
+        end if
+    end if
+end procedure
+init()
+
+function handler_CLOSE(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_COMMAND
+    or (msg=WM_CHAR and wParam=VK_ESCAPE) then
+        closeWindow(WIN)
+        if id or wParam or object(lParam) then end if   -- suppress warnings
+    end if
+    return 0
+end function
+setHandler(CLOSE, routine_id("handler_CLOSE"))
+
+WinMain(WIN, SW_NORMAL)

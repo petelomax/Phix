@@ -1,0 +1,755 @@
+-- variant.ew
+-- Matt Lewis
+-- routines for dealing with variants
+--    eucom: allows euphoria programs to use COM objects
+--    Copyright (C) 2007  Matt Lewis
+--
+--    This library is free software; you can redistribute it and/or
+--    modify it under the terms of the GNU Library General Public
+--    License as published by the Free Software Foundation
+--    version 2 of the License.
+--
+--    This library is distributed in the hope that it will be useful,
+--    but WITHOUT ANY WARRANTY; without even the implied warranty of
+--    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+--    Library General Public License for more details.
+--
+--    You should have received a copy of the GNU Library General Public
+--    License along with this library; if not, write to the Free
+--    Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+object void
+--include w32support.e
+include unicode.ew as u
+include comerr.ew as err
+
+constant
+oleaut32 = open_dll( "oleaut32.dll" ),
+VariantChangeType = define_c_func( oleaut32, "VariantChangeType",
+    { C_POINTER, C_POINTER, C_USHORT, C_SHORT }, C_LONG ),
+SafeArrayCreate = define_c_func( oleaut32, "SafeArrayCreate",
+    { C_LONG, C_LONG, C_POINTER }, C_POINTER ),
+SafeArrayAccessData = define_c_func( oleaut32, "SafeArrayAccessData",
+    { C_POINTER, C_POINTER }, C_ULONG ),
+SafeArrayPutElement = define_c_func( oleaut32, "SafeArrayPutElement",
+    { C_POINTER, C_POINTER, C_POINTER }, C_ULONG ),
+SafeArrayGetUBound = define_c_func( oleaut32, "SafeArrayGetUBound",
+    { C_POINTER, C_INT, C_POINTER }, C_ULONG ),
+SafeArrayGetLBound = define_c_func( oleaut32, "SafeArrayGetLBound",
+    { C_POINTER, C_INT, C_POINTER }, C_ULONG ),
+SafeArrayGetDim = define_c_func( oleaut32, "SafeArrayGetDim",
+    { C_POINTER }, C_LONG ),
+SafeArrayGetElemsize = define_c_func( oleaut32, "SafeArrayGetElemsize",
+    { C_POINTER}, C_UINT ),
+SafeArrayGetElement = define_c_func( oleaut32, "SafeArrayGetElement",
+    { C_POINTER, C_POINTER, C_POINTER}, C_ULONG ),
+SafeArrayDestroy = define_c_func( oleaut32, "SafeArrayDestroy", 
+    {C_POINTER}, C_UINT ),
+VarDecFromR8 = define_c_func( oleaut32, "VarDecFromR8", {C_DOUBLE, C_POINTER}, C_LONG ),
+VarR8FromDecimal = define_c_func( oleaut32, "VarR8FromDec", {C_POINTER, C_POINTER}, C_LONG )
+
+integer GET_ARRAY
+
+global constant
+        VT_EMPTY        = 0,
+        VT_NULL        = 1,
+        VT_I2        = 2,
+        VT_I4        = 3,
+        VT_R4        = 4,
+        VT_R8        = 5,
+        VT_CY        = 6,
+        VT_DATE        = 7,
+        VT_BSTR        = 8,
+        VT_DISPATCH        = 9,
+        VT_ERROR        = 10,
+        VT_BOOL        = 11,
+        VT_VARIANT        = 12,
+        VT_UNKNOWN        = 13,
+        VT_DECIMAL        = 14,
+        VT_I1        = 16,
+        VT_UI1        = 17,
+        VT_UI2        = 18,
+        VT_UI4        = 19,
+        VT_I8        = 20,
+        VT_UI8        = 21,
+        VT_INT        = 22,
+        VT_UINT        = 23,
+        VT_VOID        = 24,
+        VT_HRESULT        = 25,
+        VT_PTR        = 26,
+        VT_SAFEARRAY        = 27,
+        VT_CARRAY        = 28,
+        VT_USERDEFINED        = 29,
+        VT_LPSTR        = 30,
+        VT_LPWSTR        = 31,
+        VT_RECORD        = 36,
+        VT_FILETIME        = 64,
+        VT_BLOB        = 65,
+        VT_STREAM        = 66,
+        VT_STORAGE        = 67,
+        VT_STREAMED_OBJECT        = 68,
+        VT_STORED_OBJECT        = 69,
+        VT_BLOB_OBJECT        = 70,
+        VT_CF        = 71,
+        VT_CLSID        = 72,
+        VT_BSTR_BLOB        = #FFF,
+        VT_VECTOR        = #1000,
+        VT_ARRAY        = #2000,
+        VT_BYREF        = #4000,
+        VT_RESERVED        = #8000,
+        VT_ILLEGAL        = #FFFF,
+        VT_ILLEGALMASKED        = #FFF,
+        VT_TYPEMASK        = #FFF
+
+constant
+    Align   = -17,
+    Byte    = -1,
+    Int8    = Byte,
+    Word    = -2,
+    Integer = Word,
+    Int16   = Word,
+    Long    = -3,
+    DWord   = Long,
+    Int32   = Long,
+    Lpsz    = -4,
+    Hndl    = -5,
+    HndlAddr = -6,
+    Strz    = -7,
+    UInt    = -8,
+    Ptr     = UInt,
+    ULong   = UInt,
+    Single  = -9,
+    Float   = Single,
+    Double  = -10,
+    Upsz    = -11,
+    Ustrz   = -12,
+    asBuffer= -13,
+    usBuffer= -14,
+    aszText = -16,
+    uszText = -15,
+    Point   = -18,
+    Rect    = -19,
+    ByteFill= -20,
+    AlignRel= -21
+
+constant
+vt_label = {
+        "VT_EMPTY"        ,-- 0,--
+        "VT_NULL"        ,-- 1,--
+        "VT_I2"        ,-- 2,--
+        "VT_I4"        ,-- 3,--
+        "VT_R4"        ,-- 4,--
+        "VT_R8"        ,-- 5,--
+        "VT_CY"        ,-- 6,--
+        "VT_DATE"        ,-- 7,--
+        "VT_BSTR"        ,-- 8,--
+        "VT_DISPATCH"        ,-- 9,--
+        "VT_ERROR"        ,-- 10,--
+        "VT_BOOL"        ,-- 11,--
+        "VT_VARIANT"        ,-- 12,--
+        "VT_UNKNOWN"        ,-- 13,--
+        "VT_DECIMAL"        ,-- 14,--
+        "VT_I1"        ,-- 16,--
+        "VT_UI1"        ,-- 17,--
+        "VT_UI2"        ,-- 18,--
+        "VT_UI4"        ,-- 19,--
+        "VT_I8"       ,-- 20,--
+        "VT_UI8"        ,-- 21,--
+        "VT_INT"        ,-- 22,--
+        "VT_UINT"        ,-- 23,--
+        "VT_VOID"        ,-- 24,--
+        "VT_HRESULT"        ,-- 25,--
+        "VT_PTR"        ,-- 26,--
+        "VT_SAFEARRAY"        ,-- 27,--
+        "VT_CARRAY"        ,-- 28,--
+        "VT_USERDEFINED"        ,-- 29,--
+        "VT_LPSTR"        ,-- 30,--
+        "VT_LPWSTR"        ,-- 31,--
+        "VT_RECORD"        ,-- 36,--
+        "VT_FILETIME"        ,-- 64,--
+        "VT_BLOB"        ,-- 65,--
+        "VT_STREAM"        ,-- 66,--
+        "VT_STORAGE"        ,-- 67,--
+        "VT_STREAMED_OBJECT"        ,-- 68,--
+        "VT_STORED_OBJECT"        ,-- 69,--
+        "VT_BLOB_OBJECT"        ,-- 70,--
+        "VT_CF"        ,-- 71,--
+        "VT_CLSID"        ,-- 72,--
+        "VT_BSTR_BLOB"        ,-- #FFF,--
+        "VT_VECTOR"        ,-- #1000,--
+        "VT_ARRAY"        ,-- #2000,--
+        "VT_BYREF"        ,-- #4000,--
+        "VT_RESERVED"        ,-- #8000,--
+        "VT_ILLEGAL"        ,-- #FFFF,--
+        "VT_ILLEGALMASKED"        ,-- #FFF,--
+        "VT_TYPEMASK"},        -- #FFF
+
+vt_value = {
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    36,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    #FFF,
+    #1000,
+    #2000,
+    #4000,
+    #8000,
+    #FFFF,
+    #FFF,
+    #FFF
+    },
+
+vt_sizeof = {
+
+Long,--        "VT_EMPTY"        ,-- 0,--
+Long,--        "VT_NULL"        ,-- 1,--
+Word,--        "VT_I2"        ,-- 2,--
+Long, --    "VT_I4"        ,-- 3,--
+Long, --    "VT_R4"        ,-- 4,--
+8, --    "VT_R8"        ,-- 5,--
+16, --    "VT_CY"        ,-- 6,--
+16, --    "VT_DATE"        ,-- 7,--
+UInt, --    "VT_BSTR"        ,-- 8,--
+UInt, --    "VT_DISPATCH"        ,-- 9,--
+UInt, --    "VT_ERROR"        ,-- 10,--
+Word, --    "VT_BOOL"        ,-- 11,--
+16, --    "VT_VARIANT"        ,-- 12,--
+UInt, --    "VT_UNKNOWN"        ,-- 13,--
+16, --    "VT_DECIMAL"        ,-- 14,--
+Byte, --    "VT_I1"        ,-- 16,--
+Byte, --    "VT_UI1"        ,-- 17,--
+Word, --    "VT_UI2"        ,-- 18,--
+UInt, --    "VT_UI4"        ,-- 19,--
+8, --    "VT_I8"       ,-- 20,--
+8, --    "VT_UI8"        ,-- 21,--
+Long, --    "VT_INT"        ,-- 22,--
+UInt, --    "VT_UINT"        ,-- 23,--
+Long, --    "VT_VOID"        ,-- 24,--
+UInt, --    "VT_HRESULT"        ,-- 25,--
+UInt, --    "VT_PTR"        ,-- 26,--
+UInt, --    "VT_SAFEARRAY"        ,-- 27,--
+UInt, --    "VT_CARRAY"        ,-- 28,--
+8, --    "VT_USERDEFINED"        ,-- 29,--
+Lpsz, --    "VT_LPSTR"        ,-- 30,--
+UInt, --    "VT_LPWSTR"        ,-- 31,--
+UInt, --    "VT_RECORD"        ,-- 36,--
+16, --    "VT_FILETIME"        ,-- 64,--
+UInt, --    "VT_BLOB"        ,-- 65,--
+UInt, --    "VT_STREAM"        ,-- 66,--
+UInt, --    "VT_STORAGE"        ,-- 67,--
+UInt, --    "VT_STREAMED_OBJECT"        ,-- 68,--
+UInt, --    "VT_STORED_OBJECT"        ,-- 69,--
+UInt, --    "VT_BLOB_OBJECT"        ,-- 70,--
+UInt, --    "VT_CF"        ,-- 71,--
+UInt, --    "VT_CLSID"        ,-- 72,--
+UInt, --    "VT_BSTR_BLOB"        ,-- #FFF,--
+UInt, --    "VT_VECTOR"        ,-- #1000,--
+UInt, --    "VT_ARRAY"        ,-- #2000,--
+UInt, --    "VT_BYREF"        ,-- #4000,--
+0, --    "VT_RESERVED"        ,-- #8000,--
+0, --    "VT_ILLEGAL"        ,-- #FFFF,--
+0, --    "VT_ILLEGALMASKED"        ,-- #FFF,--
+0}, --       "VT_TYPEMASK"}, --    -- #FFF
+
+struc_val = {
+    Byte    , -- -1,
+    Word    , -- -2,
+    Integer , -- Word,
+    Long    , -- -3,
+    DWord   , -- Long,
+    UInt    , -- Long,
+    Ptr     , -- Long,
+    Lpsz    , -- -4,
+    Hndl    , -- -5,
+    HndlAddr , -- -6,
+    Strz    }, -- -7
+
+struc_label = {
+    "Byte", --   = -1,
+    "Word", --   = -2,
+    "Integer", --= Word,
+    "Long", --   = -3,
+    "DWord", --  = Long,
+    "UInt", --   = Long,
+    "Ptr", --    = Long,
+    "Lpsz", --   = -4,
+    "Hndl", --   = -5,
+    "HndlAddr", --= -6,
+    "Strz"}, --   = -7
+
+c_type_val = {
+     Byte,    -- #01000001,
+     Word,    -- #01000002,
+     Long,    -- #01000004,
+     UInt,    -- #02000004,
+     4,       -- #03000004,
+     8        -- #03000008
+
+},
+
+c_type_label = {
+     "C_CHAR",    -- #01000001,
+     "C_UCHAR",   -- #02000001,
+     "C_SHORT",   -- #01000002,
+     "C_USHORT",  -- #02000002,
+     "C_INT",     -- #01000004,
+     "C_UINT",    -- #02000004,
+     "C_FLOAT",   -- #03000004,
+     "C_DOUBLE"   -- #03000008
+}
+
+
+
+--/topic Utilities
+--/proc make_variant( atom var, integer vt, atom ival )
+--/desc Format and store a value in a variant
+--Format and store a value in a variant
+--Stores a value in a variant.  A variant is a 16-byte structure, with the 
+--first DWORD being the value type identifier ('VT_..'), and the last 8
+--bytes holding the value.  This routine pokes in the correct values based
+--on the type of data for most formats.  It doesn't work with and 8-byte
+--data types other than double.
+
+global procedure make_variant( atom var, integer vt, atom ival )
+    object data
+    
+    poke4( var, vt )
+    
+    if vt = VT_R8 then
+        
+        data = atom_to_float64( ival )
+        poke( var + 8, data )
+        
+    elsif vt = VT_R4 then
+        poke( var + 8, atom_to_float32( ival ) )
+        
+    elsif vt = VT_DECIMAL then
+        void = c_func( VarDecFromR8, { ival, var } )
+        
+    else
+        poke4( var + 8, ival )
+    end if
+end procedure
+
+constant
+max_bytes = { #100/2, #10000/2 }
+function bytes_to_signed( sequence bytes )
+    integer signed, max, len
+    
+    len = length( bytes )
+    max = max_bytes[len]
+    
+    signed = 0
+    for i = 1 to len do
+        signed += bytes[i] * power(#100, (i-1))
+    end for
+    
+    if signed > max then
+        signed -= max * 2
+    end if
+    
+    return signed
+end function
+
+--/topic Utilities
+--/func get_variant( atom var )
+--/desc Retrieve the value stored in a variant
+--Retrieve the value stored in a variant
+--Converts a variant into either an atom or sequence, depending on what 
+--is contained.  /i var is a pointer to the variant.  get_variant() will
+--also convert an array (VT_ARRAY or VT_SAFEARRAY) into a sequence.
+
+global function get_variant( atom var )
+    atom vt, pval
+    object val
+    
+    pval = var + 8
+    vt = peek4u( var )
+    val = peek4u( pval )
+    
+    if find( vt, { VT_I4, VT_INT } ) then
+        val = peek4s( pval )
+    
+    elsif vt = VT_I1 then
+        return bytes_to_signed( {peek( pval )} )
+        
+    elsif find( vt, {VT_I2, VT_BOOL}) then
+        
+        return bytes_to_signed( peek( {pval, 2}))
+        
+    elsif vt = VT_BSTR then
+        val = u:peek_bstr(val)
+
+    elsif vt = VT_LPSTR then
+        val = peek_string( val )
+    
+    elsif vt = VT_LPWSTR then
+--      val = u:peek_unicode( val ) 
+        val = u:peek_unicode_string(val)
+    
+    elsif vt = VT_R4 then
+    
+        val = float32_to_atom( peek( { pval, 4 } ) )
+        
+    elsif vt = VT_R8 then
+        
+        val = float64_to_atom( peek( { pval, 8 } ) )
+
+--  elsif find( vt, { VT_CY, VT_DATE, VT_I8, VT_UI8} ) then
+--      val = peek( { val, 8 } )
+    
+    elsif find( vt, { VT_I8, VT_UI8} ) then
+        val = peek( { val, 8 } )
+    
+    elsif find( vt, { VT_CY, VT_DATE} ) then
+        val = float64_to_atom( peek( { pval, 8 } ) )
+    
+    elsif vt = VT_DECIMAL then
+        pval = allocate( 8 )
+        void = c_func( VarR8FromDecimal, { var, pval })
+        val = float64_to_atom( peek( pval & 8))
+        free( pval )
+
+    elsif and_bits(vt, VT_SAFEARRAY) = VT_SAFEARRAY 
+    or and_bits(vt,VT_ARRAY) = VT_ARRAY then
+
+        return call_func( GET_ARRAY, {val})
+    end if
+    
+    return val
+    
+end function
+
+-- return a[b...]
+global function seq_fetch(object a, sequence b)
+    
+    for i = 1 to length(b) do
+        if b[i] > length(a) then
+            return {}
+        end if
+        a = a[b[i]]
+        
+    end for
+    
+    return a
+end function
+
+function seq_store(object a, object b, object c)
+    integer len
+    
+    if atom(c) then
+        c = {c}
+    end if
+    
+    len = length(c)
+    
+    -- now it will insert a new element!
+    if c[1] = -1 or length(b) + 1 = c[1] then
+        return b & { a }
+    elsif len > 1 then
+        -- recursively go into the sequence
+        
+        b[c[1]] = seq_store(a, b[c[1]], c[2..len] )
+        return b
+    end if
+    
+    -- get the index
+    c = c[1]
+    
+    if c then
+        b[c] = a
+    else
+        b = a    
+    end if
+    
+    return b
+end function
+
+--/topic Utilities
+--/func get_array( atom psa )
+--
+--Returns the array as a sequence. /i psa should be the value of a variant 
+--of type VT_ARRAY or VT_SAFEARRAY.
+global function get_array( atom psa )
+    atom rgIndices, pv, mset, ok
+    sequence array, dim, indexu, indexl, index
+    integer ix, len
+
+--  mset = w32new_memset()
+    array = {}
+    len = c_func( SafeArrayGetDim, {psa} )
+    dim = repeat( 0, len )
+    indexu = repeat( 0, len )
+    indexl = indexu
+    index = indexu
+
+--  pv = w32acquire_mem( mset, 4 )
+    pv = allocate( 4 )
+    ok = 0
+    for i = len to 1 by -1 do
+        ok = c_func( SafeArrayGetUBound, {psa, i, pv})
+        if ok != 0 then exit end if
+
+        indexu[i] = peek4u(pv)
+
+        ok = c_func( SafeArrayGetLBound, {psa, i, pv})
+        if ok != 0 then exit end if
+
+        indexl[i] = peek4u(pv)
+        array = repeat( array, indexu[i] - indexl[i] + 1 )
+
+    end for
+    free( pv )
+    if ok != 0 then
+        err:com_error(ok)
+        return {}
+    end if
+
+    index = indexl
+    ix = len
+    rgIndices = allocate(length(dim)*4)
+    pv = allocate( 16 )
+    mem_set( pv, 0, 16 )
+    while ix do
+        poke4( rgIndices, index )
+        ok = c_func( SafeArrayGetElement, {psa, rgIndices, pv} )
+--/**/  array = seq_store( get_variant(pv), array, sq_add(index,(indexl=0)))    --/*
+        array = seq_store( get_variant(pv), array, index + (indexl=0))          --*/
+
+        index[ix] += 1
+        while index[ix] > indexu[ix] do
+            index[ix..len] = indexl[ix..len]
+            ix -= 1
+            if ix then
+                index[ix] +=1
+            end if
+            if not ix then
+                exit
+            end if
+        end while
+        if ix then
+            ix = len
+        end if
+    end while
+    free( pv )
+    free(rgIndices)
+    return array
+end function
+GET_ARRAY = routine_id("get_array")
+
+--/topic Utilities
+--/func vt_label_to_value( sequence label )
+--/desc Converts a "VT_*" string into the VT_XXXX value
+--Converts a "VT_*" string into the VT_XXXX value
+--This function was created mainly for the TBROWSE utility, to be able
+--to convert between labels and values of variable types.
+
+global function vt_label_to_value( sequence label )
+    integer ix
+    ix = find( label, vt_label )
+    if ix then
+        return vt_value[ix]
+    end if
+    return ix
+end function
+
+--/topic Utilities
+--/func vt_value_to_label( integer val )
+--/desc Converts  a VT_XXXX value into the "VT_*" string
+--Converts  a VT_XXXX value into the "VT_*" string
+--This function was created mainly for the TBROWSE utility, to be able
+--to convert between labels and values of variable types.
+
+global function vt_value_to_label( integer val )
+    val = find( val, vt_value )
+    if val then
+        return vt_label[val]
+    end if
+    return val
+end function
+
+--/topic Utilities
+--/func vt_value_to_size_label( integer val )
+--/desc Converts  a VT_XXXX value into size of the datatype
+--Converts  a VT_XXXX value into size of the datatype
+--This function was created mainly for the TBROWSE utility, to be able
+--to convert between labels and data types and sizes of variable types.
+--The return value is a string corresponding to the names of datatypes
+--found in tk_mem.e.
+
+global function vt_value_to_size_label( integer val )
+    val = find( val, vt_value )
+    if val then
+        val = vt_sizeof[val]
+        val = find( val, struc_val )
+        if val then
+            return struc_label[val]
+        end if
+    end if
+    return "0"
+end function
+
+--/topic Utilities
+--/func vt_value_to_size_value( integer val )
+--/desc Converts  a VT_XXXX value into size of the datatype
+--Converts  a VT_XXXX value into size of the datatype
+--This function was created mainly for the TBROWSE utility, to be able
+--to convert between labels and data types and sizes of variable types.
+--The return value is the size of the datatype in bytes.
+
+global function vt_value_to_size_value( integer val )
+    val = find( val, vt_value )
+    if val then
+        val = vt_sizeof[val]
+        return find(val, struc_val)
+    end if
+    return 0
+end function
+
+--/topic Utilities
+--/func vt_value_to_c_type integer val )
+--/desc Converts a VT_XXXX value into a C-style datatype name
+--Converts a VT_XXXX value into a C-style datatype name
+--This function was created mainly for the TBROWSE utility, to be able
+--to convert between labels and data types and sizes of variable types.
+--The return value is a C-style datatype.
+
+global function vt_to_c_type( integer vt )
+    vt = vt_value_to_size_value( vt )
+    if vt then
+        vt = find( vt, c_type_val )
+        if vt then
+            return c_type_label[vt]
+        end if
+    end if
+    return "UNKNOWN_VARIABLE_TYPE"
+end function
+
+--/topic Utilities
+--/func create_safearray( sequence array, integer vt )
+--
+--Create an array that can be passed to a COM object.  The sequence /b array
+--contains the data to be put into the array.  It may have an arbitrary number
+--of dimensions.  The number of dimensions will be determined by create_safearray()
+--by examining the first element.
+--<ul>
+--/li /b array contains the data to be put into the array
+--/li /b vt is the variant data type for each variant element (i.e., VT_I4).
+--If vt is one of VT_VARIANT, VT_DISPATCH, VT_UNKNOWN, then variants will not be 
+--created by create_safearray().  In the case of VT_VARIANT, you must have already
+--converted all the elements to variants (this is the way to create an array of
+--varied data types).
+--</ul>
+global function create_safearray( sequence array, integer vt )
+    sequence bounds, index
+    object test
+    integer dim, var, ix
+    atom bounds_ptr, array_ptr, variant, pv
+    
+    test = array
+    bounds = {}
+    while sequence( test ) do
+        bounds &= length( test )
+        test = test[1]
+    end while
+    
+    dim = length(bounds)
+    bounds_ptr = allocate( 8 * dim )
+    for i = 1 to dim do
+        poke4( bounds_ptr +  8 * (i-1), { bounds[i], 1 })
+    end for
+    
+    array_ptr = c_func( SafeArrayCreate, { VT_VARIANT, length(bounds), bounds_ptr } )
+
+    
+    if array_ptr = 0 then
+        free( bounds_ptr )
+        return 0
+    end if
+    
+    if find( vt, {VT_DISPATCH, VT_UNKNOWN, 0}) then
+        var = 0
+    else
+        var = 1
+    end if
+
+    index = repeat( 1, dim )
+    poke4( bounds_ptr, repeat( 1, dim ) )
+    ix = dim
+    variant = allocate( 16 )
+    mem_set( variant, 0, 16 )
+    while ix do
+        poke4( bounds_ptr, index )
+        pv = seq_fetch( array, index )
+        if var then
+            make_variant( variant, vt, pv )
+            pv = variant
+        end if
+
+        void = c_func( SafeArrayPutElement, {array_ptr, bounds_ptr, pv})
+        
+        index[ix] += 1
+        while index[ix] > bounds[ix] do
+            index[ix..dim] = 1
+            ix -= 1
+            if ix then
+                index[ix] +=1
+            end if
+            if not ix then
+                exit
+            end if
+        end while
+        if ix then
+            ix = dim
+        end if
+    end while
+    free( variant )
+    free( bounds_ptr )
+    return array_ptr
+end function
+
+--/topic Utilities
+--/func destroy_safearray( atom array )
+--
+global function destroy_safearray( atom array )
+    return c_func( SafeArrayDestroy, {array})
+end function
+
+

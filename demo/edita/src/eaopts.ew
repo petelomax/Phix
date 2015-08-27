@@ -1,0 +1,518 @@
+--
+-- eaopts.ew
+--
+-- Edita Display Options and Edit Options windows
+--
+-- All options apply instantly. There is no 'Cancel' facility.
+-- The only code of note is that which colours the labels red when the 
+-- corresponding edit box contains an invalid value. See eg ltwidColour
+
+-- The first half of this file covers the Display Options window:
+
+--/* 4.0.2
+include builtins\file.e
+--*/
+
+integer dopts,showpth,tabbar,mltabs,rrtabs,sdtb,tabos,tabod,tabcl,toolbar,hsb,vsb,psb,sbar,lnos,pfm,sam,dOK
+
+integer dInit
+        dInit=0     -- set to 1 when the dopts window has been created
+
+global procedure toggleMultiLineTabs(integer refocus)
+atom tcStyle
+integer l
+    if isTabBarVIS then
+        tcStyle=c_func(xGetWindowLong, {TChwnd, GWL_STYLE})
+        tcStyle=xor_bits(tcStyle,TCS_MULTILINE)
+        void = c_func(xSetWindowLong, {TChwnd, GWL_STYLE, tcStyle } )
+        resizeClientArea(refocus)
+        if refocus then
+            if not isMultiLineTab then
+                isMultiLineTab = True
+            else
+                isMultiLineTab = False
+                l = length(tabs)
+                if l>1 then
+                    if currfile=l then
+                        setFocus(tabs[l-1])
+                    else
+                        l = currfile
+                        setFocus(tabs[l+1])
+                    end if
+                    setFocus(tabs[l])
+                end if
+            end if
+        end if
+    end if
+end procedure
+
+without trace
+function dHandler(integer id, integer msg, atom wParam, object lParam)
+atom tcStyle
+    if object(lParam) then end if   -- suppress warnings
+    if  msg = WM_CLOSE
+    or (msg = WM_CHAR and find(wParam,{VK_RETURN,VK_ESCAPE}))
+    or (id = dOK and msg=WM_COMMAND) then
+        removeFocus(dopts)
+        setVisible(dopts,False)
+        setFocus(Main)
+    elsif msg = WM_COMMAND then
+        if id = showpth then    -- show full path in title bar
+            isShowFullPath = isChecked(showpth)
+            setMainText()
+        elsif id = toolbar then -- display tool bar
+            isToolBarVIS = isChecked(toolbar)
+            toggleToolBar(0)
+        elsif id = tabbar then  -- display tab bar
+            isTabBarVIS = isChecked(tabbar)
+            if isTabBarVIS then
+                tabs=repeat(0,length(filenames))
+                lastTabDir=""
+                call_proc(rRebuildTabBar,{})
+            else
+                for i=1 to length(filenames) do
+                    if tabs[i] then
+                        void = destroy(tabs[i])
+                    end if
+                end for
+                tabs={}
+            end if
+            resizeClientArea(0)
+--  void = postMessage(Main, WM_KILLFOCUS, 0,0) -- destroy caret
+            setEnable({mltabs,rrtabs,sdtb,tabos,tabod,tabcl},isTabBarVIS)
+            setEnable(rrtabs,isTabBarVIS and isMultiLineTab)
+        elsif id = mltabs then  -- multi line tab bar
+            isMultiLineTab = isChecked(mltabs)
+            toggleMultiLineTabs(0)
+            setEnable(rrtabs,isMultiLineTab)
+        elsif id = rrtabs then  -- ragged right tabs
+            isRaggedRight = isChecked(mltabs)
+            tcStyle=c_func(xGetWindowLong, {TChwnd, GWL_STYLE})
+            tcStyle=xor_bits(tcStyle,TCS_RAGGEDRIGHT)
+            void = c_func(xSetWindowLong, {TChwnd, GWL_STYLE, tcStyle } )
+            resizeClientArea(0)
+        elsif id = sdtb then    -- single dir tab bar
+            isSingleDir = isChecked(sdtb)
+            call_proc(rRebuildTabBar,{})
+        elsif id = tabos then
+            isTabottom = isChecked(tabos)
+            tcStyle=c_func(xGetWindowLong, {TChwnd, GWL_STYLE})
+            tcStyle=xor_bits(tcStyle,TCS_BOTTOM)
+            void = c_func(xSetWindowLong, {TChwnd, GWL_STYLE, tcStyle } )
+            resizeClientArea(0)
+        elsif id = tabod then
+            isTabsOwnerDrawn = isChecked(tabod)
+            for i=1 to length(filenames) do
+                if tabs[i] then
+                    void = destroy(tabs[i])
+                end if
+            end for
+            createTC(1) -- in eaini.e
+            tabs=repeat(0,length(filenames))
+            lastTabDir=""
+            call_proc(rRebuildTabBar,{})
+            resizeClientArea(0)
+            softSetFocus(Main)
+        elsif id = tabcl then
+            isCloseLeft = isChecked(tabcl)
+        elsif id = hsb then     -- horizontal scroll bar
+            isHScrollVIS = isChecked(hsb)
+            setEnable(psb,isHScrollVIS or isVScrollVIS)
+            resizeClientArea(0)
+        elsif id = vsb then     -- vertical scroll bar
+            isVScrollVIS = isChecked(vsb)
+            setEnable(psb,isHScrollVIS or isVScrollVIS)
+            resizeClientArea(0)
+        elsif id = psb then     -- permanent scroll bars
+            isScrollPerm = isChecked(psb)
+            resizeClientArea(0)
+        elsif id = sbar then    -- status bar
+            isStatusBar = isChecked(sbar)
+            setVisible(SB,isStatusBar)
+        elsif id = lnos then    -- line numbers
+            isLineNumbers = isChecked(lnos)
+            setEnable(pfm,not isLineNumbers)
+--          marginRqd = isLineNumbers or isFoldMarginPerm or length(bookmarks[currfile])
+            setMarginRqd()
+            paintall()
+        elsif id = pfm then     -- permanent fold margin
+            isFoldMarginPerm = isChecked(pfm)
+            if currfile then
+--              if length(bookmarks[currfile]) then
+--                  if not marginRqd then
+--                      marginRqd=1 -- reset properly in IdleHandler().
+--                      paintall()
+--                  end if
+--              else
+--                  msg = isLineNumbers or isFoldMarginPerm or length(bookmarks[currfile])
+--                  if (marginRqd and not msg)
+--                  or (not marginRqd and msg) then
+--                      marginRqd=msg
+--                      paintall()
+--                  end if
+--              end if
+                setMarginRqd()
+            end if
+        elsif id = sam then -- space after margin
+            isMarginSpace = isChecked(sam)
+            paintall()
+        end if
+    end if
+    return 0
+end function
+
+procedure DisplayOptions()
+    if not dInit then
+        dopts   = create(Window,  xl("Display Options"),            0,Main, 272,114,405,495,0)
+        showpth = create(CheckBox,xl("Show full path in title bar"),0,dopts, 15, 15,200, 20,0)
+        toolbar = create(CheckBox,xl("Tool Bar"),                   0,dopts, 15, 40,200, 20,0)
+        tabbar  = create(CheckBox,xl("Tab Bar"),                    0,dopts, 15, 65,200, 20,0)
+        mltabs  = create(CheckBox,xl("Multiline Tabs"),             0,dopts, 30, 90,200, 20,0)
+        rrtabs  = create(CheckBox,xl("Ragged Right Tabs"),          0,dopts, 30,115,200, 20,0)
+        sdtb    = create(CheckBox,xl("Single Dir Tab Bar"),         0,dopts, 30,140,200, 20,0)
+        tabos   = create(CheckBox,xl("Tabs at Bottom of Screen"),   0,dopts, 30,165,200, 20,0)
+        tabod   = create(CheckBox,xl("Owner Drawn Tabs"),           0,dopts, 30,190,200, 20,0)
+        tabcl   = create(CheckBox,xl("Close Left"),                 0,dopts, 30,215,200, 20,0)
+        hsb     = create(CheckBox,xl("Horizontal Scroll Bar"),      0,dopts, 15,240,200, 20,0)
+        vsb     = create(CheckBox,xl("Vertical Scroll Bar"),        0,dopts, 15,265,200, 20,0)
+        psb     = create(CheckBox,xl("Permanent Scroll Bars"),      0,dopts, 15,290,200, 20,0)
+        sbar    = create(CheckBox,xl("Status Bar"),                 0,dopts, 15,315,200, 20,0)
+        lnos    = create(CheckBox,xl("Line Numbers"),               0,dopts, 15,340,200, 20,0)
+        pfm     = create(CheckBox,xl("Permanent Fold Margin"),      0,dopts, 15,365,200, 20,0)
+        sam     = create(CheckBox,xl("Space after margin"),         0,dopts, 15,390,200, 20,0)
+        dOK     = create(Button,  xl("OK"),                         0,dopts,156,415, 75, 30,0)
+        setCheck(showpth,isShowFullPath)
+        setCheck(toolbar,isToolBarVIS)
+        setCheck(tabbar,isTabBarVIS)
+        setEnable(rrtabs,isTabBarVIS and isMultiLineTab)
+        setCheck(rrtabs,isRaggedRight)
+        setCheck(sdtb,isSingleDir)
+        setCheck(tabos,isTabottom)
+        setCheck(tabod,isTabsOwnerDrawn)
+        setCheck(tabcl,isCloseLeft)
+        setCheck(hsb,isHScrollVIS)
+        setCheck(vsb,isVScrollVIS)
+        setCheck(psb,isScrollPerm)
+        setEnable(psb,isHScrollVIS or isVScrollVIS)
+        setCheck(sbar,isStatusBar)
+        setCheck(pfm,isFoldMarginPerm)
+        setCheck(sam,isMarginSpace)
+        setHandler({dopts,showpth,tabbar,mltabs,rrtabs,sdtb,tabos,tabod,
+                    tabcl,toolbar,hsb,vsb,psb,sbar,lnos,pfm,sam,dOK},
+                    routine_id("dHandler"))
+        dInit = 1
+    end if
+    setCheck(mltabs,isMultiLineTab)
+    setCheck(lnos,isLineNumbers)
+    setEnable(pfm,not isLineNumbers)
+    addFocus(dopts)
+    openWindow(dopts,SW_NORMAL)
+    setFocus(dOK)
+end procedure
+global constant r_DisplayOptions=routine_id("DisplayOptions")
+
+-- The second half of this file covers the Edit Options window:
+
+integer eopts,rtws,ltch,ltchh,ltchd,ltcod,sinst,rfon,asox,asots,leoe,rfmterr,aback,mcos,htfnb,
+        ltwid,twid,lcbtime,cbtime,lmws,mws,lruf,ruf,lrufs,lase,ase,lases,
+        lrbf,rbf,lrbfd,lcoso,coup,codown,cofile,copage,copste,codup,cohome,eOK
+
+integer ltwidColour,ltcodColour,lcbtimeColour,
+        lmwsColour,lrufColour,laseColour,lrbfColour
+
+integer eInit
+        eInit=0     -- set to 1 when the eopts window has been created
+
+function getInteger(sequence numstr)
+--
+-- Return the (positive) integer value of a string.
+-- "" is treated as 0. {} is returned on error.
+--
+atom n
+integer ch
+    n=0
+    for i=1 to length(numstr) do
+        ch=numstr[i]-'0'
+        if ch<0 or ch>9 then return {} end if
+        n=n*10+ch
+        if not integer(n) then return {} end if
+    end for
+    return n
+end function
+
+without trace
+--with trace
+function eHandler(integer id, integer msg, atom wParam, object lParam)
+object c
+atom hDC
+    if msg = WM_COMMAND and id = ltchh then
+        void=openFile(initialcurrentdir&"ltchelp.txt",1,0)
+        msg = WM_CLOSE
+    end if
+    if  msg = WM_CLOSE
+    or (msg = WM_CHAR and find(wParam,{VK_RETURN,VK_ESCAPE}))
+    or (id = eOK and msg=WM_COMMAND) then
+        removeFocus(eopts)
+        setVisible(eopts,False)
+        setFocus(Main)
+    elsif msg = WM_COMMAND then
+        if id = rtws then                           -- replace tabs with spaces
+            isReplaceTabs = isChecked(rtws)
+        elsif id = ltch then                        -- legacy tab char handling
+            isLegacyTabHandling = isChecked(ltch)
+            setEnable(ltcod,isLegacyTabHandling)
+        elsif id = ltcod then
+            if validCOD(getText(ltcod)) then
+                ltcodColour=Black
+            else
+                ltcodColour = BrightRed
+            end if
+            repaintWindow(ltchd,False)
+        elsif id = sinst then                       -- single instance
+            isSingleInstance = isChecked(sinst)
+        elsif id = rfon then                        -- restore files on open
+            isRestoreOnOpen = isChecked(rfon)
+        elsif id = asox then                        -- autosave on exit
+            isAutoSaveOnExit = isChecked(asox)
+        elsif id = asots then                       -- autosave on tab switch
+            isAutoSaveOnTabSwitch = isChecked(asots)
+        elsif id = leoe then                        -- load ex.err on error
+            isLoadErrFileOnError = isChecked(leoe)
+        elsif id = rfmterr then                     -- reformat ex.err
+            isFormatErr = isChecked(rfmterr)
+            toggleErrFormat()
+        elsif id = aback then                       -- automatic backups
+            isAutoBackup = isChecked(aback)
+            setEnable(rbf,isAutoBackup)
+        elsif id = mcos then                        -- move cursor on scroll
+            isMoveCursorOnScroll = isChecked(mcos)
+        elsif id = htfnb then                       -- home to first non-blank
+            isHomeFirstNonBlank = isChecked(htfnb)
+
+        elsif id = twid then                        -- tab width 1..8
+            c = getInteger(getText(twid))
+            if integer(c) and c>=1 and c<=8 then
+                isTabWidth = c
+                initT()
+--              setTextColour(ltwid,Black)
+                ltwidColour=Black
+                paintall()
+            else
+--              void = messageBox("invalid","tab width must be 1..8",0)
+--              setTextColour(ltwid,BrightRed)
+                ltwidColour = BrightRed
+            end if
+            repaintWindow(ltwid,False)
+
+        elsif id = cbtime then                      -- caret blink time
+            c = getInteger(getText(cbtime))
+            if integer(c) and c>=0 then
+                isCaretBlinkTime = c
+                lcbtimeColour = Black
+                --DEV according to M$, should reset this when giving up caret...
+                void = c_func(xSetCaretBlinkTime,{isCaretBlinkTime})
+            else
+                lcbtimeColour = BrightRed
+            end if
+            repaintWindow(lcbtime,False)
+
+        elsif id = mws then                         -- mouse wheel scroll multiplier
+            c = getInteger(getText(mws))
+            if integer(c) and c>=1 then
+                mouseWheelScroll = c
+                lmwsColour = Black
+            else
+                lmwsColour = BrightRed
+            end if
+            repaintWindow(lmws,False)
+
+        elsif id = ruf then                         -- retain undo for nn seconds
+            c = getInteger(getText(ruf))
+            if integer(c) and c>=1 then
+                isUndoTime = c
+                lrufColour = Black
+            else
+                lrufColour = BrightRed
+            end if
+            repaintWindow(lruf,False)
+
+        elsif id = ase then                         -- autosave every nn seconds
+            c = getInteger(getText(ase))
+            if integer(c) and c>=0 then
+                isAutoSaveTimer = c
+                stopTimer(AutoSaveTimer)
+                if isAutoSaveTimer then
+                    startTimer(AutoSaveTimer,Main,isAutoSaveTimer*1000)
+                end if
+                laseColour = Black
+            else
+                laseColour = BrightRed
+            end if
+            repaintWindow(lase,False)
+
+        elsif id = rbf then                         -- retain backups for nn days
+            c = getInteger(getText(rbf))
+            if integer(c) and c>=0 and c<=90 then
+                isRetainBackupsFor = c
+                lrbfColour = Black
+            else
+                lrbfColour = BrightRed
+            end if
+            repaintWindow(lrbf,False)
+
+        else                                        -- any of the clear overstrike flags
+            isClearOverStrike = isChecked(coup)  *cOVRup
+                              + isChecked(codown)*cOVRdown
+                              + isChecked(cofile)*cOVRfile
+                              + isChecked(copage)*cOVRpage
+                              + isChecked(copste)*cOVRpaste
+                              + isChecked(codup) *cOVRdupline
+                              + isChecked(cohome)*cOVRhome
+        end if
+    elsif msg = WM_DRAWITEM then    -- SS_OWNERDRAW items which have NOT been setTextColour'd.
+                                    -- (ltwid,ltchd,lcbtime,lmws,lruf,lase, and lrbf)
+        hDC = peek4u(lParam + DIS_hDC)
+--      void = c_func(xSetTextColor, {hDC,  getTextColour(id)} )
+        id = peek4u(lParam + DIS_CtlID)
+        if not id then
+            id = c_func(xGetWindowLong, { peek4u(lParam + DIS_hwndItem), GWL_USERDATA }) --getID
+        end if
+        --DEV use an array of colours/ids?
+        if id = ltwid then
+            c = ltwidColour
+        elsif id = ltchd then
+            c = ltcodColour
+        elsif id = lcbtime then
+            c = lcbtimeColour
+        elsif id = lmws then
+            c = lmwsColour
+        elsif id = lruf then
+            c = lrufColour
+        elsif id = lase then
+            c = laseColour
+        elsif id = lrbf then
+            c = lrbfColour
+        else ?9/0
+        end if
+        void = c_func(xSetTextColor, {hDC,  c} )
+        c_proc(xDrawText, {hDC, allocate_StringZ( getText(id) ), -1, lParam + DIS_rcItem, DT_RIGHT} )
+    end if
+    return 0
+end function
+constant r_eHandler=routine_id("eHandler")
+
+global procedure EditOptions()
+    if not eInit then
+        eopts   = create(Window,  xl("Edit Options"),                0,Main,131,49,620,440,0)
+        rtws    = create(CheckBox,xl("Replace tabs with spaces"),    0,eopts, 20, 20,200,20,0)
+--      lat8    = create(CheckBox,xl("Load files as tab 8"),         0,eopts, 20, 45,200,20,0)
+        ltch    = create(CheckBox,xl("Legacy Tab Char Handling"),    0,eopts, 20, 45,200,20,0)
+      if not atom(dir(initialcurrentdir&"ltchelp.txt")) then
+        ltchh   = create(Button,  xl("Help"),                        0,eopts,220, 45, 45,20,0)
+        --DEV 1/9 avoid unassigned var on the setHandler call ~89 lines below:
+        setHandler(ltchh,r_eHandler)
+      else
+        ltchh   = -1    -- 1/9 avoid unassigned at top of eHandler!
+        eInit=1
+      end if
+        sinst   = create(CheckBox,xl("Single Instance"),             0,eopts, 20, 70,200,20,0)
+        rfon    = create(CheckBox,xl("Restore files on open"),       0,eopts, 20, 95,200,20,0)
+        asox    = create(CheckBox,xl("Autosave files on exit"),      0,eopts, 20,120,200,20,0)
+        asots   = create(CheckBox,xl("Autosave files on tab switch"),0,eopts, 20,145,200,20,0)
+        aback   = create(CheckBox,xl("Create backups automatically"),0,eopts, 20,170,200,20,0)
+        leoe    = create(CheckBox,xl("Load ex.err on error"),        0,eopts, 20,195,200,20,0)
+        rfmterr = create(CheckBox,xl("Reformat ex.err"),             0,eopts, 20,220,200,20,0)
+        mcos    = create(CheckBox,xl("Move cursor on scroll"),       0,eopts, 20,245,200,20,0)
+        htfnb   = create(CheckBox,xl("Home to first non-blank"),     0,eopts, 20,270,200,20,0)
+
+        ltwid   = create(Label,   xl("Tab width"),                   0,eopts,310, 20,145,20,SS_OWNERDRAW)
+        twid    = create(EditText,   "",                             0,eopts,460, 17, 28,22,ES_NUMBER)
+        ltchd   = create(Label,   xl("Cut-off Date"),                0,eopts,310, 45,145,20,SS_OWNERDRAW)
+        ltcod   = create(EditText,   "",                             0,eopts,460, 42,128,22,0)
+        lcbtime = create(Label,   xl("Caret blink time"),            0,eopts,310, 70,145,20,SS_OWNERDRAW)
+        cbtime  = create(EditText,xl(""),                            0,eopts,460, 67, 39,22,ES_NUMBER)
+        lmws    = create(Label,   xl("Mousewheel scroll"),           0,eopts,310, 95,145,20,SS_OWNERDRAW)
+        mws     = create(EditText,   "",                             0,eopts,460, 92, 29,22,ES_NUMBER)
+        lruf    = create(Label,   xl("Retain undo for"),             0,eopts,310,120,145,20,SS_OWNERDRAW)
+        ruf     = create(EditText,   "",                             0,eopts,460,117, 46,22,ES_NUMBER)
+        lrufs   = create(Label,   xl("seconds"),                     0,eopts,510,120,119,20,0)
+        lase    = create(Label,   xl("Autosave every"),              0,eopts,310,145,145,20,SS_OWNERDRAW)
+        ase     = create(EditText,   "",                             0,eopts,460,142, 46,22,ES_NUMBER)
+        lases   = create(Label,   xl("seconds"),                     0,eopts,510,145,119,20,0)
+        lrbf    = create(Label,   xl("Retain backups for"),          0,eopts,310,170,145,20,SS_OWNERDRAW)
+        rbf     = create(EditText,   "",                             0,eopts,460,167, 46,22,ES_NUMBER)
+        lrbfd   = create(Label,   xl("days"),                        0,eopts,510,170,119,20,0)
+
+        lcoso   = create(Label,   xl("Clear overstrike on:"),        0,eopts,310,200,180,20,0)
+        coup    = create(CheckBox,xl("up"),                          0,eopts,335,220, 85,20,0)
+        codown  = create(CheckBox,xl("down"),                        0,eopts,335,240, 85,20,0)
+        cofile  = create(CheckBox,xl("file"),                        0,eopts,335,260, 85,20,0)
+        copage  = create(CheckBox,xl("page"),                        0,eopts,335,280, 85,20,0)
+        copste  = create(CheckBox,xl("paste"),                       0,eopts,425,220, 85,20,0)
+        codup   = create(CheckBox,xl("dup line"),                    0,eopts,425,240, 85,20,0)
+        cohome  = create(CheckBox,xl("home"),                        0,eopts,425,260, 85,20,0)
+        eOK     = create(Button,  xl("OK"),                          0,eopts,250,355, 75,30,0)
+
+        setCheck(rtws,isReplaceTabs)
+        setCheck(ltch,isLegacyTabHandling)
+        setEnable(ltcod,isLegacyTabHandling)
+        setCheck(sinst,isSingleInstance)
+        setCheck(rfon,isRestoreOnOpen)
+        setCheck(asox,isAutoSaveOnExit)
+        setCheck(asots,isAutoSaveOnTabSwitch)
+        setCheck(leoe,isLoadErrFileOnError)
+        setCheck(aback,isAutoBackup)
+        setCheck(mcos,isMoveCursorOnScroll)
+        setCheck(htfnb,isHomeFirstNonBlank)
+
+        setText(twid,sprintf("%d",isTabWidth))
+--      setTextColour(ltwid,Black)
+        ltwidColour = Black
+        ltcodColour = Black
+        if atom(isLegacyTcod) then
+            isLegacyTcod = date()
+--          isLegacyTcod[1]+=1900
+            isLegacyTcod[1]=isLegacyTcod[1]+1900
+            isLegacyTcod=isLegacyTcod[1..6]
+        else
+            eInit = 1
+        end if
+        setText(ltcod,sprintf("%04d/%02d/%02d %02d:%02d:%02d",isLegacyTcod))
+        setText(cbtime,sprintf("%d",isCaretBlinkTime))
+        lcbtimeColour = Black
+        setText(mws,sprintf("%d",mouseWheelScroll))
+        lmwsColour = Black
+        setText(ruf,sprintf("%d",isUndoTime))
+        lrufColour = Black
+        setText(ase,sprintf("%d",isAutoSaveTimer))
+        laseColour = Black
+        setText(rbf,sprintf("%d",isRetainBackupsFor))
+        lrbfColour = Black
+        setEnable(rbf,isAutoBackup)
+
+
+        setCheck(coup,  and_bits(isClearOverStrike,cOVRup)!=0)
+        setCheck(codown,and_bits(isClearOverStrike,cOVRdown)!=0)
+        setCheck(cofile,and_bits(isClearOverStrike,cOVRfile)!=0)
+        setCheck(copage,and_bits(isClearOverStrike,cOVRpage)!=0)
+        setCheck(copste,and_bits(isClearOverStrike,cOVRpaste)!=0)
+        setCheck(codup, and_bits(isClearOverStrike,cOVRdupline)!=0)
+        setCheck(cohome,and_bits(isClearOverStrike,cOVRhome)!=0)
+
+        setHandler({eopts,rtws,ltch,ltchd,ltcod,ltwid,twid,rfon,asox,asots,
+                    leoe,rfmterr,sinst,cbtime,lmws,mws,mcos,
+                    htfnb,lruf,ruf,lrufs,aback,lcoso,coup,codown,cofile,copage,
+                    copste,codup,cohome,eOK},
+                    r_eHandler)
+--      eInit = 1
+    end if
+    setCheck(rfmterr,isFormatErr) -- since this is also on the Options menu
+    addFocus(eopts)
+    openWindow(eopts,SW_NORMAL)
+    if not eInit then
+        doEvents(0)
+        void=openFile(initialcurrentdir&"ltchelp.txt",1,0)
+        eInit = 1
+    end if
+end procedure
+global constant r_EditOptions=routine_id("EditOptions")

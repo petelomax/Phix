@@ -1,0 +1,406 @@
+--
+-- boids3d.exw
+-- ===========
+--
+-- Ported from win32lib to arwen, Pete Lomax July 2014
+-- Added resizing.
+--
+-- This is one of the "cool" demos.
+--
+include arwen.ew
+include axtra.ew
+include boids3d.e
+
+constant wstyle = or_all({WS_BORDER,
+                          WS_DLGFRAME,
+                          WS_SYSMENU,
+                          WS_MINIMIZEBOX,
+                          WS_MAXIMIZEBOX}),
+         win = create(Window, "Boids 3D on Arwen", 0, 0, 20, 20, 625, 690, wstyle),
+         winDC = getPrivateDC(win),
+         backDC = c_func(xCreateCompatibleDC, {NULL}),  -- the background
+         viewDC = c_func(xCreateCompatibleDC, {NULL}),  -- with boids etc
+
+         restart = create(Button, "Restart", 0, win, 10, 625, 70, 25, 0),
+         restartHwnd = getHwnd(restart),
+
+         speed_label = create(Label, "Max Speed", 0, win, 90, 610, 70, 15, 0),
+         speed_labelHwnd = getHwnd(speed_label),
+         max_speed = create(EditText, "15", 0, win, 90, 625, 60, 25, ES_NUMBER),
+         max_speedHwnd = getHwnd(max_speed),
+         ud_style = or_all({UDS_AUTOBUDDY,UDS_ALIGNRIGHT,UDS_SETBUDDYINT,UDS_ARROWKEYS}),
+         max_ud = create(UpDown, "", 0, win, 0, 0, 0, 0, ud_style),
+         max_udHwnd = getHwnd(max_ud),
+
+         dist_label = create(Label, "Separation", 0, win, 155, 610, 60, 15, 0),
+         dist_labelHwnd = getHwnd(dist_label),
+         dist_edit = create(EditText, "30", 0, win, 155, 625, 60, 25, ES_NUMBER),
+         dist_editHwnd = getHwnd(dist_edit),
+         dist_ud = create(UpDown, "", 0, win, 0, 0, 0, 0, ud_style),
+         dist_udHwnd = getHwnd(dist_ud),
+
+         nd_label = create(Label, "Neighbor Radius", 0, win, 220, 610, 80, 15, 0),
+         nd_labelHwnd = getHwnd(nd_label),
+         n_dist = create(EditText, "100", 0, win, 220, 625, 80, 25, ES_NUMBER),
+         n_distHwnd = getHwnd(n_dist),
+         n_ud = create(UpDown, "", 0, win, 0, 0, 0, 0, ud_style),
+         n_udHwnd = getHwnd(n_ud),
+
+         boids_label = create(Label, "Boids", 0, win, 305, 610, 60, 15, 0),
+         boids_labelHwnd = getHwnd(boids_label),
+         nboids = create(EditText, "100", 0, win, 305, 625, 60, 25, ES_NUMBER),
+         nboidsHwnd = getHwnd(nboids),
+         boids_ud = create(UpDown, "", 0, win, 0, 0, 0, 0, ud_style),
+         boids_udHwnd = getHwnd(boids_ud),
+
+         shadow_check = create(CheckBox, "Draw Shadows", 0, win, 376, 626, 90, 25, 0),
+         shadow_checkHwnd = getHwnd(shadow_check)
+
+constant MainTimer = createTimer()
+
+integer ox,oy,oz
+procedure set_observer()
+    {ox,oy,oz} = {floor(X_MAX/2),floor(Y_MAX/2),Z_MAX*2}
+end procedure
+set_observer()
+
+sequence colors = {}
+
+integer draw_shadows
+
+integer dx = 0, dy = 0, dw = 0, dh = 0
+
+function project_point(sequence pt)
+atom d
+atom px,py,pz
+
+    {px,py,pz} = pt
+    if pz=oz then
+        d = 0.0001
+    else
+        d =  1-pz/(pz-oz)
+    end if
+
+    px = floor(ox+(ox-px)/d)
+    py = floor(oy+(oy-py)/d)
+
+    return {px,py}
+end function
+
+integer bmX = 0, bmY = 0
+atom bmWorld, bmView
+
+procedure project_world2(integer w, integer h)
+atom hBitMap
+integer N, x, y, z
+atom x1, y1, z1,
+     x2, y2, z2
+
+    if w>bmX or h>bmY then
+        bmWorld = c_func(xCreateCompatibleBitmap, {winDC, w, h})
+        hBitMap = selectObject(backDC,bmWorld)
+        if hBitMap!=NULL then
+            void = deleteObject(hBitMap)
+        end if
+        bmView = c_func(xCreateCompatibleBitmap, {winDC, w, h})
+        hBitMap = selectObject(viewDC,bmView)
+        if hBitMap!=NULL then
+            void = deleteObject(hBitMap)
+        end if
+        {bmX,bmY} = {w,h}
+    end if
+
+    -- clear the background
+    setPenColor(White)
+    drawRectangleh(backDC, True, 0, 0, w, h)
+
+    -- draw an outer box
+    setPenColor(#909090)
+    drawRectangleh(backDC, False, 0, 0, w, h)
+
+    {x1,y1,z1} = {X_MIN,  0.0,Z_MIN}
+    {x2,y2,z2} = {X_MAX,Y_MAX,Z_MAX}
+
+    -- draw the verticals on the sides and horizontals on the floor and ceiling
+    N = floor((z2-z1)/100)
+    if N<3 then N = 3 end if
+    for i=1 to N-1 do
+        z = z1+floor((i/N)*(z2-z1))
+        drawLinesh(backDC, {#808080,
+                            project_point({x2, y2, z}) & project_point({x2, y1, z}),
+                            project_point({x1, y1, z}),
+                            project_point({x1, y2, z}),
+                            #FFFFFF,
+                            project_point({x1, y2, z}) & project_point({x2, y2, z})
+                           })
+    end for
+
+    -- draw the horizontals on the back and the not-quite horizontals on the sides
+    N = floor((y2-y1)/100)
+    if N<3 then N = 3 end if
+    for i=1 to N-1 do
+        y = y1+floor((i/N)*(y2-y1))
+        drawLinesh(backDC, {#808080,
+                            project_point({x1,y,z1}) & project_point({x1,y,z2}),
+                            project_point({x2,y,z2}),
+                            project_point({x2,y,z1})
+                           })
+    end for
+
+    -- draw the verticals on the back and the not-quite-verticals on floor/ceiling
+    N = floor((x2-x1)/100)
+    if N<3 then N = 3 end if
+    for i=1 to N-1 do
+        x = x1+floor((i/N)*(x2-x1))
+        drawLinesh(backDC, {#808080,
+                            project_point({x,y2,z2}) & project_point({x,y1,z2}),
+                            project_point({x,y1,z1}),
+                            #FFFFFF,
+                            project_point({x,y2,z1}) & project_point({x,y2,z2})
+                           })
+    end for
+
+    -- draw the minimal room outline
+    drawLinesh(backDC, {Black,
+                        project_point({x1, y1, z2}) & project_point({x2, y1, z2}),
+                        project_point({x2, y2, z2}),
+                        project_point({x1, y2, z2}),
+                        project_point({x1, y1, z2}),
+                        project_point({x1, y1, z1}) & project_point({x1, y1, z2}),
+                        project_point({x2, y1, z1}) & project_point({x2, y1, z2}),
+                        project_point({x2, y2, z1}) & project_point({x2, y2, z2}),
+                        project_point({x1, y2, z1}) & project_point({x1, y2, z2})
+                       })
+
+end procedure
+
+constant null_u = {0,0}
+function get_ortho(sequence v)
+sequence y, yhat, z, u
+
+    u = v[1..2]
+    if equal(u, null_u) then
+        return {1,1,0}
+    end if
+    y = {1,1}
+    yhat = sq_mul(sq_div(dot(u,y),dot(u,u)),u)
+    z = sq_sub(y,yhat)
+    if equal(z, null_u) then
+        return {1,1,0}
+    end if
+    return z & 0
+end function
+
+procedure on_timer()
+sequence in,boid, pt, v, verts, v1, v2, v3, sv
+
+    move_boids()
+
+    in = boidsnp1
+
+    -- start with a fresh copy of the background
+    void = c_func(xBitBlt,{viewDC,0,0,dw,dh,backDC,0,0,SRCCOPY})
+
+    if not length(colors) then
+        colors = repeat(0, BOIDS)
+        for i=1 to BOIDS do
+            colors[i] = rand(#FFFFFF)
+        end for
+    end if
+
+    -- convert boid location and velocities into triangles in 3D 
+    -- and project them onto the screen
+    verts = repeat("", BOIDS)
+    for i=1 to BOIDS do
+
+        boid = in[i]
+
+        pt = boid[B_X..B_Z]
+        v = boid[B_XV..B_ZV]
+
+        if equal(v,{0,0,0}) then
+            v = {1,0,1}
+        end if
+
+        -- the 'nose' of the boid
+        v1 = sq_add(pt,make_length(v, 20))
+
+        -- make the base of the triangle
+        sv = make_length(get_ortho(v), 4)
+        v2 = sq_add(pt,sv)
+        v3 = sq_sub(pt,sv)
+
+        verts[i] = {distance3(pt, {ox,oy,oz}), v1, v2, v3, i, v1, v2, v3}
+
+        -- project the 3D points onto a 2D viewing surface
+        for j=2 to 4 do
+            verts[i][j] = project_point(verts[i][j])
+        end for
+        if draw_shadows then
+            for j=6 to 8 do
+                pt = verts[i][j]
+                pt[2] = 0.0
+                verts[i][j] = project_point(pt)
+            end for
+        end if
+
+    end for
+
+    -- sort by distance, so nearer boids clip those that are more distant   
+    verts = sort(verts)
+
+    if draw_shadows then
+        setPenColor(#A0A0A0)
+        for i=1 to BOIDS do
+            drawPolygonh(viewDC, verts[i][6..8])
+        end for
+    end if
+
+    -- draw boids as polygons, starting with farthest from the POV
+    for i=BOIDS to 1 by -1 do
+        v = verts[i]
+        setPenColor(colors[v[5]])
+        drawPolygonh(viewDC, v[2..4])
+    end for
+
+    void = c_func(xBitBlt,{winDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
+
+end procedure
+
+function getInteger(sequence numstr)
+--
+-- Return the (positive) integer value of a string.
+-- "" is treated as 0. {} is returned on error.
+--
+atom n
+integer ch
+    n = 0
+    for i=1 to length(numstr) do
+        ch = numstr[i]-'0'
+        if ch<0 or ch>9 then return {} end if
+        n = n*10+ch
+        if not integer(n) then return {} end if
+    end for
+    return n
+end function
+
+integer firsttime = 1
+integer eraseRqd = 1
+
+function winHandler(integer id, integer msg, atom wParam, object lParam)
+integer num
+integer dt
+sequence boid
+    if object(lParam) then end if -- suppress warnings
+    if id=win then
+        if msg=WM_SIZE then
+            {{},{},dw,dh} = getClientRect(win)
+            void = c_func(xMoveWindow, {restartHwnd,      10, dh-28, 70, 25, 1})
+            void = c_func(xMoveWindow, {speed_labelHwnd,  90, dh-43, 70, 15, 1})
+            void = c_func(xMoveWindow, {max_speedHwnd,    90, dh-27, 46, 25, 1})
+            void = c_func(xMoveWindow, {max_udHwnd,      135, dh-27, 16, 25, 1})
+            void = c_func(xMoveWindow, {dist_labelHwnd,  155, dh-43, 60, 15, 1})
+            void = c_func(xMoveWindow, {dist_editHwnd,   155, dh-27, 46, 25, 1})
+            void = c_func(xMoveWindow, {dist_udHwnd,     200, dh-27, 16, 25, 1})
+            void = c_func(xMoveWindow, {nd_labelHwnd,    220, dh-43, 80, 15, 1})
+            void = c_func(xMoveWindow, {n_distHwnd,      220, dh-27, 66, 25, 1})
+            void = c_func(xMoveWindow, {n_udHwnd,        285, dh-27, 16, 25, 1})
+            void = c_func(xMoveWindow, {boids_labelHwnd, 305, dh-43, 46, 15, 1})
+            void = c_func(xMoveWindow, {nboidsHwnd,      305, dh-27, 46, 25, 1})
+            void = c_func(xMoveWindow, {boids_udHwnd,    350, dh-27, 16, 25, 1})
+            void = c_func(xMoveWindow, {shadow_checkHwnd,376, dh-27, 90, 25, 1})
+            dh -= 45
+            {dx,dy} = {floor(dw/4)+1,floor(dh/4)+1}
+            {X_MAX,Y_MAX,Z_MAX} = {dw,dh,floor((dw+dh)/2)}
+            set_observer()
+            project_world2(dw,dh)
+            on_timer()
+            eraseRqd = 10 -- (suppress 10 WM_ERASEBKGNDs, where 10 is a bit of a guess)
+        elsif msg=WM_ERASEBKGND then
+            if eraseRqd=0 then
+                return {1} -- suppress the erasing of the background: eliminates flickering
+            end if
+            eraseRqd -= 1
+        elsif msg=WM_TIMER then
+            on_timer()
+        elsif firsttime
+          and msg=WM_SHOWWINDOW then
+            firsttime = 0
+            setup()
+            dt = floor(1000.0/30.0)
+            colors = {}
+            startTimer(MainTimer,win,33)
+        end if
+    end if
+    if msg=WM_CHAR
+    and wParam=VK_ESCAPE then
+        closeWindow(win)
+    elsif msg=WM_COMMAND then
+
+        if id=max_speed then
+            -- let the boids go faster
+            V_MAX = getInteger(getText(max_speed))
+
+        elsif id=n_dist then
+            -- this alters how far out the boids look 
+            -- for other boids to change velocities
+            N_DIST = getInteger(getText(n_dist))
+
+        elsif id=nboids then
+            -- change the number of boids
+            num = getInteger(getText(nboids))
+            boid = repeat(0, B_ELEMENTS)
+            if num>BOIDS then
+                for i=BOIDS+1 to num do
+                    boid[B_X] = rand(X_MAX)
+                    boid[B_Y] = rand(Y_MAX)
+                    boid[B_Z] = rand(Z_MAX)
+
+                    boid[B_XV] = floor(V_MAX/2)-rand(V_MAX)
+                    boid[B_YV] = floor(V_MAX/2)-rand(V_MAX)
+                    boid[B_ZV] = floor(V_MAX/2)-rand(V_MAX)
+                    boidsnp1 = append(boidsnp1, boid)
+                    colors &= rand(#FFFFFF)
+                end for
+                boidsn = boidsnp1
+            end if
+            BOIDS = num
+
+        elsif id=shadow_check then
+            draw_shadows = isChecked(shadow_check)
+
+        elsif id=restart then
+            setup()
+        end if
+
+    end if
+    return 0
+end function
+setHandler({win,restart,shadow_check,
+            speed_label,max_speed,max_ud,
+            dist_label,dist_edit,dist_ud,
+            nd_label,n_dist,n_ud,
+            boids_label,nboids,boids_ud},
+           routine_id("winHandler"))
+
+procedure main()
+
+    setScrollInfo(max_ud,{1,100},1)
+    setText(max_speed, sprint(V_MAX))
+
+    setScrollInfo(n_ud,{10,600},1)
+    setText(n_dist, sprint(N_DIST))
+
+    setScrollInfo(boids_ud,{0,200},1)
+    setText(nboids, sprint(BOIDS))
+
+    setScrollInfo(dist_ud,{0,200},1)
+    setText(dist_edit, sprint(DIST))
+
+    draw_shadows = 1
+    setCheck(shadow_check, draw_shadows)
+
+    WinMain(win, SW_NORMAL)
+end procedure
+main()
+

@@ -1,0 +1,482 @@
+--with trace
+--
+-- t42cback.exw
+-- ===========
+-- call_back tests
+--
+
+-- RULES:
+-- =====
+--
+--  This is all as per the way the existing legacy call_back routine 
+--  is implemented, you understand. Of course the future may change.
+--
+--  1) All call_back routines accept and return 32-bit integer values.
+--      That includes pointers and other raw machine addresses.
+--      Since Phix/Eu integers are 31-bit, such values often have to
+--      be declared as atom -- but don't let that fool you.
+--
+--  2) For compatibility with RDS Eu, parameters are //unsigned//.              [DEV]
+--
+--  3) While you can perform a few little tests by invoking call_backs
+--      from Phix/RDS Eu code, their main use is being invoked from C
+--      and other languages, so we should limit our tests accordingly
+--      -- however some things below have strayed a bit off topic.
+--
+-- <Some old text follows. Sorry if this is a bit muddled and confusing, 
+--  especially where I'm mixing up the "what we have and must test" with
+--  the "what someone might want or could be done some day" thing, but I
+--  really must leave this for now and get on with doing something useful.>
+--
+--      When invoking a call_back via c_func, you can choose to treat
+--      the return value as signed or unsigned, or even ignore it and
+--      use whatever (else) the callback left in ST0. There are a few
+--      such "ignores" below -- but in reality it is bit of a hack.
+--      Theoretically, the c_func(define_c_func(call_back())) chain
+--      could be tweaked to accept/return anything (ie strings, nested
+--      sequences, or full 64-bit floating point values), however it
+--      would certainly be wise to leave "call_back(i)" as-is and add
+--      optional parameters for parameter_definitions/return_type, to
+--      better match those of define_c_func/proc. Of course the first
+--      implementation should be done as say "call_backV2()", and only 
+--      rename/replace the existing once fully tested. But all that is 
+--      way beyond the scope of this little file.
+--      3) A call_back() routine can only ever return a 32-bit integer, in
+--      eax (which can be the raw address of a string or memory block),
+--      or a float, in ST0. Note that a standard Phix/RDS Eu "return"
+--      statement always yields a 32 bit value in eax (which may in
+--      fact get (transparently) stored as a float, but it will still
+--      be a 32-bit integer value, which can be a pointer).
+--      (Theoretically you could (make a copy of and) amend pcfunc.e
+--       to remove the e02atdb0 in cbhandler, and add some code to
+--       c_func to store strings/sequences/floats, but as things 
+--       stand, this rule (3) is quite strictly enforced.)
+--  4) C or asm code can however return whatever it likes, and that
+--      can be specified via define_c_func(). A possible enhancement
+--      is to code a second, optional, parameter to call_back() which
+--      defaults to C_INT but could instead be C_DOUBLE etc. (cmiiw)
+--      Partial testing of such exists below (in h0), but we're not 
+--      really testing that stuff here(/yet).
+--  5) More tests to be added here if/when Phix can create dlls.
+--
+
+--/**/with console
+constant showprogress=0
+procedure Abort(sequence msg)
+    puts(1,msg)
+    if getc(0) then end if
+    abort(1)
+end procedure
+
+--/* Not required for Phix:
+include ..\builtins\machine.e   -- allocate()
+include ..\builtins\dll.e       -- call_back()
+--*/
+
+--/* -- RDS Eu:
+constant mc = allocate(3)
+         poke(mc,{#D9,#EB,#C3}) -- fld pi; ret
+--*/
+
+function h0(integer flag)
+-- note: some of these may not be handled properly by RDS Eu;
+--  the new P_REF setting (erm, no longer exists...)
+--  return "hello"
+--  return -77.77   -- not handled properly (when called via
+--                  -- c_func/callback); same with RDS Eu.
+--                  -- [need to permit: [update: see notes above]
+--                          call_back({'+',rid}),
+--                          call_back({C_DOUBLE,rid}), and
+--                          call_back({'+'+C_DOUBLE,rid}), seems doable [DEV],
+--                      likewise E_SEQUENCE, a new E_STRING, etc]
+--  return 77
+
+    if flag then
+        --
+        -- NB: "return 3.14..." would not work in a define_c_func'd call_back 
+        --      declared as returning C_FLOAT or C_DOUBLE.
+        --  
+--/**/  #ilASM{ fldpi }         --/* -- Phix
+        call(mc)                --*/ -- RDS Eu
+        --
+        -- (Phix/Eu "return" value is effectively ignored
+        --  if the define_c_func specifies C_FLOAT/C_DOUBLE
+        --  as the return type, since that uses the value
+        --  left in ST0, not (the Phix/Eu Ref in) eax.)
+    end if
+    return -77
+end function
+constant r_h0 = routine_id("h0")
+constant cb_h0 = call_back(r_h0)
+
+object e
+type obj(object o)
+    if showprogress then ?o end if
+    if not equal(o,e) then Abort("not equal(o,e)\n") end if
+    return 1
+end type
+obj o
+e = -77
+o = c_func(define_c_func({},cb_h0,{C_INT},C_INT),{0}) -- -77 (=#FFFFFFB3)
+--if machine_bits()=32 then --DEV only implemented for newEmit
+--  e = #FFFFFFB3
+--  o = c_func(define_c_func({},cb_h0,{C_INT},C_ULONG),{0}) -- 4294967219 (=#FFFFFFB3)
+--else
+----DEV...
+----    e = #FFFFFFFFFFFFFFB3
+----    o = c_func(define_c_func({},cb_h0,{C_INT},C_ULONG),{0}) -- 1.8...e19 (=#FFFFFFFFFFFFFFB3)
+--end if
+--o = c_func(define_c_func({},cb_h0,{C_INT},C_POINTER),{0}) -- 4294967219 (=#FFFFFFB3)
+--/**/e = PI
+--DEV fudge while PI not quite right (when a 32-bit Phix compiles a 64-bit app)
+#ilASM{
+    [64]
+        fldpi
+        lea rdi,[e]
+        call :%pStoreFlt
+    []
+      }
+--/*
+      e = 3.14159265358979323846
+--*/
+o = c_func(define_c_func({},cb_h0,{C_INT},C_FLOAT),{1}) -- 3.1415... (see note 4 above)
+o = c_func(define_c_func({},cb_h0,{C_INT},C_DOUBLE),{1}) -- 3.1415... ("")
+--o=c_func(define_c_func({},cb_h0,{},P_REF),{}) -- -77
+
+-- "call_back parameter must be routine_id or {'+',routine_id}" error:
+--o = call_back({1.23})
+--o = call_back("1")
+--o = call_back({})
+-- "invalid routine_id" error:
+--o = call_back(1)
+--o = call_back(1.23)
+
+function cb0()
+    if showprogress then puts(1,"hello pete\n") end if
+    return 1
+end function
+
+e = 1
+o = cb0()
+
+--/**/constant rcb0=routine_id("cb0")
+--/**/constant cbrcb0=call_back(rcb0)
+--/**/ call(cbrcb0) -- machine failure on RDS
+
+function cb1(integer x)
+    if showprogress then puts(1,"hello pete\n") end if
+    return x+1
+end function
+
+constant x0 = cb1(0)    if x0!=1 then Abort("x0!=1\n") end if
+e = 3
+--if showprogress then puts(1,"\nhere1\n") end if
+o = cb1(2)              if o!=3 then Abort("o!=3\n") end if
+--if showprogress then puts(1,"\nhere2\n") end if
+o = c_func(define_c_func({},call_back(routine_id("cb1")),{C_INT},C_INT),{2})
+                        if o!=3 then Abort("o!=3(2)\n") end if
+--if showprogress then puts(1,"\nhere3\n") end if
+
+function handler(atom a1, atom a2, atom a3, atom a4)
+    if showprogress then
+        printf(1, "handler: %d %d %d %d\n", {a1, a2, a3, a4})
+        printf(1, "handler: #%08x %x %x %x\n", {a1, a2, a3, a4})
+    end if
+    return a1+a2+a3+a4
+end function
+
+e = 10
+o = handler(1,2,3,4)
+constant cbh = call_back(routine_id("handler")),
+         cbhf = define_c_func({},cbh,{C_UINT,C_INT,C_INT,C_INT},C_INT)
+o = c_func(cbhf,{1,2,3,4})
+
+--type objz(object o)
+--  if showprogress then
+--      if o<0 then
+--          printf(1,"-%d [-#%08x]\n",-o)
+--      else
+--          printf(1,"%d [#%08x]\n",o)
+--      end if
+--  end if
+--  if not equal(o,e) then Abort("objz:not equal(o,e)\n") end if
+--  return 1
+--end type
+--objz z
+--#43BAF9 = 4438777?
+--?991
+--DEV: 32-bit phix is creating atoms for these values, as it should for 32-bit exes, but not for 64-bit exes...
+--if machine_bits()=32 then -- (only implemented for newEmit)
+--e = #50000555
+--z = handler(#50000000,#5,#50,#500)
+--z = c_func(cbhf,{#50000000,#5,#50,#500})
+--e = #90000555
+--z = handler(#90000000,#5,#50,#500)
+----?992
+---- note: truncation occurs in the following, ie rather than returning #554, 
+----         handler actually returns #100000554, but only 32 bits make it back.
+--e = #0554
+--z = c_func(cbhf,{-1,#5,#50,#500})
+--e = -#70000000 + #0555
+--z = c_func(cbhf,{#90000000,#5,#50,#500})
+--z = c_func(cbhf,{-#70000000,#5,#50,#500})
+----This properly gets -#90000000 in a1 (since we're calling it direct):
+--e = -#90000000 + #0555
+--z = handler(-#90000000,#5,#50,#500)
+----This gets (+ve) #70000000 in a1 (since -#90000000 exceeds 32 bits)
+--e = #70000555
+--z = c_func(cbhf,{-#90000000,#5,#50,#500})
+----This gets (+ve) #40000000 in a1 (since #140000000 exceeds 32 bits)
+--e = #40000555
+--z = c_func(cbhf,{#140000000,#5,#50,#500})
+--end if
+
+-- "a" gets 4294967295 (#FFFFFFFF) rather than -1 here:
+function f(atom a)
+    if showprogress then
+        ?a
+    end if
+    return 1
+end function
+constant cb_f = call_back(routine_id("f")),
+         cp_f = define_c_proc({},cb_f,{C_INT})
+--if showprogress then puts(1,"\nhere4\n") end if
+c_proc(cp_f,{-1})
+--if showprogress then puts(1,"\nhere4a\n") end if
+
+--puts(1,"done\n")
+--if getc(0) then end if
+
+
+-- I cannot remember where this was from.
+-- It sure was easier to get it working with c_func in pcfunc.e, rather than (non-#ilasm) asm.
+-- I could rework these in #ilasm, but it is probably better to leave this as is, so that it 
+--  works equally on Phix and RDS Eu, and try to stick with that as long as possible.
+
+--/*
+include ..\builtins\misc.e
+include ..\builtins\machine.e
+include ..\builtins\dll.e
+--*/
+atom code_space
+sequence msg
+
+-- Example #2 - Any Platform 
+-- Use define_c_func() to allow parameters to be passed to machine code. 
+-- This particular example demonstrates integer calculations only.
+
+sequence add_code
+integer r, x, w 
+atom y
+
+if machine_bits()=32 then -- (newEmit)
+--if 01 then
+add_code = {
+       -- first int argument is at stack offset +4, 2nd int is at +8 
+       #8B, #44, #24, #04,        -- mov eax, [esp+4]
+       #03, #44, #24, #08,        -- add eax, [esp+8]
+       #C2, #08 * (platform() = WIN32), #00 -- ret 8    -- pop 8 bytes off the stack
+}
+else
+add_code = {
+       -- first int argument is at stack offset +8, 2nd int is at +16 
+       #48, #8B, #44, #24, #08,   -- mov rax, [rsp+8]
+       #48, #03, #44, #24, #10,   -- add rax, [rsp+16]
+       #C2, #10 * (platform() = WIN32), #00 -- ret 16   -- pop 16 bytes off the stack
+}
+end if
+
+function allocate_codespace(integer len)
+atom res = allocate(len)
+    if machine_bits()=64 then   -- (newEmit)
+--  if 0 then
+        #ilASM{
+            [64]
+--              mov rdi,[code_space]
+                mov rdi,[res]
+                mov r15,h4
+                cmp rdi,r15             -- (allocated memory)
+                jl @f
+                    -- allocated addrs > #3FFFFFFF_FFFFFFFF get stored as 64-bit float:
+                    sub rsp,8
+                    fld tbyte[rbx+rdi*4]
+                    fistp qword[esp]
+                    pop rdi
+              @@:
+                -- Grant execute access (DEV would be better to allocate a single large block)
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
+                sub rsp,8*5         -- minimum 4 param shadow space, flOldProtect, and align
+                lea r9,[rsp+32]                     -- lpflOldProtect
+                mov r8,#40                          -- flNewProtect (PAGE_EXECUTE_READWRITE)
+                mov rdx,16                          -- dwSize
+                mov rcx,rdi                         -- lpAddress
+                call "kernel32.dll","VirtualProtect"    -- (preserves rdi,rsi)
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+            []
+              }
+    end if
+    return res
+end function
+
+--if showprogress then puts(1,"\nhere5\n") end if
+code_space = allocate_codespace(length(add_code))
+--if showprogress then puts(1,"\nhere6\n") end if   
+poke(code_space, add_code)
+
+r = define_c_func("", code_space, {C_INT, C_INT}, C_INT)
+
+x = -17
+w = 80
+msg = sprintf("  the result of %d + %d is: %d\n", {x, w, c_func(r, {x, w})})
+
+--if showprogress then puts(1,"\nhere7\n") end if
+free(code_space)
+
+if not equal(msg,"  the result of -17 + 80 is: 63\n") then
+    Abort(msg)
+end if
+
+-- Example #3 - Windows/Linux 
+-- Use define_c_func() to allow parameters to be passed
+-- to machine code. exw.exe uses hardware floating-point instructions. 
+-- Floating-point results should be returned in ST(0) - the top of the 
+-- floating-point register stack.
+
+sequence multiply_code
+if machine_bits()=32 then -- newEmit
+--if 01 then
+multiply_code = {
+   -- int argument is at stack offset +4, double is at +8 
+   #DB, #44, #24, #04,        -- fild  dword ptr +4[esp]
+   #DC, #4C, #24, #08,        -- fmul  qword ptr +8[esp]
+   #C2, #0C * (platform()=WIN32), #00  -- ret 12 (or 0)
+    }
+else
+multiply_code = {
+   -- int argument is at stack offset +8, double is at +16
+   #DB, #44, #24, #08,        -- fild  qword ptr +8[esp]
+   #DC, #4C, #24, #10,        -- fmul  qword ptr +8[esp]
+   #C2, #10 * (platform()=WIN32), #00  -- ret 16 (or 0)
+    }
+end if
+
+    code_space = allocate_codespace(length(multiply_code))
+    
+    poke(code_space, multiply_code)
+
+    r = define_c_func("", code_space, {C_INT, C_DOUBLE}, C_DOUBLE)
+
+    x = 7
+    y = 8.5
+
+    msg = sprintf("  the result of %d * %.2f is: %g\n", {x, y, c_func(r, {x, y})})
+
+    free(code_space)
+
+    if not equal(msg,"  the result of 7 * 8.50 is: 59.5\n") then
+        Abort(msg)
+    end if
+--end if
+    
+--  puts(1, "Finished.  Press any key to exit.\n" )
+--  if getc(0) then end if
+
+
+
+-- 14/08/2010 thanks to Les Bothwell
+--
+-- not strictly speaking call_back, but in pcfunc.e:
+--
+include misc.e
+
+constant 
+    LINECONTENT = "dir c:\\w*"
+
+function Qreverse(sequence s)
+-- old version of reverse, that returns a dword-sequence when s is a string.
+integer rlower, n, n2
+sequence t
+    
+    n = length(s)
+    n2 = floor(n/2)+1
+    t = repeat(0, n)
+    rlower = 1
+    for rupper = n to n2 by -1 do
+        t[rupper] = s[rlower]
+        t[rlower] = s[rupper]
+        rlower += 1
+    end for
+    return t
+end function
+
+procedure main()
+    sequence params
+    params = LINECONTENT
+
+    printf(1, "\nRead param = <%s>\n", {params})
+    system(params, 2)       -- THIS IS OK
+
+    params = Qreverse(Qreverse(params))
+    printf(1, "\nRev param = <%s>\n", {params})
+    system(params, 2)       -- THIS DOES NOTHING (visible)
+end procedure
+
+if 0 then
+    puts(1,"\nThis should just display something (anything) twice:\n")
+    main()
+end if
+
+-- .. and my take on the matter:
+--  (ie calling a c_func/call_back with a dword_sequence should cause
+--      the function to receive an 8-bit string.)
+--/* -- defined in builtins/peekstr for Phix
+function peek_string(atom addr)
+atom last
+    last = addr
+    while peek(last) do last += 1 end while
+    return peek({addr,last-addr})
+end function
+--*/
+sequence res
+function test(atom s)
+    res = peek_string(s)
+    return 0
+end function
+constant r_test = routine_id("test")
+constant cb_test = call_back(r_test)
+constant f_test = define_c_func({},cb_test,{C_POINTER},C_INT)
+
+--/**/  if c_func(f_test,{"fred"})!=0 then Abort("c_func(f_test,{\"fred\"})!=0\n") end if
+--/**/  if not string(res) then Abort("not string(res)\n") end if
+--/*
+constant mem = allocate(5)
+    poke(mem,"fred"&0)
+    if c_func(f_test,{mem})!=0 then Abort("c_func(f_test,{mem})!=0\n") end if
+--*/
+    if not equal(res,"fred") then Abort("not equal(res,\"fred\")\n") end if
+
+sequence q
+    q = "john"
+    q &= -1         -- force conversion to T_Dsq
+    q = q[1..4]
+--/**/  if string(q) then Abort("string(q)\n") end if
+
+--/**/  if c_func(f_test,{q})!=0 then Abort("c_func(f_test,{q})!=0\n") end if
+--/**/  if not string(res) then Abort("not string(res)\n") end if
+--/*
+    poke(mem,q&0)
+    if c_func(f_test,{mem})!=0 then Abort("c_func(f_test,{mem})!=0\n") end if
+--*/
+--?res
+--?length(res)
+    if not equal(res,"john") then Abort("not equal(res,\"john\")\n") end if
+
+

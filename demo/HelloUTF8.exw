@@ -1,0 +1,88 @@
+﻿--
+-- HelloUTF8.exw
+--
+--  Demonstrates Phix compiling a UTF8 source (for this be such a beast) and 
+--  invoking WideString Windows API routines instead of the AnsiString ones.
+--
+--  At the moment, libraries such as arwen and win32lib are ansi-only, but this
+--  shows it ought not necessarily be particularly difficult to craft a fully
+--  Unicode (UTF8) compliant version of them (which would work seamlessly even
+--  if all your project sources were still ansi text files). Which is not the
+--  same as claiming it would be a quick, short, interesting, or trivial task.
+--
+--  Edita (0.3.6+) now lets you edit and create UTF8 files, look on the open
+--  and save file dialog for the "Encoding" dropdown. Mind you, I say arwen 
+--  is ansi-only, but Edita manages fairly well, at least where it matters,
+--  though not necessarily on the menus, config files, etc.
+--
+
+integer xMessageBoxW, 
+        xGetActiveWindow,
+        xMultiByteToWideChar
+
+integer initX = 0
+
+constant CP_UTF8 = 65001
+
+procedure Xinit()
+atom user32, kernel32
+    user32 = open_dll("user32.dll")
+    kernel32 = open_dll("kernel32.dll")
+--#without reformat
+    xMessageBoxW = define_c_func(user32, "MessageBoxW",
+        {C_POINTER, --  HWND     hWnd,      // handle of owner window
+         C_POINTER, --  LPCTSTR  lpText,    // address of text in message box
+         C_POINTER, --  LPCTSTR  lpCaption, // address of title of message box
+         C_INT},    --  UINT     uType      // style of message box
+        C_INT)      -- int 
+    if xMessageBoxW=-1 then ?9/0 end if
+    xGetActiveWindow = define_c_func(user32, "GetActiveWindow",
+        {},
+        C_LONG)     -- HWND
+    if xGetActiveWindow=-1 then ?9/0 end if
+    xMultiByteToWideChar = define_c_func(kernel32,"MultiByteToWideChar",
+        {C_INT,     --  UINT    CodePage,       // code page 
+         C_INT,     --  DWORD   dwFlags,        // character-type options 
+         C_POINTER, --  LPCSTR  lpMultiByteStr, // address of string to map 
+         C_INT,     --  int     cchMultiByte,   // number of characters in string 
+         C_POINTER, --  LPWSTR  lpWideCharStr,  // address of wide-character buffer 
+         C_INT},    --  int     cchWideChar     // size of buffer 
+        C_INT)      -- int
+    if xMultiByteToWideChar=-1 then ?9/0 end if 
+--#with reformat
+    initX = 1
+end procedure
+
+function WideString(string s)
+--
+-- Convert the input UTF8 string to WideChar. 
+-- The calling routine must free() the result.
+--
+integer nLen    -- length of UTF8 input, in bytes, plus 1 for the trailing null byte
+integer wLen    -- length of WideChar output, in WideChars, plus 1 for a trailing null word
+atom pRes
+    nLen = length(s)+1
+    wLen = c_func(xMultiByteToWideChar,{CP_UTF8,0,s,nLen,NULL,0})+1
+    pRes = allocate(wLen*2)
+    wLen = c_func(xMultiByteToWideChar,{CP_UTF8,0,s,nLen,pRes,wLen})
+    return pRes
+end function
+
+function MessageBoxW(string text, string title, integer style)
+atom hWnd
+atom pText, pTitle
+integer res
+    if not initX then Xinit() end if
+    hWnd = c_func(xGetActiveWindow, {})
+    pText = WideString(text)
+    pTitle = WideString(title)
+    res = c_func(xMessageBoxW, {hWnd,pText,pTitle,style})
+    free(pText)
+    free(pTitle)
+    return res
+end function
+
+    {} = MessageBoxW("Hello 水 test of MessageBoxW", "Unicode 水 test", MB_OK)
+
+-- (I have no idea what 水 might mean, just t'first thing I found on t'internet)
+

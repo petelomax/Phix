@@ -1,0 +1,112 @@
+-- Toolbar.exw
+-- Matt Lewis
+without warning
+
+include win32lib.ew
+
+if setAppName("Toolbar Example") then end if
+
+integer Win, SB, TB
+integer B1, B2, B3, S1, B4
+
+
+atom iExw
+sequence icons
+integer enable, ri3
+Win = create(Window, "Flat ToolBar Demo",   0, 0, 0, 300, 300, 0)
+SB  = create(StatusBar, 	"" , Win,	0,  0,	0,  0, 0)
+
+
+constant
+    closefolder = extractIcon("..\\demoresources\\clsdfold.ico"),
+    openfolder	= extractIcon("..\\demoresources\\openfold.ico"),
+    dos 	= extractIcon("..\\demoresources\\disk05.ico"),
+    linux	= extractIcon("..\\demoresources\\disk06.ico"),
+    generic	= extractIcon("..\\demoresources\\disks04.ico")
+
+sequence wk1
+integer tbheight
+
+wk1 = getTextExtent(Screen, "|")
+tbheight = (32 + 12 + wk1[2])
+
+TB  = create( FlatToolBar, "", Win, 0, 0, 0, tbheight, 0)
+
+iExw = w32Func(xLoadIcon,{instance(), "exw"})
+
+icons = {}
+icons &= addIcon({closefolder, openfolder, iExw})
+icons &= addIcon({dos, linux, generic})
+icons &= addIcon(repeat(iExw,3))
+icons &= addIcon({linux, generic,dos})
+
+B4  = create( PushButton, {"Destroy", "number 4"},  TB, icons[3],  0,  0,  0, 0)
+S1  = create( SepButton,	 "",  TB,	 0,  0,  0,  0, 0)
+B2  = create( PushButton, {"Two", "number 2"},	    TB, icons[2], 0,  0,  0, 0)
+
+B1  = create( PushButton, {"One","number 1"}, Win,	 20, 130, 50, 25, 0)
+B3  = create( PushButton, {"Disable","number 3"}, Win,	     20, 160, 50, 25, 0)
+
+procedure TB_onMouse(integer self, integer event, sequence parms)
+    atom iMsg
+    atom x
+    atom y
+    atom shifts
+
+    x = parms[2]
+    y = parms[3]
+    shifts = parms[4]
+    setText(SB, sprintf("X=%d Y=%d Shift=%d", {x,y,shifts}))
+end procedure
+setHandler(TB, w32HMouse, routine_id("TB_onMouse"))
+
+procedure one_onClick(integer self, integer event, sequence parms)
+    setText(SB, sprintf("Button %s %d %d ", {getText(getSelf()), isVisible(TB), isVisible(SB)}))
+end procedure
+setHandler(B1, w32HClick, routine_id("one_onClick"))
+
+procedure two_onClick(integer self, integer event, sequence parms)
+    setText(SB,  "                  Button Two")
+    setText(B2, "XXX" & getText(B2))
+end procedure
+setHandler(B2, w32HClick, routine_id("two_onClick"))
+
+enable = 1
+
+procedure disable_onClick(integer self, integer event, sequence parms)
+
+    enable = 1 - enable
+    setEnable({B1,TB}, enable)
+
+    setText(SB,"")
+    if enable = 0
+    then
+	setText(B3, "Enable")
+    else
+	setText(B3, "Disable")
+    end if
+
+end procedure
+setHandler(B3, w32HClick, routine_id("disable_onClick"))
+
+procedure destroy_onClick(integer self, integer event, sequence parms)
+
+    if validId(B3)
+    then
+	destroy(B3)
+    else
+	B3  = create( PushButton, "", Win, 20, 160, 50, 25, 0)
+	if enable = 0
+	then
+	    setText(B3, "Enable")
+	else
+	    setText(B3, "Disable")
+	end if
+	setHandler(B3, w32HClick, routine_id("disable_onClick"))
+    end if
+end procedure
+setHandler(B4, w32HClick, routine_id("destroy_onClick"))
+
+WinMain(Win, Normal)
+
+

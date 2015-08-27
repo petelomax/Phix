@@ -1,0 +1,63 @@
+-- A very short and simple program to show how popup-only menus are working
+-- this one is written using a typical EuWinGui Eventloop()
+-- RightClick into the window to raise the popup menu
+-- 2012 Andreas Wagner andi@indonesianet.de
+
+include ../tinewg.ew
+
+procedure onClose()
+    if AskMsg("End Program?", "Close Dialog") then
+        CloseApp(0)
+    end if
+end procedure
+
+procedure Close_On_Escape()
+    if EventItem=KEY_ESCAPE then
+        --CloseApp(0)
+        onClose()
+    end if
+end procedure
+
+procedure menu_handler()
+    InfoMsg(EventItem, "Popup Menu")
+end procedure
+
+
+-- If you change the last parameter of TrackPopupMenu() to True, then NO Menu Event will be raised.
+-- in this case the 'result' is the selected menu id (if any). The default is 'False' so you can leave it out.
+-- You got to play with that to find out.
+
+constant popup = CreatePopupMenu()
+
+procedure show_popup()
+sequence rect
+atom result
+    rect = GetWindowRect(WinHwnd)
+    result = TrackPopupMenu(popup,rect[1]+MouseX,rect[2]+MouseY, WinHwnd, False)
+    --InfoMsg(result,"Popup Menu")
+end procedure
+
+CloseEventEnabled = True
+
+{} = Window("PopUp Demo")
+
+AppendTextItem(popup,100,{"Item1", "Item2", "Item3", "--", "Item4"})
+
+
+procedure Eventloop()
+    while WaitEvent() do
+        if Event=Key then
+            Close_On_Escape()
+        elsif Event=RClick then
+            show_popup()
+        elsif Event=Close then
+            onClose()
+        elsif Event=Menu then
+            menu_handler()
+        end if
+    end while
+end procedure
+
+Eventloop()
+
+CloseApp(0)

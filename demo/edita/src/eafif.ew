@@ -1,0 +1,983 @@
+--
+-- eafif.ew.
+-- Find in files
+--
+
+--Some old scribbles; ignore for now:
+--          Standard files. (default checked). Select this option to search standard 
+--          euphoria/phix files with EXW, EW, EX, E, EXU, and EU suffixes.
+--
+--          Documentation files. (default unchecked). Select this option to search files
+--          with DOC, TXT, ME, MAN, DIZ, NFO, TAG, LIC, HST, and 1ST suffixes.
+--          Note: no attempt is made to distingiush between standard text files with a
+--          ".DOC" suffix and the microsoft word format "*.DOC" files.*
+--          [The latter can be detected as first two bytes of #D0CF]
+--          
+--          Html files. (default unchecked). Select this option to search files with HTM
+--          and HTX suffixes. Note: this option has been created separate from the above
+--          documentation files option because in the standard euphoria directory alot of
+--          the information is repeated in .doc and .htm files.
+--
+--          Other files. (default unchecked). Select this option to search files with 
+--          other, known suffixes such as C, java, etc. There is no guarantee this list
+--          is complete but it should include most other language files.
+--
+--          Unknown files. (default unchecked). Select this option to search files which
+--          apparently usually contain text.
+--
+--          All files. (default unchecked). Use this as a last resort, as it will attempt
+--          to search files such as exe, bin, jpg, mpg, mp3, etc. The results will be
+--          slow in coming and dubious at best, but at least complete. Be warned.
+--          Also, of course, try not to expect good results when jumping to line 42,153,795
+--          of a 2.4GB divx file where it somehow found "fred".
+--          
+--          Report unrecognised files. (default checked). This lists files that the 
+--          program does not know as either text-ish or binary-ish. It does not search
+--          these files (unless the All files option has been checked).
+--          Note: please feel free to report the one-line messages reported; but please,
+--          do *NOT* dump huge (or indeed small) binary files onto the message list when
+--          querying results.
+--      TIP: Speed may be a problem, especially if the current and sub directories
+--          contain thousands of files or, for example a 50M movie file.
+--          The latter can be avoided by leaving the All Files checkbox clear.
+--without type_check
+
+--/* 4.0.2:
+--include builtins\wildcard.e
+--*/
+--!/**/include builtins\pcase.e as pcase
+
+constant FindIF = create( Window, xl("Find in Files "),      0, Main,   100,  50, 365, 285, 0 )
+constant flab = create( Label, xl("Find "),                  0, FindIF,   8,  15,  50,  20, SS_RIGHT )
+constant findiftext = create( ComboDropDown, "",             0, FindIF,  64,  12, 271, 224, 0 )
+constant cd = create( CheckBox, xl("Current Directory?"),    0, FindIF,   8,  45, 165,  20, 0 )
+constant sd = create( CheckBox, xl("Sub-directories?"),      0, FindIF,   8,  65, 165,  20, 0 )
+--DEV these are C:\Euphoria, what about C:\Program Files\Phix(or wherever)?
+constant ed = create( CheckBox, xl("Euphoria Files?"),       0, FindIF,   8,  85, 165,  20, 0 )
+constant ei = create( CheckBox, xl("Euphoria Includes?"),    0, FindIF,   8, 105, 165,  20, 0 )
+constant bd = create( CheckBox, xl("Backup Directory?"),     0, FindIF,   8, 125, 165,  20, 0 )
+constant sf = create( CheckBox, xl("Standard Files?"),       0, FindIF, 180,  45, 165,  20, 0 )
+constant df = create( CheckBox, xl("Documentation Files?"),  0, FindIF, 180,  65, 165,  20, 0 )
+constant hf = create( CheckBox, xl("Html Files?"),           0, FindIF, 180,  85, 165,  20, 0 )
+constant of = create( CheckBox, xl("Other Files?"),          0, FindIF, 180, 105, 165,  20, 0 )
+constant uf = create( CheckBox, xl("Unknown Files?"),        0, FindIF, 180, 125, 165,  20, 0 )
+constant wf = create( CheckBox, xl("Win32lib Files?"),       0, FindIF, 180, 145, 165,  20, 0 )
+constant af = create( CheckBox, xl("All Files?"),            0, FindIF, 180, 165, 165,  20, 0 )
+constant kf = create( CheckBox, xl("Skip Files?"),           0, FindIF, 180, 185, 165,  20, 0 )
+constant GO = create( Button, xl("Go"),                      0, FindIF, 129, 214,  80,  25, 0 )
+
+
+setHint(ed,xl("Search all Euphoria - doc, demo, html, etc"))
+setHint(ei,xl("Search only euphoria/include"))
+setHint(bd,xl("Search Edita/backups"))
+setHint(sf,"e,ex,ew,exw,eu,exu")
+setHint(of,xl("Other languages, eg .java, .c, .bas"))
+setHint(kf,xl("Files expected to be binary, eg exe files"))
+
+setCheck(cd,True)
+setCheck(sd,False)
+setCheck(ed,False)
+setCheck(ei,False)
+setCheck(bd,False)
+
+setCheck(sf,True)
+setCheck(df,False)
+setCheck(hf,False)
+setCheck(of,False)
+setCheck(uf,False)
+setCheck(wf,False)
+setCheck(af,False)
+
+constant PROGRESS = create( Window, xl("Find in Files "), 0, FindIF, 400, 50, 580, 189, 0 )
+constant c1 = create( Label, "", 0, PROGRESS, 8, 45, 214, 20, 0 )
+constant cf = create( Label, "", 0, PROGRESS, 8, 81, 484, 20, 0 )
+constant CANCEL = create( Button, xl("Cancel"), 0, PROGRESS, 189, 117, 80, 25, 0 )
+
+
+integer terminatea
+
+
+-- files to skip:
+--DEV plus, for ACE, par, rar, etc any xnn files eg r01, r02, etc.
+--plus all files with more than one "." in their name
+
+sequence skip_list
+skip_list = {
+    "EXE",  -- executable files
+    "EX_",  -- distributed format?
+    "BIN",  -- dos(?) executable files
+    "DLL",  -- dynamic linked libraries
+    "LIB",  -- some sort of program library
+    "EXP",  -- and another
+    "SO",   -- ? unix "shared object" / dll?
+    "OBJ",  -- ? how many executable/library formats are there ;-)
+    "COM",  -- ? "" REALLY!!
+    "O",    -- yep
+    "DRV",  -- ? Device driver
+    "SWP",  -- ? swap file
+    "PAR",  -- ? parity file
+    "RAR",  -- rar archive files
+    "ZIP",  -- zip files
+    "GZ",   -- gnu zip
+    "TAR",  -- tape archive
+    "TGZ",  -- tape gnu zip archive
+    "CAB",  -- Microsoft cabinet (archive) files
+    "BMP",  -- bitmap (image) files
+    "GIF",  -- gif (image) files
+    "TIF",  -- tif (image) files
+    "JPG",  -- jpeg (image) files
+    "PNG",  -- png (image) files
+    "WAV",  -- wav (sound) files
+    "MP3",  -- mp3 (music) files
+    "AVI",  -- movie files
+    "MOV",  -- movie files
+    "MPG",  -- movie files
+    "RM",   -- real movie files
+    "ICO",  -- icon files
+    "RES",  -- ? files
+    "CHM",  -- compiled help files (cannnot decipher :-( )
+    "HLP",  -- see *.chm
+    "CNT",  -- contents of help file
+    "DAT",  -- data files
+    "IDX",  -- index/data files
+    "GID",  -- ? files
+    "OEM",  -- ? Original Equipment Manufacturer? files
+    "PDF",  -- Adobe portable document format files (cannot decipher :-( )
+    "PS",   -- postscript (cannot decipher :-( )
+    "XLS",  -- Excel spreadsheet (cannot decipher :-( )
+    "ISU",  -- ?
+    "OCX",  -- ?
+    "TLB",  -- ?
+    "PFB",  -- ? Adobe font?
+    "MMM",  -- ? Adobe font?
+    "PFM",  -- ? Adobe font?
+    "ABT",  -- ? Adobe ?
+    "CAT",  -- ? Adobe ?
+    "WLD",  -- ? Adobe ?
+    "DDD",  -- ? Adobe ?
+    "DID",  -- ? Adobe ?
+    "PDD",  -- ? Adobe ?
+    "PLC",  -- ? Adobe ?
+    "STP",  -- ? Adobe ?
+    "TRN",  -- ? Adobe ?
+    "API",  -- ? Adobe ?
+    "CMP",  -- ? Adobe ?
+    "STD",  -- ? Adobe ?
+    "SYX",  -- ? Adobe ?
+    "THD",  -- ? Adobe ?
+    "LNG",  -- ? Adobe ?
+    "RSD",  -- ? Adobe ?
+    "RST",  -- ? Adobe ?
+    "STC",  -- ? Adobe ?
+    "SYD",  -- ? Adobe ?
+    "INS",  -- internet communication settings
+    "VXD",  -- Virtual device driver
+    "PKG",  -- ?
+    "Z",    -- ?
+    "LNK",  -- Shortcut
+    "DT",   -- ?
+    "ILM",  -- ?
+    "OP",   -- ?
+    "PAT",  -- ?
+    "FLT",  -- ?
+    "DCF",  -- ?
+    "FCS",  -- ?
+    "HT",   -- Hyperterminal (ftp) file
+    "EDB"   -- Euphoria/Phix database files
+}
+
+-- files to process:
+sequence do_list
+do_list = {
+    "EXW",  -- Euphoria/Phix windows main files
+    "EW",   -- Euphoria/Phix windows include files
+    "EX",   -- Euphoria/Phix dos main files
+    "E",    -- Euphoria/Phix general include files
+    "EXU",  -- Euphoria/Phix linux main files
+    "EU"    -- Euphoria/Phix linux include files
+}
+-- documentation_files:
+sequence doc_list
+doc_list = {
+    "TXT",  -- text files
+    "ME",   -- as in read.me
+    "DOC",  -- documentation/word files --DEV: #D0CF
+    "MAN",  -- manual file
+    "DIZ",  -- info files
+    "NFO",  -- info files
+    "TAG",  -- info files
+    "LIC",  -- ? License files
+    "HST",  -- (version) history file
+    "1ST"   -- as in readme.1st
+}
+-- html files:
+sequence html_list
+html_list = {
+    "HTM",  -- html files
+    "HTX"   -- html files
+}
+
+-- dubious files:
+sequence other_list
+other_list = {
+    "PRO",  -- profile files
+    "ERR",  -- error files
+    "BAS",  -- basic files
+    "PRJ",  -- IDE project files
+    "CFG",  -- IDE ?
+    "C",    -- C files
+    "DEF",  -- def files(?)
+    "H",    -- C header files
+    "IN",   -- C configuration file
+    "CPP",  -- C++ file
+    "CXX",  -- ? C++ file
+    "FL",   -- ? data file for fltk
+    "TCL",  -- tcl/tk thingumabib
+    "RB",   -- ruby
+    "RBW",  -- ruby
+    "JS",   -- javascript files
+    "SCP",  -- script file
+    "SET",  -- file set
+    "INI",  -- configuration settings
+    "BAT",  -- batch files
+    "SYS",  -- system files
+    "RTF",  -- rich text format files
+    "WRI",  -- Microsoft write format files
+    "HHC",  -- html ? control ? files
+    "HHK",  -- html ? control ? files
+    "HHP",  -- html ? control ? files
+    "LST",  -- ? List file
+    "XML",  -- xml, you know
+    "ISS",  -- ? info files
+    "LID",  -- ? info files
+    "INF",  -- setup information files
+    "OUT",  -- output files
+    "DTA",  -- ?
+    "RC",   -- ?
+    "AV",   -- ? anti virus ?
+    "BMK",  -- ?
+    "CAM",  -- ?
+    "CUE",  -- cue (CD writing) files
+    "LOG",  -- log files
+    "OLD",  -- ? backup files
+    "BAK",  -- ? backup files
+    "ORG",  -- original (backup) files
+    "PRV",  -- ? just how many backup formats do we need ;-)
+    "SYD",  -- ? "" REALLY!!
+    "CSV",  -- comma separated variable
+    "WSP",  -- JFE workspace details
+    "XPM",  -- ? text/icon thingy?
+    "XBM",  -- ?
+    "DSP",  -- Microsoft developer studio project file
+    "DSW",  -- Microsoft developer studio workspace file
+    "PM",   -- ? wxwindows summat or sumfin ?
+    "AM",   -- automake file
+    "M4",   -- automake file
+    "BC",   -- ? Borland C doobrie ?
+    "CSS",  -- html/cascading style sheets
+--}
+--
+--DUH! there is actually no point in having an unknown file types list!
+-- Hence these are now just part of the other_list
+--
+---- unknown files:
+--sequence unknown_list
+--unknown_list = {
+    "SUB",
+    "GUESS",
+    "HTML", -- html files
+    "JAVA", -- java files
+    "URL",  -- shortcut files
+    "QTIF", -- quick time image files
+    "PRO1",
+    "AIFF", -- winamp media file
+    "BASH",
+    "EDIF",
+    "PHP3",
+    "PHP4",
+    "SHTM",
+    "VHDL",
+    "SPEC",
+    "RESP",
+    "LIST",
+    "DOXY",
+    "OS2X",
+    "MENU",
+    "TRACE",
+    "LGC",
+    "LGD",
+    "CLASS",    -- java class (binary) file
+    "BUILD",
+    "SHTML",
+    "THEME",
+    "SCALE",
+    "FINAL",
+    "WIN32",
+    "CACHE",
+    "MINGW",
+    "SCRIPT",
+    "DLLREG",
+    "POLICY",
+    "EXISTS",
+    "INSTALL",
+    "SECURITY",
+    "CVSIGNORE",
+    "PROPERTIES"
+}
+
+constant MAX_HITS = 20000       -- warns every 20000 hits
+integer HITS, THITS
+
+integer log_file
+integer SLASH
+sequence log_name, log_path
+log_path={} --DEV
+
+sequence charmash
+
+sequence searchstring
+
+sequence result
+
+sequence linesave
+linesave=repeat(0,80)
+integer col,line_no
+
+function SaveHit(sequence file_name)
+integer work
+integer void
+    work=length(file_name)+length(sprintf("%d",line_no))+2
+--  if work+col>90 then
+--      col=90-work
+--  end if
+--  result&={sprintf("%s:%d %s",{file_name,line_no,linesave[1..col-1]})}
+    result=append(result,sprintf("%s:%d %s",{file_name,line_no,linesave[1..col-1]}))
+--  result&={sprintf("%s:%d %s",{file_name,line_no,linesave})}
+    HITS+=1 THITS+=1
+    setText(c1,sprintf(xl("Found:%d "), HITS))
+    if THITS >= MAX_HITS then
+        void = messageBox(xl("Warning"), 
+                          sprintf(xl("%d matches found."),HITS),
+                          MB_ICONEXCLAMATION + MB_OKCANCEL)                 
+        if void = IDCANCEL then terminatea=1 return False end if
+        THITS=0
+    end if
+    return True
+end function
+
+integer fileNum
+
+procedure complete_line()
+integer c
+    -- get rest of line
+    while True do
+        c=getc(fileNum)
+        if c<1 then exit end if
+        if c = '\n' then exit end if
+        if c = '\t' then c=' ' end if   --DEV should pad
+        if col>length(linesave) then
+            linesave&=0
+        end if
+--      if col<80 and c!=':' and c>=' ' then
+--      if c!=':' and c>=' ' then   -- 10/05 no longer needed
+        if c>=' ' then
+            linesave[col]=c
+            col+=1
+        end if
+    end while
+end procedure
+
+integer files_scanned,
+        directories_scanned,
+        lines_scanned
+
+--
+-- To understand the phit array, imagine searching for "00b" in "000a00b", and
+--  doing so *one character at a time*. Recall that search strings can contain
+--  line breaks (^p), and the last thing we want to do is load the entire file
+--  to memory just so we can skip back a few chars. Instead read a character,
+--  and do all the processing we will ever need to on that before getting the 
+--  next. Further, we are not interested in what column a (full) match occurs.
+--
+--  So after reading the first '0', we obviously have one partial match, of 
+--  length 1. After reading the next '0', we have two matches, of lengths 1 
+--  and 2. On the third '0', the existing length 2 match fails ('b'!='0', aka 
+--  searchstring[3]!=nextch), so that gets trashed, but the existing length 1 
+--  match gets extended to length 2 and we create a new length 1 match. 
+--
+--  Of course on the 'a', we throw away all our existing partial matches.
+--  btw, phit[k] is actually 2 for what I just described as a length 1 match, 
+--  and of course there is upper/lower etc char mapping going on all the time.
+--
+-- When we finally get to the input 'b', again we have two partial matches in 
+--  hand, of lengths 1 and 2; completing one trashes the other (nphits=0).
+--
+
+procedure scan(sequence file_name)
+-- read next file
+integer c, cprev, nphits
+sequence phit           -- array of partial hits found
+--integer void
+
+    --
+    -- This is just because anything longer will not fit
+    -- nicely into the *.err results in the current format.
+    -- It could of course be split into several lines instead
+    -- see also work+col>90 in saveHit()
+    -- I'm also leaving this in to encourage more sensible directories & filenames,
+    -- plus it might catch the odd silly error...
+    --
+-- Removed 16/5/04:
+--  if length(file_name)>70 then
+--      void = messageBox("Error: File name and path too long",
+--                        file_name,
+--                        MB_ICONEXCLAMATION + MB_OKCANCEL)                 
+--      if void = IDCANCEL then terminatea=1 end if
+--      return      
+--  end if
+    fileNum = open(file_name, "rb")
+    if fileNum = -1 then
+        return
+    end if
+
+    setText(cf,xl("searching: ") & file_name & repeat(' ', 80) & '\r')
+    
+    files_scanned += 1
+
+    line_no=1
+    cprev=0
+    col=1
+    nphits=0
+    phit=repeat(0,10)
+    while True do
+        c=getc(fileNum)
+        if c<1 then exit end if
+        if c = '\n' then
+            line_no+=1
+            col=1
+        else
+            if c = '\t' then c=' ' end if   --DEV should pad
+            if col>length(linesave) then
+                linesave&=0
+            end if
+--          if col<80 and c!=':' and c>=' ' then            -- colon marks line number for F12
+            if c!=':' and c>=' ' then           -- colon marks line number for F12
+                linesave[col]=c
+                col+=1
+            end if
+            c=charmash[c]
+            if c or cprev then
+                if length(searchstring) > 1 then
+                    for k = nphits to 1 by -1 do            -- check each partial hit
+                        if c = charmash[searchstring[phit[k]]] then -- still good
+--                          phit[k]+=1
+                            phit[k] = phit[k] + 1
+                            if phit[k]>length(searchstring) then -- full match
+                                nphits=0
+                                complete_line()
+                                if not SaveHit(file_name) then return end if
+                                line_no+=1
+                                col=1
+--BUGFIX 21/4/9:
+exit
+                            end if
+                        else
+                            if k < nphits then              -- if not last
+                                phit[k]=phit[nphits]        -- keep last instead
+                            end if
+                            nphits-=1                       -- scrap one partial hit.
+                        end if
+                    end for
+                    if c = searchstring[1] then
+                        nphits+=1
+                        if nphits > length(phit) then
+                            phit&=repeat(0,10)
+                        end if
+                        phit[nphits]=2
+                    end if
+                else
+                    if c = searchstring[1] then
+                        complete_line()
+                        if not SaveHit(file_name) then return end if
+                        line_no+=1
+                        col=1
+                    end if
+                end if
+            end if
+        end if
+    end while
+    close(fileNum)
+    lines_scanned += line_no
+end procedure
+
+sequence stacked_dir
+sequence processed_files
+integer bddone
+
+include builtins\file.e
+--include eaformat.ew
+
+function look_at(sequence path_name, sequence entryX)
+-- see if a file name qualifies for searching
+sequence file_name, extension
+object results
+integer exidx
+
+results={}  --DEV
+    doEvents(0) -- let windows actions be done
+    if terminatea then return 1 end if
+    file_name = entryX[D_NAME]
+    path_name &= SLASH
+    if equal(path_name[1..2], '.' & SLASH) then
+        path_name = path_name[3..length(path_name)]
+    end if
+    path_name &= file_name
+    if equal(file_name, log_name) then
+        return 0 -- avoid circularity
+    end if
+    if find('d', entryX[D_ATTRIBUTES]) then
+        if not equal(upper(path_name),upper(initialcurrentdir&"BACKUP")) then
+--          stacked_dir&={path_name}
+            stacked_dir = prepend(stacked_dir,path_name)
+        else
+            if isChecked(bd) and bddone = 0 then
+--              stacked_dir&={path_name}
+                stacked_dir = prepend(stacked_dir,path_name)
+            end if
+            bddone = 1
+        end if
+        return 0 -- a directory
+    end if
+    exidx=find('.',file_name)
+    if exidx then
+        extension = upper(file_name[exidx+1..length(file_name)])
+    else
+        extension = ""
+    end if
+    if not isChecked(kf) then
+        if exidx=0 then return 0 end if -- no extension
+        if find(extension,skip_list) then return 0 end if
+        if find('.',extension) then return 0 end if
+        if length(extension)=3
+        and find(extension[2],"0123456789")
+        and find(extension[3],"0123456789") then
+            return 0
+        end if
+    end if
+    exidx=isChecked(af)
+    if isChecked(sf) then
+        if find(extension,do_list) then exidx=1 end if
+    end if
+    if isChecked(df) then
+        if find(extension,doc_list) then exidx=1 end if
+    end if
+    if isChecked(hf) then
+        if find(extension,html_list) then exidx=1 end if
+    end if
+    if isChecked(kf) then
+        if find(extension,skip_list) then exidx=1 end if
+    end if
+    if isChecked(of) then
+        if find(extension,other_list) then exidx=1 end if
+    end if
+    if isChecked(uf) then
+        if find(extension,do_list)
+        or find(extension,doc_list)
+        or find(extension,html_list)
+        or find(extension,skip_list)
+        or find(extension,other_list) then
+        else
+            exidx=1
+        end if
+    end if
+    if find(LowerCase(file_name),
+            {"compat01.ew","tk_maths.e","tk_mem.e","tk_misc.e","tk_trim.e",
+             "w32keys.e","win32lib.ew","clib.e","clib.txt","w32dll.ew",
+             "w32comctl.ew","w32kernel.ew","w32shell.ew","w32comdlg.ew",
+             "w32winmm.ew","w32gdi.ew","w32user.ew","ui_msgs.e",
+             "menuchk.exw","types.e","winfile.ew","tracker.e"}) then
+        if isChecked(wf) then
+            exidx=1
+        else
+            return 0
+        end if
+    end if
+    if exidx then
+        scan(path_name)
+    end if
+    return 0
+end function
+
+procedure updateFifList()
+sequence text
+integer k
+    text=getText(findiftext)
+    if length(text) then
+        k = getCount(findiftext)
+        while k do
+            if compare(text,getItem(findiftext,k))=0 then exit end if
+            k-=1
+        end while
+        if k = 0 then
+--          addItem(findiftext,text)
+            void = insertItem(findiftext,text,0)
+        end if
+    end if
+end procedure
+
+--with trace
+procedure onclick_GO()
+-- find the noted text
+object void
+object d
+sequence edir
+sequence top_dir
+integer c, message_one, cprev
+integer linelength
+
+    result={}
+    searchstring = getText(findiftext)
+    -- exit unless have some text to work with
+    if not length(searchstring) then
+        void = messageBox(xl("Error"), 
+                          xl("Enter one or more words to find."),
+                          MB_ICONEXCLAMATION + MB_OK)
+        setFocus(findiftext)
+        return
+    end if
+--  if isChecked(cd)+isChecked(ed)+isChecked(ei)=0 then
+--      void = messageBox("Error", 
+--                        "No directory selected.",
+--                        MB_ICONEXCLAMATION + MB_OK)
+--      return
+--  end if
+    if isChecked(sf)+isChecked(df)+isChecked(hf)+isChecked(of)+
+       isChecked(kf)+isChecked(uf)+isChecked(wf)+isChecked(af)=0 then
+        void = messageBox(xl("Error"), 
+                          xl("No files selected."),
+                          MB_ICONEXCLAMATION + MB_OK)
+        return
+    end if
+
+    log_name = "ex.err"
+    log_path = filepaths[currfile]
+
+    if platform() = LINUX then -- should never happen
+        SLASH = '/'
+    else
+        SLASH = '\\'
+    end if
+
+    log_file = open(log_path&log_name, "w")
+    if log_file = -1 then
+        void = messageBox(xl("Error"), 
+                          xl("Couldn't open ") & log_path & log_name & '\n',
+                          MB_ICONEXCLAMATION + MB_OK)
+        return
+    end if
+
+    close(log_file) 
+
+    updateFifList()
+        
+    charmash=repeat(0,256)
+    for i = 'a' to 'z' do
+        charmash[i]=i charmash[i-32]=i
+    end for
+    for i = '0' to '9' do
+        charmash[i]=i
+    end for
+    charmash['?']='?'
+    charmash['_']='_'
+    -- everything else is considered "white space"
+
+    c = 'a'
+    message_one=1
+    for k = 1 to length(searchstring) do
+        cprev=c
+        c=searchstring[k]
+        if c=0 then exit end if
+        if c!=charmash[c] then
+            if charmash[c]=0 then
+                charmash[c]=c
+            else
+                c=charmash[c]
+                searchstring[k]=c
+            end if
+        end if
+        if c='\t' then c=' ' end if
+        if c = ' ' and cprev = c then
+            if message_one then
+--DEV just remove them!
+                void = messageBox(xl("Error"), 
+                                  "Search phrase may not contain adjacent spaces.",
+                                  MB_ICONEXCLAMATION + MB_OK)                   
+                message_one=0
+            end if
+            for l=k to length(searchstring)-1 do
+                searchstring[l]=searchstring[l+1]
+            end for
+            searchstring[length(searchstring)]=0
+        end if
+    end for
+    while searchstring[length(searchstring)]=0 do
+        searchstring=searchstring[1..length(searchstring)-1]
+    end while   
+    charmash['\t']=charmash[' ']
+    charmash['\n']=charmash[' ']
+    charmash['\r']=charmash[' ']
+
+
+    -- quits after finishing current file
+    terminatea=0
+    HITS=0 THITS=0
+    files_scanned = 0
+    directories_scanned = 0
+    lines_scanned = 0
+--  result&={xl("Searching for: ")&searchstring}
+    result = append(result,xl("Searching for: ")&searchstring)
+    result = append(result," Files scanned %d, Directories scanned %d")
+    setText(c1,"")
+
+    addFocus(PROGRESS)
+    openWindow(PROGRESS, SW_NORMAL)
+        
+    bddone = 0
+    if isChecked(cd) then   
+        top_dir = filepaths[currfile]
+        
+        stacked_dir={}
+        while 1 do
+            directories_scanned += 1
+            if walk_dir(top_dir, routine_id("look_at"), False) then
+            end if
+            if isChecked(sd) and length(stacked_dir) then
+                top_dir=stacked_dir[1]
+                stacked_dir=stacked_dir[2..length(stacked_dir)]
+            else
+                exit
+            end if
+        end while
+    elsif isChecked(ed)+isChecked(ei)=0 then
+        scan(filepaths[currfile]&filenames[currfile])
+    end if  
+
+    edir=""
+    if isChecked(ed) then
+        edir="EUDIR"
+    elsif isChecked(ei) then
+        edir="EUINC"
+    end if
+    if length(edir) then
+        processed_files={}
+        d = getenv(edir)
+        if atom(d) then
+            if platform() = LINUX then
+                void = messageBox(xl("Error"), 
+                                  edir & xl(" not set"),    --EUDIR/EUINC
+                                  MB_ICONEXCLAMATION + MB_OK)
+                return
+            else
+--DEV: C:\Program Files\Phix (or wherever)?
+                d = "C:\\EUPHORIA"
+                if isChecked(ei) then
+                    d = d & "\\INCLUDE"
+                end if
+            end if
+        end if
+        if isChecked(ed) then
+            edir=""
+        else
+            edir="EUDIR"
+        end if
+        if sequence(dir(d)) then
+            -- reduce noise in Euphoria Help
+            skip_list &= {"*.HTM", "*.HTX", "*.DAT", "*.BAS", "*.BAT", "*.PRO",
+                          "LW.DOC", "BIND.EX", "*.ERR"}
+            stacked_dir={}
+            while 1 do
+                directories_scanned += 1
+                if walk_dir(d, routine_id("look_at"), False) then end if
+                if length(stacked_dir) then
+                    d=stacked_dir[1]
+                    stacked_dir=stacked_dir[2..length(stacked_dir)]
+                else
+                    if not length(edir) then exit end if
+                    d = getenv(edir)
+                    if atom(d) then exit end if
+                    d&="\\include"
+                    edir=""
+                end if
+            end while
+        end if
+    end if
+
+    if bddone=0 then
+        if isChecked(bd) then
+            d = initialcurrentdir&"backup\\"
+            directories_scanned += 1
+            if walk_dir(d, routine_id("look_at"), False) then
+            end if
+        end if
+    end if
+    result[2] = sprintf(" Files scanned %d, Directories scanned %d, Lines %d",
+                          {files_scanned,directories_scanned,lines_scanned})
+
+
+    removeFocus(PROGRESS)
+    setVisible(PROGRESS, False)
+
+    removeFocus(FindIF)
+    setVisible(FindIF,False)
+    setFocus(Main)
+
+--  if not openFile(log_path&log_name) then
+    crashpath = log_path
+    if not openAndShuffleErr(0,log_name) then
+        void = messageBox(xl("Error"), 
+                          xl("Couldn't open ") & log_path & log_name & '\n',
+                          MB_ICONEXCLAMATION + MB_OK)
+    else
+--          onclickselectfile(getCurrentFileNum())
+--          selectScreenFile(getCurrentFileNum())
+--          editorSelectAll(0,0,{})
+--          pasteText(0,0,{})
+--          tabmenufilepos=0    -- seems to be needed PL 9/9/02.        
+--          onClick_SAVE(0,0,{})        -- and this PL 17/09/02.
+--trace(1)
+--DEV replace this with the new "recalculate linelengths" code:
+--      selectAll()
+--      void = deleteSelection()    --DEV not sure why I need this...
+--      selON=0                     -- "" (but I do; what I mean to say is:
+--                                  --      it works, so I guess no harm done, but in
+--                                  --      theory Paste() should take care of this.
+--                                  --      Without this, a bug occurs when you undo.)
+----            Paste()
+--      addAction(INSERTBLOCK,result)
+--      InsertBlock(result)
+--      result={} -- release memory
+--      TopLine = 0
+--      CursorY = 0
+--      CursorX = 0
+--      selON=0
+--      forceCursorOnscreen()
+--      paintall()
+-- 5/6/07 copied from eacca.ew
+            --
+            -- lastly, build a new linelengths table for edita
+            --
+            linelengths=repeat(0,80)
+            for i=1 to length(result) do
+                linelength=ExpLength(result[i])
+                if linelength>=length(linelengths) then
+                    linelengths&=repeat(0,linelength-length(linelengths)+1)
+                end if
+                linelengths[linelength+1] = linelengths[linelength+1] + 1
+            end for
+            filelinelengths[currfile] = linelengths
+            filetext[currfile]=result
+            bookmarks[currfile]=repeat(0,length(result))
+            actions[currfile]={}
+            actionptr[currfile]=0
+            actionsave[currfile]=0
+    
+            TopLine = 0
+            CursorY = 0
+            CursorX = 0
+            selON=0
+            forceCursorOnscreen()
+            paintall()
+
+    end if
+end procedure
+
+--DEV: getEdit not in 0.55.1
+--object findEdit -- edit box within the Combobox
+--  findEdit = findChildren(findiftext)
+--  if length(findEdit)!=1 then ?9/0 end if -- definition of ComboBox has changed
+--  findEdit=findEdit[1][1]
+
+
+without trace
+function fifHandler(integer id, integer msg, atom wParam, object lParam)
+    if object(lParam) then end if
+    if msg = WM_CHAR then
+        if find(id,{PROGRESS,CANCEL}) then
+            if find(wParam,{VK_RETURN,VK_ESCAPE}) then
+                msg = WM_COMMAND
+                id = CANCEL
+            end if
+        else
+            if wParam = VK_RETURN then
+                msg = WM_COMMAND
+                id = GO
+            elsif wParam = VK_ESCAPE then
+                msg = WM_CLOSE
+            end if
+        end if
+    end if
+    if msg = WM_COMMAND then
+        if id=flab then
+            setFocus(findiftext)
+        elsif find(id,{cd,sd,ed,ei,bd,sf,df,hf,of,kf,uf,wf,af}) then
+            if lParam=1 then    -- accelerator key
+                setCheck(id,not isChecked(id))
+            else                -- space bar or mouse click
+                setCheck(id,isChecked(id))
+            end if
+        elsif id = GO then
+            onclick_GO()
+        elsif id = CANCEL then
+            terminatea=1
+        end if
+    elsif msg = WM_CLOSE then
+        removeFocus(FindIF)
+        setVisible(FindIF, False)
+        setFocus(Main)
+    end if
+    return 0
+end function
+setHandler({FindIF,flab,findiftext,findiftext+1,cd,sd,ed,ei,bd,
+            sf,df,hf,of,kf,uf,wf,af,GO,PROGRESS,CANCEL},
+            routine_id("fifHandler"))
+
+
+function pack(sequence text)
+    return text[1]  --DEV
+end function
+
+global procedure FIF()
+--sequence junk
+    if currfile then
+        if actionsave[currfile] != actionptr[currfile] then
+            if not saveCurr() then return end if
+        end if
+--      if getVal(SAVEFLAG) then
+--          if messageBox("Error", 
+--                        "Modifications to "&getVal(FILENAME)&" not saved\n\n"&
+--                        "Save and continue?\n",
+--                        MB_OKCANCEL)=IDCANCEL then
+--              return
+--          else
+--              onClick_SAVE(0,0,{})
+--          end if
+--      end if 
+        if selON and selY=CursorY and selX!=CursorX then
+            setText(findiftext,pack(getSelection(SEL_COPY)))
+--          setCheck(CASE,True)
+        end if
+        void=sendMessage(findiftext+1,EM_SETSEL,0,-1)
+
+--      if isTextSelected() then
+--          junk=getTextSelection()
+--          if length(junk)=1 then      -- not if > 1 line selected
+--              setText(findiftext,junk[1]) -- set as search target
+--          end if
+--      end if
+--      updateFifList()
+        addFocus(FindIF)
+        openWindow(FindIF, SW_NORMAL)
+    end if
+end procedure
+global constant r_FIF=routine_id("FIF")
+

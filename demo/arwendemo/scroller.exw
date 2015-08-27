@@ -1,0 +1,195 @@
+--
+-- scroller.exw
+-- ============
+--  Ported to Arwen from a Win32lib demo posted on EuForum (see file of same name in ..\win32libdemo\)
+--  Completely rewrote the focus handling, added double buffered display and zooming.
+--
+-- This is one of the "cool" demos.
+--
+-- TODO: support drag (WM_LBUTTONDOWN/WM_MOUSEMOVE/MK_LBUTTON) and (shift) WM_MOUSEWHEEL.
+--  (see edita.exw and possibly scowel.exw, or, of course, mini.chm)
+--  A help popup... maybe a second window...
+--  + zoom in
+--  - zoom out
+--  = original zoom
+--  # fit to screen
+
+include arwen.ew
+include axtra.ew    -- setPenColor/drawRectangleh (bit of a hack to be honest)
+
+-- Terminology:
+--  main: the (resizeable) window (X/Y/DC).
+--  view: the display buffer bitmap, at least as large as main (X/Y/DC/BM).
+--  image: the (fixed) object being scrolled/panned/zoomed (X/Y/DC/BM).
+--  focus: the point in the image corresponding to the centre of the view.
+
+integer mainX = 640,    -- (x size of window, less borders, scrollbars etc.)
+        mainY = 480,    --  y                   ""
+        viewX,          -- (x size of viewBM, kept >= size of window, ie mainX)
+        viewY           --  y                   ""                          Y
+atom viewBM = NULL      -- display buffer (from xCreateCompatibleBitmap).
+
+constant Main = create(Window, "Virtual Window Demo", 0, 0, 25, 25, mainX, mainY, {{WS_HSCROLL,WS_VSCROLL},0}),
+         mainDC = getPrivateDC(Main),
+         imageX = 1280,
+         imageY = 960,
+         imageDC = c_func(xCreateCompatibleDC,{mainDC}),
+         imageBM = c_func(xCreateCompatibleBitmap,{mainDC, imageX, imageY}),
+         viewDC = c_func(xCreateCompatibleDC,{mainDC})
+
+--
+-- {focusX,focusY} represents the logical focus point, moved by scrolling, but *not* by resizing or zooming.
+-- As an example, if we were viewing a map, zoomed in to Hampstead, as we zoom out that stays in the centre, until we hit an 
+--  edge of the map, after which futher zooming pulls Hamstead towards that edge, until eventually the whole map fits on the 
+--  screen, centred, with Muswell Hill slap in the middle. Now, as we zoom back in or un-maximise the window, then it should 
+--  return to Hampstead rather than Muswell Hill. The same idea is good for any image or document, obviously in the latter 
+--  it is a sentence or paragraph, whereas things like google maps, fractal images and artificial worlds don't necessarily
+--  have any edges, in which case this would still work fine just not really achieve anything.
+--
+atom focusX, focusY         -- (stored as atoms so that single-step scroll at very high magnification still works)
+integer firsttime = 1       -- (controls setting of {focusX, focusY}, and calling drawImage)
+constant drawfocus = 0
+
+procedure drawImage()
+-- initialise imageBM, and optionally redraw when the focus changes
+    if firsttime then
+        {} = c_func(xDeleteObject,{c_func(xSelectObject,{imageDC, imageBM})})
+    end if
+    setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imageX, imageY)
+    setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imageX-80)/2), floor((imageY-130)/2))
+    setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imageX/4), floor(imageY/4), imageX-75, imageY-75)
+    setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imageX-5, imageY-5)
+    if drawfocus then
+        setPenColor(Green)      drawRectangleh(imageDC, False, floor(focusX-2), floor(focusY-2), floor(focusX+2), floor(focusY+2))
+    end if
+end procedure
+
+integer zoom = 10   -- in tenths (1..1000+, upper limit depends solely on how quickly you get bored), or -1= fit to screen
+
+function Zoom(atom v)       return v*zoom/10            end function
+function Zoomf(atom v)      return floor(Zoom(v)+0.5)   end function
+function UnZoom(integer v)  return v*10/zoom            end function
+function UnZoomf(integer v) return floor(UnZoom(v)+0.5) end function
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+integer ZimageX, ZimageY
+integer ZfocusX, ZfocusY
+integer halfX, halfY
+sequence six, siy -- scroll info (scratch)
+integer srcX, srcY, srcW, srcH, 
+        dstX, dstY, dstW, dstH
+integer gap, oldzoom
+
+    if msg=WM_PAINT then
+        ZimageX = Zoomf(imageX)
+        ZimageY = Zoomf(imageY)
+        if not firsttime then
+            ZfocusX = Zoomf(focusX)
+            ZfocusY = Zoomf(focusY)
+        end if
+        for max_iterations=1 to 2 do                        -- (repeat if the scrollbar visibility changes)
+            {halfX,halfY,mainX,mainY} = getClientRect(Main) -- (less scroll bars, status line, and menu)
+            if {halfX,halfY}!={0,0} then ?9/0 end if        -- sanity check
+            halfX = floor(mainX/2)
+            halfY = floor(mainY/2)
+            if firsttime then
+                {focusX,focusY} = {halfX,halfY}
+                ZfocusX = Zoomf(focusX)
+                ZfocusY = Zoomf(focusY)
+            end if
+            if zoom=-1 then -- fit to screen                -- (so deliberately disable/hide the scrollbars)
+                {six,siy} @= {1,100,100,1}
+            else
+                six = {halfX,ZimageX+halfX,mainX,ZfocusX}       -- {Min/Max/Pagesize/Pos}
+                siy = {halfY,ZimageY+halfY,mainY,ZfocusY}
+            end if
+            setScrollInfo({id,SB_HORZ},six,1)
+            setScrollInfo({id,SB_VERT},siy,1)
+            if getClientRect(Main)={0,0,mainX,mainY} then exit end if
+        end for
+        if viewBM=NULL
+        or mainX>viewX
+        or mainY>viewY then
+            {viewX,viewY} = {mainX,mainY}
+            viewBM = c_func(xCreateCompatibleBitmap,{mainDC, viewX, viewY})
+            {} = c_func(xDeleteObject,{c_func(xSelectObject,{viewDC, viewBM})})
+        end if
+
+        if zoom=-1 then
+            {dstX,dstY,dstW,dstH} = {0,0,mainX,mainY}
+            {srcX,srcY,srcW,srcH} = {0,0,imageX,imageY}
+        else
+
+            if firsttime or drawfocus then
+                drawImage()
+            end if
+
+--          setPenColor(BrightWhite)
+--          setPenColor(Green)
+            setPenColor(Parchment)
+            drawRectangleh(viewDC, True, 0, 0, mainX, mainY)        -- clear background
+
+            srcX = ZfocusX-halfX
+            dstW = mainX
+            dstX = 0
+            gap = mainX-ZimageX
+            if gap>=0 then                  -- (enough for) gap on both sides
+                dstX = floor(gap/2)         -- so just center it
+                dstW = ZimageX
+                srcX = 0
+            elsif srcX<=0 then              -- gap on lhs? (and overhang>gap on rhs)
+                srcX = 0                    -- so move to "hard left" (some overhang remains on rhs)
+            elsif srcX>ZimageX-mainX then   -- gap on rhs? (and overhang>gap on lhs)
+                srcX = ZimageX-mainX        -- so move to "hard right" (some overhang remains on lhs)
+            end if
+            srcY = ZfocusY-halfY
+            dstH = mainY
+            dstY = 0
+            gap = mainY-ZimageY
+            if gap>=0 then                  -- (enough for) gap on both sides
+                dstY = floor(gap/2)         -- so just center it
+                dstH = ZimageY
+                srcY = 0
+            elsif srcY<=0 then              -- gap on top? (and overhang>gap on btm)
+                srcY = 0                    -- so move to "hard top" (some overhang remains on btm)
+            elsif srcY>ZimageY-mainY then   -- gap on btm? (and overhang>gap on top)
+                srcY = ZimageY-mainY        -- so move to "hard btm" (some overhang remains on top)
+            end if
+            srcX = UnZoomf(srcX)
+            srcY = UnZoomf(srcY)
+            srcW = UnZoomf(dstW)
+            srcH = UnZoomf(dstH)
+        end if
+        {} = c_func(xStretchBlt, {viewDC,dstX,dstY,dstW,dstH,imageDC,srcX,srcY,srcW,srcH,SRCCOPY})
+        void = c_func(xBitBlt, {mainDC, 0, 0, mainX, mainY, viewDC, 0, 0, SRCCOPY})
+        firsttime = 0
+    elsif msg=WM_HSCROLL then
+        focusX = UnZoom(wParam)
+        repaintWindow(Main,False)
+    elsif msg=WM_VSCROLL then
+        focusY = UnZoom(wParam)
+        repaintWindow(Main,False)
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(Main)
+        elsif find(wParam,"=#-+") then
+            oldzoom = zoom
+            if    wParam='#'            then zoom = -1
+            elsif wParam='=' or zoom<0  then zoom = 10
+            elsif wParam='-' and zoom>1 then zoom -= 1
+            elsif wParam='+'            then zoom += 1
+            end if
+            if zoom!=oldzoom then
+                repaintWindow(Main,False)
+            end if
+        end if
+    else
+        if id or object(lParam) then end if -- (suppress warnings)
+    end if
+    return 0
+end function
+setHandler(Main, routine_id("mainHandler"))
+
+--drawImage()
+WinMain(Main, SW_NORMAL) 
+

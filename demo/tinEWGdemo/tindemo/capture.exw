@@ -1,0 +1,224 @@
+puts(1,"annoyingly, this works if you trace it, but \"runs out of memory\" if you do not...\n")
+if getc(0) then end if      -- (I may be using the wrong version of tinewg)
+-- A very simple Screen Capturing Program 
+-- Only here to show some features I'am working on.
+-- Namly a SetHandler concept
+-- The SetHandler does not change the Basic working of tinEWG, it sits on top
+-- off a EuWinGui-Style Event-Loop
+-- AnimateWindow() gives some Fade Effects even on WinXP, they are not needed just playing around...
+--
+-- DoubleClick in the List selects the Window to Capture.
+-- 
+-- This Demo needs tinEWG 072 or above!
+-- Only tested on WinXP SP3 and Win8 Consumer Preview
+-- 2012 Andreas Wagner andi@indonesianet.de
+with trace
+include ..\tinewg.ew
+include std/math.e
+
+sequence window_handles = {}      -- all off the Window handles
+sequence app_handles = {}     -- only the Visible Top Level Windows (mostly Apps) 
+atom captured_window = GetDesktopWindow()
+atom Screen = 0 -- a MemoryBitmap for the capture
+
+
+WindowType = StandardWin                                    -- Resizeable Windows
+CloseEventEnabled = True                                  -- Enable the 'Close' Event
+
+{} = Window("ScreenCapture Demo",-1,-1,400,230)           -- Create a centered Window
+
+constant bar = Control(StatusBar, "",0,0,0,0)              -- A Statusbar
+sb_SetParts(bar,{60,-1})                                 -- 2 parts. First part (part 0) ends at 80, second part fills the rest of the bar
+SetText(bar, "Desktop",1)                                 -- Set the text of part 1 (the second part)
+
+
+constant capture = Control(Button,"Capture",280,5,80,25)  -- A nice Capture Button ;)
+
+constant fullwindow = Control(Check, "Capture Full Window",270,140,120,25)     -- Should we capture the 'full Window' or only the Client area
+SetCheck(fullwindow,True)                                                    -- Set default to 'Full Window'
+
+
+constant list = Control(List,"",10,10,240,150)
+constant clip = Control(Button, "To ClipBoard",280,55,80,25)
+SetEnable(clip, False)
+
+constant getwindows = Control(Button, "Get Windows",280,85,80,25)
+
+constant showout = Control(Button, "Show Capture",280,115,80,25)
+
+DialogIsChild = False                                     -- Dialogs can now be covered by the Main Window
+
+ShowFlag = False
+constant picture = Window("Capture", floor(ScreenWidth()/4)-150,-1,400,300) -- The Dialog, just a picture container.
+                                                 -- It is now possible to call Window() multiple times. If the MainWindow
+                                                 -- allready exists the call is forwarded to Control() and creates a Dialog.
+                                                 -- In this case you need to store the return value (the new Dialog handle) 
+ShowFlag = True
+
+SetWinTimer(30000,1)                                         -- Activate the Windows Timer 1 every 30 seconds
+--SetWinTimer(30000)                                    -- If you leave out the 2. parameter it defaults to 1 (EuWinGui behavior)
+
+SetWinTimer(1000,2)                                  -- Activate the Windows Timer 2 every 1 seconds
+
+
+procedure getapps()         -- Fill the 'list' with the TopLevel Windows
+    ListClear(list)
+    app_handles = {}
+    window_handles = EnumWindows()                                                                         -- Get all TopLevel Windows
+    for i=1 to length(window_handles)   do
+        if and_bits(GetWindowLong(window_handles[i],GWL_STYLE), or_all({WS_VISIBLE,not(WS_POPUP)})) then  --ingnore POPUPS and Invisible Windows
+            if not(equal(GetText(window_handles[i]),{})) then                                          --ingnore Windows without a Caption
+                ListAdd(list, GetText(window_handles[i]))
+                app_handles = append(app_handles,window_handles[i])
+            end if
+        end if
+    end for
+    if WINVER>5.1 then              -- Maybe higher, i only testet it with Win8 and XP (Win8 = 6.2)
+        ListAdd(list, "Desktop")      -- On XP "Program Manager" and Desktop seems to return the same handle  
+        app_handles = append(app_handles, GetDesktopWindow())   -- so wie do not need this
+    end if
+end procedure
+SetHandler(getwindows, Click , routine_id("getapps"))
+SetHandler(1, Time , routine_id("getapps"))             -- Update the 'list' every Timer Event from Timer 1
+                                                            -- This Autoupdating does not really work with Win8
+getapps()   -- Fill the 'list' with the TopLevel Windows
+
+--================= The handler for the Clock =================================
+
+procedure clock()
+sequence d
+atom hour,minute,second
+    d = date()
+    hour = d[4]
+    minute = d[5]
+    second = d[6]
+    d = sprintf("%02d" ,hour)& ":" & sprintf("%02d" ,minute)& ":" & sprintf("%02d" ,second) -- create the string
+    d = "  "&d
+    SetText(bar,d)                 -- SetText now has a 3. parameter  
+                                        -- if the target control is a statusbar it defaults to part 0
+--  SetText(bar,d,0)                -- Works the same as above
+end procedure
+SetHandler(2, Time , routine_id("clock"))                 -- Set the handler for printing the clock to the bar
+
+--End============== The handler for the Clock =================================
+
+--================= Choose a Window to Capture ================================
+procedure select_window()                       -- Choose a Window to capture
+atom index,flag
+    index = GetIndex(list)
+    if index<0 then return end if
+    captured_window = app_handles[index+1]
+    SetText(bar, GetItem(list),1)
+    if IsIconic(captured_window) then                            -- If the Window is 'Minimized' eg Iconic it need to be 'restored'
+        flag = SW_RESTORE
+    else
+        flag = SW_SHOW
+    end if
+    ForceForeground(captured_window,flag)
+    ForceForeground(WinHwnd)
+end procedure
+SetHandler(list, DClick , routine_id("select_window"))
+
+--End============== Choose a Window to Capture ================================
+
+--================= The DrawingProc for the 'picture' =========================
+procedure update_picture()              -- Paste the MemoryBitmap to the 'output' Window
+sequence rect
+    rect = GetClientRect(picture)
+    CopyMBToControl(Screen,0,0, GetImageSize(Screen,X_DIM), GetImageSize(Screen,Y_DIM),picture,0,0,rect[3],rect[4])
+end procedure
+SetDrawingProc(picture, routine_id("update_picture"))   -- Update the Dialog -- there is no 'Paint' Event right now!
+
+--End============== The DrawingProc for the 'picture' =========================
+
+--================= Create a new Memorybitmap and Capture======================
+procedure Capture()                                             -- Capture a Window
+atom flag
+sequence rect
+    if Screen>0 then
+        DeleteImage(Screen)                                  -- Delete the used MemoryBitmap
+    end if
+
+    if IsChecked(fullwindow) then                                -- Create a new MemoryBitmap
+        rect = GetWindowRect(captured_window)
+        Screen = NewMB(rect[3]-rect[1],rect[4]-rect[2])
+    else
+        rect = GetClientRect(captured_window)
+        Screen = NewMB(rect[3],rect[4])
+    end if
+
+    --ShowWindow(WinHwnd,SW_HIDE)                               -- Hide our program Windows. We do not like to capture them
+    {} = AnimateWindow(picture,500, or_all({AW_BLEND,AW_HIDE}))
+    {} = AnimateWindow(WinHwnd ,500, or_all({AW_BLEND,AW_HIDE}))
+--  ShowWindow(picture,SW_HIDE) 
+
+    if IsIconic(captured_window) then                            -- If the Window is 'Minimized' eg Iconic it need to be 'restored'
+        flag = SW_RESTORE
+    else
+        flag = SW_SHOW
+    end if
+    --ForceForeground(captured_window,SW_HIDE)                  -- Here to show that ForceForeground also accept flags                                      --
+    ForceForeground(captured_window,flag)                        -- Only visible Windows can be captured
+
+    Sleep(300)                                               -- Give Windows some time for its animations
+
+    CaptureControl(captured_window,Screen, IsChecked(fullwindow)) -- New function, not complete. Handle with care!
+                                                                 -- Maybe a name better is'CopyControlToMB' in EuWinGui style?
+    SetEnable(clip, True)
+    ForceForeground(picture)
+    ForceForeground(WinHwnd)
+
+end procedure
+SetHandler(capture, Click , routine_id("Capture"))       -- Set a handler for the Click Event EXPERIMENTAL!
+
+--End============== Create a new Memorybitmap and Capture======================
+
+--================= Show the captured picture in a Window======================
+procedure showoutput()              -- Display the Dialog-Window for the captured Bitmap
+atom flag
+    if IsIconic(picture) then
+        flag = SW_RESTORE
+    else
+        flag = SW_SHOW
+    end if
+--  ForceForeground(picture,flag)   
+    ForceForeground(picture,SW_HIDE)             -- AnimateWindow did not put a hidden Window in the foreground.
+                                                -- So we need to put the Window "hidden" in the foreground
+    {} = AnimateWindow(picture,500,or_all({AW_BLEND}))-- and then Animate it.
+    RedrawWindow(picture)                        -- AnimateWindow is not completly implementet. So need to Redraw the Window here.
+end procedure
+SetHandler(showout, Click , routine_id("showoutput"))
+
+--End============== Show the captured picture in a Window======================
+
+--================= Copy the captured Image to the Clipboard ==================
+procedure Clipboard()
+    CopyImageToClipboard(Screen)
+    SetEnable(clip, False)                     -- We don't need this, but it's a feedback that something happend.
+end procedure
+SetHandler(clip, Click , routine_id("Clipboard"))
+
+--End============== Copy the captured Image to the Clipboard ==================
+
+procedure close_dialog()                    -- Event handler for the Dialog 'output' Window
+    --SetVisible(picture,False)
+    {} = AnimateWindow(picture,500,or_all({AW_BLEND,AW_HIDE}))
+end procedure
+SetHandler(picture, Close , routine_id("close_dialog"))   -- handler for the 'Close' Event, just hides the output
+
+procedure close_main()                      -- Event handler for the Main Window
+    if AskMsg("Exit ScreenCapture?", "Exit") then
+        {} = AnimateWindow(WinHwnd ,500,or_all({AW_BLEND,AW_HIDE}))
+        CloseApp(0)
+    end if
+end procedure
+SetHandler(WinHwnd,Close, routine_id("close_main"))     -- Handler for the 'Close' Event
+                                                        -- This the works like: if Event = Click then
+                                                        --                          if EventOwner = WinHwnd then
+                                                        --                              do something
+                                                        --                          end if
+                                                        --                      end if
+
+
+WinMain()                                                -- Call the Main procedure EXPERIMENTAL!
+--­19.30

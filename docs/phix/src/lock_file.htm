@@ -1,0 +1,166 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">lock_file</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+             integer i1 = lock_file(integer fn, integer locktype, sequence range)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>When multiple processes or threads can simultaneously access a
+            file, some kind of locking mechanism may be needed to avoid mangling
+            the contents of the file, or causing erroneous data to be read from the file.
+          <p>lock_file() attempts to place a lock on an open file, fn, to stop 
+            other processes from using the file while your program is reading it 
+            or writing it. Under Linux, there are two types of locks that 
+            you can request using the locktype parameter. (Under DOS32 and WIN32 the 
+            locktype parameter is ignored, but should be an integer.)
+            Ask for a
+           <b>
+            <i>shared
+            </i>
+           </b>
+             lock when you intend to read a file, and you want to 
+            temporarily block other processes from writing it. Ask for an
+           <b>
+            <i>exclusive</i>
+           </b> lock 
+            when you intend to write to a file and you want to temporarily block other 
+            processes from reading or writing it. It is ok for many processes to 
+            simultaneously have shared locks on the same file, but only one process 
+            can have an exclusive lock, and that can happen only when no other 
+            process has any kind of lock on the file. The following constants are
+            pre-defined:
+          </p>
+         </td>
+        </tr>
+        <tr>
+         <td></td>
+         <td>
+<!--eucode>
+global constant LOCK_SHARED = 1, 
+                LOCK_EXCLUSIVE = 2
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">global constant</font><font color="#000000"> LOCK_SHARED</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">, 
+</font><font color="#000000">                LOCK_EXCLUSIVE</font><font color="#0000FF"> =</font><font color="#000000"> 2</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b></b>
+         </td>
+         <td>On DOS32 and WIN32 you can lock a specified 
+             portion of a file using the range parameter. range is a sequence of the 
+             form: {first_byte, last_byte}.
+             It indicates the first byte and last byte in the file,
+             that the lock applies to. Specify the empty sequence {}, 
+             if you want to lock the whole file. In the current release for Linux,
+             locks always apply to the whole file, and you should specify {}
+             for this parameter.
+          <p>
+            If it is successful in obtaining the desired lock, lock_file() will 
+            return 1. If unsuccessful, it will return 0. lock_file() does not wait
+            for other processes to relinquish their locks. You may have to call 
+            it repeatedly, before the lock request is granted.
+          </p>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>On Linux, these locks are called advisory locks, which
+            means they are not enforced by the operating system. It is up to the
+            processes that use a particular file to cooperate with each other.
+            A process can access a file without first obtaining a lock on it.
+            On WIN32 and DOS32, locks are enforced by the operating system.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b></b>
+         </td>
+         <td>On DOS32, lock_file() is more useful when
+           file sharing is enabled. It will typically return 0 (unsuccessful) 
+           under plain MS-DOS, outside of Windows.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+include misc.e
+include file.e
+integer v
+atom t
+v = open("visitor_log", "a")  -- open for append
+t = time()
+while not lock_file(v, LOCK_EXCLUSIVE, {}) do
+    if time() > t + 60 then
+        puts(1, "One minute already ... I can't wait forever!\n")
+        abort(1)
+    end if
+    sleep(5) -- let other processes run
+end while
+puts(v, "Yet another visitor\n")
+unlock_file(v, {})
+close(v)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> misc.e
+</font><font color="#008080">include</font><font color="#000000"> file.e
+</font><font color="#004080">integer</font><font color="#000000"> v
+</font><font color="#004080">atom</font><font color="#000000"> t
+v</font><font color="#0000FF"> =</font><font color="#7060A8"> open</font><font color="#0000FF">(</font><font color="#008000">"visitor_log"</font><font color="#0000FF">,</font><font color="#008000"> "a"</font><font color="#0000FF">) </font><font color="#000080"> -- open for append
+</font><font color="#000000">t</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()
+</font><font color="#008080">while not</font><font color="#7060A8"> lock_file</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#000000"> LOCK_EXCLUSIVE</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)</font><font color="#008080"> do
+    if</font><font color="#7060A8"> time</font><font color="#0000FF">() &gt;</font><font color="#000000"> t</font><font color="#0000FF"> +</font><font color="#000000"> 60</font><font color="#008080"> then
+</font><font color="#7060A8">        puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "One minute already ... I can't wait forever!\n"</font><font color="#0000FF">)
+</font><font color="#7060A8">        abort</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">)
+</font><font color="#008080">    end if
+</font><font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"> -- let other processes run
+</font><font color="#008080">end while
+</font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#008000"> "Yet another visitor\n"</font><font color="#0000FF">)
+</font><font color="#7060A8">unlock_file</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)
+</font><font color="#7060A8">close</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="unlock_file.htm">unlock_file</a>,
+          <a href="flush.htm">flush</a>,
+          <a href="sleep.htm">sleep</a>
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

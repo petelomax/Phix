@@ -1,0 +1,260 @@
+--
+-- A small collection of quines, found on EUforum circa August 2000
+-- A quine is a self-replicating program. Actually, it is just a made
+-- up word with no proper meaning, I expect.
+--
+-- This program creates a quine in original.exw, then executes it, 
+-- redirecting output to output.exw, then compares the files byte-
+-- by-byte to make sure they match. Don't panic, these are nothing
+-- like a trojan/virus; they just recreate their source to prove they
+-- can do so and are all perfectly safe.
+--
+-- Run using "p quine.exw n", where n is a digit in the range 1 to 6,
+-- or "p quine.exw" to be prompted. Examine original.exw after this
+-- program has finished. Note some of the code below has been altered 
+-- to avoid name clashes, and output from here goes to the file 'O', 
+-- instead of printing to std output like the quines themselves do.
+--
+--/* Not required for Phix:
+include ..\builtins\misc.e
+--*/
+
+constant cl=command_line()
+
+integer wq wq=0
+procedure getInteger(sequence numstr)
+--
+-- Return the integer value of a string
+--
+    for i=1 to length(numstr) do
+        if numstr[i]<'0' then exit end if
+        wq=wq*10+numstr[i]-'0'
+    end for
+end procedure
+
+if length(cl)>2 then
+    getInteger(cl[3])
+end if
+if wq<1 or wq>6 then
+    puts(1,"Which quine[1..6]:")
+    getInteger(gets(0))
+    if wq<1 or wq>6 then abort(1) end if
+end if
+
+constant O=open("original.exw","w")
+
+--
+-- Quine #1. Author Pete Eberlein
+--
+-- "A recursive quine". Run this to get the next stage...
+constant x="constant %s =", y="puts(1, %s)", z="length(%s)"
+if wq=1 then    --<< q
+printf(O, sprintf("%s\"%s\\n\",\ny=\"%s\\n? x\\n%s\",\n"&
+    "z=sprintf(y,{%s,%s+1,%s+%s})\n%s\n?x&z\n%s",
+    {x,x,y,y,z,z,z,z,y,y}),
+    "xx"&{"x[1..%d]","x[%d..%d]"}&"xxxyxz")
+end if
+
+-- ...which is this:
+--constant x ="constant x =\n",
+--y="puts(1, x[1..%d])\n? x\nputs(1, x[%d..%d])",
+--z=sprintf(y,{length(x),length(x)+1,length(x)+length(y)})
+--puts(1, x)
+--?x&z
+--puts(1, z)
+
+-- ...which you run again to get the actual quine:
+--constant x =
+--{99,111,110,115,116,97,110,116,32,120,32,61,10,112,117,116,115,40,49,
+--44,32,120,91,49,46,46,49,51,93,41,10,63,32,120,10,112,117,116,115,40,
+--49,44,32,120,91,49,52,46,46,53,51,93,41}
+--puts(1, x[1..13])
+--? x
+--puts(1, x[14..53])
+
+--
+-- Quine #2. Author Aidan Bindoff
+--
+--constant x="constant x=%sprintf(1,x,{34&x&34})"printf(1,x,{34&x&34})
+constant c="constant x=%sprintf(1,x,{34&x&34})"
+if wq=2 then --<<q
+printf(O,c,{34&c&34})
+end if
+
+--
+-- Quine #3. Author Davi Figueiredo
+--
+-- This is a self-replicating program
+constant s='\\',n='\n',q='\"',t="%s",w=t&q&n&'&'&q,
+msg="This is a self-replicating program",
+l1="%s-- %sconstant s='%s',n='%sn',q='%s',t=%s,x=t&q&n&'&'&q,%s",
+l2="%sprintf(1,l1,{{},msg&n,s&s,s,s&q,q&t&q,n})%s"
+&"puts(1,%smsg=%s&q&msg&q&','&n)%s"
+&"printf(1,%sl1=%s&l1,{q&t,t,t,t,t,t,t&q&','&n})%s"
+&"printf(1,%sl2=%s&l2,{q&t,x,t,t,x,t,t,x,t,t,x,t&q&n})%s"
+&"printf(1,l2,{{},n,q,q,n,q,q,n,q,q,n,n})%s"
+if wq=3 then
+printf(O,l1,{{},msg&n,s&s,s,s&q,q&t&q,n})
+puts(O,"msg="&q&msg&q&','&n)
+printf(O,"l1="&l1,{q&t,t,t,t,t,t,t&q&','&n})
+printf(O,"l2="&l2,{q&t,w,t,t,w,t,t,w,t,t,w,t&q&n})
+printf(O,l2,{{},n,q,q,n,q,q,n,q,q,n,n})
+end if
+
+--
+-- Quine #4. Author Davi Figueiredo
+--
+-- This is the original:
+--atom k,b constant q='"',s='\\',n='\n',r=q&s,z={s&q,s&s},a={
+--"atom k,b constant q='\"',s='\\\\',n='\\n',r=q&s,z={s&q,s&s},a={",
+--"}puts(1,a[1]&n&q)for o=1to length(a[1])do b=a[1][o]k=find(b,r)if k",
+--"then puts(1,z[k])else puts(1,b)end if end for for o=2to 4do",
+--"puts(1,q&','&n&q&a[o])end for puts(1,q)for o=2to 4do puts(1,n&a[o])end for"
+--}puts(1,a[1]&n&q)for o=1to length(a[1])do b=a[1][o]k=find(b,r)if k
+--then puts(1,z[k])else puts(1,b)end if end for for o=2to 4do
+--puts(1,q&','&n&q&a[o])end for puts(1,q)for o=2to 4do puts(1,n&a[o])end for           
+--
+-- So (!), I reformatted it for slightly easier reading:
+--
+atom k,b
+constant Q='"',S='\\',N='\n',R=Q&S,Z={S&Q,S&S},a={
+"atom k,b "&
+"constant q='\"',s='\\\\',n='\\n',r=q&s,z={s&q,s&s},a={",   --<< a[1] to here
+"}"&
+    "puts(1,a[1]&n&q)"&
+    "for o=1to length(a[1])do "&
+        "b=a[1][o]"&
+        "k=find(b,r)"&
+        "if k","then "&                                     --<< a[2] to here
+            "puts(1,z[k])"&
+        "else "&
+            "puts(1,b)"&
+        "end if "&
+    "end for "&
+    "for o=2to 4do",                                        --<< a[3] to here
+        "puts(1,q&','&n&q&a[o])"&
+    "end for "&
+    "puts(1,q)"&
+    "for o=2to 4do "&
+        "puts(1,n&a[o])"&
+    "end for"                                               --<< a[4] to here
+}
+if wq=4 then
+    puts(O,a[1]&N&Q)
+    for o=1 to length(a[1]) do
+        b=a[1][o]
+        k=find(b,R)
+        if k then
+            puts(O,Z[k])
+        else
+            puts(O,b)
+        end if
+    end for
+    for o=2 to 4 do
+        puts(O,Q&','&N&Q&a[o])
+    end for
+    puts(O,Q)
+    for o=2 to 4 do
+        puts(O,N&a[o])
+    end for
+end if
+
+--
+-- Quine #5. Author Andy Kurnia (May 1998)
+--
+constant A="constant a=",B="puts(1,a&34&a&34&44&98&61&34&b&34&b)"
+if wq=5 then
+    puts(O,A&34&A&34&44&98&61&34&B&34&B)
+end if
+
+--
+-- Quine #6. Author Pete Eberlein (May 1998)
+--  The original post, (search http://www.rapideuphoria.com/listserv.htm
+--  for a post by Pete Eberlein in May 1998 about self-printing) was/is
+--  damaged in the archives, so I rebuilt it and included ppp.e instead
+--  of "?" - which has changed somewhat since 1998.
+--
+include ppp.e
+constant codes =  { "constant ",                        --1
+                    "codes",                            --2
+                    " = ",                              --3
+                    "s",                                --4
+                    "e",                                --5
+                    "for i=1 to length(s) do",          --6
+                    "include ppp.e",                    --7
+                    "    ",                             --8
+                    "els",                              --9
+                    '\n',                               --10
+                    "if s[i]",                          --11
+                    "pp(",                              --12
+                    "-1",                               --13
+                    "-2",                               --14
+                    " then",                            --15
+                    "puts(1, ",                         --16
+                    "[s[i]])",                          --17
+                    ")",                                --18
+                    "end if",                           --19
+                    "end for"}                          --20
+constant P = {7,10,1,2,3,-2,10,1,4,3,-1,10,6,10,8,11,3,13,15,10,8,8,12,4,18,10,8,9,11,3,
+14,15,10,8,8,12,2,18,10,8,9,5,10,8,8,16,2,17,10,8,19,10,20}
+if wq=6 then
+for i = 1 to length(P) do
+    if P[i] = -1 then
+        ppEx(P,{pp_File,O})
+    elsif P[i] = -2 then
+        ppEx(codes,{pp_File,O})
+    else
+        puts(O, codes[P[i]])
+    end if
+end for
+end if
+
+--
+-- OK, that's all of them. The code below runs them and checks they work.
+--
+
+close(O)
+
+if wq=1 then        -- three steps for this one
+    system("C:\\Program Files\\Phix\\p original.exw > output.exw",2)
+    sleep(1)
+    system("C:\\Program Files\\Phix\\p output.exw > original.exw",2)
+    sleep(1)
+end if
+system("c:\\Program Files\\Phix\\p original.exw > output.exw",2)
+sleep(1)
+constant in=open("original.exw","rb"), out=open("output.exw","rb")
+integer inlen, outlen
+integer chin,chout
+include file.e
+    inlen = seek(in, -1)
+    inlen = where(in)
+    if seek(in,0) then end if
+    outlen = seek(out, -1)
+    outlen = where(out)
+    if seek(out,0) then end if
+
+    -- compare byte-for-byte, but ignoring any /r/n discrepancies
+    --                      (or extra rounds should iron such out)
+    while 1 do
+        chin = getc(in)
+        chout = getc(out)
+        while find(chin,"\r\n") do
+            chin = getc(in)
+        end while
+        while find(chout,"\r\n") do
+            chout = getc(out)
+        end while
+        if chin!=chout then
+            puts(1,"mismatch\n")
+            if getc(0) then end if
+            abort(1)
+        end if      
+        if chin=-1 then exit end if
+    end while
+puts(1,"\n\nDone. See original.exw (and output.exw)")
+if getc(0) then end if
+
+-- A palindromic C one I found:
+-- /**/char q='"',*a="*//**/char q='%c',*a=%c%s%c*/};)b(stup;]d[b=]d-472[b)--d(elihw;)q,a,q,q,2+a,b(ftnirps;)b(stup{)(niam;731=d tni;]572[b,"
+-- ,b[275];int d=137;main(){puts(b);sprintf(b,a+2,q,q,a,q);while(d--)b[274-d]=b[d];puts(b);}/*c%s%c%=a*,'c%'=q rahc/**//*"=a*,'"'=q rahc/**/

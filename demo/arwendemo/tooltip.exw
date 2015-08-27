@@ -1,0 +1,51 @@
+--
+--  tootip.exw
+--
+--  Converted from win32lib demos, as part of the first attempt to implement 
+--  rebar handling. Pete Lomax 20/5/09.
+puts(1,"NB: conversion to arwen incomplete...\n")   --DEV
+--
+include arwen.ew
+
+constant                                            
+Win   = create(Window, "Tooltip Demo",0, 0, 20, 20, 300, 300, 0),
+RB    = create(ReBar, "",0, Win, 0, 0, 600, 300, 0),
+Band  = create(ReBarBand, "Band 1",0, RB, 0, 0, 100, 100, 0),
+CB    = create(ComboDropDown, "",0, Band, 0, 200, 90, 25 * 6, 0),
+Band2 = create(ReBarBand, "Band 2",0, RB, 0, 0, 100, 100, RBBS_BREAK),
+Tool  = create(ToolBar, "", 0, Band2, 0, 0, 300, 34, 0),
+One   = create(PushButton, "One", 0, Tool, 0, 0, 50, 30, 0),
+Two   = create(PushButton, "Two", 0, Tool, 51, 0, 50, 30, 0),
+CB2   = create(PushButton, "Button", 0, Win, 0, 188, 90, 40, 0)
+
+setHint(Win,"Hints have been set")
+setHint(RB,"Rebar")
+setHint(Band,"Band 1")
+setHint(CB,"Combo ToolTip!")
+setHint(Band2,"Band 2")
+setHint(Tool,"Toolbar")
+setHint(One,"One")
+setHint(Two,"Two")
+setHint(CB2,"Button ToolTip!")
+--DEV 12 points in win32lib is like 10 in arwen...:
+setFont(tooltipControl, "Arial", 10, 0)
+
+void = insertItem(CB, "One", 0)
+void = insertItem(CB, "Two", 0)
+void = insertItem(CB, "Etc...", 0)
+
+function resizeHandler(integer id, integer msg, atom wParam, object lParam)
+    if id = Win and msg=WM_SIZE then
+        -- (btw: win32lib "magics" this lot out of thin air...
+        --       I can live with having to do this manually.  )
+        wParam = lParam[3]              -- new x (width)
+        lParam = getWindowRect(RB)
+        lParam = lParam[4]-lParam[2]    -- keep exitsing y
+        setWindowPos(RB,0,0,wParam,lParam,SWP_NOMOVE)
+    end if
+    return 0
+end function
+setHandler(Win,routine_id("resizeHandler"))
+
+WinMain(Win, SW_NORMAL)
+

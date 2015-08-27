@@ -1,0 +1,186 @@
+-- Toolbar.exw
+-- Matt Lewis
+without warning
+
+--/**/  include win32lib.ew
+--/*
+include ..\win32lib\w32globals.e
+include ..\..\builtins\machine.e
+include ..\..\builtins\dll.e
+include ..\..\builtins\misc.e
+include ..\..\builtins\porall.e
+include ..\..\builtins\msgbox.e
+include ..\..\builtins\sort.e
+include ..\..\builtins\file.e
+include ..\..\builtins\get.e
+include ..\..\builtins\wildcard.e
+include ..\..\builtins\graphics.e
+include ..\..\builtins\image.e
+include ..\win32lib\w32keys.e
+include ..\win32lib\w32msgs.e
+include ..\win32lib\series.e
+include ..\win32lib\w32def_series.ew
+include ..\win32lib\w32utils.e
+include ..\win32lib\w32memory.ew
+include ..\win32lib\w32support.e
+include ..\win32lib\w32dll.ew
+include ..\win32lib\w32gdi.ew
+include ..\win32lib\w32constants.ew
+include ..\win32lib\w32user.ew
+include ..\win32lib\w32winmm.ew
+include ..\win32lib\w32comdlg.ew
+include ..\win32lib\w32comctl.ew
+include ..\win32lib\w32kernel.ew
+include ..\win32lib\w32shell.ew
+include ..\win32lib\w32ole.ew
+include ..\win32lib\w32file.ew
+include ..\win32lib\w32advapi.ew
+include ..\win32lib\w32winspool.ew
+include ..\win32lib\options.e
+include ..\win32lib\rttext.e
+include ..\win32lib\version.e
+include ..\win32lib\w32tk.e
+include ..\win32lib\compat02.ew
+include ..\win32lib\win32lib.ew
+--*/
+
+if setAppName("Toolbar Example") then end if
+
+integer Win, SB, TB
+integer B1, B2, B3, S1, B4
+
+
+atom iExw
+sequence icons
+integer enable, ri3
+Win = create(Window, "Flat ToolBar Demo",   0, 0, 0, 300, 300, 0)
+SB  = create(StatusBar,         "" , Win,       0,  0,  0,  0, 0)
+
+--/**/ constant demoresources = "..\\demoresources\\"
+--/*
+--include ..\..\builtins\ppp.e
+--pp(command_line())
+sequence cl, demoresources
+cl = command_line()
+demoresources = cl[2]
+if find('\\',demoresources) then
+    for i=length(demoresources) to 1 by -1 do
+        if demoresources[i]='\\' then
+            demoresources = demoresources[1..i-1]
+            exit
+        end if
+    end for
+else
+    demoresources = ""
+end if
+if length(demoresources)<2
+or demoresources[2]!=':' then
+    cl = cl[1]
+    for i=length(cl) to 1 by -1 do
+        if cl[i]='\\' then
+            cl = cl[1..i]
+            exit
+        end if
+    end for
+    demoresources = cl&demoresources    
+end if
+    for i=length(demoresources) to 1 by -1 do
+        if demoresources[i]='\\' then
+            demoresources = demoresources[1..i]&"demoresources\\"
+            exit
+        end if
+    end for
+--pp(demoresources)
+--*/
+constant
+    closefolder = extractIcon(demoresources&"clsdfold.ico"),
+    openfolder  = extractIcon(demoresources&"openfold.ico"),
+    dos         = extractIcon(demoresources&"disk05.ico"),
+    linux       = extractIcon(demoresources&"disk06.ico"),
+    generic     = extractIcon(demoresources&"disks04.ico")
+
+sequence wk1
+integer tbheight
+
+wk1 = getTextExtent(Screen, "|")
+tbheight = (32 + 12 + wk1[2])
+
+TB  = create( FlatToolBar, "", Win, 0, 0, 0, tbheight, 0)
+
+iExw = w32Func(xLoadIcon,{instance(), "exw"})
+
+icons = {}
+icons &= addIcon({closefolder, openfolder, iExw})
+icons &= addIcon({dos, linux, generic})
+icons &= addIcon(repeat(iExw,3))
+icons &= addIcon({linux, generic,dos})
+--?icons
+
+--DEV icons[3] on Phix behaves like icons[4] on RDS...
+B4  = create( PushButton, {"Destroy", "number 4"},  TB, icons[3],  0,  0,  0, 0)
+S1  = create( SepButton,         "",  TB,        0,  0,  0,  0, 0)
+B2  = create( PushButton, {"Two", "number 2"},      TB, icons[2], 0,  0,  0, 0)
+
+B1  = create( PushButton, {"One","number 1"}, Win,       20, 130, 50, 25, 0)
+B3  = create( PushButton, {"Disable","number 3"}, Win,       20, 160, 50, 25, 0)
+
+procedure TB_onMouse(integer self, integer event, sequence parms)
+    atom iMsg
+    atom x
+    atom y
+    atom shifts
+
+    x = parms[2]
+    y = parms[3]
+    shifts = parms[4]
+    setText(SB, sprintf("X=%d Y=%d Shift=%d", {x,y,shifts}))
+end procedure
+setHandler(TB, w32HMouse, routine_id("TB_onMouse"))
+
+procedure one_onClick(integer self, integer event, sequence parms)
+    setText(SB, sprintf("Button %s %d %d ", {getText(getSelf()), isVisible(TB), isVisible(SB)}))
+end procedure
+setHandler(B1, w32HClick, routine_id("one_onClick"))
+
+procedure two_onClick(integer self, integer event, sequence parms)
+    setText(SB,  "                  Button Two")
+    setText(B2, "XXX" & getText(B2))
+end procedure
+setHandler(B2, w32HClick, routine_id("two_onClick"))
+
+enable = 1
+
+procedure disable_onClick(integer self, integer event, sequence parms)
+
+    enable = 1 - enable
+    setEnable({B1,TB}, enable)
+
+    setText(SB,"")
+    if enable = 0 then
+        setText(B3, "Enable")
+    else
+        setText(B3, "Disable")
+    end if
+
+end procedure
+setHandler(B3, w32HClick, routine_id("disable_onClick"))
+
+procedure destroy_onClick(integer self, integer event, sequence parms)
+
+    if validId(B3) then
+        destroy(B3)
+    else
+        B3 = create( PushButton, "", Win, 20, 160, 50, 25, 0)
+        if enable=0 then
+            setText(B3, "Enable")
+        else
+            setText(B3, "Disable")
+        end if
+        setHandler(B3, w32HClick, routine_id("disable_onClick"))
+    end if
+end procedure
+setHandler(B4, w32HClick, routine_id("destroy_onClick"))
+
+WinMain(Win, Normal)
+
+
