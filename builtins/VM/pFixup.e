@@ -59,7 +59,9 @@ include builtins\VM\pFPU.e
     [32]
             mov edx,[esp+4]
     [64]
-            mov rdx,[rsp+8]
+--28/8/15:
+--          mov rdx,[rsp+8]
+            mov rdx,[rsp+16]
     []
         test al,0x04
         jz @f

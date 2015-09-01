@@ -1307,3 +1307,40 @@ time that may be replaced with something more like the pcfuncN.e\:%SetCCleanup m
 Enabling/disabling the memory leak checking could hardly be simpler: just change the MCHK
 setting and run "p -cp".
 
+
+Error trapping:
+It is not simply a matter of scouring the (builtins/VM) sources and making sure that all
+possible errors are trapped. In one instance I hit an int3 in pHeap.e/mergeone, caused by
+the pRoot getting clobbered (to 0), and I added mov al,e32hc/jmp :!iDiag - however the
+heap corruption was being detected within an opRetf, so the line number was meaningless
+anyway, and it turned out the int3 was easier (natural in fact) to trap in fdbg.
+
+In that particular case the debugging method was non-trival. Attempts to reduce the 
+offending program to something nice and small failed (it quickly reached the point where
+deleting one more line of a 3344-line program made the problem vanish). Plus, every time
+I ran the program it allocated the heap somewhere new. I not only had to find pGtcb (at
+#00402F18 in my case) and multiply that by 4 to look at the global pool header, but also
+look at pNextcb: only then could I predict where the memory corruption was going to 
+occur (I made several dry runs to figure that one out). Finally I re-ran it, trapping
+earlier and earlier until I found a pre-corruption spot, then single-stepped it to
+find the exact point of corruption, at which point the (length>maxlen) error became 
+all too obvious.
+
+I guess the point I am trying to make is that fancy (human readable) error handling
+should only be attempted when it is a problem that must be fixed in the user code,
+and any bugs in the backend should be left "raw".   --DEV is this e30?
+
+By all means should you find suspect error handling in the backend code, you are more
+than welcome to try and reproduce/trigger the problem you think it will/should cause,
+and of course only if you succeed, and not before, is it time to try a fix. Once done
+you should, if both practical and suitably short, add something to test\terror.
+
+The following is a complete list of the run-time errors. I would very much hope that you 
+would only very rarely feel the need to refer to this page. Two errors in particular,
+e30ume and e32hc, indicate problems that need to be addressed in the backend. Generally
+speaking, errors in hll code (your application or p.exw) should generate human-readable
+messages, whereas errors in the low-level VM/runtime usually end up easier to debug if
+that are left "raw", besides they don't really have a source line number in the same way 
+that hll application code does (and/or it wouldn't help if they did).
+
+

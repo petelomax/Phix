@@ -1539,11 +1539,13 @@ global procedure syminit()
     initialConstant("C_LPARAM",     #01000004)
     initialConstant("C_HRESULT",    #01000004)
     initialConstant("C_UINT",       #02000004)
-    initialConstant("C_SIZE_T",     #02000004)
+--  initialConstant("C_SIZE_T",     #02000004)
     initialConstant("C_DWORD",      #02000004)  -- (a 32 bit unsigned integer)
 --  initialConstant("C_DWORD32",    #02000004)  -- (a 32 bit unsigned integer) [DEV/SUG]
 --  initialConstant("C_DWORD64",    #02000008)  -- (a 64 bit unsigned integer) [DEV/SUG]
     initialConstant("C_ULONG",      #02000004)
+    initialConstant("C_INT64",      #01000008)  -- (a 64 bit signed integer) [DEV/SUG]
+    initialConstant("C_QWORD",      #02000008)  -- (a 64 bit unsigned integer) [DEV/SUG]
 --  initialConstant("C_LONGLONG",   #01000008)  -- (a 64 bit signed integer) [DEV/SUG]
 --  initialConstant("C_ULONGLONG",  #02000008)  -- (a 64 bit unsigned integer) [DEV/SUG]
     initialConstant("C_POINTER",    #02000004)  -- [DEV] #02000008 on 64 bit
@@ -1552,7 +1554,7 @@ global procedure syminit()
     initialConstant("C_HWND",       #02000004)  -- ""
 --  initialConstant("C_WIDEPTR",    #02020004) [DEV/SUG]
     initialConstant("C_FLOAT",      #03000004)
-    initialConstant("C_DOUBLE",     #03000008)
+    initialConstant("C_DOUBLE",     #03000008)  -- DEV deprecate? (30/8/15)...
 --  initialConstant("C_DWORDLONG",  #03000008)  [DEV? (has also surfaced as #03000002, I say "it shd be #02000008!?")]
 
 -- For Phix-compiled .dll files [DEV when implemented!], and/or call_backs.
@@ -2031,6 +2033,7 @@ if newEmit then
     AutoGlabel(opPeek4u,    "%opPeekNx",    "VM\\pMem.e")
     AutoGlabel(opPeek8s,    "%opPeekNx",    "VM\\pMem.e")
     AutoGlabel(opPeek8u,    "%opPeekNx",    "VM\\pMem.e")
+    AutoGlabel(opPeekNS,    "%opPeekNx",    "VM\\pMem.e")
 --  AutoGlabel(opPeeki,     "%opPeeki",     "VM\\pMem.e")   -- (untested/erm/inlined?)
 --  AutoGlabel(opPoke,      "%opPoke",      "VM\\pMem.e")
 --  AutoGlabel(opPoke4,     "%opPoke4",     "VM\\pMem.e")
@@ -2148,6 +2151,7 @@ if newEmit then
     AutoAsm("peek4u",           S_Func,"FO",    "VM\\pMem.e",       opPeek4u,   "%opPeekNx",    E_none, T_object)
     AutoAsm("peek8s",           S_Func,"FO",    "VM\\pMem.e",       opPeek8s,   "%opPeekNx",    E_none, T_object)
     AutoAsm("peek8u",           S_Func,"FO",    "VM\\pMem.e",       opPeek8u,   "%opPeekNx",    E_none, T_object)
+    AutoAsm("peekNS",           S_Func,"FOII",  "VM\\pMem.e",       opPeekNS,   "%opPeekNx",    E_none, T_object)
     AutoAsm("get_text",         S_Func,"FII",   "VM\\pfileioN.e",   opGetText,  "%opGetText",   E_none, T_object)   T_get_text = symlimit
     symtab[symlimit][S_ParmN] = 1
 
@@ -2171,11 +2175,12 @@ if newEmit then
     AutoAsm("mem_set",          S_Proc,"PNII",  "VM\\pMem.e",       opMemSet,   "%opMemSet",    E_other,0)
 --  AutoAsm("poke",             S_Proc,"PIO",   "VM\\pMem.e",       opPoke,     "%opPoke",      E_other,0)
 --  AutoAsm("poke4",            S_Proc,"PIO",   "VM\\pMem.e",       opPoke4,    "%opPoke4",     E_other,0)
-    AutoAsm("poke",             S_Proc,"PIO",   "VM\\pMem.e",       opPoke1,    "%opPokeN",     E_other,0)
-    AutoAsm("poke1",            S_Proc,"PIO",   "VM\\pMem.e",       opPoke1,    "%opPokeN",     E_other,0)
-    AutoAsm("poke2",            S_Proc,"PIO",   "VM\\pMem.e",       opPoke2,    "%opPokeN",     E_other,0)
-    AutoAsm("poke4",            S_Proc,"PIO",   "VM\\pMem.e",       opPoke4,    "%opPokeN",     E_other,0)
-    AutoAsm("poke8",            S_Proc,"PIO",   "VM\\pMem.e",       opPoke8,    "%opPokeN",     E_other,0)
+    AutoAsm("poke",             S_Proc,"PNO",   "VM\\pMem.e",       opPoke1,    "%opPokeN",     E_other,0)
+    AutoAsm("poke1",            S_Proc,"PNO",   "VM\\pMem.e",       opPoke1,    "%opPokeN",     E_other,0)
+    AutoAsm("poke2",            S_Proc,"PNO",   "VM\\pMem.e",       opPoke2,    "%opPokeN",     E_other,0)
+    AutoAsm("poke4",            S_Proc,"PNO",   "VM\\pMem.e",       opPoke4,    "%opPokeN",     E_other,0)
+    AutoAsm("poke8",            S_Proc,"PNO",   "VM\\pMem.e",       opPoke8,    "%opPokeN",     E_other,0)
+    AutoAsm("pokeN",            S_Proc,"PNOI",  "VM\\pMem.e",       opPokeN,    "%opPokeN",     E_other,0)
     AutoAsm("position",         S_Proc,"PII",   "VM\\pfileioN.e",   opPosition, "%opPosition",  E_other,0)
     AutoAsm("puts",             S_Proc,"PIO",   "VM\\pfileioN.e",   opPuts,     "%opPuts",      E_other,0)
     AutoAsm("unlock_file",      S_Proc,"PIP",   "VM\\pfileioN.e",   opUnLock,   "%opUnLock",    E_other,0)

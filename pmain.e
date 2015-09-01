@@ -1557,7 +1557,8 @@ end if
            or scode=opPeek4s
            or scode=opPeek4u
            or scode=opPeek8s
-           or scode=opPeek8u then
+           or scode=opPeek8u
+           or scode=opPeekNS then
 
             if emitON then
 --DEV or opPeek1u (?) [but we should probably drop opPeeki and opUnassign/inline peek(1|2)(s|u) anyway]
@@ -1599,6 +1600,18 @@ end if
                 if scode=opPeeki then
                     isInit = (symtab[p2][S_Init] and k)
                     apnds5({scode,N,p2,isInit})
+                elsif scode=opPeekNS then
+                    p3 = p2 
+                    p2 = opstack[opsidx-1]
+                    p1 = opstack[opsidx-2]
+                    if not symtab[p2][S_Init] then
+                        Unassigned(p2)
+                    end if
+                    if not symtab[p1][S_Init] then
+                        Unassigned(p1)
+                    end if
+                    apnds5({scode,N,p1,p2,p3})  -- opPeekNS,addr,size,sign
+                    freeTmp(-2)
                 else
                     apnds5({scode,N,p2})
                 end if
@@ -1660,7 +1673,7 @@ end if
             end if  -- emitON
             freeTmp(-2)
         else
-            printf(1,"internal error pmain.e line 1593, unknown scode(%d=%s), tokline=%d)\n",{scode,opNames[scode],tokline})
+            printf(1,"internal error pmain.e line 1664, unknown scode(%d=%s), tokline=%d)\n",{scode,opNames[scode],tokline})
             ?9/0    -- unknown scode
         end if
 
@@ -4541,7 +4554,8 @@ end if
                     if DEBUG then
                         if opcode!=opMemCopy
                         and opcode!=opMemSet
-                        and opcode!=opScroll then
+                        and opcode!=opScroll
+                        and opcode!=opPokeN then
                             ?9/0
                         end if
                     end if

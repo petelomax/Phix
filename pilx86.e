@@ -2224,6 +2224,30 @@ procedure clearReg(integer reg)
     clearIreg()
 end procedure
 
+procedure promoteReg(integer reg)
+-- used when we spot an important register, eg when we transtmpfer something
+--  from one instruction to the next, move it up in the most recently used
+--  stakes, so it does not get clobbered in a subsequent loadReg/spareReg.
+    ireg = y0167[reg+1]
+    if ireg then    -- not edx/ebx (but instead a tracked register)
+        regstate = transitions[regstate][ireg]
+    end if
+end procedure
+
+procedure demoteReg(integer reg)
+-- used to force a register to be selected next, eg if we want to load a
+--  value, not already in a register (as proved by loadReg(,,1) returing
+--  -1) into eax, we demoteReg(eax) before calling loadReg again without 
+--  the noload option.
+--DEV
+if reg=edx then ?9/0 end if
+if reg=ebx then ?9/0 end if
+    ireg = y0167[reg+1]
+    if ireg then    -- not edx/ebx (but instead a tracked register)
+        regstate = snartitions[regstate][ireg]
+    end if
+end procedure
+
 procedure addReg(integer N)
 -- add reg info that [N] is in ireg:
     reginfo += 1
@@ -2311,6 +2335,7 @@ integer k, r
     end if
     if symtab[N][S_NTyp]=S_TVar 
     and and_bits(symtab[N][S_State],K_Fres) then
+        promoteReg(eax)     -- (added 31/8/15)
         return eax
     end if
     k = find(N,mloc)
@@ -2381,30 +2406,6 @@ end function
 --end if
 --  return edx
 --end function
-
-procedure promoteReg(integer reg)
--- used when we spot an important register, eg when we transtmpfer something
---  from one instruction to the next, move it up in the most recently used
---  stakes, so it does not get clobbered in a subsequent loadReg/spareReg.
-    ireg = y0167[reg+1]
-    if ireg then    -- not edx/ebx (but instead a tracked register)
-        regstate = transitions[regstate][ireg]
-    end if
-end procedure
-
-procedure demoteReg(integer reg)
--- used to force a register to be selected next, eg if we want to load a
---  value, not already in a register (as proved by loadReg(,,1) returing
---  -1) into eax, we demoteReg(eax) before calling loadReg again without 
---  the noload option.
---DEV
-if reg=edx then ?9/0 end if
-if reg=ebx then ?9/0 end if
-    ireg = y0167[reg+1]
-    if ireg then    -- not edx/ebx (but instead a tracked register)
-        regstate = snartitions[regstate][ireg]
-    end if
-end procedure
 
 procedure loadToReg(integer tgtreg, integer src, integer clr=0)
 -- mov tgtreg,[src] (nb variable length instructions emitted)
@@ -3366,6 +3367,7 @@ end procedure
 
 integer bcode, reg, wrk
 
+--with trace
 function SetCC(integer opcode, integer soon)
 --
 -- Common to opScc and opJcc (the latter passes opJcc translated to equiv opScc)
@@ -3522,6 +3524,14 @@ integer rtype, rtype2   --DEV use slroot, slroot2??
             bcode = trev[bcode] -- invert test (imm8/32 must be 2nd)
             reg = -1
         else
+--31/8/15: (loadReg wanted the promoteReg)
+--          if (src2!=tmpd or tmpr<0)
+--          and (smin2!=smax2 or rtype2!=T_integer)
+----            and (smin2!=smax2 or rtype2!=T_integer or reg=eax)
+--          and symtab[src2][S_NTyp]=S_TVar 
+--          and and_bits(symtab[src2][S_State],K_Fres) then
+--              promoteReg(eax)
+--          end if
             reg = loadReg(src)                          -- mov reg,[src]
         end if
         if src2=tmpd and tmpr>=0 then
@@ -4485,7 +4495,7 @@ sequence b1, b2
 --
 integer blroot, bmin, bmax, bmin2, bmax2
 
---with trace
+with trace
 --constant linkFwd = 01 --DEV check docs for opAsm; pc+2 is next not prev..
 constant false=(1=0), true=(1=1)
 
@@ -7416,6 +7426,11 @@ end if
                 -- Jcc,mergeSet,tgt,link,src,src2,tii,bothInit
                 src = s5[pc+4]
                 src2 = s5[pc+5]
+--if vi=1525 and src=303 and src2=1521 then
+--?symtab[src]
+--?symtab[src2]
+--  trace(1)
+--end if
                 tii = s5[pc+6]
                 bothInit = s5[pc+7] -- (used in pgscan)
                 jinit(pc+1) -- DEV param can go, I think
@@ -7443,6 +7458,10 @@ end if
                                 emitHex1(#48)
                             end if
                             op1 = mod+1         -- 0o071
+--if vi=1525 then
+--  ?{wrk,reg,1525}
+--end if
+                            if wrk=reg then ?9/0 end if -- sanity check (added 31/8/15)
                             xrm = #C0+wrk*8+reg -- 0o3wr
                             emitHex2(op1,xrm)                           -- cmp reg,wrk
                         end if
@@ -8500,7 +8519,6 @@ end if
                 --              end if
                 --else -- isGscan/opDiviii
                 if not isGscan then
-                --DEV??
                     getSrc()
 -- 6/4/2012:
 --                  markConstUseds({dest,src,src2})
@@ -14606,10 +14624,11 @@ end if
            or opcode=opPeek4s
            or opcode=opPeek4u
            or opcode=opPeek8s
-           or opcode=opPeek8u then
+           or opcode=opPeek8u
+           or opcode=opPeekNS then
             dest = s5[pc+1]
             src = s5[pc+2]
-            pc += 3
+--          pc += 3
 --if isGscan then
 --DEV UNTESTED:
 --  opPeeki = 63,       -- a = peek(b) where a is integer
@@ -14660,6 +14679,23 @@ if newEmit then
                 or opcode=opPeek4s
                 or opcode=opPeek8s then
                     movRegImm32(ecx,-1)                 -- mov ecx,-1
+                elsif opcode=opPeekNS then
+                    src = s5[pc+4]                      -- size
+                    getSrc()
+                    if slroot=T_integer and smin=smax then
+                        if and_bits(state1,K_rtn) then ?9/0 end if
+                        if smin then
+                            movRegImm32(ecx,smin)       -- mov ecx,imm32
+                        else
+                            if newEmit and X64=1 then
+                                emitHex1(#48)
+                            end if
+                            emitHex2s(xor_ecx_ecx)      -- xor ecx,ecx
+                        end if
+--clearReg(ecx)
+                    else
+                        loadToReg(ecx,src)              -- mov ecx,[src]
+                    end if
                 else
                     if newEmit and X64=1 then
                         emitHex1(#48)
@@ -14679,6 +14715,26 @@ if newEmit then
                 elsif opcode=opPeek8s
                    or opcode=opPeek8u then
                     movRegImm32(edx,8)                  -- mov edx,8
+                elsif opcode=opPeekNS then
+                    src = s5[pc+3]                      -- size
+                    getSrc()
+                    if slroot=T_integer and smin=smax then
+                        if and_bits(state1,K_rtn) then ?9/0 end if
+                        if smin then
+                            movRegImm32(edx,smin)       -- mov edx,imm32
+                        else
+                            if newEmit and X64=1 then
+                                emitHex1(#48)
+                            end if
+                            emitHex2s(xor_edx_edx)      -- xor edx,edx
+                        end if
+--clearReg(edx)
+                    else
+--                      loadToReg(edx,src)              -- mov edx,[src]
+                        loadMem(edx,src)                -- mov edx,[src]
+                    end if
+                else
+                    ?9/0
                 end if
                 emitHex5callG(opcode)                   -- call opXxxx
 else
@@ -14701,6 +14757,11 @@ else
                 emitHex5call(opcode)                            -- call opXxxx
 end if
                 reginfo = 0
+            end if
+            if opcode=opPeekNS then
+                pc += 5
+            else
+                pc += 3
             end if
 
         elsif opcode=opPeeki then       -- 63
@@ -14825,9 +14886,11 @@ end if
            or opcode=opPoke2
            or opcode=opPoke4
            or opcode=opPoke8
+           or opcode=opPokeN
            or opcode=opPosition then
 
-            if isGscan then
+--          if isGscan then
+            if not isGscan then
 
                 --NB: poke/poke4/cproc _could_ crap on anything; compiler assumes not...
                 --    To avoid any problems poking about with object X, you may need
@@ -14867,17 +14930,18 @@ end if
                 --           You must zeroise any hll vars used to hold 32-bit
                 --            or non-refcounted values to prevent later mishap.
                 --
-                pc += 3
-            else
+--              pc += 3
+--          else
                 src = s5[pc+1]
                 src2 = s5[pc+2]
-                pc += 3
+--              pc += 3
                 markConstUseds({src,src2})
 if opcode=opPoke
 or opcode=opPoke1
 or opcode=opPoke2
 or opcode=opPoke4
-or opcode=opPoke8 then
+or opcode=opPoke8
+or opcode=opPokeN then
 --;  mov eax,[p2] ; object to poke                      241         A1 m32          mov eax,[m32]
 --;  mov edi,[p1] ; addr                                213 075     8B 3D m32       mov edi,[m32]
 --;  call opPoke    ; poke(edi,eax)                     350         E8 rel32        call rel32
@@ -14908,6 +14972,22 @@ if newEmit then
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_edx_edx)              -- xor edx,edx
+                elsif opcode=opPokeN then
+--                  ?9/0
+                    src = s5[pc+3]
+                    getSrc()
+                    if slroot=T_integer and smin=smax then
+                        movRegImm32(ecx,smin)           -- mov eax,imm32
+--                      clearReg(ecx)
+                    else
+                        loadToReg(ecx,src)              -- mov ecx,[src]
+                    end if
+                    if newEmit and X64=1 then
+                        emitHex1(#48)
+                    end if
+                    emitHex2s(xor_edx_edx)              -- xor edx,edx
+                else
+                    ?9/0
                 end if
                 emitHex5callG(opcode)                   -- call opXxxx
 else
@@ -14945,6 +15025,12 @@ else -- opPosition
 end if
                 reginfo = 0 -- all regs trashed
             end if
+            if opcode=opPokeN then
+                pc += 4
+            else
+                pc += 3
+            end if
+
 
 --/*
         elsif opcode=opPokeN then
@@ -14971,7 +15057,7 @@ if not newEmit then ?9/0 end if
                 emitHex5callG(opcode)                   -- call opPokeN
                 reginfo = 0 -- all regs trashed
             end if
-        elsif opcode=opPokeNS then
+        elsif opcode=opPokeNS then  -- DEV pointless?
             -- opPokeN,size,base,offset,value
             --  size is 1/2/4/8
 if not newEmit then ?9/0 end if

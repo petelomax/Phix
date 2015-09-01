@@ -396,7 +396,8 @@ global constant
 --  opCallA = 150,      -- call(a)  NB opCall (paired with opFrame) is the normal/usual routine call
 --DEV togo
 --  opCallProc = 151,   -- call_proc(a,b)
-    opPokeN = 149,      --DEV newEmit opPoke,N,
+--DEV reorder..
+    opPokeN = 149,      --DEV newEmit opPokeN,addr,value,size
     opPoke1 = 150,
     opPoke2 = 151,
     opPoke8 = 152,
@@ -548,26 +549,27 @@ global constant
     opPeek2u = 231,     --   }  in builtins\VM\pMem.e
     opPeek8s = 232,     -- //
     opPeek8u = 233,     -- /
+    opPeekNS = 234,     --/
 
-    opInitCS = 234,     -- opInitCS,dest
-    opDeleteCS = 235,   -- opDeleteCS,src           [DEV ,init]
-    opEnterCS = 236,    -- opEnterCS,src(/T_const0) [,init]
-    opTryCS = 237,      -- opTryCS,dest,src         [,init]
-    opLeaveCS = 238,    -- opLeaveCS,src(/T_const0) [,init]
+    opInitCS = 235,     -- opInitCS,dest
+    opDeleteCS = 236,   -- opDeleteCS,src           [DEV ,init]
+    opEnterCS = 237,    -- opEnterCS,src(/T_const0) [,init]
+    opTryCS = 238,      -- opTryCS,dest,src         [,init]
+    opLeaveCS = 239,    -- opLeaveCS,src(/T_const0) [,init]
     -- (the last 4 currently rely on opUnassigned, but will accept varno in esi, if that helps any)
 
-    opCrashMsg = 239,   -- opCrashMsg,cm
-    opCrash = 240,      -- opCrash,fmt,data
-    opCrash1 = 241,     -- opCrash,fmt
-    opCrashFile = 242,  -- opCrashFile,file_path
+    opCrashMsg = 240,   -- opCrashMsg,cm
+    opCrash = 241,      -- opCrash,fmt,data
+    opCrash1 = 242,     -- opCrash,fmt
+    opCrashFile = 243,  -- opCrashFile,file_path
 
-    opWrap = 243,       -- opWrap,flag
-    opScroll = 244,     -- opScroll,amount,top,bottom
-    opTextRows = 245,   -- opTextRows,res,lines
+    opWrap = 244,       -- opWrap,flag
+    opScroll = 245,     -- opScroll,amount,top,bottom
+    opTextRows = 246,   -- opTextRows,res,lines
 
 --??
---opDcfp = 246,         -- define_c_func/proc
-    maxVop = 245
+--opDcfp = 247,         -- define_c_func/proc
+    maxVop = 246
 
     opNames = repeat(0,maxVop)
     opSkip = repeat(-20000,maxVop)  -- instruction lengths (mostly)
@@ -734,7 +736,8 @@ opName("oXpCatsi",oXpCatsi,2)
 --  opName("opMoveFRes",opMoveFRes,3)
     opUsed += 2 -- spare
 --  opUsed += 3 -- spare
-    opName("opPokeN",opPokeN,5)     -- opPokeN,Nflag,base,offset,value
+--  opName("opPokeN",opPokeN,5)     -- opPokeN,Nflag,base,offset,value
+    opName("opPokeN",opPokeN,4)     -- opPokeN,addr,value,size
 --DEV togo
 --  opName("opCallA",opCallA,2)
 --  opName("opCallProc",opCallProc,3)
@@ -853,12 +856,13 @@ opName("opTlsGetValue",opTlsGetValue,0) -- (#ilASM only) [TEMP, to go]
     opName("opPlatform",opPlatform,0)
     opName("opMachine",opMachine,0)
     opName("opDiv0",opDiv0,0)
-    opName("opPeek1s",opPeek1s,3)
+    opName("opPeek1s",opPeek1s,3)   -- opPeek1s,res,addr
     opName("opPeek1u",opPeek1u,3)
     opName("opPeek2s",opPeek2s,3)
     opName("opPeek2u",opPeek2u,3)
     opName("opPeek8s",opPeek8s,3)
     opName("opPeek8u",opPeek8u,3)
+    opName("opPeekNS",opPeekNS,5)   -- opPeekNS,res,addr,size,sign
 
     opName("opInitCS",opInitCS,2)
     opName("opDeleteCS",opDeleteCS,2)

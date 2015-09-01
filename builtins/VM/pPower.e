@@ -178,7 +178,7 @@ end procedure -- (for Edita/CtrlQ)
         jz :%pStoreFlt
 --      jmp :e35pfo         -- power function overflow
         pop edx
-        mov al,35
+        mov al,35           -- e35pfo power function overflow
         sub edx,1
         jmp :!iDiag
         int3
@@ -357,7 +357,7 @@ end procedure -- (for Edita/CtrlQ)
         jz :%pStoreFlt
 --      jmp :e35pfo         -- power function overflow
         pop rdx
-        mov al,35
+        mov al,35           -- e35pfo power function overflow
         sub rdx,1
         jmp :!iDiag
         int3

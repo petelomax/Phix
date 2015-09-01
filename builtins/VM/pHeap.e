@@ -1559,6 +1559,8 @@ end procedure -- (for Edita/CtrlQ)
 --          ja :memorycorruption
             jbe @f
 --test/tmp (will only work for pFreePool/mergeone, not mergelist/mergeone.)
+-- (did not help: error occured mid-opRetf, so line number would be meaningless anyway,
+--                plus the jmp !iDiag bypassed the natural trapping of int3 in fdbg.)
 --              mov rdx,[rsp+48]
 --              mov al,32                   -- e32hc(era,edi)
 --              sub rdx,1

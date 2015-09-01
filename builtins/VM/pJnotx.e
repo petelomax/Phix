@@ -30,7 +30,15 @@ include builtins\VM\pFPU.e  -- :%down53 etc
     ::e106ioobrp1
         int3
     ::e03tfcmbaa
-        int3
+        [32]
+            pop edx
+        [64]
+            pop rdx
+        []
+            mov al,3        -- e03tfcmbaa
+            sub edx,1
+            jmp :!iDiag
+            int3
 
 --/*
 procedure :%opJnotx(:%)

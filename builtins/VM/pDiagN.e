@@ -927,6 +927,7 @@ constant msgs =
     --  for loop error, limit is 900,000,000, step is 800,000,000
     -- then it is because 1,700,000,000 is > 1,073,741,823.
     -- NB: ep1 is limit value, ep2 is step value (no var nos)
+ "invalid poke size\n",                                         -- e122ips
  -1}
 
 --constant e14ops = {"add","sub","div","mul","remainder","floor","unary minus","not",
@@ -2397,6 +2398,8 @@ atom gvarptr
         end if
     elsif msg_id=72 then        -- e72iri(edi)
         msg = sprintf(msg,or_edi)
+    elsif msg_id=6 then         -- e06ioob(edi,esi)
+        msg = sprintf(msg,{or_edi,or_esi})
     end if
 --?2
 --/*

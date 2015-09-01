@@ -63,9 +63,15 @@ include builtins\VM\pFPU.e  -- :%down53, :%near53
 --mov eax,[ebx]
         int3
     ::epokesize
---jmp :%feh2
---mov eax,[ebx]
-        int3
+        [32]
+            pop edx
+        [64]
+            pop rdx
+        []
+            mov al,122      -- e122ips
+            sub edx,1
+            jmp :!iDiag
+            int3
 
 --DEV this is an alias for peek1u()
 --/*
@@ -560,6 +566,7 @@ end procedure -- (for Edita/CtrlQ)
           :!opPeek2xMLE         -- exception here mapped to e99ipmaespp4feh (invalid peek memory address)
             mov ax,[esi]
             cmp dword[esp],0
+--DEV (spotted in passing) opPeekNxStore, surely? [insignificant performance gain/try when you got other stuff to test]
             je :opPeekNuAtom
             cwde                -- (ax -> eax)
             jmp :opPeekNxStore
@@ -577,7 +584,7 @@ end procedure -- (for Edita/CtrlQ)
                 jno :opPeekNxStore  -- store #C0000000..#3FFFFFFF (-1073741824..1073741823) in eax as short int
 
                 push eax
-                fild dword[esp]
+                fild dword[esp]     -- load signed
                 add esp,12          -- (discard eax, sign flag, and size)
                 jmp :%pStoreFlt     -- store result (invokes dealloc if needed)
 
@@ -586,7 +593,7 @@ end procedure -- (for Edita/CtrlQ)
                 jb :opPeekNxStore   -- store unsigned 0..#3FFFFFFF (0..1073741823) in eax as short int
                 push ebx
                 push eax
-                fild qword[esp]
+                fild qword[esp]     -- load unsigned, ie as #00000000hhhhhhhh
                 add esp,16          -- (discard qword, sign flag, and size)
                 jmp :%pStoreFlt     -- store result (invokes dealloc if needed)
       @@:

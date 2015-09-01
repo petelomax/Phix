@@ -295,6 +295,7 @@ procedure check(object o, integer level)
                 --  C_ULONG   = C_UINT,
                 --  C_POINTER = C_ULONG,)
 --                  C_FLOAT,C_DOUBLE,
+--                  C_FLOAT,C_DOUBLE}) then
                     C_FLOAT,C_DOUBLE}) then
 --                  E_INTEGER,E_ATOM,
 --                  E_SEQUENCE,E_OBJECT}) then

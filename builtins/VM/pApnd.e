@@ -1410,7 +1410,8 @@ end if
 
         add rdi,rax
 --DEV I think this can go:
---      mov rax,[rdx]           -- target ref (for in situ checks)
+--28/08/15 (put back in, just to match 32 bit version...)
+        mov rax,[rdx]           -- target ref (for in situ checks)
         cmp byte[rsi-1],0x82    -- p2 string?
         jne :CCtwoSeq64
         cmp byte[rcx-1],0x82    -- p3 string?
@@ -1497,8 +1498,10 @@ end if
         sub rdx,40
         shr rdx,3               -- (bytes->qwords)
         cmp rdi,rdx
+--advice belatedly taken (to match 32-bit) 28/8/15..
 --jg?
-        jl :CCnewSeq64
+--      jl :CCnewSeq64
+        jg :CCnewSeq64
         mov rdx,[rsi-24]        -- length(p2)
         cmp byte[rcx-1],#82
 --17/6/15:

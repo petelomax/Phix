@@ -1,8 +1,9 @@
---****
--- === win32/window.exw
+--
+-- demo\window.exw
+-- ===============
 --
 -- A Standard Windows Window coded at the primitive API level
--- Most Euphoria programmers should simply use Win32Lib, wxWidgets, EuGTK or EuIUP!
+-- Most Phix programmers should simply use Arwen or similar (was:Win32Lib, wxWidgets, EuGTK or EuIUP!)
 --
 
 --/*
@@ -25,7 +26,105 @@ constant cbSize = 0,
          hIconSm = 44,
          SIZE_OF_WNDCLASS = 48
 
-constant SIZE_OF_MESSAGE = 40
+constant cbSize64           = 0,
+         style64            = 4,
+         lpfnWndProc64      = 8,
+         cbClsExtra64       = 16,
+         cbWndExtra64       = 20,
+         hInstance64        = 24,
+         hIcon64            = 32,
+         hCursor64          = 40,
+         hbrBackground64    = 48,
+         lpszMenuName64     = 56,
+         lpszClassName64    = 64,
+         hIconSm64          = 72,
+         SIZE_OF_WNDCLASS64 = 80+40
+--/*
+
+typedef struct tagWNDCLASSEX {
+  UINT      cbSize;
+  UINT      style;
+  WNDPROC   lpfnWndProc;
+  int       cbClsExtra;
+  int       cbWndExtra;
+  HINSTANCE hInstance;
+  HICON     hIcon;
+  HCURSOR   hCursor;
+  HBRUSH    hbrBackground;
+  LPCTSTR   lpszMenuName;
+  LPCTSTR   lpszClassName;
+  HICON     hIconSm;
+} WNDCLASSEX, *PWNDCLASSEX;
+
+struct  WNDCLASSEX64
+        cbSize                  rd      1
+        style                   rd      1
+>       lpfnWndProc             rq      1
+        cbClsExtra              rd      1
+        cbWndExtra              rd      1
+>       hInstance               rq      1
+        hIcon                   rq      1
+        hCursor                 rq      1
+        hbrBackground           rq      1
+        lpszMenuName            rq      1
+        lpszClassName           rq      1
+        hIconSm                 rq      1
+ends
+  style         dd 0
+  lpfnWndProc   dd WindowProc
+  cbClsExtra    dd 0
+  cbWndExtra    dd 0
+  hInstance     dd NULL
+  hIcon         dd NULL
+  hCursor       dd NULL
+  hbrBackground dd COLOR_BTNFACE+1
+  lpszMenuName  dd NULL
+  lpszClassName dd _class
+;ends
+
+--*/
+
+constant SIZE_OF_MESSAGE = 40   -- 28??
+constant SIZE_OF_MESSAGE64 = 48+80
+
+--/*
+
+struct  POINT64
+        x                       rd      1
+        y                       rd      1
+ends
+
+typedef struct tagMSG {
+  HWND   hwnd;
+  UINT   message;
+  WPARAM wParam;
+  LPARAM lParam;
+  DWORD  time;
+  POINT  pt;
+} MSG, *PMSG, *LPMSG;
+;  msg MSG 
+
+struct  MSG64
+        hwnd                    rq      1
+        message                 rq      1       <<?? (align??)
+        wParam                  rq      1
+        lParam                  rq      1
+        time                    rd      1
+                                rd      1       ; padding
+        pt                      POINT64
+ends
+
+label msg
+  msg.hwnd dd ?
+  msg.message dd ?
+  msg.wParam dd ?
+  msg.lParam dd ?
+  msg.time dd ?
+  msg.ptx dd ?
+  msg.pty dd ?
+
+
+--*/
 
 constant CS_HREDRAW = 2,
          CS_VREDRAW = 1
@@ -75,7 +174,8 @@ constant IDC_ARROW = 32512,
 integer xLoadIcon, LoadCursor, GetStockObject, RegisterClassEx,
         xCreateWindowEx, ShowWindow, UpdateWindow, xGetMessage,
         TranslateMessage, DispatchMessage, PlaySound, BeginPaint,
-        GetClientRect, DrawText, EndPaint, xPostQuitMessage, DefWindowProc
+        GetClientRect, DrawText, EndPaint, xPostQuitMessage, DefWindowProc,
+        xGetLastError
 
 procedure not_found(sequence name)
     puts(1, "Couldn't find " & name & '\n')
@@ -105,11 +205,12 @@ end function
 
 procedure link_dll_routines()
 -- get handles to all dll routines that we need
-atom user32, gdi32, winmm
+atom user32, gdi32, winmm, kernel32
 
     user32 = link_dll("user32.dll")
     gdi32 = link_dll("gdi32.dll")
     winmm = link_dll("winmm.dll")
+    kernel32 = link_dll("kernel32.dll")
 
     xLoadIcon = link_c_func(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT)
     LoadCursor = link_c_func(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT)
@@ -133,6 +234,7 @@ atom user32, gdi32, winmm
     xPostQuitMessage = link_c_proc(user32, "PostQuitMessage", {C_INT})
     DefWindowProc = link_c_func(user32, "DefWindowProcA",
                                 {C_INT, C_INT, C_INT, C_INT}, C_INT)
+    xGetLastError = link_c_func(kernel32,"GetLastError",{},C_INT)
 end procedure
 
 link_dll_routines()
@@ -148,8 +250,45 @@ atom hdc, wav_file, Euphoria, ps, rect
         return 0
 
     elsif iMsg=WM_PAINT then
+if machine_bits()=32 then
         ps = allocate(64)
-        rect = allocate(16)
+else
+        ps = allocate(72+32)
+end if
+--/*
+struct PAINTSTRUCT
+  hdc         dd ?
+  fErase      dd ?
+  rcPaint     RECT
+  fRestore    dd ?
+  fIncUpdate  dd ?
+  rgbReserved db 32 dup (?)
+ends
+
+struct PAINTSTRUCT64
+  hdc         dq ?
+  fErase      dd ?
+  rcPaint     RECT
+  fRestore    dd ?
+  fIncUpdate  dd ?
+  rgbReserved db 36 dup (?)
+ends
+
+struct RECT
+  left   dd ?
+  top    dd ?
+  right  dd ?
+  bottom dd ?
+ends
+
+struct RECT64
+  left   dd ?
+  top    dd ?
+  right  dd ?
+  bottom dd ?
+ends
+--*/
+        rect = allocate(16+16)
         hdc = c_func(BeginPaint, {hwnd, ps})
         c_proc(GetClientRect, {hwnd, rect})
         Euphoria = allocate_string("A Plain Vanilla Window using Euphoria!")
@@ -180,7 +319,11 @@ atom class
 atom icon_handle
 atom my_title
 
+if machine_bits()=32 then
     wndclass = allocate(SIZE_OF_WNDCLASS)
+else
+    wndclass = allocate(SIZE_OF_WNDCLASS64)
+end if
     szAppName = allocate_string("HelloWin")
 
     id = routine_id("WndProc")
@@ -190,26 +333,62 @@ atom my_title
     end if
     WndProcAddress = call_back(id) -- get 32-bit address for callback
 
+if machine_bits()=32 then
     poke4(wndclass+cbSize, SIZE_OF_WNDCLASS)
     poke4(wndclass+style, or_bits(CS_HREDRAW, CS_VREDRAW))
     poke4(wndclass+lpfnWndProc, WndProcAddress)
     poke4(wndclass+cbClsExtra, 0)
     poke4(wndclass+cbWndExtra, 0)
     poke4(wndclass+hInstance, 0) --hInstance
+else --64
+--constant cbSize64         = 0,
+--       style64            = 4,
+--       lpfnWndProc64      = 8,
+--       cbClsExtra64       = 16,
+--       cbWndExtra64       = 20,
+--       hInstance64        = 24,
+--       hIcon64            = 32,
+--       hCursor64          = 40,
+--       hbrBackground64    = 48,
+--       lpszMenuName64     = 56,
+--       lpszClassName64    = 64,
+--       hIconSm64          = 72,
+--       SIZE_OF_WNDCLASS64 = 80
+--
+--?9/0
+    poke4(wndclass+cbSize64, SIZE_OF_WNDCLASS64)
+    poke4(wndclass+style64, or_bits(CS_HREDRAW, CS_VREDRAW))
+    poke8(wndclass+lpfnWndProc64, WndProcAddress)
+    poke4(wndclass+cbClsExtra64, 0)
+    poke4(wndclass+cbWndExtra64, 0)
+    poke8(wndclass+hInstance64, 0) --hInstance
+end if
 
     -- set icon in top-left of window
     icon_handle = c_func(xLoadIcon, {instance(), 10})
+if machine_bits()=32 then
     poke4(wndclass+hIcon, icon_handle)
     poke4(wndclass+hIconSm, icon_handle)
+else
+    poke8(wndclass+hIcon64, icon_handle)
+    poke8(wndclass+hIconSm64, icon_handle)
+end if
 
     -- Wolfgang Fritz observes that you can set an icon dynamically using:
     -- junk = sendMessage(hwnd, WM_SETICON, 1, icon_handle) 
     -- where WM_SETICON is 128, 1=big icon, 0 for small icon
 
+if machine_bits()=32 then
     poke4(wndclass+hCursor, c_func(LoadCursor, {NULL, IDC_ARROW}))
     poke4(wndclass+hbrBackground, c_func(GetStockObject, {WHITE_BRUSH}))
     poke4(wndclass+lpszMenuName, NULL)
     poke4(wndclass+lpszClassName, szAppName)
+else
+    poke8(wndclass+hCursor64, c_func(LoadCursor, {NULL, IDC_ARROW}))
+    poke8(wndclass+hbrBackground64, c_func(GetStockObject, {WHITE_BRUSH}))
+    poke8(wndclass+lpszMenuName64, NULL)
+    poke8(wndclass+lpszClassName64, szAppName)
+end if
 
     class = c_func(RegisterClassEx, {wndclass})
     free(szAppName)
@@ -235,12 +414,18 @@ atom my_title
     free(my_title)
     if hwnd=0 then
         puts(1, "Couldn't CreateWindow\n")
+--5 (ERROR_ACCESS_DENIED??!!)
+        ?c_func(xGetLastError,{})
         abort(1)
     end if
     c_proc(ShowWindow, {hwnd, SW_SHOWNORMAL})
     c_proc(UpdateWindow, {hwnd})
 
+if machine_bits()=32 then
     msg = allocate(SIZE_OF_MESSAGE)
+else
+    msg = allocate(SIZE_OF_MESSAGE64)
+end if
     while c_func(xGetMessage, {msg, NULL, 0, 0}) do
         c_proc(TranslateMessage, {msg})
         c_proc(DispatchMessage, {msg})

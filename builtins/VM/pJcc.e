@@ -20,8 +20,17 @@
 --      int3
 --  ::e94vhnbaavedx
 --      int3
+--DEV duplicate of the one in pJnotx
     ::e03tfcmbaa
-        int3
+        [32]
+            pop edx
+        [64]
+            pop rdx
+        []
+            mov al,3        -- e03tfcmbaa
+            sub edx,1
+            jmp :!iDiag
+            int3
 
 --/*
 procedure ::compareSeq(::)
