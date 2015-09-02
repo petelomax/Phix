@@ -1,0 +1,86 @@
+--
+-- demo\rosetta\Day_of_the_week.exw
+-- ================================
+--
+-- Author Pete Lomax, August 2015
+
+constant t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
+
+function dow(integer d, integer m, integer y)
+-- day of week function (Sakamoto) returns 1..7 (Sun..Sat)
+integer l
+    y -= m<3
+    l = floor(y/4)-floor(y/100)+floor(y/400)
+    d += y+l+t[m]
+    return remainder(d,7)+1
+end function
+
+sequence res = {}
+for y=2008 to 2121 do
+    if dow(25,12,y)=1 then
+        res = append(res,y)
+    end if
+end for
+
+?res
+
+-- alternative method, using windows API:
+include builtins\cffi.e
+
+constant tST="""
+typedef struct _SYSTEMTIME {
+  WORD wYear;
+  WORD wMonth;
+  WORD wDayOfWeek;
+  WORD wDay;
+  WORD wHour;
+  WORD wMinute;
+  WORD wSecond;
+  WORD wMilliseconds;
+} SYSTEMTIME, *PSYSTEMTIME;
+""",
+tFT = """
+typedef struct _FILETIME {
+  DWORD dwLowDateTime;
+  DWORD dwHighDateTime;
+} FILETIME, *PFILETIME;
+""",
+tSTtoFT="""
+BOOL WINAPI SystemTimeToFileTime(
+  _In_   const SYSTEMTIME *lpSystemTime,
+  _Out_  LPFILETIME lpFileTime
+);
+""",
+tFTtoST="""
+BOOL WINAPI FileTimeToSystemTime(
+  _In_   const FILETIME *lpFileTime,
+  _Out_  LPSYSTEMTIME lpSystemTime
+);
+""",
+idST = define_struct(tST),
+pST = allocate_struct(idST),
+idFT = define_struct(tFT),
+pFT = allocate_struct(idFT),
+k32 = open_dll("kernel32.dll"),
+xSTtoFT = define_cfunc(k32,tSTtoFT),
+xFTtoST = define_cfunc(k32,tFTtoST)
+
+res = {}
+
+set_struct_field(idST,pST,"wMonth",12)
+set_struct_field(idST,pST,"wDay",25)
+for y=2008 to 2121 do
+    set_struct_field(idST,pST,"wYear",y)
+    {} = c_func(xSTtoFT,{pST,pFT})
+    {} = c_func(xFTtoST,{pFT,pST})
+    if get_struct_field(idST,pST,"wDayOfWeek")=0 then
+        res = append(res,y)
+    end if
+end for
+?res
+
+{} = wait_key()
+
+--output (both cases)
+--{2011,2016,2022,2033,2039,2044,2050,2061,2067,2072,2078,2089,2095,2101,2107,2112,2118}
+

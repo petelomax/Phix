@@ -486,12 +486,6 @@ integer unicode = -1    -- -1 = unknown
                         -- +1 = unicode
 
 -- (this ended up a bit overkill, nevermind)
---constant {UnicodeNames,Uon,Uoff} = columnize({
---sequence UnicodeNames,Uon,Uoff
---  {UnicodeNames,Uon,Uoff} = columnize({
---                                            {"TBYTE",as_ushort,as_char},
---                                            {"TCHAR",as_ushort,as_char},
---                                            $})
 sequence UnicodeNames,UnicodeAs
     {UnicodeNames,UnicodeAs} = columnize({
                                               {"TBYTE",{as_char,as_ushort}},
@@ -516,7 +510,6 @@ function toInt(sequence txt)
 -- convert string to integer.
 -- " is treated as 0
 integer ch, n
---  if txt="KNOWN_CONSTANT" then    -- (something like this to handle MAX_PATH etc)
     if equal(txt,"KNOWN_CONSTANT") then -- (something like this to handle MAX_PATH etc)
         n = 9/0                         -- (or maybe parse C constants/enums/#defines?)
     else
@@ -589,18 +582,11 @@ string mname
             k = find(mtype,UnicodeNames)
             if k then
                 if unicode=-1 then err(mtype&": set_unicode() has not been called") end if
---              if unicode then
---                  k = Uon[k]
---              else
---                  k = Uoff[k]
---              end if
                 k = UnicodeAs[unicode+1][k]
                 mname = stoken()
             else
---              if mtype="signed" then
                 if equal(mtype,"signed") then
                     mtype = stoken()
---              elsif mtype="unsigned" then
                 elsif equal(mtype,"unsigned") then
                     signed = 0
                     mtype = "u"&stoken()
@@ -610,7 +596,6 @@ string mname
                     err("unknown size "&mtype)
                 end if
                 mname = stoken()
---              if mtype="long" then
                 if equal(mtype,"long") then
                     if equal(mname,"int") then          -- "long int" -> "long"
                         mname = stoken()
@@ -638,13 +623,8 @@ string mname
         align = size
         signed = SizeSigns[k]
     end if
---  if ch='*' then
---  if mname="*" then
     if equal(mname,"*") then    -- "&"? (would need '&' adding twice in stoken())
         mname = stoken()
---DEV untested... (still just a ptr, innit!)
---      if ch='*' then err("** not (yet) supported") end if
---      if mname="*" then
         if equal(mname,"*") then
             mname = stoken()
         end if
@@ -827,11 +807,7 @@ string token
 integer typedef = 0
 sequence res
     if machine=0 then
-        if machine_bits()=32 then
-            machine = S32
-        else
-            machine = S64
-        end if
+        machine = machine_bits()    -- S32/S64
     end if
     s = struct_str
     sidx = 1
@@ -956,17 +932,13 @@ function define_c(object lib, string cdef, integer func, integer machine)
 --  any problem is detected, rather than return an error code.
 --
 string name, mtype
-sequence args, res
+sequence args
 integer substruct, size, align, signed, return_type, ptype
 integer rid
 
     args = {}
     if machine=0 then
-        if machine_bits()=32 then
-            machine = S32
-        else
-            machine = S64
-        end if
+        machine = machine_bits()    -- S32/S64
     end if
     lib = open_lib(lib)
     s = cdef
@@ -1020,8 +992,6 @@ integer rid
     end if
     if rid=-1 then
         name &= AW[unicode+1] -- (errors out if unicode still -1)
-        if func then
-        end if
         if func then
             rid = define_c_func(lib,name,args,return_type)
         else

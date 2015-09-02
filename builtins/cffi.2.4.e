@@ -1233,8 +1233,6 @@ integer rid
     if rid=-1 then
         name &= AW[unicode+1] -- (errors out if unicode still -1)
         if func then
-        end if
-        if func then
             rid = define_c_func(lib,name,args,return_type)
         else
             rid = define_c_proc(lib,name,args)

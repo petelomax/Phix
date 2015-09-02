@@ -3,7 +3,6 @@
 -- =======
 --
 -- The Phix implementation of date()
---  Modified 8/1/09 to yield sequence of integer.
 --
 sequence dot
 --  --   dot={0,31,59,90,120,151,181,212,243,273,304,334}   -- now done in init (forward refs!).
@@ -20,12 +19,16 @@ end function
 --sequence t
 --  --   t={ 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }       -- now done in init (forward refs!).
 --function dow(integer d, integer m, integer y)
----- day of week function
---integer k
---  y -= m < 3
---  k = floor(y/100)
---  return remainder(y+floor((y+k)/4)-k+t[m]+d,7)
+---- day of week function (Sakamoto) returns 1..7 (Sun..Sat)
+--integer l
+--  y -= m<3
+--  l = floor(y/4)-floor(y/100)+floor(y/400)
+--  d += y+l+t[m]
+--  return remainder(d,7)+1
 --end function
+
+atom kernel32, xGetLocalTime
+integer dinit dinit = 0
 
 constant
     -- SYSTEMTIME structure:
@@ -38,28 +41,6 @@ constant
     STwSecond           = 12,   --  WORD wSecond
 --  STwMillisecs        = 14,   --  WORD wMilliseconds
     STsize = 16
-
-atom kernel32, xGetLocalTime
-integer dinit dinit = 0
-
---function peek2u(object addr)
---sequence res
---  if atom(addr) then 
---      return peek(addr) + peek(addr+1)*256
---  end if
---  res = repeat(0,addr[2])
---  addr = addr[1]
---  for i = 1 to length(res) do
---      res[i] = peek(addr) + peek(addr+1)*256
---      addr += 2
---  end for
---  return res
---DEV (commented out 22/2/2013)
---function peek2u(atom addr)
---integer res
---  res = peek(addr)+peek(addr+1)*256
---  return res
---end function
 
 --/* (defined in psym.e):
 global constant 
@@ -94,18 +75,13 @@ atom xSystemTime
 sequence res
 
     if not dinit then
---DEV locking as per pprntf.e
-        kernel32 = open_dll("kernel32.dll")
-
---#without reformat
-        xGetLocalTime = define_c_proc(kernel32,"GetLocalTime",
-            {C_POINTER})--  LPSYSTEMTIME  lpSystemTime  // address of system time structure  
---#with reformat
-
-        dot = {0,31,59,90,120,151,181,212,243,273,304,334}
-
         dinit = 1
-
+        enter_cs()
+        kernel32 = open_dll("kernel32.dll")
+        xGetLocalTime = define_c_proc(kernel32,"GetLocalTime",{C_PTR})
+        dot = {0,31,59,90,120,151,181,212,243,273,304,334}
+--      t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
+        leave_cs()
     end if
     xSystemTime = allocate(STsize)
     c_proc(xGetLocalTime,{xSystemTime})
