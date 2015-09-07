@@ -2509,6 +2509,9 @@ else
 end if
 --end if
 --DEV document
+    initialAutoEntry("series",          S_Func,"FOOII", "pseries.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
+--DEV document
     initialAutoEntry("smallest",        S_Func,"FPI",   "psmall.e",0,E_none)
 
     --DEV 23/3 we do /not/ want these 10 auto-converted to sq_xxx()...
@@ -2570,6 +2573,10 @@ end if
     -- the remainder are procedures
 
     initialAutoEntry("allow_break",         S_Proc,"PI",    "pbreak.e",0,E_other)
+    initialAutoEntry("any_key",             S_Proc,"PSI",   "panykey.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("maybe_any_key",       S_Proc,"PSI",   "panykey.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
     if newEmit then
 --      initialAutoEntry("abort",           S_Proc,"PI",    "VM\\pAbort.e",0,E_other)               T_abort = symlimit
 --      initialAutoEntry("bk_color",        S_Proc,"PI",    "VM\\pfileioN.e",0,E_other)
@@ -2642,17 +2649,15 @@ if newEmit then
     initialAutoEntry("printf",              S_Proc,"PIPO",  "VM\\pprntfN.e",0,E_other)
     symtab[symlimit][S_ParmN] = 2
 --  initialAutoEntry("print",               S_Proc,"PIO",   "VM\\psprintN.e",0,E_other)
-    initialAutoEntry("print",               S_Proc,"PIOI",  "VM\\psprintN.e",0,E_other)
+    initialAutoEntry("print",               S_Proc,"PIOI",  "VM\\psprintN.e",0,E_other)         T_print = symlimit
     symtab[symlimit][S_ParmN] = 2
-    T_print = symlimit
 --  initialAutoEntry("ppN",                 S_Proc,"PO",    "VM\\pppN.e",0,E_other)
 --  initialAutoEntry("ppOptN",              S_Proc,"PP",    "VM\\pppN.e",0,E_other)
 --  initialAutoEntry("ppExN",               S_Proc,"POP",   "VM\\pppN.e",0,E_other)
 else
     initialAutoEntry("printf",              S_Proc,"PIPO",  "pprntf.e",0,E_other)
     symtab[symlimit][S_ParmN] = 2
-    initialAutoEntry("print",               S_Proc,"PIO",   "psprint.e",0,E_other)
-    T_print = symlimit
+    initialAutoEntry("print",               S_Proc,"PIO",   "psprint.e",0,E_other)              T_print = symlimit
 end if
 --DEV document*3
     initialAutoEntry("pp",                  S_Proc,"PO",    "ppp.e",0,E_other)

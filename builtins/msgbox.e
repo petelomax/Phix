@@ -5,10 +5,10 @@
 without warning
 
 --/* Not required for Phix:
-include builtins\dll.e
-include builtins\machine.e
-include builtins\misc.e
---include builtins\porall.e
+include dll.e
+include machine.e
+include misc.e
+--include porall.e
 --*/
 
 --/* Not required for Phix (see psym.e)

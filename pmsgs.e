@@ -460,7 +460,7 @@ end if
     puts(fn,errline)
     if r_proemh=-1 then
 if not batchmode then
-printf(1,"batchmode = %d\n",batchmode)
+--printf(1,"batchmode = %d\n",batchmode)
         puts(1,errline)
         puts(1,"\n\n")
 end if

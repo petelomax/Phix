@@ -144,7 +144,7 @@ constant MAXLINELEN = 77    -- approximate screen/printer width
 --       as it (p.exe) struggles to give birth to some monster ex.err files, and
 --       would fully expect exponential slowdown as things get even bigger.
 --
-constant MAXLENN = 500      -- longest string/sequence you will ever really need
+constant MAXLENN = 5000     -- longest string/sequence you will ever really need
 
 -- Note: The following may not honor MAXLENN like it should/used to (which is, if 
 --       anything, a problem in ppp.e rather than here). You may want this if, in 

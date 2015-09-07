@@ -856,9 +856,11 @@ end function
 -- See Also:
 --   [[:get_key]], [[:getc]]
 
+--/* Not Phix (defined as %opWaitKey in builtins\VM\pfileioN.e)
 public function wait_key()
     return machine_func(M_WAIT_KEY, 0)
 end function
+--*/
 
 --**
 -- Display a prompt to the user and wait for any key.

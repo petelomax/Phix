@@ -3525,13 +3525,13 @@ integer rtype, rtype2   --DEV use slroot, slroot2??
             reg = -1
         else
 --31/8/15: (loadReg wanted the promoteReg)
---          if (src2!=tmpd or tmpr<0)
---          and (smin2!=smax2 or rtype2!=T_integer)
-----            and (smin2!=smax2 or rtype2!=T_integer or reg=eax)
---          and symtab[src2][S_NTyp]=S_TVar 
---          and and_bits(symtab[src2][S_State],K_Fres) then
---              promoteReg(eax)
---          end if
+            if (src2!=tmpd or tmpr<0)
+            and (smin2!=smax2 or rtype2!=T_integer)
+--          and (smin2!=smax2 or rtype2!=T_integer or reg=eax)
+            and symtab[src2][S_NTyp]=S_TVar 
+            and and_bits(symtab[src2][S_State],K_Fres) then
+                promoteReg(eax)
+            end if
             reg = loadReg(src)                          -- mov reg,[src]
         end if
         if src2=tmpd and tmpr>=0 then
@@ -7461,7 +7461,10 @@ end if
 --if vi=1525 then
 --  ?{wrk,reg,1525}
 --end if
-                            if wrk=reg then ?9/0 end if -- sanity check (added 31/8/15)
+--                          if wrk=reg then ?9/0 end if -- sanity check (added 31/8/15)
+if wrk=reg then
+    printf(1,"wrk=reg! line 7465 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
+end if
                             xrm = #C0+wrk*8+reg -- 0o3wr
                             emitHex2(op1,xrm)                           -- cmp reg,wrk
                         end if

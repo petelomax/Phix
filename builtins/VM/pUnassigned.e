@@ -169,7 +169,30 @@ e92movti:
 --; jnc @f
 --; call :%e01tcfDivi2  -- type check error, <p1> is xxx.5
     :%e01tcfediMul -- (opMuliii)
-        int3
+        [32]
+            push eax
+            fild dword[esp]
+            add esp,4
+--        @@:
+            call :%pStoreFlt
+            pop edx
+            mov al,110              -- e110tce(ecx)
+            sub edx,1
+            mov ecx,edi
+            jmp :!iDiag
+        [64]
+            push rax
+            fild qword[rsp]
+--  ::e01tcfst0rdi
+            add rsp,8
+            call :%pStoreFlt
+            pop rdx
+            mov al,110              -- e110tce(ecx)
+            sub rdx,1
+            mov rcx,rdi
+            jmp :!iDiag
+        []
+            int3
 --;calling convention:
 --; mov ecx,[p3]
 --; mov eax,[p2]

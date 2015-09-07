@@ -807,7 +807,11 @@ string token
 integer typedef = 0
 sequence res
     if machine=0 then
-        machine = machine_bits()    -- S32/S64
+        if machine_bits()=32 then
+            machine = S32
+        else
+            machine = S64
+        end if
     end if
     s = struct_str
     sidx = 1
@@ -938,7 +942,11 @@ integer rid
 
     args = {}
     if machine=0 then
-        machine = machine_bits()    -- S32/S64
+        if machine_bits()=32 then
+            machine = S32
+        else
+            machine = S64
+        end if
     end if
     lib = open_lib(lib)
     s = cdef

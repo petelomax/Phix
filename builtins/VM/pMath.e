@@ -30,10 +30,36 @@ constant half = 0.5
 --DEV FIXME: (and the :!bang labels below)
     ::e14soa
         int3
+        [32]
+    ::e01tcfst0edi
+            add esp,8
+            jmp @f
+        []
     ::e01tcfeaxedi
-        int3
---  ::e01tcfst0edi
---      int3
+        [32]
+            push eax
+            fild dword[esp]
+            add esp,4
+          @@:
+            call :%pStoreFlt
+            pop edx
+            mov al,110              -- e110tce(ecx)
+            sub edx,1
+            mov ecx,edi
+            jmp :!iDiag
+        [64]
+            push rax
+            fild qword[rsp]
+    ::e01tcfst0rdi
+            add rsp,8
+            call :%pStoreFlt
+            pop rdx
+            mov al,110              -- e110tce(ecx)
+            sub rdx,1
+            mov rcx,rdi
+            jmp :!iDiag
+        []
+            int3
     ::e02atdb0pop
         [32]
             add esp,4               -- trash return address (opMathIII)
@@ -290,28 +316,28 @@ end procedure -- (for Edita/CtrlQ)
             fcomp st1
             fnstsw ax
             sahf
---          jne :e01tcfst0edi
-            je @f
-                int3
-          @@:
+            jne :e01tcfst0edi
+--          je @f
+--              int3
+--        @@:
             mov eax,[esp]
             cdq                         -- sign extend eax into edx
             cmp edx,[esp+4]
---          jne :e01tcfst0edi
-            je @f
-                call :%pStoreFlt        -- [edi]:=st0
-                mov al,110              -- e01tce(ecx)
-                mov ecx,edi
-                mov edx,[esp+8]         -- era
-                jmp :!iDiag
-                int3
-          @@:
+            jne :e01tcfst0edi
+--          je @f
+--              call :%pStoreFlt        -- [edi]:=st0
+--              mov al,110              -- e01tce(ecx)
+--              mov ecx,edi
+--              mov edx,[esp+8]         -- era
+--              jmp :!iDiag
+--              int3
+--        @@:
             mov edx,eax
             shl edx,1
---          jo :e01tcfst0edi
-            jno @f
-                int3
-          @@:
+            jo :e01tcfst0edi
+--          jno @f
+--              int3
+--        @@:
             fstp st0                    -- discard st0 (31-bit result now in eax)
             mov [edi],eax
             add esp,8
@@ -394,17 +420,17 @@ end procedure -- (for Edita/CtrlQ)
             --
             -- result in st0; store as int if possible else typecheck
             --
-            sub esp,8
+            sub rsp,8
             fld st0                     -- another copy (fist [no-p] cannot store 64-bit ints)
-            fistp qword[esp]            -- (immediately discards that copy)
-            fild qword[esp]
+            fistp qword[rsp]            -- (immediately discards that copy)
+            fild qword[rsp]
             fcomp st1
             fnstsw ax
             sahf
---          jne :e01tcfst0edi
-            je @f
-                int3
-          @@:
+            jne :e01tcfst0rdi
+--          je @f
+--              int3
+--        @@:
 --          mov eax,[esp]
 --          cdq                         -- sign extend eax into edx
 ---- (cqo on 64-bit)
@@ -412,10 +438,10 @@ end procedure -- (for Edita/CtrlQ)
 --          jne :e01tcfst0edi
             mov rdx,rax
             shl rdx,1
---          jo :e01tcfst0edi
-            jno @f
-                int3
-          @@:
+            jo :e01tcfst0rdi
+--          jno @f
+--              int3
+--        @@:
             fstp st0                    -- discard st0 (31-bit result now in eax)
             mov [rdi],rax
             add rsp,8

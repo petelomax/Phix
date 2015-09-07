@@ -1344,3 +1344,34 @@ that are left "raw", besides they don't really have a source line number in the 
 that hll application code does (and/or it wouldn't help if they did).
 
 
+SUG:
+lambda()
+In Phix, a lambda is simply an un-named and un-typed function. For example:
+ ... ,lambda((integer x, integer y) return factorial(x-y)), ...
+is equivalent to:
+ function tmp895(integer x, integer y) return factorial(x-y) end function
+ ... ,routine_id("tmp895"), ... 
+Now you probably got what I meant when I said un-named. By un-typed I mean that there
+is no official way to determine the number and type of parameters or the result. It 
+is the programmer, not the compiler, who must ensure application to the correct number
+and type of parameters, and the result is stored in an appropriately typed variable,
+that is to avoid run-time errors.
+
+There is (currently) no support for named parameters and the like on lambdas, but
+routine_id (builtins\VM\prtnidN.e) and pmain.e\ParamList()\rest_must_be_named show
+the basics, with the latter probably needing a hybrid symidx/string approach to
+cover both interpretation (before and after trace, ouch) and compilation.
+
+To avoid confusion, it is illegal to declare an identifier named lambdaNNN, where
+NNN is any decimal integer. Of course simply adding an underscore or a trailing letter 
+or whatever will make it perfectly legal. In the above example, the compiler would
+of course internally generate lambda895 rather than tmp895.
+
+The point of a lambda is to ease the declaration, rather than the use. A lambda can 
+be stored in an integer (suggested names: rid, r_id) and applied using call_func().
+Currying and the like would be performed explicitly, eg s = {rid1, 3.5, rid2}, and
+it is entirely up to the programmer to use that appropriately.
+
+--map(lambda x: 2*x , filter( lambda x:x%2==0, range(9) ) )
+map(lambda((x) return 2*x), filter(lambda((x):return remainder(x,2)=0), tagset0(8)))
+
