@@ -439,7 +439,7 @@
 --                          off pDefc exactly as we do pFree, but on the first iteration only,
 --                          ie when pDefc[idx] is 0, we also hammer back down pDefc[idx-1..1]
 --                          performing the deferred coalescing, ideally stopping the moment we 
---                          have merged a block of the original required size. It may also be 
+--                          have merged a block of the original required size*. It may also be 
 --                          possible to utilise the spare bit on pRoot (#02) to indicate blocks 
 --                          which have not been coalesced, instead of a separate pDefc list.
 --                          It would clearly be quite critical that #02 blocks are kept grouped 
@@ -450,6 +450,28 @@
 --                          Use the pHeap.e/pHeapD.e approach (see psym/ptok). Thread termination
 --                          and the like may require a temporary reversion to aggressive mode.
 --
+-- *some further thoughts on deferred coalescing, regarding the #02 grouping just mentioned:
+--  imagine, on a clean heap, we have:
+--      sequence sinTable = repeat(0,N), 
+--               cosTable = repeat(0,N)
+--      for i=1 to N do
+--          sinTable[i] = sin(theta)
+--          cosTable[i] = cos(theta)
+--          theta += something
+--      end for
+--  and then we:
+--      sinTable = {}
+--  The result? pFree[1] has N odd floats that cannot be coalesced, since cosTable is still
+--  using the pairing N even floats. N can quite easily be very large (30,000 or more). We
+--  must ensure we do not needlessly re-traverse that 30,000 long chain (once is enough), by
+--  not adhering to the rule that all #02 entries must be at the start of the list. If a 
+--  pFree[2] is 0 so we deferred_coalesce(1), it must carry on down the list until it hits
+--  a non-#02, rather than quit the moment it populates a #02. On the other hand, a call
+--  to deferred_coalesce(1) can (and should) push #02 entries onto pFree(2), and we go back
+--  up pFree[2..idx-1] doing the same. We can quit between any deferred_coalesce(N) calls,
+--  but not during the middle of one. Note that #02 does not mean it /can/ be coalesced,
+--  but that we haven't even looked. I am now leaning towards the pDefc list rather than 
+--  the #02 bit, because of all of this.
 --
 -- Memory Leak Checking And Heap Diagnostics
 -- =========================================

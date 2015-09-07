@@ -575,7 +575,8 @@ string mname
             k = AltSize[k]
             mname = stoken()
         elsif match("LP",mtype)=1
-           or match("CALLBACK",mtype)=length(mtype)-7 then
+           or match("CALLBACK",mtype)=length(mtype)-7
+           or match("Proc",mtype)=length(mtype)-3 then
             k = as_ptr
             mname = stoken()
         else
