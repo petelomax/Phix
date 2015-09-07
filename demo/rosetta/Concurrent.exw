@@ -1,0 +1,48 @@
+--
+-- demo\rosetta\Concurrent.exw
+-- ===========================
+--
+-- Without the sleep it is almost always Enjoy Rosetta Code,
+--  because create_thread() is more costly than echo(), as
+--  (starting) the latter is an almost neglible cost whereas 
+--  the former has to create a new call stack, etc.
+-- The lock prevents the displays from mangling each other.
+--
+
+procedure echo(string s)
+    sleep(rand(100)/100)
+    enter_cs()
+    puts(1,s)
+    puts(1,'\n')
+    leave_cs()
+end procedure
+
+constant threads = {create_thread(routine_id("echo"),{"Enjoy"}),
+                    create_thread(routine_id("echo"),{"Rosetta"}),
+                    create_thread(routine_id("echo"),{"Code"})}
+
+wait_thread(threads)
+puts(1,"done")
+{} = wait_key()
+
+--DEV OE version:
+--/*
+procedure echo(sequence s)
+    puts(1,s)
+    puts(1,'\n')
+end procedure
+ 
+atom task1,task2,task3
+ 
+task1 = task_create(routine_id("echo"),{"Enjoy"})
+task_schedule(task1,1)
+ 
+task2 = task_create(routine_id("echo"),{"Rosetta"})
+task_schedule(task2,1)
+ 
+task3 = task_create(routine_id("echo"),{"Code"})
+task_schedule(task3,1)
+ 
+task_yield()
+--*/
+
