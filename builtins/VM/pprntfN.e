@@ -593,6 +593,12 @@ if base=10 then
 elsif minfieldwidth>length(r1) then
                             r1 &= repeat(hexchar[base],minfieldwidth-length(r1))
 end if
+                        elsif showplus then
+if base=10 then
+                            r1 = append(r1,'+')
+elsif minfieldwidth>length(r1) then
+                            r1 &= repeat('0',minfieldwidth-length(r1))
+end if
                         end if
                         r1len = length(r1)
                         -- as promised, reverse it:
