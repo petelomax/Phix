@@ -27,8 +27,8 @@
 --    The function b_a_exp() adapted from the BC manpages.
 --
 --    The function euler() on the algorithm I have no idea, taken from an example in Modula-2
---    a Modula-old Oberon compiler that has a looooong time, used in OS / 2 called
---    XDS.  The original algorithm was written in Algol by Serge Batalov, rewritten in Modula-2
+--    a Modula-old Oberon compiler that has a looooong time, used in OS / 2 called XDS.
+--    The original algorithm was written in Algol by Serge Batalov, rewritten in Modula-2
 --    and amended by Eugene Nalimov and Pavel Zemtsov.
 --    Adapted Euphoria for me (unlimited decimals).
 --    
@@ -1316,7 +1316,7 @@ integer start,stop
         end while
     end if
 
-    {} = scale(sc)
+    {} = scale(sc)  -- (restore original settings)
 
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
@@ -1390,7 +1390,8 @@ integer start,stop
     if neg then
         res = ba_divide(ONE, res)
     end if
-    {} = scale(sc)
+
+    {} = scale(sc)  -- (restore original settings)
 
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
@@ -1536,7 +1537,7 @@ integer start,stop
                 res = ba_divide(ONE, ba_power(x, 1/ -exponent), bRound)
             end if
 
-            {} = scale(sc)
+            {} = scale(sc)  -- (restore original settings)
 
             start = res[EXPONENT]+2+SCALE
             stop = length(res[DIGITS])
@@ -1553,7 +1554,7 @@ integer start,stop
         if atom(exponent) and exponent=2 then
             res = ba_sqrt(x)
 
-            {} = scale(sc)
+            {} = scale(sc)  -- (restore original settings)
 
             if bRound then
                 res = round_digits(res, res[EXPONENT]+2+SCALE)
@@ -1582,7 +1583,7 @@ integer start,stop
         res = ba_divide(ONE, ba_power(x, ba_divide(ONE, exponent)))
     end if
 
-    {} = scale(sc)
+    {} = scale(sc)  -- (restore original settings)
 
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
