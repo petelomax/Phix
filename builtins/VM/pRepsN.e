@@ -163,7 +163,8 @@ end procedure -- (for Edita/CtrlQ)
                                 --               (we just did a dec edi)
                                 --               (slice start can be 1..length+1)
 --DEV +12
-            mov cl,8                -- [era] @ [esp+8]
+--          mov cl,8                -- [era] @ [esp+8]
+            mov cl,16               -- [era] @ [esp+8]
             call :%fixupSliceStart  -- idx in edi, len in edx
       @@:
         push edi                -- save slice start (0-based)
@@ -949,7 +950,8 @@ end procedure -- (for Edita/CtrlQ)
                                 --               (we just did a dec rdi)
                                 --               (slice start can be 1..length+1)
 --DEV +12
-            mov cl,8                -- [era] @ [esp+8]
+--          mov cl,8                -- [era] @ [esp+8]
+            mov cl,32               -- [era] @ [rsp+32]
             call :%fixupSliceStart  -- idx in rdi, len in rdx
       @@:
         push rdi                -- save slice start (0-based)

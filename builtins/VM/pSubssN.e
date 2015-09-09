@@ -466,7 +466,8 @@ end procedure -- (for Edita/CtrlQ)
         jbe @f              -- unsigned jump, lets 0..len through (NB jbe here)
                             --               (we just did a dec rdi)
                             --               (slice start can be 1..length+1)
-            mov cl,12               -- [era] @ [esp+12]
+--          mov cl,12               -- [era] @ [esp+12]
+            mov cl,24               -- [era] @ [rsp+24]
             call :%fixupSliceStart  -- idx in rdi, len in rdx
       @@:
 -->     mov [ap1],edi           -- save slice start

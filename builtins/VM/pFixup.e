@@ -101,17 +101,19 @@ include builtins\VM\pFPU.e
             jmp :!iDiag
             int3
 
-    ::e06ioobp1WhatN
+      ::e06ioobp1WhatN
         int3
-    ::e06ioobp1What
+      ::e06ioobp1What
         int3
-    ::e08seinaie11
+      ::e08seinaie11
         int3
-    ::e10sspeosediedx
+      ::e10sspeosediedx
         int3
-    ::e10sspeosediedx0
-        int3
-    ::e10sspeosediedxN
+      ::e10sspeosediedx0
+--      int3
+        mov al,10               -- slice starts past end of sequence (%d(edi) > %d(esi))
+        jmp @f
+      ::e10sspeosediedxN
         int3
       ::e11sepeosediedxN
     [32]
@@ -122,6 +124,8 @@ include builtins\VM\pFPU.e
         sub rdi,1
     []
       ::e11sepeosediedx
+        mov al,11               -- slice ends past end of sequence (%d(edi) > %d(esi))
+      @@:
     [32]
         mov esi,edx
         and ecx,0xFF
@@ -133,7 +137,6 @@ include builtins\VM\pFPU.e
         mov rdx,[rsp+rcx]       -- era
         sub rdx,1
     []
-        mov al,11               -- slice ends past end of sequence (%d(edi) > %d(esi))
         jmp :!iDiag
         int3                    -- (nodiag)
 

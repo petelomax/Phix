@@ -52,6 +52,13 @@ to roll back to a previous version because of a bug in the latest release.
 
 Unicode, intellisense
 
+Version 0.3.6
+=============
+08/09/15 Bugfix: index out of bounds line 510 eafind.ew. Occurs when
+         searching for xxx^p and running past end of file, if starting
+         later than lines(file)-lines(searchstring), since the test is
+         mid-loop rather than before it. Simple fix (for now).
+
 Version 0.3.4
 =============
 03/02/12 Fixed display bug in Tabs List. Size and date were not being

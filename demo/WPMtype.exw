@@ -1,0 +1,53 @@
+include get.e
+include misc.e
+
+function noOfChars(sequence string, integer char)
+integer noChar
+
+    noChar = 0
+    for i=1 to length(string) do
+        if string[i]=char then
+            noChar += 1
+        end if
+    end for
+
+    return noChar
+end function
+
+procedure start()
+integer key, spaces
+atom startTime, curSpeed, maxSpeed
+sequence chars
+
+    puts(1, "WPM tester\n")
+    puts(1, "The timer will start when you start typing, push Esc to stop\n")
+    key = wait_key()
+    puts(1, key)
+    chars = {key}
+    startTime = time()
+    maxSpeed = 0
+    curSpeed = 0
+    while 1 do
+        key = wait_key()
+        if key=27 then
+            exit
+        end if
+        puts(1, key)
+        chars &= key
+        spaces = noOfChars(chars, ' ')
+        curSpeed = spaces/(time()-startTime)*60
+        if curSpeed>maxSpeed then
+            maxSpeed = curSpeed
+        end if
+    end while
+    spaces = noOfChars(chars, ' ')+1
+    puts(1, "\n\n")
+    puts(1, "Number of words: " & sprint(spaces) & "\n")
+    puts(1, "Total time in minutes: " & sprint((time()-startTime)/60) & "\n")
+    puts(1, "Mean WPM: " & sprint(spaces/(time()-startTime)*60) & "\n")
+    puts(1, "Max WPM: " & sprint(maxSpeed) & "\n")
+    puts(1, "Push any key to exit\n")
+    key = wait_key()
+end procedure
+
+start()
