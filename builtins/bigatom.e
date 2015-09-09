@@ -1825,7 +1825,8 @@ end function
 -- If the string contains a number with decimal value returns
 -- the integer part, point or comma stop the conversion.
 --
-global function int_value(sequence str)
+--global 
+function int_value(sequence str)
 integer digit
 integer sign
 atom ival = 0
