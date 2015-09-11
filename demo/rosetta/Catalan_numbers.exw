@@ -29,30 +29,36 @@ for i=0 to 15 do
 end for
 
 -- An explicitly memoized version of what seems to be the best, and the one that really needed it:
---  (and in fact it turned out to be faster than similarily memoized versions of 1 and 3)
+-- (and in fact it turned out to be faster than similarily memoized versions of 1 and 3, when atom)
+-- Lastly I converted it to use bigatoms, which I didn't try with either of the others.
+
+include builtins\bigatom.e
 
 sequence c2cache = {}
 
-function catalan2c(integer n)   -- very fast!
-atom r = not n
-    if n>0 then
-        if n<=length(c2cache) then
-            r = c2cache[n]
-            if r!=0 then return r end if
-        else
-            c2cache &= repeat(0,n-length(c2cache))
-        end if
-        for i=0 to n-1 do
-            r += catalan2c(i) * catalan2c(n-1-i)
-        end for
-        c2cache[n] = r
+function catalan2bc(integer n)  -- very fast!
+object r -- result (a bigatom)
+    if n<=0 then return BA_ONE end if
+    if n<=length(c2cache) then
+        r = c2cache[n]
+        if r!=0 then return r end if
+    else
+        c2cache &= repeat(0,n-length(c2cache))
     end if
+    r = BA_ZERO
+    for i=0 to n-1 do
+        r = ba_add(r,ba_multiply(catalan2bc(i),catalan2bc(n-1-i)))
+    end for
+    c2cache[n] = r
     return r
 end function
  
-for i=0 to 30 do    -- (not accurate above that, last c1 is 1 out)
-    printf(1,"%2d: %10d %10d %10d\n",{i,catalan1(i),catalan2c(i),catalan3(i)})
-end for
+--for i=0 to 30 do
+--  printf(1,"%2d: %s\n",{i,ba_sprint(catalan2bc(i))})
+--end for
+atom t0 = time()
+string sc100 = ba_sprint(catalan2bc(100))
+printf(1,"100: %s (%3.2fs)\n",{sc100,time()-t0})
 
 --include test\t02parms.exw
 if getc(0) then end if

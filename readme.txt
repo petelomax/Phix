@@ -49,6 +49,18 @@ Version 0.6.7
 15/08/2015  Got the parlour trick ("p p p p p p p p -cp") all working again.
 19/08/2015  Removed find_from() and match_from(), as they were messing up the
             listing files. From now on use find() and match() instead.
+09/09/2015  Finished adding bigatom, including documentation to dist. In an
+            amusing twist, I carefully shifted loads of mid-routine variable
+            declarations to the tops of the routines, because I knew there
+            was something amiss with them, before at the very very very last
+            hurdle running slap into that 18-month old niggle, and fixing it:
+09/09/2015  BUGFIX: scoped variable declarations at the toplevel were always
+            being created as tvars, with rather drastic consequences! It now
+            invokes TopDecls() instead of Locals() from Block() when returnvar 
+            is -1. However, TopDecls()/Assignment()/MultipleAssignment() have
+            absolutely no emitON=0 handling and crash in that case. For now,
+            I have added a limp "sorry, not (yet) supported" error message,
+            to pmain.e/Block().
 
 Version 0.6.6
 =============

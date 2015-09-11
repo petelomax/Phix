@@ -4803,7 +4803,7 @@ end procedure
 constant T_topset = {T_proc,T_func,T_type,T_constant,T_global,T_public,T_export,
                      T_include,T_with,T_without,T_forward,T_namespace,T_enum,
 --                   T_include,T_with,T_without,T_forward,T_enum,
-                     T_format,T_end}
+                     T_format,T_end,T_override}
 --                   T_end,T_elsifdef,T_elsedef}
 constant Tglobal = {T_global,T_public,T_export}
 
@@ -10040,7 +10040,16 @@ integer drop_scope = 0
                     drop_scope = 1
                     if increaseScope(S_Block,-1) then end if
                 end if
-                Locals()
+                if returnvar=-1 then    -- bugfix 9/9/15
+if emitON=0 then
+    -- this could be quite extensive; it is not just TopDecls() 
+    -- but also Assignment() and probably MultipleAssignment()...
+    Aborp("sorry, not (yet) supported under emitON=0")
+end if
+                    TopDecls()
+                else
+                    Locals()
+                end if
                 if find(ttidx,T_endelseelsif) then exit end if
             end if
         end if
@@ -10934,6 +10943,7 @@ integer t
                 elsif ttidx=T_enum        then DoEnum()         isGlobal = 0
                 elsif ttidx=T_include     then IncludeFile()    isGlobal = 0
                 elsif isGlobal            then Aborp("procedure, function, type, constant, enum, or vartype expected")
+                elsif ttidx=T_override    then Aborp("override of builtins is not and never will be permitted")
                 elsif find(ttidx,Tglobal) then getToken()       isGlobal = 1
                 elsif ttidx=Z_format      then DoFormat()
                 elsif ttidx=T_forward     then DoForwardDef()

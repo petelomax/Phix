@@ -1163,6 +1163,7 @@ global constant T_sfence        = 4808  tt_stringF("sfence",T_sfence)
 global constant T_Ltot          = 4824  tt_stringF("Ltot",T_Ltot)
 global constant T_il            = 4828  tt_stringF("il",T_il)
 global constant T_fmul          = 4832  tt_stringF("fmul",T_fmul)
+global constant T_override      = 4864  tt_stringF("override",T_override)   -- banned forever!!
 
 --global constant gtiTestM  = T_ilASM+0     tt_glabel("%opTestM", gtiTestM)
 --global constant gtiopTestM        = 4020  tt_glabel("%opTestM", gtiopTestM)
