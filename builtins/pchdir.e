@@ -8,9 +8,32 @@
 --  need to manually include this file (unless you want a namespace on it).
 --
 
-global function chdir(string newdir)
+function toString(sequence name)--, integer errcode)
+-- Explicitly convert a dword-sequence to an 8-bit string
+string res
+integer nlen
+object ch
+    nlen = length(name)
+    res = repeat(' ',nlen)
+    for i=1 to nlen do
+        ch = name[i]
+        if atom(ch) then
+            ch = and_bits(ch,#FF)
+            res[i] = ch
+        else
+--          fatal(errcode)
+            ?9/0
+        end if
+    end for
+    return res
+end function
+
+
+--global function chdir(string newdir)
+global function chdir(sequence newdir)
 -- Changes the current directory. Returns 1 - success, 0 - fail.
 integer res
+    if not string(newdir) then newdir = toString(newdir) end if
     #ilASM{
         [PE32]
             mov eax,[newdir]

@@ -496,9 +496,11 @@ end type
 -- See Also:
 --     [[:date]], [[:from_unix]], [[:now]], [[:new]]
 
+--/* not phix:
 public function from_date(sequence src)
     return {src[YEAR]+1900, src[MONTH], src[DAY], src[HOUR], src[MINUTE], src[SECOND]}
 end function
+--*/
 
 --**
 -- Create a new datetime value initialized with the current date and time
@@ -516,7 +518,8 @@ end function
 --     [[:from_date]], [[:from_unix]], [[:new]], [[:new_time]], [[:now_gmt]]
 
 public function now()
-    return from_date(date())
+--/**/  return date()           --/*    -- Phix
+    return from_date(date())    --*/    -- OpenEuphoria
 end function
 
 --**

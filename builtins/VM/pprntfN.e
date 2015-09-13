@@ -628,7 +628,9 @@ end if
                 elsif fidx<=6 then  -- 's' or 'c'
                     if atom(args) then
                         o = args
-                    elsif useFlatString(args,nxt,format,i) then
+--12/9/15:
+--                  elsif useFlatString(args,nxt,format,i) then
+                    elsif fidx!=6 and useFlatString(args,nxt,format,i) then -- (not %c (ie %s) and useFlat..)
                         o = args
                         args = {}
                     else

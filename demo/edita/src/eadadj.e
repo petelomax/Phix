@@ -38,8 +38,8 @@ integer y, yl, m    -- year, year length (in days), month
                           sprintf("dsv=%d;\n\n"&
                                   "System time may need setting.\n\n"&
                                   "Aborting...",dsv),0)
-        abort(0)
---      return -1
+--      abort(0)
+        return -1
     end if
     y = startYear
     while 1 do
@@ -72,7 +72,8 @@ integer y,m,d
                           sprintf("ymd={%d,%d,%d}; startYear=%d\n\n"&
                                   "System time may need setting.\n\n"&
                                   "Aborting...",ymd&startYear),0)
-        abort(0)
+--      abort(0)
+        return -1
     end if
     m = ymd[2]
     d = dot[m]+(m>2 and isleapyear(y))+ymd[3]
@@ -85,10 +86,12 @@ end function
 
 global function adjustDate(sequence ymd, integer adjust)
 --
--- returns a {y,m,d} style date.
---  ymd is eg {2003,12,31} [NB add 1900 to date()[1]]
+-- returns a {y,m,d} style date, or -1 on error.
+--  ymd is eg {2003,12,31}
 --  adjust is an integer, +/- n days to adjust ymd by.
 --
-    return ymdfromd(daysSinceStartYear(ymd)+adjust)
+integer d = daysSinceStartYear(ymd)
+    if d=-1 then return d end if
+    return ymdfromd(d+adjust)
 end function
 

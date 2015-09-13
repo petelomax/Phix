@@ -9084,7 +9084,9 @@ integer link
                     if ctrltyp=IF then
                         s5[ctrlink-1] = IF+SWFOID
                     else
-                        if ctrltyp!=ELSIF then ?9/0 end if
+--12/9/15:
+--                      if ctrltyp!=ELSIF then ?9/0 end if
+                        if ctrltyp!=ELSIF and ctrltyp!=ELSE then ?9/0 end if
                         s5[ctrlink-1] = ELSE
                     end if
                 end if

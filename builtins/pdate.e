@@ -58,7 +58,7 @@ global constant
 global function date()
 --
 --Return a sequence with the following information:  
---            {year,  -- since 1900
+--            {year,  -- 4 digit
 --            month,  -- January = 1
 --              day,  -- day of month, starting at 1
 --             hour,  -- 0 to 23
@@ -70,7 +70,8 @@ global function date()
 -- Use builtin constants DT_YEAR etc (NB not D_YEAR, that is for dir())
 --
 
-integer y, m, d, ys1900, dow
+--integer y, m, d, ys1900, dow
+integer y, m, d, dow
 atom xSystemTime
 sequence res
 
@@ -86,11 +87,12 @@ sequence res
     xSystemTime = allocate(STsize)
     c_proc(xGetLocalTime,{xSystemTime})
     y = peek2u(xSystemTime+STwYear)
-    ys1900 = y-1900
+--    ys1900 = y-1900
     m = peek2u(xSystemTime+STwMonth)
     d = peek2u(xSystemTime+STwDay)
     dow = peek2u(xSystemTime+STwDayOfWeek)+1
-    res = {ys1900,
+--    res = {ys1900,
+    res = {y,
            m,
            d,
            peek2u(xSystemTime+STwHour),

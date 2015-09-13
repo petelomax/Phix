@@ -278,7 +278,7 @@ integer x,y,w,h
         isLegacyTcod = 0
         if isReplaceTabs or isTabWidth=8 then
             isLegacyTcod    = date()
-            isLegacyTcod[1] = isLegacyTcod[1]+1900
+--          isLegacyTcod[1] = isLegacyTcod[1]+1900
             isLegacyTcod    = isLegacyTcod[1..6]
         end if
     end if

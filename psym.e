@@ -1525,36 +1525,39 @@ global procedure syminit()
 
     -- from dll.e:
 --DEV 64 bit?
-    initialConstant("C_CHAR",       #01000001)
-    initialConstant("C_BYTE",       #01000001)
-    initialConstant("C_UCHAR",      #02000001)
-    initialConstant("C_UBYTE",      #02000001)
-    initialConstant("C_SHORT",      #01000002)
+    initialConstant("C_BYTE",       #01000001)  -- an 8 bit signed integer
+    initialConstant("C_CHAR",       #01000001)  -- an 8 bit signed?? integer
+    initialConstant("C_UBYTE",      #02000001)  -- an 8 bit unsigned integer
+    initialConstant("C_UCHAR",      #02000001)  -- an 8 bit unsigned?? integer
+    initialConstant("C_SHORT",      #01000002)  -- a 16 bit signed integer
     initialConstant("C_WORD",       #01000002)
-    initialConstant("C_USHORT",     #02000002)
-    initialConstant("C_INT",        #01000004)
+    initialConstant("C_USHORT",     #02000002)  -- a 16 bit unsigned integer
+    initialConstant("C_INT",        #01000004)  -- a 32 bit signed integer
     initialConstant("C_BOOL",       #01000004)
     initialConstant("C_LONG",       #01000004)
     initialConstant("C_WPARAM",     #01000004)
     initialConstant("C_LPARAM",     #01000004)
     initialConstant("C_HRESULT",    #01000004)
-    initialConstant("C_UINT",       #02000004)
+    initialConstant("C_UINT",       #02000004)  -- a 32 bit signed integer
 --  initialConstant("C_SIZE_T",     #02000004)
-    initialConstant("C_DWORD",      #02000004)  -- (a 32 bit unsigned integer)
---  initialConstant("C_DWORD32",    #02000004)  -- (a 32 bit unsigned integer) [DEV/SUG]
---  initialConstant("C_DWORD64",    #02000008)  -- (a 64 bit unsigned integer) [DEV/SUG]
+    initialConstant("C_DWORD",      #02000004)  -- a 32 bit unsigned integer
+--  initialConstant("C_DWORD32",    #02000004)  -- a 32 bit unsigned integer [DEV/SUG]
+--  initialConstant("C_DWORD64",    #02000008)  -- a 64 bit unsigned integer [DEV/SUG]
     initialConstant("C_ULONG",      #02000004)
-    initialConstant("C_INT64",      #01000008)  -- (a 64 bit signed integer) [DEV/SUG]
-    initialConstant("C_QWORD",      #02000008)  -- (a 64 bit unsigned integer) [DEV/SUG]
---  initialConstant("C_LONGLONG",   #01000008)  -- (a 64 bit signed integer) [DEV/SUG]
---  initialConstant("C_ULONGLONG",  #02000008)  -- (a 64 bit unsigned integer) [DEV/SUG]
+    initialConstant("C_INT64",      #01000008)  -- a 64 bit signed integer
+    initialConstant("C_QWORD",      #02000008)  -- a 64 bit unsigned integer
+--  initialConstant("C_LONGLONG",   #01000008)  -- a 64 bit signed integer [DEV/SUG]
+--  initialConstant("C_ULONGLONG",  #02000008)  -- a 64 bit unsigned integer [DEV/SUG]
     initialConstant("C_POINTER",    #02000004)  -- [DEV] #02000008 on 64 bit
     initialConstant("C_PTR",        #02000004)  -- ""
     initialConstant("C_HANDLE",     #02000004)  -- ""
     initialConstant("C_HWND",       #02000004)  -- ""
 --  initialConstant("C_WIDEPTR",    #02020004) [DEV/SUG]
-    initialConstant("C_FLOAT",      #03000004)
-    initialConstant("C_DOUBLE",     #03000008)  -- DEV deprecate? (30/8/15)...
+    initialConstant("C_FLOAT",      #03000004)  -- a 32-bit float
+    initialConstant("C_DOUBLE",     #03000008)  -- a 64-bit float
+--  initialConstant("C_FLT32",      #03000004)  -- (DEV/SUG)
+--  initialConstant("C_FLT64",      #03000008)  -- (DEV/SUG)
+--  initialConstant("C_FLT80",      #0300000A)  -- (DEV/SUG)??
 --  initialConstant("C_DWORDLONG",  #03000008)  [DEV? (has also surfaced as #03000002, I say "it shd be #02000008!?")]
 
 -- For Phix-compiled .dll files [DEV when implemented!], and/or call_backs.
@@ -2209,7 +2212,7 @@ end if
     -- note that builtin overrides get a new symtab slot
     IAEType = T_integer
 
-    initialAutoEntry("chdir",           S_Func,"FS",    "pchdir.e",0,E_other)
+    initialAutoEntry("chdir",           S_Func,"FP",    "pchdir.e",0,E_other)
     initialAutoEntry("check_break",     S_Func,"F",     "pbreak.e",0,E_other)
 --DEVC not documented, incomplete
     initialAutoEntry("copy_file",       S_Func,"FSSI",  "pcopyfile.e",0,E_other)
@@ -2313,7 +2316,8 @@ end if
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
     initialAutoEntry("poke_string",     S_Func,"FNIP",  "pokestr.e",0,E_other)
-    initialAutoEntry("prompt_number",   S_Func,"FPP",   "get.e",0,E_other)
+    initialAutoEntry("prompt_number",   S_Func,"FSP",   "get.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
 --DEV document
     initialAutoEntry("sum",             S_Func,"FO",    "psum.e",0,E_other)
     initialAutoEntry("sysexec",         S_Func,"FP",    "syswait.ew",0,E_other)
@@ -2344,7 +2348,7 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("canonical_path",  S_Func,"FS",    "pgetpath.e",0,E_none)
 --end if
-    initialAutoEntry("prompt_string",   S_Func,"FP",    "get.e",0,E_other)
+    initialAutoEntry("prompt_string",   S_Func,"FS",    "get.e",0,E_other)
 --DEV document
     initialAutoEntry("peek_string",     S_Func,"FN",    "peekstr.e",0,E_none)
 if newEmit then

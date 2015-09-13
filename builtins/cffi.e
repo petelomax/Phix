@@ -279,17 +279,25 @@ sequence SizeNames,SizeSigns,Sizes
                                                   {"int64",     1,{8,8}},       -- aka long long (windows only?)
                                                   {"uint64",    0,{8,8}},
 --                                                {"longdouble",1,{8,8}},       -- ambiguous!!!, see below
+--                                                {"flt80",     1,{10,10}},     -- maybe?
                                                   {"ptr",       0,{4,8}},       -- (no point having ptr/uptr that I can think of)
                                                   $})
 
 
---The wikipedia definition of long double ( https://en.wikipedia.org/wiki/Data_structure_alignment ):
+--A partial definition of long double from wikipedia( https://en.wikipedia.org/wiki/Data_structure_alignment ):
 -- on 32 bit:
 --A long double (ten bytes with C++Builder and DMC, eight bytes with Visual C++, twelve bytes with GCC) will be 
 --  8-byte aligned with C++Builder, 2-byte aligned with DMC, 8-byte aligned with Visual C++ and 4-byte aligned with GCC.
 -- on 64 bit:
 --A long double (eight bytes with Visual C++, sixteen bytes with GCC) will be 8-byte aligned with Visual C++ and 16-byte aligned with GCC.
--- (PL: Note that Windows is an LLP64 data model, not LP64 which the above article seems to be writing about.)
+-- (PL: Note that Windows64 is an LLP64 data model, not LP64 which the above article seems to be writing about.)
+--
+--And here's another gratuitous link: https://en.wikipedia.org/wiki/Long_double
+--
+--If you ask me, life would be simpler if float/double/longdouble were instead more explicitly named say flt32/flt64/flt80.
+--
+--Might I suggest trying flt80 for any long doubles you happen to run into, not that I have any evidence that will work.
+--
 
 constant as_char = find("char",SizeNames)
 constant as_uchar = find("uchar",SizeNames)
@@ -467,6 +475,7 @@ sequence AltNames,AltSize
                                          {"LCTYPE",         as_ulong},
                                          {"LGRPID",         as_ulong},
                                          {"ULONG",          as_ulong},
+--                                       {"float",          as_float},
                                          {"FLOAT",          as_float},
                                          {"INT64",          as_int64},
                                          {"LONGLONG",       as_int64},

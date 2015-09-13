@@ -16068,7 +16068,7 @@ string options
 
     d = date()
     d = reverse(d[1..6])    -- d is now {second,minute,hour,day,month,year}
-    k = remainder(d[6],100) -- (or add 1900 and show as 4 digits)
+    k = remainder(d[6],100) -- (or show as 4 digits)
     d[6] = k
     k = d[1]
     d[1] = d[3]

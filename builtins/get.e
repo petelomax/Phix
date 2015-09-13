@@ -313,9 +313,10 @@ global function value(sequence str)
     return Get()
 end function
 
-global function prompt_number(sequence prompt, sequence range)
+global function prompt_number(string prompt, sequence range={})
 -- Prompt the user to enter a number. 
 -- A range of allowed values may be specified.
+integer error_status
 object answer
 
     while 1 do
@@ -323,26 +324,23 @@ object answer
         answer = gets(0) -- make sure whole line is read
         puts(1, '\n')
 
-        answer = value(answer)
-        if answer[1]!=GET_SUCCESS or sequence(answer[2]) then
+        {error_status,answer} = value(answer)
+        if error_status!=GET_SUCCESS 
+        or sequence(answer) then
             puts(1, "A number is expected - try again\n")
-        else
-            if length(range)=2 then
-                if range[1]<=answer[2] and answer[2]<=range[2] then
-                    return answer[2]
-                else
-                    printf(1,
-                           "A number from %g to %g is expected here - try again\n",
-                           range)
-                end if
-            else
-                return answer[2]
+        elsif length(range)=2 then
+            if range[1]<=answer
+            and answer<=range[2] then
+                return answer
             end if
+            printf(1,"A number from %g to %g is expected here - try again\n",range)
+        else
+            return answer
         end if
     end while
 end function
 
-global function prompt_string(sequence prompt)
+global function prompt_string(string prompt)
 -- Prompt the user to enter a string
 object answer
 

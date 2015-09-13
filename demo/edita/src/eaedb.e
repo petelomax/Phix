@@ -840,9 +840,9 @@ object dt
             purgeBackups = 0
             return
         end if
-        dt[1] = 1900 + dt[1]
+--      dt[1] = 1900 + dt[1]
         dt = adjustDate(dt[1..3],-isRetainBackupsFor)
---      if atom(dt) then return end if
+        if atom(dt) then return end if
         dt[1] = remainder(dt[1],10)
         pDate = dt[1]*100+dt[2]
         pDate = (pDate*100+dt[3])*10000

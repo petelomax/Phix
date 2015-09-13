@@ -32,7 +32,7 @@ global constant
      C_ULONG   = C_UINT,
      C_POINTER = C_ULONG,
      C_FLOAT   = #03000004,
-     C_DOUBLE  = #03000008,
+--   C_DOUBLE  = #03000008,     (deprecated)
 
 -- Euphoria types for .dll arguments and return value:
      E_INTEGER  = #06000004,

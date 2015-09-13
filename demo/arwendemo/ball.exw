@@ -1,0 +1,85 @@
+--
+-- ball.exw
+-- ========
+--
+--  Classic bouncing ball, nothing fancy or clever here.
+--   Author Pete Lomax, September 2015
+--
+
+include arwen.ew
+include axtra.ew
+
+constant main = create(Window, "Bouncing ball", 0, 0, 20, 20, 625, 400, 0),
+         mainDC = getPrivateDC(main),
+         backDC = c_func(xCreateCompatibleDC, {NULL}),  -- the background
+         viewDC = c_func(xCreateCompatibleDC, {NULL}),  -- with animation
+         grey = #909090
+
+constant MainTimer = createTimer()
+
+integer dw = 0, dh = 0      -- client area width and height
+atom bmBack, bmView
+integer bmX = 0, bmY = 0    -- actual size of the bitmaps
+
+constant r = 15             -- ball radius
+integer bX = r, bY = r,     -- ball location
+        sX = -20, sY = 43   -- ball speed
+
+procedure reflect_ball()
+-- this could probably suffer a few rand() calls...
+    if bX<r then
+        bX = 15
+        sX *= -1
+    elsif bX>dw-15 then
+        bX = dw-15
+        sX *= -1
+    end if
+    if bY<15 then
+        bY = 15
+        sY *= -1
+    elsif bY>dh-15 then
+        bY = dh-15
+        sY *= -1
+    end if
+end procedure
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+
+    if msg=WM_SIZE then
+        {{},{},dw,dh} = getClientRect(main)
+        if dw>bmX or dh>bmY then
+            -- we need bigger bitmaps
+            bmBack = c_func(xCreateCompatibleBitmap, {mainDC, dw, dh})
+            {} = deleteObject(selectObject(backDC,bmBack))
+            -- clear the background
+            setPenColor(grey)
+            drawRectangleh(backDC, True, 0, 0, dw, dh)
+            bmView = c_func(xCreateCompatibleBitmap, {mainDC, dw, dh})
+            {} = deleteObject(selectObject(viewDC,bmView))
+            setPenColor(Red)
+            {bmX,bmY} = {dw,dh}
+        end if
+    elsif msg=WM_PAINT then
+        -- start with a fresh copy of the background
+        -- (I wonder if it would be faster to redraw the old one in grey...)
+        void = c_func(xBitBlt,{viewDC,0,0,dw,dh,backDC,0,0,SRCCOPY})
+        drawEllipseh(viewDC,bX-r,bY-r,bX+r,bY+r)
+        void = c_func(xBitBlt,{mainDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
+    elsif msg=WM_TIMER then
+        bX += sX
+        bY += sY
+        reflect_ball()
+        repaintWindow(main)
+    elsif msg=WM_SHOWWINDOW then
+        startTimer(MainTimer,main,33)
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(main)
+        if id or object(lParam) then end if -- suppress warnings
+    end if
+    return 0
+end function
+setHandler({main},routine_id("mainHandler"))
+
+WinMain(main, SW_NORMAL)
+
