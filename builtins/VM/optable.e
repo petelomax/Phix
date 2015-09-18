@@ -70,7 +70,7 @@
 --  pDiagN.e -> opcodes (:%pCrashMsg, :%pCrash, :%pCrashFile), smvds8
 --  pprntfN.e -> opcodes (:%opSprintf, :%opPrintf)
 --  psprintN.e -> opcodes (:%opSprint, :%opPrint)
---  pcase.e -> opcodes (:%Upper, :%Lower, :%isUpper, :%isLower, low priority)
+--  pcase.e -> opcodes (:%opUpper, :%opLower, :%isUpper, :%isLower, low priority)
 --  pcurrdir.e -> opcodes (:%opCurrDir, low priority)
 --  pfileioN.e -> opcodes (:%opOpen, :%opFlush, :%opClose, ?:%opClosem9?,
 --                          :%opSeek, :%opWhere, :%opLock, :%opUnlock,
@@ -269,8 +269,8 @@
 --          toUpper = repeat(255,255)
 --              global function upper(object x)
 --              global function lower(object x)
---              global function isUpper(integer ch)
---              global function isLower(integer ch)
+--              global function isupper(integer ch)
+--              global function islower(integer ch)
 --
 --      pfileioN.e  (Phix compatible 0.6.4)
 --      ==========

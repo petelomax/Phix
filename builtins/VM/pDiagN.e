@@ -827,7 +827,7 @@ constant msgs =
     -- or_esi is var no
  "variable %s has not been assigned a value\n",                 -- e93vhnbaav(edi) [:%opPpndSA]
     -- or_edi is var address
- "variable %s has not been assigned a value\n",                 -- e94vhnbaav(edx)
+ "variable %s has not been assigned a value\n",                 -- e94vhnbaav(edx,esi)  [if integer(esi), report as e04atsaa]
     -- as e92 but or_edx is var no
 --DEV these appear untested:::
  "text_color error [%08x]\n",                                   -- e95tce
@@ -2189,7 +2189,7 @@ atom gvarptr
 --          pathset[j] = current_dir()&'\\'&pathset[j]
 --      end if
 --  end for
-    if msg_id=106 then      -- e106ioob(edi,edx) or e94vhnbaav(ecx)
+    if msg_id=106 then      -- e106ioob(edi,edx)
         if find(or_edi,{#40000000,#4000000000000000}) then
 --          or_edx = or_ecx
             or_esi = or_ecx
@@ -2293,10 +2293,10 @@ atom gvarptr
         end if
 --      o = getValue(or_edi, 50, length(si)+17, 1)
         msg = sprintf(msg,{name,o})         -- "type check failure, %s is %s\n"
-    elsif msg_id=91     -- e92vhnbaav(ecx)
-       or msg_id=92     -- e92vhnbaav(esi)
-       or msg_id=93     -- e93vhnbaav(edi)
-       or msg_id=94 then    -- e94vhnbaav(edx)
+    elsif msg_id=91         -- e92vhnbaav(ecx)
+       or msg_id=92         -- e92vhnbaav(esi)
+       or msg_id=93         -- e93vhnbaav(edi)
+       or msg_id=94 then    -- e94vhnbaav(edx,esi)
 --      -- varno in or_edx
 --      if or_edx<1 or or_edx>length(symtab) then
 --          si = sprintf("???(varno=%d)",or_edx)
@@ -2312,6 +2312,10 @@ atom gvarptr
 --          end if
 --      end if
         if msg_id=94 then
+--DEV if integer(esi) ain't it supposed to become e04atsaa? (done in AddressMapping for one of them...)
+--          if integer(or_esi) then
+--!             msg_id = 4
+--          end if
             or_esi = or_edx
 --?{65,or_esi}
         elsif msg_id=91 then
@@ -3526,7 +3530,30 @@ end procedure -- (for Edita/CtrlQ)
             cmp edx,:!opXore92b
             je :e94vhnbaavedx
             cmp edx,:%pSubsss
+            je :e94vhnbaavedx
+            cmp edx,:!opSubse1iRe92a
             jne @f
+--DEV if or_esi is integer, e04...
+              [32]
+                mov edi,[a32h4]
+                mov eax,[or_esi]
+              [64]
+                mov rdi,[a64h4]
+                mov rax,[or_esi]
+              []
+                call :%opJccE
+                je :e94vhnbaavedx
+              [32]
+                mov eax,[esp+4]
+              [64]
+                mov rax,[rsp+8]
+              []
+                lea edi,[or_era]
+                sub eax,1
+                call :%pStoreMint
+                mov eax,04          -- e04atsaa
+                jmp :setal
+
           ::e94vhnbaavedx
               [32]
                 mov eax,[esp+4]

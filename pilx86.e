@@ -1969,7 +1969,11 @@ else
                         WarnU(siNTyp,si,-1,i) -- Undefined() [Aborts]
 end if
                     elsif i>T_Ainc then
+--if siNTyp=S_Type then
+--                      WarnU(siNTyp,si,-1,i) -- Undefined() [Aborts]
+--else
                         WarnU(siNTyp,si," is not actually defined (or used) anywhere.",i)
+--end if
                     end if
                 elsif i>T_Ainc
                   and not some_unresolved_rtnids
@@ -7150,9 +7154,17 @@ end if
             getSrc()
             if wasOptTypeCheck then
                 if sudt>T_object then
-                    dest = sudt+1
+--18/9/15 no: follow the chain!
+--                  dest = sudt+1
+                    dest = symtab[sudt][S_Parm1]
                     -- sanity check: verify we have located a type routine's parameter:
+--puts(1,"warning: pilx86.e line 7159, rudely removed code...\n")
                     if not and_bits(symtab[dest][S_State],K_type) then dest=9/0 end if
+--                  if not and_bits(symtab[dest][S_State],K_type) then 
+--?dest
+--?symtab[dest]
+--?symtab[dest][S_State]
+--                      dest=9/0 end if
                     getDest()
                     gtypeonly = 1
                     storeDest()

@@ -372,8 +372,8 @@ end procedure -- (for Edita/CtrlQ)
         --  call opSubse1is     -- [ecx]:=s[idx]
         --  mov [p3],eax        -- res
         sub edi,1
---DEV
---    :!opSubse1iRe92a:         -- exception here mapped to e94vhnbaavedxesifeh (edx contains var no, esi value. e94vhnbaav or e04atsaa)
+
+      :!opSubse1iRe92a          -- exception here mapped to e94vhnbaavedx (edx contains var no, esi value. e94vhnbaav or e04atsaa)
         mov edx,[ebx+esi*4-12]  -- length
         mov al,byte[ebx+esi*4-1] -- type byte
         shl esi,2

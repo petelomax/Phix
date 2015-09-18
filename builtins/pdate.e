@@ -5,33 +5,84 @@
 -- The Phix implementation of date()
 --
 sequence dot
---  --   dot={0,31,59,90,120,151,181,212,243,273,304,334}   -- now done in init (forward refs!).
+--  --   dot={0,31,59,90,120,151,181,212,243,273,304,334}   -- now done in init (forward refs).
+sequence t
+--  --   t={ 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }           -- now done in init (forward refs).
 
-function doy(integer y, integer m, integer d)
--- day of year function
-    y = (m>2 and remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0))
+atom kernel32, xGetLocalTime
+integer dinit = 0
+
+procedure initd()
+    dinit = 1
+    enter_cs()
+    kernel32 = open_dll("kernel32.dll")
+    xGetLocalTime = define_c_proc(kernel32,"GetLocalTime",{C_PTR})
+    dot = {0,31,59,90,120,151,181,212,243,273,304,334}
+    t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
+    leave_cs()
+end procedure
+
+global function isleapyear(integer y)
+--  if remainder(y,4)!=0 then return 0 end if
+--  return (remainder(y,100)!=0 or remainder(y,400)=0)
+    return remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0)
+end function
+
+
+global function day_of_year(integer y, integer m, integer d)
+-- day of year function, returns 1..366
+--  y = (m>2 and remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0))
     -- y is now 1 if later than Feb (29th) in a leap year.
-    d += dot[m]+y   -- eg march 1st is 60th day normally, 61st in a leap year.
+--  y = (m>2 and isleapyear(y))
+--  d += dot[m]+y   -- eg march 1st is 60th day normally, 61st in a leap year.
+--  return d
+    if not dinit then initd() end if
+    return d+dot[m]+(m>2 and isleapyear(y))
+end function
+
+--/*
+function julianDayOfYear(object ymd) -- returns an integer
+integer year, month, day
+integer d
+
+    year = ymd[1]
+    month = ymd[2]
+    day = ymd[3]
+
+    if month=1 then return day end if
+
+    d = 0
+    for i=1 to month-1 do
+        d += daysInMonth(year, i)
+    end for
+
+    d += day
+
+    if year=Gregorian_Reformation and month=9 then
+        if day>13 then
+            d -= 11
+        elsif day>2 then
+            return 0
+        end if
+    end if
+
     return d
 end function
 
--- GetLocalTime kindly provides day of week, on another os you might want this:
---sequence t
---  --   t={ 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }       -- now done in init (forward refs!).
---function dow(integer d, integer m, integer y)
----- day of week function (Sakamoto) returns 1..7 (Sun..Sat)
---integer l
---  y -= m<3
---  l = floor(y/4)-floor(y/100)+floor(y/400)
---  d += y+l+t[m]
---  return remainder(d,7)+1
---end function
+--*/
 
-atom kernel32, xGetLocalTime
-integer dinit dinit = 0
+global function day_of_week(integer y, integer m, integer d)
+-- day of week function (Sakamoto) returns 1..7 (Sun..Sat)
+integer l
+    if not dinit then initd() end if
+    y -= m<3
+    l = floor(y/4)-floor(y/100)+floor(y/400)
+    d += y+l+t[m]
+    return remainder(d,7)+1
+end function
 
 constant
-    -- SYSTEMTIME structure:
+    -- SYSTEMTIME structure: (same on 64-bit)
     STwYear             = 0,    --  WORD wYear
     STwMonth            = 2,    --  WORD wMonth
     STwDayOfWeek        = 4,    --  WORD wDayOfWeek
@@ -42,12 +93,11 @@ constant
 --  STwMillisecs        = 14,   --  WORD wMilliseconds
     STsize = 16
 
---/* (defined in psym.e):
+--/* (now defined in psym.e):
 global constant 
     DT_YEAR   = 1,
     DT_MONTH  = 2,
     DT_DAY    = 3,
-
     DT_HOUR   = 4,
     DT_MINUTE = 5,
     DT_SECOND = 6,
@@ -75,23 +125,15 @@ integer y, m, d, dow
 atom xSystemTime
 sequence res
 
-    if not dinit then
-        dinit = 1
-        enter_cs()
-        kernel32 = open_dll("kernel32.dll")
-        xGetLocalTime = define_c_proc(kernel32,"GetLocalTime",{C_PTR})
-        dot = {0,31,59,90,120,151,181,212,243,273,304,334}
---      t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
-        leave_cs()
-    end if
+    if not dinit then initd() end if
     xSystemTime = allocate(STsize)
     c_proc(xGetLocalTime,{xSystemTime})
     y = peek2u(xSystemTime+STwYear)
---    ys1900 = y-1900
+--  ys1900 = y-1900
     m = peek2u(xSystemTime+STwMonth)
     d = peek2u(xSystemTime+STwDay)
     dow = peek2u(xSystemTime+STwDayOfWeek)+1
---    res = {ys1900,
+--  res = {ys1900,
     res = {y,
            m,
            d,
@@ -99,7 +141,7 @@ sequence res
            peek2u(xSystemTime+STwMinute),
            peek2u(xSystemTime+STwSecond),
            dow,
-           doy(y,m,d)}
+           day_of_year(y,m,d)}
     free(xSystemTime)
     return res
 end function

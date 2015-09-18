@@ -4,10 +4,8 @@
 -- Simple date adjustment routine.
 --
 --  For use in current applications only.
---   Dates before 2000 (see constant startYear) are not handled. There 
---   are other date handling libs in the archives you can try, eg addToDate 
---   in datetime.e does pretty much exactly what this does, and handles dates  
---   back to 1AD, but comes with 33 other functions...
+--   Dates before 1980 (see constant startYear) are not handled.
+--   See also builtins/timedate.e, which was written after this...
 --
 --  Written for Edita's "Number of days to retain backups for" option, 
 --   could also be useful for settlement terms, overdue accounts, etc.

@@ -61,6 +61,8 @@ Version 0.6.7
             absolutely no emitON=0 handling and crash in that case. For now,
             I have added a limp "sorry, not (yet) supported" error message,
             to pmain.e/Block().
+18/09/2015  It is now possible to declare forward types. Needed if I ever
+            want to make builtins\timedate.e an auto-include.
 
 Version 0.6.6
 =============

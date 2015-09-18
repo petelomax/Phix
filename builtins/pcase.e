@@ -131,12 +131,12 @@ integer c -- ditto
     return x
 end function
 
-global function isUpper(integer ch)
+global function isupper(integer ch)
     if not cinit then initcase() end if
     return (ch>0 and ch<=255 and ch!=toLower[ch])
 end function
 
-global function isLower(integer ch)
+global function islower(integer ch)
     if not cinit then initcase() end if
     return (ch>0 and ch<=255 and ch!=toUpper[ch])
 end function

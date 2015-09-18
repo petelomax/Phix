@@ -2232,12 +2232,15 @@ else
     initialAutoEntry("define_c_func",   S_Func,"FOOON", "pcfunc.e",0,E_none)
     initialAutoEntry("define_c_proc",   S_Func,"FOOO",  "pcfunc.e",0,E_none)
 end if
---DEV document this:
+--DEV document this*3:
+    initialAutoEntry("day_of_week",     S_Func,"FIII",  "pdate.e",0,E_none)
+    initialAutoEntry("day_of_year",     S_Func,"FIII",  "pdate.e",0,E_none)
     initialAutoEntry("find_any",        S_Func,"FPPI",  "pfindany.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
---DEV document these:
-    initialAutoEntry("isLower",         S_Func,"FI",    "pcase.e",0,E_none)
-    initialAutoEntry("isUpper",         S_Func,"FI",    "pcase.e",0,E_none)
+--DEV document these*3:
+    initialAutoEntry("isleapyear",      S_Func,"FI",    "pdate.e",0,E_none)
+    initialAutoEntry("islower",         S_Func,"FI",    "pcase.e",0,E_none)
+    initialAutoEntry("isupper",         S_Func,"FI",    "pcase.e",0,E_none)
 if newEmit then --DEV (temp) (T_find/T_match will be rqd once the asm conversion is completed)
     initialAutoEntry("find",            S_Func,"FOPI",  "VM\\pFind.e",0,E_none)     --T_find = symlimit
     symtab[symlimit][S_ParmN] = 2

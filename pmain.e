@@ -4891,8 +4891,7 @@ integer savettidx
     if N then
 --dbg = symtab[N]
 if newEmit then
-    --DEV figure out how to deal with overriding builtins... (try peek2u[X] at the end of t37)
-    if N<=T_Asm then Aborp("builtin override problem...\n") end if
+        if N<=T_Asm then Aborp("builtin overrides are not permitted in Phix\n") end if
 end if
         state = symtab[N][S_State]
         if and_bits(state,S_fwd) then
@@ -5475,7 +5474,8 @@ sequence sig
         rType = S_Func
     elsif N!=1 then
         if N=3 then
-            Aborp("Forward definitions of types are not supported")
+-- trying again 17/9/15:
+--          Aborp("Forward definitions of types are not supported")
 --DEV 4/8/14 (tried removing the above, but quickly realised I got fmittd)
 sig1 = TYPE
 rType = S_Type
@@ -5535,6 +5535,10 @@ rType = S_Type
 
     rtnttidx = ttidx
     N = addSymEntry(ttidx,wasGlobal,rType,0,0,S_fwd)
+
+if rType = S_Type then
+    printf(1,"DoForwardDef(%d)\n",{N})
+end if
 
     symtab[N][S_Efct] = E_all   -- must assume the worst
 
@@ -9406,7 +9410,9 @@ end if
     end if
     t = opstype[opsidx]
 --?t
-    if t=T_string then  -- (added 13/10/09)
+--14/9/15:
+--  if t=T_string then  -- (added 13/10/09)
+    if 0 then -- (I now want consistent quotes...)
         if emitON then  -- (added 10/02/10)
             O = opstack[opsidx]
             puts1[3] = O
