@@ -30,20 +30,20 @@
 --      converts a timedate to a different timezone
 --      eg: td = change_timezone(td, "EDT")
 --
---  set_tdformats(sequence parse_fmts, object out_fmt=1, integer partial=0)
+--  set_timedate_formats(sequence parse_fmts, object out_fmt=1, integer partial=0)
 --      sets the parameter defaults for parse_date_string() and format_dateline().
 --      parse_fmts is a collection of formats for parse_date_string(), and
 --      out_fmt is a single string or index to parse_fmts for format_timedate().
 --      the partial flag controls whether to ignore excess text when parsing,
 --      and if set, then parse_fmts should be ordered most detailed first.
---      eg: set_tdformats({"Mmmm d yyyy h:mmam tz"})
+--      eg: set_timedate_formats({"Mmmm d yyyy h:mmam tz"})
 --
 --  parse_date_string(string s, sequence fmts=default_parse_fmts, integer partial=allow_partial)
---      convert a string into a timedate [using set_tdformats() defaults].
+--      convert a string into a timedate [using set_timedate_formats() defaults].
 --      eg: td = parse_date_string("March 7 2009 7:30pm EST")
 --
 --  format_timedate(timedate td, string fmt=default_format)
---      convert a timedate into a string [using set_tdformats() defaults].
+--      convert a timedate into a string [using set_timedate_formats() defaults].
 --      eg format_timedate(td) -- reconstitutes the preceding example
 --
 -- for advanced use/testing only:
@@ -90,7 +90,7 @@ constant DT_TZ = 9,
 --      If you define something in BST and want to know the equivalent
 --      in GMT, or EDT, that's all fine and easy:
 --
---          set_tdformats({"D/M/YYYY hhpm TZ"})
+--          set_timedate_formats({"D/M/YYYY hhpm TZ"})
 --          s = parse_date_string("1/8/2015 10am BST")
 --          s = change_timezone(s,"GMT")
 --          ?format_timedate(s)
@@ -325,7 +325,7 @@ global function timedelta(atom weeks=0, atom days=0, atom hours=0, atom minutes=
 --
 -- The parameters are defined as atoms to allow huge and/or fractional values to be passed.
 --
--- 1,000 milliseconds equal 1 second and 1,000 microseconds eaual 1 millisecond (and 1,000,000 microseconds equal 1 second)
+-- 1,000 milliseconds equal 1 second and 1,000 microseconds equal 1 millisecond (and 1,000,000 microseconds equal 1 second)
 --
 -- Returns an atom representing the timedelta in seconds and fractions of a second.
 --
@@ -553,7 +553,7 @@ end function
 --end function
 
 global function get_tzid(string tz)
--- for testing
+-- for testing purposes only
     return find(tz,timezones)
 end function
 
@@ -1335,7 +1335,7 @@ sequence default_parse_fmts
 integer allow_partial = 0
 string default_format = ""
 
-global procedure set_tdformats(sequence parse_fmts, object out_fmt=1, integer partial=0)
+global procedure set_timedate_formats(sequence parse_fmts, object out_fmt=1, integer partial=0)
 --
 -- Sets the default formats for parsing strings to timedates, and formatting 
 --  timedates into strings.
@@ -1349,10 +1349,10 @@ global procedure set_tdformats(sequence parse_fmts, object out_fmt=1, integer pa
 --  set then parse_fmts should be ordered with the most detailed first. (If not 
 --  ignoring excess text, then the order of entries probably does not matter.)
 --
--- Examples: set_tdformats({"Mmmm d yyyy h:mmam tz"})
---           set_tdformats({"DD/MM/YYYY h:mmam tz",
---                          "DD/MM/YYYY h:mmam",
---                          "DD/MM/YYYY"},1,1)                      
+-- Examples: set_timedate_formats({"Mmmm d yyyy h:mmam tz"})
+--           set_timedate_formats({"DD/MM/YYYY h:mmam tz",
+--                                 "DD/MM/YYYY h:mmam",
+--                                 "DD/MM/YYYY"},1,1)                       
 --
 --  In the second case, with partial matching enabled, we would not want to try
 --  the DD/MM/YYYY first, and risk ignoring a following time and timezone.
@@ -1385,7 +1385,7 @@ global function parse_date_string(string s, sequence fmts=default_parse_fmts, in
 --
 -- Store the result in a timedate for fast-fail development.
 --
--- See set_tdformats() for detals of the fmts and partial parameters.
+-- See set_timedate_formats() for detals of the fmts and partial parameters.
 --
 --DEV not happy with this -- see manual
 -- This routine is targeted more at processing large volumes of
