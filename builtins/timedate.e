@@ -16,33 +16,34 @@
 --  timedelta(atom weeks=0, days=0, hours=0, minutes=0, seconds=0, milliseconds=0, microseconds=0)
 --      returns a value in seconds and fractions of a second (idea cribbed from python)
 --      milli/microseconds are probably only useful in these routines in delta*bignumber cases.
---      eg: atom duration = timedelta(hours:=7.5)
+--      eg: atom tendays = timedelta(days:=10)
 --
 --  adjust_timedate(timedate td, atom timedelta)
 --      returns a timedate adjusted by the specified delta in seconds
+--      eg: td = adjust_timedate(td, tendays)
 --
 --  set_timezone(timedate td, string newtz)
 --      Set a specific timezone on an un-timezoned timedate.
+--      eg: td = set_timezone(td, "BST")
 --
 --  change_timezone(timedate td, string newtz)
 --      converts a timedate to a different timezone
---      can also be used to force daylight savings to be recalculated
---      eg [DEV]
+--      eg: td = change_timezone(td, "EDT")
 --
---  set_formats(sequence parse_fmts, object out_fmt=1, integer partial=0)
+--  set_tdformats(sequence parse_fmts, object out_fmt=1, integer partial=0)
 --      sets the parameter defaults for parse_date_string() and format_dateline().
 --      parse_fmts is a collection of formats for parse_date_string(), and
 --      out_fmt is a single string or index to parse_fmts for format_timedate().
 --      the partial flag controls whether to ignore excess text when parsing,
 --      and if set, then parse_fmts should be ordered most detailed first.
---      eg: set_formats({"Mmmm d yyyy h:mmam tz"})
+--      eg: set_tdformats({"Mmmm d yyyy h:mmam tz"})
 --
 --  parse_date_string(string s, sequence fmts=default_parse_fmts, integer partial=allow_partial)
---      convert a string into a timedate [using set_formats() defaults].
+--      convert a string into a timedate [using set_tdformats() defaults].
 --      eg: td = parse_date_string("March 7 2009 7:30pm EST")
 --
 --  format_timedate(timedate td, string fmt=default_format)
---      convert a timedate into a string [using set_formats() defaults].
+--      convert a timedate into a string [using set_tdformats() defaults].
 --      eg format_timedate(td) -- reconstitutes the preceding example
 --
 -- for advanced use/testing only:
@@ -89,7 +90,7 @@ constant DT_TZ = 9,
 --      If you define something in BST and want to know the equivalent
 --      in GMT, or EDT, that's all fine and easy:
 --
---          set_formats({"D/M/YYYY hhpm TZ"})
+--          set_tdformats({"D/M/YYYY hhpm TZ"})
 --          s = parse_date_string("1/8/2015 10am BST")
 --          s = change_timezone(s,"GMT")
 --          ?format_timedate(s)
@@ -121,7 +122,7 @@ end function
 
 constant EU = addDSTrule({3,25,10,25,1})                        -- Last Sunday in March to Last Sunday in October       (Europe)
 constant US = addDSTrule({3,8,11,1,1})                          -- Second Sunday in March to first Sunday in November   (North America)
-constant AU = addDSTrule({10,1,4,1,1})                          -- First Sunday in October to first sunday in April     (South Australia)   [DEV untested]
+constant AU = addDSTrule({10,1,4,1,1})                          -- First Sunday in October to first sunday in April     (South Australia)
 
 --  == Daylight Savings Time rules as of 2015 ==
 -- Tried my best to double-check these (obviously many out-of-date websites exist with conflicting info),
@@ -415,11 +416,21 @@ enum LITERAL,
 enum en,
      langmax = $
 
+integer currlang = en
+
 sequence months      = repeat(0,langmax),
          days        = repeat(0,langmax),
 --       shortdaylen = repeat(3,langmax),
          ordinals    = repeat(0,langmax),
          ampm        = repeat(0,langmax)
+
+--DEV
+--,     langcodes   = repeat(0,langmax)
+--langcodes[en] = "EN"  -- (dig up a proper standard for this)
+--global procedure set_tdlang(string langcode)
+--  currlang = find(langcodes,langcode)
+--  if currlang=0 then ?9/0 end if
+--end procedure
 
 months[en] = {"January",
               "February",
@@ -1196,7 +1207,7 @@ integer sdx = 0,    -- chars processed in s
 --                      {ecode,sdx,month} = get_number(s,sdx,fsize)
                         {ecode,sdx,month} = get_number(s,sdx,2)
                     case 3,4:
-                        {ecode,sdx,month} = get_any(s,sdx,months[en],fsize,fcase,"month")
+                        {ecode,sdx,month} = get_any(s,sdx,months[currlang],fsize,fcase,"month")
                     default:
                         ?9/0    -- should never happen
                 end switch
@@ -1223,7 +1234,7 @@ integer sdx = 0,    -- chars processed in s
             case DOW:
                 switch fsize do
                     case 3,4:
-                        {ecode,sdx,dayofweek} = get_any(s,sdx,days[en],fsize,fcase,"day")
+                        {ecode,sdx,dayofweek} = get_any(s,sdx,days[currlang],fsize,fcase,"day")
                     default:
                         ?9/0    -- should never happen
                 end switch
@@ -1255,7 +1266,7 @@ integer sdx = 0,    -- chars processed in s
                     end if
                 end if
             case AM:
-                {ecode,sdx,pm} = get_any(s,sdx,ampm[en],2,1,"am/pm")
+                {ecode,sdx,pm} = get_any(s,sdx,ampm[currlang],2,1,"am/pm")
                 -- note: "12:00:00pm" is noon, and "12:00:00am" is midnight
                 --       on a 12 hour clock, 12:00am..12:59am and 12:00pm..12:59pm
                 --       equate respectively to 0:00..00:59 and 12:00..12:59 on
@@ -1286,7 +1297,7 @@ integer sdx = 0,    -- chars processed in s
                     {ecode,sdx,tz} = get_any(s,sdx,timezones,4,1,"timezone")
                 end if
             case TH:
-                {ecode,sdx,{}} = get_any(s,sdx,ordinals[en],2,1,"ordinal suffix")
+                {ecode,sdx,{}} = get_any(s,sdx,ordinals[currlang],2,1,"ordinal suffix")
             default:
                 ?9/0    -- should never happen...
         end switch
@@ -1324,7 +1335,7 @@ sequence default_parse_fmts
 integer allow_partial = 0
 string default_format = ""
 
-global procedure set_formats(sequence parse_fmts, object out_fmt=1, integer partial=0)
+global procedure set_tdformats(sequence parse_fmts, object out_fmt=1, integer partial=0)
 --
 -- Sets the default formats for parsing strings to timedates, and formatting 
 --  timedates into strings.
@@ -1338,10 +1349,10 @@ global procedure set_formats(sequence parse_fmts, object out_fmt=1, integer part
 --  set then parse_fmts should be ordered with the most detailed first. (If not 
 --  ignoring excess text, then the order of entries probably does not matter.)
 --
--- Examples: set_formats({"Mmmm d yyyy h:mmam tz"})
---           set_formats({"DD/MM/YYYY h:mmam tz",
---                        "DD/MM/YYYY h:mmam",
---                        "DD/MM/YYYY"},1,1)                        
+-- Examples: set_tdformats({"Mmmm d yyyy h:mmam tz"})
+--           set_tdformats({"DD/MM/YYYY h:mmam tz",
+--                          "DD/MM/YYYY h:mmam",
+--                          "DD/MM/YYYY"},1,1)                      
 --
 --  In the second case, with partial matching enabled, we would not want to try
 --  the DD/MM/YYYY first, and risk ignoring a following time and timezone.
@@ -1374,7 +1385,7 @@ global function parse_date_string(string s, sequence fmts=default_parse_fmts, in
 --
 -- Store the result in a timedate for fast-fail development.
 --
--- See set_formats() for detals of the fmts and partial parameters.
+-- See set_tdformats() for detals of the fmts and partial parameters.
 --
 --DEV not happy with this -- see manual
 -- This routine is targeted more at processing large volumes of
@@ -1558,7 +1569,7 @@ object x
                     case 2:
                         x = sprintf("%02d",month)
                     case 3,4:
-                        x = months[en][month]
+                        x = months[currlang][month]
                         if fsize=3 then
                             x = x[1..3]
                         end if
@@ -1597,7 +1608,7 @@ object x
                 end if
                 switch fsize do
                     case 3,4:
-                        x = days[en][dayofweek]
+                        x = days[currlang][dayofweek]
                         if fsize=3 then
                             x = x[1..3]
                         end if
@@ -1676,7 +1687,7 @@ object x
                     res[hidx..hidx+hlen-1] = x
                     hidx = 0
                 end if
-                x = ampm[en][ispm+1]
+                x = ampm[currlang][ispm+1]
                 if fcase then
                     x = upper(x)
                 end if
@@ -1699,7 +1710,7 @@ object x
                 if day=0 or day>4 then
                     day = 4
                 end if
-                x = ordinals[en][day]
+                x = ordinals[currlang][day]
                 if fcase then
                     x = upper(x)
                 end if
