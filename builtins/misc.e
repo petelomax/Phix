@@ -315,10 +315,4 @@ global function arcsin(trig_range x)
     return 2*arctan(x/(1.0+sqrt(1.0-x*x)))
 end function
 
-global function trunc(atom x)
-    if x<0 then
-        return -floor(-x)
-    end if
-    return floor(x)
-end function
 

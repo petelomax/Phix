@@ -12,7 +12,10 @@ constant main = create(Window, "Draw Cuboid", 0, 0, 20, 20, 625, 690, 0),
          mainDC = getPrivateDC(main),
          backDC = c_func(xCreateCompatibleDC, {NULL}),  -- the background
          viewDC = c_func(xCreateCompatibleDC, {NULL}),  -- with animation
-         grey = #909090
+         grey = #909090,
+         mildgray = #707070,
+         red = #0000A0
+
 
 constant MainTimer = createTimer()
 
@@ -26,7 +29,10 @@ sequence x = {-2.0, +2.0, +2.0, -2.0,  -2.0, +2.0, +2.0, -2.0},
          z = {-1.0, -1.0, -1.0, -1.0,  +1.0, +1.0, +1.0, +1.0},
          Segment = {1,2, 2,3, 3,4, 4,1, 5,6, 6,7, 7,8, 8,5, 1,5, 2,6, 3,7, 4,8}
 
-constant  Size=50.0, Sz=0.008, Sx=-0.013 -- drawing size and tumbling speeds
+constant  Size = 50.0,      -- drawing size 
+          Sz = 0.008,       -- tumbling speeds
+          Sx =-0.013,       -- ""
+          S = 2
 
 function mainHandler(integer id, integer msg, atom wParam, object lParam)
 atom farthest
@@ -55,18 +61,18 @@ integer v1, v2, farv, c
         for v=1 to 2*12 by 2 do         -- for all the vertices...
             v1 = Segment[v]             -- get vertex number
             v2 = Segment[v+1]
-            c = Red; setPenStyle(Solid)
-            if v1=farv or v2=farv then c=Blue; setPenStyle(Dash) end if
+            c = red; setPenStyle(Solid)
+            if v1=farv or v2=farv then c=mildgray; setPenStyle(Dash) end if
             drawLinesh(viewDC,{c,{x[v1]*Size+dw/2, y[v1]*Size+dh/2,
                                   x[v2]*Size+dw/2, y[v2]*Size+dh/2}})
         end for
         void = c_func(xBitBlt,{mainDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
     elsif msg=WM_TIMER then
         for i=1 to 8 do
-            x[i] = x[i]+y[i]*Sz     -- rotate vertices in X-Y plane
-            y[i] = y[i]-x[i]*Sz
-            y[i] = y[i]+z[i]*Sx     -- rotate vertices in Y-Z plane
-            z[i] = z[i]-y[i]*Sx
+            x[i] = x[i]+y[i]*Sz*S   -- rotate vertices in X-Y plane
+            y[i] = y[i]-x[i]*Sz*S
+            y[i] = y[i]+z[i]*Sx*S   -- rotate vertices in Y-Z plane
+            z[i] = z[i]-y[i]*Sx*S
         end for
         repaintWindow(main)
     elsif msg=WM_SHOWWINDOW then

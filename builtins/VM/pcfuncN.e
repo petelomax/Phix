@@ -295,9 +295,7 @@ procedure check(object o, integer level)
                 --  C_ULONG   = C_UINT,
                 --  C_POINTER = C_ULONG,)
 --                  C_FLOAT,C_DOUBLE,
---                  C_FLOAT,C_DOUBLE}) then
---                  C_FLOAT,C_DOUBLE}) then
-                    C_FLOAT}) then
+                    C_FLOAT,C_DOUBLE}) then
 --                  E_INTEGER,E_ATOM,
 --                  E_SEQUENCE,E_OBJECT}) then
 --      fatal(e74dcfpe)
@@ -1456,7 +1454,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                             []
                         }
                 elsif find(argdefi,{
---                                  #03000008       -- C_DOUBLE
+                                    #03000008       -- C_DOUBLE
                                    }) then
                     #ilASM{
                             [32]
@@ -1563,7 +1561,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                              C_INT,         -- #01000004    -- == C_LONG
                              C_UINT,        -- #02000004    -- == C_ULONG, C_POINTER, C_PTR
                              C_FLOAT,       -- #03000004
---                           C_DOUBLE,      -- #03000008
+                             C_DOUBLE,      -- #03000008
 --                               E_INTEGER,     -- #06000004    \
 --                               E_ATOM,        -- #07000004     \ (Should probably be reserved
 --                               E_SEQUENCE,    -- #08000004     /  for RDS Eu-built dlls)
@@ -1635,8 +1633,8 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                     jmp :cstore
             @@:
                 cmp edx,0x03000004  -- (C_FLOAT)
---              je :cstore
---              cmp edx,0x03000008  -- (C_DOUBLE)
+                je :cstore
+                cmp edx,0x03000008  -- (C_DOUBLE)
                 jne @f
             ::cstore                                        --    cstore:
                     lea edi,[r]
@@ -1748,8 +1746,8 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                     jmp :cstore
             @@:
                 cmp rdx,0x03000004  -- (C_FLOAT)
---              je :cstore
---              cmp rdx,0x03000008  -- (C_DOUBLE)
+                je :cstore
+                cmp rdx,0x03000008  -- (C_DOUBLE)
                 jne @f
             ::cstore                                        --    cstore:
                     lea rdi,[r]

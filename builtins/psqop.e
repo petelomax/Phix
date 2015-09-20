@@ -256,7 +256,17 @@ end function
 -- "tree of 1's"/"tree of 0's" of the exact same size/shape.
 -- It may be that these routines deserve a "nest" parameter
 -- (possibly defaulted to 1), ditto for sq_int/sq_str.
--- OTOH, there are NO known uses of these routines, anywhere!
+-- OTOH, there are NO known uses of the above routines, anywhere!
+
+global function sq_abs(object o)
+    if atom(o) then
+        return abs(o)
+    end if
+    for i=1 to length(o) do
+        o[i] = sq_abs(o[i])
+    end for
+    return o
+end function
 
 global function sq_add(object a, object b)
     if atom(a) then
@@ -385,6 +395,105 @@ global function sq_floor(object a)
         a[i] = sq_floor(a[i])
     end for
     return a
+end function
+
+global function sq_round(object a, object inverted_precision=1)
+integer len, lp
+object res
+
+    inverted_precision = sq_abs(inverted_precision)
+    if atom(a) then
+        if atom(inverted_precision) then
+            res = floor(0.5 + (a * inverted_precision )) / inverted_precision
+        else
+            len = length(inverted_precision)
+            res = repeat(0, len)
+            for i=1 to len do
+                res[i] = sq_round(a, inverted_precision[i])
+            end for
+        end if
+    else
+        len = length(a)
+        res = repeat(0, len)
+        if atom(inverted_precision) then
+            for i=1 to len do
+                res[i] = sq_round(a[i], inverted_precision)
+            end for
+        else
+            lp = length(inverted_precision)
+            if len!=lp then crash("sequence lengths not the same (%d!=%d)!\n",{len,lp}) end if
+            for i=1 to len do
+                res[i] = sq_round(a[i], inverted_precision[i])
+            end for
+        end if
+    end if
+    return res
+end function
+
+global function sq_ceil(object o)
+    if atom(o) then
+        o = -floor(-o)
+    else
+        for i=1 to length(o) do
+            o[i] = sq_ceil(o[i])
+        end for
+    end if
+    return o
+end function
+
+global function sq_sign(object o)
+    if atom(o) then
+        if o>0 then
+            o = +1
+        elsif o<0 then
+            o = -1
+        end if
+    else
+        for i=1 to length(o) do
+            o[i] = sq_sign(o[i])
+        end for
+    end if
+    return o
+end function
+
+global function sq_mod(object x, object y)
+integer len, ly
+object res
+
+    if atom(x) then
+        if atom(y) then
+            if sign(x)=sign(y) then
+                res = remainder(x,y)
+            else
+                res = x - y * floor(x / y)
+            end if
+        else
+            len = length(y)
+            res = repeat(0, len)
+            for i=1 to len do
+                res[i] = sq_mod(x, y[i])
+            end for
+        end if
+    else
+        len = length(x)
+        res = repeat(0, len)
+        if atom(y) then
+            for i=1 to len do
+                res[i] = sq_mod(a[i], y)
+            end for
+        else
+            ly = length(y)
+            if len!=ly then crash("sequence lengths not the same (%d!=%d)!\n",{len,ly}) end if
+            for i=1 to len do
+                res[i] = sq_mod(x[i], y[i])
+            end for
+        end if
+    end if
+    return res
+end function
+
+global function sq_trunc(atom x)
+    return sq_mul(sign(x),sq_floor(abs(x))
 end function
 
 global function sq_and(object a, object b)

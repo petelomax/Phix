@@ -373,6 +373,9 @@ end function
 --  tz          TZ      Three- or four-character uppercase time zone
 --  tzz      Tzz/TZZ    Full time zone name. (capitalised)
 --
+-- SUG:
+--  n       nnn/N/NNN   The day of year. (nn/NN are also acceptable)
+--
 --  Notes: Special attention is required to avoid confusing m/mm (minute) and M/MM (month).
 --         Spaces and punctuation (other than single quotes) in a format are treated as literals.
 --         Any required literal alphanumerics must be enclosed in single quotes, with two adjacent
@@ -1387,25 +1390,6 @@ global function parse_date_string(string s, sequence fmts=default_parse_fmts, in
 --
 -- See set_timedate_formats() for detals of the fmts and partial parameters.
 --
---DEV not happy with this -- see manual
--- This routine is targeted more at processing large volumes of
---  machine-generated output rather than manually entered input,
---  though of course the latter would be fine as long as it had 
---  a "Please enter date in format blah blah blah" msg/loop.
---
---DEV -- ditto
--- To process several possible string formats, this routine must 
---  be called several times, eg:
---
---      string s = {"3am","3am EDT"}[rand(2)]
---      sequence res = parse_date_string(s,"ham")
---      if length(res)=3 then   -- (or not timedate(res))
---          res = parse_date_string(s,"ham tz")
---          if length(res)=3 then ?9/0 end if
---      else
---          res = set_timezone(res,"EST")
---      end if
---
 -- Note that parsing say "Monday 1/01/2000" returns a DT_DOW element
 --  set to 2, even though it was a Saturday, and any non-explicitly
 --  mentioned elements get left as zero. It is in fact perfectly
@@ -1416,42 +1400,11 @@ global function parse_date_string(string s, sequence fmts=default_parse_fmts, in
 -- The dayofyear field (res[DT_DOY]) is always left zero, but can easily
 --  be obtained using day_of_year(y,m,d).
 --
--- See also: change_timezone(), get_tzdesc()...     [DEV]
-
+-- The partial parameter controls whether to ignore excess text; if set the most detailed 
+--  format should be first. For example if the input is "03/09/15 6pm Customer was not happy", 
+--  you want try "DD/MM/YY ham tz" and fail before "DD/MM/YY ham" and pass.
 --
---  Rather than
---      res = parse_date_string(s,"DD/MM/YY")
---      if lenth(res)=3 then    -- fail
---          res = parse_date_string(s,"DD/MM/YYYY")
---          if lenth(res)=3 then    -- fail
---              res = parse_date_string(s,"DD/MM/YY ham")
---              if lenth(res)=3 then    -- fail
---                  res = parse_date_string(s,"DD/MM/YYYY ham")
---                  if lenth(res)=3 then    -- fail
---                      res = parse_date_string(s,"DD/MM/YY ham tz")
---                      if length(res)=3 then   -- fail
---                          ...
---                      end if
---                  end if
---              end if
---          end if
---      end if
---      td = res
---DEV
---  or the equivalent with lots of ?set_fmt?, you can:
---      constant F = {"DD/MM/YY","DD/MM/YYYY","DD/MM/YY ham","DD/MM/YYYY ham","DD/MM/YY ham tz"}
---      td = parse_date_string_sf(s,F)
---  you can also use set_fmts() to set parameter defaults rather than pass them every time.
---
--- The routine name is shorthand for parse_a_date_string_trying_several_formats()
---
--- The partial parameter controls whether to ignore excess on the last and presumably most
---  detailed format string, and whether to retry in reverse order. For example if the input
---  is "03/09/15 6pm Customer was not happy", you can no more stop on the 3rd (on the first
---  pass) than the 1st, ie you try 1..5 with partial=0, then when 6 with partial=1 fails you
---  try 5..1 with partial=1. And the 3rd (ie "DD/MM/YY ham" in the above set) wins.
---
-string fmti     -- (gives an earlier/better typecheck)
+string fmti     -- (gives an earlier/better typecheck and thus simplifies debugging)
 sequence res = {}
     for i=1 to length(fmts) do
         fmti = fmts[i]
@@ -1599,7 +1552,6 @@ object x
                 dayofweek = td[DT_DOW]
                 if dayofweek=0 then
                     year  = td[DT_YEAR]
-                    if year=0 then ecode = 4 exit end if    -- (global procedure allow_year0(integer flag), maybe?)
                     month = td[DT_MONTH]
                     if month=0 then ecode = 5 exit end if
                     day   = td[DT_DAY]
@@ -1661,7 +1613,7 @@ object x
                 if hidx=0 then
                     ecode = 15
                     exit
-                end if --DEV
+                end if
                 hour = td[DT_HOUR]
                 ispm = (hour>=12)
                 if ispm then

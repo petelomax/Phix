@@ -4,6 +4,7 @@
 -- Author Pete Lomax.
 --  based on Al Getz's euviewer2.exw, only this uses arwen not win32lib.
 --
+--Todo:
 -- Let F11 go full-screen. Auto centre on window background. clear background?
 -- Get the buffering working for the general case. (not just 2 pre-loaded files)
 
@@ -13,59 +14,61 @@ include arwen.ew
 
 constant WinWidth = c_func(xGetSystemMetrics, {SM_CXSCREEN}),
          WinHeight = c_func(xGetSystemMetrics, {SM_CYSCREEN})
-constant Win = create( Window, "Viewa", 0, 0, 0, 0, WinWidth, WinHeight, 0)--WS_CAPTION+WS_SYSMENU )
+constant Win = create(Window, "Viewa", 0, 0, 0, 0, WinWidth, WinHeight, 0)--WS_CAPTION+WS_SYSMENU )
                   -- ( class, title, bitmap, parent win,x1, y1, x2, y2, flags )
     setBackColour(Win,#000000) -- set black background
 
 --dev minigdi? 
 --    axtra.ew <== that one! (with hll wrappers)
 
-constant 
-  gdiplus=assign_dll("gdiplus.dll"),
-  xGdiplusStartup=link_c_func(gdiplus,"GdiplusStartup",
-    {C_PTR,     --  ULONG_PTR token *token
-     C_PTR,     --  const GdiplusStartupInput *input
-     C_PTR},    --  GdiplusStartupOutput *output
-    C_LONG),    -- Status
-  xGdiplusShutdown=link_c_proc(gdiplus,"GdiplusShutdown",
-    {C_PTR}),   --  ULONG_PTR token
-  xGdipDisposeImage=link_c_func(gdiplus,"GdipDisposeImage",
-    {C_PTR},    --  pImage *image
-    C_LONG),    -- Status
-  xGdipLoadImageFromFile=link_c_func(gdiplus,"GdipLoadImageFromFile",
-    {C_PTR,     --  WCHAR* filename
-     C_PTR},    --  ppImage **image
-    C_LONG),    -- Status
-  xGdipGetImageWidth=link_c_func(gdiplus,"GdipGetImageWidth",
-    {C_PTR,     --  pImage *image
-     C_PTR},    --  UNIT *width
-    C_LONG),    -- Status
-  xGdipGetImageHeight=link_c_func(gdiplus,"GdipGetImageHeight",
-    {C_PTR,     --  pImage *image
-     C_PTR},    --  UNIT *height
-    C_LONG),    -- Status
-  xGdipDrawImageRectI=link_c_func(gdiplus,"GdipDrawImageRectI",
-    {C_PTR,     --  pGraphics *graphics
-     C_PTR,     --  pImage *image
-     C_INT,     --  INT x
-     C_INT,     --  INT y
-     C_INT,     --  INT width
-     C_INT},    --  INT height
-    C_LONG),    -- Status
-  xGdipDeleteGraphics=link_c_func(gdiplus,"GdipDeleteGraphics",
-    {C_PTR},    --  pGraphics *graphics
-    C_LONG),    -- Status
-  xGdipCreateFromHDC=link_c_func(gdiplus,"GdipCreateFromHDC",
-    {C_PTR,     --  HDC hdc
-     C_PTR},    --  pGraphics **graphics
-    C_LONG)     -- Status
+constant
+  gdiplus = assign_dll("gdiplus.dll"),
+--#without reformat
+  xGdiplusStartup = link_c_func(gdiplus,"GdiplusStartup",
+                                {C_PTR,     --  ULONG_PTR token *token
+                                 C_PTR,     --  const GdiplusStartupInput *input
+                                 C_PTR},    --  GdiplusStartupOutput *output
+                                C_LONG),    -- Status
+  xGdiplusShutdown = link_c_proc(gdiplus,"GdiplusShutdown",
+                                {C_PTR}),   --  ULONG_PTR token
+  xGdipDisposeImage = link_c_func(gdiplus,"GdipDisposeImage",
+                                {C_PTR},    --  pImage *image
+                                C_LONG),    -- Status
+  xGdipLoadImageFromFile = link_c_func(gdiplus,"GdipLoadImageFromFile",
+                                {C_PTR,     --  WCHAR* filename
+                                 C_PTR},    --  ppImage **image
+                                C_LONG),    -- Status
+  xGdipGetImageWidth = link_c_func(gdiplus,"GdipGetImageWidth",
+                                {C_PTR,     --  pImage *image
+                                 C_PTR},    --  UNIT *width
+                                C_LONG),    -- Status
+  xGdipGetImageHeight = link_c_func(gdiplus,"GdipGetImageHeight",
+                                {C_PTR,     --  pImage *image
+                                 C_PTR},    --  UNIT *height
+                                C_LONG),    -- Status
+  xGdipDrawImageRectI = link_c_func(gdiplus,"GdipDrawImageRectI",
+                                {C_PTR,     --  pGraphics *graphics
+                                 C_PTR,     --  pImage *image
+                                 C_INT,     --  INT x
+                                 C_INT,     --  INT y
+                                 C_INT,     --  INT width
+                                 C_INT},    --  INT height
+                                C_LONG),    -- Status
+  xGdipDeleteGraphics = link_c_func(gdiplus,"GdipDeleteGraphics",
+                                {C_PTR},    --  pGraphics *graphics
+                                 C_LONG),   -- Status
+  xGdipCreateFromHDC = link_c_func(gdiplus,"GdipCreateFromHDC",
+                                {C_PTR,     --  HDC hdc
+                                 C_PTR},    --  pGraphics **graphics
+                                 C_LONG)    -- Status
+--#with reformat
 
 atom gdiToken = 0
 
 atom pGraphics, pImage
-constant ppImage=allocate(4)
-pGraphics=0
-pImage=0
+constant ppImage = allocate(4)
+pGraphics = 0
+pImage = 0
 
 constant GDI_OK = 0
 constant {gdi_code_descs,gdi_status_codes} = columnize({
@@ -90,7 +93,7 @@ constant {gdi_code_descs,gdi_status_codes} = columnize({
                                                         {"GdiplusNotInitialized",       18},
                                                         {"PropertyNotFound",            19},
                                                         {"PropertyNotSupported",        20},
-                                                        {"ProfileNotFound",             21}}) 
+                                                        {"ProfileNotFound",             21}})
 
 integer status
 procedure gdiwarn(string e)
@@ -122,7 +125,7 @@ atom pGdiplusStartupInput, pToken, ppGraphics
         ppGraphics = allocate(4)
         status = c_func(xGdipCreateFromHDC,{getPrivateDC(Win),ppGraphics})
         if status!=GDI_OK then gdierror("GdipCreateFromHDC") end if
-        pGraphics=peek4u(ppGraphics)
+        pGraphics = peek4u(ppGraphics)
         free(ppGraphics)
         free(pGdiplusStartupInput)
     end if
@@ -146,39 +149,39 @@ end procedure
 function upper_case_sort(sequence x)
 -- Sort a sequence by ascending upper case order. The elements can be atoms or 
 -- sequences. The standard compare() routine is used to compare elements.
-    integer gap, j, first, last
-    object tempi, tempj
+integer gap, j, first, last
+object tempi, tempj
 
     last = length(x)
-    gap = floor(last / 3) + 1
+    gap = floor(last/3)+1
     while 1 do
-        first = gap + 1
-        for i = first to last do
+        first = gap+1
+        for i=first to last do
             tempi = x[i]
-            j = i - gap
+            j = i-gap
             while 1 do
                 tempj = x[j]
-                if compare(upper(tempi), upper(tempj)) >= 0 then
-                    j = j + gap
+                if compare(upper(tempi), upper(tempj))>=0 then
+                    j = j+gap
                     exit
                 end if
                 x[j+gap] = tempj
-                if j <= gap then
+                if j<=gap then
                     exit
                 end if
-                j = j - gap
+                j = j-gap
             end while
             x[j] = tempi
         end for
-        if gap = 1 then
+        if gap=1 then
             return x
         else
-            gap = floor(gap / 3) + 1
+            gap = floor(gap/3)+1
         end if
     end while
 end function
 
-constant xMultiByteToWideChar=link_c_func(kernel32,"MultiByteToWideChar",{C_UINT,C_ULONG,C_PTR,C_INT,C_PTR,C_INT},C_INT)
+constant xMultiByteToWideChar = link_c_func(kernel32,"MultiByteToWideChar",{C_UINT,C_ULONG,C_PTR,C_INT,C_PTR,C_INT},C_INT)
 function AnsiToUnicode(string ansi)
 -- Allocate a unicode string pointer from an ansi sequence.
 atom lpAnsi,lpUnicode,retv
@@ -208,7 +211,7 @@ TargetDirName = current_dir()&"\\..\\raycast"
 
 
 atom CurrentIndex
-CurrentIndex=0
+     CurrentIndex = 0
 
 
 procedure SetTitleName()
@@ -249,6 +252,7 @@ string ext
             ext = lower(filename[i..$])
 --DEV try xpm, ppm?
             return find(ext,{".jpg",".jpeg",".jpe",".bmp",".png",".gif",".ico",".tif",".wmf",".emf"})!=0
+--          return find(ext,{".jpg",".jpeg",".jpe",".bmp",".png",".gif",".ico",".tif",".wmf",".emf",".xpm"})!=0     -- NO!!
         end if
     end for
     return 0
@@ -270,20 +274,20 @@ end function
 --end function
 
 sequence OpenDirNamePath,ProjectFileName,ProjectDirectory
-OpenDirNamePath=""
+OpenDirNamePath = ""
 
 
 procedure setOpenDirName(sequence path)
 --?path
     OpenDirNamePath = path
 
-    ProjectFileName=""
-    ProjectDirectory=""
-    for i = length(path) to 1 by -1 do
-        if path[i] = '\\' then
-            OpenDirNamePath=path[1..i]
+    ProjectFileName = ""
+    ProjectDirectory = ""
+    for i=length(path) to 1 by -1 do
+        if path[i]='\\' then
+            OpenDirNamePath = path[1..i]
             ProjectFileName = path[i+1..length(path)]
-            ProjectDirectory=OpenDirNamePath
+            ProjectDirectory = OpenDirNamePath
             exit
         end if
     end for
@@ -293,7 +297,7 @@ procedure setOpenDirName(sequence path)
     else
         setText(Win," ( no directory yet ) ")
     end if
-    
+
 end procedure
 
 
@@ -310,38 +314,39 @@ object cl
         {} = chdir(TargetDirName)
         cl3 = 1
     end if
-if 0 then
-    if length(cl)>=3 then
-        TargetDirName = cl[3]
-        -- treat p viewa my pictures\some silly filename with spaces.jpg
-        --    as p viewa "my pictures\some silly filename with spaces.jpg"
-        for i=4 to length(cl) do
-            TargetDirName &= ' '&cl[i]
-        end for
-    end if
-    setOpenDirName(TargetDirName&"\\")
-                    TargetDirName=ProjectDirectory
-                    UpdateDirList()
+    if 0 then
+        if length(cl)>=3 then
+            TargetDirName = cl[3]
+            -- treat p viewa my pictures\some silly filename with spaces.jpg
+            --    as p viewa "my pictures\some silly filename with spaces.jpg"
+            for i=4 to length(cl) do
+                TargetDirName &= ' '&cl[i]
+            end for
+        end if
+        setOpenDirName(TargetDirName&"\\")
+        TargetDirName = ProjectDirectory
+        UpdateDirList()
 --                  fnd=CheckForFileNameInDirList(ProjectFileName)
 --                  if fnd>0 then
 --                      DirListIndex=fnd-1
 --                  else
-                        DirListIndex=0
+        DirListIndex = 0
 --                  end if
-                    onClick_ButtonForward()
+        onClick_ButtonForward()
 
-end if
+    end if
 
 
 constant xSetCurrentDirectory = link_c_func(kernel32,"SetCurrentDirectoryA",{C_PTR},C_LONG)
 
 constant FileTypes = {
-  "jpeg/bitmap/gif/tif/ico/wmf/emf/png", "*.jpg;*.jpeg;*.jpe;*.bmp;*.png;*.gif;*.ico;*.tif;*.wmf;*.emf",
-  "bitmap", "*.bmp",
-  "jpeg", "*.jpg;*.jpeg;*.jpe",
-  "png","*.png",
-  "gif","*.gif",
-  "All Files", "*.*" }
+                      "jpeg/bitmap/gif/tif/ico/wmf/emf/png", "*.jpg;*.jpeg;*.jpe;*.bmp;*.png;*.gif;*.ico;*.tif;*.wmf;*.emf",
+--                    "jpeg/bitmap/gif/tif/ico/wmf/emf/png/xpm", "*.jpg;*.jpeg;*.jpe;*.bmp;*.png;*.gif;*.ico;*.tif;*.wmf;*.emf;*.xpm",  -- NO!!
+                      "bitmap", "*.bmp",
+                      "jpeg", "*.jpg;*.jpeg;*.jpe",
+                      "png","*.png",
+                      "gif","*.gif",
+                      "All Files", "*.*"}
 
 function DoOpenDirNameDialog()
 object path
@@ -355,11 +360,11 @@ atom lpDirname,bool
         -- treat p viewa my pictures\some silly filename with spaces.jpg
         --    as p viewa "my pictures\some silly filename with spaces.jpg"
         for i=4 to length(cl) do
-            path&=' '&cl[i]
+            path &= ' '&cl[i]
         end for
-        cl3=0
+        cl3 = 0
     else
-        path = getOpenFileName( Win, TargetDirName&"( any )", FileTypes ,0)
+        path = getOpenFileName(Win, TargetDirName&"( any )", FileTypes ,0)
         if atom(path) then return 0 end if
         path = path[1]
     end if
@@ -370,7 +375,7 @@ atom lpDirname,bool
     free(lpDirname)
 
     --entered a file name?
-    if length(path) = 0 then
+    if length(path)=0 then
         return 0
     else
         setOpenDirName(path)
@@ -417,10 +422,10 @@ end function
 --end function
 
 atom Picture_Width,Picture_Height,Picture_PosX,Picture_PosY
-Picture_Width=0
-Picture_Height=0
-Picture_PosX=0
-Picture_PosY=0
+Picture_Width = 0
+Picture_Height = 0
+Picture_PosX = 0
+Picture_PosY = 0
 
 
 
@@ -432,10 +437,10 @@ atom lpFilePathW
 
         --load the file
         lpFilePathW = AnsiToUnicode(FilePath)
-        if c_func(xGdipLoadImageFromFile,{lpFilePathW,ppImage}) = 0 then
+        if c_func(xGdipLoadImageFromFile,{lpFilePathW,ppImage})=0 then
             pImage = peek4u(ppImage)
         else
-            pImage = 0    
+            pImage = 0
         end if
 --      free(lpFilePathW)   -- NO!!
     end if
@@ -458,11 +463,11 @@ integer x,y
 
     --DEV do this on a resize only!
     if first then
-        ClientRect=allocate(16)
-        void=c_func(xGetClientRect,{getHwnd(Win),ClientRect})
+        ClientRect = allocate(16)
+        void = c_func(xGetClientRect,{getHwnd(Win),ClientRect})
 
-        ClientWidth=peek4s(ClientRect+8)
-        ClientHeight=peek4s(ClientRect+12)
+        ClientWidth = peek4s(ClientRect+8)
+        ClientHeight = peek4s(ClientRect+12)
     end if
 
     pUINT = allocate(4)
@@ -492,7 +497,7 @@ integer x,y
             end if
         else
             scalefactor = 1
-        end if  
+        end if
         Width = Width*scalefactor
         Height = Height*scalefactor
         if Height<ClientHeight then
@@ -558,7 +563,7 @@ integer x,y
 --void=sendMessage(Win,WM_PAINT,0,0)
 --if 0 then
     if not OverlayMode then
-        void=c_func(xInvalidateRect,{getHwnd(Win),0,1})
+        void = c_func(xInvalidateRect,{getHwnd(Win),0,1})
     end if
 
     x = Picture_PosX-xindent
@@ -568,9 +573,9 @@ integer x,y
 --end if
 end procedure
 
-DirListIndex=0
-DirLen=0
-DirList={{""}}
+DirListIndex = 0
+DirLen = 0
+DirList = {{""}}
 
 
 -----------------------------------------------------------------------------
@@ -579,11 +584,11 @@ DirList={{""}}
 function GetValidIndex(atom index,atom dirlen)
 
     if index<1 then
-        index=dirlen
+        index = dirlen
     elsif index>dirlen then
-        index=1
+        index = 1
     end if
-    CurrentIndex=index
+    CurrentIndex = index
     return index
 
 end function
@@ -591,7 +596,7 @@ end function
 procedure SetWindowGraphics()
     SetTitleName()
     LoadGraphics(TargetPath)
-    first=1
+    first = 1
     --      void=c_func(xInvalidateRect,{getHwnd(Win),0,1})
     DrawGraphics()
 end procedure
@@ -602,27 +607,27 @@ atom SupportedFileType
 integer RIndex
 sequence filename
 
-    SupportedFileType=0
+    SupportedFileType = 0
     DirListIndex += 1
 
-    RIndex=GetValidIndex(DirListIndex,DirLen)
-    DirListIndex=RIndex
+    RIndex = GetValidIndex(DirListIndex,DirLen)
+    DirListIndex = RIndex
 
     if DirListIndex>0 then
         while 1 do
-            filename=DirList[DirListIndex][1]
-            SupportedFileType=CheckForSupportedFileType(filename)
+            filename = DirList[DirListIndex][1]
+            SupportedFileType = CheckForSupportedFileType(filename)
             if SupportedFileType then
                 exit
             end if
-            DirListIndex=DirListIndex+1
-            DirListIndex=GetValidIndex(DirListIndex,DirLen)
+            DirListIndex = DirListIndex+1
+            DirListIndex = GetValidIndex(DirListIndex,DirLen)
             if RIndex=DirListIndex then
                 exit
             end if
         end while
 
-        TargetPath=TargetDirName&filename
+        TargetPath = TargetDirName&filename
         SetWindowGraphics()--SupportedFileType)
     end if
 
@@ -636,35 +641,37 @@ integer SupportedFileType,RIndex
 sequence filename
 
 
-    filename=""
-    SupportedFileType=0
-    DirListIndex=DirListIndex-1
+    filename = ""
+    SupportedFileType = 0
+    DirListIndex = DirListIndex-1
 
-    RIndex=GetValidIndex(DirListIndex,DirLen)
-    DirListIndex=RIndex
+    RIndex = GetValidIndex(DirListIndex,DirLen)
+    DirListIndex = RIndex
 
     if DirListIndex>0 then
         while 1 do
-            filename=DirList[DirListIndex][1]
-            SupportedFileType=CheckForSupportedFileType(filename)
+            filename = DirList[DirListIndex][1]
+            SupportedFileType = CheckForSupportedFileType(filename)
             if SupportedFileType then
                 exit
             end if
-            DirListIndex=DirListIndex-1
-            DirListIndex=GetValidIndex(DirListIndex,DirLen)
+            DirListIndex = DirListIndex-1
+            DirListIndex = GetValidIndex(DirListIndex,DirLen)
             if RIndex=DirListIndex then
                 exit
             end if
         end while
 
         if length(filename)>0 then
-            TargetPath=TargetDirName&filename
+            TargetPath = TargetDirName&filename
             SetWindowGraphics()--SupportedFileType)
         end if
 
     end if
 end procedure
 
+--DEV fixme
+--#without reformat
 constant helptext = "press space to view next image,\n"&
                     "backspace to view previous image,\n"&
                     "+ to zoom in, - to zoom out,\n"&
@@ -673,10 +680,11 @@ constant helptext = "press space to view next image,\n"&
                     "z to toggle ZoomSmallPicsMode,\n"&
                     "o to toggle OverlayMode,\n"&
                     "escape to close."
-                    
+
 procedure ShowHelp()
     void = messageBox("viewa",helptext,MB_OK)
 end procedure
+--#with reformat
 
 function WinHandler(integer id, integer msg, atom wParam, object lParam)
 --atom WheelDirection
@@ -686,14 +694,14 @@ atom retDDv, fnd
 integer x, y, ch
 
     if object(lParam) then end if   -- suppress warnings
-    if msg = WM_ACTIVATE then
+    if msg=WM_ACTIVATE then
         GdipInitialize(Win)
         if cl3 then
             msg = WM_CHAR
             wParam = 'd'
         end if
     end if
-    if id = Win and msg = WM_PAINT then
+    if id=Win and msg=WM_PAINT then
         if pImage then
 --          status=c_func(xGdipDeleteGraphics,{pGraphics})
 --          status=c_func(xGdipCreateFromHDC,{getPrivateDC(Win),ppGraphics})
@@ -703,7 +711,7 @@ integer x, y, ch
 --          DrawGraphics()
             x = Picture_PosX-xindent
             y = Picture_PosY-yindent
-            status=c_func(xGdipDrawImageRectI,{pGraphics,pImage,x,y,Width,Height})
+            status = c_func(xGdipDrawImageRectI,{pGraphics,pImage,x,y,Width,Height})
             if status!=GDI_OK then gdiwarn("GdipDrawImageRectI") end if
         end if
 
@@ -717,7 +725,7 @@ integer x, y, ch
 --      end if
 --  elsif msg = WM_RBUTTONDOWN then
 --      TrackMenu()
-    elsif msg = WM_CHAR then
+    elsif msg=WM_CHAR then
 --      if ControlKeyState=0 then
         if getKeyState(VK_CONTROL)=0 then
             ch = lower(wParam)
@@ -727,19 +735,19 @@ integer x, y, ch
                 onClick_ButtonBackward()
             elsif ch='d' then
 --              setdir()
-                retDDv=DoOpenDirNameDialog()
+                retDDv = DoOpenDirNameDialog()
                 if retDDv then
-                    TargetDirName=ProjectDirectory
+                    TargetDirName = ProjectDirectory
                     UpdateDirList()
-                    fnd=CheckForFileNameInDirList(ProjectFileName)
+                    fnd = CheckForFileNameInDirList(ProjectFileName)
                     if fnd>0 then
-                        DirListIndex=fnd-1
+                        DirListIndex = fnd-1
                     else
-                        DirListIndex=0
+                        DirListIndex = 0
                     end if
                     onClick_ButtonForward()
                 end if
-          elsif ch='z' then
+            elsif ch='z' then
                 ZoomSmallPicsMode = 1-ZoomSmallPicsMode
                 SetTitleName()
 --              if not OverlayMode then
@@ -751,41 +759,41 @@ integer x, y, ch
             elsif ch='o' then
                 OverlayMode = 1-OverlayMode
                 if not OverlayMode then
-                    void=c_func(xInvalidateRect,{getHwnd(Win),0,1})
+                    void = c_func(xInvalidateRect,{getHwnd(Win),0,1})
                 end if
             elsif wParam='+' then
 --DEV recalculate xindent, yindent;
 -- if region increased (or equal) then no need to clear (actually, if you
     -- insist, clear the offending rectangles direct).
-                scalefactor*=1.2
+                scalefactor *= 1.2
                 DrawGraphics()
 --              repaintWindow(Win,1)
             elsif wParam='-' then
-                scalefactor/=1.2
+                scalefactor /= 1.2
 --              if not OverlayMode then
 --                  void=c_func(xInvalidateRect,{getHwnd(Win),0,1})
 --              end if
                 DrawGraphics()
 --              repaintWindow(Win,1)
-            elsif wParam = VK_ESCAPE then
+            elsif wParam=VK_ESCAPE then
                 closeWindow(Win)
             end if
         end if
-    elsif msg = WM_KEYDOWN then
-        if wParam = VK_LEFT then
-            xindent-=50
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_LEFT then
+            xindent -= 50
 --          void=c_func(xInvalidateRect,{getHwnd(Win),0,1})
             DrawGraphics()
-        elsif wParam = VK_RIGHT then
-            xindent+=50
+        elsif wParam=VK_RIGHT then
+            xindent += 50
 --          void=c_func(xInvalidateRect,{getHwnd(Win),0,1})
             DrawGraphics()
-        elsif wParam = VK_UP then
-            yindent-=50
+        elsif wParam=VK_UP then
+            yindent -= 50
 --          void=c_func(xInvalidateRect,{getHwnd(Win),0,1})
             DrawGraphics()
-        elsif wParam = VK_DOWN then
-            yindent+=50
+        elsif wParam=VK_DOWN then
+            yindent += 50
 --          void=c_func(xInvalidateRect,{getHwnd(Win),0,1})
             DrawGraphics()
         elsif wParam=VK_F1 then

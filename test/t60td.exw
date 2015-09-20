@@ -1,0 +1,288 @@
+--
+-- t60td.exw
+--
+
+--#without reformat
+
+-- for debugging, obviously:
+without trace
+include pcase.e
+include VM\pprntfN.e
+with trace
+
+
+include builtins\pdate.e
+
+--?{1900,isleapyear(1900)}
+--?{2000,isleapyear(2000)}
+--?{2004,isleapyear(2004)}
+--?{2100,isleapyear(2100)}
+
+
+--DEV make this an autoinclude (low priority)
+include builtins\timedate.e
+
+timedate td
+
+set_timedate_formats({"Mmmm dth yyyy h:mmam tz"})
+td = parse_date_string("August 3rd 2015 10:00am BST")
+td = adjust_timedate(td,timedelta(days:=5))
+td = change_timezone(td,"EDT")
+if format_timedate(td)!="August 8th 2015 5:00am EDT" then ?9/0 end if
+
+
+td = parse_date_string("1/1/2001",{"D/M/YYYY"})
+if format_timedate(td,"Dddd, Mmmm dth, yyyy")!="Monday, January 1st, 2001" then ?9/0 end if
+
+
+--/* (from the docs, just checking)
+    set_timedate_formats({"Mmmm dth yyyy h:mmam tz",
+                          "Mmmm dth yyyy h:mmam"})
+    --td = parse_date_string("August 3rd 2015 10:05am BST")
+    td = parse_date_string("August 3rd 2015 10:05am")
+    td = set_timezone(td,"BST")
+    td = adjust_timedate(td,timedelta(days:=5))
+    td = change_timezone(td,"EDT")                              ?format_timedate(td)
+                                                                &format_timedate(td," (tzz)")
+    td = change_timezone(td,"BST")                              ?format_timedate(td)
+    td = adjust_timedate(td,timedelta(days:=4*31-2))            ?format_timedate(td)
+    td = adjust_timedate(td,timedelta(days:=8*31-4))            ?format_timedate(td)
+    -- output is:
+    --  "August 8th 2015 5:05am EDT (Eastern Daylight Time)"
+    --  "August 8th 2015 10:05am BST"
+    --  "December 8th 2015 9:05am GMT"
+    --  "August 8th 2016 10:05am BST"
+--*/
+
+constant starts = {"2015/03/28 10pm",
+                   "2015/10/24 10pm"}
+constant onehour = timedelta(hours:=1)
+
+set_timedate_formats({"YYYY/MM/DD ham tz",
+                      "YYYY/MM/DD ham"})
+
+if 0 then
+for i=1 to length(starts) do
+    td = parse_date_string(starts[i])
+    td = set_timezone(td,"BST")
+    ?format_timedate(td)
+    for j=1 to 5 do
+--?td
+        td = adjust_timedate(td,onehour)
+--?td
+        ?format_timedate(td)
+    end for
+    for j=1 to 5 do
+--?td
+        td = adjust_timedate(td,-onehour)
+--?td
+        ?format_timedate(td)
+    end for
+    if i=1 then puts(1,"==\n") end if
+end for
+end if
+--if isDSTr({2015, 3,28},EU)=1 then ?9/0 end if
+--if isDSTr({2015, 3,29},EU)=0 then ?9/0 end if
+--if isDSTr({2015,10,24},EU)=0 then ?9/0 end if
+--if isDSTr({2015,10,25},EU)=1 then ?9/0 end if
+
+--if 01 then
+set_timedate_formats({"Mmmm dth yyyy h:mmam tz",
+                      "Mmmm dth yyyy h:mmam"})
+--td = parse_date_string("August 3rd 2015 10:05am BST")
+--td = parse_date_string("August 3rd 2015 10:05am GMT")
+td = parse_date_string("August 3rd 2015 10:05am")
+--td = parse_date_string("December 25th 2015 10:05am GMT")
+td = adjust_timedate(td,timedelta(days:=5))
+td = set_timezone(td,"BST")
+td = change_timezone(td,"BST")
+if format_timedate(td)!="August 8th 2015 10:05am BST" then ?9/0 end if
+td = adjust_timedate(td,timedelta(days:=4*31-2))
+if format_timedate(td)!="December 8th 2015 9:05am GMT" then ?9/0 end if
+td = adjust_timedate(td,timedelta(days:=8*31-4))
+--?td
+--trace(1)
+--td = change_timezone(td,"ACDT")
+--td = change_timezone(td,"AEDT")
+--td = change_timezone(td,"ACST")
+--td = change_timezone(td,"AEST")
+--td = change_timezone(td,"AWST")
+--?td
+if format_timedate(td)!="August 8th 2016 10:05am BST" then ?9/0 end if
+--end if
+
+sequence s
+sequence res
+
+constant tzEDT = get_tzid("EDT"),
+         tzEST = get_tzid("EST"),
+         tzBST = get_tzid("BST"),
+         tzGMT = get_tzid("GMT"),
+         tzCEST = get_tzid("CEST")
+
+
+s = {"3am","3am EDT"}[rand(2)]
+res = parse_date_string(s,{"ham","ham tz"})
+res = set_timezone(res,"EST")   -- should have no effect on case[2]
+if not find({s,res,format_timedate(res,"ham tz")},
+            {{"3am EDT",{0,0,0,3,0,0,0,0,tzEDT},"3am EDT"},
+             {"3am",    {0,0,0,3,0,0,0,0,tzEST},"3am EST"}}) then ?9/0 end if
+
+
+set_timedate_formats({"DD Mmm YY"})
+s=parse_date_string("30 Nov 00")
+if s!={2000,11,30,0,0,0,0,0,0} then ?9/0 end if
+if format_timedate(s)!="30 Nov 00" then ?9/0 end if
+
+set_timedate_formats({"M/D/YY"})
+s=parse_date_string("7/31/00")
+if s!={2000,7,31,0,0,0,0,0,0} then ?9/0 end if
+if format_timedate(s)!="7/31/00" then ?9/0 end if
+
+s=parse_date_string("7/31/00",{"D/M/Y"})    -- error as expected
+if s!={5,"invalid month",0} then ?9/0 end if
+s=parse_date_string("7/31/00",{"M/D/Y"})
+if s!={2000,7,31,0,0,0,0,0,0} then ?9/0 end if
+s=parse_date_string("7/31/00",{"M/D/YYY"})  -- error as expected
+if s!={7,"unrecognised/illegal literal","yy or yyyy expected"} then ?9/0 end if
+
+s=parse_date_string("4/19/96",{"m/dd/yy"})          -- (WRONG!) (m is minutes not month)
+if s!={1996,0,19,0,4,0,0,0,0} then ?9/0 end if  -- (WRONG!) 
+if format_timedate(s,"Dddd, Mmmm dd, yyyy")!={5,"invalid month",0} then ?9/0 end if
+
+if parse_date_string("?",{"?"})!={0,0,0,0,0,0,0,0,0} then ?9/0 end if
+if parse_date_string("?",{""})!={9,"format code expected",""} then ?9/0 end if
+if parse_date_string("",{"?"})!={10,"attempt to parse null string",""} then ?9/0 end if
+
+--s=parse_date_string("4/19/96",{"MM/DD/YY"})   -- error, correct
+--if s!={3,"number expected","wrong size (1 not 2) number in \"4/19/96\" at position 1, (\"4/19/96\")"} then ?9/0 end if
+set_timedate_formats({"MM/DD/YY"})
+    s=parse_date_string("4/19/96")                                  if s!={1996,4,19,0,0,0,0,0,0} then ?9/0 end if
+if format_timedate(s)!="04/19/96" then ?9/0 end if
+
+set_timedate_formats({"Dddd, Mmmm d, YYYY"})
+   s=parse_date_string("Monday, July 31, 2000")                     if s!={2000,7,31,0,0,0,2,0,0} then ?9/0 end if
+if format_timedate(s)!="Monday, July 31, 2000" then ?9/0 end if
+
+set_timedate_formats({"dd-Mmm-YY"})
+   s=parse_date_string("31-Jul-00")                                 if s!={2000,7,31,0,0,0,0,0,0} then ?9/0 end if
+if format_timedate(s)!="31-Jul-00" then ?9/0 end if
+
+s=parse_date_string("March 7 2009 7:30pm EST",{"Dddd d yyyy h:mmpm tz"}) -- error as expected
+if s!={2,"unrecognised","day expected in \"March 7 2009 7:30pm EST\" at position 1, not \"March\""} then ?9/0 end if
+
+set_timedate_formats({"Mmmm d yyyy h:mmpm tz"})
+   s=parse_date_string("March 7 2009 7:30pm EST")                   if s!={2009,3,7,19,30,0,0,0,tzEST} then ?9/0 end if
+if format_timedate(s)!="March 7 2009 7:30pm EST" then ?9/0 end if
+
+   s=parse_date_string("March 7 2009 7:30pm CEST")                  if s!={2009,3,7,19,30,0,0,0,tzCEST} then ?9/0 end if
+if format_timedate(s)!="March 7 2009 7:30pm CEST" then ?9/0 end if
+
+set_timedate_formats({"Dddd, Mmmm dd, yyyy"})
+   s=parse_date_string("Friday, April 19, 1996")                    if s!={1996,4,19,0,0,0,6,0,0} then ?9/0 end if
+if format_timedate(s)!="Friday, April 19, 1996" then ?9/0 end if
+
+set_timedate_formats({"M/DD/YY"})
+   s=parse_date_string("4/19/96")                                   if s!={1996,4,19,0,0,0,0,0,0} then ?9/0 end if
+if format_timedate(s)!="4/19/96" then ?9/0 end if
+
+set_timedate_formats({"M/DD/YYYY"})
+   s=parse_date_string("4/19/1996")                                 if s!={1996,4,19,0,0,0,0,0,0} then ?9/0 end if
+if format_timedate(s)!="4/19/1996" then ?9/0 end if
+
+set_timedate_formats({"h:m:s am"})
+   s=parse_date_string("5:31:42 PM")                                if s!={0,0,0,17,31,42,0,0,0} then ?9/0 end if
+if format_timedate(s)!="5:31:42 pm" then ?9/0 end if
+if format_timedate(s,"h:m:sam")!="5:31:42pm" then ?9/0 end if
+
+s=format_timedate(s,"Dddd, Mmmm dd, yyyy")
+if s!={5,"invalid month",0} then ?9/0 end if
+
+set_timedate_formats({"Ddd, Mmm dst, yyyy"})
+   s=parse_date_string("Sat, Jan 1st, 2000")                        if s!={2000,1,1,0,0,0,7,0,0} then ?9/0 end if
+if format_timedate(s)!="Sat, Jan 1st, 2000" then ?9/0 end if
+
+set_timedate_formats({"Ddd, Mmm dth, yyyy"})
+   s=parse_date_string("Sun, Jan 2nd, 2000")                        if s!={2000,1,2,0,0,0,1,0,0} then ?9/0 end if
+if format_timedate(s)!="Sun, Jan 2nd, 2000" then ?9/0 end if
+
+set_timedate_formats({"DDD, Mmm dST, yyyy"})
+   s=parse_date_string("Mon, Jan 3rd, 2000")                        if s!={2000,1,3,0,0,0,2,0,0} then ?9/0 end if
+if format_timedate(s)!="MON, Jan 3RD, 2000" then ?9/0 end if
+
+set_timedate_formats({"Ddd, MMM DTH, yyyy"})
+   s=parse_date_string("Tue, JAN 4TH, 2000")                        if s!={2000,1,4,0,0,0,3,0,0} then ?9/0 end if
+if format_timedate(s)!="Tue, JAN 4TH, 2000" then ?9/0 end if
+
+set_timedate_formats({"'' Dddd, Mmmm dth, YYYY"})
+   s=parse_date_string("' Tuesday, January 4th, 2000")              if s!={2000,1,4,0,0,0,3,0,0} then ?9/0 end if
+if format_timedate(s)!="' Tuesday, January 4th, 2000" then ?9/0 end if
+
+set_timedate_formats({"'Today is' Dddd, Mmmm dth, YYYY"})
+   s=parse_date_string("Today is Tuesday, January 4th, 2000")       if s!={2000,1,4,0,0,0,3,0,0} then ?9/0 end if
+if format_timedate(s)!="Today is Tuesday, January 4th, 2000" then ?9/0 end if
+
+
+set_timedate_formats({"Dddd, Mmmm dth, YYYY, h:mmpm"})
+   s=parse_date_string("Tuesday, January 4th, 2000, 7:30pm")        if s!={2000,1,4,19,30,0,3,0,0} then ?9/0 end if
+s = adjust_timedate(s,timedelta(hours:=7.5))                        if s!={2000,1,5, 3, 0,0,4,5,0} then ?9/0 end if
+if format_timedate(s,"Ddd, Mmm dth, YYYY, h:mmpm")!="Wed, Jan 5th, 2000, 3:00am" then ?9/0 end if
+
+--s = parse_date_string("January 9, 2001, 15:12:54",{"Mmmm d, yyyy, hh:mm:ss"})
+
+--s = parse_date_string("1996-03-31",{"YYYY-MM-DD"})
+
+set_timedate_formats({"Ddd, Mmm dth, YYYY, h:mmpm tz"})
+if format_timedate(s)!="Wed, Jan 5th, 2000, 3:00am UTC" then ?9/0 end if
+s = set_timezone(s,"BST")   -- this should NOT change the time!
+                                                                    if s!={2000,1,5,3,0,0,4,  5,tzGMT,tzBST} then ?9/0 end if -- (out-of season)
+if format_timedate(s)!="Wed, Jan 5th, 2000, 3:00am GMT" then ?9/0 end if
+s = change_timezone(s,"GMT")                                        if s!={2000,1,5,3,0,0,4,  5,tzGMT,tzGMT} then ?9/0 end if
+if format_timedate(s)!="Wed, Jan 5th, 2000, 3:00am GMT" then ?9/0 end if
+s = change_timezone(s,"BST")                                        
+if s!={2000,1,5,3,0,0,4,  5,tzGMT,tzBST} then ?9/0 end if
+if format_timedate(s)!="Wed, Jan 5th, 2000, 3:00am GMT" then ?9/0 end if
+
+s = adjust_timedate(s,timedelta(weeks:=26,days:=1))                 if s!={2000,7,6,4,0,0,5,188,tzBST,tzBST} then ?9/0 end if
+if format_timedate(s)!="Thu, Jul 6th, 2000, 4:00am BST" then ?9/0 end if
+s = change_timezone(s,"GMT")                                        if s!={2000,7,6,3,0,0,5,188,tzGMT,tzGMT} then ?9/0 end if
+if format_timedate(s)!="Thu, Jul 6th, 2000, 3:00am GMT" then ?9/0 end if
+s = change_timezone(s,"BST")                                        if s!={2000,7,6,4,0,0,5,188,tzBST,tzBST} then ?9/0 end if
+if format_timedate(s)!="Thu, Jul 6th, 2000, 4:00am BST" then ?9/0 end if
+s = adjust_timedate(s,timedelta(weeks:=26,days:=1))                 if s!={2001,1,5,3,0,0,6,  5,tzGMT,tzBST} then ?9/0 end if
+if format_timedate(s)!="Fri, Jan 5th, 2001, 3:00am GMT" then ?9/0 end if
+
+
+-- try and help out anyone who has to debug this should the timezone table have gotten reordered:
+if tzBST!=2 then ?"oops, tsBST!=2" end if   -- change the 2 and update following comments (not critical)
+if tzGMT!=3 then ?"oops, tsGMT!=3" end if   -- change the 3 and update following comments (not critical)
+
+set_timedate_formats({"D/M/YYYY hpm TZ"})
+ s = parse_date_string("1/8/2015 9am GMT")                          if s!={2015, 8,1, 9,0,0,0,  0,tzGMT} then ?9/0 end if
+s = change_timezone(s,"BST")                                        if s!={2015, 8,1,10,0,0,7,213,tzBST} then ?9/0 end if   --(7 is dow, 213 is doy)
+if format_timedate(s)!="1/8/2015 10am BST" then ?9/0 end if
+
+s = adjust_timedate(s,timedelta(days:=4*31-2))                      if s!={2015,12,1, 9,0,0,3,335,tzGMT,tzBST} then ?9/0 end if
+if format_timedate(s)!="1/12/2015 9am GMT" then ?9/0 end if
+
+s = adjust_timedate(s,timedelta(days:=6*31-3))                      if s!={2016, 6,1,10,0,0,4,153,tzBST,tzBST} then ?9/0 end if
+if format_timedate(s)!="1/6/2016 10am BST" then ?9/0 end if
+
+-- allow_partial controls whether eg parse("3am EDT","hpm") fails, with the
+s = parse_date_string("3am EDT",{"hpm"})
+if s!={18,"unparsed input","remaining text is:EDT"} then ?9/0 end if
+set_timedate_formats({"hpm"},1,1)   -- allow partial
+s = parse_date_string("3am EDT")
+if s!={0,0,0,3,0,0,0,0,0} then ?9/0 end if
+set_timedate_formats({},"",0)
+
+set_timedate_formats({"D/M/YYYY hpm TZ"})
+                       s = parse_date_string("1/8/2015 9am GMT")
+if format_timedate(s,"D/M/YYYY hpm (Tzz)")!= "1/8/2015 9am (Greenwich Mean Time)" then ?9/0 end if
+
+
+
+--puts(1,"All OK, press any key...")
+--{} = wait_key()
+--abort(0)
+

@@ -2751,8 +2751,6 @@ constant ccde = {jl_rel32,jle_rel32,je_rel32,jne_rel32,jge_rel32,jg_rel32}
 
 --with trace
 
---include pminmax.e -- min(), max()
-
 --DEV rename as svtype:
 integer sudt
         sudt = 0
@@ -10112,7 +10110,14 @@ end if
                                             backpatch = length(x86)
                                         else
                                             if mergeSet=isOpCode then
+--19/9/15:
+--                                              emitHex6ret(jl_rel32)               -- jl opRetf
+if newEmit then
+                                                emitHex6retg(jl_rel32)              -- jl opRetf
+else
                                                 emitHex6ret(jl_rel32)               -- jl opRetf
+end if
+
                                             else
                                                 emitHex6j(jl_rel32,0)               -- jl xxx (backpatched later)
                                                 --  as above, two jumps to link:

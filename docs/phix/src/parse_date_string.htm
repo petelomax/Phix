@@ -23,7 +23,7 @@
           <b>Description:</b>
          </td>
          <td>
-            Convert the string s into a timedate.
+            Convert the string s into a <a href="timedatetype.htm">timedate</a>.
          </td>
         </tr>
         <tr>
@@ -31,13 +31,30 @@
           <b>Comments:</b>
          </td>
          <td>
-            The parse_fmts parameter can be defaulted using the <a href="set_timedate_formats.htm">set_timedate_formats</a> routine, 
+            The fmts parameter can be defaulted using the <a href="set_timedate_formats.htm">set_timedate_formats</a> routine, 
             and is a list of <a href="tdformats.htm">format strings</a>, each of which is attempted in turn.
             <br>
             <br>
             The partial flag controls whether to ignore excess text when parsing, and if set, then parse_fmts should be ordered 
             most detailed first - in the following example you would not want it to completely ignore the trailing "EST", but if
-            no timezone is present you would simply assume it is a local time.
+            no timezone is present you would simply assume it is a local time. 
+            Another example might be "03/09/15 6pm Customer was not happy", you might want try "DD/MM/YY ham tz" and fail before 
+            trying "DD/MM/YY ham" and pass.
+            <br>
+            <br>
+            Note that parsing say "Monday 1/01/2000" returns a DT_DOW element set to 2, even though it was a Saturday, and any 
+            non-explicitly mentioned elements get left as zero. It is in fact perfectly legal to invoke parse_date_string("?","?"), 
+            which checks the input for that exact literal and returns {0,0,0,0,0,0,0,0,0}, however it is illegal to specify an 
+            empty string ("") as a format.
+            <br>
+            <br>
+<!--DEV day_of_year not yet documented -->
+            The day of year field (td[DT_DOY]) is always left zero, but can easily be obtained using day_of_year(y,m,d).
+            <br>
+            <br>
+            To quietly catch errors from parse_date_string(), store the result in a sequence variable and either use 
+            <a href="timedatetype.htm">the timedate type</a> function to test it, or check that the 
+            <a href="length.htm">length</a>() is not 3, before attempting to use it as a timedate.
          </td>
         </tr>
         <tr>
@@ -59,6 +76,7 @@ td = parse_date_string("March 7 2009 7:30pm EST",{"Mmmm d yyyy h:mmpm tz""})
          </td>
          <td>
           <a href="timedate.htm">timedate</a>,
+          <a href="timedatetype.htm">the timedate type</a>,
           <a href="tdformats.htm">format strings</a>,
           <a href="set_timedate_formats.htm">set_timedate_formats</a>
          </td>

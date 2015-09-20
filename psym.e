@@ -2284,6 +2284,8 @@ end if
     -- the following return an atom
     IAEType = T_atom
 
+--DEV document
+    initialAutoEntry("abs",             S_Func,"FN",    "pmaths.e",0,E_none)
 --if newEmit then
 ----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pHeap.e",0,E_none)
 ----DEV
@@ -2295,6 +2297,7 @@ end if
     initialAutoEntry("arcsin",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("bytes_to_int",    S_Func,"FP",    "machine.e",0,E_none)       --DEV should really be renamed
     initialAutoEntry("bits_to_int",     S_Func,"FP",    "machine.e",0,E_none)       --              ""
+    initialAutoEntry("ceil",            S_Func,"FN",    "pmaths.e",0,E_none)
 --DEV or is this an object result?? (eg C:\Program Files\Phix\demo\SUDOKU\EuWinGUI.ew:359)
 if newEmit then
     initialAutoEntry("c_func",          S_Func,"FIP",   "VM\\pcfuncN.e",0,E_all)
@@ -2318,17 +2321,20 @@ end if
     initialAutoEntry("factorial",       S_Func,"FN",    "factorial.e",0,E_none)
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
+    initialAutoEntry("mod",             S_Func,"FNN",   "pmaths.e",0,E_none)
     initialAutoEntry("poke_string",     S_Func,"FNIP",  "pokestr.e",0,E_other)
     initialAutoEntry("prompt_number",   S_Func,"FSP",   "get.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("round",           S_Func,"FNN",   "pmaths.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("sign",            S_Func,"FN",    "pmaths.e",0,E_none)
 --DEV document
     initialAutoEntry("sum",             S_Func,"FO",    "psum.e",0,E_other)
     initialAutoEntry("sysexec",         S_Func,"FP",    "syswait.ew",0,E_other)
     initialAutoEntry("system_exec",     S_Func,"FPI",   "syswait.ew",0,E_other)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("system_wait",     S_Func,"FP",    "syswait.ew",0,E_other)
---DEV document
-    initialAutoEntry("trunc",           S_Func,"FN",    "misc.e",0,E_other)
+    initialAutoEntry("trunc",           S_Func,"FN",    "pmaths.e",0,E_other)
 
     T_AAtm = symlimit
 
@@ -2463,8 +2469,6 @@ end if
     -- the following return an object
     IAEType = T_object
 
---DEV document
-    initialAutoEntry("abs",             S_Func,"FO",    "pabs.e",0,E_none)
 if newEmit then
     initialAutoEntry("call_func",       S_Func,"FIP",   "VM\\pcfuncN.e",0,E_all)
 else
@@ -2486,11 +2490,13 @@ end if
         initialAutoEntry("gets",        S_Func,"FO",    "pfileio.e",0,E_other)  -- ("FI" for newEmit, btw)
     end if
     initialAutoEntry("machine_func",    S_Func,"FIO",   "pmach.e",0,E_other)
-    initialAutoEntry("max",             S_Func,"FOO",   "pminmax.e",0,E_none)       T_min = symlimit
-    initialAutoEntry("maxsq",           S_Func,"FP",    "pminmax.e",0,E_none)       T_minsq = symlimit
-    initialAutoEntry("min",             S_Func,"FOO",   "pminmax.e",0,E_none)       T_max = symlimit
-    initialAutoEntry("minsq",           S_Func,"FP",    "pminmax.e",0,E_none)       T_maxsq = symlimit
+    initialAutoEntry("max",             S_Func,"FOO",   "pmaths.e",0,E_none)        T_min = symlimit
+    initialAutoEntry("maxsq",           S_Func,"FP",    "pmaths.e",0,E_none)        T_minsq = symlimit
+    initialAutoEntry("min",             S_Func,"FOO",   "pmaths.e",0,E_none)        T_max = symlimit
+    initialAutoEntry("minsq",           S_Func,"FP",    "pmaths.e",0,E_none)        T_maxsq = symlimit
     initialAutoEntry("read_bitmap",     S_Func,"FS",    "image.e",0,E_none)
+    initialAutoEntry("round",           S_Func,"FOO",   "pmaths.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("save_text_image", S_Func,"FPP",   "pscreen.e",0,E_none)
 --DEV document
     initialAutoEntry("sign",            S_Func,"FO",    "psign.e",0,E_none)
@@ -2535,6 +2541,7 @@ end if
     initialAutoEntry("sq_atom",         S_Func,"FO",    "psqop.e",0,E_none) --23/3: opAtom)
     initialAutoEntry("sq_str",          S_Func,"FO",    "psqop.e",0,E_none) --23/3: opStr)
     initialAutoEntry("sq_seq",          S_Func,"FO",    "psqop.e",0,E_none) --23/3: opSq)
+    initialAutoEntry("sq_abs",          S_Func,"FO",    "psqop.e",0,E_none)         --T_sqabs = symlimit
     initialAutoEntry("sq_add",          S_Func,"FOO",   "psqop.e",opAdd,E_none)
     initialAutoEntry("sq_sub",          S_Func,"FOO",   "psqop.e",opSub,E_none)
     initialAutoEntry("sq_mul",          S_Func,"FOO",   "psqop.e",opMul,E_none)
@@ -2542,6 +2549,12 @@ end if
     initialAutoEntry("sq_floor_div",    S_Func,"FOO",   "psqop.e",opDivf,E_none)    T_sqfloor_div = symlimit
     initialAutoEntry("sq_rmdr",         S_Func,"FOO",   "psqop.e",opRmdr,E_none)
     initialAutoEntry("sq_floor",        S_Func,"FO",    "psqop.e",opFloor,E_none)   T_sqfloor = symlimit
+    initialAutoEntry("sq_round",        S_Func,"FOO",   "psqop.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("sq_ceil",         S_Func,"FO",    "psqop.e",0,E_none)
+    initialAutoEntry("sq_sign",         S_Func,"FO",    "psqop.e",0,E_none)
+    initialAutoEntry("sq_mod",          S_Func,"FOO",   "psqop.e",0,E_none)
+    initialAutoEntry("sq_trunc",        S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_and",          S_Func,"FOO",   "psqop.e",0,E_none)
     initialAutoEntry("sq_or",           S_Func,"FOO",   "psqop.e",0,E_none)
     initialAutoEntry("sq_xor",          S_Func,"FOO",   "psqop.e",opXor,E_none)

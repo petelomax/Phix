@@ -383,12 +383,14 @@ end function
 -- See Also:
 --              [[:remainder]], [[:Relational operators]], [[:Operations on sequences]]
 
+--/*
 public function mod(object x, object y)
     if equal(sign(x), sign(y)) then
         return remainder(x,y)
     end if
     return x - y * floor(x / y)
 end function
+--*/
 
 --**
 -- Return the integer portion of a number.
@@ -420,10 +422,11 @@ end function
 -- </eucode>
 -- See Also:
 --              [[:floor]] [[:frac]]
+--/*
 public function trunc(object x)
     return sign(x) * floor(abs(x))
 end function
-
+--*/
 
 --**
 -- Return the fractional portion of a number.
@@ -547,9 +550,11 @@ end function
 -- See Also:
 --              [[:floor]], [[:round]]
 
+--/*
 public function ceil(object a)
     return -floor(-a)
 end function
+--*/
 
 --**
 -- Return the argument's elements rounded to some precision
@@ -574,6 +579,7 @@ end function
 -- See Also:
 --      [[:floor]], [[:ceil]]
 
+--/*
 public function round(object a, object precision=1)
 integer len
 sequence s
@@ -628,6 +634,7 @@ object t, u
     end for
     return s
 end function
+--*/
 
 --****
 -- === Trigonometry
