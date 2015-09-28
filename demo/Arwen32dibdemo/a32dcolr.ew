@@ -8,10 +8,10 @@
 
 include a32dcore.ew
 
-global procedure applyDibBrightnessToDib(sequence dib_dest, sequence dib_src, integer dest_x, integer dest_y,
-                                        integer src_x1, integer src_y1, integer src_x2, integer src_y2, integer pct)
--- applies the brightness of a portion ((src_x1, src_y1)-(src_x2, src_y2)) of a bitmap dib_src to the bitmap dib_dest
--- at position (dest_x, dest_y). pct is the percentage: 0 = don't apply brightness, 100 = apply full brightness
+global procedure applyDibBrightnessToDib(a32Dib dib_dest, a32Dib dib_src, integer dX, integer dY,
+                                        integer sX1, integer sY1, integer sX2, integer sY2, integer pct)
+-- applies the brightness of a portion ((sX1, sY1)-(sX2, sY2)) of a bitmap dib_src to the bitmap dib_dest
+-- at position (dX, dY). pct is the percentage: 0 = don't apply brightness, 100 = apply full brightness
 integer src_width, src_height, dest_width, dest_height, portion_width, portion_height
 integer src_bytes_per_line, dest_padding, red, green, blue, div, bias
 atom src_memory, dest_memory
@@ -28,35 +28,35 @@ sequence color
 
     -- 1. Clip the source rectangle to the extent of the source bitmap
     if not clipped then
-        clipToSource(src_x1, src_y1, src_x2, src_y2, src_width, src_height)
+        clipToSource(sX1, sY1, sX2, sY2, src_width, src_height)
         if clip_src_outside then return end if
     end if
-    src_x1 = clip_x1  src_y1 = clip_y1
-    src_x2 = clip_x2  src_y2 = clip_y2
+    sX1 = clip_x1  sY1 = clip_y1
+    sX2 = clip_x2  sY2 = clip_y2
 
-    portion_width = src_x2-src_x1+1
-    portion_height = src_y2-src_y1+1
+    portion_width = sX2-sX1+1
+    portion_height = sY2-sY1+1
 
     -- 2. Clip the source rectangle to the extent of the destination bitmap
-    if dest_x>=dest_width or dest_x+portion_width<0 then return end if -- outside destination bitmap
-    if dest_x<0 then src_x1 += -dest_x  portion_width += dest_x  dest_x = 0 end if
-    if dest_x+portion_width>dest_width then src_x2 -= portion_width-dest_width+dest_x end if
+    if dX>=dest_width or dX+portion_width<0 then return end if -- outside destination bitmap
+    if dX<0 then sX1 += -dX portion_width += dX  dX = 0 end if
+    if dX+portion_width>dest_width then sX2 -= portion_width-dest_width+dX end if
 
-    if dest_y>=dest_height or dest_y+portion_height<0 then return end if -- outside destination bitmap
-    if dest_y<0 then src_y1 += -dest_y  portion_height += dest_y    dest_y = 0 end if
-    if dest_y+portion_height>dest_height then src_y2 -= portion_height-dest_height+dest_y end if
+    if dY>=dest_height or dY+portion_height<0 then return end if -- outside destination bitmap
+    if dY<0 then sY1 += -dY portion_height += dY    dY = 0 end if
+    if dY+portion_height>dest_height then sY2 -= portion_height-dest_height+dY end if
 
     -- 3. Draw the bitmap
     src_bytes_per_line = dib_src[DibBytesPerLine]
-    src_memory = dib_src[DibMemory]+src_x1*3+src_y1*src_bytes_per_line
-    dest_memory = dib_dest[DibMemory]+dest_x*3+dest_y*dib_dest[DibBytesPerLine]
-    portion_width = (src_x2-src_x1)*3
+    src_memory = dib_src[DibMemory]+sX1*3+sY1*src_bytes_per_line
+    dest_memory = dib_dest[DibMemory]+dX*3+dY*dib_dest[DibBytesPerLine]
+    portion_width = (sX2-sX1)*3
     dest_padding = dib_dest[DibBytesPerLine]-portion_width-3
 
     div = floor(50000/pct)
     bias = floor(256*pct/100)
---  for y = src_memory to src_memory + (src_y2 - src_y1) * src_bytes_per_line by src_bytes_per_line do
-    for y=src_y1 to src_y2 do
+--  for y = src_memory to src_memory + (sY2 - sY1) * src_bytes_per_line by src_bytes_per_line do
+    for y=sY1 to sY2 do
         for x=y to y+portion_width by 3 do
 --          color = peek({x, 3})
             color = peek({src_memory+x, 3})
@@ -73,7 +73,7 @@ sequence color
     end for
 end procedure
 
-global procedure invertDib(sequence dib)
+global procedure invertDib(a32Dib dib)
 -- Inverts the pixels of the bitmap
 atom memory
 integer bytesPerLine, width3
@@ -87,7 +87,7 @@ integer bytesPerLine, width3
     end for
 end procedure
 
-global procedure makeDibGray(sequence dib)
+global procedure makeDibGray(a32Dib dib)
 -- Makes the bitmap gray (black & white)
 atom memory, x
 integer gray, bytes_per_line, width3
@@ -107,7 +107,7 @@ sequence color
     end for
 end procedure
 
-global procedure replaceDibColor(sequence dib, sequence oldColor, sequence newColor)
+global procedure replaceDibColor(a32Dib dib, a32Colour oldColor, a32Colour newColor)
 -- Replaces oldColor in the bitmap with newColor
 atom memory
 integer bytes_per_line, width3
@@ -122,7 +122,7 @@ integer bytes_per_line, width3
     end for
 end procedure
 
-global procedure replaceDibColors(sequence dib, sequence oldColors, sequence newColors)
+global procedure replaceDibColors(a32Dib dib, sequence oldColors, sequence newColors)
 -- Replaces all the colors in oldColors in the bitmap with the same color in newColors
 atom memory
 integer index, len, bytes_per_line, width3
@@ -155,10 +155,11 @@ sequence oldColors2, newColors2
     end for
 end procedure
 
-global procedure adjustDibColors(sequence dib, sequence delta)
+global procedure adjustDibColors(a32Dib dib, sequence delta)
 -- Adds delta to each color
 atom memory
 integer red, green, blue, bytes_per_line, width3
+--a32Colour color
 sequence color
     if equal(delta, {0, 0, 0}) then return end if -- no adjusting necessary
     memory = dib[DibMemory]
@@ -178,7 +179,7 @@ sequence color
     end for
 end procedure
 
-global procedure colorizeDib(sequence dib, sequence color)
+global procedure colorizeDib(a32Dib dib, a32Colour color)
 -- Changes the color of the bitmap to the passed color
 atom memory, x
 integer red, green, blue, bytes_per_line, width3
@@ -233,7 +234,7 @@ sequence orig_color, new_color, palette, delta
     end for
 end procedure
 
-global procedure adjustDibBrightness(sequence dib, integer brightness)
+global procedure adjustDibBrightness(a32Dib dib, integer brightness)
 -- Adjusts the brightness of the bitmap: brightness should be between -255 (total black) and 255 (total white)
 atom memory, x
 integer red, green, blue, bytes_per_line, width3
@@ -266,7 +267,7 @@ sequence color
     end for
 end procedure
 
-global procedure adjustDibContrast(sequence dib, atom contrast)
+global procedure adjustDibContrast(a32Dib dib, atom contrast)
 -- Adjusts the contrast of the bitmap: contrast should be between -1 and 1
 atom memory, x
 integer red, green, blue, bytes_per_line, width3
@@ -295,7 +296,7 @@ sequence color
     end for
 end procedure
 
-global procedure adjustDibBrightnessAndContrast(sequence dib, integer brightness, atom contrast)
+global procedure adjustDibBrightnessAndContrast(a32Dib dib, integer brightness, atom contrast)
 -- Adjusts the brightness and contrast of the bitmap:
 --  brightness should be between -255 (total black) and 255 (total white)
 --  contrast should be between -1 and 1

@@ -2438,6 +2438,7 @@ end if
     initialAutoEntry("replace",         S_Func,"FPONN", "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
     initialAutoEntry("reverse",         S_Func,"FP",    "misc.e",0,E_none)
+    initialAutoEntry("scanf",           S_Func,"FSS",   "scanf.e",0,E_none)
     initialAutoEntry("shuffle",         S_Func,"FP",    "shuffle.e",0,E_none)
     initialAutoEntry("sort",            S_Func,"FP",    "sort.e",0,E_none)
 --DEV document
@@ -2495,11 +2496,11 @@ end if
     initialAutoEntry("min",             S_Func,"FOO",   "pmaths.e",0,E_none)        T_max = symlimit
     initialAutoEntry("minsq",           S_Func,"FP",    "pmaths.e",0,E_none)        T_maxsq = symlimit
     initialAutoEntry("read_bitmap",     S_Func,"FS",    "image.e",0,E_none)
-    initialAutoEntry("round",           S_Func,"FOO",   "pmaths.e",0,E_none)
-    symtab[symlimit][S_ParmN] = 1
+--  initialAutoEntry("round",           S_Func,"FOO",   "pmaths.e",0,E_none)
+--  symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("save_text_image", S_Func,"FPP",   "pscreen.e",0,E_none)
 --DEV document
-    initialAutoEntry("sign",            S_Func,"FO",    "psign.e",0,E_none)
+--  initialAutoEntry("sign",            S_Func,"FO",    "psign.e",0,E_none)
 --DEV document
     initialAutoEntry("TlsGetValue",     S_Func,"FI",    "ptls.ew",0,E_none)
 

@@ -8,9 +8,9 @@
 
 include a32dcore.ew
 
-global procedure copyDibToClipboard(sequence dib)
+global procedure copyDibToClipboard(a32Dib dib)
 -- Copies the bitmap to the Windows clipboard.
-object new_dib
+a32Dib0 new_dib
     if c_func(xOpenClipboard, {c_func(xGetActiveWindow, {})}) then
         if c_func(xEmptyClipboard, {}) then
             new_dib = copyDib(dib)
@@ -26,7 +26,7 @@ global function getDibFromClipboard()
 -- Gets a bitmap from the clipboard and returns it.
 -- Returns 0 if no bitmap could be copied from the clipboard.
 atom hBitmap, pBitmap, hDC
-object dib
+a32Dib0 dib
 integer size, width, height
     dib = 0
     if c_func(xIsClipboardFormatAvailable, {CF_BITMAP})
@@ -42,8 +42,13 @@ integer size, width, height
         free(pBitmap)
         hDC = c_func(xCreateCompatibleDC, {NULL})
         void = c_func(xSelectObject, {hDC, hBitmap})
+--DEV tryme:
+-- if 1 then
+--      dib = extractDib(hDC, 0, 0, width, height)
+-- else
         dib = newDib(width, height)
         if sequence(dib) then copyToDib2(dib, hDC, 0, 0, 0, 0, width-1, height-1) end if
+-- end if
         void = c_func(xDeleteDC,{hDC})
         c_proc(xCloseClipboard, {})
     end if

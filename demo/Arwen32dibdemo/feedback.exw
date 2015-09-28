@@ -3,7 +3,7 @@
 
 include a32dcore.ew  -- only the core library is necessary
 
-object dib, dib2, tile_dib
+a32Dib0 dib, dib2, tile_dib
 integer canvas_width, canvas_height, width, height, width2, height2, x, y, dx, dy, dx2, dy2
 integer x2, y2, dx_2, dy_2, dx2_2, dy2_2
 atom t
@@ -28,14 +28,14 @@ integer frames
 constant win = create(Window, "Arwen32Dib Feedback Demo", 0, 0, Default, Default, 600, 400, 0)
 
 procedure IdleHandler()
-    dx += dx2  if dx<= -25 or dx>=25 then dx2 = -dx2 end if
-    dy += dy2  if dy<= -25 or dy>=25 then dy2 = -dy2 end if
-    dx_2 += dx2_2  if dx_2<= -25 or dx_2>=25 then dx2_2 = -dx2_2 end if
-    dy_2 += dy2_2  if dy_2<= -25 or dy_2>=25 then dy2_2 = -dy2_2 end if
-    if (x<=0 and x+dx<x) or (x+width>=canvas_width and x+dx>x) then dx = -dx end if
+    dx += dx2       if dx<=-25 or dx>=25 then dx2 = -dx2 end if
+    dy += dy2       if dy<=-25 or dy>=25 then dy2 = -dy2 end if
+    dx_2 += dx2_2   if dx_2<=-25 or dx_2>=25 then dx2_2 = -dx2_2 end if
+    dy_2 += dy2_2   if dy_2<=-25 or dy_2>=25 then dy2_2 = -dy2_2 end if
+    if (x<=0 and x+dx<x) or (x+width >=canvas_width  and x+dx>x) then dx = -dx end if
     if (y<=0 and y+dy<y) or (y+height>=canvas_height and y+dy>y) then dy = -dy end if
     x += dx  y += dy
-    if (x2<=0 and x2+dx_2<x2) or (x2+width2>=canvas_width and x2+dx_2>x2) then dx_2 = -dx_2 end if
+    if (x2<=0 and x2+dx_2<x2) or (x2+width2 >=canvas_width  and x2+dx_2>x2) then dx_2 = -dx_2 end if
     if (y2<=0 and y2+dy_2<y2) or (y2+height2>=canvas_height and y2+dy_2>y2) then dy_2 = -dy_2 end if
     x2 += dx_2  y2 += dy_2
     if sequence(tile_dib) then
@@ -68,33 +68,34 @@ sequence rect
     elsif msg=WM_SIZE then
         rect = getClientRect(win)
         if sequence(tile_dib) then killDib(tile_dib) end if
-        canvas_width = rect[3]
+        canvas_width  = rect[3]
         canvas_height = rect[4]
-        if canvas_width=0 or canvas_height=0 then tile_dib = 0  return 0 end if
+        if canvas_width=0 
+        or canvas_height=0 then 
+            tile_dib = 0
+            return 0
+        end if
         tile_dib = newDib(canvas_width, canvas_height)
 --/**/      clearDib(tile_dib, sq_rand({255, 255, 255}))    --/* -- Phix
             clearDib(tile_dib, rand({255, 255, 255}))       --*/ -- RDS
-        dx2 = rand(5)-2  dy2 = rand(5)-2
+        dx2   = rand(5)-2  dy2   = rand(5)-2
         dx2_2 = rand(5)-2  dy2_2 = rand(5)-2
-        x = floor(canvas_width/2-width)  y = floor(canvas_height/2-height)
-        x2 = floor(canvas_width/2)  y2 = floor(canvas_height/2)
+        x = floor(canvas_width /2-width)  
+        y = floor(canvas_height/2-height)
+        x2 = floor(canvas_width/2)
+        y2 = floor(canvas_height/2)
     elsif firsttime
       and msg=WM_SHOWWINDOW then
---  elsif not find(msg,{WM_NOTIFY,WM_SYSKEYDOWN,WM_SYSKEYUP,
---                      WM_SYSCOMMAND,WM_ENTERMENULOOP,WM_CAPTURECHANGED,
---                      WM_SETCURSOR,WM_INITMENU,WM_MENUSELECT,WM_CTLCOLORSCROLLBAR}) then
---      if firsttime then
-            firsttime = 0
-            t = time()
-            frames = 0
-            dx = rand(20)-10
-            dy = rand(20)-10
-            dx_2 = rand(20)-10
-            dy_2 = rand(20)-10
---      end if
-        startIdle(40)
-    elsif msg=WM_ERASEBKGND then -- suppress the erasing of the background: eliminates flickering
-        return {1}
+        firsttime = 0
+        t = time()
+        frames = 0
+        dx = rand(20)-10
+        dy = rand(20)-10
+        dx_2 = rand(20)-10
+        dy_2 = rand(20)-10
+        startIdle(1000)
+    elsif msg=WM_ERASEBKGND then
+        return {1} -- suppress erasing the background: eliminates flickering
     elsif msg=WM_CHAR 
       and wParam=VK_ESCAPE then
         closeWindow(win)
@@ -107,4 +108,4 @@ setHandler({win},routine_id("winHandler"))
     killDib(dib)
     killDib(dib2)
     if sequence(tile_dib) then killDib(tile_dib) end if
-    freeDib()
+

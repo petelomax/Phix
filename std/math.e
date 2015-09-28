@@ -57,7 +57,7 @@ end type
 -- See Also:
 --              [[:sign]]
 
---/* Not Phix (defined in auto-include pabs.e)
+--/* Not Phix (defined in auto-include pmaths.e)
 public function abs(object a)
 object t
     if atom(a) then

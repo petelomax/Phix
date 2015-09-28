@@ -330,9 +330,9 @@
 --      ========*
 --          global function match(object s1, sequence s2, integer start=1)
 --
---      pabs.e
---      ======*
---          global function abs(object o)
+--      pmaths.e
+--      ========*
+--          global function abs(object o) (etc)
 --
 --*/
 

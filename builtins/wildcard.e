@@ -28,7 +28,7 @@ end function
 function qmatch(sequence p, sequence s)
 -- find pattern p in string s
 -- p may have '?' wild cards (but not '*')
-integer k
+integer k, pj
 
     if not find('?', p) then
         return match(p, s) -- fast
@@ -37,7 +37,9 @@ integer k
     for i=1 to length(s)-length(p)+1 do
         k = i
         for j=1 to length(p) do
-            if p[j]!=s[k] and p[j]!='?' then
+            pj = p[j]
+            if  pj!='?'
+            and pj!=s[k] then
                 k = 0
                 exit
             end if
@@ -55,7 +57,7 @@ global function wildcard_match(sequence pattern, sequence str)
 -- pattern can include '*' and '?' "wildcard" characters
 integer p, f, t
 sequence match_string
-object pp
+object pch
 
     pattern = pattern & END_MARKER
     str = str & END_MARKER
@@ -63,35 +65,38 @@ object pp
     f = 1
     while f<=length(str) do
 --      if not find(pattern[p], {str[f], '?'}) then
-        pp = pattern[p]
-        if equal(pp,'*') or (not equal(pp,str[f]) and not equal(pp,'?')) then
-            if pattern[p]='*' then
-                while pattern[p]='*' do
-                    p += 1
-                end while
-                if pattern[p]=END_MARKER then
-                    return 1
-                end if
-                match_string = ""
-                while pattern[p]!='*' do
-                    match_string = match_string & pattern[p]
-                    if pattern[p]=END_MARKER then
-                        exit
-                    end if
-                    p += 1
-                end while
-                if pattern[p]='*' then
-                    p -= 1
-                end if
-                t = qmatch(match_string, str[f..length(str)])
-                if t=0 then
-                    return 0
-                else
-                    f += t+length(match_string)-2
-                end if
-            else
+        pch = pattern[p]
+        if equal(pch,'*') 
+        or (not equal(pch,str[f]) and 
+            not equal(pch,'?')) then
+            if pch!='*' then
                 return 0
             end if
+            while 1 do
+                p += 1
+                pch = pattern[p]
+                if pch!='*' then exit end if
+            end while
+            if pch=END_MARKER then
+                return 1
+            end if
+            match_string = ""
+            while pch!='*' do
+                match_string = match_string & pch
+                if pch=END_MARKER then
+                    exit
+                end if
+                p += 1
+                pch = pattern[p]
+            end while
+            if pch='*' then
+                p -= 1
+            end if
+            t = qmatch(match_string, str[f..length(str)])
+            if t=0 then
+                return 0
+            end if
+            f += t+length(match_string)-2
         end if
         p += 1
         f += 1

@@ -4608,10 +4608,10 @@ end if
 --      if debug or listing or some_unresolved_rtnids then  -- 21/09/2013
 if 01 then -- moved above 17/3/15:
         if listing or some_unresolved_rtnids then           -- 22/12/2014
-puts(1,"calling relink and reconstructids... (pemit2.e line 4336)\n")
+--puts(1,"calling relink and reconstructids... (pemit2.e line 4336)\n")
             relink()
             tt_traverse(r_ReconstructIds,"",-2)             -- identifiers
-puts(1,"returned from reconstructids... (pemit2.e line 4339)\n")
+--puts(1,"returned from reconstructids... (pemit2.e line 4339)\n")
         end if
 --9/10/10: moved here (to be before blurph, for isConstRef[Count])
         -- reconstruct any nested sequences

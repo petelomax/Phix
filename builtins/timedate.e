@@ -424,44 +424,53 @@ integer currlang = en
 sequence months      = repeat(0,langmax),
          days        = repeat(0,langmax),
 --       shortdaylen = repeat(3,langmax),
-         ordinals    = repeat(0,langmax),
+         ordinals    = repeat({""},langmax),
          ampm        = repeat(0,langmax)
 
 --DEV
 --,     langcodes   = repeat(0,langmax)
---langcodes[en] = "EN"  -- (dig up a proper standard for this)
---global procedure set_tdlang(string langcode)
---  currlang = find(langcodes,langcode)
+--langcodes[en] = "EN"  -- English
+--langcodes[de] = "DE"  -- German
+--langcodes[es] = "ES"  -- Spanish
+--langcodes[fi] = "FI"  -- Finnish
+--langcodes[fr] = "FR"  -- French
+--langcodes[it] = "IT"  -- Italian
+--langcodes[nl] = "NL"  -- Dutch
+--langcodes[pt] = "PT"  -- Portugese
+--global procedure set_timedate_lang(string langcode)
+--  currlang = find(upper(langcodes),langcode)
 --  if currlang=0 then ?9/0 end if
 --end procedure
+--English:
+--January February March April May June July August September October November December 
+--Sunday Monday Tuesday Wednesday Thursday Friday Saturday
 
-months[en] = {"January",
-              "February",
-              "March",
-              "April",
-              "May",
-              "June",
-              "July",
-              "August",
-              "September",
-              "October",
-              "November",
-              "December"}
-
-days[en] = {"Sunday",
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday"}
+months[en] = {"January","February","March","April","May","June","July","August","September","October","November","December"}
+days[en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
+--Google Translate:
+--months[de] = {"Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"}
+--days[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"}
+--months[es] = {"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"}
+--days[es] = {"Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"}
+--months[fi] = {"Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"}
+--days[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"}
+--months[fr] = {"Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"}
+--days[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"}
+--months[it] = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"}
+--days[it] = {"domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato
+--months[nl] = {"Januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"}
+--days[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag
+--months[pt] = {"Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"}
+--days[pt] = {"domingo","segunda","terça","quarta","quinta","sexta","sábado"}
 
 ordinals[en] = {"st","nd","rd","th"}
+--ordinals[fr] = {"er","e"} --??
 
 --DEV (only non-3 are rqd)
 --shortdaylen[de] = 2
 
 ampm[en] = {"am","pm"}
+
 
 
 -- after updates to check the hours - not entirely perfect, but 5*1hr fwd then back gets:
@@ -1300,7 +1309,8 @@ integer sdx = 0,    -- chars processed in s
                     {ecode,sdx,tz} = get_any(s,sdx,timezones,4,1,"timezone")
                 end if
             case TH:
-                {ecode,sdx,{}} = get_any(s,sdx,ordinals[currlang],2,1,"ordinal suffix")
+--              {ecode,sdx,{}} = get_any(s,sdx,ordinals[currlang],2,1,"ordinal suffix")
+                {ecode,sdx,{}} = get_any(s,sdx,ordinals[currlang],4,1,"ordinal suffix")
             default:
                 ?9/0    -- should never happen...
         end switch
@@ -1462,6 +1472,7 @@ integer fmtdx = 0,
         year,
         month,
         day,
+        l,
         dayofweek,
         minute,
         second,
@@ -1510,10 +1521,9 @@ object x
                 end switch
             case MONTH:
                 month = td[DT_MONTH]
---DEV
                 if month<1 then
-                    ?9/0
---                  ecode = ??
+                    ecxtra = sprintf("month is %d",month)
+                    ecode = 5
                     exit
                 end if
                 switch fsize do
@@ -1538,8 +1548,11 @@ object x
                 end switch
             case DAY:
                 day = td[DT_DAY]
---DEV
-                if day<1 then ?9/0 end if
+                if day<1 then
+                    ecxtra = sprintf("day is %d",day)
+                    ecode = 6
+                    exit
+                end if
                 switch fsize do
                     case 1:
                         x = sprintf("%d",day)
@@ -1639,6 +1652,7 @@ object x
                     res[hidx..hidx+hlen-1] = x
                     hidx = 0
                 end if
+                -- (is am/pm language-dependent? do they all use latin?)
                 x = ampm[currlang][ispm+1]
                 if fcase then
                     x = upper(x)
@@ -1656,11 +1670,13 @@ object x
                     ecode = 16
                     exit
                 end if
+--DEV en only?
                 if day<5 or day>20 then
                     day = remainder(day,10)
                 end if
-                if day=0 or day>4 then
-                    day = 4
+                l = length(ordinals[currlang])
+                if day=0 or day>l then
+                    day = l
                 end if
                 x = ordinals[currlang][day]
                 if fcase then

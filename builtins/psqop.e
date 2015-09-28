@@ -479,7 +479,7 @@ object res
         res = repeat(0, len)
         if atom(y) then
             for i=1 to len do
-                res[i] = sq_mod(a[i], y)
+                res[i] = sq_mod(x[i], y)
             end for
         else
             ly = length(y)
@@ -493,7 +493,7 @@ object res
 end function
 
 global function sq_trunc(atom x)
-    return sq_mul(sign(x),sq_floor(abs(x))
+    return sq_mul(sign(x),sq_floor(abs(x)))
 end function
 
 global function sq_and(object a, object b)

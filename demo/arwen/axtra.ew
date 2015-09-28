@@ -1650,3 +1650,139 @@ global procedure wPuts2(atom hdc, integer xpos, integer ypos, object s)
 end procedure
 -- PL 24/06/2014 (end of additions)
 
+global atom gdiToken = 0
+
+atom ppImage, pUINT, ppGraphics
+
+constant GDI_OK = 0
+--       GDI_BUSY = 4
+constant {gdi_code_descs,gdi_status_codes} = columnize({
+                                                        {"Ok",                          0},
+                                                        {"GenericError",                1},
+                                                        {"InvalidParameter",            2},
+                                                        {"OutOfMemory",                 3},
+                                                        {"ObjectBusy",                  4},
+                                                        {"InsufficientBuffer",          5},
+                                                        {"NotImplemented",              6},
+                                                        {"Win32Error",                  7},
+                                                        {"WrongState",                  8},
+                                                        {"Aborted",                     9},
+                                                        {"FileNotFound",                10},
+                                                        {"ValueOverflow",               11},
+                                                        {"AccessDenied",                12},
+                                                        {"UnknownImageFormat",          13},
+                                                        {"FontFamilyNotFound",          14},
+                                                        {"FontStyleNotFound",           15},
+                                                        {"NotTrueTypeFont",             16},
+                                                        {"UnsupportedGdiplusVersion",   17},
+                                                        {"GdiplusNotInitialized",       18},
+                                                        {"PropertyNotFound",            19},
+                                                        {"PropertyNotSupported",        20},
+                                                        {"ProfileNotFound",             21}})
+
+integer status
+procedure gdiwarn(string e)
+    {} = messageBox(e&" error",gdi_code_descs[find(status,gdi_status_codes)],MB_OK)
+end procedure
+
+procedure gdierror(string e)
+    gdiwarn(e)
+    abort(0)
+end procedure
+
+global procedure GdipInitialize()
+--Initialize the GdiPlus library.
+--Caller must eventually call GdiUninitialize()
+atom pGdiplusStartupInput, pToken
+
+    if gdiToken=0 then
+        pGdiplusStartupInput = allocate(24) -- 32bits: 16, 64bits: 24
+        mem_set(pGdiplusStartupInput,0,24)
+        poke4(pGdiplusStartupInput,1)       -- GdiplusVersion (1)
+--      poke4(pGdiplusStartupInput+4,0)     -- DebugEventCallback (NULL)
+--      poke4(pGdiplusStartupInput+8,0)     -- SuppressBackgroundThread (false)
+--      poke4(pGdiplusStartupInput+12,0)    -- SuppressExternalCodecs (false)
+        pToken = allocate(4)
+        status = c_func(xGdiplusStartup,{pToken,pGdiplusStartupInput,NULL})
+        if status!=GDI_OK then gdierror("GdiplusStartup") end if
+        gdiToken = peek4u(pToken)
+        free(pToken)
+        free(pGdiplusStartupInput)
+        pUINT = allocate(4)
+        ppImage = allocate(4)
+        ppGraphics = allocate(4)
+    end if
+end procedure
+
+global procedure GdipUninitialize()
+--  status = c_func(xGdipDisposeImage,{pImage})
+--  if status!=GDI_OK then gdiwarn("GdipDisposeImage") end if
+--  status = c_func(xGdipDeleteGraphics,{pGraphics})
+--  if status!=GDI_OK then gdiwarn("GdipDeleteGraphics") end if
+    if gdiToken!=0 then
+        -- Call this once when done using the GdiPlus library.
+        c_proc(xGdiplusShutdown,{gdiToken})
+        gdiToken = 0
+        free(pUINT)
+        free(ppImage)
+        free(ppGraphics)
+    end if
+end procedure
+
+global function AnsiToUnicode(string utf8str)
+-- Returns an atom pointer to memory containing the ansi/utf8 input converted to a null-word (#0000) terminated WideString.
+atom lpAnsi, lpUnicode
+integer len
+    lpAnsi = allocate_StringZ(utf8str)
+    len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,NULL,0})
+    lpUnicode = allocate_TextSpace(len*2)
+    len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,lpUnicode,len})
+    return lpUnicode
+end function
+
+global function GdipLoadImageFromFile(string filepath)
+atom lpFilePathW = AnsiToUnicode(filepath)
+    status = c_func(xGdipLoadImageFromFile,{lpFilePathW,ppImage})
+    if status!=GDI_OK then gdierror("GdipLoadImageFromFile") end if
+--  free(lpFilePathW)   -- NO!!
+    return peek4u(ppImage)
+end function
+
+global function GdipGetImageWidth(atom pImage)
+    status = c_func(xGdipGetImageWidth,{pImage,pUINT})
+    if status!=GDI_OK then gdiwarn("GdipGetImageWidth") end if
+    return peek4u(pUINT)
+end function
+
+global function GdipGetImageHeight(atom pImage)
+    status = c_func(xGdipGetImageHeight,{pImage,pUINT})
+    if status!=GDI_OK then gdiwarn("GdipGetImageHeight") end if
+    return peek4u(pUINT)
+end function
+
+global procedure GdipDisposeImage(atom pImage)
+--  for i=1 to 5 do -- no help!
+        status = c_func(xGdipDisposeImage,{pImage})
+--      if status!=GDI_BUSY then exit end if
+--      sleep(0.25)
+--  end for
+    if status!=GDI_OK then gdiwarn("GdipDisposeImage") end if
+end procedure
+
+global function GdipCreateFromHDC(atom hDC)
+    status = c_func(xGdipCreateFromHDC,{hDC,ppGraphics})
+    if status!=GDI_OK then gdierror("GdipCreateFromHDC") end if
+    return peek4u(ppGraphics)
+end function
+
+global procedure GdipDeleteGraphics(atom pGraphics)
+    status = c_func(xGdipDeleteGraphics,{pGraphics})
+    if status!=GDI_OK then gdiwarn("GdipDeleteGraphics") end if
+end procedure
+
+global procedure GdipDrawImageRectI(atom pGraphics, atom pImage, integer x, integer y, integer width, integer height)
+    status = c_func(xGdipDrawImageRectI,{pGraphics,pImage,x,y,width,height})
+    if status!=GDI_OK then gdiwarn("GdipDrawImageRectI") end if
+end procedure
+
+

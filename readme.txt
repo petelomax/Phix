@@ -56,13 +56,11 @@ Version 0.6.7
             hurdle running slap into that 18-month old niggle, and fixing it:
 09/09/2015  BUGFIX: scoped variable declarations at the toplevel were always
             being created as tvars, with rather drastic consequences! It now
-            invokes TopDecls() instead of Locals() from Block() when returnvar 
-            is -1. However, TopDecls()/Assignment()/MultipleAssignment() have
-            absolutely no emitON=0 handling and crash in that case. For now,
-            I have added a limp "sorry, not (yet) supported" error message,
-            to pmain.e/Block().
+            invokes TopDecls() instead of Locals() from Block(), as needed.
 18/09/2015  It is now possible to declare forward types. Needed if I ever
-            want to make builtins\timedate.e an auto-include.
+            want to make builtins\timedate.e an auto-include, or anything 
+            else with user defined types.
+28/09/2015  BUGFIX: switch lower(ch) do needed a saveFunctionResultVars().
 
 Version 0.6.6
 =============
@@ -300,6 +298,7 @@ Version 0.6.6
             As a by-product, I have disabled the #ilasm tt_search in pttree.e and
             reverted to the hll version. It does not seem much slower. (flw)
 11/03/2013  Added abs() function as auto-include builtin/pabs.e 
+            [Update: moved to builtins\pmaths.e]
 20/03/2013  Bugfix. opDivf was (accidentally) truncating to 53 bits when testing to
             see if the result could be stored as a 31-bit integer. If it did not fit
             was when the damage became evident. A knock-on effect was that attempting 

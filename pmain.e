@@ -4732,6 +4732,62 @@ dbg = symtab[routineNo]
     calltokline = wascalltokline
 end procedure
 
+--DEV:
+--/*
+procedure DoIff()
+integer iffvar
+
+--??
+if erm then
+    if exprBP!=0 then ?9/0 end if
+
+    saveIchain = Ichain
+    Ichain = -1
+
+    ctrlink = 0
+    if emitON then
+        apnds5({opCtrl,IF,0,emitline})
+        iftop = length(s5)-1    -- patched at/pointed to the end if
+        ctrlink = iftop         -- where to point next elsif/else/endif
+        if NOLT=0 or bind or lint then
+            ltCtrl(iftop)
+        end if -- NOLT
+    end if
+
+    wasSideEffects = SideEffects
+    SideEffects = E_none
+    wasEmit = emitON
+    emitElse = emitON   -- (minor optimisation [cmp vs opJcc] 18/3/09)
+end if
+
+    iffvar = newTempVar(T_object,Shared)
+    MatchString(T_iff)
+    MatchChar('(')
+    Expr(0,asBool)
+--  if opTopIsOp then PopFactor() end if
+    jcc...iffvar
+    MatchChar(',')
+    Expr(0,asBool)
+--  if opTopIsOp then PopFactor() end if
+    RHStype = T_object
+    if not opTopIsOp and opsidx=1 then
+        RHStype = opstype[1]
+    end if
+    StoreVar(iffvar,RHStype)
+    jmp...
+    backpatch...
+    MatchChar(',')
+    Expr(0,asBool)
+    RHStype = T_object
+    if not opTopIsOp and opsidx=1 then
+        RHStype = opstype[1]
+    end if
+    StoreVar(iffvar,RHStype)
+    MatchChar(')')
+    backpatch...
+    PushFactor(iffvar,0,T_object)
+end procedure
+--*/
 
 procedure ForwardProc(integer isFunc)
 --
@@ -9010,6 +9066,10 @@ integer link
 
     Expr(0,asBool)
     if opTopIsOp then PopFactor() end if
+
+--28/9/15:
+    saveFunctionResultVars(opsidx,INTSTOO)
+
     N = opstack[opsidx]
 --DEV 1/11/2011:
 --  isLit = opsltrl[opsidx]
@@ -10049,11 +10109,11 @@ integer drop_scope = 0
                     if increaseScope(S_Block,-1) then end if
                 end if
                 if returnvar=-1 then    -- bugfix 9/9/15
-if emitON=0 then
-    -- this could be quite extensive; it is not just TopDecls() 
-    -- but also Assignment() and probably MultipleAssignment()...
-    Aborp("sorry, not (yet) supported under emitON=0")
-end if
+--if emitON=0 then
+--  -- TopDecls() has no emitON handling.
+--  -- Fixing this may be much simpler that I first feared.
+--  Aborp("sorry, not (yet) supported under emitON=0")
+--end if
                     TopDecls()
                 else
                     Locals()

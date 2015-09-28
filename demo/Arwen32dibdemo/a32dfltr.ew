@@ -9,7 +9,7 @@
 include a32dcore.ew
 include a32dcolr.ew
 
-global procedure filterDib(sequence dib, sequence matrix, integer div, integer bias)
+global procedure filterDib(a32Dib dib, sequence matrix, integer div, integer bias)
 -- Applies a matrix-filter to the bitmap:
 --  matrix is a 7x7 sequence with the multiplication-values
 --  div is the number to divide the result by
@@ -83,9 +83,9 @@ sequence color, linear_matrix, pointers_blue, pointers_green, pointers_red
     end for
 
     for y=1 to 2 do
-        mem_copy(temp_mem_blue , temp_mem_blue-new_width, new_width)  temp_mem_blue += new_width
+        mem_copy(temp_mem_blue , temp_mem_blue-new_width, new_width)   temp_mem_blue += new_width
         mem_copy(temp_mem_green, temp_mem_green-new_width, new_width)  temp_mem_green += new_width
-        mem_copy(temp_mem_red  , temp_mem_red-new_width, new_width)  temp_mem_red   += new_width
+        mem_copy(temp_mem_red  , temp_mem_red-new_width, new_width)    temp_mem_red += new_width
     end for
     -- copying data from bitmap to buffers finished
 
@@ -95,9 +95,9 @@ sequence color, linear_matrix, pointers_blue, pointers_green, pointers_red
     counter = 1  delta = 0
     for i=0 to 6 do
         for j=0 to 6 do
-            pointers_blue[counter] = mem_blue+delta
+            pointers_blue[counter]  = mem_blue+delta
             pointers_green[counter] = mem_green+delta
-            pointers_red[counter] = mem_red+delta
+            pointers_red[counter]   = mem_red+delta
             counter += 1
             delta   += 1
         end for
@@ -108,9 +108,9 @@ sequence color, linear_matrix, pointers_blue, pointers_green, pointers_red
         if linear_matrix[i]!=0 then
             matrix_length += 1
             linear_matrix[matrix_length] = linear_matrix[i]
-            pointers_blue[matrix_length] = pointers_blue[i]
+            pointers_blue[matrix_length]  = pointers_blue[i]
             pointers_green[matrix_length] = pointers_green[i]
-            pointers_red[matrix_length] = pointers_red[i]
+            pointers_red[matrix_length]   = pointers_red[i]
         end if
     end for
 
@@ -120,13 +120,13 @@ sequence color, linear_matrix, pointers_blue, pointers_green, pointers_red
             blue = 0  green = 0  red = 0
             for i=1 to matrix_length do -- X = sum_of(pointers_X[i] * matrix[i])
                 delta = linear_matrix[i]
-                blue  += peek(pointers_blue[i])*delta  pointers_blue[i] += 1
+                blue  += peek(pointers_blue[i])*delta   pointers_blue[i] += 1
                 green += peek(pointers_green[i])*delta  pointers_green[i] += 1
-                red   += peek(pointers_red[i])*delta  pointers_red[i] += 1
+                red   += peek(pointers_red[i])*delta    pointers_red[i] += 1
             end for -- X = floor(X / div) + bias
-            blue  = floor(blue/div)+bias  if blue<0 then blue  = 0 elsif blue>255 then blue = 255 end if
+            blue  = floor(blue/div)+bias   if blue<0 then  blue  = 0 elsif blue>255 then  blue = 255 end if
             green = floor(green/div)+bias  if green<0 then green = 0 elsif green>255 then green = 255 end if
-            red   = floor(red/div)+bias  if red<0 then red   = 0 elsif red>255 then red = 255 end if
+            red   = floor(red/div)+bias    if red<0 then   red   = 0 elsif red>255 then   red = 255 end if
             poke(temp_mem, {blue, green, red}) -- write the new pixel to the bitmap
             temp_mem += 3
         end for
@@ -144,7 +144,7 @@ sequence color, linear_matrix, pointers_blue, pointers_green, pointers_red
     free(mem_red)
 end procedure
 
-global procedure filterDibGray(sequence dib, sequence matrix, integer div, integer bias)
+global procedure filterDibGray(a32Dib dib, sequence matrix, integer div, integer bias)
 -- Makes the bitmap gray and applies a matrix-filter to it:
 --  matrix is a 7x7 sequence with the multiplication-values
 --  div is the number to divide the result by
@@ -248,7 +248,7 @@ sequence linear_matrix, pointers_gray
     free(mem_gray) -- free the buffer
 end procedure
 
-global procedure filterDib3x3(sequence dib, sequence matrix, integer div, integer bias)
+global procedure filterDib3x3(a32Dib dib, sequence matrix, integer div, integer bias)
 -- Applies a matrix-filter to the bitmap:
 --  matrix is a 3x3 sequence with the multiplication-values
 --  div is the number to divide the result by
@@ -375,7 +375,7 @@ sequence color, linear_matrix, pointers_blue, pointers_green, pointers_red
     free(mem_red)
 end procedure
 
-global procedure filterDibGray3x3(sequence dib, sequence matrix, integer div, integer bias)
+global procedure filterDibGray3x3(a32Dib dib, sequence matrix, integer div, integer bias)
 -- Makes the bitmap gray and applies a matrix-filter to it:
 --  matrix is a 3x3 sequence with the multiplication-values
 --  div is the number to divide the result by
@@ -472,21 +472,21 @@ sequence linear_matrix, pointers_gray
     free(mem_gray) -- free the buffer
 end procedure
 
-global procedure detectDibEdges(sequence dib)
+global procedure detectDibEdges(a32Dib dib)
 -- Applies an edge detection-filter to the bitmap, showing the edges in the image
     filterDibGray3x3(dib, {{-1, -1, -1},
                            {-1,  8, -1},
                            {-1, -1, -1}}, 1, 0)
 end procedure
 
-global procedure sharpenDib(sequence dib)
+global procedure sharpenDib(a32Dib dib)
 -- Makes the bitmap a bit sharper, using a filter
     filterDib3x3(dib, {{-1, -1, -1},
                        {-1, 12, -1},
                        {-1, -1, -1}}, 4, 0)
 end procedure
 
-global procedure subtleSharpenDib(sequence dib)
+global procedure subtleSharpenDib(a32Dib dib)
 -- Makes the bitmap a bit sharper, using a filter
 --  This routine is faster than sharpenDib, and the
 --  result is less sharp
@@ -495,14 +495,14 @@ global procedure subtleSharpenDib(sequence dib)
                        { 0, -1,  0}}, 4, 0)
 end procedure
 
-global procedure blurDib(sequence dib)
+global procedure blurDib(a32Dib dib)
 -- Makes the bitmap a bit less sharp, using a filter
     filterDib3x3(dib, {{1, 1, 1},
                        {1, 3, 1},
                        {1, 1, 1}}, 11, 0)
 end procedure
 
-global procedure subtleBlurDib(sequence dib)
+global procedure subtleBlurDib(a32Dib dib)
 -- Makes the bitmap a bit less sharp, using a filter
 --  This routine is faster than blurDib, and the result
 --  is less blurry
@@ -511,7 +511,7 @@ global procedure subtleBlurDib(sequence dib)
                        {0, 1, 0}}, 8, 0)
 end procedure
 
-global procedure embossDib(sequence dib, sequence bgcolor)
+global procedure embossDib(a32Dib dib, a32Colour bgcolor)
 -- Embosses the bitmap, with a background color bgcolor
     if bgcolor[1]=bgcolor[2] and bgcolor[2]=bgcolor[3] then -- gray background color
         filterDibGray3x3(dib, {{-1, 0, 0},

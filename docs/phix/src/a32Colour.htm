@@ -1,0 +1,120 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">a32Colour</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica"> integer i = a32Colour(object x)
+          </font>
+          <br>
+             or ...
+          <br>
+          <font face = "Arial, Helvetica"> a32Colour <i>identifier</i>
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Return 1 if x is an a32Colour else return 0.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            This serves to define the a32Colour type. You can also call it like an ordinary function to determine if an object is an a32Colour.
+            <br>
+            <br>
+            The raw data of the bitmap is 24 bits per pixel, stored as #bb,#gg,#rr, as required by the operating system primitives 
+            (such as gdi32.dll/BitBlt). These are held by arwen32dib as a sequence of 3 integers, each in the range 0 to 255:
+            <ul>
+                <li><code>colour[1]</code> is Blue.
+                <li><code>colour[2]</code> is Green.
+                <li><code>colour[3]</code> is Red.
+            </ul>
+            Note that colours are often defined elsewhere (other graphics libraries) in the order RGB, but throughout arwen32dib they are BGR.
+            <br>
+            <br>
+            Variables declared with the user defined type a32Colour can be used to store the above.
+            <br>
+            <br>
+            One routine in particular, getDibPixel(), can return 0 if the provided co-ordinates are outside the bitmap, and like 
+            a32Dib0 you can use the type <b>a32Colour0</b> to store the results from getDibPixel, as long as you test for a zero before 
+            attempting to subscript it. Without said test it is better to store it in an a32Colour variable, as there is little 
+            difference to terminating with a typecheck, or with an attempt to subscript an atom, except that the typecheck makes 
+            it just that little bit more obvious what went wrong.
+            <br>
+            <br>
+            The value for each of the 3 colours is technically an integer in the range of 0 (no intensity) to 255 (full intensity).
+            However, manipulations may often produce values outside this range, or fractional values, and further since any final 
+            <a href="poke.htm">poke</a>() performs an implicit <a href="and_bits.htm">and_bits</a>(x,#FF), the individual colours 
+            are in fact only verified to be atoms.
+            <br>
+            <br>
+            To create a colour, simply create a {blue, green, red} sequence, or, if you are used to working with RGB-colours
+            rather than BGR-colurs, you may prefer to use the <a href="dibColor.htm">dibColor</a>(integer red, integer green, integer blue) function.
+            The contents of arwen\axtra.ew\ColourTuples are also in the same BGR format as a32Colour, for the same reasons as 
+            arwen32dib, and can be retrieved using GetNamedColour(string name).
+            <br>
+            <br>
+            Any performance overhead from type checking <i>of parameters</i> is likely to be neglible, compared to a per-pixel
+            typecheck, for which this type is <i>not</i> recommended: after inital debugging use a plain sequence or object instead. 
+            For instance it makes perfect sense to validate the color parameter of colorizeDib() (as defined in a32dcolr.ew), but 
+            not really the private internal variables orig_color and new_color of that routine (once we know it works).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+a32Colour color
+
+color = dibColor(255,   0,   0) -- full red, no green, no blue     => bright red
+color = dibColor(255, 255,   0) -- full red, full green, no blue   => bright yellow
+color = dibColor(  0,   0,   0) -- no red, no green, no blue       => black
+color = dibColor(255, 255, 255) -- full red, full green, full blue => bright white
+color = dibColor(  0, 127, 255) -- no red, half green, full blue   => some kind of cyan
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">a32Colour</font><font color="#000000"> color
+
+color</font><font color="#0000FF"> =</font><font color="#800080"> dibColor</font><font color="#0000FF">(</font><font color="#000000">255</font><font color="#0000FF">,  </font><font color="#000000"> 0</font><font color="#0000FF">,  </font><font color="#000000"> 0</font><font color="#0000FF">)</font><font color="#000080"><i> -- full red, no green, no blue     =&gt; bright red
+</i></font><font color="#000000">color</font><font color="#0000FF"> =</font><font color="#800080"> dibColor</font><font color="#0000FF">(</font><font color="#000000">255</font><font color="#0000FF">,</font><font color="#000000"> 255</font><font color="#0000FF">,  </font><font color="#000000"> 0</font><font color="#0000FF">)</font><font color="#000080"><i> -- full red, full green, no blue   =&gt; bright yellow
+</i></font><font color="#000000">color</font><font color="#0000FF"> =</font><font color="#800080"> dibColor</font><font color="#0000FF">( </font><font color="#000000"> 0</font><font color="#0000FF">,  </font><font color="#000000"> 0</font><font color="#0000FF">,  </font><font color="#000000"> 0</font><font color="#0000FF">)</font><font color="#000080"><i> -- no red, no green, no blue       =&gt; black
+</i></font><font color="#000000">color</font><font color="#0000FF"> =</font><font color="#800080"> dibColor</font><font color="#0000FF">(</font><font color="#000000">255</font><font color="#0000FF">,</font><font color="#000000"> 255</font><font color="#0000FF">,</font><font color="#000000"> 255</font><font color="#0000FF">)</font><font color="#000080"><i> -- full red, full green, full blue =&gt; bright white
+</i></font><font color="#000000">color</font><font color="#0000FF"> =</font><font color="#800080"> dibColor</font><font color="#0000FF">( </font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000"> 127</font><font color="#0000FF">,</font><font color="#000000"> 255</font><font color="#0000FF">)</font><font color="#000080"><i> -- no red, half green, full blue   =&gt; some kind of cyan</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="a32Dib.htm">a32Dib</a>
+          <a href="dibColor.htm">dibColor</a>
+         </td>
+        </tr>
+       </table>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

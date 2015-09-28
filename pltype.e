@@ -1270,8 +1270,14 @@ sequence optxt
 --                                                  if symtab[vno][S_ltype]!=Ltype then ?9/0 end if
                         --                      Ltype = xor_bits(Ltype,T_object)
                         if Ltype>T_object then ?9/0 end if
+if 0 then -- 23/9/15.
                         if lptyp[ldx]>T_object then ?9/0 end if
                         Ltype = xor_bits(Ltype,lptyp[ldx])
+else
+--                      Ltype = xor_bits(Ltype,rootType(lptyp[ldx]))
+                        ptype = lptyp[ldx]
+                        Ltype = xor_bits(Ltype,rootType(ptype))
+end if
 --if diag and ltypetoo then
 --  dprintf("ltFlip(1276): symtab[%d][S_ltype] = %d\n",{vno,Ltype})
 --end if

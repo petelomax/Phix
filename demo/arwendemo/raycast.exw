@@ -1,0 +1,928 @@
+--
+-- raycast.exw
+-- ============
+--
+-- Technical notes:
+--  I use gdiplus to load the images, because that has jpg/png support, into
+--  standard windows bitmaps (created using xCreateCompatibleBitmap), and 
+--  then use standard windows API for all rendering, not because I think
+--  there is anything lacking in gdiplus, but because I never learnt all
+--  the 600-odd entry points of the undocumented unsupported flat API.
+--
+
+include ..\arwen\arwen.ew
+include ..\arwen\axtra.ew
+
+--DEV make this depend on screen size..
+--constant main = create(Window, "Raycast demo", 0, 0, 20, 20, 625, 690, 0),
+constant main = create(Window, "Raycast demo", 0, 0, 20, 20, 1865, 930, 0),
+         mainDC = getPrivateDC(main),
+         backDC = c_func(xCreateCompatibleDC, {NULL}),  -- the background
+         handDC = c_func(xCreateCompatibleDC, {NULL}),  -- the hand/weapon
+         wallDC = c_func(xCreateCompatibleDC, {NULL}),  -- the wall
+--       gradDC = c_func(xCreateCompatibleDC, {NULL}),  -- wall-sized gradient
+         darkDC = c_func(xCreateCompatibleDC, {NULL}),  -- the wall, gradient-darkened
+         viewDC = c_func(xCreateCompatibleDC, {NULL})   -- with animation etc
+
+integer backWidth, backHeight, handWidth, handHeight, wallWidth, wallHeight
+atom bmBack, bmHand, bmWall, bmView, bmDark
+
+
+constant MainTimer = createTimer()
+
+integer bmX = 0, bmY = 0    -- actual size of the view bitmap
+
+function LoadGraphics(sequence FilePath, atom hDC, integer mult)
+-- load a file via gdiplus and copy it to a standard bitmap
+integer width,height
+atom pImage, pGraphics, hBitmap
+
+    pImage = GdipLoadImageFromFile(FilePath)
+
+    width = GdipGetImageWidth(pImage)
+    height = GdipGetImageHeight(pImage)
+    if mult=1 then
+        width = floor(width*2.6)
+        height = floor(height*1.3)
+--better effect by doping it in transBlt
+--  elsif mult=2 then
+--      width = floor(width*1)
+--      height = floor(height*1)
+    end if
+
+    hBitmap = c_func(xCreateCompatibleBitmap, {mainDC, width, height})
+--  {} = deleteObject(selectObject(hDC,hBitmap))
+    {} = selectObject(hDC,hBitmap)
+
+    pGraphics = GdipCreateFromHDC(hDC)
+
+    GdipDrawImageRectI(pGraphics,pImage,0,0,width,height)
+
+    GdipDisposeImage(pImage)
+    GdipDeleteGraphics(pGraphics)
+
+    return {hBitmap,width,height}
+end function
+
+integer bX = 0
+
+integer dw = 0, dh = 0  -- client size
+
+
+constant
+    xPlgBlt = link_c_func(gdi32,"PlgBlt",
+        {C_PTR,     --  _In_    HDC hdcDest,
+         C_PTR,     --  _In_    const POINT *lpPoint,
+         C_PTR,     --  _In_    HDC hdcSrc,
+         C_INT,     --  _In_    int nXSrc,
+         C_INT,     --  _In_    int nYSrc,
+         C_INT,     --  _In_    int nWidth,
+         C_INT,     --  _In_    int nHeight,
+         C_PTR,     --  _In_    HBITMAP hbmMask,
+         C_INT,     --  _In_    int xMask,
+         C_INT},    --  _In_    int yMask
+        C_INT),     -- BOOL
+    pPoints = allocate(8*6)
+    poke4(pPoints,{100,100,400,20,20,800})
+
+--integer shown = 01
+procedure darken(atom pBits, integer h, integer w, integer il, integer ir)
+-- shade h lines of w pixels from intensity il to ir.
+sequence rgb, dx
+integer d, v
+if il or ir then end if
+--  if not shown then
+--      printf(1,"hDC=#%08x\n",pBitmap)
+----        printf(1,"[%08x]=#%08x\n",{pBitmap,peek4u(pBitmap)})
+--      shown = 1
+--  end if
+if 01 then
+    dx = repeat(0,w)
+    for x=1 to w do
+        dx[x] = floor((il*(w-x)+ir*(x-1))/w)
+    end for
+    for y=1 to h do
+        for x=1 to w do
+--if remainder(floor(y/8),2) then
+            rgb = peek({pBits,3})
+            d = dx[x]--floor((il*(w-x)+ir*(x-1))/w)
+--          a -= ??
+            for i=1 to 3 do
+                v = rgb[i]-d
+                if v<0 then v = 0 end if
+                rgb[i] = v
+            end for
+--          rgb = {r,g,b}
+            poke(pBits,rgb)
+--end if
+            pBits += 3
+        end for
+    end for
+else
+    poke4(pBits,repeat(-1,100))
+end if
+end procedure
+
+atom pBits
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+integer x, y, h, bY--, bX
+    if msg=WM_SIZE then
+        {{},{},dw,dh} = getClientRect(main)
+        if dw>bmX or dh>bmY then
+            -- we need a bigger bitmap
+            bmView = c_func(xCreateCompatibleBitmap, {mainDC, dw, dh})
+            {} = deleteObject(selectObject(viewDC,bmView))
+            {bmX,bmY} = {dw,dh}
+        end if
+--      setText(main,sprintf("{%d,%d}",{dw,dh}))
+    elsif msg=WM_PAINT then
+        -- start with a fresh copy of the background
+        if backHeight<dh then
+            y = floor((dh-backHeight)/2)
+            setPenColor(0)
+            drawRectangleh(viewDC, True, 0, 0, dw, dh)
+            h = backHeight
+            bY = 0
+        else
+            y = 0
+            h = dh
+            bY = floor((backHeight-dh)/2)
+        end if
+        void = c_func(xBitBlt,{viewDC,0,y,dw,h,backDC,bX,bY,SRCCOPY})
+        if backWidth-bX<dw then
+            void = c_func(xBitBlt,{viewDC,backWidth-bX-2,y,dw,h,backDC,0,bY,SRCCOPY})
+        end if
+--      void = c_func(xStretchBlt,{viewDC,0,0,dw,dh,backDC,0,0,backWidth,backHeight,SRCCOPY}) --no!
+        -- do your own drawing here! (eg rosetta/animate_pendulum.exw)
+--      setPenColor(#909090)
+--      drawRectangleh(viewDC, False, 10, 10, dw/2, dh/2)
+
+        void = c_func(xBitBlt,{darkDC,0,0,wallWidth,wallHeight,wallDC,0,0,SRCCOPY})
+--      void = c_func(xBitBlt,{darkDC,0,0,wallWidth,wallHeight,gradDC,0,0,SRCCOPY})
+--      void = c_func(xAlphaBlend,{darkDC,0,0,wallWidth,wallHeight,gradDC,0,0,wallWidth,wallHeight,#00D00000})
+--      void = c_func(xAlphaBlend,{darkDC,0,0,wallWidth,wallHeight,wallDC,0,0,wallWidth,wallHeight,#00FF0000})
+--      void = c_func(xBitBlt,{darkDC,0,0,wallWidth,wallHeight,gradDC,0,0,SRCERASE})
+--darken(pBits,wallHeight,wallWidth,0,255)
+darken(pBits,wallHeight,wallWidth,0,255)
+--?void
+
+        void = c_func(xPlgBlt,{viewDC,pPoints,darkDC,0,0,wallWidth,wallHeight,NULL,0,0})
+--      void = c_func(xPlgBlt,{viewDC,pPoints,gradDC,0,0,wallWidth,wallHeight,NULL,0,0})
+
+        x = floor(dw*0.66)
+        y = dh-handHeight-85
+--      void = c_func(xGdiTransparentBlt,{viewDC,x,y,handWidth*2.35,handHeight*2.35,handDC,0,0,handWidth,handHeight,0})
+        void = c_func(xGdiTransparentBlt,{viewDC,x,y,handWidth*2,handHeight*2,handDC,0,0,handWidth,handHeight,0})
+--      void = c_func(xStretchBlt,{viewDC,x,y,handWidth*2,handHeight*2,handDC,0,0,handWidth,handHeight,SRCPAINT})
+--      void = c_func(xStretchBlt,{viewDC,x,y,handWidth*2,handHeight*2,handDC,0,0,handWidth,handHeight,SRCINVERT})
+--?void
+--DEV save the viewDC here for rain effects[?]
+        void = c_func(xBitBlt,{mainDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
+    elsif msg=WM_TIMER then
+        repaintWindow(main)
+--DEV no good for maximised...
+--  elsif msg=WM_SHOWWINDOW then
+----        loadBack()
+--?99
+--      GdipInitialize()
+--      {bmBack,backWidth,backHeight} = LoadGraphics("..\\raycast\\deathvalley_panorama.jpg",backDC)
+--      {bmHand,handWidth,handHeight} = LoadGraphics("..\\raycast\\knife_hand.png",handDC)
+--      {bmWall,wallWidth,wallHeight} = LoadGraphics("..\\raycast\\wall_texture.jpg",wallDC)
+--      GdipUninitialize()
+--      startTimer(MainTimer,main,40)
+--void = sendMessage(main,WM_SIZE,0,0)
+    elsif msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(main)
+        if id or object(lParam) then end if -- suppress warnings
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_LEFT then
+            bX -= 90
+            if bX<0 then bX += backWidth end if
+--          setText(main,sprintf("bX=%d",bX))
+            repaintWindow(main)
+        elsif wParam=VK_RIGHT then
+            bX += 90
+            if bX>=backWidth then bX -= backWidth end if
+--          setText(main,sprintf("bX=%d",bX))
+            repaintWindow(main)
+        end if
+    end if
+    return 0
+end function
+setHandler({main},routine_id("mainHandler"))
+
+GdipInitialize()
+{bmBack,backWidth,backHeight} = LoadGraphics("..\\raycast\\deathvalley_panorama.jpg",backDC,1)
+{bmHand,handWidth,handHeight} = LoadGraphics("..\\raycast\\knife_hand.png",handDC,2)
+{bmWall,wallWidth,wallHeight} = LoadGraphics("..\\raycast\\wall_texture.jpg",wallDC,0)
+GdipUninitialize()
+constant sizeofBMI = sizeofstruct(BITMAPINFOHEADER)
+atom pBMI = allocate(sizeofBMI)
+atom ppvBits = allocate(4)
+    mem_set(pBMI,0,sizeofBMI)
+--palSize = 0   bpp = 24
+    poke4(pBMI+BIH_biSize, sizeofBMI)
+    poke4(pBMI+BIH_biWidth, wallWidth)      -- Width in pixels.
+    poke4(pBMI+BIH_biHeight, -wallHeight)   -- Height in pixels (-ve=topdown).
+    poke2(pBMI+BIH_biPlanes, 1)             -- 1 colour plane. (always)
+    poke2(pBMI+BIH_biBitCount, 24)          -- no. of bits per pixel (0, 1, 4, 8, 16, 24, 32)
+    poke4(pBMI+BIH_biCompression, BI_RGB)   -- compression format - none in this case
+    poke4(pBMI+BIH_biSizeImage, 0)          -- size in bytes of image, set to 0 (unneeded) if no compression
+    poke4(pBMI+BIH_biXPelsPerMeter, 0)      -- Not needed
+    poke4(pBMI+BIH_biYPelsPerMeter, 0)      -- Not needed
+    poke4(pBMI+BIH_biClrUsed, 0)            -- colours actually used by the bitmap
+    poke4(pBMI+BIH_biClrImportant, 0)       -- no. colours needed to display image, 0=all
+
+--  bmDark = c_func(xCreateCompatibleBitmap, {mainDC, wallWidth, wallHeight})
+    bmDark = c_func(xCreateDIBSection, {mainDC, pBMI, DIB_RGB_COLORS, ppvBits, NULL, 0})
+    pBits = peek4u(ppvBits)
+--  {} = deleteObject(selectObject(darkDC,hBitmap))
+    {} = selectObject(darkDC,bmDark)
+--/*
+    hBitmap = c_func(xCreateCompatibleBitmap, {mainDC, wallWidth, wallHeight})
+    {} = selectObject(gradDC,hBitmap)
+    --DEV actually, this will depend on the distance...
+atom pTRIVERTEX = allocate(32),
+     pGRADRECT = allocate(8)
+    poke4(pGRADRECT,{0,1})
+--  poke4(pTRIVERTEX,{0,0,#00808000,0,wallWidth,wallHeight,#00D0D000,0})
+--  poke4(pTRIVERTEX,{0,0,#00800000,#00000000,wallHeight,wallWidth,#00000000,#00000000})
+--  poke4(pTRIVERTEX,{0,0,#80008000,#00008000,wallWidth,wallHeight,#00000000,#00000000})
+    poke4(pTRIVERTEX,{0,0,#00000000,#00000000,wallWidth,wallHeight,#80008000,#00808000})
+
+constant 
+    GRADIENT_FILL_RECT_H = 0,
+--  GRADIENT_FILL_RECT_V = 1,
+--  GRADIENT_FILL_TRIANGLE = 2
+$
+    void = c_func(xGradientFill,{gradDC,pTRIVERTEX,2,pGRADRECT,1,GRADIENT_FILL_RECT_H})
+    ?void
+--*/
+
+--/*
+
+
+
+// Create an array of TRIVERTEX structures that describe 
+// positional and color values for each vertex. For a rectangle, 
+// only two vertices need to be defined: upper-left and lower-right. 
+TRIVERTEX vertex[2] ;
+vertex[0].x     = 0;
+vertex[0].y     = 0;
+vertex[0].Red   = 0x0000;
+vertex[0].Green = 0x8000;
+vertex[0].Blue  = 0x8000;
+vertex[0].Alpha = 0x0000;
+
+vertex[1].x     = 300;
+vertex[1].y     = 80; 
+vertex[1].Red   = 0x0000;
+vertex[1].Green = 0xd000;
+vertex[1].Blue  = 0xd000;
+vertex[1].Alpha = 0x0000;
+
+// Create a GRADIENT_RECT structure that 
+// references the TRIVERTEX vertices. 
+GRADIENT_RECT gRect;
+gRect.UpperLeft  = 0;
+gRect.LowerRight = 1;
+
+// Draw a shaded rectangle. 
+GradientFill(hdc, vertex, 2, &gRect, 1, GRADIENT_FILL_RECT_H);
+           
+    xGdiGradientFill = link_c_func(gdiplus,"GdiGradientFill",
+        {C_PTR,     --  _In_    HDC hdc,
+         C_PTR,     --  _In_    PTRIVERTEX pVertex,
+         C_INT,     --  _In_    ULONG dwNumVertex,
+         C_PTR,     --  _In_    PVOID pMesh,
+         C_INT,     --  _In_    ULONG dwNumMesh,
+         C_INT},    --  _In_    ULONG dwMode
+        C_INT),     -- BOOL
+
+--*/
+
+startTimer(MainTimer,main,40)
+
+--WinMain(main, SW_NORMAL)
+WinMain(main, SW_MAXIMIZE)
+
+--/* js:
+constant CIRCLE = PI*2
+
+      function Controls() {
+        this.codes  = { 37: 'left', 39: 'right', 38: 'forward', 40: 'backward' };
+        this.states = { 'left': false, 'right': false, 'forward': false, 'backward': false };
+        document.addEventListener('keydown', this.onKey.bind(this, true), false);
+        document.addEventListener('keyup', this.onKey.bind(this, false), false);
+      }
+
+      Controls.prototype.onKey = function(val, e) {
+        var state = this.codes[e.keyCode];
+        if (typeof state === 'undefined') return;
+        this.states[state] = val;
+        e.preventDefault && e.preventDefault();
+        e.stopPropagation && e.stopPropagation();
+      };
+
+      function Bitmap(src, width, height) {
+        this.image = new Image();
+        this.image.src = src;
+        this.width = width;
+        this.height = height;
+      }
+      
+      function Player(x, y, direction) {
+        this.x = x;
+        this.y = y;
+        this.direction = direction;
+        this.weapon = new Bitmap('assets/knife_hand.png', 319, 320);
+        this.paces = 0;
+      }
+
+      Player.prototype.rotate = function(angle) {
+        this.direction = (this.direction + angle + CIRCLE) % (CIRCLE);
+      };
+
+      Player.prototype.walk = function(distance, map) {
+        var dx = Math.cos(this.direction) * distance;
+        var dy = Math.sin(this.direction) * distance;
+        if (map.get(this.x + dx, this.y) <= 0) this.x += dx;
+        if (map.get(this.x, this.y + dy) <= 0) this.y += dy;
+        this.paces += distance;
+      };
+
+      Player.prototype.update = function(controls, map, seconds) {
+        if (controls.left) this.rotate(-Math.PI * seconds);
+        if (controls.right) this.rotate(Math.PI * seconds);
+        if (controls.forward) this.walk(3 * seconds, map);
+        if (controls.backward) this.walk(-3 * seconds, map);
+      };
+
+      function Map(size) {
+        this.size = size;
+        this.wallGrid = new Uint8Array(size * size);
+        this.skybox = new Bitmap('assets/deathvalley_panorama.jpg', 2000, 750);
+        this.wallTexture = new Bitmap('assets/wall_texture.jpg', 1024, 1024);
+        this.light = 0;
+      }
+
+      Map.prototype.get = function(x, y) {
+        x = Math.floor(x);
+        y = Math.floor(y);
+        if (x < 0 || x > this.size - 1 || y < 0 || y > this.size - 1) return -1;
+        return this.wallGrid[y * this.size + x];
+      };
+
+      Map.prototype.randomize = function() {
+        for (var i = 0; i < this.size * this.size; i++) {
+          this.wallGrid[i] = Math.random() < 0.3 ? 1 : 0;
+        }
+      };
+
+      Map.prototype.cast = function(point, angle, range) {
+        var self = this;
+        var sin = Math.sin(angle);
+        var cos = Math.cos(angle);
+        var noWall = { length2: Infinity };
+
+        return ray({ x: point.x, y: point.y, height: 0, distance: 0 });
+
+        function ray(origin) {
+          var stepX = step(sin, cos, origin.x, origin.y);
+          var stepY = step(cos, sin, origin.y, origin.x, true);
+          var nextStep = stepX.length2 < stepY.length2
+            ? inspect(stepX, 1, 0, origin.distance, stepX.y)
+            : inspect(stepY, 0, 1, origin.distance, stepY.x);
+
+          if (nextStep.distance > range) return [origin];
+          return [origin].concat(ray(nextStep));
+        }
+
+        function step(rise, run, x, y, inverted) {
+          if (run === 0) return noWall;
+          var dx = run > 0 ? Math.floor(x + 1) - x : Math.ceil(x - 1) - x;
+          var dy = dx * (rise / run);
+          return {
+            x: inverted ? y + dy : x + dx,
+            y: inverted ? x + dx : y + dy,
+            length2: dx * dx + dy * dy
+          };
+        }
+
+        function inspect(step, shiftX, shiftY, distance, offset) {
+          var dx = cos < 0 ? shiftX : 0;
+          var dy = sin < 0 ? shiftY : 0;
+          step.height = self.get(step.x - dx, step.y - dy);
+          step.distance = distance + Math.sqrt(step.length2);
+          if (shiftX) step.shading = cos < 0 ? 2 : 0;
+          else step.shading = sin < 0 ? 2 : 1;
+          step.offset = offset - Math.floor(offset);
+          return step;
+        }
+      };
+
+      Map.prototype.update = function(seconds) {
+        if (this.light > 0) this.light = Math.max(this.light - 10 * seconds, 0);
+        else if (Math.random() * 5 < seconds) this.light = 2;
+      };
+
+      function Camera(canvas, resolution, focalLength) {
+        this.ctx = canvas.getContext('2d');
+        this.width = canvas.width = window.innerWidth * 0.5;
+        this.height = canvas.height = window.innerHeight * 0.5;
+        this.resolution = resolution;
+        this.spacing = this.width / resolution;
+        this.focalLength = focalLength || 0.8;
+        this.range = 14;
+        this.lightRange = 5;
+        this.scale = (this.width + this.height) / 1200;
+      }
+
+      Camera.prototype.render = function(player, map) {
+        this.drawSky(player.direction, map.skybox, map.light);
+        this.drawColumns(player, map);
+        this.drawWeapon(player.weapon, player.paces);
+      };
+
+      Camera.prototype.drawSky = function(direction, sky, ambient) {
+        var width = sky.width * (this.height / sky.height) * 2;
+        var left = (direction / CIRCLE) * -width;
+
+        this.ctx.save();
+        this.ctx.drawImage(sky.image, left, 0, width, this.height);
+        if (left < width - this.width) {
+          this.ctx.drawImage(sky.image, left + width, 0, width, this.height);
+        }
+        if (ambient > 0) {
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.globalAlpha = ambient * 0.1;
+          this.ctx.fillRect(0, this.height * 0.5, this.width, this.height * 0.5);
+        }
+        this.ctx.restore();
+      };
+
+      Camera.prototype.drawColumns = function(player, map) {
+        this.ctx.save();
+        for (var column = 0; column < this.resolution; column++) {
+          var x = column / this.resolution - 0.5;
+          var angle = Math.atan2(x, this.focalLength);
+          var ray = map.cast(player, player.direction + angle, this.range);
+          this.drawColumn(column, ray, angle, map);
+        }
+        this.ctx.restore();
+      };
+
+      Camera.prototype.drawWeapon = function(weapon, paces) {
+        var bobX = Math.cos(paces * 2) * this.scale * 6;
+        var bobY = Math.sin(paces * 4) * this.scale * 6;
+        var left = this.width * 0.66 + bobX;
+        var top = this.height * 0.6 + bobY;
+        this.ctx.drawImage(weapon.image, left, top, weapon.width * this.scale, weapon.height * this.scale);
+      };
+
+      Camera.prototype.drawColumn = function(column, ray, angle, map) {
+        var ctx = this.ctx;
+        var texture = map.wallTexture;
+        var left = Math.floor(column * this.spacing);
+        var width = Math.ceil(this.spacing);
+        var hit = -1;
+
+        while (++hit < ray.length && ray[hit].height <= 0);
+
+        for (var s = ray.length - 1; s >= 0; s--) {
+          var step = ray[s];
+          var rainDrops = Math.pow(Math.random(), 3) * s;
+          var rain = (rainDrops > 0) && this.project(0.1, angle, step.distance);
+
+          if (s === hit) {
+            var textureX = Math.floor(texture.width * step.offset);
+            var wall = this.project(step.height, angle, step.distance);
+
+            ctx.globalAlpha = 1;
+            ctx.drawImage(texture.image, textureX, 0, 1, texture.height, left, wall.top, width, wall.height);
+            
+            ctx.fillStyle = '#000000';
+            ctx.globalAlpha = Math.max((step.distance + step.shading) / this.lightRange - map.light, 0);
+            ctx.fillRect(left, wall.top, width, wall.height);
+          }
+          
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = 0.15;
+          while (--rainDrops > 0) ctx.fillRect(left, Math.random() * rain.top, 1, rain.height);
+        }
+      };
+
+      Camera.prototype.project = function(height, angle, distance) {
+        var z = distance * Math.cos(angle);
+        var wallHeight = this.height * height / z;
+        var bottom = this.height / 2 * (1 + 1 / z);
+        return {
+          top: bottom - wallHeight,
+          height: wallHeight
+        }; 
+      };
+
+      function GameLoop() {
+        this.frame = this.frame.bind(this);
+        this.lastTime = 0;
+        this.callback = function() {};
+      }
+
+      GameLoop.prototype.start = function(callback) {
+        this.callback = callback;
+        requestAnimationFrame(this.frame);
+      };
+
+      GameLoop.prototype.frame = function(time) {
+        var seconds = (time - this.lastTime) / 1000;
+        this.lastTime = time;
+        if (seconds < 0.2) this.callback(seconds);
+        requestAnimationFrame(this.frame);
+      };
+
+      var display = document.getElementById('display');
+      var player = new Player(15.3, -1.2, Math.PI * 0.3);
+      var map = new Map(32);
+      var controls = new Controls();
+      var camera = new Camera(display, 320, 0.8);
+      var loop = new GameLoop();
+
+      map.randomize();
+      
+      loop.start(function frame(seconds) {
+        map.update(seconds);
+        player.update(controls.states, map, seconds);
+        camera.render(player, map);
+      });
+--*/
+--/* py:
+constant CIRCLE = PI*2
+
+CAPTION = "Ray-Casting with Python"
+SCREEN_SIZE = (1200, 600)
+SCALE = (SCREEN_SIZE[0]+SCREEN_SIZE[1])/1200.0
+FIELD_OF_VIEW = math.pi*0.4
+NO_WALL = float("inf")
+RAIN_COLOR = (255, 255, 255, 40)
+
+
+# Semantically meaningful tuples for use in GameMap and Camera class.
+RayInfo = namedtuple("RayInfo", ["sin", "cos"])
+WallInfo = namedtuple("WallInfo", ["top", "height"])
+
+
+class Image(object):
+    """A very basic class that couples an image with its dimensions"""
+    def __init__(self, image):
+        """
+        The image argument is a preloaded and converted pg.Surface object.
+        """
+        self.image = image
+        self.width, self.height = self.image.get_size()
+
+
+class Player(object):
+    """Handles the player's position, rotation, and control."""
+    def __init__(self, x, y, direction):
+        """
+        The arguments x and y are floating points.  Anything between zero
+        and the game map size is on our generated map.
+        Choosing a point outside this range ensures our player doesn't spawn
+        inside a wall.  The direction argument is the initial angle (given in
+        radians) of the player.
+        """
+        self.x = x
+        self.y = y
+        self.direction = direction
+        self.speed = 3 # Map cells per second.
+        self.rotate_speed = CIRCLE/2  # 180 degrees in a second.
+        self.weapon = Image(IMAGES["knife"])
+        self.paces = 0 # Used for weapon placement.
+
+    def rotate(self, angle):
+        """Change the player's direction when appropriate key is pressed."""
+        self.direction = (self.direction+angle+CIRCLE)%CIRCLE
+
+    def walk(self, distance, game_map):
+        """
+        Calculate the player's next position, and move if he will
+        not end up inside a wall.
+        """
+        dx = math.cos(self.direction)*distance
+        dy = math.sin(self.direction)*distance
+        if game_map.get(self.x+dx, self.y) <= 0:
+            self.x += dx
+        if game_map.get(self.x, self.y+dy) <= 0:
+            self.y += dy
+        self.paces += distance
+
+    def update(self, keys, dt, game_map):
+        """Execute movement functions if the appropriate key is pressed."""
+        if keys[pg.K_LEFT]:
+            self.rotate(-self.rotate_speed*dt)
+        if keys[pg.K_RIGHT]:
+            self.rotate(self.rotate_speed*dt)
+        if keys[pg.K_UP]:
+            self.walk(self.speed*dt, game_map)
+        if keys[pg.K_DOWN]:
+            self.walk(-self.speed*dt, game_map)
+
+
+class GameMap(object):
+    """
+    A class to generate a random map for us; handle ray casting;
+    and provide a method of detecting colissions.
+    """
+    def __init__(self, size):
+        """
+        The size argument is an integer which tells us the width and height
+        of our game grid.  For example, a size of 32 will create a 32x32 map.
+        """
+        self.size = size
+        self.wall_grid = self.randomize()
+        self.sky_box = Image(IMAGES["sky"])
+        self.wall_texture = Image(IMAGES["texture"])
+        self.light = 0
+
+    def get(self, x, y):
+        """A method to check if a given coordinate is colliding with a wall."""
+        point = (int(math.floor(x)), int(math.floor(y)))
+        return self.wall_grid.get(point, -1)
+
+    def randomize(self):
+        """
+        Generate our map randomly.  In the code below their is a 30% chance
+        of a cell containing a wall.
+        """
+        coordinates = itertools.product(range(self.size), repeat=2)
+        return {coord : random.random()<0.3 for coord in coordinates}
+
+    def cast_ray(self, point, angle, cast_range):
+        """
+        The meat of our ray casting program.  Given a point,
+        an angle (in radians), and a maximum cast range, check if any
+        collisions with the ray occur.  Casting will stop if a collision is
+        detected (cell with greater than 0 height), or our maximum casting
+        range is exceeded without detecting anything.
+        """
+        info = RayInfo(math.sin(angle), math.cos(angle))
+        origin = Point(point)
+        ray = [origin]
+        while origin.height <= 0 and origin.distance <= cast_range:
+            dist = origin.distance
+            step_x = origin.step(info.sin, info.cos)
+            step_y = origin.step(info.cos, info.sin, invert=True)
+            if step_x.length < step_y.length:
+                next_step = step_x.inspect(info, self, 1, 0, dist, step_x.y)
+            else:
+                next_step = step_y.inspect(info, self, 0, 1, dist, step_y.x)
+            ray.append(next_step)
+            origin = next_step
+        return ray
+
+    def update(self, dt):
+        """Adjust ambient lighting based on time."""
+        if self.light > 0:
+            self.light = max(self.light-10*dt, 0)
+        elif random.random()*5 < dt:
+            self.light = 2
+
+
+class Point(object):
+    """
+    A fairly basic class to assist us with ray casting.  The return value of
+    the GameMap.cast_ray() method is a list of Point instances.
+    """
+    def __init__(self, point, length=None):
+        self.x = point[0]
+        self.y = point[1]
+        self.height = 0
+        self.distance = 0
+        self.shading = None
+        self.length = length
+
+    def step(self, rise, run, invert=False):
+        """
+        Return a new Point advanced one step from the caller.  If run is
+        zero, the length of the new Point will be infinite.
+        """
+        try:
+            x, y = (self.y,self.x) if invert else (self.x,self.y)
+            dx = math.floor(x+1)-x if run > 0 else math.ceil(x-1)-x
+            dy = dx*(rise/run)
+            next_x = y+dy if invert else x+dx
+            next_y = x+dx if invert else y+dy
+            length = math.hypot(dx, dy)
+        except ZeroDivisionError:
+            next_x = next_y = None
+            length = NO_WALL
+        return Point((next_x,next_y), length)
+
+    def inspect(self, info, game_map, shift_x, shift_y, distance, offset):
+        """
+        Ran when the step is selected as the next in the ray.
+        Sets the steps self.height, self.distance, and self.shading,
+        to the required values.
+        """
+        dx = shift_x if info.cos<0 else 0
+        dy = shift_y if info.sin<0 else 0
+        self.height = game_map.get(self.x-dx, self.y-dy)
+        self.distance = distance+self.length
+        if shift_x:
+            self.shading = 2 if info.cos<0 else 0
+        else:
+            self.shading = 2 if info.sin<0 else 1
+        self.offset = offset-math.floor(offset)
+        return self
+
+
+class Camera(object):
+    """Handles the projection and rendering of all objects on the screen."""
+    def __init__(self, screen, resolution):
+        self.screen = screen
+        self.width, self.height = self.screen.get_size()
+        self.resolution = float(resolution)
+        self.spacing = self.width/resolution
+        self.field_of_view = FIELD_OF_VIEW
+        self.range = 8
+        self.light_range = 5
+        self.scale = SCALE
+        self.flash = pg.Surface((self.width, self.height//2)).convert_alpha()
+
+    def render(self, player, game_map):
+        """Render everything in order."""
+        self.draw_sky(player.direction, game_map.sky_box, game_map.light)
+        self.draw_columns(player, game_map)
+        self.draw_weapon(player.weapon, player.paces)
+
+    def draw_sky(self, direction, sky, ambient_light):
+        """
+        Calculate the skies offset so that it wraps, and draw.
+        If the ambient light is greater than zero, draw lightning flash.
+        """
+        left = -sky.width*direction/CIRCLE
+        self.screen.blit(sky.image, (left,0))
+        if left<sky.width-self.width:
+            self.screen.blit(sky.image, (left+sky.width,0))
+        if ambient_light > 0:
+            alpha = 255*min(1, ambient_light*0.1)
+            self.flash.fill((255,255,255,alpha))
+            self.screen.blit(self.flash, (0, self.height//2))
+
+    def draw_columns(self, player, game_map):
+        """
+        For every column in the given resolution, cast a ray, and render that
+        column.
+        """
+        for column in range(int(self.resolution)):
+            angle = self.field_of_view*(column/self.resolution-0.5)
+            point = player.x, player.y
+            ray = game_map.cast_ray(point, player.direction+angle, self.range)
+            self.draw_column(column, ray, angle, game_map)
+
+    def draw_column(self, column, ray, angle, game_map):
+        """
+        Examine each step of the ray, starting with the furthest.
+        If the height is greater than zero, render the column (and shadow).
+        Rain drops will be drawn for every step.
+        """
+        left = int(math.floor(column*self.spacing))
+        for ray_index in range(len(ray)-1, -1, -1):
+            step = ray[ray_index]
+            if step.height > 0:
+                texture = game_map.wall_texture
+                width = int(math.ceil(self.spacing))
+                texture_x = int(texture.width*step.offset) ###
+                wall = self.project(step.height, angle, step.distance)
+                image_location = pg.Rect(texture_x, 0, 1, texture.height)
+                image_slice = texture.image.subsurface(image_location)
+                scale_rect = pg.Rect(left, wall.top, width, wall.height)
+                scaled = pg.transform.scale(image_slice, scale_rect.size)
+                self.screen.blit(scaled, scale_rect)
+                self.draw_shadow(step, scale_rect, game_map.light)
+            self.draw_rain(step, angle, left, ray_index)
+
+    def draw_shadow(self, step, scale_rect, light):
+        """
+        Render the shadow on a column with regards to its distance and
+        shading attribute.
+        """
+        shade_value = step.distance+step.shading
+        max_light = shade_value/float(self.light_range)-light
+        alpha = 255*min(1, max(max_light, 0))
+        shade_slice = pg.Surface(scale_rect.size).convert_alpha()
+        shade_slice.fill((0,0,0,alpha))
+        self.screen.blit(shade_slice, scale_rect)
+
+    def draw_rain(self, step, angle, left, ray_index):
+        """
+        Render a number of rain drops to add depth to our scene and mask
+        roughness.
+        """
+        rain_drops = int(random.random()**3*ray_index)
+        if rain_drops:
+            rain = self.project(0.1, angle, step.distance)
+            drop = pg.Surface((1,rain.height)).convert_alpha()
+            drop.fill(RAIN_COLOR)
+        for _ in range(rain_drops):
+            self.screen.blit(drop, (left, random.random()*rain.top))
+
+    def draw_weapon(self, weapon, paces):
+        """
+        Calulate new weapon position based on player's pace attribute,
+        and render.
+        """
+        bob_x = math.cos(paces*2)*self.scale*6
+        bob_y = math.sin(paces*4)*self.scale*6
+        left = self.width*0.66+bob_x
+        top = self.height*0.6+bob_y
+        self.screen.blit(weapon.image, (left, top))
+
+    def project(self, height, angle, distance):
+        """
+        Find the position on the screen after perspective projection.
+        A minimum value is used for z to prevent slices blowing up to
+        unmanageable sizes when the player is very close.
+        """
+        z = max(distance*math.cos(angle),0.2)
+        wall_height = self.height*height/float(z)
+        bottom = self.height/float(2)*(1+1/float(z))
+        return WallInfo(bottom-wall_height, int(wall_height))
+
+
+class Control(object):
+    """
+    The core of our program.  Responsible for running our main loop;
+    processing events; updating; and rendering.
+    """
+    def __init__(self):
+        self.screen = pg.display.get_surface()
+        self.clock = pg.time.Clock()
+        self.fps = 60.0
+        self.keys = pg.key.get_pressed()
+        self.done = False
+        self.player = Player(15.3, -1.2, math.pi*0.3)
+        self.game_map = GameMap(32)
+        self.camera = Camera(self.screen, 300)
+
+    def event_loop(self):
+        """
+        Quit game on a quit event and update self.keys on any keyup or keydown.
+        """
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                self.done = True
+            elif event.type in (pg.KEYDOWN, pg.KEYUP):
+                self.keys = pg.key.get_pressed()
+
+    def update(self, dt):
+        """Update the game_map and player."""
+        self.game_map.update(dt)
+        self.player.update(self.keys, dt, self.game_map)
+
+    def display_fps(self):
+        """Show the program's FPS in the window handle."""
+        caption = "{} - FPS: {:.2f}".format(CAPTION, self.clock.get_fps())
+        pg.display.set_caption(caption)
+
+    def main_loop(self):
+        """Process events, update, and render."""
+        dt = self.clock.tick(self.fps)/1000.0
+        while not self.done:
+            self.event_loop()
+            self.update(dt)
+            self.camera.render(self.player, self.game_map)
+            dt = self.clock.tick(self.fps)/1000.0
+            pg.display.update()
+            self.display_fps()
+
+
+def load_resources():
+    """
+    Return a dictionary of our needed images; loaded, converted, and scaled.
+    """
+    images = {}
+    knife_image = pg.image.load("knife_hand.png").convert_alpha()
+    knife_w, knife_h = knife_image.get_size()
+    knife_scale = (int(knife_w*SCALE), int(knife_h*SCALE))
+    images["knife"] = pg.transform.smoothscale(knife_image, knife_scale)
+    images["texture"] = pg.image.load("wall_texture.jpg").convert()
+    sky_size = int(SCREEN_SIZE[0]*(CIRCLE/FIELD_OF_VIEW)), SCREEN_SIZE[1]
+    sky_box_image = pg.image.load("deathvalley_panorama.jpg").convert()
+    images["sky"] = pg.transform.smoothscale(sky_box_image, sky_size)
+    return images
+
+
+def main():
+    """Prepare the display, load images, and get our programming running."""
+    global IMAGES
+    os.environ["SDL_VIDEO_CENTERED"] = "True"
+    pg.init()
+    pg.display.set_mode(SCREEN_SIZE)
+    IMAGES = load_resources()
+    Control().main_loop()
+
+
+--*/

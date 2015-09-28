@@ -1,0 +1,55 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">drawing</h1>
+      <div id="mainSection">
+        The following routines can be used to draw on a bitmap:<br>
+        <a href="drawShadedPolygonToDib.htm">drawShadedPolygonToDib</a>(a32Dib dib_dest, sequence coords_dest, sequence colors_dest)<br>
+        See also: <a href="drawDibTransformedPolygon.htm">drawDibTransformedPolygon</a>, which is part drawing, part copying, but mainly geometry-altering.
+        <br>
+        <br>
+        You can also use standard windows API routines to draw directly onto a bitmap, for example those already wrapped in axtra.ew:
+<!--eucode>
+    include axtra.ew
+    drawEllipseh(dib[DibHandle], left, top, right, bottom)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    include</font><font color="#000000"> axtra.ew
+    drawEllipseh</font><font color="#0000FF">(</font><font color="#000000">dib</font><font color="#800000">[</font><font color="#000000">DibHandle</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> top</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> bottom</font><font color="#0000FF">)</font>
+</pre>
+        <br>
+        <br>
+        There is in fact only one routine for drawing bitmaps onto a window or control:<br>
+        <a href="drawDib.htm">drawDib</a>(integer control, a32Dib dib, integer cX, integer cY, integer dX1, integer dY1, integer dX2, integer dY2)<br>
+        <br>
+        <br>
+And finally, the following summary of optimisation tips repeats what has already been said elsewhere:
+<dl>
+<dt><b>killDib</b></dt><dd>Always call killDib as soon as you do not need a certain bitmap anymore. This deletes the bitmap from memory.</dd>
+<dt>Putting/getting pixels</dt><dd>If you want to put or get some pixels on or from a bitmap, and you are sure that the point (x, y) is inside the bitmap area, 
+                                    use <b>fastPutDibPixel</b> and <b>fastGetDibPixel</b> instead of <b>putDibPixel</b> or <b>getDibPixel</b>. 
+                                    If you have to put or get a lot of pixels, it is better to use <b>poke</b> and <b>peek</b>: see <a href="a32dpixel.htm">pixels</a>.</dd>
+<dt><b>clearDib</b></dt><dd>Clearing the bitmap with a gray color (blue = green = red) is a lot faster than clearing the bitmap with a color that is not gray.</dd>
+<dt><b>drawDibToDib</b> and translucency</dt><dd>If you want to use translucency as an effect, and do not really care about how translucent it is, use an alpha of 127 or 128, 
+                                                 which is a lot faster than a different alpha.</dd>
+<dt><b>copyDibToDib</b></dt><dd>If you have 2 bitmaps that have the same size, and you need to copy one of the bitmaps onto the other, use copyDibToDib instead of drawDibToDib.</dd>
+<dt>Adjusting brightness and contrast</dt><dd>If you need to adjust both brightness and contrast, use adjustDibBrightnessAndContrast instead of adjustDibBrightness and adjustDibContrast.</dd>
+<dt>Filtering</dt><dd>If your matrix is only 3 by 3, use filterDib3x3 or filterDibGray3x3. Filters with a matrix that has a lot of zeros in it will be a lot faster. 
+                      filterDibGray and filterDibGray3x3 are a lot faster than filterDib and filterDib3x3, but will make the bitmap gray first.</dd>
+<dt>Sharpening and blurring</dt><dd>subtleSharpenDib and subtleBlurDib are a lot faster than sharpenDib and blurDib. 
+                                    They are however more subtle: the result is less sharp/blurry than sharpenDib and blurDib.</dd>
+<dt><b>embossDib</b></dt><dd>embossDib is a lot faster if the passed color is a gray color (blue = green = red).</dd>
+<dt><b>drawDibTransformedPolygon</b></dt><dd>drawDibTransformedPolygon is a lot faster if both source- and destination-polygon are inside the area of their bitmap. 
+                                             Source-clipping slows down the routine a lot. Destination-clipping is less expensive, but still a slowdown-factor.</dd>
+</dl>
+
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

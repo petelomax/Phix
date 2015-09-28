@@ -1,0 +1,200 @@
+--
+--  raycast.exw demo
+--
+--  Author: Pete Lomax
+
+include a32dpoly.ew  -- only the core- and polygon-library are necessary
+include axtra.ew
+
+constant main = create(Window, "Arwen32Dib bitmap polygon mapping demo", 0, 0, Default, Default, 480, 300, 0),
+         mainDC = getPrivateDC(main),
+         backDC = c_func(xCreateCompatibleDC, {NULL}),  -- the background
+         handDC = c_func(xCreateCompatibleDC, {NULL}),  -- the hand/weapon
+         wallDC = c_func(xCreateCompatibleDC, {NULL}),  -- the wall
+--       dibDC = c_func(xCreateCompatibleDC, {NULL}),   -- the wall
+$
+
+--integer wallWidth, wallHeight
+integer backWidth, backHeight, handWidth, handHeight, wallWidth, wallHeight
+
+a32Dib0 dib, screen_dib
+integer dx, dy, dw, dh, frames
+atom t
+
+--  dib = loadDib("demo.bmp")
+
+function LoadGraphics(sequence FilePath, atom hDC, integer mult)
+-- load a file via gdiplus and copy it to a standard bitmap
+integer width,height
+atom pImage, pGraphics, hBitmap
+if mult then end if --DEV
+
+    pImage = GdipLoadImageFromFile(FilePath)
+--?pImage
+    width = GdipGetImageWidth(pImage)
+    height = GdipGetImageHeight(pImage)
+--  if mult=1 then
+--      width = floor(width*2.6)
+--      height = floor(height*1.3)
+--better effect by doping it in transBlt
+--  elsif mult=2 then
+
+--      width = floor(width*1)
+--      height = floor(height*1)
+--  end if
+
+    hBitmap = c_func(xCreateCompatibleBitmap, {mainDC, width, height})
+--  {} = deleteObject(selectObject(hDC,hBitmap))
+    void = selectObject(hDC,hBitmap)
+--?void
+
+    pGraphics = GdipCreateFromHDC(hDC)
+
+    GdipDrawImageRectI(pGraphics,pImage,0,0,width,height)
+
+    GdipDisposeImage(pImage)
+    GdipDeleteGraphics(pGraphics)
+
+--  return {hBitmap,width,height}
+    return {width,height}
+end function
+
+GdipInitialize()
+--{bmWall,
+{backWidth,backHeight} = LoadGraphics("..\\raycast\\deathvalley_panorama.jpg",backDC,1)
+{handWidth,handHeight} = LoadGraphics("..\\raycast\\knife_hand.png",handDC,2)
+{wallWidth,wallHeight} = LoadGraphics("..\\raycast\\wall_texture.jpg",wallDC,0)
+GdipUninitialize()
+--?{bmWall,wallWidth,wallHeight}
+
+--  dib = newDib(wallWidth,wallHeight)
+    dib = extractDib(wallDC, 0, 0, wallWidth, wallHeight)
+    if not sequence(dib) then
+        if message_box("Can't load bitmap '???demo.bmp'.", "Error", MB_ICONERROR) then end if
+        abort(0)
+    end if
+--  void = c_func(xBitBlt,{dib[1],0,0,wallWidth,wallHeight,wallDC,0,0,SRCCOPY})
+--  void = selectObject(dibDC,dib[1])
+--  void = c_func(xBitBlt,{dibDC,0,0,wallWidth,wallHeight,wallDC,0,0,SRCCOPY})
+--  if void=0 then
+--      -- 6 = ERROR_INVALID_HANDLE
+--      ?c_func(xGetLastError,{})
+--  end if
+--  copyToDib2(dib, wallDC, 0, 0, 0, 0, wallWidth, wallHeight)
+--global procedure copyToDib2(sequence dib, atom hDC, integer dX, integer dY, integer cX1, integer cY1, integer cX2, integer cY2)
+-- Draws a portion ((cX1, cY1)-(cX2, cY2)) of a control to the bitmap at position (dX, dY)
+--atom hDibDC = c_func(xCreateCompatibleDC, {NULL})
+--  void = c_func(xSelectObject, {hDibDC, dib[DibHandle]})
+--  void = c_func(xBitBlt,{hDibDC, dX, dY, cX2-cX1+1, cY2-cY1+1, hDC, cX1, cY1, SRCCOPY})
+--  void = c_func(xDeleteDC,{hDibDC})
+--end procedure
+
+procedure shadeDibLR(sequence dib, integer il, integer ir)
+-- shade (darken) pixels from intensity il to ir (left to right).
+atom memory, x
+integer red, green, blue, bytes_per_line, width, width3, w, brightness
+sequence color, dx
+    memory = dib[DibMemory]
+    bytes_per_line = dib[DibBytesPerLine]
+    width = dib[DibWidth]
+    width3 = width*3-3
+    dx = repeat(0,width)
+    for d=1 to width do
+        dx[d] = floor((il*(width-d)+ir*(d-1))/width)
+    end for
+    for y=0 to dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
+        w = 1
+        for z=y to y+width3 by 3 do
+            brightness = dx[w] w+= 1
+            x = memory+z
+--/**/      color = sq_add(peek({x, 3}),brightness) --/* -- Phix
+            color = peek({x, 3}) + brightness       --*/ -- RDS
+            blue = color[1]
+            green = color[2]
+            red = color[3]
+            if blue<0 then poke(x, 0) elsif blue>255 then poke(x, 255) else poke(x, blue) end if
+            if green<0 then poke(x+1, 0) elsif green>255 then poke(x+1, 255) else poke(x+1, green) end if
+            if red<0 then poke(x+2, 0) elsif red>255 then poke(x+2, 255) else poke(x+2, red) end if
+        end for
+    end for
+end procedure
+
+--shadeDibLR(dib, 0, -255)
+
+    screen_dib = 0
+    dx = 0  dy = 0  
+    dw = 0  dh = 0
+
+procedure IdleHandler()
+integer x1, y1, x2, y2, x3, y3, x4, y4
+    x1 = rand(dx)           y1 = rand(dy)
+    x2 = dw-rand(dx)        y2 = rand(dy)
+    x3 = dw-rand(dx)        y3 = dh-rand(dy)
+    x4 = rand(dx)           y4 = dh-rand(dy)
+    if sequence(screen_dib) then
+        clearDib(screen_dib, {255, 255, 0})
+        drawDibTransformedPolygon(screen_dib, dib, {{x1, y1}, {x2, y2}, {x3, y3}, {x4, y4}}, {})
+    end if
+    frames += 1
+    if time()-t>2 then
+        setText(main, sprintf("%g FPS", frames/2))
+        frames = 0
+        t = time()
+    end if
+    repaintWindow(main,False)
+sleep(1)
+end procedure
+setHandler(IDLE, routine_id("IdleHandler"))
+
+integer firsttime = 1
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+sequence rect
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_PAINT then
+        if sequence(screen_dib) then
+--          drawDib(main, screen_dib, 0, 0, 0, 0, screen_dib[DibWidth]-1, screen_dib[DibHeight]-1)
+            drawDib(main, screen_dib, 0, 0, 0, 0, dw, dh)
+        end if
+    elsif msg=WM_SIZE then
+        rect = getClientRect(main)
+        dx = floor(rect[3]/4)+1
+        dy = floor(rect[4]/4)+1
+        dw = rect[3]
+        dh = rect[4]
+        if sequence(screen_dib) then killDib(screen_dib) end if
+        screen_dib = newDib(dw, dh)
+    elsif msg=WM_ERASEBKGND then
+        return {1} -- suppress erasing the background: eliminates flickering
+    elsif firsttime
+      and msg=WM_SHOWWINDOW then
+        firsttime = 0
+        t = time()
+        frames = 0
+        startIdle(40)
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(main)
+    end if
+    return 0
+end function
+setHandler(main, routine_id("mainHandler"))
+
+    WinMain(main, SW_NORMAL)
+    killDib(dib)
+    if sequence(screen_dib) then killDib(screen_dib) end if
+    
+--/*    
+         backDC = c_func(xCreateCompatibleDC, {NULL}),  -- the background
+         handDC = c_func(xCreateCompatibleDC, {NULL}),  -- the hand/weapon
+         wallDC = c_func(xCreateCompatibleDC, {NULL}),  -- the wall
+--       gradDC = c_func(xCreateCompatibleDC, {NULL}),  -- wall-sized gradient
+         darkDC = c_func(xCreateCompatibleDC, {NULL}),  -- the wall, gradient-darkened
+         viewDC = c_func(xCreateCompatibleDC, {NULL})   -- with animation etc
+
+integer backWidth, backHeight, handWidth, handHeight, wallWidth, wallHeight
+atom bmBack, bmHand, bmWall, bmView, bmDark
+
+
+
+--*/

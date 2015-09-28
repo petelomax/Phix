@@ -1,10 +1,10 @@
 -- Arwen32Dib demo: demonstrates the tile-procedure
 --  Ported to Arwen by Pete Lomax
 
-include a32dcore.ew  -- only the core-library is necessary
+include a32dcore.ew  -- only the core library is necessary
 --with trace
 
-object dib, dib2, tile_dib, info_dib
+a32Dib0 dib, dib2, tile_dib, info_dib
 integer trans_x, trans_y, canvas_width, canvas_height, width, height, width2, height2, x, y
 integer info_width, info_height, logo_drawing
 sequence trans_color
@@ -43,7 +43,7 @@ constant win = create(Window, "Arwen32Dib bitmap tiling demo", 0, 0, Default, De
 
 procedure IdleHandler()
 integer alpha
---  x += 2  if x>=width then x = 0 end if
+--  x += 2  if x>=width  then x = 0 end if
 --  y += 2  if y>=height then y = 0 end if
     x = remainder(x+2,width)
     y = remainder(y+2,height)
@@ -89,16 +89,20 @@ atom hFont
         rect = getClientRect(win)
         canvas_width = rect[3]
         canvas_height = rect[4]
-        if canvas_width=0 or canvas_height=0 then tile_dib = 0  return 0 end if
+        if canvas_width=0
+        or canvas_height=0 then
+            tile_dib = 0
+            return 0
+        end if
         tile_dib = newDib(canvas_width, canvas_height)
         trans_x = canvas_width-width2
         trans_y = canvas_height-height2
-    elsif msg=WM_ERASEBKGND then -- suppress the erasing of the background: eliminates flickering
-        return {1}
+    elsif msg=WM_ERASEBKGND then
+        return {1} -- suppress erasing the background: eliminates flickering
     elsif msg=WM_LBUTTONUP then
 --      logo_drawing += 1
 --      if logo_drawing>2 then logo_drawing = 0 end if
-        logo_drawing = remainder(logo_drawing+1,3)
+        logo_drawing = remainder(logo_drawing+1,3)  -- 1,2,0,1,2,0,1,2,...
     elsif firsttime
       and msg=WM_SHOWWINDOW then
 --    and not find(msg,{WM_NOTIFY,WM_SYSKEYDOWN,WM_SYSKEYUP,
@@ -153,8 +157,9 @@ else
         end for
         void = c_func(xSetTextColor,{hDC,Yellow})
         wPuts2(hDC, 1, 1, info_text)
-        info_dib = newDib(info_width, info_height)
-        copyToDib2(info_dib, hDC, 0, 0, 0, 0, info_width-1, info_height-1)
+--      info_dib = newDib(info_width, info_height)
+        info_dib = extractDib(hDC, 0, 0, info_width, info_height)
+--      copyToDib2(info_dib, hDC, 0, 0, 0, 0, info_width-1, info_height-1)
         void = c_func(xDeleteObject,{hBitMap})
         void = c_func(xDeleteObject,{hDC})
 -- </instead>. Note that createFontForDC/setPenColor/drawRectangleh/wPuts2/copyToDib2 have all been fudged...
@@ -176,4 +181,4 @@ setHandler(win, routine_id("winHandler"))
     killDib(dib)
     killDib(dib2)
     if sequence(tile_dib) then killDib(tile_dib) end if
-    freeDib()
+

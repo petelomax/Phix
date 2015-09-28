@@ -61,6 +61,8 @@ global constant
     -- assign handles for required dll files
     user32   = assign_dll("user32.dll"),
     gdi32    = assign_dll("gdi32.dll"),
+    gdiplus  = assign_dll("gdiplus.dll"),
+    msimg32  = assign_dll("msimg32.dll"),
     kernel32 = assign_dll("kernel32.dll"),
     comdlg32 = assign_dll("comdlg32.dll"),
     comctl32 = assign_dll("comctl32.dll"),
@@ -456,7 +458,16 @@ global constant
     xGdiFlush               = link_c_func(gdi32, "GdiFlush", {}, C_INT),
     xCreateCompatibleBitmap = link_c_func(gdi32, "CreateCompatibleBitmap", {C_PTR, C_INT, C_INT}, C_PTR),
     xCreateBitmap           = link_c_func(gdi32, "CreateBitmap", {C_INT, C_INT, C_INT, C_INT,C_PTR}, C_PTR),
-    xCreateDIBSection       = link_c_func(gdi32,"CreateDIBSection",{C_PTR, C_PTR, C_UINT, C_PTR, C_PTR, C_PTR },C_PTR),
+--  xCreateDIBSection       = link_c_func(gdi32,"CreateDIBSection",{C_PTR, C_PTR, C_UINT, C_PTR, C_PTR, C_PTR },C_PTR),
+    xCreateDIBSection = link_c_func(gdi32, "CreateDIBSection",
+         {C_PTR,        --  _In_    HDC hdc,
+          C_PTR,        --  _In_    const BITMAPINFO *pbmi,
+          C_UINT,       --  _In_    UINT iUsage,
+          C_PTR,        --  _Out_   VOID **ppvBits,
+          C_PTR,        --  _In_    HANDLE hSection,
+          C_INT},       --  _In_    DWORD dwOffset
+         C_PTR),        -- HBITMAP
+
     xGetDIBColorTable       = link_c_func(gdi32, "GetDIBColorTable", {C_PTR, C_UINT, C_UINT, C_PTR}, C_UINT),
     xSetDIBColorTable       = link_c_func(gdi32, "SetDIBColorTable", {C_PTR, C_UINT, C_UINT, C_PTR}, C_UINT),
     xCopyImage              = link_c_func(user32, "CopyImage", {C_PTR, C_UINT, C_INT, C_INT, C_UINT}, C_PTR),
@@ -521,8 +532,91 @@ global constant
 -- RASTER OPS
 -------------
     xBitBlt         = link_c_func(gdi32, "BitBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_LONG}, C_INT),
+    xGdiTransparentBlt = link_c_func(gdi32, "GdiTransparentBlt",
+        {C_PTR,     --  _In_    HDC hdcDest,
+         C_INT,     --  _In_    int xoriginDest,
+         C_INT,     --  _In_    int yoriginDest,
+         C_INT,     --  _In_    int wDest,
+         C_INT,     --  _In_    int hDest,
+         C_PTR,     --  _In_    HDC hdcSrc,
+         C_INT,     --  _In_    int xoriginSrc,
+         C_INT,     --  _In_    int yoriginSrc,
+         C_INT,     --  _In_    int wSrc,
+         C_INT,     --  _In_    int hSrc,
+         C_INT},    --  _In_    UINT crTransparent
+        C_INT),     -- BOOL
     xStretchBlt     = link_c_func(gdi32, "StretchBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG}, C_INT),
     xStretchDIBits  = link_c_func(gdi32,"StretchDIBits",{C_PTR,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_PTR,C_PTR,C_UINT,C_LONG},C_INT),
+
+    xGdiplusStartup = link_c_func(gdiplus,"GdiplusStartup",
+        {C_PTR,     --  ULONG_PTR token *token
+         C_PTR,     --  const GdiplusStartupInput *input
+         C_PTR},    --  GdiplusStartupOutput *output
+        C_LONG),    -- Status
+
+    xGdiplusShutdown = link_c_proc(gdiplus,"GdiplusShutdown",
+        {C_PTR}),   --  ULONG_PTR token
+
+    xGdipDisposeImage = link_c_func(gdiplus,"GdipDisposeImage",
+        {C_PTR},    --  pImage *image
+        C_LONG),    -- Status
+
+    xGdipLoadImageFromFile = link_c_func(gdiplus,"GdipLoadImageFromFile",
+        {C_PTR,     --  WCHAR* filename
+         C_PTR},    --  ppImage **image
+        C_LONG),    -- Status
+
+    xGdipGetImageWidth = link_c_func(gdiplus,"GdipGetImageWidth",
+        {C_PTR,     --  pImage *image
+         C_PTR},    --  UNIT *width
+        C_LONG),    -- Status
+
+    xGdipGetImageHeight = link_c_func(gdiplus,"GdipGetImageHeight",
+        {C_PTR,     --  pImage *image
+         C_PTR},    --  UNIT *height
+        C_LONG),    -- Status
+
+    xGdipDrawImageRectI = link_c_func(gdiplus,"GdipDrawImageRectI",
+        {C_PTR,     --  pGraphics *graphics
+         C_PTR,     --  pImage *image
+         C_INT,     --  INT x
+         C_INT,     --  INT y
+         C_INT,     --  INT width
+         C_INT},    --  INT height
+        C_LONG),    -- Status
+
+    xGdipDeleteGraphics = link_c_func(gdiplus,"GdipDeleteGraphics",
+        {C_PTR},    --  pGraphics *graphics
+        C_LONG),    -- Status
+
+    xGdipCreateFromHDC = link_c_func(gdiplus,"GdipCreateFromHDC",
+        {C_PTR,     --  HDC hdc
+         C_PTR},    --  pGraphics **graphics
+        C_LONG),    -- Status
+
+    xGradientFill = link_c_func(msimg32,"GradientFill",
+        {C_PTR,     --  _In_    HDC hdc,
+         C_PTR,     --  _In_    PTRIVERTEX pVertex,
+         C_INT,     --  _In_    ULONG dwNumVertex,
+         C_PTR,     --  _In_    PVOID pMesh,
+         C_INT,     --  _In_    ULONG dwNumMesh,
+         C_INT},    --  _In_    ULONG dwMode
+        C_INT),     -- BOOL
+
+    xAlphaBlend = link_c_func(msimg32,"AlphaBlend",
+        {C_PTR,     --  _In_    HDC hdcDest,
+         C_INT,     --  _In_    int xoriginDest,
+         C_INT,     --  _In_    int yoriginDest,
+         C_INT,     --  _In_    int wDest,
+         C_INT,     --  _In_    int hDest,
+         C_PTR,     --  _In_    HDC hdcSrc,
+         C_INT,     --  _In_    int xoriginSrc,
+         C_INT,     --  _In_    int yoriginSrc,
+         C_INT,     --  _In_    int wSrc,
+         C_INT,     --  _In_    int hSrc,
+         C_INT},    --  _In_    BLENDFUNCTION ftn   -- (#00FF0000 or #00800000 or similar)
+        C_INT),     -- BOOL 
+
 
 ---------
 -- FOCUS 

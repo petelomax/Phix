@@ -1,12 +1,11 @@
- 
+
 -- Bitmap viewer to show features of the DIBsection library
 
 include arwen.ew
 include ..\..\builtins\image.e
 include ..\arwen\dib256.ew
 
-integer dibimage
-        dibimage = -1
+integer dibimage = 0
 
 sequence dibpalette
 
@@ -15,54 +14,51 @@ constant win_title = "Bitmap Viewer"
 constant DEMO = create(Window,  win_title, 0, 0,10,10,540,500,{0,0})
 
 constant OPENBUTTON = create(PushButton,"OPEN ",0, DEMO,  10, 8, 65, 25,0)
-constant LABEL = create(Label,"Brightness",     0, DEMO,  90,10, 70, 20,0)
-constant TRACK = create(HTrackBar,"",           0, DEMO, 160, 5,150, 30,0)
-constant LABEL1 = create(Label,"Contrast",      0, DEMO, 330,10, 50, 20,0)
-constant TRACK1 = create(HTrackBar,"",          0, DEMO, 380, 5,150, 30,0)
-if LABEL or LABEL1 then end if  -- suppress warnings
+         void       = create(Label,"Brightness",0, DEMO,  90,10, 70, 20,0)
+constant BRIGHTNS   = create(HTrackBar,"",      0, DEMO, 160, 5,150, 30,0)
+         void       = create(Label,"Contrast",  0, DEMO, 330,10, 50, 20,0)
+constant CONTRAST   = create(HTrackBar,"",      0, DEMO, 380, 5,150, 30,0)
 
 procedure loadImage(sequence filename)
-integer id
-    
-    id = loadDibImage(filename)
-    if not id then
-        WarnErr( upper(filename) & "\n..is not a valid Euphoria bitmap.\n\nPlease select a 256 colour bitmap.")
+
+    dibimage = loadDibImage(filename)
+    if dibimage=0 then
+        WarnErr(filename&"\n..is not a valid Euphoria bitmap.\n\nPlease select a 256 colour bitmap.")
     else
-        dibimage = id
-        dibpalette = getDibPalette(id, 1, 256)
-        setScrollInfo(TRACK, {0, 255, 10, 128}, True)
-        setScrollInfo(TRACK1, {0, 255, 10, 128}, True)
-        setText(DEMO, win_title & " - " & upper(filename) )
+        dibpalette = getDibPalette(dibimage, 1, 256)
+        setScrollInfo(BRIGHTNS, {0, 255, 10, 128}, True)
+        setScrollInfo(CONTRAST, {0, 255, 10, 128}, True)
+        setText(DEMO, win_title & " - " & upper(filename))
         repaintWindow(DEMO,False)
     end if
 end procedure
 
 procedure drawImage(atom dc)
-    if not dc then
+    if dc=0 then
         dc = getPrivateDC(DEMO)
     end if
     void = drawDib(dc,5,40,-1,-1,dibimage,0,0,getDibWidth(dibimage),getDibHeight(dibimage))
-end procedure           
+end procedure
 
 procedure adjustPalette(integer brightness, integer contrast)
 sequence adjpal
 integer x
 
-    if dibimage = -1 then return end if
+    if dibimage=0 then return end if
 
     adjpal = dibpalette
 
     contrast *= 2
 
-    for i = 1 to length(adjpal) do
-        for j = 1 to 3 do
+    for i=1 to length(adjpal) do
+        for j=1 to 3 do
             x = adjpal[i][j]
             -- get contrast factor
-            x = 255-floor(127 + (128-x)/255*contrast)
+            x = 255-floor(127+(128-x)/255*contrast)
             -- get brightness factor
-            x += brightness - 127
-            if x > 255 then x = 255 end if
-            if x < 0 then x = 0 end if
+            x += brightness-127
+            if x>255 then x = 255 end if
+            if x<0 then x = 0 end if
             adjpal[i][j] = x
         end for
     end for
@@ -72,30 +68,29 @@ integer x
 end procedure
 
 function handler_DEMO(integer id, integer msg, atom wParam, object lParam)
-    if msg = WM_PAINT and id = DEMO then
-        if dibimage != -1 then
+    if msg=WM_PAINT and id=DEMO then
+        if dibimage!=0 then
             drawImage(wParam)
         end if
-    elsif msg = WM_COMMAND and id = OPENBUTTON then
+    elsif msg=WM_COMMAND and id=OPENBUTTON then
         lParam = getOpenFileName(DEMO,"*.bmp",{"Bitmap","*.bmp","All *.*","*.*"},0)
         if sequence(lParam) then
             loadImage(lParam[1])
         end if
-    elsif msg = WM_HSCROLL then
---      if id = TRACK then
---          adjustPalette(wParam,getPos(TRACK1))
---      elsif id = TRACK1 then
---          adjustPalette(getPos(TRACK),wParam)
+    elsif msg=WM_HSCROLL then
+--      if id = BRIGHTNS then
+--          adjustPalette(wParam,getPos(CONTRAST))
+--      elsif id = CONTRAST then
+--          adjustPalette(getPos(BRIGHTNS),wParam)
 --      end if
-        adjustPalette(getPos(TRACK),getPos(TRACK1))
+        adjustPalette(getPos(BRIGHTNS),getPos(CONTRAST))
     elsif msg=WM_CHAR
       and wParam=VK_ESCAPE then
         closeWindow(DEMO)
     end if
     return 0
 end function
-
-setHandler({DEMO,OPENBUTTON,TRACK,TRACK1}, routine_id("handler_DEMO"))
+setHandler({DEMO,OPENBUTTON,BRIGHTNS,CONTRAST}, routine_id("handler_DEMO"))
 
 WinMain(DEMO, SW_NORMAL)
 void = deleteDib(0)

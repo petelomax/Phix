@@ -1,0 +1,156 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">pixels</h1>
+      <div id="mainSection">
+        The following routines can be used on individual pixels:
+        <br>
+        <br>
+        <a href="putDibPixel.htm">putDibPixel<a/>(a32Dib dib, integer x, integer y, colour bgr)<br>
+        <a href="fastPutDibPixel.htm">fastPutDibPixel</a>(a32Dib dib, integer x, integer y, colour bgr)<br>
+        a32Colour0 c3 = <a href="getDibPixel.htm">getDibPixel</a>(a32Dib dib, integer x, integer y)<br>
+        a32Colour c3 = <a href="fastGetDibPixel.htm">fastGetDibPixel</a>(a32Dib dib, integer x, integer y)<br>
+        <a href="clearDib.htm">clearDib</a>(a32Dib dib, a32Colour bgr)<br>
+        <br>
+        To set a specific pixel on a bitmap, use the <a href="putDibPixel.htm">putDibPixel</a> procedure.<br>
+        To get the color of a pixel on the bitmap, use the <a href="getDibPixel.htm">getDibPixel</a> function.<br>
+        To clear the bitmap, use the <a href="clearDib.htm">clearDib</a> procedure.<br>
+        Instead of putDibPixel and getDibPixel, you can also use the faster <a href="fastPutDibPixel.htm">fastPutDibPixel</a> 
+        and <a href="fastGetDibPixel.htm">fastGetDibPixel</a>, but these do not check if the coordinates of the pixel are within the boundaries of the bitmap, so only use them if 
+        you are sure the coordinates are valid (0 &lt;= x &lt; width and 0 &lt;= y &lt; height).<br>
+        <br>
+        Example:
+<!--eucode>
+    a32Dib dib
+    a32Colour white, black, color
+
+    dib = newDib(300, 200)             -- create a bitmap
+
+    white = dibColor(255, 255, 255)    -- create the color white
+    black = dibColor(  0,   0,   0)    -- create the color black
+
+    clearDib(dib, white)               -- clear the bitmap with the color white
+    putDibPixel(dib, 100, 100, black)  -- make the pixel at position (100, 100) black
+    color = getDibPixel(dib, 200, 150) -- get the color of the pixel at position (200, 150)
+
+    killDib(dib)                       -- delete the bitmap
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    a32Dib</font><font color="#000000"> dib
+</font><font color="#004080">    a32Colour</font><font color="#000000"> white</font><font color="#0000FF">,</font><font color="#000000"> black</font><font color="#0000FF">,</font><font color="#000000"> color
+
+    dib</font><font color="#0000FF"> =</font><font color="#800080"> newDib</font><font color="#0000FF">(</font><font color="#000000">300</font><font color="#0000FF">,</font><font color="#000000"> 200</font><font color="#0000FF">)            </font><font color="#000080"><i> -- create a bitmap
+
+</i></font><font color="#000000">    white</font><font color="#0000FF"> =</font><font color="#800080"> dibColor</font><font color="#0000FF">(</font><font color="#000000">255</font><font color="#0000FF">,</font><font color="#000000"> 255</font><font color="#0000FF">,</font><font color="#000000"> 255</font><font color="#0000FF">)   </font><font color="#000080"><i> -- create the color white
+</i></font><font color="#000000">    black</font><font color="#0000FF"> =</font><font color="#800080"> dibColor</font><font color="#0000FF">( </font><font color="#000000"> 0</font><font color="#0000FF">,  </font><font color="#000000"> 0</font><font color="#0000FF">,  </font><font color="#000000"> 0</font><font color="#0000FF">)   </font><font color="#000080"><i> -- create the color black
+
+</i></font><font color="#800080">    clearDib</font><font color="#0000FF">(</font><font color="#000000">dib</font><font color="#0000FF">,</font><font color="#000000"> white</font><font color="#0000FF">)              </font><font color="#000080"><i> -- clear the bitmap with the color white
+</i></font><font color="#800080">    putDibPixel</font><font color="#0000FF">(</font><font color="#000000">dib</font><font color="#0000FF">,</font><font color="#000000"> 100</font><font color="#0000FF">,</font><font color="#000000"> 100</font><font color="#0000FF">,</font><font color="#000000"> black</font><font color="#0000FF">) </font><font color="#000080"><i> -- make the pixel at position (100, 100) black
+</i></font><font color="#000000">    color</font><font color="#0000FF"> =</font><font color="#800080"> getDibPixel</font><font color="#0000FF">(</font><font color="#000000">dib</font><font color="#0000FF">,</font><font color="#000000"> 200</font><font color="#0000FF">,</font><font color="#000000"> 150</font><font color="#0000FF">)</font><font color="#000080"><i> -- get the color of the pixel at position (200, 150)
+
+</i></font><font color="#800080">    killDib</font><font color="#0000FF">(</font><font color="#000000">dib</font><font color="#0000FF">)                      </font><font color="#000080"><i> -- delete the bitmap</i></font>
+</pre>
+        <br>
+        <br>
+        If you have to put or get a lot of pixels, there is a much faster way than using putDibPixel and getDibPixel: <a href="poke.htm">poke</a> and <a href="peek.htm">peek</a>.
+        <br>
+        <br>
+        The 2nd element of the bitmap-sequence [DibMemory] is the address of the memory block allocated by the bitmap.<br>
+        To calculate the address of the pixel (x, y), use the formula:
+<!--eucode>
+    integer bytes_per_line
+    atom memory, address
+    memory = dib[DibMemory]
+    bytes_per_line = dib[DibBytesPerLine]
+    address = memory + 3*x + y*bytes_per_line
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    integer</font><font color="#000000"> bytes_per_line
+</font><font color="#004080">    atom</font><font color="#000000"> memory</font><font color="#0000FF">,</font><font color="#000000"> address
+    memory</font><font color="#0000FF"> =</font><font color="#000000"> dib</font><font color="#0000FF">[</font><font color="#000000">DibMemory</font><font color="#0000FF">]
+</font><font color="#000000">    bytes_per_line</font><font color="#0000FF"> =</font><font color="#000000"> dib</font><font color="#0000FF">[</font><font color="#000000">DibBytesPerLine</font><font color="#0000FF">]
+</font><font color="#000000">    address</font><font color="#0000FF"> =</font><font color="#000000"> memory</font><font color="#0000FF"> +</font><font color="#000000"> 3</font><font color="#0000FF">*</font><font color="#000000">x</font><font color="#0000FF"> +</font><font color="#000000"> y</font><font color="#0000FF">*</font><font color="#000000">bytes_per_line</font>
+</pre>
+        which you can of course simplify to:
+<!--eucode>
+    atom address = dib[DibMemory] + 3*x + y*dib[DibBytesPerLine]
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    atom</font><font color="#000000"> address</font><font color="#0000FF"> =</font><font color="#000000"> dib</font><font color="#0000FF">[</font><font color="#000000">DibMemory</font><font color="#0000FF">] +</font><font color="#000000"> 3</font><font color="#0000FF">*</font><font color="#000000">x</font><font color="#0000FF"> +</font><font color="#000000"> y</font><font color="#0000FF">*</font><font color="#000000">dib</font><font color="#0000FF">[</font><font color="#000000">DibBytesPerLine</font><font color="#0000FF">]</font>
+</pre>
+        To get the color of that pixel:
+<!--eucode>
+    a32Colour color = peek({address, 3}) -- each pixel is 3 bytes
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    a32Colour</font><font color="#000000"> color</font><font color="#0000FF"> =</font><font color="#7060A8"> peek</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">address</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- each pixel is 3 bytes</i></font>
+</pre>
+        To set the color of that pixel:
+<!--eucode>
+    poke(address, color)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">    poke</font><font color="#0000FF">(</font><font color="#000000">address</font><font color="#0000FF">,</font><font color="#000000"> color</font><font color="#0000FF">)</font>
+</pre>
+        A very fast way to loop over the entire bitmap goes like this:
+<!--eucode>
+    atom address = dib[DibMemory]
+    for y = 0 to height - 1 do
+        for x = 0 to width - 1 do
+            -- do something with the current pixel:
+            -- address is the address, x and y are the coordinates.
+
+            address += 3 -- 1 pixel = 3 bytes
+        end for
+        address += padding -- padding is the integer dib[DibPadding]
+    end for
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    atom</font><font color="#000000"> address</font><font color="#0000FF"> =</font><font color="#000000"> dib</font><font color="#0000FF">[</font><font color="#000000">DibMemory</font><font color="#0000FF">]
+</font><font color="#008080">    for</font><font color="#000000"> y</font><font color="#0000FF"> =</font><font color="#000000"> 0</font><font color="#008080"> to</font><font color="#000000"> height</font><font color="#0000FF"> -</font><font color="#000000"> 1</font><font color="#008080"> do
+        for</font><font color="#000000"> x</font><font color="#0000FF"> =</font><font color="#000000"> 0</font><font color="#008080"> to</font><font color="#000000"> width</font><font color="#0000FF"> -</font><font color="#000000"> 1</font><font color="#008080"> do
+</font><font color="#000080"><i>            -- do something with the current pixel:
+            -- address is the address, x and y are the coordinates.
+
+</i></font><font color="#000000">            address</font><font color="#0000FF"> +=</font><font color="#000000"> 3</font><font color="#000080"><i> -- 1 pixel = 3 bytes
+</i></font><font color="#008080">        end for
+</font><font color="#000000">        address</font><font color="#0000FF"> +=</font><font color="#000000"> padding</font><font color="#000080"><i> -- padding is the integer dib[DibPadding]
+</i></font><font color="#008080">    end for</font>
+</pre>
+        If you only want to loop over a region (x1, y1) -> (x2, y2), you can try:
+<!--eucode>
+    atom address = dib[DibMemory] + x1 * 3 + y1 * bytes_per_line
+    integer line_jump = bytes_per_line + (x1 - x2) * 3 + 3
+    for y = y1 to y2 do
+        for x = x1 to x2 do
+            -- do something with the current pixel:
+            -- address is the address, x and y are the coordinates.
+
+            address += 3
+        end for
+        address += line_jump -- line_jump is the amount of bytes to jump forward after each line
+    end for
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    atom</font><font color="#000000"> address</font><font color="#0000FF"> =</font><font color="#000000"> dib</font><font color="#0000FF">[</font><font color="#000000">DibMemory</font><font color="#0000FF">] +</font><font color="#000000"> x1</font><font color="#0000FF"> *</font><font color="#000000"> 3</font><font color="#0000FF"> +</font><font color="#000000"> y1</font><font color="#0000FF"> *</font><font color="#000000"> bytes_per_line
+</font><font color="#004080">    integer</font><font color="#000000"> line_jump</font><font color="#0000FF"> =</font><font color="#000000"> bytes_per_line</font><font color="#0000FF"> + (</font><font color="#000000">x1</font><font color="#0000FF"> -</font><font color="#000000"> x2</font><font color="#0000FF">) *</font><font color="#000000"> 3</font><font color="#0000FF"> +</font><font color="#000000"> 3
+</font><font color="#008080">    for</font><font color="#000000"> y</font><font color="#0000FF"> =</font><font color="#000000"> y1</font><font color="#008080"> to</font><font color="#000000"> y2</font><font color="#008080"> do
+        for</font><font color="#000000"> x</font><font color="#0000FF"> =</font><font color="#000000"> x1</font><font color="#008080"> to</font><font color="#000000"> x2</font><font color="#008080"> do
+</font><font color="#000080"><i>            -- do something with the current pixel:
+            -- address is the address, x and y are the coordinates.
+
+</i></font><font color="#000000">            address</font><font color="#0000FF"> +=</font><font color="#000000"> 3
+</font><font color="#008080">        end for
+</font><font color="#000000">        address</font><font color="#0000FF"> +=</font><font color="#000000"> line_jump</font><font color="#000080"><i> -- line_jump is the amount of bytes to jump forward after each line
+</i></font><font color="#008080">    end for</font>
+</pre>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>
