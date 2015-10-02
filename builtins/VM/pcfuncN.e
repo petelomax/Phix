@@ -124,6 +124,7 @@ constant e81ipicfp      = 81    -- insufficient parameters in call_func/proc()
 constant e84cbpmbropr   = 84    -- call_back parameter must be routine_id or {'+',routine_id}
 constant e88atcfpmbaos  = 88    -- arguments to c_func/proc must be atoms or strings
 constant e89tmpicfp     = 89    -- too many parameters in call_func/proc()
+constant e116rrnp       = 116   -- routine requires %d parameters, not %d
 constant e117rdnrav     = 117   -- routine does not return a value
 constant e118rrav       = 118   -- routine returns a value
 
@@ -148,7 +149,7 @@ end procedure
 --*/
 
 -- new version, to replace the above...
-procedure fatalN(integer level, integer errcode, integer ep1=0)
+procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
 -- level is the number of frames to pop to obtain an era (must be >1).
 -- we report errors on (eg) the c_func call, not in c_func below, so
 -- obviously c_func itself calls fatalN(2..), whereas if c_func calls
@@ -162,6 +163,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0)
             mov ecx,[level]
             mov eax,[errcode]
             mov edi,[ep1]
+            mov edi,[ep2]
           @@:
             mov edx,[ebp+16]    -- era
             mov ebp,[ebp+20]    -- (nb no local vars after this!)
@@ -175,6 +177,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0)
             mov rcx,[level]
             mov rax,[errcode]
             mov rdi,[ep1]
+            mov rsi,[ep1]
           @@:
             mov rdx,[rbp+32]    -- era
             mov rbp,[rbp+40]    -- (nb no local vars after this!)
@@ -1332,6 +1335,9 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
     la = length(args)
     lad = length(argdefs)
     if la!=lad then
+        -- e116rrnp: routine requires %d parameters, not %d
+        fatalN(3,e116rrnp,lad,la)
+--/*
         -- e116rrnp4: routine [%s] requires %d parameters, not %d
         #ilASM{
                 [32]
@@ -1353,6 +1359,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                     call :%pRTErn   -- fatal error
                 []
             }
+--*/
     end if
     if flag=FUNC then
 --      if return_type=0 then fatal(e117rdnrav) end if

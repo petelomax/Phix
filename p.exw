@@ -747,29 +747,29 @@ procedure verify_build()
 --    if not abort with 1 to signal failure.
 integer fn, fn2, c, c2
 sequence doOther
-        puts(1,"verifying pnew.exe==pnew2.exe")
-        fn = open("pnew.exe","rb")
-        fn2 = open("pnew2.exe","rb")
-        if fn!=-1 and fn2!=-1 then
-            while 1 do
-                c = getc(fn)
-                c2 = getc(fn2)
-                if c!=c2 then fn = -1 exit end if
-                if c=-1 then exit end if
-            end while
-        end if
-        if fn=-1 or fn2=-1 then
-            puts(1,"\n\nRebuild unsuccessful, sorry\n\nPress Enter...")
-            if wait_key() then end if
-            abort(1)
-        end if
-        puts(1," OK\n")
-        close(fn2)
-        if seek(fn,0)!=0 then
-            puts(1,"\n\n**seek error on pnew.exe**\n\nPress Enter...")
-            if wait_key() then end if
-            abort(1)
-        end if
+    puts(1,"verifying pnew.exe==pnew2.exe")
+    fn = open("pnew.exe","rb")
+    fn2 = open("pnew2.exe","rb")
+    if fn!=-1 and fn2!=-1 then
+        while 1 do
+            c = getc(fn)
+            c2 = getc(fn2)
+            if c!=c2 then fn = -1 exit end if
+            if c=-1 then exit end if
+        end while
+    end if
+    if fn=-1 or fn2=-1 then
+        puts(1,"\n\nRebuild unsuccessful, sorry\n\nPress Enter...")
+        if wait_key() then end if
+        abort(1)
+    end if
+    puts(1," OK\n")
+    close(fn2)
+    if seek(fn,0)!=0 then
+        puts(1,"\n\n**seek error on pnew.exe**\n\nPress Enter...")
+        if wait_key() then end if
+        abort(1)
+    end if
 --
 -- 2) The most likely case is p.exe is in use, as it is still running
 --    from the original "p -c p" command. Alternatively, it all started 
@@ -799,27 +799,26 @@ sequence doOther
 --          waiting for this pw.exe to finish", perhaps...
 --          Let me know if this behaviour annoys or confuses you.
 --
-        while 1 do
-            fn2 = open("pw.exe","wb")
-            if fn2!=-1 then
-                OverWrite("pw.exe",fn2,fn,0)
-                doOther = mainpath&"pw.exe -pmkr5"  -- ie DoOther("p.exe")
-                exit
-            end if
-            fn2 = open("p.exe","wb")
-            if fn2!=-1 then
-                OverWrite("p.exe",fn2,fn,0)
-                doOther = mainpath&"p.exe -pmkr6"   -- ie DoOther("pw.exe")
-                exit
-            end if
-            Retry("Both p.exe and pw.exe are in use - retry?")
-        end while
-        puts(1," OK\n")
---/**/  printf(1,"==>sysproc(%s)\n",{doOther})
---/**/  sysproc(doOther)        --/* Phix (no wait)
-        printf(1,"==>sysproc(%s)\n",{doOther})
-        system(doOther,2)       -- no wait (RDS) */
-        abort(0)
+    while 1 do
+        fn2 = open("pw.exe","wb")
+        if fn2!=-1 then
+            OverWrite("pw.exe",fn2,fn,0)
+--          doOther = mainpath&"pw.exe -pmkr5"  -- ie DoOther("p.exe")
+            doOther = '\"'&mainpath&"pw.exe\" -pmkr5"   -- ie DoOther("p.exe")
+            exit
+        end if
+        fn2 = open("p.exe","wb")
+        if fn2!=-1 then
+            OverWrite("p.exe",fn2,fn,0)
+            doOther = '\"'&mainpath&"p.exe\" -pmkr6"    -- ie DoOther("pw.exe")
+            exit
+        end if
+        Retry("Both p.exe and pw.exe are in use - retry?")
+    end while
+    puts(1," OK\n")
+    printf(1,"==>system(%s)\n",{doOther})
+    system(doOther)         -- (no wait)
+    abort(0)
 end procedure
 
 procedure DoOther(sequence ppw)
@@ -1035,8 +1034,7 @@ while 1 do  -- 17/8
 --              mainfile = "pgui.exw"
 --              return
 --          elsif sequence(dir("pgui.exe")) then
-----/**/            sysproc("pgui.exe")     --/* Phix
---              system("pgui.exe",2)    --  RDS */
+--              system("pgui.exe",2)
 --              abort(0)
 --          end if
 --      end if

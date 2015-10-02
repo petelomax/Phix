@@ -3,6 +3,7 @@
 --  ==========
 --
 --      Phix implementation of system_wait, system_open, system, sysproc, and system_exec.
+--      Phix implementation of system_wait, system_open, and system.
 --DEV document this:
 --      system_wait is functionally identical to system_exec but takes only one parameter
 --       and exists (as well as system_exec) for compatibility reasons only.
@@ -190,29 +191,29 @@ procedure initsw()
     swinit = 1
 end procedure
 
-integer suinit suinit = 0
-atom user32,xChangeDisplaySettings,xBeep
+--integer suinit suinit = 0
+--atom user32,xChangeDisplaySettings,xBeep
 
-procedure initsu()
---DEV locking as per pprntf
-    user32 = open_dll("user32.dll")
-
---#without reformat
-
-    xChangeDisplaySettings = define_c_func(user32, "xChangeDisplaySettingsW",
-        {C_POINTER, --  DEVMODE *lpDevMode, // NULL for default
-         C_ULONG},  --  DWORD   dwFlags,    // 0 for default
-        C_LONG)     -- LONG
-
-    xBeep = define_c_func(kernel32, "Beep",
-        {C_ULONG,   --  DWORD dwFreq
-         C_ULONG},  --  DWORD dwDuration
-        C_LONG)     -- BOOL
-
---#with reformat
-
-    suinit = 1
-end procedure
+--procedure initsu()
+----DEV locking as per pprntf
+--  user32 = open_dll("user32.dll")
+--
+----#without reformat
+--
+--  xChangeDisplaySettings = define_c_func(user32, "xChangeDisplaySettingsW",
+--      {C_POINTER, --  DEVMODE *lpDevMode, // NULL for default
+--       C_ULONG},  --  DWORD   dwFlags,    // 0 for default
+--      C_LONG)     -- LONG
+--
+--  xBeep = define_c_func(kernel32, "Beep",
+--      {C_ULONG,   --  DWORD dwFreq
+--       C_ULONG},  --  DWORD dwDuration
+--      C_LONG)     -- BOOL
+--
+----#with reformat
+--
+--  suinit = 1
+--end procedure
 
 integer Wait    -- for system()
         Wait = 1
@@ -407,23 +408,31 @@ integer len, res
         return res                                                      --  RDS */
 end function
 
-procedure restore(integer mode)
-    if not suinit then initsu() end if
-    if mode=1 then
-        if c_func(xBeep,{750,300}) then
-            if getc(0) then end if
-        end if
-    end if
-    if c_func(xChangeDisplaySettings,{NULL,0}) then end if
-end procedure
+--procedure restore(integer mode)
+--  if not suinit then initsu() end if
+--  if mode=1 then
+--      if c_func(xBeep,{750,300}) then
+--          if getc(0) then end if
+--      end if
+--  end if
+--  if c_func(xChangeDisplaySettings,{NULL,0}) then end if
+--end procedure
 
---/*
-without warning
---*/
---/**/global procedure system(sequence s, integer mode=2)
---/*
-global procedure system(sequence s, integer mode)
---*/
+global function system_exec(sequence s, integer mode=2)
+integer res -- exit code or -1 on failure
+    if and_bits(mode,4) then
+        s = getenv("COMSPEC")&" /C "&s
+    end if
+    if and_bits(mode,8) then
+        Wait = -10                      -- Max 10 iterations (0.4s)
+    end if
+    res = system_wait(s)
+--  if mode!=2 then restore(mode) end if
+    Wait = 1
+    return res
+end function
+
+global procedure system(sequence s, integer mode=2)
 --
 -- Invoke the specified shell command.
 -- Uses %COMSPEC% /C, which means it has the same features (redirection, wildcards, etc) 
@@ -434,42 +443,34 @@ global procedure system(sequence s, integer mode)
 -- NOTE2: mode is a bit of a legacy feature and not guaranteed to work exactly as per
 --        the documentation. The default value of 2 ("do nothing") should suffice.
 --
-integer r
-    Wait = -10                          -- Max 10 iterations (0.4s)
-    s = getenv("COMSPEC")&" /C "&s
-    r = system_wait(s)
-    Wait = 1
-    if mode!=2 then restore(mode) end if
+--integer r
+--  Wait = -10                          -- Max 10 iterations (0.4s)
+--  s = getenv("COMSPEC")&" /C "&s
+--  r = system_wait(s)
+--  Wait = 1
+--  if mode!=2 then restore(mode) end if
+    if mode then end if
+    {} = system_exec(s,12)
 end procedure
 
-global procedure sysproc(sequence s)
+--global procedure sysproc(sequence s)
+----
+---- Similar to system(), except that %COMSPEC% /C is NOT used (which means no
+----    redirection, etc). Strongly recommended for running windows GUI apps.
+----
+--integer r
+--  Wait = -10
+--  r = system_wait(s)
+--  Wait = 1
+--end procedure
 --
--- Similar to system(), except that %COMSPEC% /C is NOT used (which means no
---  redirection, etc). Strongly recommended for running windows GUI apps.
---
-integer r
-    Wait = -10
-    r = system_wait(s)
-    Wait = 1
-end procedure
-
---/**/global function system_exec(sequence s, integer mode=2)
---/*
-global function system_exec(sequence s, integer mode)
---*/
-integer res -- exit code or -1 on failure
-    res = system_wait(s)
-    if mode!=2 then restore(mode) end if
-    return res
-end function
-
-global function sysexec(sequence s)
---
--- Similar to system_exec(), except that %COMSPEC% /C is used.
---
-integer res -- exit code or -1 on failure
-    s = getenv("COMSPEC")&" /C "&s
-    res = system_wait(s)
-    return res
-end function
+--global function sysexec(sequence s)
+----
+---- Similar to system_exec(), except that %COMSPEC% /C is used.
+----
+--integer res -- exit code or -1 on failure
+--  s = getenv("COMSPEC")&" /C "&s
+--  res = system_wait(s)
+--  return res
+--end function
 

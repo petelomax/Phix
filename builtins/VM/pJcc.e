@@ -62,6 +62,7 @@ end procedure -- (for Edita/CtrlQ)
         cmp ah,0x12
         jne :compareSeqRet          -- sequences > atoms
         -- two floats. First, a direct binary compare allows nan compare:
+--DEV this may be the wrong thing to do entirely
         mov eax,[edi]
         mov ecx,[edi+4]
         cmp eax,[esi]
@@ -221,6 +222,7 @@ end procedure -- (for Edita/CtrlQ)
         cmp byte[edi-1],0x12
         jne :equalSeqRet
         -- (direct binary compare allows scan for nan)
+--DEV this may be the wrong thing to do entirely, see above
         mov eax,[edi]
         mov ecx,[edi+4]
         cmp eax,[esi]
@@ -352,6 +354,7 @@ end procedure -- (for Edita/CtrlQ)
         cmp ah,0x12
         jne :compareSeq64Ret            -- sequences > atoms
         -- two floats. First, a direct binary compare allows nan compare:
+--DEV this may be the wrong thing to do entirely
         mov rax,[rdi]
         mov cx,[rdi+8]
         cmp rax,[rsi]
@@ -516,6 +519,7 @@ end procedure -- (for Edita/CtrlQ)
         cmp byte[rdi-1],0x12
         jne :equalSeq64Ret
         -- (direct binary compare allows scan for nan)
+--DEV this may be the wrong thing to do entirely, see above
         mov rax,[rdi]
         mov cx,[rdi+8]
         cmp rax,[rsi]

@@ -2317,8 +2317,9 @@ else
     initialAutoEntry("define_c_var",    S_Func,"FNS",   "pcfunc.e",0,E_none)
     initialAutoEntry("open_dll",        S_Func,"FP",    "pcfunc.e",0,E_none)
 end if
---DEV document*3
     initialAutoEntry("factorial",       S_Func,"FN",    "factorial.e",0,E_none)
+    initialAutoEntry("gcd",             S_Func,"FON",   "gcd.e",0,E_none)
+--DEV document*2
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
     initialAutoEntry("mod",             S_Func,"FNN",   "pmaths.e",0,E_none)
@@ -2330,7 +2331,7 @@ end if
     initialAutoEntry("sign",            S_Func,"FN",    "pmaths.e",0,E_none)
 --DEV document
     initialAutoEntry("sum",             S_Func,"FO",    "psum.e",0,E_other)
-    initialAutoEntry("sysexec",         S_Func,"FP",    "syswait.ew",0,E_other)
+--  initialAutoEntry("sysexec",         S_Func,"FP",    "syswait.ew",0,E_other)
     initialAutoEntry("system_exec",     S_Func,"FPI",   "syswait.ew",0,E_other)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("system_wait",     S_Func,"FP",    "syswait.ew",0,E_other)
@@ -2689,7 +2690,7 @@ end if
     initialAutoEntry("suspend_thread",      S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("system",              S_Proc,"PSI",   "syswait.ew",0,E_other)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("sysproc",             S_Proc,"PS",    "syswait.ew",0,E_other)
+--  initialAutoEntry("sysproc",             S_Proc,"PS",    "syswait.ew",0,E_other)
 
 --DEV document*2
     initialAutoEntry("TlsSetValue",         S_Proc,"PIO",   "ptls.ew",0,E_other)

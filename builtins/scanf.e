@@ -2,20 +2,61 @@
 -- builtins/scanf.e
 -- ================
 --
--- the real gruntwork here is recognising numbers.
--- the clever bit, if you can call it that, is strings simply expand between literal matches.
+--  scanf(s,fmt) attempts to find sequence params for which sprintf(fmt,params) could have produced s.
+--
+--  May return more than one set, for example 
+--          res = scanf("one two three","%s %s") - res is {{"one","two three"},{"one two","three"}}
+--
+--  Note that scanf relies heavily on literal separators, especially spaces. It is illegal to specify back-to-back
+--  strings, integers, or atoms with format strings such as "%s%s", "%d%d", "%s%d", etc. The one exception is that
+--  a string can immediately follow a number, an example of which is "4th" and "%d%s". Theoretically it might be
+--  possible to write a scanf that yields {{1,23},{12,3}} from scanf("123","%d%d") but I for one cannot think of
+--  a single practical use, and a scanf(x,"%s%s") that returns {{"",x},..{x,""}} is also of dubious value.
+--  Likewise the ability to get {"hello",12} from "hello12", which is hard, as opposed to from "hello 12", which 
+--  is trivial, is deemed completely unnecessary.
+--
+--  Any width/precision/justify/zerofill details are for the most part quietly ignored: you may get the same results
+--  from %d/%d/%d as %02d/%02d/%04d, but obviously the latter might make the intent clearer, re-use something that 
+--  actually needs those qualifiers, or just be brain on autopilot: any error or warning here would hinder rather 
+--  than help. If scanf is about to return several possibilities, it tests the results of sprintf and trims the 
+--  result set down to those with an exact character-by-character match, as long as that does not trim the result 
+--  set down to zero, and, as in the example above, may trim nothing.
+--
+--  Internally scanf only cares for d/f/s formats; (x/o/b)/(e/g)/(c) are treated as respective aliases, up to but 
+--  not including the afore-mentioned final printf trimming stage that is. For more details regarding format strings 
+--  refer to printf. All characters not part of a %-group are treated as literal. There is no way to suggest, let 
+--  alone force, that say scanf("#FF","%d") should fail but scanf("255","%d") should succeed, and anything like 
+--  scanf("#FF","#%x") simply does not work (sorry), but scanf("#FF","%x") is perfectly fine, apart from the fact 
+--  that sprintf("%x",#FF) produces "FF" not "#FF".
+--
+--  Failure is indicated by {}. Otherwise each element of the results has as many elements as there were format
+--  specifications in the format string, in the same order as specfied. A perfect unique and unambiguous result
+--  is indicated by length(res)=1.
+--
+--  The parse_date_string() function of timedate is a much better way to process date and time strings.
+--
+--  (programming note: %s is all the wildcard-matching we can handle; ? and * are treated as literals.)
+--
+--
+-- The real gruntwork here is recognising numbers (if you think this is complicated, search for "scanf.c").
+--  Much of get_number() and completeFloat() was copied from ptok.e, should really share I spose, but
+--  ptok.e relies heavily on there being a \n at the end of every line, which this cannot, really.
+-- The clever bit, if you can call it that, is strings simply expand between literal matches.
+--
 
-constant NONE = 0,
-         LITERAL = 1,
-         INTEGER = 2,
-         ATOM = 4,
-         STRING = 8
+-- (actual values have no special meaning, except for one test that assumes NONE<LITERAL<REST.
+--  the values -1,0,1,2,3, for example, could just as easily have been used instead)
+constant NONE    = 0,
+         LITERAL = 1,   -- (note we actually store a string, rather than the 1)
+         INTEGER = 2,   -- ( ie %d )
+         ATOM    = 4,   -- ( ie %f )
+         STRING  = 8    -- ( ie %s )
 
 function parse_fmt(string fmt)
 --
 -- internal: converts eg "  Vendor: %s Model: %s Rev: %4d"
 --                    to {"  Vendor: ",STRING," Model: ",STRING," Rev: ",INTEGER}
---                    ie {LITERAL,     STRING,LITERAL,   STRING,LITERAL, INTEGER}
+--                    =~ {LITERAL,     STRING,LITERAL,   STRING,LITERAL, INTEGER}
 -- invalid formats cause a fatal runtime error
 --
 integer fmtdx = 1, 
@@ -169,7 +210,6 @@ integer esigned
 end function
 
 function get_number(string s, integer sidx)
---integer ch
 integer ch2
 atom N
 integer msign, base, tokvalid
@@ -378,6 +418,7 @@ integer goodres
         if sidx<=length(s) then return {} end if
         res = {res}
     end if
+--DEV/DOH: this should almost certainly be in scanf itself! (spotted in passing)
     if length(res)>1 and sidx=1 and fidx=1 then
         -- filter multiple results to exact matches
         goodres = 0

@@ -24,7 +24,7 @@ constant main = create(Window, "Raycast demo", 0, 0, 20, 20, 1865, 930, 0),
          darkDC = c_func(xCreateCompatibleDC, {NULL}),  -- the wall, gradient-darkened
          viewDC = c_func(xCreateCompatibleDC, {NULL})   -- with animation etc
 
-integer backWidth, backHeight, handWidth, handHeight, wallWidth, wallHeight
+integer backWidth, backHeight, handWidth, handHeight, wallWidth, wallHeight, darkWidth, darkHeight
 atom bmBack, bmHand, bmWall, bmView, bmDark
 
 
@@ -84,13 +84,54 @@ constant
         C_INT),     -- BOOL
     pPoints = allocate(8*6)
     poke4(pPoints,{100,100,400,20,20,800})
+--          x1 = floor(dw/4)
+--          x2 = floor(dw/2)
+--          y1 = floor(dh*0.3)
+--          y2 = floor(dh*0.4)
+--          y3 = floor(dh*0.6)
+--          y4 = floor(dh*0.7)
+--          drawDibTransformedPolygon(screen_dib, wallDib, {{x1, y1}, {x2, y2}, {x2, y3}, {x1, y4}}, {})
 
+atom pBits  -- dev darkBits
+
+constant sizeofBMI = sizeofstruct(BITMAPINFOHEADER)
+constant pBMI = allocate(sizeofBMI)
+constant ppvBits = allocate(4)
+
+procedure makeDark()
+    mem_set(pBMI,0,sizeofBMI)
+--palSize = 0   bpp = 24
+    poke4(pBMI+BIH_biSize, sizeofBMI)
+--  poke4(pBMI+BIH_biWidth, wallWidth)      -- Width in pixels.
+    poke4(pBMI+BIH_biWidth, darkWidth)      -- Width in pixels.
+--  poke4(pBMI+BIH_biHeight, -wallHeight)   -- Height in pixels (-ve=topdown).
+    poke4(pBMI+BIH_biHeight, -darkHeight)   -- Height in pixels (-ve=topdown).
+    poke2(pBMI+BIH_biPlanes, 1)             -- 1 colour plane. (always)
+    poke2(pBMI+BIH_biBitCount, 24)          -- no. of bits per pixel (0, 1, 4, 8, 16, 24, 32)
+    poke4(pBMI+BIH_biCompression, BI_RGB)   -- compression format - none in this case
+    poke4(pBMI+BIH_biSizeImage, 0)          -- size in bytes of image, set to 0 (unneeded) if no compression
+    poke4(pBMI+BIH_biXPelsPerMeter, 0)      -- Not needed
+    poke4(pBMI+BIH_biYPelsPerMeter, 0)      -- Not needed
+    poke4(pBMI+BIH_biClrUsed, 0)            -- colours actually used by the bitmap
+    poke4(pBMI+BIH_biClrImportant, 0)       -- no. colours needed to display image, 0=all
+
+--  bmDark = c_func(xCreateCompatibleBitmap, {mainDC, wallWidth, wallHeight})
+    bmDark = c_func(xCreateDIBSection, {mainDC, pBMI, DIB_RGB_COLORS, ppvBits, NULL, 0})
+    pBits = peek4u(ppvBits)
+    {} = deleteObject(selectObject(darkDC,bmDark))
+--  {} = selectObject(darkDC,bmDark)
+end procedure
+
+
+--DEV this is now better than the one in arwen32dibdemo...
 --integer shown = 01
 procedure darken(atom pBits, integer h, integer w, integer il, integer ir)
--- shade h lines of w pixels from intensity il to ir.
+-- shade h lines of w pixels from intensity il to ir (0 = black, 255=original).
 sequence rgb, dx
-integer d, v
-if il or ir then end if
+--integer d, v
+atom d
+integer v
+--if il or ir then end if
 --  if not shown then
 --      printf(1,"hDC=#%08x\n",pBitmap)
 ----        printf(1,"[%08x]=#%08x\n",{pBitmap,peek4u(pBitmap)})
@@ -99,8 +140,10 @@ if il or ir then end if
 if 01 then
     dx = repeat(0,w)
     for x=1 to w do
-        dx[x] = floor((il*(w-x)+ir*(x-1))/w)
+--      dx[x] = floor((il*(w-x)+ir*(x-1))/w)
+        dx[x] = (il*(w-x)+ir*(x-1))/(w*255)
     end for
+--?dx
     for y=1 to h do
         for x=1 to w do
 --if remainder(floor(y/8),2) then
@@ -108,7 +151,8 @@ if 01 then
             d = dx[x]--floor((il*(w-x)+ir*(x-1))/w)
 --          a -= ??
             for i=1 to 3 do
-                v = rgb[i]-d
+--              v = rgb[i]-d
+                v = floor(rgb[i]*d)
                 if v<0 then v = 0 end if
                 rgb[i] = v
             end for
@@ -123,10 +167,59 @@ else
 end if
 end procedure
 
-atom pBits
+procedure darken2(atom pBits, integer h, integer w, integer il, integer ir)
+-- shade h lines of w pixels from intensity il to ir (0 = black, 255=original).
+--  (but this does a while line at a time)
+--sequence rgb, dx
+--integer d, v
+atom d
+integer v
+--if il or ir then end if
+--  if not shown then
+--      printf(1,"hDC=#%08x\n",pBitmap)
+----        printf(1,"[%08x]=#%08x\n",{pBitmap,peek4u(pBitmap)})
+--      shown = 1
+--  end if
+--if 01 then
+--  dx = repeat(0,w)
+--  for x=1 to w do
+----        dx[x] = floor((il*(w-x)+ir*(x-1))/w)
+--      dx[x] = (il*(w-x)+ir*(x-1))/(w*255)
+--  end for
+--?dx
+    for y=1 to h do
+        d = (il*(h-y)+ir*(y-1))/(h*255)
+        for x=1 to w*3 do
+--if remainder(floor(y/8),2) then
+--          rgb = peek({pBits,3})
+--          d = dx[x]--floor((il*(w-x)+ir*(x-1))/w)
+--          a -= ??
+--          for i=1 to 3 do
+--              v = rgb[i]-d
+--              v = floor(rgb[i]*d)
+                v = floor(peek(pBits)*d)
+                if v<0 then v = 0 end if
+--              rgb[i] = v
+                poke(pBits,v)
+--          end for
+--          rgb = {r,g,b}
+--          poke(pBits,rgb)
+--end if
+--          pBits += 3
+            pBits += 1
+        end for
+--DEV padding we need, not sure how to calc this properly... (that'll do it)
+--      pBits += 3
+        pBits = floor((pBits+3)/4)*4
+    end for
+--else
+--  poke4(pBits,repeat(-1,100))
+--end if
+end procedure
 
 function mainHandler(integer id, integer msg, atom wParam, object lParam)
 integer x, y, h, bY--, bX
+integer x1,x2,y1,y2,y3,y4,hH
     if msg=WM_SIZE then
         {{},{},dw,dh} = getClientRect(main)
         if dw>bmX or dh>bmY then
@@ -158,22 +251,90 @@ integer x, y, h, bY--, bX
 --      setPenColor(#909090)
 --      drawRectangleh(viewDC, False, 10, 10, dw/2, dh/2)
 
-        void = c_func(xBitBlt,{darkDC,0,0,wallWidth,wallHeight,wallDC,0,0,SRCCOPY})
+            x1 = floor(dw/4)
+            x2 = floor(dw/2)
+--if x2-x1!=darkWidth then ?9/0 end if
+            y1 = floor(dh*0.3)
+            y2 = floor(dh*0.4)
+            y3 = floor(dh*0.6)
+            y4 = floor(dh*0.7)
+--if y4-y1!=darkHeight then ?9/0 end if
+
+--      darkWidth = x2-x1
+--      darkHeight = y4-y1
+        darkHeight = x2-x1
+        darkWidth = y4-y1
+makeDark()
+--      void = c_func(xBitBlt,{darkDC,0,0,wallWidth,wallHeight,wallDC,0,0,SRCCOPY})
+--      void = c_func(xStretchBlt,{darkDC,0,0,darkWidth,darkHeight,wallDC,0,0,wallWidth,wallHeight,SRCCOPY}) --no!
+--      poke4(pPoints,{x1,y1,x2,y2-1,x1,y4})
+--      poke4(pPoints,{0,0,0,darkWidth,darkHeight,darkWidth})
+        --DEV again with the 1!
+--      poke4(pPoints,{0,0,darkWidth,0,1,darkHeight})
+--      poke4(pPoints,{0,0,0,darkWidth,darkHeight,0})
+        poke4(pPoints,{0,0,0,darkHeight,darkWidth,0})
+        void = c_func(xPlgBlt,{darkDC,pPoints,wallDC,0,0,wallWidth,wallHeight,NULL,0,0})
+--?void
 --      void = c_func(xBitBlt,{darkDC,0,0,wallWidth,wallHeight,gradDC,0,0,SRCCOPY})
 --      void = c_func(xAlphaBlend,{darkDC,0,0,wallWidth,wallHeight,gradDC,0,0,wallWidth,wallHeight,#00D00000})
 --      void = c_func(xAlphaBlend,{darkDC,0,0,wallWidth,wallHeight,wallDC,0,0,wallWidth,wallHeight,#00FF0000})
 --      void = c_func(xBitBlt,{darkDC,0,0,wallWidth,wallHeight,gradDC,0,0,SRCERASE})
 --darken(pBits,wallHeight,wallWidth,0,255)
-darken(pBits,wallHeight,wallWidth,0,255)
+--darken(pBits,wallHeight,wallWidth,255,0)
+--DEV good, but effin slow!! (so use xStretchBlt!) [just did, which will break this...]
+-- so the plan is to rotate the wall 90 degrees, [done] darken2 [not done] and rotate back [done]
+if 01 then
+--darken(pBits,wallHeight,wallWidth,255,0)
+--darken(pBits,darkHeight,darkWidth,255,0)
+--darken2(pBits,darkHeight,darkWidth,0,255) --good
+darken2(pBits,darkHeight,darkWidth,255,0)
+end if
 --?void
 
-        void = c_func(xPlgBlt,{viewDC,pPoints,darkDC,0,0,wallWidth,wallHeight,NULL,0,0})
+        -- ul,ur,ll:
+--  poke4(pPoints,{100,100,400,20,20,800})
+--x1 = 100
+--y1 = 100
+--x2 = x1+300
+--y4 = y1+700
+--      poke4(pPoints,{x1,y1,x2,y1-1,x1,y4})
+--      poke4(pPoints,{x1,y1,x2,y2-1,x1,y4})
+--      poke4(pPoints,{x1,y1,x2,y2-1,x1,y4})
+        poke4(pPoints,{x2,y1,x2,y4,x1,y1})
+--          drawDibTransformedPolygon(screen_dib, wallDib, {{x1, y1}, {x2, y2}, {x2, y3}, {x1, y4}}, {})
+
+--DEV for some reason this is OK as long as it ain't "square". +/-1 to pPoints[4|5] and it is fine...
+--      void = c_func(xPlgBlt,{viewDC,pPoints,darkDC,0,0,wallWidth,wallHeight,NULL,0,0})
+        void = c_func(xPlgBlt,{viewDC,pPoints,darkDC,0,0,darkWidth,darkHeight,NULL,0,0})
+--?void
+--      void = c_func(xBitBlt,{viewDC,x1,y1,x2,y4,darkDC,0,0,SRCCOPY})
 --      void = c_func(xPlgBlt,{viewDC,pPoints,gradDC,0,0,wallWidth,wallHeight,NULL,0,0})
 
-        x = floor(dw*0.66)
-        y = dh-handHeight-85
+--      x = floor(dw*0.66)
+--      y = dh-handHeight-85
+-->
+        --
+        -- Make sure the tip of the knife (hand) does not go above the middle of the screen.
+        -- Crop it a bit anyway (to match lower edge of bmBack), and if we have to move the 
+        --  knife down, crop it even more.
+        --
+        x = floor(dw*0.56)
+--      y = dh-handHeight-85
+        y += h-handHeight*1.5+38
+        bY = 40
+        hH = handHeight-bY
+        if y<dh/2 then
+            y = floor(dh/2)
+            bY = handHeight*1.5-y
+            hH = floor(y/1.5)
+        end if
+--      drawDibToDib(screen_dib,handDib,x,y,0,0,handWidth,handHeight-bY,{0,0,0},255)
+--<
 --      void = c_func(xGdiTransparentBlt,{viewDC,x,y,handWidth*2.35,handHeight*2.35,handDC,0,0,handWidth,handHeight,0})
-        void = c_func(xGdiTransparentBlt,{viewDC,x,y,handWidth*2,handHeight*2,handDC,0,0,handWidth,handHeight,0})
+--      void = c_func(xGdiTransparentBlt,{viewDC,x,y,handWidth*2,handHeight*2,handDC,0,0,handWidth,handHeight,0})
+--      setText(main,sprint({x,y,handWidth*1.5,handHeight*1.5-bY,0,0,handWidth,handHeight-bY}))
+--      setText(main,sprint({x,y,handWidth*1.5,handHeight*1.5-bY,0,0,handWidth,hH}))
+        void = c_func(xGdiTransparentBlt,{viewDC,x,y,handWidth*1.5,handHeight*1.5-bY,handDC,0,0,handWidth,hH,0})
 --      void = c_func(xStretchBlt,{viewDC,x,y,handWidth*2,handHeight*2,handDC,0,0,handWidth,handHeight,SRCPAINT})
 --      void = c_func(xStretchBlt,{viewDC,x,y,handWidth*2,handHeight*2,handDC,0,0,handWidth,handHeight,SRCINVERT})
 --?void
@@ -198,12 +359,14 @@ darken(pBits,wallHeight,wallWidth,0,255)
         if id or object(lParam) then end if -- suppress warnings
     elsif msg=WM_KEYDOWN then
         if wParam=VK_LEFT then
-            bX -= 90
+--          bX -= 90
+            bX -= floor(backWidth/25)
             if bX<0 then bX += backWidth end if
 --          setText(main,sprintf("bX=%d",bX))
             repaintWindow(main)
         elsif wParam=VK_RIGHT then
-            bX += 90
+--          bX += 90
+            bX += floor(backWidth/25)
             if bX>=backWidth then bX -= backWidth end if
 --          setText(main,sprintf("bX=%d",bX))
             repaintWindow(main)
@@ -218,28 +381,6 @@ GdipInitialize()
 {bmHand,handWidth,handHeight} = LoadGraphics("..\\raycast\\knife_hand.png",handDC,2)
 {bmWall,wallWidth,wallHeight} = LoadGraphics("..\\raycast\\wall_texture.jpg",wallDC,0)
 GdipUninitialize()
-constant sizeofBMI = sizeofstruct(BITMAPINFOHEADER)
-atom pBMI = allocate(sizeofBMI)
-atom ppvBits = allocate(4)
-    mem_set(pBMI,0,sizeofBMI)
---palSize = 0   bpp = 24
-    poke4(pBMI+BIH_biSize, sizeofBMI)
-    poke4(pBMI+BIH_biWidth, wallWidth)      -- Width in pixels.
-    poke4(pBMI+BIH_biHeight, -wallHeight)   -- Height in pixels (-ve=topdown).
-    poke2(pBMI+BIH_biPlanes, 1)             -- 1 colour plane. (always)
-    poke2(pBMI+BIH_biBitCount, 24)          -- no. of bits per pixel (0, 1, 4, 8, 16, 24, 32)
-    poke4(pBMI+BIH_biCompression, BI_RGB)   -- compression format - none in this case
-    poke4(pBMI+BIH_biSizeImage, 0)          -- size in bytes of image, set to 0 (unneeded) if no compression
-    poke4(pBMI+BIH_biXPelsPerMeter, 0)      -- Not needed
-    poke4(pBMI+BIH_biYPelsPerMeter, 0)      -- Not needed
-    poke4(pBMI+BIH_biClrUsed, 0)            -- colours actually used by the bitmap
-    poke4(pBMI+BIH_biClrImportant, 0)       -- no. colours needed to display image, 0=all
-
---  bmDark = c_func(xCreateCompatibleBitmap, {mainDC, wallWidth, wallHeight})
-    bmDark = c_func(xCreateDIBSection, {mainDC, pBMI, DIB_RGB_COLORS, ppvBits, NULL, 0})
-    pBits = peek4u(ppvBits)
---  {} = deleteObject(selectObject(darkDC,hBitmap))
-    {} = selectObject(darkDC,bmDark)
 --/*
     hBitmap = c_func(xCreateCompatibleBitmap, {mainDC, wallWidth, wallHeight})
     {} = selectObject(gradDC,hBitmap)

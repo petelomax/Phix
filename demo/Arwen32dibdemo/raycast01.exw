@@ -1,10 +1,21 @@
 --
---  raycast.exw demo
+--  raycast01.exw demo
 --
+--  Part 1: Basic load and display of the graphics.
 --  Author: Pete Lomax
+--          This is a basic proof of concept, from which I learnt:
+--          * drawDibTransformedPolygon() has some minor affine trasformation effects (more of a sine wave than a gross distortion)
+--          * a flat xGdiTransparentBlt somehow just works better on the edges of the hand image being used.
+--          * between them (slightly more due to the latter) that means this program is now mothballed.
+--          * The initial plan of using whole-wall polygon transformations has been shelved, but at least it is now obvious that
+--          * rather than drawing stripes a fixed N pixels wide, we should use the drop in height of one pixel to determine how
+--          * wide the stripes should be.
+--          * I managed to write a routine to gradually darken the walls from side to side, but it is rather slow. If we're 
+--          * going to draw it in stripes then I could create a bank of up to 255 pre-darkened walls to select slices from?
+--
 
 include a32dpoly.ew  -- only the core- and polygon-library are necessary
---include a32dgeom.ew -- GEOMETRIC MANIPULATION LIBRARY
+include a32dgeom.ew -- GEOMETRIC MANIPULATION LIBRARY
 include axtra.ew
 
 constant main = create(Window, "raycast demo", 0, 0, Default, Default, 480, 300, 0),
@@ -15,12 +26,12 @@ constant main = create(Window, "raycast demo", 0, 0, Default, Default, 480, 300,
 --       dibDC = c_func(xCreateCompatibleDC, {NULL}),   -- the wall
 $
 
---integer wallWidth, wallHeight
 integer backWidth, backHeight, handWidth, handHeight, wallWidth, wallHeight
+integer darkWidth, darkHeight
 --atom bmBack,bmHand,bmWall
 
 a32Dib0 screen_dib
-a32Dib backDib, handDib, wallDib
+a32Dib backDib, handDib, wallDib, darkDib
 integer dx, dy, dw, dh
 integer bX = 0
 --, frames
@@ -92,7 +103,8 @@ GdipInitialize()
 {wallDib,wallWidth,wallHeight} = LoadGraphics("..\\raycast\\wall_texture.jpg",0)
 GdipUninitialize()
 --?{bmWall,wallWidth,wallHeight}
-
+--  darkDib = newDib(wallWidth,wallHeight)
+--  handDib = scaleDib(handDib,handWidth*2,handHeight*2,1)
 --  dib = newDib(wallWidth,wallHeight)
 --  wallDib = extractDib(wallDC, 0, 0, wallWidth, wallHeight)
 --  if not sequence(wallDib) then
@@ -115,38 +127,58 @@ GdipUninitialize()
 --  void = c_func(xDeleteDC,{hDibDC})
 --end procedure
 
-procedure shadeDibLR(sequence dib, integer il, integer ir)
--- shade (darken) pixels from intensity il to ir (left to right).
+procedure shadeDibLR(a32Dib dib, integer width, integer height, integer il, integer ir)
+-- shade (darken) pixels from intensity il to ir (left to right, 0=black, 255=original).
 atom memory, x
-integer red, green, blue, bytes_per_line, width, width3, w, brightness
+integer red, green, blue, bytes_per_line, width3, w, v
+--,width
+atom brightness
 sequence color, dx
     memory = dib[DibMemory]
     bytes_per_line = dib[DibBytesPerLine]
-    width = dib[DibWidth]
+--  width = dib[DibWidth]
     width3 = width*3-3
+--  dx = repeat(0,width)
+--  for d=1 to width do
+----        dx[d] = floor((il*(width-d)+ir*(d-1))/width)
+--      dx[d] = (il*(width-d)+ir*(d-1))/(width*255)
+--  end for
     dx = repeat(0,width)
     for d=1 to width do
-        dx[d] = floor((il*(width-d)+ir*(d-1))/width)
+--      dx[x] = floor((il*(w-x)+ir*(x-1))/w)
+        dx[d] = (il*(width-d)+ir*(d-1))/(width*255)
     end for
+--?dx
+
     for y=0 to dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
         w = 1
         for z=y to y+width3 by 3 do
             brightness = dx[w] w+= 1
             x = memory+z
---/**/      color = sq_add(peek({x, 3}),brightness) --/* -- Phix
-            color = peek({x, 3}) + brightness       --*/ -- RDS
-            blue = color[1]
-            green = color[2]
-            red = color[3]
-            if blue<0 then poke(x, 0) elsif blue>255 then poke(x, 255) else poke(x, blue) end if
-            if green<0 then poke(x+1, 0) elsif green>255 then poke(x+1, 255) else poke(x+1, green) end if
-            if red<0 then poke(x+2, 0) elsif red>255 then poke(x+2, 255) else poke(x+2, red) end if
+--!/**/     color = sq_add(peek({x, 3}),brightness) --/* -- Phix
+--          color = peek({x, 3}) + brightness       --*/ -- RDS
+--          blue = color[1]
+--          green = color[2]
+--          red = color[3]
+--          if blue<0 then poke(x, 0) elsif blue>255 then poke(x, 255) else poke(x, blue) end if
+--          if green<0 then poke(x+1, 0) elsif green>255 then poke(x+1, 255) else poke(x+1, green) end if
+--          if red<0 then poke(x+2, 0) elsif red>255 then poke(x+2, 255) else poke(x+2, red) end if
+            for i=1 to 3 do
+--              v = rgb[i]-d
+--              v = floor(rgb[i]*d)
+                v = floor(peek(x)*brightness)
+                if v<0 then v = 0 end if
+--              rgb[i] = v
+                poke(x,v)
+                x += 1
+            end for
         end for
+--if y>=height then exit end if
     end for
 end procedure
 
-if 01 then  --DEV
-    shadeDibLR(wallDib, 0, -100)
+if 0 then   --DEV
+--  shadeDibLR(wallDib, 0, -100)
 end if
 
     screen_dib = 0
@@ -211,14 +243,32 @@ integer x1,x2,y1,y2,y3,y4
                 drawDibToDib(screen_dib,backDib,backWidth-bX-2,y,0,bY,dw,bY+h,{},255)
             end if
 --          drawDibTransformedPolygon(screen_dib, wallDib, {{x1, y1}, {x2, y2}, {x3, y3}, {x4, y4}}, {})
+    darkWidth = floor(dw/4)
+    darkHeight = floor(dh*0.4)
+--darkWidth = wallWidth
+--darkHeight = wallHeight
+darkDib = newDib(darkWidth,darkHeight)
+--  darkDib = scaleDib(wallDib,darkWidth,darkHeight,0)
+--  darkDib = scaleDibPct(wallDib,50,0)
+    drawDibTransformedPolygon(darkDib, wallDib, {{0, 0}, {darkWidth, 0}, {darkWidth, darkHeight}, {0, darkHeight}}, {})
+
+    shadeDibLR(darkDib, darkWidth,darkHeight, 0, 255)
+
             x1 = floor(dw/4)
-            x2 = floor(dw/3)
+--          x1 = floor(dw/8)
+            x2 = floor(dw/2)
+--          x2 = floor(dw*0.8)
             y1 = floor(dh*0.3)
-            y2 = floor(dh*0.4)
-            y3 = floor(dh*0.6)
+            y2 = floor(dh*0.35)
+            y3 = floor(dh*0.65)
             y4 = floor(dh*0.7)
-            drawDibTransformedPolygon(screen_dib, wallDib, {{x1, y1}, {x2, y2}, {x2, y3}, {x1, y4}}, {})
+--          drawDibTransformedPolygon(screen_dib, wallDib, {{x1, y1}, {x2, y2}, {x2, y3}, {x1, y4}}, {})
 --          drawDibTransformedPolygon(screen_dib, wallDib, {{100, 310}, {400, 410}, {400, 600}, {100, 700}}, {})
+--          drawDibToDib(screen_dib,wallDib,0,0,0,0,wallWidth,wallHeight,{},255)
+--          drawDibToDib(screen_dib,darkDib,x1,y1,0,0,darkWidth,darkHeight,{},255)
+--          drawDibTransformedPolygon(screen_dib, darkDib, {{x1, y1}, {x2, y2}, {x3, y3}, {x4, y4}}, {})
+            drawDibTransformedPolygon(screen_dib, darkDib, {{x1, y1}, {x2, y2}, {x2, y3}, {x1, y4}}, {})
+killDib(darkDib)
 
             x = floor(dw*0.56)
 --          y = dh-handHeight-85

@@ -22,45 +22,102 @@
           <b>Description:</b>
          </td>
          <td>
-          Try to run the command given by st. st must be a command to run an
-          executable program, possibly with some command-line arguments.
-          If the program can be run, i1 will be the exit code from the
-          program. If it is not possible to run the program, system_exec()
-          returns -1. See <a href="system.htm">system</a> for an explanation
-          of the mode parameter.
+            Execute the specified command string.
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Comments:</b>
          </td>
-         <td>On DOS32 or WIN32, system_exec() will only run
-          <b>.exe</b> and
-          <b>.com</b> 
-             programs. To run
-          <b>.bat</b> files, or built-in DOS commands, you need 
-            <a href="system.htm">system</a> or <a href="sysexec.htm">sysexec</a>.
-             Some commands, such as DEL, are not programs, they are
-             actually built-in to the command interpreter.
+         <td>
+            Any path or filename containing spaces should be enclosed in quotation marks, as shown in example 3.
+            <br>
+            <br>
+            The <a href="system_exec.htm">system_exec</a>() routine can actually be run in four different ways, 
+            depending on whether you want a result and whether a command shell is required.
+            <br>
+            <br>
+            The <code><a href="system.htm">system</a>(st)</code> routine is in fact a simple wrapper of <a href="system_exec.htm">system_exec</a> that 
+            creates a new shell and does not wait for a return value.
+            <br>
+            <br>
+            In contrast <code>res = <a href="system_exec.htm">system_exec</a>(st)</code>, ie using the default mode, does not create a new shell and 
+            waits for a return value.
+            <br>
+            <br>
+            The bit settings of the mode parameter are designed to implement the above (default) behaviours, and in a 
+            backwards-compatible manner, but as a result are slightly unusual and easiest to explain using the table below.
+            <br>
+            <br>
+            The legacy mode parameter values of 0, 1, and 2, which controlled the restoration of the graphics mode, 
+            are now completely ignored, as the fullscreen video mode of an MS_DOS window has not been available since 
+            the release of Windows Vista (Jan 2007). Bit #04 controls whether a new shell is created (1=yes) and 
+            bit #08 controls whether to wait for a (meaningful) return value (1=no). The opposing on/off meanings of 
+            a set bit are a potential source of confusion, however all legacy code should continue to work unaltered.
+            <br>
+            <br>
+            If bit #04 in mode is set, a new shell is started, using %COMSPEC% /C, which means it has the same features 
+            (redirection, wildcards, etc) and is subject to the same limitations (eg it was 126 chars on Win98, but has 
+            grown to 8000 chars on Win7) as manually using an MS-DOS console window. This is the (non-overrideable) 
+            behaviour of <a href="system.htm">system</a>().
+            <br>
+            <br>
+            If bit #04 in mode is not set, no new shell is started, in which case st must be a .exe or .com program.
+            Attempts to run .bat files, built-in DOS commands, or use command-line redirection will fail (unless you 
+            have manually prefixed the command with %COMSPEC% /C). Some commands, such as DEL, are not programs, they 
+            are actually built-in to the command interpreter. This is the default behaviour for 
+            <a href="system_exec.htm">system_exec</a>().
+            <br>
+            <br>
+            If bit #08 in mode is set, this routine does not wait for the command to finish (though it does allow it 
+            up to about 0.4s to get going) and the return value will be meaningless (except for -1). This is the 
+            (non-overrideable) behaviour of <a href="system.htm">system</a>().
+            <br>
+            <br>
+            If bit #08 in mode is not set, this routine waits for the command to finish and returns the appropriate
+            exit code, typically in the range 0 to 255, with 0 indicating success. This is the default behaviour for 
+            <a href="system_exec.htm">system_exec</a>().
+            <br>
+            <br>
+            If it is not possible to run the program, <a href="system_exec.htm">system_exec</a>() returns -1 (whether bit #08 was set or not).
+            <br>
+            <br>
+            The following table shows the four possible ways that <a href="system_exec.htm">system_exec</a> can be used, one of which is the same as "<a href="system.htm">system</a>() plus -1":
+            <br>
+            <br>
+           <table>
+            <col style="width: 5%"/>
+            <tr> <td align=center><b>result/wait</b></td>   <td align=center><b>redirect/builtin</b></td>   <td><b>invoke</b></td>      <td><b>aka</b></td> </tr>
+            <tr> <td align=center>no</td>                   <td align=center>yes</td>                       <td><a href="system.htm">system</a>(st) </td>       <td>res<sup><small>1</small></sup> = <a href="system_exec.htm">system_exec</a>(st,12)</td> </tr>
+            <tr> <td align=center>no</td>                   <td align=center>no</td>                        <td>            </td>       <td>res<sup><small>1</small></sup> = <a href="system_exec.htm">system_exec</a>(st,8)</td> </tr>
+            <tr> <td align=center>yes</td>                  <td align=center>yes</td>                       <td>            </td>       <td>res = <a href="system_exec.htm">system_exec</a>(st,4)</td> </tr>
+            <tr> <td align=center>yes</td>                  <td align=center>no</td>                        <td><a href="system_exec.htm">system_exec</a>(st)</td>  <td>res = <a href="system_exec.htm">system_exec</a>(st[,0])</td> </tr>
+           </table>
+            <sup><small>1</small></sup> -1 if the command could not be invoked, all other values are meaningless. 
+            In the first case (system/12) a non-(-1) result only means it successfully created a shell, as opposed to the shell 
+            being able to make any sense of the rest of the line.
+         <br>
+         <br>
+            Note that the bit 4/8 settings of the mode parameter have no known equivalents on RDS Eu or OpenEuphoria, though 
+            otherwise <a href="system.htm">system</a>() and <a href="system_exec.htm">system_exec</a>() work the same.
+         <br>
+         <br>
+            For example if you want to run DEL or a batch file or the command string contains "&lt; input" or "&gt; output", then 
+            you need <a href="system_exec.htm">system_exec</a>(st,4) (if you want a result) or <a href="system.htm">system</a> 
+            (if you do not), and both of those come with that "ugly black box" thing as part and parcel of the deal for the extra 
+            functionality.
+         <br>
+         <br>
+            If however you want to run an exe file then <a href="system_exec.htm">system_exec</a>(st,8) (no result, returns immediately),
+            or <a href="system_exec.htm">system_exec</a> (result, does not return until the invoked executable terminates) may be more
+            appropriate, and without an "ugly black box" - unless triggered by something like <a href="qu.htm">?</a>, 
+            <a href="puts.htm">puts</a>(1,xx) or <a href="getc.htm">getc</a>(0).
           <br>
           <br>
-            system_exec() does <b><i>not</i></b> allow the use of command-line 
-            redirection in the command string st (whereas <a href="sysexec.htm">sysexec</a>
-            does).
+            You can run a Phix program using <a href="system_exec.htm">system_exec</a>(), and it can return an exit code using <a href="abort.htm">abort</a>().
           <br>
           <br>
-            exit codes from DOS or Windows programs are normally in the
-            range 0 to 255, with 0 indicating "success".
-          <br>
-          <br>
-            You can run a Phix program using system_exec(), and it can
-            return an exit code using abort().
-          <br>
-          <br>
-            system_exec() does not start a new DOS shell.
-          <br>
-          <br>
-          If you cannot decide between system, sysproc, system_exec, and sysexec, this <a href="opsystem.htm#sys">table</a> may help.
+            <a href="system_exec.htm">system_exec</a>() does not by default start a new DOS shell.
          </td>
         </tr>
         <tr>
@@ -70,7 +127,7 @@
          <td>
 <!--eucode>
 integer exit_code
-exit_code = system_exec("xcopy temp1.dat temp2.dat", 2)
+exit_code = system_exec("xcopy temp1.dat temp2.dat")
 if exit_code = -1 then
     puts(2, "\n couldn't run xcopy.exe\n")
 elsif exit_code = 0 then
@@ -81,7 +138,7 @@ end if
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> exit_code
-exit_code</font><font color="#0000FF"> =</font><font color="#800080"> system_exec</font><font color="#0000FF">(</font><font color="#008000">"xcopy temp1.dat temp2.dat"</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">)
+exit_code</font><font color="#0000FF"> =</font><font color="#800080"> system_exec</font><font color="#0000FF">(</font><font color="#008000">"xcopy temp1.dat temp2.dat"</font><font color="#0000FF">)
 </font><font color="#008080">if</font><font color="#000000"> exit_code</font><font color="#0000FF"> = -</font><font color="#000000">1</font><font color="#008080"> then
 </font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000"> "\n couldn't run xcopy.exe\n"</font><font color="#0000FF">)
 </font><font color="#008080">elsif</font><font color="#000000"> exit_code</font><font color="#0000FF"> =</font><font color="#000000"> 0</font><font color="#008080"> then
@@ -99,13 +156,34 @@ exit_code</font><font color="#0000FF"> =</font><font color="#800080"> system_exe
          <td>
 <!--eucode>
 -- executes myprog with two file names as arguments
-if system_exec("p.exe \\test\\myprog.ex indata.csv outdata.csv", 2) then
+-- note use of double backslash in literal string to get a single backslash
+if system_exec("p.exe \\test\\myprog.ex indata.csv outdata.csv") then
     puts(2, "failure!\n")
 end if
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080">-- executes myprog with two file names as arguments
-</font><font color="#008080">if</font><font color="#800080"> system_exec</font><font color="#0000FF">(</font><font color="#008000">"p.exe \\test\\myprog.ex indata.csv outdata.csv"</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">)</font><font color="#008080"> then
+<font color="#000000"></font><font color="#000080"><i>-- executes myprog with two file names as arguments
+-- note use of double backslash in literal string to get a single backslash
+</i></font><font color="#008080">if</font><font color="#800080"> system_exec</font><font color="#0000FF">(</font><font color="#008000">"p.exe \\test\\myprog.ex indata.csv outdata.csv"</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000"> "failure!\n"</font><font color="#0000FF">)
+</font><font color="#008080">end if</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+-- execute myprog with redirected standard input and output, and wait for the result
+if system_exec("\"C:Program Files (x86)\\Phix\\p.exe\" myprog.ex < indata > outdata",4)
+    puts(2, "failure!\n")
+end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- execute myprog with redirected standard input and output, and wait for the result
+</i></font><font color="#008080">if</font><font color="#800080"> system_exec</font><font color="#0000FF">(</font><font color="#008000">"p.exe \\test\\myprog.ex &lt; indata &gt; outdata"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">)
 </font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000"> "failure!\n"</font><font color="#0000FF">)
 </font><font color="#008080">end if</font>
 </pre>
@@ -117,7 +195,6 @@ end if
          </td>
          <td>
           <a href="system.htm">system</a>,
-          <a href="sysexec.htm">sysexec</a>,
           <a href="abort.htm">abort</a>
          </td>
         </tr>

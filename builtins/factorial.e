@@ -2,7 +2,8 @@
 -- factorial.e
 --
 
-sequence fcache = {}
+integer finit = 0
+sequence fcache
 
 global function factorial(integer n)
 --
@@ -12,6 +13,10 @@ global function factorial(integer n)
 --
 atom res = 1
     if n>0 then
+        if not finit then
+            fcache = {}
+            finit = 1
+        end if
         if n<=length(fcache) then
             res = fcache[n]
             if res!=0 then return res end if
