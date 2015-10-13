@@ -1,0 +1,267 @@
+--
+-- demo\rosetta\2048.exw
+-- =====================
+--
+-- Author Pete Lomax, October 2015
+--
+--  Faithful desktop gui (windows only) reproduction of https://gabrielecirulli.github.io/2048/
+--  Now I just got figure out how to win...
+--
+
+include ..\arwen\arwen.ew
+include ..\arwen\axtra.ew
+
+constant main = create(Window, "2048", 0, 0, 20, 20, 520, 540, 0),
+         mainDC = getPrivateDC(main),
+         viewDC = c_func(xCreateCompatibleDC, {NULL})
+
+constant TA_CENTER = 6
+{} = c_func(xSetTextAlign,{viewDC,TA_CENTER})
+constant hFont40 = createFontForDC(viewDC, "Calibri", 40, Bold)
+constant hFont32 = createFontForDC(viewDC, "Calibri", 32, Bold)
+
+constant tile_colours = {#B4C0CC,   -- blank
+                         #DAE4EE,   -- 2
+                         #C8E0ED,   -- 4
+                         #79B1F2,   -- 8
+                         #6395F5,   -- 16
+                         #5F7CF6,   -- 32
+                         #3B5EF6,   -- 64
+                         #72CFED,   -- 128
+                         #61CCED,   -- 256
+                         #50C8ED,   -- 512
+                         #3FC5ED,   -- 1024
+                         #2EC2ED}   -- 2048
+
+-- the 4x4 board.
+--  note that values are [1..12] for [blank,2,4,8,..2048].
+--  (merging two eights is not 8+8->16 but 4+1->5, internally)
+sequence board
+
+integer newgame = 1
+
+procedure add_rand(integer count)
+-- (nb infinite loop if board is full)
+integer x, y
+    while count do
+        x = rand(4)
+        y = rand(4)
+        if board[y][x]=1 then   -- blank
+            board[y][x] = 2+(rand(10)=10)
+            count -= 1
+        end if
+    end while   
+end procedure
+
+integer valid = 0
+integer prev, nxt, bxy
+
+procedure move_x(integer x, integer y, integer d)
+    bxy = board[x][y]
+    if bxy!=1 then
+        if bxy=prev then
+            board[x][y] = 1
+            bxy += 1
+            board[x][nxt] = bxy
+            nxt += d
+            prev = 13
+            valid = 1 
+        else
+            if prev=1
+            or y!=nxt then
+                if prev!=1
+                and prev!=13 then
+                    nxt += d
+                end if
+                if y!=nxt then
+                    board[x][y] = 1
+                    board[x][nxt] = bxy
+                    valid = 1
+                end if
+            end if
+            prev = bxy
+        end if
+    end if
+end procedure
+
+procedure move_y(integer x, integer y, integer d)
+    bxy = board[x][y]
+    if bxy!=1 then
+        if bxy=prev then
+            board[x][y] = 1
+            bxy += 1
+            board[nxt][y] = bxy
+            nxt += d
+            prev = 13
+            valid = 1 
+        else
+            if prev=1
+            or x!=nxt then
+                if prev!=1
+                and prev!=13 then
+                    nxt += d
+                end if
+                if x!=nxt then
+                    board[x][y] = 1
+                    board[nxt][y] = bxy
+                    valid = 1
+                end if
+            end if
+            prev = bxy
+        end if
+    end if
+end procedure
+
+function move(integer key)
+-- a non-zero result means it changed something.
+    valid = 0
+    if key=VK_LEFT then
+        for x=1 to 4 do
+            prev = 13
+            nxt = 1
+            for y=1 to 4 do
+                move_x(x,y,+1)
+            end for
+        end for
+    elsif key=VK_DOWN then
+        for y=1 to 4 do
+            prev = 13
+            nxt = 4
+            for x=4 to 1 by -1 do
+                move_y(x,y,-1)
+            end for
+        end for
+    elsif key=VK_RIGHT then
+        for x=1 to 4 do
+            prev = 13
+            nxt = 4
+            for y=4 to 1 by -1 do
+                move_x(x,y,-1)
+            end for
+        end for
+    elsif key=VK_UP then
+        for y=1 to 4 do
+            prev = 13
+            nxt = 1
+            for x=1 to 4 do
+                move_y(x,y,+1)
+            end for
+        end for
+    end if
+    return valid
+end function
+
+function game_won()
+    for i=1 to length(board) do
+        if find(12,board[i]) then return 1 end if
+    end for
+    return 0
+end function
+
+constant valid_keys = {VK_LEFT,VK_DOWN,VK_RIGHT,VK_UP}
+
+function no_valid_moves()
+sequence saved_board = board
+    for i=1 to length(valid_keys) do
+        if move(valid_keys[i]) then
+            board = saved_board
+            return 0    -- OK
+        end if
+    end for
+    return 1 -- game over...
+end function
+
+integer dw = 0, dh = 0      -- client area width and height
+atom bmView
+integer vwX = 0, vwY = 0    -- actual size of the view bitmap
+
+integer ox,oy,              -- top tight coords
+        os,ts,              -- overall and tile size
+        ts2                 -- half tile, for number positioning
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+integer tx, ty, bxy
+string mbmsg
+
+    if msg=WM_SIZE then
+        {{},{},dw,dh} = getClientRect(main)
+        if dw>vwX or dh>vwY then
+            -- we need a bigger bitmap
+            bmView = c_func(xCreateCompatibleBitmap, {mainDC, dw, dh})
+            {} = deleteObject(selectObject(viewDC,bmView))
+            {vwX,vwY} = {dw,dh}
+        end if
+        if dw>=dh then
+            ox = floor((dw-dh)/2)
+            oy = 0
+            os = dh
+        else
+            ox = 0
+            oy = floor((dh-dw)/2)
+            os = dw
+        end if
+        ts = floor((os-10)/4-7)
+        ts2 = floor(ts/2+5)-10
+    elsif msg=WM_PAINT then
+        if newgame then
+            board = repeat(repeat(1,4),4)
+            add_rand(2)
+            newgame = 0
+        end if
+        setPenColor(#EFF8FA)
+        drawRectangleh(viewDC, True, 0, 0, dw, dh)
+        setPenColor(#A0ADBB)
+        drawRoundRecth(viewDC, True, ox+5, oy+5, ox+os-5, oy+os-5, 10, 10)
+        tx = ox+15
+        for y=1 to 4 do
+            ty = oy+15
+            for x=1 to 4 do
+                bxy = board[x][y]
+                setPenColor(tile_colours[bxy])
+                drawRoundRecth(viewDC, True, tx, ty, tx+ts-10, ty+ts-10, 5, 5)
+                if bxy>1 then
+                    setPenColor(iff(bxy<=3?#656E77:#F2F6F9))
+                    {} = selectObject(viewDC,iff(bxy>10?hFont32:hFont40))
+                    wPuts2(viewDC, tx+ts2, ty+ts2-25-iff(bxy<11?7:0), power(2,bxy-1))
+                end if
+                ty += ts+5
+            end for
+            tx += ts+5
+        end for
+        void = c_func(xBitBlt,{mainDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(main)
+            if id or object(lParam) then end if -- suppress warnings
+--      elsif wParam='!' then
+--          ?9/0
+        end if
+    elsif msg=WM_KEYDOWN then
+        if move(wParam) then
+            mbmsg = ""
+            if game_won() then
+                mbmsg = "!!!YOU WON!!!\n\nAnother Go?"
+            else
+                add_rand(1)
+                repaintWindow(main)
+                if no_valid_moves() then
+                    mbmsg = "You Lost.\n\nAnother Go?"
+                end if
+            end if
+            if length(mbmsg) then
+                if messageBox("Game Over",mbmsg,MB_YESNO)=IDYES then
+                    newgame=1
+                else
+                    closeWindow(main)
+                end if
+            end if
+        end if
+    elsif msg=WM_GETMINMAXINFO then
+        poke4(lParam+MINMAXINFO_ptMinTrackSize,{440,450}) 
+    end if
+    return 0
+end function
+setHandler({main},routine_id("mainHandler"))
+
+WinMain(main, SW_NORMAL)
+

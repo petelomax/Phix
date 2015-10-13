@@ -61,13 +61,16 @@ integer k
             if toktype=LETTER and ttidx=T_strict then getToken() end if
             return
         elsif k then
-            if k=OptProfile or k=OptProfileTime then
+            if k=OptProfile
+            or k=OptProfileTime then
                 if OptOn then
                     if profileon and profileon!=k then
                         Aborp("cannot mix profile and profile_time")
                     end if
                     profileon = k
                 end if
+            elsif k=OptWarning then
+                finalOptWarn[fileno] = OptOn
             end if
             optset[k] = OptOn
             if k=OptDebug and not OptOn and not fromroutine then
@@ -4738,7 +4741,7 @@ procedure DoIff()
 integer iffvar
 
 --??
-if erm then
+--if erm then
     if exprBP!=0 then ?9/0 end if
 
     saveIchain = Ichain
@@ -4758,7 +4761,7 @@ if erm then
     SideEffects = E_none
     wasEmit = emitON
     emitElse = emitON   -- (minor optimisation [cmp vs opJcc] 18/3/09)
-end if
+--end if
 
     iffvar = newTempVar(T_object,Shared)
     MatchString(T_iff)
@@ -4788,6 +4791,226 @@ end if
     PushFactor(iffvar,0,T_object)
 end procedure
 --*/
+
+integer exprBP      -- expression/short circuit back patch link
+        exprBP = 0
+
+--!/!*
+procedure DoIff()
+--
+-- Recognize and translate an "iff" construct
+--
+integer emitElse, wasEmit
+
+integer ifBP, saveIchain
+integer EndIfBP, tmp
+
+sequence sytmp
+
+--integer elsevalid -- initially 2, == first conditional test,
+                    -- can 2=>3 for "if then return" handling,
+                    -- then 1 until we find an "else",
+                    -- then 0 to force "if else else" to error.
+
+integer wasSideEffects
+--integer plain, testfor
+integer iftop, ctrlink, ctrltyp
+--integer scode, wasEmit2
+integer iffvar
+--trace(1)
+--  if opsidx then ?9/0 end if  -- leave in (outside if DEBUG then)
+    EndIfBP = 0
+
+--if traceif then trace(1) end if
+    if exprBP!=0 then ?9/0 end if
+
+    saveIchain = Ichain
+    Ichain = -1
+--  MatchString(T_iff)  or T_iif
+    getToken()  -- T_iff/T_iif
+    MatchChar('(')
+
+--  elsevalid = 2
+
+    ctrlink = 0
+    if emitON then
+        apnds5({opCtrl,IF,0,emitline})
+        iftop = length(s5)-1    -- patched at/pointed to the end if
+        ctrlink = iftop         -- where to point next elsif/else/endif
+        if NOLT=0 or bind or lint then
+            ltCtrl(iftop)
+        end if -- NOLT
+    end if
+
+    wasSideEffects = SideEffects
+    SideEffects = E_none
+    wasEmit = emitON
+    emitElse = emitON   -- (minor optimisation [cmp vs opJcc] 18/3/09)
+
+    if exprBP!=0 then ?9/0 end if
+
+    noofbranches = 0
+
+    Expr(0,0)   -- full, notBool/asIs
+
+    ifBP = 0
+    if exprBP then
+        ifBP = bprelink(ifBP,exprBP,exprMerge,ifMerge)
+        exprBP = 0
+    end if
+
+--          MatchString(T_then)
+    if toktype='?' then
+        MatchChar('?')
+    else
+        MatchChar(',')
+    end if
+
+    emitElse = emitON
+    tmp = opstack[1]
+    if tmp>0 and scBP=0 and ifBP=0 then
+        if (opsidx=1 and not opTopIsOp)
+        or (opsidx=2 and opstack[2]=opNot) then
+            sytmp = symtab[tmp]
+            if sytmp[S_NTyp]=S_Const
+            and sytmp[S_Init]
+            and sytmp[S_vtype]=T_integer then
+                tmp = sytmp[S_value]
+                if (opsidx=1 and tmp!=0)
+                or (opsidx=2 and tmp=0) then
+                    emitElse = 0
+                else
+                    emitON = 0
+                end if
+                opTopIsOp = 0
+                opsidx = 0
+            end if
+        end if
+    end if
+    --
+    -- jump_not to elsif/else/endif, eg
+    -- if x then => Jnot <endif> x, or
+    -- if not x then => Jif <endif> x, or
+    -- if a<b => Jge <endif> a,b
+    --
+    if opsidx then
+        ifBP = Branch(Invert,emitElse,ifMerge,ifBP)
+    end if
+
+    -- patch short circuits (eg if a or b then -> jump after a to if-block)
+    if scBP>0 then
+        scBP = backpatch(scBP,0,scMerge)
+        if scBP then ?9/0 end if
+    end if
+
+    oktoinit = 1    -- just done in Statement!
+
+    iffvar = newTempVar(T_object,Shared)
+
+    Expr(0,0)
+
+    RHStype = T_object
+    if not opTopIsOp and opsidx=1 then
+        RHStype = opstype[1]
+    end if
+    StoreVar(iffvar,RHStype)
+
+    clearIchain(-1)
+    if exprBP!=0 then ?9/0 end if
+
+--  if toktype!=LETTER then exit end if
+--      if ttidx=T_elsif then
+--          ctrltyp = ELSIF
+--      else
+--      if ttidx!=T_else then exit end if
+        ctrltyp = ELSE
+--      end if
+    if emitline<tokline then
+        emitline = tokline-1
+    end if
+--  elsevalid = 0
+--      MatchString(ttidx)
+    if toktype=':' then
+        MatchChar(':')
+    else
+        MatchChar(',')
+    end if
+
+    emitON = (emitON and emitElse)
+    if emitON then
+        apnds5({opJmp,endIfMerge,0,EndIfBP})
+        EndIfBP = length(s5)
+    end if
+    -- patch previous if condition jumps to this elsif test [DEV?]
+    if ifBP>0 then
+        ifBP = backpatch(ifBP,0,ifMerge)
+        if ifBP then ?9/0 end if
+    end if
+    if emitON then
+        s5 &= {opCtrl,ctrltyp,ctrlink,emitline}
+        ctrlink = length(s5)-1
+        if NOLT=0 or bind or lint then
+            ltCtrl(ctrlink)
+        end if -- NOLT
+    end if
+
+--      emitline = line
+    if allWhiteToTokcol() then
+        emitline = line-1
+    else
+        emitline = line
+    end if
+    emitON = (wasEmit and emitElse)
+    if exprBP!=0 then ?9/0 end if
+    oktoinit = 0
+--  while 1 do
+
+    Expr(0,0)
+
+    RHStype = T_object
+    if not opTopIsOp and opsidx=1 then
+        RHStype = opstype[1]
+    end if
+    StoreVar(iffvar,RHStype)
+
+    clearIchain(-1)
+    if exprBP!=0 then ?9/0 end if
+
+    -- patch any remaining if/elsif (and no else) jumps to s5len (end if)
+    -- patch the jumps before elsif and else statements to s5len (end if)
+
+    if ifBP>0 then
+        ifBP = backpatch(ifBP,0,ifMerge)
+        if ifBP then ?9/0 end if
+    end if
+    if EndIfBP>0 then
+        EndIfBP = backpatch(EndIfBP,0,endIfMerge)
+        if EndIfBP then ?9/0 end if
+    end if
+    if ctrlink then
+        s5 &= {opCtrl,END+IF,ctrlink,emitline}
+        ctrlink = length(s5)-1
+        s5[iftop] = ctrlink
+        if NOLT=0 or bind or lint then
+            ltCtrl(ctrlink)
+        end if -- NOLT
+    end if
+
+--  MatchString(T_end)
+--  MatchString(T_if)
+    MatchChar(')')
+    emitON = wasEmit
+    if exprBP!=0 then ?9/0 end if
+
+    clearIchain(saveIchain)
+
+    SideEffects = or_bits(SideEffects,wasSideEffects)
+
+--DEV merge RHStypes:
+    PushFactor(iffvar,0,T_object)
+
+end procedure
+--!*!/
 
 procedure ForwardProc(integer isFunc)
 --
@@ -6215,9 +6438,6 @@ end function
 
 integer notcode
 
-integer exprBP      -- expression/short circuit back patch link
-        exprBP = 0
-
 --with trace
 --object etype  --7/1/09
 integer etype, isLit
@@ -6300,6 +6520,10 @@ validate_opstack()
                 PushOp(opNot,UnaryOp)
                 etype = T_atom
             end if
+        elsif ttidx=T_iff
+           or ttidx=T_iif then
+--trace(1)
+            DoIff()
         else
             wasNamespace = (Ch=':')
             nsttidx = ttidx

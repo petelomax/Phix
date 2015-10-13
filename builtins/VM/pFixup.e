@@ -22,6 +22,12 @@ include builtins\VM\pFPU.e
 --      int3
     ::e05sinaae10
         int3
+
+    ::e06ioobp1WhatN
+        sub edi,edx
+        sub edi,1
+    ::e06ioobp1What
+        add edi,1
     ::e06ioobWhat
         -- 0 or >length
     [32]
@@ -101,10 +107,10 @@ include builtins\VM\pFPU.e
             jmp :!iDiag
             int3
 
-      ::e06ioobp1WhatN
-        int3
-      ::e06ioobp1What
-        int3
+--    ::e06ioobp1WhatN
+--      int3
+--    ::e06ioobp1What
+--      int3
       ::e08seinaie11
         int3
       ::e10sspeosediedx
@@ -141,6 +147,9 @@ include builtins\VM\pFPU.e
         int3                    -- (nodiag)
 
 --/*
+e06ioobp1WhatN:
+    sub edi,edx
+    jmp e06ioobWhat 
 e06ioobp1What:
     add edi,1
 e06ioobWhat:

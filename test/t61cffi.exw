@@ -1,0 +1,369 @@
+--
+-- t61cffi.exw
+-- ===========
+
+include builtins\cffi.e
+
+constant tST="""
+typedef struct _SYSTEMTIME {
+  WORD wYear;
+  WORD wMonth;
+  WORD wDayOfWeek;
+  WORD wDay;
+  WORD wHour;
+  WORD wMinute;
+  WORD wSecond;
+  WORD wMilliseconds;
+} SYSTEMTIME, *PSYSTEMTIME;
+""",
+tFT = """
+typedef struct _FILETIME {
+  DWORD dwLowDateTime;
+  DWORD dwHighDateTime;
+} FILETIME, *PFILETIME;
+""",
+tSTtoFT="""
+BOOL WINAPI SystemTimeToFileTime(
+  _In_   const SYSTEMTIME *lpSystemTime,
+  _Out_  LPFILETIME lpFileTime
+);
+""",
+tFTtoST="""
+BOOL WINAPI FileTimeToSystemTime(
+  _In_   const FILETIME *lpFileTime,
+  _Out_  LPSYSTEMTIME lpSystemTime
+);
+""",
+idST = define_struct(tST),
+pST = allocate_struct(idST),
+idFT = define_struct(tFT),
+pFT = allocate_struct(idFT),
+k32 = open_dll("kernel32.dll"),
+xSTtoFT = define_cfunc(k32,tSTtoFT),
+xFTtoST = define_cfunc(k32,tFTtoST)
+
+sequence res = {}
+
+set_struct_field(idST,pST,"wMonth",12)
+set_struct_field(idST,pST,"wDay",25)
+for y=2008 to 2121 do
+    set_struct_field(idST,pST,"wYear",y)
+    {} = c_func(xSTtoFT,{pST,pFT})
+    {} = c_func(xFTtoST,{pFT,pST})
+    if get_struct_field(idST,pST,"wDayOfWeek")=0 then
+        res = append(res,y)
+    end if
+end for
+if res!={2011,2016,2022,2033,2039,2044,2050,2061,2067,2072,2078,2089,2095,2101,2107,2112,2118} then ?9/0 end if
+
+constant gdipSI="""
+typedef struct {
+    UINT32       GdiplusVersion;
+    DebugEventProc DebugEventCallback;
+    BOOL             SuppressBackgroundThread;
+    BOOL             SuppressExternalCodecs;
+} GdiplusStartupInput;
+"""
+if define_struct(gdipSI,S32,0)!={"GdiplusStartupInput",16,4,{{"GdiplusVersion","DebugEventCallback","SuppressBackgroundThread","SuppressExternalCodecs"},
+                                                             {{"UINT32",4,0,0},{"DebugEventProc",4,4,0},{"BOOL",4,8,1},{"BOOL",4,12,1}}},{}} then end if
+if define_struct(gdipSI,S64,0)!={"GdiplusStartupInput",24,8,{{"GdiplusVersion","DebugEventCallback","SuppressBackgroundThread","SuppressExternalCodecs"},
+                                                             {{"UINT32",4,0,0},{"DebugEventProc",8,8,0},{"BOOL",4,16,1},{"BOOL",4,20,1}}},{}} then ?9/0 end if
+
+constant func1="""
+DWORD WINAPI GetLastError(void);
+"""
+if define_cfunc("kernel32.dll",func1,0)<=0 then ?9/0 end if
+
+constant func2="""
+void WINAPI SetLastError(
+  _In_  DWORD dwErrCode
+);
+"""
+if define_cproc("kernel32.dll",func2,0)<=0 then ?9/0 end if
+
+--include builtins\cffi.e
+constant tMB="""
+int WINAPI MessageBox(
+  _In_opt_  HWND hWnd,
+  _In_opt_  LPCTSTR lpText,
+  _In_opt_  LPCTSTR lpCaption,
+  _In_      UINT uType
+);
+"""
+set_unicode(0)
+constant xMessageBox = define_cfunc("user32.dll",tMB,0)
+--?c_func(xMessageBox,{0,"text","caption",0})
+atom pText = allocate_string("text"),
+     pCaption = allocate_string("caption")
+    if 0 then
+        ?c_func(xMessageBox,{0,pText,pCaption,0})
+    end if
+
+constant tMBP="""
+typedef struct {
+  UINT           cbSize;
+  HWND           hwndOwner;
+  HINSTANCE      hInstance;
+  LPCTSTR        lpszText;
+  LPCTSTR        lpszCaption;
+  DWORD          dwStyle;
+  LPCTSTR        lpszIcon;
+  DWORD_PTR      dwContextHelpId;
+  MSGBOXCALLBACK lpfnMsgBoxCallback;
+  DWORD          dwLanguageId;
+} MSGBOXPARAMS, *PMSGBOXPARAMS;
+"""
+constant tMBI = """
+int WINAPI MessageBoxIndirect(
+  _In_ const LPMSGBOXPARAMS lpMsgBoxParams
+);
+"""
+integer idMBP = define_struct(tMBP)
+integer xMBI = define_cfunc("user32.dll",tMBI)
+atom pMBP = allocate_struct(idMBP)
+    set_struct_field(idMBP,pMBP,"cbSize",get_struct_size(idMBP))
+    set_struct_field(idMBP,pMBP,"lpszText",pText)
+    set_struct_field(idMBP,pMBP,"lpszCaption",pCaption)
+    if 0 then
+        ?c_func(xMBI,{pMBP})
+    end if
+
+--tests:
+
+procedure check(string struct_str, sequence expected, sequence expected64=expected)
+sequence actual = define_struct(struct_str,S32,0)
+integer le = length(expected)
+    if not equal(actual[1..le],expected) then ?9/0 end if
+    actual = define_struct(struct_str,S64,0)
+--  if atom(expected64) then expected64=expected end if
+    if not equal(actual[1..le],expected64) then ?9/0 end if
+end procedure
+
+-- from http://c-faq.com/struct/align.esr.html
+--(1) struct {char *; long;} has no trailing padding and is (4 + 4) = 8 bytes long, or (8 + 8) = 16 with no padding on a 64-bit architecture. 
+check("struct x{char *ps; long l;} ",{"x", 8,4,{{"ps","l"},{{"ptr",4,0,1},{"long",4,4,1}}}},
+                                     {"x",16,8,{{"ps","l"},{{"ptr",8,0,1},{"long",4,8,1}}}})
+--(2) struct {char *; short;} will also be two machine words long, even though a short is only a half-word, because the leading char * would force word alignment on a following instance. 
+check("struct x{char *ps; short s;} ",{"x", 8,4,{{"ps","s"},{{"ptr",4,0,1},{"short",2,4,1}}}},
+                                      {"x",16,8,{{"ps","s"},{{"ptr",8,0,1},{"short",2,8,1}}}})
+--(3) struct {char *; short; short;} will be the same two-word size as example 2; the final short simply takes up what would have been padding.
+check("struct x{char *ps; short s; short s2;}",{"x", 8,4,{{"ps","s","s2"},{{"ptr",4,0,1},{"short",2,4,1},{"short",2, 6,1}}}},
+                                               {"x",16,8,{{"ps","s","s2"},{{"ptr",8,0,1},{"short",2,8,1},{"short",2,10,1}}}})
+--(4) struct {char *; short; long;} will have a half-word of padding after the short because long has to be word-aligned, and is thus the same size as struct {char *; short; short; long;}. 
+check("struct x{char *ps; short s; long l;}",{"x",12,4,{{"ps","s","l"},{{"ptr",4,0,1},{"short",2,4,1},{"long",4, 8,1}}}},
+                                             {"x",16,8,{{"ps","s","l"},{{"ptr",8,0,1},{"short",2,8,1},{"long",4,12,1}}}})
+check("struct x{char *ps; short s; short s2; long l;}",{"x",12,4,{{"ps","s","s2","l"},{{"ptr",4,0,1},{"short",2,4,1},{"short",2, 6,1},{"long", 4,8,1}}}},
+                                                       {"x",16,8,{{"ps","s","s2","l"},{{"ptr",8,0,1},{"short",2,8,1},{"short",2,10,1},{"long",4,12,1}}}})
+--(5) struct {short; char;} would have one byte of trailing padding;
+check("struct x{short s; char c;}",{"x",4,2,{{"s","c"},{{"short",2,0,1},{"char",1,2,1}}}})
+--(6) struct {short; char; char;} would be the same size as example 5, but with no padding. 
+check("struct x{short s; char c; char c2;}",{"x",4,2,{{"s","c","c2"},{{"short",2,0,1},{"char",1,2,1},{"char",1,3,1}}}})
+--(7) struct {long; char;} would have 3 bytes of trailing padding, 
+check("struct x{long l; char c;}",{"x",8,4,{{"l","c"},{{"long",4,0,1},{"char",1,4,1}}}})
+--(8) struct {long; char; short} would have 1 byte of padding after the char, be the same size as example 7, and have no trailing padding.
+check("struct x{long l; char c; short s;}",{"x",8,4,{{"l","c","s"},{{"long",4,0,1},{"char",1,4,1},{"short",2,6,1}}}})
+
+-- from http://www.catb.org/esr/structure-packing/
+check("struct x{char *pc; char c; short s;}",{"x", 8,4,{{"pc","c","s"},{{"ptr",4,0,1},{"char",1,4,1},{"short",2, 6,1}}}},
+                                             {"x",16,8,{{"pc","c","s"},{{"ptr",8,0,1},{"char",1,8,1},{"short",2,10,1}}}})
+check("struct x{char *pc; char c; long l;}",{"x",12,4,{{"pc","c","l"},{{"ptr",4,0,1},{"char",1,4,1},{"long",4, 8,1}}}},
+                                            {"x",16,8,{{"pc","c","l"},{{"ptr",8,0,1},{"char",1,8,1},{"long",4,12,1}}}})
+
+--from https://en.wikipedia.org/wiki/Data_structure_alignment
+constant test1="""
+struct MyData
+{
+    short Data1;
+    short Data2;
+    short Data3;
+};
+"""
+check(test1,{"MyData",6,2,{{"Data1","Data2","Data3"},{{"short",2,0,1},{"short",2,2,1},{"short",2,4,1}}}})
+
+constant test2="""
+struct MixedData
+{
+    char Data1;
+    short Data2;
+    int Data3;
+    char Data4;
+};
+"""
+check(test2,{"MixedData",12,4,{{"Data1","Data2","Data3","Data4"},{{"char",1,0,1},{"short",2,2,1},{"int",4,4,1},{"char",1,8,1}}}})
+
+-- (after compiling on 32-bit:)
+constant test2_32ac="""
+struct MixedData  /* After compilation in 32-bit x86 machine */
+{
+    char Data1; /* 1 byte */
+    char Padding1[1]; /* 1 byte for the following 'short' to be aligned on a 2 byte boundary 
+assuming that the address where structure begins is an even number */
+    short Data2; /* 2 bytes */
+    int Data3;  /* 4 bytes - largest structure member */
+    char Data4; /* 1 byte */
+    char Padding2[3]; /* 3 bytes to make total size of the structure 12 bytes */
+};
+"""
+check(test2_32ac,{"MixedData",12,4,{{"Data1","Padding1","Data2","Data3","Data4","Padding2"},{{"char",1,0,1},{"char",1,1,1},{"short",2,2,1},{"int",4,4,1},{"char",1,8,1},{"char",1,9,1}}}})
+
+constant test3="""
+struct FinalPad {
+  float x;
+  char n[1];
+};
+"""
+check(test3,{"FinalPad",8,4,{{"x","n"},{{"float",4,0,1},{"char",1,4,1}}}})
+
+constant test4="""
+struct FinalPadShort {
+  short s;
+  char n[3];                                                                                
+};
+"""
+check(test4,{"FinalPadShort",6,2,{{"s","n"},{{"short",2,0,1},{"char",1,2,1}}}})
+
+constant test5="""
+struct MixedData  /* after reordering */
+{
+    char Data1;
+    char Data4;   /* reordered */
+    short Data2;
+    int Data3;  
+};
+"""
+check(test5,{"MixedData",8,4,{{"Data1","Data4","Data2","Data3"},{{"char",1,0,1},{"char",1,1,1},{"short",2,2,1},{"int",4,4,1}}}})
+
+constant test6="""
+struct s6{
+                char a[3];
+                short b;
+                long c;
+                char d[3];
+                };
+"""
+check(test6,{"s6",16,4,{{"a","b","c","d"},{{"char",1,0,1},{"short",2,4,1},{"long",4,8,1},{"char",1,12,1}}}})
+
+constant test7="""
+struct smth
+{
+    char a;
+    int b[];
+};
+"""
+check(test7,{"smth",4,4,{{"a","b"},{{"char",1,0,1},{"int",4,4,1}}}})
+
+constant test8="""
+struct T {
+        char c;
+        int *p;
+        short s;
+        } t;
+"""
+check(test8,{"t",12,4,{{"c","p","s"},{{"char",1,0,1},{"ptr",4,4,1},{"short",2, 8,1}}}},
+            {"t",24,8,{{"c","p","s"},{{"char",1,0,1},{"ptr",8,8,1},{"short",2,16,1}}}})
+
+constant test9="""
+struct _TEST {
+    union
+    {
+        int i;
+        float f;
+        struct
+        {
+            unsigned int u;
+            double d;
+        } s;
+    } u;
+} TEST, *PTEST;
+"""
+check(test9,{"TEST",16,16,{{"u.i","u.f","u.s.u","u.s.d"},{{"int",4,0,1},{"float",4,0,1},{"uint",4,0,0},{"double",8,8,1}}}})
+
+--constant structx = """
+--typedef struct x {
+--  int member_a;
+--  int member_b;
+--} x;
+--"""
+
+constant tRECT = """
+typedef struct _RECT {
+  LONG left;
+  LONG top;
+  LONG right;
+  LONG bottom;
+} RECT, *PRECT;
+"""
+constant tPS ="""
+typedef struct tagPAINTSTRUCT {
+  HDC  hdc;
+  BOOL fErase;
+  RECT rcPaint;
+  BOOL fRestore;
+  BOOL fIncUpdate;
+  BYTE rgbReserved[32];
+} PAINTSTRUCT, *PPAINTSTRUCT;
+"""
+procedure testPS()
+integer idRECT, idPS, size, sign
+atom pPS, pRECT
+--sequence res
+    idRECT = define_struct(tRECT,0,1)
+    idPS = define_struct(tPS,S32,1)
+    pPS = allocate_struct(idPS)
+
+    {pRECT,size,sign} = get_field_details(idPS,"rcPaint.left")
+    pRECT = pPS+pRECT
+    pokeN(pRECT,{1,2,3,4},size)
+    set_struct_field(idPS,pPS,"rcPaint.right",450)
+    if peekNS({pRECT,4},size,sign)!={1,2,450,4} then ?9/0 end if
+    if get_struct_field(idRECT,pRECT,"right")!=450 then ?9/0 end if
+    if get_struct_field(idPS,pPS,"rcPaint.right")!=450 then ?9/0 end if
+--?{structs,stsizes,saligns,smembers}
+end procedure
+
+if 01 then
+    testPS()
+end if
+
+constant testROK="""
+LONG WINAPI RegOpenKeyEx(
+  _In_        HKEY hKey,
+  _In_opt_    LPCTSTR lpSubKey,
+  _Reserved_  DWORD ulOptions,
+  _In_        REGSAM samDesired,
+  _Out_       PHKEY phkResult
+);
+"""		   
+if 01 then
+    if define_cfunc("Advapi32.dll",testROK,S32)<=0 then ?9/0 end if
+end if
+
+--constant test = "struct x{char *ps; short s;} "
+--?define_struct(test,S32,0)
+--?define_struct(test,S64,0)
+
+--?define_struct(structx,S32,0)
+--?define_struct(structx,S64,0)
+
+--constant bad1 = "struct {char *; long;} "     -- error
+--constant bad1 = "struct x{char *; long;} "    -- error
+--constant bad1 = "struct x{char *ps; long;} "  -- error
+--constant bad1="""
+--struct foo5 {
+--  short s;
+--  char c;
+--  int flip:1;
+--  int nybble:4;
+--  int septet:7;
+--};"""
+--?define_struct(bad1,S32,0)
+
+--{} = wait_key()
+--if wait_key() then end if
+--abort(0)
+
+--include test\t02parms.exw
+--if getc(0) then end if
+--without warning
+--abort(0)
+

@@ -52,9 +52,11 @@ global function removeIndex( integer index, sequence list )
 return w32removeIndex(index, list)
 end function
 
+--/* Not Phix (builtin)
 global function iff( atom test, object ifTrue, object ifFalse )
 return w32iff(test, ifTrue, ifFalse)
 end function
+--*/
 
 global function removeItem( object item, sequence list )
 return w32removeItem(item, list)

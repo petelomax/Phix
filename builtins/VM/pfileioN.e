@@ -624,28 +624,79 @@ end procedure
 
 
 --constant e57ifn = 57  -- "invalid file name"
---constant e59wfmfao = 59 -- "wrong file mode for attempted operation"
 --constant e65sfics = 65    -- "sequence found in character string"
 
 --DEV remove this...? (see eg seek, open) [test as you go and get the era right!]
-procedure iofatal(integer errcode, integer ep1=0)
+-- (NB: We may yet want MORE use of fatalN instead of the #ilASM replacements: 
+--  when I replaced global function open() with :%opOpen, the era shifted from 
+--  the return address to the called from address, due to use of jmp $_il etc. 
+--  The #ilASM replacements pre-date the introduction of :%opOpen etc.)
+--procedure iofatal(integer errcode, integer ep1=0)
+--  #ilASM{
+--      [32]
+--          mov eax,[errcode]
+--          mov edi,[ep1]
+--          xor esi,esi     -- ep2 unused
+--          mov ebp,[ebp+20]    -- ebp_prev --(?is this just to counteract iofatal?)
+--          call :%pRTErn       -- fatal error
+--      [64]
+--          mov rax,[errcode]
+--          mov rdi,[ep1]
+--          xor rsi,rsi     -- ep2 unused
+--          mov rbp,[rbp+40]    -- ebp_prev
+--          call :%pRTErn       -- fatal error
+--      []
+--        }
+--  ?9/0
+--end procedure
+
+constant e58ifn     = 58,       -- "invalid file number"
+         e59wfmfao  = 59        -- "wrong file mode for attempted operation"
+
+procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
+--DEV reword, or just refer to pcfunc.e (note pcfunc hasn't had the open->:%opOpen stuff done yet)
+-- level is the number of frames to pop to obtain an era (must be >=2).
+-- we report errors on (eg) the c_func call, not in c_func below, so
+-- obviously c_func itself calls fatalN(2..), whereas if c_func calls
+-- toString, that must then call fatalN(3..), and when open_dll calls
+-- OpenOneDLL, which calls toString which finally calls this, it must 
+-- do so with call fatalN(4..). There are no fatalN(1..) calls since
+-- this is local and that would report an error in pcfuncN.e itself,
+-- which is the very thing the level parameter is supposed to avoid!
     #ilASM{
         [32]
+            mov ecx,[level]
             mov eax,[errcode]
             mov edi,[ep1]
-            xor esi,esi     -- ep2 unused
-            mov ebp,[ebp+20]    -- ebp_prev --(?is this just to counteract iofatal?)
-            call :%pRTErn       -- fatal error
+            mov esi,[ep2]
+          @@:
+--          mov edx,[ebp+16]    -- era
+            mov edx,[ebp+12]    -- era (called from address)
+            mov ebp,[ebp+20]    -- (nb no local vars after this!)
+            sub ecx,1
+            jg @b
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
         [64]
+            mov rcx,[level]
             mov rax,[errcode]
             mov rdi,[ep1]
-            xor rsi,rsi     -- ep2 unused
-            mov rbp,[rbp+40]    -- ebp_prev
-            call :%pRTErn       -- fatal error
+            mov rsi,[ep2]
+          @@:
+--          mov rdx,[rbp+32]    -- era
+            mov rdx,[rbp+24]    -- era (called from address)
+            mov rbp,[rbp+40]    -- (nb no local vars after this!)
+            sub rcx,1
+            jg @b
+            sub rdx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
         []
           }
     ?9/0
 end procedure
+
 
 --/*
 --DEV ,atom era?
@@ -1081,14 +1132,18 @@ integer fmode = 0
 --      iofatal(58,fn)  -- "invalid file number (%d)"
         #ilASM{
             [32]
+                mov edi,[fn]                        -- ep1:=fn
                 mov edx,[ebp+12]                    -- "called from" address
                 mov ebp,[ebp+20]                    -- prev_ebp
                 mov al,58                           -- e58ifn: "invalid file number"
+                xor esi,esi                         -- ep2 unused
                 sub edx,1
             [64]
+                mov rdi,[fn]                        -- ep1:=fn
                 mov rdx,[rbp+24]                    -- "called from" address
                 mov rbp,[rbp+40]                    -- prev_ebp
                 mov al,58                           -- e58ifn: "invalid file number"
+                xor rsi,rsi                         -- ep2 unused
                 sub rdx,1
             []
                 jmp :!iDiag
@@ -1879,7 +1934,8 @@ atom frealposn
     if not finit then initF() end if
     fidx = fn-2
     if fidx<1 or fidx>fdmax then
-        iofatal(58,fn)  -- "invalid file number (%d)"
+--      iofatal(58,fn)  -- "invalid file number (%d)"
+        fatalN(2, e58ifn, fn)
 --/*
         #ilASM{
             [32]
@@ -5090,10 +5146,13 @@ integer iThis
 --      fmode = peek4u(this+MODE)
     end if
     if fmode=0 or fn<=2 then
-        iofatal(58,fn)  -- "invalid file number (%d)"
+--      iofatal(58,fn)  -- "invalid file number (%d)"
+--      fatalN(2,e59wfmfao,fn)
+        fatalN(2,e58ifn,fn)
     end if
     if and_bits(fmode,or_bits(F_READ,F_WRITE))!=F_READ then
-        iofatal(59) -- "wrong file mode for attempted operation"
+--      iofatal(59) -- "wrong file mode for attempted operation"
+        fatalN(2,e59wfmfao,fn)
     end if
 
 --DEV e119?

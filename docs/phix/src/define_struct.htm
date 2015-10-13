@@ -1,0 +1,197 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">define_struct</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica"> object x = define_struct(string struct_str, integer machine=0, integer add=1)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            parse a C struct definition into sizes/offsets etc.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            The struct_str parameter is text copied from a C header file - note that without a "typedef", nothing gets stored permanantly.<br>
+            The machine parameter can be set to S32 or S64, or (left) 0 for auto.<br>
+            The add parameter is set to 0 for testing (override/ignore "typedef")
+            <br>
+            <br>
+            If add is 1 and struct_str contains "typedef", the return value is a small integer id that can be used in calls to 
+            <a href="allocate_struct.htm">allocate_struct</a>(), 
+            <a href="set_struct_field.htm">set_struct_field</a>(),
+            <a href="get_struct_field.htm">get_struct_field</a>(),
+            <a href="get_field_details.htm">get_field_details</a>() and
+            <a href="get_struct_size.htm">get_struct_size</a>().<br>
+            Otherwise the full details of the structure are returned, which you can display, use to write a little help file, or perhaps even directly 
+            use the sizes and offsets etc. Typically this is only useful for testing/diagnostic purposes, see the dropdown below for more info.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+include cffi.e
+constant tMBP="""
+typedef struct {
+  UINT           cbSize;
+  HWND           hwndOwner;
+  HINSTANCE      hInstance;
+  LPCTSTR        lpszText;
+  LPCTSTR        lpszCaption;
+  DWORD          dwStyle;
+  LPCTSTR        lpszIcon;
+  DWORD_PTR      dwContextHelpId;
+  MSGBOXCALLBACK lpfnMsgBoxCallback;
+  DWORD          dwLanguageId;
+} MSGBOXPARAMS, *PMSGBOXPARAMS;
+"""
+integer idMBP = define_struct(tMBP)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> cffi.e
+</font><font color="#008080">constant</font><font color="#000000"> tMBP</font><font color="#0000FF">=</font><font color="#008000">"""
+typedef struct {
+  UINT           cbSize;
+  HWND           hwndOwner;
+  HINSTANCE      hInstance;
+  LPCTSTR        lpszText;
+  LPCTSTR        lpszCaption;
+  DWORD          dwStyle;
+  LPCTSTR        lpszIcon;
+  DWORD_PTR      dwContextHelpId;
+  MSGBOXCALLBACK lpfnMsgBoxCallback;
+  DWORD          dwLanguageId;
+} MSGBOXPARAMS, *PMSGBOXPARAMS;
+"""
+</font><font color="#004080">integer</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#800080"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tMBP</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+include cffi.e
+constant tRECT = """
+                    typedef struct _RECT {
+                      LONG left;
+                      LONG top;
+                      LONG right;
+                      LONG bottom;
+                    } RECT, *PRECT;""",
+         tPS = """
+                    typedef struct tagPAINTSTRUCT {
+                      HDC  hdc;
+                      BOOL fErase;
+                      RECT rcPaint;
+                      BOOL fRestore;
+                      BOOL fIncUpdate;
+                      BYTE rgbReserved[32];
+                    } PAINTSTRUCT, *PPAINTSTRUCT;"""
+idRECT = define_struct(tRECT)
+idPS = define_struct(tPS)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> cffi.e
+</font><font color="#008080">constant</font><font color="#000000"> tRECT</font><font color="#0000FF"> =</font><font color="#008000"> """
+                    typedef struct _RECT {
+                      LONG left;
+                      LONG top;
+                      LONG right;
+                      LONG bottom;
+                    } RECT, *PRECT;"""</font><font color="#0000FF">,
+</font><font color="#000000">         tPS</font><font color="#0000FF"> =</font><font color="#008000"> """
+                    typedef struct tagPAINTSTRUCT {
+                      HDC  hdc;
+                      BOOL fErase;
+                      RECT rcPaint;
+                      BOOL fRestore;
+                      BOOL fIncUpdate;
+                      BYTE rgbReserved[32];
+                    } PAINTSTRUCT, *PPAINTSTRUCT;"""
+</font><font color="#000000">idRECT</font><font color="#0000FF"> =</font><font color="#800080"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tRECT</font><font color="#0000FF">)
+</font><font color="#000000">idPS</font><font color="#0000FF"> =</font><font color="#800080"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tPS</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Structures can be nested - tPS can use "RECT", but only after tRECT has been processed.<br>
+            Note there is no there is no "rcPaint", instead we have "rcPaint.left" etc.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="allocate_struct.htm">allocate_struct</a>,
+          <a href="set_struct_field.htm">set_struct_field</a>,
+          <a href="get_struct_field.htm">get_struct_field</a>,
+          <a href="get_field_details.htm">get_field_details</a>,
+          <a href="set_unicode.htm">set_unicode</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The full details are <code>{name,size,align,members,ptrnames}</code> where members is
+            <code>{{names},{{type,size,offset,sign}}}</code>, eg:
+<!--eucode>
+      {"RECT",16,4,{{"left","top","right","bottom"},
+                    {{"LONG",4,0,1},{"LONG",4,4,1},
+                     {"LONG",4,8,1},{"LONG",4,12,1}}}}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">      {</font><font color="#008000">"RECT"</font><font color="#0000FF">,</font><font color="#000000">16</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"left"</font><font color="#0000FF">,</font><font color="#008000">"top"</font><font color="#0000FF">,</font><font color="#008000">"right"</font><font color="#0000FF">,</font><font color="#008000">"bottom"</font><font color="#800080">}</font><font color="#0000FF">,
+</font><font color="#800080">                    {</font><font color="#00FF00">{</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,
+</font><font color="#00FF00">                     {</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">}</font>
+</pre>
+            <br>
+            and ptrnames may be something like {"LPRECT"}. So a RECT is 16 bytes and needs 4 byte alignment, and RECT.bottom is a long, 4 bytes, 
+            at offset 12, and is signed. Note that members.type (eg "LONG") is only for debugging/sanity and is not intended or suitable for any 
+            practical use. You can set the convert_types flag via <a href="set_unicode.htm">set_unicode</a>() to convert any AltNames and
+            UnicodeNames to their SizeNames equivalent, which would reduce the number of types to be dealt with around five-fold, if you like,
+            but I suspect in most cases that would just add more confusion.
+            Also note that members.size is for a single element: a char[32] has a size of 1 not a size of 32. It would be difficult to ascertain 
+            the number of elements(32) from the return value, particularly if nested structs and unions are involved, instead it is assumed that
+            the calling code is happy enough just to know where the first is.
+            <br>
+            <br>
+            These details are only intended for testing and debugging purposes.
+         </td>
+        </tr>
+       </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

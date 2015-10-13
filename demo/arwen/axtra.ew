@@ -1434,6 +1434,19 @@ atom hBrush, lColor
 end procedure
 
 constant xRectangle = link_c_func(gdi32,"Rectangle",{C_POINTER,C_INT,C_INT,C_INT,C_INT},C_LONG)
+constant xRoundRect = link_c_func(gdi32,"RoundRect",{C_POINTER,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},C_INT)
+
+--/*
+BOOL RoundRect(
+  _In_  HDC hdc,
+  _In_  int nLeftRect,
+  _In_  int nTopRect,
+  _In_  int nRightRect,
+  _In_  int nBottomRect,
+  _In_  int nWidth,         -- (try 5,5)
+  _In_  int nHeight
+);
+--*/
 
 global procedure drawRectangleh(atom hdc, integer filled, integer xLeft, integer yTop, atom xRight, atom yBottom)
 --integer id = 0
@@ -1445,6 +1458,13 @@ global procedure drawRectangleh(atom hdc, integer filled, integer xLeft, integer
     void = c_func(xRectangle, {hdc, xLeft, yTop, xRight, yBottom})
 --?{void,xLeft, yTop, xRight, yBottom}
 end procedure
+
+global procedure drawRoundRecth(atom hdc, integer filled, integer xLeft, integer yTop, atom xRight, atom yBottom, integer nWidth, integer nHeight)
+    createPen(hdc,PenDefaults[PenColor])
+    createBrush(filled, hdc)
+    void = c_func(xRoundRect, {hdc, xLeft, yTop, xRight, yBottom, nWidth, nHeight})
+end procedure
+
 
 global procedure drawRectangle(integer id, integer filled, integer xLeft, integer yTop, integer xRight, integer yBottom)
 --global procedure drawRectangle(atom hdc, integer filled, integer xLeft, integer yTop, integer xRight, integer yBottom)
@@ -1621,6 +1641,71 @@ atom hdc
     end if
 end procedure
 
+--/*
+constant LOGPIXELSY=90
+
+constant lf=allocate(sizeofstruct(LOGFONT))
+
+global function createFontForDC(atom hDC, sequence face, integer points, object attributes)
+integer PPLISH
+integer fHeight
+integer attr
+
+    PPLISH = c_func(xGetDeviceCaps,{hDC, LOGPIXELSY}) -- Pixels Per Logical Inch of Screen Height
+    fHeight = floor(-PPLISH*points/72)
+
+    mem_set(lf,0,sizeofstruct(LOGFONT))
+
+    poke4(lf + LOGFONT_lfHeight,    fHeight)
+    poke(lf + LOGFONT_lfCharSet,    1)  -- DEFAULT_CHARSET
+    if length(face)>=32 then ?9/0 end if
+    poke(lf + LOGFONT_lfFaceName,   face&0)
+    if atom(attributes) then
+        attr = attributes
+    else
+        attr = attributes[1]
+    end if
+--DEV use proper constants here:
+    if and_bits(attr,1) then    -- bold
+        attr -= 1
+        poke4(lf + LOGFONT_lfWeight,    700)    -- FW_BOLD
+--  else
+--      poke4(lf + LOGFONT_lfWeight,    400)    -- FW_NORMAL
+    end if
+    if and_bits(attr,2) then    -- italic
+        attr -= 2
+        poke(lf + LOGFONT_lfItalic,     1)
+    end if
+    if and_bits(attr,4) then    -- underline
+        attr -= 4
+        poke(lf + LOGFONT_lfUnderline,  1)
+    end if
+    if and_bits(attr,8) then    -- strikeout
+        attr -= 8
+        poke(lf + LOGFONT_lfStrikeOut,  1)
+    end if
+    if attr!=0 then ?9/0 end if
+    if sequence(attributes) then
+        poke4(lf + LOGFONT_lfWidth,         attributes[2])
+        poke4(lf + LOGFONT_lfEscapement,    attributes[3])
+        poke4(lf + LOGFONT_lfOrientation,   attributes[4])
+        poke(lf + LOGFONT_lfCharSet,        attributes[5])
+        poke(lf + LOGFONT_lfOutPrecision,   attributes[6])
+        poke(lf + LOGFONT_lfClipPrecision,  attributes[7])
+        poke(lf + LOGFONT_lfQuality,        attributes[8])
+        poke(lf + LOGFONT_lfPitchAndFamily, attributes[9])
+    end if
+    return c_func(xCreateFontIndirect,{lf})
+end function
+--*/
+
+--global procedure CreateFonth(atom hDC, string face, integer points, integer attributes)
+--atom hFont = createFontForDC(hDC, face, points, attributes)
+--atom prevFont = selectObject(hDC, hFont)      -- needed for window (vtext.exw)
+----        void = sendMessage(id,WM_SETFONT,hFont,1)   -- needed for listbox (lbox.exw)
+--  void = deleteObject(prevFont)
+--end procedure
+--
 global procedure wPuts2(atom hdc, integer xpos, integer ypos, object s)
 -- Display text at {xpos,ypos} on specified window.
 -- s may be a simple text string, an atom (automatically formatted using %g),
@@ -1640,6 +1725,7 @@ global procedure wPuts2(atom hdc, integer xpos, integer ypos, object s)
 --  hdc = getDC(id)
 --  hdc = getPrivateDC(id)  --NB this will only work for windows
     void = c_func(xSetBkMode , {hdc, TRANSPARENT})
+    void = c_func(xSetTextColor,{hdc,PenDefaults[PenColor]})
 
     -- display the text in the buffer
     c_proc(xTextOut,{hdc,xpos,ypos,allocate_StringZ(s),length(s)})

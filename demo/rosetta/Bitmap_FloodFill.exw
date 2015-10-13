@@ -1,0 +1,91 @@
+--
+-- demo\rosetta\Bitmap_FloodFill.exw
+-- =================================
+--
+-- Author Pete Lomax, October 2015
+--
+--  {{Trans|Go}}, requires read_ppm() from [[Bitmap/Read_a_PPM_file#Phix|Read_a_PPM_file]], write_ppm() from [[Bitmap/Write_a_PPM_file#Phix|Write_a_PPM_file]]. 
+--  Uses the output of Bitmap_Circle.exw (Circle.ppm)
+--  Working program is demo\rosetta\Bitmap_FloodFill.exw, results may be verified with demo\rosetta\viewppm.exw
+
+-- Some colour constants:
+constant --black = #000000,
+         blue  = #0000FF,
+         green = #00FF00
+--       red   = #FF0000,
+--       red = 0xff2020,
+--       yellow = 0xffdf20 --,
+--       white = #FFFFFF
+
+-- copied from Bitmap_read_ppm:
+function read_ppm(sequence filename)
+sequence image, line
+integer dimx, dimy, maxcolor
+atom fn = open(filename, "rb")
+    if fn<0 then
+        return -1 -- unable to open
+    end if
+    line = gets(fn)
+    if line!="P6\n" then
+        return -1 -- only ppm6 files are supported
+    end if
+    line = gets(fn)
+    {{dimx,dimy}} = scanf(line,"%d %d%s")
+    line = gets(fn)
+    {{maxcolor}} = scanf(line,"%d%s")
+    image = repeat(repeat(0,dimy),dimx)
+    for y=1 to dimy do
+        for x=1 to dimx do
+            image[x][y] = getc(fn)*#10000 + getc(fn)*#100 + getc(fn)
+        end for
+    end for
+    close(fn)
+    return image
+end function
+
+-- copied from Bitmap_write_ppm:
+procedure write_ppm(sequence filename, sequence image)
+integer fn,dimx,dimy
+sequence colour_triple
+    fn = open(filename,"wb")
+    dimx = length(image)
+    dimy = length(image[1])
+    printf(fn, "P6\n%d %d\n255\n", {dimx,dimy})
+    for y=1 to dimy do
+        for x=1 to dimx do
+            colour_triple = sq_div(sq_and_bits(image[x][y], {#FF0000,#FF00,#FF}),
+                                                            {#010000,#0100,#01})
+            puts(fn, colour_triple)
+        end for
+    end for
+    close(fn)
+end procedure
+
+function ff(sequence img, integer x, integer y, integer colour, integer target)
+    if x>=1 and x<=length(img)
+    and y>=1 and y<=length(img[x])
+    and img[x][y]=target then
+        img[x][y] = colour
+        img = ff(img,x-1,y,colour,target)
+        img = ff(img,x+1,y,colour,target)
+        img = ff(img,x,y-1,colour,target)
+        img = ff(img,x,y+1,colour,target)
+    end if
+    return img
+end function
+
+function FloodFill(sequence img, integer x, integer y, integer colour)
+integer target = img[x][y]
+    return ff(img,x,y,colour,target)
+end function
+
+sequence img = read_ppm("Circle.ppm")
+    img = FloodFill(img, 200, 100, blue)
+    write_ppm("FloodIn.ppm",img)
+    img = FloodFill(img, 10, 10, green)
+    write_ppm("FloodOut.ppm",img)
+
+--{} = wait_key()
+
+
+

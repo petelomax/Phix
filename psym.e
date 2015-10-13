@@ -2232,13 +2232,13 @@ else
     initialAutoEntry("define_c_func",   S_Func,"FOOON", "pcfunc.e",0,E_none)
     initialAutoEntry("define_c_proc",   S_Func,"FOOO",  "pcfunc.e",0,E_none)
 end if
---DEV document this*3:
     initialAutoEntry("day_of_week",     S_Func,"FIII",  "pdate.e",0,E_none)
     initialAutoEntry("day_of_year",     S_Func,"FIII",  "pdate.e",0,E_none)
+--DEV document this:
     initialAutoEntry("find_any",        S_Func,"FPPI",  "pfindany.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
---DEV document these*3:
-    initialAutoEntry("isleapyear",      S_Func,"FI",    "pdate.e",0,E_none)
+    initialAutoEntry("is_leap_year",    S_Func,"FI",    "pdate.e",0,E_none)
+--DEV document these*2:
     initialAutoEntry("islower",         S_Func,"FI",    "pcase.e",0,E_none)
     initialAutoEntry("isupper",         S_Func,"FI",    "pcase.e",0,E_none)
 if newEmit then --DEV (temp) (T_find/T_match will be rqd once the asm conversion is completed)
@@ -2523,6 +2523,7 @@ else
     initialAutoEntry("peek2u",          S_Func,"FO",    "ppoke2.e",0,E_none)
 end if
 --end if
+    initialAutoEntry("read_lines",      S_Func,"FO",    "read_lines.e",0,E_none)
 --DEV document
     initialAutoEntry("series",          S_Func,"FOOII", "pseries.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
@@ -2759,6 +2760,8 @@ end if
     reservedWord(T_break)
     reservedWord(T_continue)
 --  reservedWord(T_strict)  --??
+    reservedWord(T_iff)
+    reservedWord(T_iif)
 
 
     T_Ainc = symlimit

@@ -4643,21 +4643,12 @@ end if
     end for
 
     CSvsize = 0
---trace(1)
     for v=1 to length(s5sets) do
 
         s5thunk(s5sets[v])  -- sets s5
 
         thisCSsize = s5sizes[v]
         symidx = s5v[v]
-----DEV temp:
---printf(1,"[%d]:",symidx)
---if atom(symtab[symidx][S_Name]) then
---  puts(1,"blurph -1\n")
---else
---  puts(1,"blurph "&symtab[symidx][S_Name]&"\n")
---end if
---      svil = symtab[symidx][S_ltab]
         xi = symtab[symidx]
         svil = xi[S_ltab]
         line1 = xi[S_1stl]
@@ -4670,7 +4661,6 @@ end if
             LineTab = {-2}
         end if
         symtab[symidx][S_ltab] = 0
---dbg = symtab[symidx]
         blurph(line1)
         symtab[symidx][S_ltab] = LineTab
     end for
@@ -4686,17 +4676,9 @@ end if
     --
 
     if bind then
---26/2/10:
---      data_section = repeat(0,DSvsize)
---if newEmit then
---DEV
---      maxop = 0   -- (none exist yet!)
---      maxgvar = vmax --DEV? (should be done now)
         dslen = maxop+maxgvar
---printf(1,"dslen=%d\n",dslen)
         dsize = DWORD
         if X64 then
---          dslen = (dslen)*4+32    -- uh?
             dsize = QWORD
             dslen = (dslen)*8+32
         else
@@ -4711,24 +4693,8 @@ end if
         relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
         if X64 then
             dsize = QWORD
---          setds(dslen+#28,1)      -- symptr
---          setds(dslen+#28)        -- symptr
---          ?9/0
---      else
---          setds(dslen+#14,1)      -- symptr
---          setds(dslen+#14)        -- symptr
         end if
---trace(1)
         setds(dslen+5*dsize)        -- symptr
---printf(1,"setds(%08x)\n",dslen+5*dsize)
---integer dsidx2
---if X64 then
---  dsidx2 = getdsQword(9)+1
---else
---  dsidx2 = getdsDword(9)+1
---end if
---printf(1,"dsidx=%08x\n",dsidx2)
-
         setds(maxop)
         for i=1 to maxop do         -- optable[i] [DEV]
             setds(0)
@@ -4740,21 +4706,13 @@ end if
             if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
         end if
         for i=1 to maxgvar do       -- gvars[i] [DEV]
---          if not integer(?) then
---              setds(?,1)              
---          else
---DEV #40000000? (or #4000000000000000 for X64)
---              setds(0)
             if X64 then
                 setds(#4000000000000000)
             else
                 setds(#40000000)
             end if
---          end if
         end for
---if X64 then ?getdsQword(#21) end if
---      new_symtab_dump()
---if 01 then
+
         setds(0)                    -- slack
         setds(maxlen)               -- maxlen
         setds(symtabmax)            -- length
@@ -4764,65 +4722,12 @@ end if
             -- h4 might be better... but then again never left in the file...
             setds(0)
         end for
---DEV:?
         d_addr = dsidx-1
---else
---      d_addr = dsidx-1
---      flatdump(repeat(0,length(symtab)),1)    --DEV we can improve on this! (and use setds)
---end if
---      flatdump(length(symtab),1)
---  eg  procedure flatdump(sequence s, integer refcount)--> for 1 to length(s) put s[i]
---  ->  procedure flatdump(object s, integer refcount)-->if sequence(s) then "" else for 1 to s put 0
---      <actually a different routine would probably be better>
---/*
---integer l, l20
---  l = length(symtab)
---  l20 = l*4+20 (or *8+40)
---  appenddsDword(0)                -- slack
---  appenddsDword(l20)              -- maxlen (in bytes)
---  appenddsDword(l)                -- length
---  appenddsDword(1)                -- refcount
---  appenddsType(#80)
---  for i=1 to l do
---      appenddsDword(0)
---  end for
---*/
         if X64 then
             if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
         else
             if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
         end if
---if X64 then ?getdsQword(#21) end if
---else -- (not newEmit)
---      data_section = repeat(' ',DSvsize)
-----if not isString(data_section) then ?9/0 end if
-----        for zzi=4 to DSvsize by 4 do    -- mark all threadstack entries unassigned
-----            data_section[zzi] = #40
-----        end for
-----        set up a dummy T_Dsq header at the start of threadstack:
---      setdsDword(0,0)             -- slack
---      setdsDword(4,vmax*4)        -- maxlen
----- ok here
-----!/**/ printf(1,"\ndata_section initially:#%02x%02x%02x%02x%02x%02x%02x%02x\n",data_section[1..8])
---      setdsDword(8,vmax-5)        -- length
---      setdsDword(12,1)            -- refcount
-----        data_section[16] = 1                -- refcount
---      if X64 then ?9/0 end if
---      setdsDword(16,#80000000)    -- T_Dsq
-----        data_section[20] = #80              -- T_Dsq
---      for zzi=20 to DSvsize-3 by 4 do -- mark all threadstack entries unassigned
-----            data_section[zzi] = #40
---          if X64 then ?9/0 end if
---          setdsDword(zzi,#40000000)   -- unassigned
-----            data_section[zzi] = #40
---      end for
----- ok here
-----!/**/ printf(1,"\ndata_section initially:#%02x%02x%02x%02x%02x%02x%02x%02x\n",data_section[1..8])
-----
-----if not isString(data_section) then ?9/0 end if
---
---end if
-
     end if
 
     -- trash any unused entries in the symtab:
@@ -4857,15 +4762,12 @@ end if
                     end if
 --end if
                 elsif nTyp=S_Nspc then
--->
---if 0 then
                     if nslink=T_nslink then
                         symtab[T_nslink] = v
                     else
                         symtab[nslink][S_Slink] = v
                     end if
                     nslink = v
---end if
                 elsif ( nTyp=S_Rsvd or
                        (nTyp<=S_GVar2 and
                         not and_bits(u,S_used+S_set+K_Fres+K_lit)))
@@ -4879,7 +4781,6 @@ end if
 --end if
                 end if
                 if not bind then
---?9/0
                     if nTyp<=S_GVar2 then
                         xi = sv[S_value]
                         if not integer(xi)
@@ -4921,8 +4822,6 @@ end if
                             --  costs little but adds consistency and some
                             --  robustness against refactoring or cut&paste)
                             if bind and mapsymtab and and_bits(u,K_rtn) then
---                          if mapsymtab and and_bits(u,K_rtn) then
---                          if and_bits(u,K_rtn) then
                                 xi = symtabmap[xi]
                             end if
                             offset = (maxop+sv[S_Slink]+2)*dsize+8
@@ -4949,11 +4848,6 @@ end if
 --puts(1,"finalfixups2 line 4974\n")
 
     if bind then
---/*
-        setdivm(#08,DSvaddr+ImageBase,DWORD)        -- threadstack ptr
-        setdivm(vmaxpos,vmax,DWORD)                 -- threadstack size
-        d_addr = DSvaddr+DSvsize+ImageBase
---*/
 --if newEmit then
 --      relink()
         flatsym2 = symtab
@@ -5043,11 +4937,7 @@ end if
 --else -- not newEmit
 --      relink()
 --end if
---/*
-        setdivm(#10,b_addr,DWORD)                   -- symtab ptr
-        if d_addr != DSvaddr+DSvsize+ImageBase then ?9/0 end if
-        if length(data_section)!=DSvsize then ?9/0 end if
---*/
+
         if not isString(data_section) then ?9/0 end if
 
         if showfileprogress then

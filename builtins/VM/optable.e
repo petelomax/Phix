@@ -393,6 +393,8 @@ constant vm_names = {
 --                                   "%pRestorepGtcb",
                                      "%pNewGtcbChain",
                                      "%pRestoreGtcbChain",
+                                     "%pSetSaveEBP",
+--                                   "%pRestoreEBP",
                                      "%pAllocStr",
                                      "%pAllocSeq",
                                      "%pStoreFlt",

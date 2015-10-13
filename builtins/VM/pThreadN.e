@@ -259,6 +259,7 @@ atom dwError
 end procedure
 
 global procedure exit_thread(integer ecode)
+    if ecode=STILL_ACTIVE then ?9/0 end if
     #ilASM{
         [PE32]
             push dword[ecode]                   -- dwExitCode

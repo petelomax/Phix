@@ -1,0 +1,103 @@
+--
+-- demo\rosetta\Bitmap_BezierCubic.exw
+-- ===================================
+--
+-- Author Pete Lomax, October 2015
+--
+--  Output similar to [[Bitmap/Bézier_curves/Cubic#Mathematica|Mathematica]] ( http://rosettacode.org/wiki/Bitmap/Bézier_curves/Cubic#Mathematica )
+--  requires new_image() from [[Bitmap#Phix|Bitmap]], bresLine() from [[Bitmap/Bresenham's_line_algorithm#Phix|Bresenham's_line_algorithm]], write_ppm() from [[Bitmap/Write_a_PPM_file#Phix|Write_a_PPM_file]]. 
+--  Included as demo\rosetta\Bitmap_BezierCubic.exw, results may be verified with demo\rosetta\viewppm.exw
+
+-- Some colour constants:
+constant black = #000000,
+--       blue  = #0000FF,
+         green = #00FF00,
+         red   = #FF0000,
+         white = #FFFFFF
+
+function new_image(integer width, integer height, atom colour=black)
+-- Create new image filled with some colour
+    return repeat(repeat(colour,height),width)
+end function
+
+function bresLine(sequence screenData, integer x0, integer y0, integer x1, integer y1, integer colour)
+-- The line algorithm
+integer deltaX = abs(x1-x0),
+        deltaY = abs(y1-y0),
+        stepX = iff(x0<x1,1,-1),
+        stepY = iff(y0<y1,1,-1),
+        lineError = iff(deltaX>deltaY,deltaX,-deltaY),
+        prevle
+
+    lineError = round(lineError/2, 1)
+    while 1 do
+        if x0>=1 and x0<=length(screenData)
+        and y0>=1 and y0<=length(screenData[x0]) then
+            screenData[x0][y0] = colour
+        end if
+        if x0=x1 and y0=y1 then exit end if
+        prevle = lineError
+        if prevle>-deltaX then
+            lineError -= deltaY
+            x0 += stepX
+        end if
+        if prevle<deltaY then
+            lineError += deltaX
+            y0 += stepY
+        end if
+    end while
+    return screenData
+end function
+
+-- copied from Bitmap_write_ppm:
+procedure write_ppm(sequence filename, sequence image)
+integer fn,dimx,dimy
+sequence colour_triple
+    fn = open(filename,"wb")
+    dimx = length(image)
+    dimy = length(image[1])
+    printf(fn, "P6\n%d %d\n255\n", {dimx,dimy})
+    for y=1 to dimy do
+        for x=1 to dimx do
+            colour_triple = sq_div(sq_and_bits(image[x][y], {#FF0000,#FF00,#FF}),
+                                   {#010000,#0100,#01})
+            puts(fn, colour_triple)
+        end for
+    end for
+    close(fn)
+end procedure
+
+function cubic_bezier(sequence img, atom x1, atom y1, atom x2, atom y2, atom x3, atom y3, atom x4, atom y4, integer colour, integer segments)
+atom t, t1, a, b, c, d
+sequence pts = repeat(0,segments*2)
+
+    for i=0 to segments*2-1 by 2 do
+        t = i/segments
+        t1 = 1-t
+        a = power(t1,3)
+        b = 3*t*power(t1,2)
+        c = 3*power(t,2)*t1
+        d = power(t,3)
+        pts[i+1] = floor(a*x1+b*x2+c*x3+d*x4)
+        pts[i+2] = floor(a*y1+b*y2+c*y3+d*y4)
+    end for
+    for i=1 to segments*2-2 by 2 do
+        img = bresLine(img, pts[i], pts[i+1], pts[i+2], pts[i+3], colour)
+    end for
+    return img
+end function
+
+sequence img = new_image(300,200,black)
+--  img = cubic_bezier(img, 160,10, 10,40, 30,160, 150,110, #FFFFFF, 40)
+    img = cubic_bezier(img, 0,100, 100,0, 200,200, 300,100, white, 40)
+    img = bresLine(img,0,100,100,0,green)
+    img = bresLine(img,100,0,200,200,green)
+    img = bresLine(img,200,200,300,100,green)
+    img[1][100] = red
+    img[100][1] = red
+    img[200][200] = red
+    img[300][100] = red
+    write_ppm("Bezier.ppm",img)
+
+--{} = wait_key()
+

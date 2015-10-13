@@ -436,6 +436,7 @@ global function create_com_object(sequence vtable)
 -- Returns an atom pointer to a bare minimum COM object containing 
 --  a {<pointer to vtable>,refcount} pair, and the vtable itself.
 -- 
+--DEV 64 bit?
 atom res = allocate(8+length(vtable)*4)
     poke4(res,{res+8,0}&vtable)
     return res
@@ -485,7 +486,7 @@ global function cominvk_imm(atom pInterface,integer vIdx,sequence params, intege
 --  are unsigned, so use and_bits(hResult,#80000000) instead of hResult<0,
 --  but you can compare directly against eg constant E_FAIL (=#80004005).
 --
-integer local_ebp
+integer local_ebp4
 atom res
     if and_bits(vIdx,#03) then
         #ilASM { ::kaboom }
@@ -495,8 +496,16 @@ atom res
         params &= -1    -- force conversion to dword-sequence
         params = params[1..$-1]
     end if
-    #ilASM{ call :%save_ebp         -- (see pcfunc.e)
-            mov [local_ebp],eax
+    #ilASM{
+        [32]
+--          call :%save_ebp         -- (see pcfunc.e)
+--          mov [local_ebp4],eax
+--DEV not convinced this is necessary:
+            mov edx,ebp
+            call :%pSetSaveEBP
+            shr eax,2
+            mov [local_ebp4],eax
+
             mov esi,[params]
             mov ecx,[ebx+esi*4-12]  -- length
             shl esi,2
@@ -532,8 +541,16 @@ atom res
 --          call %opMovbi       -- call StoreFlt ([edi]:=ST0)
             call :%pStoreFlt    -- ([edi]:=ST0)
         @@:
-            mov edx,[local_ebp]
-            call :%restore_ebp
+--          mov edx,[local_ebp4]
+--          call :%restore_ebp
+--DEV not convinced this is necessary:
+            mov edx,[local_ebp4]
+            shl edx,2
+            call :%pSetSaveEBP
+
+        [64]
+            pop al
+        []
     }
     if bDebug then
 --      if res<S_OK then

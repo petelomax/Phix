@@ -22,7 +22,7 @@ procedure initd()
     leave_cs()
 end procedure
 
-global function isleapyear(integer y)
+global function is_leap_year(integer y)
 --  if remainder(y,4)!=0 then return 0 end if
 --  return (remainder(y,100)!=0 or remainder(y,400)=0)
     return remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0)
@@ -33,11 +33,11 @@ global function day_of_year(integer y, integer m, integer d)
 -- day of year function, returns 1..366
 --  y = (m>2 and remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0))
     -- y is now 1 if later than Feb (29th) in a leap year.
---  y = (m>2 and isleapyear(y))
+--  y = (m>2 and is_leap_year(y))
 --  d += dot[m]+y   -- eg march 1st is 60th day normally, 61st in a leap year.
 --  return d
     if not dinit then initd() end if
-    return d+dot[m]+(m>2 and isleapyear(y))
+    return d+dot[m]+(m>2 and is_leap_year(y))
 end function
 
 --/*

@@ -1,6 +1,6 @@
 --
--- pHeapD.e
--- ========
+-- pHeap.e
+-- =======
 --
 -- Practical note: You should never really need to read this. If you are happy (for now)
 --  to say "it is a programming language: it /knows/ how to deal with strings, and it 
@@ -261,8 +261,8 @@
 --  those 9996 entries, which /will/ stall anything attempting to free one of the remaining 4 
 --  items, and likewise, for that matter, other threads attempting to obtain a new superblock.
 -- DEV:
---  While :%pTerminateThread performs a full clear out/merglist all the "not-owned" lists, in
---  minimal locking fashion, thread A may terminate shortly after creating those 10000 items.
+--  While :%pTerminateThread performs a full clear out/merglist all the "not-owned" lists, in       [DEV*: this has stopped making any sense to me!!]
+--  minimal locking fashion, thread A may terminate shortly after creating those 10000 items.     [or did I just mean it's not pTerminateThread's job?]
 --  It is of course the single (locked) call :scan_orphans below, of which I speak.
 --  (Translation: There is only one fairly rare case where the heap manager stalls any other
 --                thread for anything beyond the briefest of fleeting moments.)
@@ -288,7 +288,6 @@
 --
 -- Entry Padding
 -- =============
---pHeapD:
 --  DWORD   era         -- [-8] effective return address, for diagnostics/leak checking
 --  DWORD   pRoot       -- [-4] pointer to the SuperBlock Header[+1]
 --                      -- 0b01 (aka bit 0): block is free
@@ -374,9 +373,13 @@
 --  DWORD[27]   pNofl       -- [+128] ""       not-     ""                (need locks)
 --  DWORD       dwMagicC    -- [+236] checked for memory corruption ("CCB\0" = #00424343)
 --  BYTE[24]    csLock      -- [+240] critical section for locking (a dword futex on Lnx)
---  DWORD       dwMagicE    -- [+264] checked for memory corruption ("ECB\0" = #00424345)
+--< DWORD       dwMagicE    -- [+264] checked for memory corruption ("ECB\0" = #00424345)
+--> DWORD       SaveEBP     -- [+264]
+--> DWORD       pTLS        -- [+268]
+--  DWORD       dwMagicE    -- [+272] checked for memory corruption ("ECB\0" = #00424345)
 --  ===
---  268 bytes (27*2+7)*4+24  (see below for 64-bit version)
+--< 268 bytes (27*2+7)*4+24  (see below for 64-bit version)
+--  276 bytes (27*2+9)*4+24  (see below for 64-bit version)
 --
 --  A dwThreadId of 0 indicates the global pool (kept in pGtcb), which needs extra locking, has
 --  an nStatus of -4, and the special properties that a) all entries in each pFree[i] chain point 
@@ -636,7 +639,6 @@
 --      put the LHC to shame. I recently (May 2014) read that x86-64 is limited to 256TB, and Windows 7, 
 --      according to wikipedia, is limited to 192GB.
 --
---pHeapD:
 -- The 64-bit version of the above table is:
 --  idx      superblock size            block size  details     string          sequence
 --  [1]                               44[#0000002C]=8+8+26+2    n/a             n/a
@@ -665,41 +667,9 @@
 -- The above assumes floats are 16 byte header and a tbyte, so 26 bytes, rounded up to 28 to keep dword-alignment,
 --  strings have a 32 byte header but are still ansi/UTF8, sequences have a 40 byte header and each element is 8 
 --  bytes, and the superblock header becomes 32 bytes and padding (pRoot) doubles to 16 bytes, as detailed below.
---pHeapD:
---< The allocate() limits become 20,56,128,272,560,1138, etc, similar to 32-bit, that is +8,*2 instead of *2,+8.
 --  The allocate() limits become 20,64,152,328,680,1384, etc, similar to 32-bit, that is +16,*2 instead of *2,+16.
---? The allocate() limits become 4,48,136,312,664,1368, etc, similar to 32-bit, that is +20,*2 instead of *2,+16.
 --  The last 10 or so entries are probably beyond any practical use, but there is little gain to removing them.
 --
---
---pHeapD (VERY OLD)
--- Provisionally, I expect the 64-bit version might end up something like this: (oops: #22 is not a whole number of dwords!)    [DEV OLD/BROKEN, see Try2 below]
---  idx      superblock size            block size  details     string          sequence
---  [1]                               34[#00000022]=8+26        n/a             n/a
---  [2]                               68[#00000044]=8+60        x(27)           s[2] (+4 bytes unused)
---  [3]                              136[#00000088]=8+128       x(95)           s[11]
---  [8]                             4352[#00001100]=8+4344      x(4,311)        s[538]
---  [9]       8736[#00002220]       8704[#00002200]=8+8696      x(8,663)        s[1,082]
--- [10]      17440[#00004420]      17408[#00004400]=8+17400     x(17,367)       s[2,170]
--- [11]      34848[#00008820]      34816[#00008800]=8+34808     x(34,775)       s[4,346]
---
--- pre-pHeapD:
--- Try2: (and this /might/ need even more padding to qword-align everything, if it turns out we need that)
---  idx      superblock size            block size  details     string          sequence
---  [1]                               36[#00000024]=8+26+2      n/a             n/a
---  [2]                               72[#00000048]=8+64        x(31)           s[3]
---  [7]                             2304[#00000900]=8+2296      x(2,263)        s[282]
---  [8]                             4608[#00001200]=8+4600      x(4,567)        s[570]
---  [9]       9248[#00002420]       9216[#00002400]=8+9208      x(9,175)        s[1,146]
--- [10]      18464[#00004820]      18432[#00004800]=8+18424     x(18,391)       s[2,298]
--- [11]      36896[#00009020]      36864[#00009000]=8+36856     x(36,823)       s[4,602]
---
---< The above assumes floats are 16 byte header and a tbyte, so 26 bytes rounded up to 28 to keep dword-alignment,
---< strings have a 32 byte header but are still ansi/UTF8, sequences have a 40 byte header and each element is 8 
---< bytes, and the superblock header becomes 32 bytes and padding (pRoot) doubles to 8 bytes, as detailed below.
---< The allocate() limits become 20,56,128,272,560,1138, etc, similar to 32-bit, that is +8,*2 instead of *2,+8.
---< The last 10 or so entries are probably beyond any practical use, but there is little gain to removing them.
---^<pHeapD ends>
 --
 -- Just in case anyone wants to play around with these numbers a bit more, here are the quick ditties I used:
 --
@@ -708,7 +678,7 @@
 --  atom w
 --  integer i = 2
 --  while d<2*1024*1024*1024 do
---      w = (d+8)*2     -- pHeapD
+--      w = (d+8)*2
 --      d = w-8
 --      printf(1,"-- [%d] %10d[#%08x] %10d[#%08x]=4+%d\t\tx(%,d)\ts[%,d]\n",{i,w+20,w+20,w,w,d,d-17,floor((d-20)/4)})
 --      i += 1
@@ -724,7 +694,7 @@
 --  atom w
 --  integer i = 2
 --  while d<8*1024*1024*1024*1024*1024*1024 do
---      w = (d+16)*2    -- pHeapD
+--      w = (d+16)*2
 --      d = w-16
 --      printf(1,"-- [%d] %10d[#%08x] %10d[#%08x]=8+%d\tx(%,d)\ts[%,d]\n",{i,w+32,w+32,w,w,d,d-33,floor((d-40)/8)})
 --      i += 1
@@ -745,7 +715,6 @@
 --
 -- Entry Padding (64-bit)
 -- ======================
---pHeapD:
 --  QWORD   era         -- [-16] effective return address, for diagnostics/leak checking
 --  QWORD   pRoot       -- [-8] pointer to the SuperBlock Header[+1]
 --                      -- 0b01 (aka bit 0): block is free
@@ -766,9 +735,13 @@
 --  DWORD       dwMagicB    -- [+960] checked for memory corruption ("BCB\0" = #00424342)
 --  DWORD       dwMagicC    -- [+964] checked for memory corruption ("CCB\0" = #00424343)
 --  BYTE[40]    csLock      -- [+968] critical section for locking (a dword futex on Lnx)
---  DWORD       dwMagicE    -- [+1008] checked for memory corruption ("ECB\0" = #00424345)
+--< DWORD       dwMagicE    -- [+1008] checked for memory corruption ("ECB\0" = #00424345)
+--> QWORD       SaveEBP     -- [+1008]
+--> QWORD       pTLS        -- [+1016]
+--  DWORD       dwMagicE    -- [+1024] checked for memory corruption ("ECB\0" = #00424345)
 --  ===
---  1012 bytes - note that magic and threadId are (quite deliberately) still dwords.
+--< 1012 bytes - note that magic and threadId are (quite deliberately) still dwords.
+--  1028 bytes - note that magic and threadId are (quite deliberately) still dwords.
 --  dwMagicC can be used to check we located csLock correctly, all pointers should end 0b00
 --
 --
@@ -849,59 +822,8 @@ integer stdcs = 0       -- for very short one-off inits in \builtins (opEnter/Le
 #ilASM{ jmp :!opCallOnceYeNot
 
 --/*
-procedure :%pGetpGtcb(:%)
-end procedure -- (for Edita/CtrlQ)
---*/
-    :%pGetpGtcb         -- (for external heap diagnostics, if ever needed/written)
----------------
-    [32]
-        mov eax,[pGtcb]
-    [64]
-        mov rax,[pGtcb]
-    []
-        ret
-
---/*
-procedure :%pNewGtcbChain(:%)
-end procedure -- (for Edita/CtrlQ)
---*/
-    :%pNewGtcbChain
---------------
-        -- eax/rax:=existing [pGtcb], if any, and [pGtcb]:=0 forces the test/newtcb 
-        --          at the start of pGetPool to trigger the next time it is called.
-        --  see "Memory Leak Checking And Heap Diagnostics" above
-    [32]
-        mov eax,[pGtcb]
-        mov [pGtcb],ebx
-    [64]
-        mov rax,[pGtcb]
-        mov [pGtcb],rdx
-    []
-        ret
-
---/*
-procedure :%pRestoreGtcbChain(:%)
-end procedure -- (for Edita/CtrlQ)
---*/
-    :%pRestoreGtcbChain
-------------------
-        -- restore [pGtcb] from the value in eax/rax, typically saved from the one 
-        --  p.exe just used to compile the source, and return the current value in 
-        --  edx/rdx, typically one that was specially created to interpret the app
-        --  in, deliberately distinct from the p.exe one so that we can analyse it.
-        --  see "Memory Leak Checking And Heap Diagnostics" above
-    [32]
-        mov edx,[pGtcb]
-        mov [pGtcb],eax
-    [64]
-        mov rdx,[pGtcb]
-        mov [pGtcb],rax
-    []
-        ret
-
---/*
 procedure ::pGetMem(::)
-end procedure -- (for Edita/CtrlQ)  [I quickly tired of keying CtrlQ/<stare blankly>/AltS]
+end procedure
 --*/
     ::pGetMem
 -------------
@@ -1064,6 +986,201 @@ end procedure -- (for Edita/CtrlQ)
         []
             ret
     
+--/*
+procedure ::pGetTCB(::)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    ::pGetTCB
+--------------
+        -- local routine for pSetSaveEBP; could also be used by pGetPool?
+    [32]
+        -- <no parameters>
+        -- on exit, pTCB in esi
+        xor ebx,ebx -- (save some grief)
+        call :pGetThread
+        mov esi,[pGtcb]
+        test esi,esi
+    [64]
+        -- <no parameters>
+        -- on exit, pTCB in rsi
+        xor rbx,rbx     -- (save some grief)
+        call :pGetThread
+        mov rsi,[pGtcb]
+        test rsi,rsi
+    []
+        jnz gettcbloop
+            int3
+      ::gettcbloop
+    [32]
+        mov esi,dword[ebx+esi*4+8]          -- tcb:=tcb.pNxtcb
+        test esi,esi
+        jnz @f
+            int3
+      @@:
+        cmp dword[ebx+esi*4],#00424354      -- dwMagicT ("TCB\0")
+        je @f
+            int3
+      @@:
+        cmp dword[ebx+esi*4+4],eax          -- dwThreadId
+    [64]
+        mov rsi,qword[rbx+rsi*4+8]          -- tcb:=tcb.pNxtcb
+        test rsi,rsi
+        jnz @f
+            int3
+      @@:
+        cmp dword[rbx+rsi*4],#00424354      -- dwMagicT ("TCB\0")
+        je @f
+            int3
+      @@:
+        cmp dword[rbx+rsi*4+4],eax          -- dwThreadId
+    []
+        jne :gettcbloop
+
+        ret
+
+-- Callback handling
+-- =================
+--  This is one of those dirt-simple routines that requires an awful lot of explaining...
+--  Phix relies on ebp(/rbp) pointing to the current frame on the virtual stack (which is
+--  allocated in ~8K blocks on the heap). If we invoke call/c_func/proc, and that invokes
+--  a callback, ebp will most likely be meaningless (to Phix). Hence the former trio must
+--  save ebp which the latter can restore, and all four must restore everything back to
+--  the way they found it, as soon as that becomes appropriate. The single routine below,
+--  :%pSetSaveEBP, locates pTCB.SaveEBP, saves edx/rdx therein, and returns the previous 
+--  content in eax/rax. Note that arwen\pComN.ew also uses this, however I rather suspect
+--  it may be superfluous as the callback handler should cope, but all this has changed
+--  beyond recognition since the days when pComN.ew was written... [DEV]
+--  A callback is an asynchrochronous event to Phix: when it invokes some external C/asm 
+--  code, it has no idea if, when, or in what state things will be in when control gets 
+--  to the callback handler, and it needs some way to restore a bit of sanity. Prior to 
+--  multithreading, this used a local static variable in pcfuncN.e. The local integer 
+--  local_ebp4, in call, c_func, and c_proc, uses the trick of storing a dword-aligned 
+--  value /4 in an integer, and that takes care of any nesting, to any depth. 
+--  Logically, I suppose, pSetSaveEBP belongs in pStack.e - but making pGetTCB global is 
+--  not really justifiable, especially not just for this trivial little thing.
+--
+--  call/c_func/proc should: 
+--                              mov edx,ebp
+--                              call :%pSetSaveEBP
+--                              shr eax,2
+--                              mov [local_ebp4],eax
+--  and when control returns:
+--                              mov edx,[local_ebp4]        -- see note[1] below
+--                              shl edx,2
+--                              call :%pSetSaveEBP
+--  callback_handler should:
+--                              push ebp                    -- see note[2] below
+--                              xor edx,edx                 -- edx:=0
+--                              call :%pSetSaveEBP
+--                              test eax,eax
+--                              jz @f
+--                                  mov ebp,eax
+--                            @@:
+--                              push eax
+--  and finally:
+--                              pop edx
+--                              call :%pSetSaveEBP
+--                              pop ebp                     -- see note[2] below
+--  whew!
+--  note[1]: ebp must be correct for this to work. If you are worried that a c_func/proc
+--           could return with a damaged ebp, then just push/pop it, and don't confuse 
+--           that completely separate issue with anything that this is trying to do!
+--
+--  note[2]: The callback handler also has the further responsibility of saving/restoring 
+--           ebp for the benefit of the C code, which has nothing to do with SetSaveEBP.
+--
+
+--/*
+procedure :%pSetSaveEBP(:%)
+end procedure
+--*/
+    :%pSetSaveEBP
+--------------
+        -- save ebp before c_func (etc), in case of call_back, in a thread safe manner
+        call :pGetTCB           -- (factored out as a prelude to using it elsewhere)
+    [32]
+        mov eax,[ebx+esi*4+264]     -- SaveEBP
+        mov [ebx+esi*4+264],edx     -- SaveEBP
+    [64]
+        mov rax,[rbx+rsi*4+1008]    -- SaveEBP
+        mov [rbx+rsi*4+1008],rdx    -- SaveEBP
+    []
+        ret
+        
+----/*
+--procedure :%pRestoreSaveEBP(:%)
+--end procedure
+----*/
+--  :%pRestoreSaveEBP
+-------------------
+--      -- on call_back, restore ebp in a thread safe manner
+--  [32]
+----        push ebp
+--      call :pGetTCB
+--      mov edx,ebp
+--      mov ebp,[esi+264]       -- SaveEBP
+----        pop dword[esi+264]      -- SaveEBP
+--      shr edx,2
+--  [64]
+----        push rdx
+--      call :pGetTCB
+--      mov rdx,rbp
+--      mov ebp,[esi+1008]      -- SaveEBP
+----        pop qword [esi+1008]    -- SaveEBP
+--      shr rdx,2
+--  []
+--      ret
+
+--/*
+procedure :%pGetpGtcb(:%)
+end procedure -- (for Edita/CtrlQ)  [I quickly tired of keying CtrlQ/<stare blankly>/AltS]
+--*/
+    :%pGetpGtcb         -- (for external heap diagnostics, if ever needed/written)
+---------------
+    [32]
+        mov eax,[pGtcb]
+    [64]
+        mov rax,[pGtcb]
+    []
+        ret
+
+--/*
+procedure :%pNewGtcbChain(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%pNewGtcbChain
+--------------
+        -- eax/rax:=existing [pGtcb], if any, and [pGtcb]:=0 forces the test/newtcb 
+        --          at the start of pGetPool to trigger the next time it is called.
+        --  see "Memory Leak Checking And Heap Diagnostics" above
+    [32]
+        mov eax,[pGtcb]
+        mov [pGtcb],ebx
+    [64]
+        mov rax,[pGtcb]
+        mov [pGtcb],rdx
+    []
+        ret
+
+--/*
+procedure :%pRestoreGtcbChain(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%pRestoreGtcbChain
+------------------
+        -- restore [pGtcb] from the value in eax/rax, typically saved from the one 
+        --  p.exe just used to compile the source, and return the current value in 
+        --  edx/rdx, typically one that was specially created to interpret the app
+        --  in, deliberately distinct from the p.exe one so that we can analyse it.
+        --  see "Memory Leak Checking And Heap Diagnostics" above
+    [32]
+        mov edx,[pGtcb]
+        mov [pGtcb],eax
+    [64]
+        mov rdx,[pGtcb]
+        mov [pGtcb],rax
+    []
+        ret
 
 --/*
 procedure ::EnterCriticalSection(::)
@@ -1321,7 +1438,8 @@ end procedure -- (for Edita/CtrlQ)
                 jne :scanforfreetcblooptop
                 jmp :freetcbfound
           @@:
-            mov eax,268         -- sizeof(TCB)
+-->         mov eax,268         -- sizeof(TCB)
+            mov eax,276         -- sizeof(TCB)
             call :pGetMem
             test eax,eax
 --          jz :memoryallocationfailure
@@ -1333,9 +1451,11 @@ end procedure -- (for Edita/CtrlQ)
             shr eax,2
             push eax            -- [1] save result
             mov dword[edx],#00424354                    -- dwMagicT ("TCB\0")
-            mov dword[edx+264],#00424345                -- dwMagicE ("ECB\0")
+-->         mov dword[edx+264],#00424345                -- dwMagicE ("ECB\0")
+            mov dword[edx+272],#00424345                -- dwMagicE ("ECB\0")
             xor eax,eax
-            mov ecx,65 -- (4+27*2+1+6)  -- (not dwMagicT/E, dwThreadId..csLock[$])
+-->         mov ecx,65 -- (4+27*2+1+6)  -- (not dwMagicT/E, dwThreadId..csLock[$])
+            mov ecx,67 -- (4+27*2+1+6+2)    -- (not dwMagicT/E, dwThreadId..pTLS)
             rep stosd
             mov dword[edx+236],#00424343                -- dwMagicC ("CCB\0")
         [PE32]
@@ -1369,7 +1489,8 @@ end procedure -- (for Edita/CtrlQ)
                 jne :scanforfreetcblooptop
                 jmp :freetcbfound
           @@:
-            mov rax,1012    -- sizeof(TCB)
+-->         mov rax,1012    -- sizeof(TCB)
+            mov rax,1028    -- sizeof(TCB)
             call :pGetMem
             test rax,rax
 --          jz :memoryallocationfailure
@@ -1382,9 +1503,11 @@ end procedure -- (for Edita/CtrlQ)
             mov [rsp+32],rax    -- [1] save result
             mov dword[rdx],#00424354                    -- dwMagicT ("TCB\0")
             mov dword[rdx+4],ebx                        -- dwThreadId (:=0)
-            mov dword[rdx+1008],#00424345               -- dwMagicE ("ECB\0")
+-->         mov dword[rdx+1008],#00424345               -- dwMagicE ("ECB\0")
+            mov dword[rdx+1024],#00424345               -- dwMagicE ("ECB\0")
             xor rax,rax
-            mov rcx,125 -- (3+58*2+1+5) -- (not dwMagicT/E, not dwThreadId, pNextcb..csLock[$])
+-->         mov rcx,125 -- (3+58*2+1+5) -- (not dwMagicT/E, not dwThreadId, pNextcb..csLock[$])
+            mov rcx,127 -- (3+58*2+1+5+2) -- (not dwMagicT/E, not dwThreadId, pNextcb..pTLS)
             rep stosq
             mov dword[rdx+960],#00424342                -- dwMagicB ("BCB\0")
             mov dword[rdx+964],#00424343                -- dwMagicC ("CCB\0")
@@ -1419,7 +1542,6 @@ end procedure -- (for Edita/CtrlQ)
         --           <return address for mergelist or null at [esp+16]>
         --           tcb/4 in [esp+20]
         --           (obviously, last two entries cleared by calling routine)
---pHeapD?(ok)
         mov esi,[eax-4]     -- pRoot
         and esi,#FFFFFFFE   -- clear free bit (0b01, needed when looping)
         mov ecx,[esp+12]    -- block size
@@ -1437,13 +1559,13 @@ end procedure -- (for Edita/CtrlQ)
             mov [esi+12],edi            -- pTCB/4
             or esi,1
             mov [eax],ecx               -- nSize (should already be set?)
---pHeapD?(ok)
             mov [eax-4],esi             -- set free bit (0b01) on pRoot
             mov esi,eax
             lea ecx,[ebx+edi*4+240]     -- csLock
             cmp dword[ebx+edi*4+236],#00424343  -- dwMagicC ("CCB\0")
             jne :notCCB
-            cmp dword[ebx+edi*4+264],#00424345  -- dwMagicE ("ECB\0")
+-->         cmp dword[ebx+edi*4+264],#00424345  -- dwMagicE ("ECB\0")
+            cmp dword[ebx+edi*4+272],#00424345  -- dwMagicE ("ECB\0")
             jne :notECB
             push ecx                    -- (save lpCriticalSection/csLock for Leave)
             call :EnterCriticalSection
@@ -1451,7 +1573,6 @@ end procedure -- (for Edita/CtrlQ)
             mov eax,[edi*4+ecx+20]      -- tmp:=pGtcb.pFree[idx]
             mov [esi+4],eax             -- this.pNext:=tmp
             mov [esi+8],ebx             -- this.pPrev:=null
---pHeapD?
 --          mov [esi-8],ebx             -- this.era:=null (erm?)
             mov [edi*4+ecx+20],esi      -- pGtcb.pFree[idx]:=this
 --DEV we also want to unlink from pFirst???
@@ -1491,7 +1612,8 @@ end procedure -- (for Edita/CtrlQ)
             jne :notCCB
             cmp dword[rbx+rdi*4+964],#00424343  -- dwMagicC ("CCB\0")
             jne :notCCB
-            cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
+-->         cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
+            cmp dword[rcx+56],#00424345         -- dwMagicE ("ECB\0")
             jne :notECB
             push rcx                    -- save lpCriticalSection/csLock (for Leave)
             call :EnterCriticalSection
@@ -1499,7 +1621,6 @@ end procedure -- (for Edita/CtrlQ)
             mov rax,[rdi*4+rcx+32]      -- tmp:=pGtcb.pFree[idx]
             mov [rsi+8],rax             -- this.pNext:=tmp
             mov [rsi+16],rbx            -- this.pPrev:=null
---pHeapD?
 --          mov [rsi-16],rbx            -- this.era:=null (erm?)
             mov [rdi*4+rcx+32],rsi      -- pGtcb.pFree[idx]:=this
 --DEV we also want to unlink from pFirst?
@@ -1513,8 +1634,6 @@ end procedure -- (for Edita/CtrlQ)
             -- odd or even?
             push eax                    -- [1] in case of no merge
             sub eax,esi
---pHeapD:
---<         sub eax,24  -- (superblock header + pRoot)
             sub eax,28  -- (superblock header + pRoot + era)
             cmp dword[esi],#00484253    -- dwMagic ("SBH\0")
             jne :notSBH
@@ -1550,8 +1669,6 @@ end procedure -- (for Edita/CtrlQ)
 -- DEV use r12?
             push rax                    -- [1] in case of no merge
             sub rax,r8
---pHeapD:
---<         sub rax,40  -- (superblock header + pRoot)
             sub rax,48  -- (superblock header + pRoot + era)
             cmp dword[r8],#00484253     -- dwMagic ("SBH\0")
             jne :notSBH
@@ -1671,7 +1788,6 @@ end procedure -- (for Edita/CtrlQ)
                 or edi,1                        -- set 0b01 bit...
                 mov edx,[esp+20]                -- pTCB/4
                 mov [eax-4],edi                 -- ...on pRoot
---pHeapD?
 --              mov [eax-8],ebx                 -- era:=null?
                 mov [eax+8],ebx                 -- pPrev(:=0)
                 mov edi,[esp+8]                 -- idx(*4)
@@ -1691,7 +1807,7 @@ end procedure -- (for Edita/CtrlQ)
                         pop edx
 --                      mov edi,[esp+?]
                         mov edi,edx             -- temp
-                        mov al,32               -- e32hc(era,edi)   --DEV pHeapD show era/line number?
+                        mov al,32               -- e32hc(era,edi)   --DEV show era/line number?
                         jmp :!iDiag
                         int3
               @@:
@@ -1701,7 +1817,6 @@ end procedure -- (for Edita/CtrlQ)
                 or rdi,1                        -- set 0b01 bit...
                 mov rdx,[rsp+40]                -- pTCB/4
                 mov [rax-8],rdi                 -- ...on pRoot
---pHeapD?
 --              mov [rax-16],rbx                -- era:=null?
                 mov [rax+16],rbx                -- pPrev(:=0)
                 mov rdi,[rsp+16]                -- idx(*8)
@@ -1723,7 +1838,7 @@ end procedure -- (for Edita/CtrlQ)
                         pop rdx
 --                      mov rdi,[rsp+?]
                         mov rdi,rdx             -- temp
-                        mov al,32               -- e32hc(era,edi)   --DEV pHeapD show era/line number?
+                        mov al,32               -- e32hc(era,edi)   --DEV show era/line number?
                         jmp :!iDiag
                         int3
               @@:
@@ -1795,8 +1910,6 @@ end procedure -- (for Edita/CtrlQ)
         -- esi is preserved, all other registers are trashed.
         push dword -3                       -- [1] new nStatus (free, iff everything merges)
         mov edi,0                           -- idx*4
---pHeapD:
---<     mov edx,20                          -- block size
         mov edx,24                          -- block size
       ::scanorphanlooptop
             mov eax,[esi*4+edi+128]         -- is pNofl[idx]!=0?
@@ -1834,9 +1947,6 @@ end procedure -- (for Edita/CtrlQ)
         -- rsi is preserved, all other registers are trashed.
         push qword -3                       -- [1] new nStatus (free, iff everything merges)
         mov rdi,0                           -- idx*8
---      mov rdx,34                          -- block size
---pHeapD:
---<     mov rdx,36                          -- block size
         mov rdx,44                          -- block size
       ::scanorphanlooptop
             mov rax,[rsi*4+rdi+496]         -- is pNofl[idx]!=0?
@@ -2031,18 +2141,20 @@ sub edx,1
             add ecx,240     -- csLock
             cmp dword[ecx-4],#00424343      -- dwMagicC ("CCB\0")
             jne :notCCB
-            cmp dword[ecx+24],#00424345     -- dwMagicE ("ECB\0")
+-->         cmp dword[ecx+24],#00424345     -- dwMagicE ("ECB\0")
+            cmp dword[ecx+32],#00424345     -- dwMagicE ("ECB\0")
             jne :notECB
             push ecx                        -- lpCriticalSection/csLock (for Leave)
     [64]
             mov rcx,[pGtcb]
             shl rcx,2
             add rcx,968     -- csLock
-            cmp dword[rcx-8],#00424342      -- dwMagicE ("BCB\0")
+            cmp dword[rcx-8],#00424342      -- dwMagicB ("BCB\0")
             jne :notCCB
             cmp dword[rcx-4],#00424343      -- dwMagicC ("CCB\0")
             jne :notCCB
-            cmp dword[rcx+40],#00424345     -- dwMagicE ("ECB\0")
+-->         cmp dword[rcx+40],#00424345     -- dwMagicE ("ECB\0")
+            cmp dword[rcx+56],#00424345     -- dwMagicE ("ECB\0")
             jne :notECB
             mov [rsp+40],rcx            -- save lpCriticalSection/csLock (for Leave)
     []
@@ -2107,10 +2219,7 @@ sub edx,1
         -- figure out the required size
         cmp ecx,#50000000
         ja :invalidmemoryrequest
---pHeapD:
---<     add ecx,4       -- add space for pRoot
         add ecx,8       -- add space for pRoot + era
---<     mov edx,20      -- size
         mov edx,24      -- size
         mov edi,0       -- idx*4
       @@:
@@ -2131,11 +2240,7 @@ sub edx,1
         shl rdx,32
         cmp rcx,rdx
         ja :invalidmemoryrequest
---pHeapD:
---<     add rcx,8       -- add space for pRoot
         add rcx,16      -- add space for pRoot + era
---pHeapD:
---<     mov rdx,36      -- size
         mov rdx,44      -- size
         mov rdi,0       -- idx*8
       @@:
@@ -2248,7 +2353,8 @@ sub edx,1
             lea ecx,[ebx+esi*4+240]             -- pGtcb.csLock
             cmp dword[ebx+esi*4+236],#00424343  -- dwMagicC ("CCB\0")
             jne :notCCB
-            cmp dword[ecx+24],#00424345         -- dwMagicE ("ECB\0")
+-->         cmp dword[ecx+24],#00424345         -- dwMagicE ("ECB\0")
+            cmp dword[ecx+32],#00424345         -- dwMagicE ("ECB\0")
             jne :notECB
             push ecx                            -- save lpCriticalSection (for Leave)
             call :EnterCriticalSection
@@ -2263,7 +2369,8 @@ sub edx,1
             jne :notCCB
             cmp dword[rbx+rsi*4+964],#00424343  -- dwMagicC ("CCB\0")
             jne :notCCB
-            cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
+-->         cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
+            cmp dword[rcx+56],#00424345         -- dwMagicE ("ECB\0")
             jne :notECB
             mov [rsp+40],rcx                    -- save lpCriticalSection (for Leave)
             call :EnterCriticalSection
@@ -2295,8 +2402,6 @@ sub edx,1
             test eax,eax
             jz :gpentryempty
             -- perform some quick sanity checks:
---pHeapD:
---          lea esi,[eax-24]    -- start of superblock
             lea esi,[eax-28]    -- start of superblock
             mov ecx,[eax-4]     -- pRoot...
             test ecx,0b01       -- .. should have 0b01 set
@@ -2325,8 +2430,6 @@ sub edx,1
             test rax,rax
             jz :gpentryempty
             -- perform some quick sanity checks:
---pHeapD:
---<         lea rsi,[rax-40]    -- start of superblock
             lea rsi,[rax-48]    -- start of superblock
             mov rcx,[rax-8]     -- pRoot...
             test rcx,0b01       -- .. should have 0b01 set
@@ -2378,12 +2481,6 @@ sub edx,1
         cmp rdi,64
         jae @f
             mov rdi,64
---          mov rax,8736
---          mov rax,8704
---pHeapD:
---  [9]      11296[#00002C20]      11264[#00002C00]=8+8+11248*  x(11,215)       s[1,401]
---  [9]       9248[#00002420]       9216[#00002400]=8+9208      x(9,175)        s[1,146]
---<         mov rax,9216
             mov rax,11264
     []
       @@:
@@ -2396,7 +2493,8 @@ sub edx,1
         lea ecx,[ebx+esi*4+240]     -- pTCB.csLock
         cmp dword[ebx+esi*4+236],#00424343  -- dwMagicC ("CCB\0")
         jne :notCCB
-        cmp dword[ecx+24],#00424345         -- dwMagicE ("ECB\0")
+-->     cmp dword[ecx+24],#00424345         -- dwMagicE ("ECB\0")
+        cmp dword[ecx+32],#00424345         -- dwMagicE ("ECB\0")
         jne :notECB
         push eax                    -- [6] size/space for result
         push ecx                    -- save lpCriticalSection (for Leave)
@@ -2414,7 +2512,8 @@ sub edx,1
         jne :notCCB
         cmp dword[rbx+rsi*4+964],#00424343  -- dwMagicC ("CCB\0")
         jne :notCCB
-        cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
+-->     cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
+        cmp dword[rcx+56],#00424345         -- dwMagicE ("ECB\0")
         jne :notECB
         mov [rsp+40],rcx            -- save lpCriticalSection (for Leave)
         call :EnterCriticalSection
@@ -2453,9 +2552,7 @@ sub edx,1
         pop edi                     -- [5] restore (idx(*4))
         test esi,esi
         jnz :gpgotfromgpool
---DEV eax:=0?? (added)
---          add esp,16
-            add esp,20              -- (now including era) [nb: pre-pHeapD, no change rqd here]
+            add esp,20              -- (now including era)
             xor eax,eax
             ret
     [64]
@@ -2487,14 +2584,9 @@ end procedure -- (for Edita/CtrlQ)
         mov eax,[esp+8]             -- [1] pTCB/4
         mov [esi+8],edx             -- nsbSize
         mov [esi+12],eax            -- pTCB/4
---pHeapD:?
---<     mov [esi+20],esi            -- set pRoot
         mov [esi+24],esi            -- set pRoot
 --      ; eax,edi,edx should be set
---pHeapD:
---<     lea eax,[esi+24] -- hmm...
         lea eax,[esi+28] -- hmm...
--- DEV is edx 4 too big?
     [64]
 --      mov rdx,r14                 -- [4?] size
         mov rdx,[rsp+16]            -- [4?] size
@@ -2503,14 +2595,9 @@ end procedure -- (for Edita/CtrlQ)
         mov rax,[rsp+64]            -- pTCB/4
         mov [rsi+8],rdx             -- nsbSize
         mov [rsi+16],rax            -- set sbh.pTCB/4
---pHeapD:?
---<     mov [rsi+32],rsi            -- set pRoot
         mov [rsi+40],rsi            -- set pRoot
 --      ; rax,rdi,rdx should be set
---pHeapD:
---<     lea rax,[rsi+40] -- hmm...
         lea rax,[rsi+48] -- hmm...
--- DEV is rdx 8 too big?
     []
         jmp :blockdetached
 
@@ -2533,7 +2620,8 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp dword[ecx-4],#00424343      -- dwMagicC ("CCB\0")
         jne :notCCB
-        cmp dword[ecx+24],#00424345     -- dwMagicE ("ECB\0")
+-->     cmp dword[ecx+24],#00424345     -- dwMagicE ("ECB\0")
+        cmp dword[ecx+32],#00424345     -- dwMagicE ("ECB\0")
         jne :notECB
         push ecx            -- [8]      -- save lpCriticalSection (for Leave)
         call :EnterCriticalSection
@@ -2558,7 +2646,8 @@ end procedure -- (for Edita/CtrlQ)
         jne :notCCB
         cmp dword[rcx-4],#00424343      -- dwMagicC ("CCB\0")
         jne :notCCB
-        cmp dword[rcx+40],#00424345     -- dwMagicE ("ECB\0")
+-->     cmp dword[rcx+40],#00424345     -- dwMagicE ("ECB\0")
+        cmp dword[rcx+56],#00424345     -- dwMagicE ("ECB\0")
         jne :notECB
         mov [rsp+40],rcx            -- save lpCriticalSection (for Leave)
         call :EnterCriticalSection
@@ -2786,12 +2875,10 @@ end procedure -- (for Edita/CtrlQ)
         je @f
             int3
       @@:
---pHeapD:
         mov ecx,[esp+12]            -- era (edi would be fine too, I think)
         add esp,16
         mov [eax-4],esi             -- pRoot (w/out the free bit set)
         mov [eax-8],ecx             -- era
---<     sub edx,4                   -- subtract the space used by pRoot
         sub edx,8                   -- subtract the space used by pRoot + era
         -- result is edx bytes at eax
     [64]
@@ -2803,12 +2890,10 @@ end procedure -- (for Edita/CtrlQ)
         je @f
             int3
       @@:
---pHeapD:
         mov r9,[rsp+80]             -- era
         add rsp,8*11
         mov [rax-8],r8              -- pRoot (w/out the free bit set)
         mov [rax-16],r9             -- era
---<     sub rdx,8                   -- subtract the space used by pRoot
         sub rdx,16                  -- subtract the space used by pRoot + era
         -- result is rdx bytes at rax
     []
@@ -2838,10 +2923,7 @@ end procedure -- (for Edita/CtrlQ)
         je @f
             int3
       @@:
---pHeapD:
---<     add ecx,4                   -- include size of padding
         add ecx,8                   -- include size of padding
---<     mov edx,20
         mov edx,24
         mov edi,0
       @@:
@@ -2878,10 +2960,7 @@ end procedure -- (for Edita/CtrlQ)
         je @f
             int3
       @@:
---pHeapD:
---<     add rcx,8                   -- include size of padding
         add rcx,16                  -- include size of padding
---<     mov rdx,36                  -- block size
         mov rdx,44                  -- block size
         mov rdi,0                   -- idx*8
       @@:
@@ -2895,7 +2974,6 @@ end procedure -- (for Edita/CtrlQ)
         je @f
             int3
       @@:
---      cmp rdi,264 -- (=58*8)
         cmp rdi,464 -- (=58*8)
 --      jae :memorycorruption
         jb @f
@@ -2955,7 +3033,8 @@ pop ecx
         lea ecx,[ebx+edx*4+240]     -- csLock
         cmp dword[ebx+edx*4+236],#00424343  -- dwMagicC ("CCB\0")
         jne :notCCB
-        cmp dword[ecx+24],#00424345 -- dwMagicE ("ECB\0")
+-->     cmp dword[ecx+24],#00424345 -- dwMagicE ("ECB\0")
+        cmp dword[ecx+32],#00424345 -- dwMagicE ("ECB\0")
         jne :notECB
         push ecx                                    -- lpCriticalSection (for Leave)
         call :EnterCriticalSection
@@ -2971,7 +3050,8 @@ pop ecx
         jne :notCCB
         cmp dword[rcx-4],#00424343  -- dwMagicC ("CCB\0")
         jne :notCCB
-        cmp dword[rcx+40],#00424345 -- dwMagicE ("ECB\0")
+-->     cmp dword[rcx+40],#00424345 -- dwMagicE ("ECB\0")
+        cmp dword[rcx+56],#00424345 -- dwMagicE ("ECB\0")
         jne :notECB
         mov [rsp+32],rcx            -- save lpCriticalSection (for Leave)
         call :EnterCriticalSection
@@ -2985,11 +3065,9 @@ pop ecx
 --      or ecx,1
         mov [eax+8],ebx             -- pPrev (null, probably unnecessary)
 --      mov [eax-4],ecx             -- pRoot (with bit 0b01 set)
---pHeapD?
 --      mov [eax-8],ebx             -- era?
         pop ecx                     -- lpCriticalSection/csLock
         call :LeaveCriticalSection
---      add esp,4                   -- [1] discard          
         add esp,8                   -- [1] discard (and era)
     [64]
         mov rax,r12                 -- [1] restore
@@ -3001,7 +3079,6 @@ pop ecx
 --      or rcx,1
         mov [rax+16],rbx            -- pPrev (null, probably unnecessary)
 --      mov [rax-8],rcx             -- pRoot (with bit 0b01 set)
---pHeapD?
 --      mov [rax-16],rbx            -- era?
         mov rcx,[rsp+32]            -- lpCriticalSection/csLock
         call :LeaveCriticalSection

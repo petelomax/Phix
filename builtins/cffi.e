@@ -2,6 +2,8 @@
 --  cffi.e
 --  ======
 --
+--      Parse C struct and function definitions, and use them.
+--
 --      Eliminates most of the byte-counting needed when interfacing to C routines.
 --      The motivation behind this was that while I had many of the windows API
 --      structures laboriously translated to offsets for 32-bit from many years
@@ -13,7 +15,7 @@
 --      help with the code that follows, or anything remotely like that. Although it
 --      knows the names, offsets and sizes of fields, that does not mean that you no 
 --      longer have to fill them in! But there is less chance of being out-by-2 or
---      whetever on the 4th field and therefore all the rest.
+--      whatever on the 4th field and therefore all the rest.
 --
 --      Structures:
 --      ===========
@@ -51,8 +53,8 @@
 --          idPS = define_struct(tPS)
 --          pPS = allocate_struct(idPS)
 --          ...
---          {pRECT,size,sign} = get_field_details(idPS,"rcPaint.left")
---          pokeN(pRECT,{1,2,3,4},size)
+--          {oRECT,size,sign} = get_field_details(idPS,"rcPaint.left")
+--          pokeN(pPS+oRECT,{1,2,3,4},size)
 --          set_struct_field(idPS,"rcPaint.right",450)
 --          ?peekNS({pRECT,4},size,sign)    -- displays {1,2,450,4}
 --          ?get_struct_field(idRECT,pRECT,"right") -- displays 450
@@ -97,7 +99,7 @@
 --              a proc is expected to begin with a "void" return type.
 --              lib can be a string or the previous result of open_dll.
 --              pass by value (eg/ie RECT not RECT*) is not supported.
---              define_c_func etc is rather carefree regarding type: if
+--              define_c_func etc is rather carefree regarding type: if it
 --              is a 4 byte dword (or an 8 byte qword), it does not care 
 --              whether it is signed, a BOOL, an INT, a PTR, etc.
 --
@@ -132,7 +134,31 @@
 --   C function type. Either can be specified to ffi.callback() and the result is the same.
 --
 
-with trace
+--DEV I just rediscovered the following fragment from python's cffi:
+--      from cffi import FFI
+--
+--      ffi.cdef("""
+--          typedef void DIR;
+--          typedef long ino_t;
+--          typedef long off_t;
+--
+--          struct dirent {
+--              ino_t          d_ino;       /* inode number */
+--              off_t          d_off;       /* offset to the next dirent */
+--              unsigned short d_reclen;    /* length of this record */
+--              unsigned char  d_type;      /* type of file; not supported
+--                                             by all file system types */
+--              char           d_name[256]; /* filename */
+--          };
+--
+--          DIR *opendir(const char *name);
+--          int readdir_r(DIR *dirp, struct dirent *entry, struct dirent **result);
+--          int closedir(DIR *dirp);
+--      """)
+-- Opps, seems I completely missed the "typedef void DIR;" requirement: while I suspect it 
+--  would be relatively trivial to add, I'll not bother until I actually need/can test it.
+
+--with trace
 --/* -- OpenEuphoria compatability (4.1.0+; for RDS Eu 2.4 see cffi.2.4.e):
 type string(object s)
     return sequence(s)
@@ -560,6 +586,10 @@ integer id
     return id
 end function
 
+function endswith(string s, string mtype)
+    return length(mtype)>length(s) and mtype[-length(s)..-1]=s
+end function
+
 function do_type(string mtype, integer machine)
 --
 -- internal routine
@@ -584,8 +614,10 @@ string mname
             k = AltSize[k]
             mname = stoken()
         elsif match("LP",mtype)=1
-           or match("CALLBACK",mtype)=length(mtype)-7
-           or match("Proc",mtype)=length(mtype)-3 then
+--         or match("CALLBACK",mtype)=length(mtype)-7
+--         or match("Proc",mtype)=length(mtype)-3 then
+           or endswith("CALLBACK",mtype)
+           or endswith("Proc",mtype) then
             k = as_ptr
             mname = stoken()
         else

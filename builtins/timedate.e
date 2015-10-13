@@ -1512,7 +1512,7 @@ object x
             case YEAR:
                 year = td[DT_YEAR]
                 switch fsize do
-                    case 2:
+                    case 1,2:
                         x = sprintf("%02d",remainder(year,100))
                     case 4:
                         x = sprintf("%04d",year)

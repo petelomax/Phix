@@ -29,6 +29,19 @@ constant half = 0.5
 
 --DEV FIXME: (and the :!bang labels below)
     ::e14soa
+        [32]
+            pop edx
+            mov al,14               -- e14soa
+            sub edx,1
+--          mov ecx,edi
+            jmp :!iDiag
+        [64]
+            pop rdx
+            mov al,14               -- e14soa
+            sub rdx,1
+--          mov rcx,rdi
+            jmp :!iDiag
+        []
         int3
         [32]
     ::e01tcfst0edi

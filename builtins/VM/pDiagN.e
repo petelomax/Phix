@@ -737,7 +737,7 @@ constant msgs =
     --  string) of length(s)+1, whereas "s&x" returns a sequence 
     --  (or string) of length(s)+length(x) [that is, except when 
     --  x is an atom, in which case they are equivalent].
- "invalid file number (%d)\n",                                  -- e58bfn(edi)
+ "invalid file number (%d)\n",                                  -- e58bfn(edi) [e58ifn...]
     -- file must be open for getc, puts, seek, where, etc.
  "wrong file mode for attempted operation\n",                   -- e59wfmfao
     -- eg attempt to read a file after open(x,"w").

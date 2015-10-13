@@ -10,7 +10,7 @@
 --            all seem fine, then you can breathe easy once again.)
 --
 --/*
-    ?9/0    This file is incompatible with RDS/OpenEu.
+    ?9/0    This file is wholly incompatible with RDS/OpenEuphoria.
 --*/
 --
 --  In Phix, you need not "include dll.e" before using define_c_func, 
@@ -150,7 +150,7 @@ end procedure
 
 -- new version, to replace the above...
 procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
--- level is the number of frames to pop to obtain an era (must be >1).
+-- level is the number of frames to pop to obtain an era (must be >=2).
 -- we report errors on (eg) the c_func call, not in c_func below, so
 -- obviously c_func itself calls fatalN(2..), whereas if c_func calls
 -- toString, that must then call fatalN(3..), and when open_dll calls
@@ -555,7 +555,6 @@ global function define_c_var(atom lib, sequence name)
 -- Get the address of a public C variable defined in a dll or .so file.
 --
 atom addr
---DEV factor this out of define_c_func?
     if not string(name) then
         name = toString(name,ASALPHANUM,e74dcfpe,3)
     end if
@@ -666,27 +665,27 @@ if not pinit then Pinit() end if
     --  and used in cbhandler (below) /reset to 0 before resuming Phix code.
     -- (ebp is the current frame/callstack, in case you didn't know.)
     ----DEV use TLS:
-integer ebp_save = 0    -- stored /4 to avoid any 31-bit integer issues
-    --
-    #ilASM{ jmp :fin
-    [32]
-      :%save_ebp
-        mov edx,ebp
-        mov eax,[ebp_save]
-        shr edx,2
-      :%restore_ebp
-        mov [ebp_save],edx
-    [64]
-      :%save_rbp
-        mov rdx,rbp
-        mov rax,[ebp_save]
-        shr rdx,2
-      :%restore_rbp
-        mov [ebp_save],rdx
-    []
-        ret
-      ::fin
-}
+--integer ebp_save = 0  -- stored /4 to avoid any 31-bit integer issues
+--  --
+--  #ilASM{ jmp :fin
+--  [32]
+--    :%save_ebp
+--      mov edx,ebp
+--      mov eax,[ebp_save]
+--      shr edx,2
+--    :%restore_ebp
+--      mov [ebp_save],edx
+--  [64]
+--    :%save_rbp
+--      mov rdx,rbp
+--      mov rax,[ebp_save]
+--      shr rdx,2
+--    :%restore_rbp
+--      mov [ebp_save],rdx
+--  []
+--      ret
+--    ::fin
+--}
 -- calling convention:
 -- integer local_ebp
 --  #ilASM{ call :%save_ebp
@@ -876,15 +875,26 @@ integer convention
 
                 -- (same for both STDCALL and CDECL, cmiiw)
 
-                mov edx,[esp+36]        -- rtnid
+--              mov edx,[esp+36]        -- rtnid
+--              mov ecx,[esp+36]        -- rtnid
                 xor ebx,ebx
                 -- restore ebp (from last call()/c_func()/c_proc())
                 --  DEV this is not thread safe! (tls rqd?) (reserve say gvar[1]?)
-                mov ecx,[ebp_save]
-                shl ecx,2
+--              mov ecx,[ebp_save]
+--              shl ecx,2
+--              jz @f
+--                  mov ebp,ecx
+--            @@:
+--                              push ebp                    -- see note[2] below
+                xor edx,edx                 -- edx:=0
+                call :%pSetSaveEBP
+                test eax,eax
                 jz @f
-                    mov ebp,ecx
+                    mov ebp,eax
               @@:
+                push eax
+                mov edx,[esp+40]        -- rtnid
+
 --              mov esi,[ebp+24]        -- symtab
 --14/8/15
 --              mov esi,[ds+8]          -- symtab
@@ -893,7 +903,8 @@ integer convention
 --^             mov esi,[ebp+24]        -- vsb_root
 --^             mov esi,[esi+8]         -- symtabptr
                 mov esi,[esi+edx*4-4]   -- esi:=symtab[rtnid]
-                mov [esp+28],esi        -- save symtab[rtnid] (in eax after popad)
+--              mov [esp+28],esi        -- save symtab[rtnid] (in eax after popad)
+                mov [esp+32],esi        -- save symtab[rtnid] (in eax after popad)
                 mov edi,[ebx+esi*4+32]  -- edi:=esi[S_ParmN=9]
                 push edi                -- [1] push edi (no of params [min==max])
                 mov ecx,[ebx+esi*4+36]  -- ecx:=esi[S_Ltot=10]
@@ -913,7 +924,8 @@ integer convention
                 test ecx,ecx
                 jz :zeroparams
 --                  lea esi,[esp+48]    -- params (on stack)
-                    lea esi,[esp+44]    -- params (on stack)
+--                  lea esi,[esp+44]    -- params (on stack)
+                    lea esi,[esp+48]    -- params (on stack)
                 ::paramloop
                     lodsd               --  eax:=[esi], esi+=4
                     cmp eax,h4
@@ -943,13 +955,20 @@ integer convention
                     sub ecx,1
                     jnz :paramloop
             ::zeroparams
-                mov eax,[ebp_save]
-                mov esi,[esp+28]        -- restore symtab[rtnid]
-                mov [ebp_save],ebx      -- (0)  ; important!
-                mov [esp+28],eax        -- was_ebp_save
+--              mov eax,[ebp_save]
+--              mov esi,[esp+28]        -- restore symtab[rtnid]
+                mov esi,[esp+32]        -- restore symtab[rtnid]
+--              mov [ebp_save],ebx      -- (0)  ; important!
+--              mov [esp+28],eax        -- was_ebp_save
                 mov dword[ebp+16],:retaddr
                 jmp dword[ebx+esi*4+40] -- execute first opcode (S_il=11)
             ::retaddr
+                pop edx
+                mov ecx,eax
+                call :%pSetSaveEBP
+--                              pop ebp                     -- see note[2] below
+                mov eax,ecx
+
                 -- result is in eax, but >31bit stored as a float
                 cmp eax,h4 --DEV :%pLoadMint
                 jl :retint
@@ -963,15 +982,15 @@ integer convention
                     dec dword[ebx+eax*4-8]
                     jnz @f
                         mov edx,eax
-                        push dword[esp+40]
+                        push dword[esp+40]              -- era
                         call :%pDealloc0
                   @@:
                     pop eax
                     add esp,4
             ::retint
-                mov edx,[esp+28]        -- was_ebp_save
+--              mov edx,[esp+28]        -- was_ebp_save
                 mov [esp+28],eax        -- keep eax, but
-                mov [ebp_save],edx      -- restore (important!)
+--              mov [ebp_save],edx      -- restore (important!)
                 popad                   -- restore all other registers
 --              ret 8                   -- (the two dwords pushed by template code)
                 ret 4                   -- (the dword pushed by template code)
@@ -1061,13 +1080,25 @@ integer convention
 --^             mov rsi,[rbp+48]        -- vsb_root
 --^             mov rsi,[rsi+16]        -- symtabptr
 -- DEV this is not thread safe! (tls rqd?)
-                mov rcx,[ebp_save]
-                mov rdx,rax
-                shl rcx,2
+--              mov rcx,[ebp_save]
+--              mov rdx,rax
+--              shl rcx,2
+--              jz @f
+--                  mov rbp,rcx
+--            @@:
+--                              push ebp                    -- see note[2] below
+                mov rcx,rax
+                xor rdx,rdx                 -- edx:=0
+                call :%pSetSaveEBP
+                test rax,rax
                 jz @f
-                    mov rbp,rcx
+                    mov rbp,rax
               @@:
-                mov rsi,[rsi+rdx*8-8]   -- rsi:=symtab[rtnid]
+                push rax
+                mov rdx,rcx
+
+--              mov rsi,[rsi+rdx*8-8]   -- rsi:=symtab[rtnid]
+                mov rsi,[rsi+rcx*8-8]   -- rsi:=symtab[rtnid]
 --[ELF64]
                 push rsi                --[1] save symtab[rtnid]
 --              mov rdi,[rbx+rsi*8+64]  -- rdi:=rsi[S_ParmN=9]
@@ -1087,7 +1118,8 @@ integer convention
                 jz :zeroparams
 --31/12/14:
 --                  lea rsi,[rsp+16]    -- params (on stack)
-                    lea rsi,[rsp+24]    -- params (on stack)
+--                  lea rsi,[rsp+24]    -- params (on stack)
+                    lea rsi,[rsp+32]    -- params (on stack)
                 ::paramloop
                     lodsq               --  rax:=[rsi], rsi+=8
                     cmp rax,r15
@@ -1118,14 +1150,20 @@ integer convention
                     sub rcx,1
                     jnz :paramloop
             ::zeroparams
-                mov rax,[ebp_save]
+--              mov rax,[ebp_save]
 --              mov rsi,[rsp+?28]       -- restore symtab[rtnid]
                 pop rsi                 --[1]
-                mov [ebp_save],rbx      -- (0)  ; important!
-                push rax
+--              mov [ebp_save],rbx      -- (0)  ; important!
+--              push rax
                 mov qword[rbp+32],:retaddr64
                 jmp dword[rbx+rsi*4+80] -- execute first opcode (S_il=11)
             ::retaddr64
+                mov rcx,rax
+                pop rdx
+                call :%pSetSaveEBP
+--                              pop ebp                     -- see note[2] below
+                mov rax,rcx
+
                 -- result is in rax, but >63bit stored as a float
 --              cmp rax,h4
                 mov r15,h4
@@ -1148,9 +1186,9 @@ integer convention
 --                  add esp,4
             ::retint
 --              mov edx,[esp+28]        -- was_ebp_save
-                pop rdx
+--              pop rdx
 --              mov [esp+28],eax        -- keep eax, but
-                mov [ebp_save],rdx      -- restore (important!)
+--              mov [ebp_save],rdx      -- restore (important!)
 --              popad                   -- restore all other registers
 --              ret 8                   -- (the two dwords pushed by template code)
                 ret
@@ -1238,13 +1276,17 @@ integer convention
 end function
 
 global procedure call(atom addr)
-integer local_ebp -- (stored /4)
+integer local_ebp4 -- (stored /4)
     #ilASM{
             [32]
                 e_all                                       -- set "all side-effects"
                 -- first, save ebp in case of a callback:
-                call :%save_ebp
-                mov [local_ebp],eax
+--              call :%save_ebp
+--              mov [local_ebp],eax
+                mov edx,ebp
+                call :%pSetSaveEBP
+                shr eax,2
+                mov [local_ebp4],eax
 --DEV (pTrace.e)
 --              call %opClrDbg                              -- clear debug screen if needed
 --              int3
@@ -1260,12 +1302,21 @@ integer local_ebp -- (stored /4)
             @@:
                 call eax
                 xor ebx,ebx
-                mov edx,[local_ebp]
-                call :%restore_ebp
+--              mov edx,[local_ebp]
+--              call :%restore_ebp
+                mov edx,[local_ebp4]
+                shl edx,2
+                call :%pSetSaveEBP
+
             [64]
                 e_all                                       -- set "all side-effects"
-                call :%save_rbp
-                mov [local_ebp],rax
+--              call :%save_rbp
+--              mov [local_ebp],rax
+                mov rdx,rbp
+                call :%pSetSaveEBP
+                shr rax,2
+                mov [local_ebp4],rax
+
 --DEV (pTrace.e)
 --              call :%opClrDbg                             -- clear debug screen if needed
 --              int3
@@ -1285,8 +1336,12 @@ integer local_ebp -- (stored /4)
                 call rax
                 xor rbx,rbx
                 add rsp,8*5
-                mov rdx,[local_ebp]
-                call :%restore_rbp
+--              mov rdx,[local_ebp]
+--              call :%restore_rbp
+                mov rdx,[local_ebp4]
+                shl rdx,2
+                call :%pSetSaveEBP
+
             []
         }
 end procedure
@@ -1300,7 +1355,8 @@ function c_common(integer rid, sequence args, integer flag)
 sequence argdefs
 integer argdefi
 integer convention
-integer la, lad, ch
+integer la, lad
+--, ch
 object argi
 string argstring
 integer return_type
@@ -1309,6 +1365,9 @@ sequence tr -- table[rid], ie {name,addr,args,return_type,convention}
 atom addr
 sequence cstrings -- keeps refcounst>0, of any temps we have to make
 
+    if string(args) then
+        args = {args}
+    end if
     if tinit=0 or rid<1 or rid>length(table) then
 --      fatal(e72iri,rid)
         fatalN(3,e72iri,rid)
@@ -1322,6 +1381,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
 
     --20/8/15: (ensure shadow space and align)
     if machine_bits()=64 then
+        --DEV actually, this should be more like pHeap.e/pGetMem...
         la = length(args)
         if la<5 then
             args &= repeat(0,5-la)
@@ -1375,31 +1435,33 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
         }
     cstrings = {}
 --DEV 64bit: do we want an initial push rbx for the even no of params case?
-    if string(args) then
-        -- hmmm, well just push the string chars then...
-        for i=la to 1 by -1 do
-            ch = args[i]
-            argdefi = argdefs[i]
-            if DEBUG then
-                if not find(argdefi,{
-                      -- (These should be fine, but not much point adding them when
-                      --    we've nothing to say whether they work or not...)
---                                       #01000001,     -- C_CHAR
---                                       #01000004,     -- C_INT
---                                       #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
-                                    }) then ?9/0 end if
-            end if
-            #ilASM{
-                    [32]
-                        mov edx,[ch]
-                        push edx
-                    [64]
-                        mov rdx,[ch]
-                        push rdx
-                    []
-                }
-        end for
-    else
+--  --> let's do the whole pHeap.e/pGetMem thing... (Erm, see 20/8/15 mods above)
+
+--  if string(args) then
+--      -- hmmm, well just push the string chars then...
+--      for i=la to 1 by -1 do
+--          ch = args[i]
+--          argdefi = argdefs[i]
+--          if DEBUG then
+--              if not find(argdefi,{
+--                    -- (These should be fine, but not much point adding them when
+--                    --    we've nothing to say whether they work or not...)
+----                                         #01000001,     -- C_CHAR
+----                                         #01000004,     -- C_INT
+----                                         #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+--                                  }) then ?9/0 end if
+--          end if
+--          #ilASM{
+--                  [32]
+--                      mov edx,[ch]
+--                      push edx
+--                  [64]
+--                      mov rdx,[ch]
+--                      push rdx
+--                  []
+--              }
+--      end for
+--  else
         for i=la to 1 by -1 do
             argi = args[i]
             argdefi = argdefs[i]
@@ -1522,7 +1584,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                 cstrings = append(cstrings,argstring)   -- (keep refcounts>0, for a while)
             end if
         end for
-    end if
+--  end if
     return {return_type,addr,cstrings}
 end function
 
@@ -1533,7 +1595,7 @@ object r
 --DEV /4 trick:
 integer c_esp_lo = 0    -- save/restore esp (just in case)  [dev it is dword-aligned!]
 integer c_esp_hi = 0
-integer local_ebp
+integer local_ebp4
 atom addr
 sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the call.
                   -- Freed automatically, after we get back from the call_eax, /not/
@@ -1593,8 +1655,13 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
     --
     #ilASM{
             [32]
-                call :%save_ebp
-                mov [local_ebp],eax
+--              call :%save_ebp
+--              mov [local_ebp],eax
+                mov edx,ebp
+                call :%pSetSaveEBP
+                shr eax,2
+                mov [local_ebp4],eax
+
                 mov eax,[addr]
                 cmp eax,h4  --DEV :%pLoadMint
                 jl @f
@@ -1680,11 +1747,20 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
             ::intres                                        -- intres:
                 mov [r],eax
             ::done                                          -- done:
-                mov edx,[local_ebp]
-                call :%restore_ebp
+--              mov edx,[local_ebp]
+--              call :%restore_ebp
+                mov edx,[local_ebp4]
+                shl edx,2
+                call :%pSetSaveEBP
+
             [64]
-                call :%save_rbp
-                mov [local_ebp],rax
+--              call :%save_rbp
+--              mov [local_ebp],rax
+                mov rdx,rbp
+                call :%pSetSaveEBP
+                shr rax,2
+                mov [local_ebp4],rax
+
                 mov rax,[addr]
 --              cmp rax,h4
                 mov r15,h4
@@ -1798,8 +1874,12 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
             ::done                                          -- done:
 --DEV beginning to think this is drivel... (as per c_proc)
 -- (erm, just badly named??)
-                mov rdx,[local_ebp]
-                call :%restore_rbp
+--              mov rdx,[local_ebp]
+--              call :%restore_rbp
+                mov rdx,[local_ebp4]
+                shl rdx,2
+                call :%pSetSaveEBP
+
             []
         }
     return r
@@ -1962,7 +2042,7 @@ global procedure c_proc(integer rid, sequence args={})
 integer return_type
 integer c_esp_lo = 0    --DEV esp is dword-aligned!
 integer c_esp_hi = 0
-integer local_ebp
+integer local_ebp4
 atom addr
 sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the call.
                   -- Freed automatically, after we get back from the call_eax, /not/
@@ -1991,8 +2071,13 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
     -- (return_type has already been tested for 0 in c_common)
     #ilASM{
             [32]
-                call :%save_ebp         --DEV this is stupid!!
-                mov [local_ebp],eax
+--              call :%save_ebp         --DEV this is stupid!!
+--              mov [local_ebp],eax
+                mov edx,ebp
+                call :%pSetSaveEBP
+                shr eax,2
+                mov [local_ebp4],eax
+
                 mov eax,[addr]
                 cmp eax,h4  --DEV :%pLoadMint
                 jl @f
@@ -2010,11 +2095,20 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                 xor ebx,ebx     -- (Phix likes it zero!)
                 add ecx,edx
                 mov esp,ecx
-                mov edx,[local_ebp]
-                call :%restore_ebp
+--              mov edx,[local_ebp]
+--              call :%restore_ebp
+                mov edx,[local_ebp4]
+                shl edx,2
+                call :%pSetSaveEBP
+
             [64]
-                call :%save_rbp
-                mov [local_ebp],rax
+--              call :%save_rbp
+--              mov [local_ebp],rax
+                mov rdx,rbp
+                call :%pSetSaveEBP
+                shr rax,2
+                mov [local_ebp4],rax
+
                 mov rax,[addr]
 --              cmp rax,h4
                 mov r15,h4
@@ -2043,8 +2137,12 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                 xor rbx,rbx     -- (Phix likes it zero!)
                 add rcx,rdx
                 mov rsp,rcx
-                mov rdx,[local_ebp]
-                call :%restore_rbp
+--              mov rdx,[local_ebp]
+--              call :%restore_rbp
+                mov rdx,[local_ebp4]
+                shl rdx,2
+                call :%pSetSaveEBP
+
 --!*/
 --pop al
             []

@@ -1,0 +1,57 @@
+--
+-- demo\rosetta\Bitmap_Greyscale.exw
+-- =================================
+--
+-- Author Pete Lomax, October 2015
+--
+--  {{Trans|Euphoria}}, requires read_ppm() from [[Bitmap/Read_a_PPM_file#Phix|Read_a_PPM_file]], see [[Bitmap/Write_a_PPM_file#Phix|Write_a_PPM_file]] for actual use. 
+--  Included as demo\rosetta\Bitmap_Greyscale.exw
+
+-- copied from Bitmap_read_ppm:
+function read_ppm(sequence filename)
+sequence image, line
+integer dimx, dimy, maxcolor
+atom fn = open(filename, "rb")
+    if fn<0 then
+        return -1 -- unable to open
+    end if
+    line = gets(fn)
+    if line!="P6\n" then
+        return -1 -- only ppm6 files are supported
+    end if
+    line = gets(fn)
+    {{dimx,dimy}} = scanf(line,"%d %d%s")
+    line = gets(fn)
+    {{maxcolor}} = scanf(line,"%d%s")
+    image = repeat(repeat(0,dimy),dimx)
+    for y=1 to dimy do
+        for x=1 to dimx do
+            image[x][y] = getc(fn)*#10000 + getc(fn)*#100 + getc(fn)
+        end for
+    end for
+    close(fn)
+    return image
+end function
+
+function to_gray(sequence image)
+sequence color
+    for i=1 to length(image) do
+        for j=1 to length(image[i]) do
+            -- unpack color triple
+            color = sq_div(sq_and_bits(image[i][j], {#FF0000,#FF00,#FF}),
+                                                    {#010000,#0100,#01})
+            image[i][j] = floor(0.2126*color[1] + 0.7152*color[2] + 0.0722*color[3])*#010101
+        end for
+    end for
+    return image
+end function
+ 
+sequence img = read_ppm("Lena.ppm")
+    img = to_gray(img)
+--  write_ppm("LenaGray.ppm",img)
+
+--{} = wait_key()
+
+
+
+

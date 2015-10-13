@@ -46,7 +46,7 @@ global type bool(integer flag)
     return (flag=0 or flag=1)
 end type
 
-global function iff(bool condition, object Tval, object Fval)
+global function ifff(bool condition, object Tval, object Fval)
     if condition then return Tval else return Fval end if
 end function
 

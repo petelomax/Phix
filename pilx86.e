@@ -11559,7 +11559,9 @@ end if
             else
                 slroot = T_integer
 --DEV 25/8/15: (crash compiling demo\rosetta\Average_loop_length.exw)
-if smax2=MAXINT then
+--if smax2=MAXINT then
+--8/10/15: rosetta/perfect numbers.. (limit found by binary chop of a test loop for power(2,i))
+if smax2>=1024 then
     nMax = MAXINT+1
 else
                 nMax = power(smax,smax2)

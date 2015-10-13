@@ -1,0 +1,364 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Calling C Functions</h1>
+      <div id="mainSection">
+        A Phix program can call C routines and read and write C variables. C routines can also call Phix routines. 
+        The C code must reside in a Windows dynamic link library (.dll file), or a Linux shared library (.so file). 
+        By interfacing with .dlls and shared libraries, you can access the full programming interface on the host
+        operating system, be that Windows or Linux.
+        <br>
+        <br>
+        Phix provides a mechanism for calling any C function in any WIN32 API .dll file, or indeed in any 32-bit Windows .dll file that you create or someone else creates. 
+        There is also a call-back mechanism that lets Windows call your Euphoria routines. Call-backs are necessary when you create a graphical user interface. 
+        <br>
+        <br>
+        <table>
+         <col style="width: 5%"/>
+         <tr>
+          <td valign=top>
+           <a href="open_dll.htm">
+            <b>open_dll</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>open a Windows dynamic link library (.dll file) or Linux shared library (.so file)
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="define_c_proc.htm">
+            <b>define_c_proc</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>define a C function that is VOID (no value returned), or whose value your program will ignore
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="define_c_func.htm">
+            <b>define_c_func</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>define a C function that returns a value that your program will use
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="define_c_var.htm">
+            <b>define_c_var</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>get the memory address of a C variable.</td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="c_proc.htm">
+            <b>c_proc</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>call a C function, ignoring any return value</td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="c_func.htm">
+            <b>c_func</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>call a C function and get the return value</td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="call_back.htm">
+            <b>call_back</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>get a machine address for a Phix routine to use as a call-back address
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="message_box.htm">
+            <b>message_box</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>pop up a small window to get a Yes/No/Cancel response from the user
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="instance.htm">
+            <b>instance</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>get the instance handle for the current program</td>
+         </tr>
+        </table>
+        <br>
+         &nbsp;
+        <br>
+To make full use of the WIN32 platform, you need documentation on 32-bit Windows programming, in particular the WIN32 Application Program Interface (API), including the C structures defined by the API. 
+There is a large WIN32.HLP file (c) Microsoft that is available with many programming tools for Windows. 
+There are numerous books available on the subject of WIN32 programming for C/C++. You can adapt most of what you find in those books to the world of Euphoria programming for WIN32. 
+A good book is Programming Windows by Charles Petzold, Microsoft Press
+        <br>
+        <br>
+To call a C function in a .dll or .so file you must perform the following steps: 
+<ol>
+<li>
+Open the .dll or .so file that contains the C function by calling open_dll() and ensuring the result is non-zero.
+</li>
+<li>
+Define the C function, by calling define_c_func() or define_c_proc(), with the number and type of the arguments as well as the type of value returned. 
+        <br>
+        <br>
+Phix currently supports all C integer and pointer types as arguments and return values. It also supports floating-point arguments and return values (C double type). 
+It is currently not possible to pass C structures by value or receive a structure as a function result, although you can certainly pass a pointer to a structure and get 
+a pointer to a structure as a return value. Passing C structures by value is hardly ever required in Linux or the WIN32 API. 
+</li>
+<li>
+Call the C function by calling c_func() or c_proc(). 
+</li>
+</ol>
+        <br>
+        <br>
+Example:        
+<!--eucode>
+atom user32, icon
+integer LoadIcon
+    -- The name of the routine in user32.dll is "LoadIconA".
+    -- It takes a pointer and an int as arguments, and returns an int.
+    user32 = open_dll("user32.dll")
+    if usr32=0 then puts(1,"cannot open user32.dll") abort(0) end if
+    LoadIcon = define_c_func(user32, "LoadIconA",{C_POINTER,C_INT},C_INT)
+    if LoadIcon=-1 then puts(1,"LoadIconA not found") abort(0) end if
+    -- The function can now be invoked (as many times as needed).
+    icon = c_func(xLoadIcon, {NULL, IDI_APPLICATION})
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> user32</font><font color="#0000FF">,</font><font color="#000000"> icon
+</font><font color="#004080">integer</font><font color="#000000"> LoadIcon
+</font><font color="#000080"><i>    -- The name of the routine in user32.dll is "LoadIconA".
+    -- It takes a pointer and an int as arguments, and returns an int.
+</i></font><font color="#000000">    user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> usr32</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"cannot open user32.dll"</font><font color="#0000FF">)</font><font color="#7060A8"> abort</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">)</font><font color="#008080"> end if
+</font><font color="#000000">    LoadIcon</font><font color="#0000FF"> =</font><font color="#7060A8"> define_c_func</font><font color="#0000FF">(</font><font color="#000000">user32</font><font color="#0000FF">,</font><font color="#008000"> "LoadIconA"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">C_POINTER</font><font color="#0000FF">,</font><font color="#000000">C_INT</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">C_INT</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> LoadIcon</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> then</font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"LoadIconA not found"</font><font color="#0000FF">)</font><font color="#7060A8"> abort</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">)</font><font color="#008080"> end if
+</font><font color="#000080"><i>    -- The function can now be invoked (as many times as needed).
+</i></font><font color="#000000">    icon</font><font color="#0000FF"> =</font><font color="#800080"> c_func</font><font color="#0000FF">(</font><font color="#000000">xLoadIcon</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">NULL</font><font color="#0000FF">,</font><font color="#000000"> IDI_APPLICATION</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+See demo\win32 or demo\linux for example programs. 
+        <br>
+        <br>
+You can examine a .dll file with <a href="wrectools.htm">Dependency Walker</a>. You will see a list of all the C routines that the .dll exports. 
+        <br>
+        <br>
+To find out which .dll file contains a particular WIN32 C function, run demo\win32\dsearch.exw. 
+        <br>
+        <br>
+You can get the address of a C variable using define_c_var(). You can then use poke() and peek() to access the value of the variable. 
+        <br>
+        <br>
+Many C routines require that you pass pointers to structures. You can simulate C structures using allocated blocks of memory. 
+The address returned by allocate() can be passed as if it were a C pointer. 
+        <br>
+        <br>
+You can read and write members of C structures using peek(), poke(), or their N(s|u) variants. 
+You can obtain space for structures using allocate(). You must calculate the offset of a member of a C structure. 
+This is usually easy, because anything in C that needs 4 bytes will be assigned 4 bytes in the structure. 
+Thus C ints, chars, unsigned ints, pointers to anything, etc. will all take 4 bytes. If the C declaration looks like: 
+ <pre>
+        struct example {
+            int a;           // offset  0
+            char *b;         // offset  4
+            char c;          // offset  8
+            long d;          // offset 12
+        };
+ </pre> 
+To allocate space for "struct example" you would need: 
+<!--eucode>
+        atom p
+        p = allocate(16) -- size of "struct example"
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">        atom</font><font color="#000000"> p
+        p</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#000000">16</font><font color="#0000FF">)</font><font color="#000080"><i> -- size of "struct example"</i></font>
+</pre>
+
+The address that you get from allocate() is always at least 4-byte aligned. 
+This is useful, since WIN32 structures are supposed to start on a 4-byte boundary. 
+Fields within a C structure that are 4-bytes or more in size must start on a 4-byte boundary in memory. 
+2-byte fields must start on a 2-byte boundary. To achieve this you may have to leave small gaps within the structure. 
+In practice it is not hard to align most structures since 90% of the fields are 4-byte pointers or 4-byte integers. 
+        <br>
+        <br>
+ You can set the fields using something like: 
+<!--eucode>
+        poke4(p + 0, a)
+        poke4(p + 4, b)
+        poke4(p + 8, c)
+        poke4(p +12, d)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">        poke4</font><font color="#0000FF">(</font><font color="#000000">p</font><font color="#0000FF"> +</font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000"> a</font><font color="#0000FF">)
+</font><font color="#7060A8">        poke4</font><font color="#0000FF">(</font><font color="#000000">p</font><font color="#0000FF"> +</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000"> b</font><font color="#0000FF">)
+</font><font color="#7060A8">        poke4</font><font color="#0000FF">(</font><font color="#000000">p</font><font color="#0000FF"> +</font><font color="#000000"> 8</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">)
+</font><font color="#7060A8">        poke4</font><font color="#0000FF">(</font><font color="#000000">p</font><font color="#0000FF"> +</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#000000"> d</font><font color="#0000FF">)</font>
+</pre>
+ You can read a field with something like: 
+<!--eucode>
+     d = peek4(p+12)
+</eucode-->
+<pre>
+<font color="#000000">     d</font><font color="#0000FF"> =</font><font color="#000000"> peek4</font><font color="#0000FF">(</font><font color="#000000">p</font><font color="#0000FF">+</font><font color="#000000">12</font><font color="#0000FF">)</font>
+</pre>
+        <br>
+        <br>
+Tip: 
+ For readability, make up Euphoria constants for the field offsets. See Example below. 
+<!--eucode>
+        constant RECT_LEFT = 0,
+         RECT_TOP  = 4,
+         RECT_RIGHT = 8,
+         RECT_BOTTOM = 12
+         
+atom rect = allocate(16)
+
+    poke4(rect + RECT_LEFT,    10)
+    poke4(rect + RECT_TOP,     20)
+    poke4(rect + RECT_RIGHT,   90)
+    poke4(rect + RECT_BOTTOM, 100)
+     
+    -- pass rect as a pointer to a C structure
+    -- hWnd is a "handle" to the window
+    if not c_func(InvalidateRect, {hWnd, rect, 1}) then
+        puts(2, "InvalidateRect failed\n")
+    end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">        constant</font><font color="#000000"> RECT_LEFT</font><font color="#0000FF"> =</font><font color="#000000"> 0</font><font color="#0000FF">,
+</font><font color="#000000">         RECT_TOP </font><font color="#0000FF"> =</font><font color="#000000"> 4</font><font color="#0000FF">,
+</font><font color="#000000">         RECT_RIGHT</font><font color="#0000FF"> =</font><font color="#000000"> 8</font><font color="#0000FF">,
+</font><font color="#000000">         RECT_BOTTOM</font><font color="#0000FF"> =</font><font color="#000000"> 12
+</font><font color="#C0C0C0">         
+</font><font color="#004080">atom</font><font color="#000000"> rect</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#000000">16</font><font color="#0000FF">)
+
+</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">rect</font><font color="#0000FF"> +</font><font color="#000000"> RECT_LEFT</font><font color="#0000FF">,   </font><font color="#000000"> 10</font><font color="#0000FF">)
+</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">rect</font><font color="#0000FF"> +</font><font color="#000000"> RECT_TOP</font><font color="#0000FF">,    </font><font color="#000000"> 20</font><font color="#0000FF">)
+</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">rect</font><font color="#0000FF"> +</font><font color="#000000"> RECT_RIGHT</font><font color="#0000FF">,  </font><font color="#000000"> 90</font><font color="#0000FF">)
+</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">rect</font><font color="#0000FF"> +</font><font color="#000000"> RECT_BOTTOM</font><font color="#0000FF">,</font><font color="#000000"> 100</font><font color="#0000FF">)
+</font><font color="#C0C0C0">     
+</font><font color="#000080"><i>    -- pass rect as a pointer to a C structure
+    -- hWnd is a "handle" to the window
+</i></font><font color="#008080">    if not</font><font color="#800080"> c_func</font><font color="#0000FF">(</font><font color="#000000">InvalidateRect</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">hWnd</font><font color="#0000FF">,</font><font color="#000000"> rect</font><font color="#0000FF">,</font><font color="#000000"> 1</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#7060A8">        puts</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000"> "InvalidateRect failed\n"</font><font color="#0000FF">)
+</font><font color="#008080">    end if</font>
+</pre>
+The Euphoria code that accesses C routines and data structures may look a bit ugly, but it will typically form just a small part of your program, 
+especially if you use Arwen, Win32Lib, or [DEV???] . Most of your program will be written in pure Euphoria, which will give you a big advantage over C. 
+        <br>
+        <br>
+<h3>Call-backs to your Euphoria routines</h3>
+        <br>
+        <br>
+When you create a window, the Windows operating system needs to call a routine that you must provide. 
+To set this up, you must get a 32-bit "call-back" address for your routine and give it to Windows. For example (taken from demo\win32\window.exw): 
+        <br>
+        <br>
+<!--eucode>
+        integer id
+        atom WndProcAddress
+        
+        id = routine_id("WndProc") 
+        WndProcAddress = call_back(id)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">        integer</font><font color="#000000"> id
+</font><font color="#004080">        atom</font><font color="#000000"> WndProcAddress
+</font><font color="#C0C0C0">        
+</font><font color="#000000">        id</font><font color="#0000FF"> =</font><font color="#800080"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"WndProc"</font><font color="#0000FF">) 
+</font><font color="#000000">        WndProcAddress</font><font color="#0000FF"> =</font><font color="#800080"> call_back</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">)</font>
+</pre>
+routine_id() uniquely identifies a Euphoria procedure or function by returning a small integer value. 
+This value can be used later to call the routine. You can also use it as an argument to the call_back() function. 
+        <br>
+        <br>
+In the example above, The call-back address, WndProcAddress, can be stored in a C structure and passed to Windows via the RegisterClass() C API function. 
+This gives Windows the ability to call the Euphoria routine, WndProc(), whenever the user performs an action on a certain class of window. 
+Actions include clicking the mouse, typing a key, resizing the window etc. See the window.exw demo program for the whole story. 
+        <br>
+        <br>
+Note: 
+ It is possible to get a call-back address for any Phix routine that meets the following conditions: 
+<ul>
+<li>
+ the routine must be a function, not a procedure 
+</li>
+<li>
+ the parameters should all be of type atom (or integer etc.), not sequence 
+</li>
+<li>
+ the return value should be an integer value up to 32-bits in size 
+</li>
+<li>
+ You can create as many call-back addresses as you like.
+</li>
+</ul>
+
+The values that are passed to your routine can be any 32-bit unsigned atoms, i.e. non-negative. 
+Your routine could choose to interpret large positive numbers as negative if that is desirable. 
+For instance, if a C routine tried to pass you -1, it would appear as hex FFFFFFFF. [DEV]
+If a value is passed that does not fit the type you have chosen for a given parameter, a type-check error may occur (depending on with/without type_check etc.) 
+No error will occur if you declare all parameters as atom. 
+        <br>
+        <br>
+Normally, as in the case of WndProc() above, Windows initiates these call-backs to your routines. 
+It is also possible for a C routine in any .dll to call one of your Euphoria routines. 
+You just have to declare the C routine properly, and pass it the call-back address. 
+        <br>
+        <br>
+Here is an example of a WATCOM C routine that takes your call-back address as its only parameter, and then calls your 3-parameter Euphoria routine: 
+<pre>
+        / * 1-parameter C routine that you call from Euphoria * /
+        unsigned EXPORT APIENTRY test1(
+                 LRESULT CALLBACK (*eu_callback)(unsigned a,
+                                                 unsigned b,
+                                                 unsigned c))
+        {
+            / * Your 3-parameter Euphoria routine is called here 
+               via eu_callback pointer * /
+            return (*eu_callback)(111, 222, 333); 
+        }
+</pre>
+The C declaration above declares test1 as an externally-callable C routine that takes a single parameter. 
+The single parameter is a pointer to a routine that takes 3 unsigned parameters - i.e. your Euphoria routine. 
+        <br>
+        <br>
+In WATCOM C, "CALLBACK" is the same as "__stdcall", i.e "standard call". 
+This is the calling convention that is used to call WIN32 API routines, and the C pointer to your routine 
+must be declared this way too, or you will get an error when your routine tries to return to your .DLL. 
+Note that the default calling convention for Windows C compilers is something different, called "__cdecl". 
+        <br>
+        <br>
+In the example above, your Euphoria routine will be passed the three values 111, 222 and 333 as arguments. 
+Your routine will return a value to test1. That value will then be immediately returned to the caller of test1 (which could be at some other place in your Euphoria program).
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

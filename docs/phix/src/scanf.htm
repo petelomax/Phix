@@ -14,7 +14,7 @@
          </td>
          <td>
           <font face = "Arial, Helvetica">
-            sequence res = scanf(string s, string fmt)
+            sequence params = scanf(string s, string fmt)
           </font>
          </td>
         </tr>
@@ -33,19 +33,21 @@
          <td>
             May return more than one set, for example
 <!--eucode>
-    res = scanf("one two three","%s %s") - res is {{"one","two three"},{"one two","three"}}
+    res = scanf("one two three","%s %s") -- res is {{"one","two three"},{"one two","three"}}
 </eucode-->
 <pre>
-<font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#800080"> scanf</font><font color="#0000FF">(</font><font color="#008000">"one two three"</font><font color="#0000FF">,</font><font color="#008000">"%s %s"</font><font color="#0000FF">) -</font><font color="#000000"> res is</font><font color="#0000FF"> {</font><font color="#800000">{</font><font color="#008000">"one"</font><font color="#0000FF">,</font><font color="#008000">"two three"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"one two"</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#800080"> scanf</font><font color="#0000FF">(</font><font color="#008000">"one two three"</font><font color="#0000FF">,</font><font color="#008000">"%s %s"</font><font color="#0000FF">)</font><font color="#000080"><i> -- res is {{"one","two three"},{"one two","three"}}</i></font>
 </pre>
             <br>
             Note that scanf relies heavily on literal separators, especially spaces. It is illegal to specify back-to-back
             strings, integers, or atoms with format strings such as "%s%s", "%d%d", "%s%d", etc. The one exception is that
-            a string can immediately follow a number, an example of which is "4th" and "%d%s". Theoretically it might be
-            possible to write a scanf that yields {{1,23},{12,3}} from scanf("123","%d%d") but I for one cannot think of
-            a single practical use, and a scanf(x,"%s%s") that returns {{"",x},..{x,""}} is also of dubious value.
-            Likewise the ability to get {"hello",12} from "hello12", which is hard, as opposed to from "hello 12", which 
-            is trivial, is deemed completely unnecessary.
+            a string can immediately follow a number, an example of which is "4th" and "%d%s".
+            <br>
+            <br>
+            Theoretically it might be possible to write a scanf that yields {{1,23},{12,3}} from scanf("123","%d%d") but I 
+            for one cannot think of a single practical use, and getting {{"","AB"},{"A","B"},{"AB",""}} from scanf("AB","%s%s") 
+            is also of highly questionable worth. Likewise it is deemed completely unnecessary to be able to get {"hello",12} 
+            from "hello12", which is hard, as opposed to getting that same result from "hello 12", which is trivial.
             <br>
             <br>
             Any width/precision/justify/zerofill details are for the most part quietly ignored: you may get the same results
@@ -53,20 +55,46 @@
             actually needs those qualifiers, or just be brain on autopilot: any error or warning here would hinder rather 
             than help. If scanf is about to return several possibilities, it tests the results of sprintf and trims the 
             result set down to those with an exact character-by-character match, as long as that does not trim the result 
-            set down to zero, and, as in the example above, may trim nothing.
+            set down to zero, and, as in the example above, that last pass may in fact trim nothing.
             <br>
             <br>
             Internally scanf only cares for d/f/s formats; (x/o/b)/(e/g)/(c) are treated as respective aliases, up to but 
             not including the afore-mentioned final printf trimming stage that is. For more details regarding format strings 
-            refer to <a href="printf.htm">printf</a>. All characters not part of a %-group are treated as literal. There is 
-            no way to suggest, let alone force, that say scanf("#FF","%d") should fail but scanf("255","%d") should succeed, 
-            and anything like scanf("#FF","#%x") simply does not work (sorry), but scanf("#FF","%x") is perfectly fine,
-            apart from the fact that sprintf("%x",#FF) produces "FF" not "#FF".
+            refer to <a href="printf.htm">printf</a>. All characters not part of a %-group are treated as literal.
+            <br>
+            <br>
+            There is no way to suggest, let alone force, that say scanf("#FF","%d") should fail but scanf("255","%d") should 
+            succeed, and things like scanf("#FF","#%x") simply do not work (sorry), but scanf("#FF","%x") is perfectly fine, 
+            apart from the fact that sprintf("%x",{#FF}) produces "FF" not "#FF". Also note that scanf can easily parse say
+            "#DEADBEEF" (as %f) but cannot get a similar result from "DEADBEEF", much like the compiler and source code.
             <br>
             <br>
             Failure is indicated by {}. Otherwise each element of the results has as many elements as there were format
             specifications in the format string, in the same order as specfied. A perfect unique and unambiguous result
             is indicated by length(res)=1.
+            <br>
+            <br>
+            If you are confident of success, and if more than one result set is returned are happy to take the first, then
+<!--eucode>
+    {{x,y}} = scanf(line,"%d %d%s")
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">    {</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#800080"> scanf</font><font color="#0000FF">(</font><font color="#000000">line</font><font color="#0000FF">,</font><font color="#008000">"%d %d%s"</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            is the typical syntax. The double braces are needed to select the first of several possible result sets. Of course
+<!--eucode>
+    sequence res = scanf(line,"%d %d%s")
+    if length(res)=0 (or !=1) then return/exit end if
+    {{x,y}} = res
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#800080"> scanf</font><font color="#0000FF">(</font><font color="#000000">line</font><font color="#0000FF">,</font><font color="#008000">"%d %d%s"</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)=</font><font color="#000000">0</font><font color="#0000FF"> (</font><font color="#008080">or</font><font color="#0000FF"> !=</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#008080"> then return</font><font color="#0000FF">/</font><font color="#008080">exit end if
+</font><font color="#0000FF">    {</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#000000"> res</font>
+</pre>
+            <br>
+            is the safer way, again needing the double braces.
             <br>
             <br>
             The <a href="parse_date_string.htm">parse_date_string</a>() function of <a href="timedate.htm">timedate</a>
@@ -119,7 +147,18 @@ end function
           <a href="parse_date_string.htm">parse_date_string</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The C routine scanf reads from stdin; this is much closer to the C routine scanf, but is not particularly based on either.
+         </td>
+        </tr>
        </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
       </div>
      </stripped>
     </get>

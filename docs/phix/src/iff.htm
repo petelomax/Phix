@@ -1,0 +1,104 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Ternary Operator</h1>
+      <div id="mainSection">
+        In Phix the ternary operator, also known (if you&rsquo;ll forgive the redundant tautology) as an if-and-only-if expression, 
+        has a function-call-like syntax, allowing conditional selection with short-circuit evaluation, eg:
+<!--eucode>
+    iff(flag?"true":"false")
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">    iff</font><font color="#0000FF">(</font><font color="#000000">flag</font><font color="#0000FF">?</font><font color="#008000">"true"</font><font color="#000000">:</font><font color="#008000">"false"</font><font color="#0000FF">)</font>
+</pre>
+        which, fairly obviously, yields "true" or "false" depending on the value of flag. 
+        <br>
+        <br>
+        If you prefer, <code>iif</code> is exactly equivalent to <code>iff</code>, additionally comma separators are also valid:
+<!--eucode>
+    iif(<condition>,<expression1>,<expression2>)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">    iif</font><font color="#0000FF">(&lt;</font><font color="#000000">condition</font><font color="#0000FF">&gt;,&lt;</font><font color="#000000">expression1</font><font color="#0000FF">&gt;,&lt;</font><font color="#000000">expression2</font><font color="#0000FF">&gt;)</font>
+</pre>
+        However, for me, comma separators make it look too much like a normal function call and I would automatically assume eager evaluation.
+        <br>
+        <br>
+        The construct is a simplified form of the <a href="if.htm">if statement</a> with a single condition and an else clause,
+        except that it has two expressions rather than two statement blocks, and not only utilises 
+        <a href="shortcircuit.htm">short-circuit evaluation</a> within the condition, but also evaluates only one of the expressions.
+        If the value of the condition can be determined at compile-time (possibly via constant propagation) then the compiler may only
+        emit executable code for one of the expressions as well.
+        <br>
+        <br>
+        Note that some optimisations, especially pass-by-reference, can be thwarted by incorrect or excessive use of iff, for example
+<!--eucode>
+    s = iff(x<y?append(s,x):append(s,y))
+</eucode-->
+<pre>
+<font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">&lt;</font><font color="#000000">y</font><font color="#0000FF">?</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">x</font><font color="#800000">)</font><font color="#000000">:</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">)</font><font color="#0000FF">)</font>
+</pre>
+        is likely to be exponentially slower than the much neater and more obvious
+<!--eucode>
+    s = append(s,iff(x<y?x:y))
+</eucode-->
+<pre>
+<font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#7060A8">iff</font><font color="#800000">(</font><font color="#000000">x</font><font color="#0000FF">&lt;</font><font color="#000000">y</font><font color="#0000FF">?</font><font color="#000000">x:y</font><font color="#800000">)</font><font color="#0000FF">)</font>
+</pre>
+        Often the result of an iff expression is best stored in a suitably named variable, to make the code easier to understand, and quite probably easier to debug, eg:
+<!--eucode>
+    s = append(s,iff(x<y?l-x*4:l-((x-1)*w+floor(y/w)*4))
+</eucode-->
+<pre>
+<font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#7060A8">iff</font><font color="#800000">(</font><font color="#000000">x</font><font color="#0000FF">&lt;</font><font color="#000000">y</font><font color="#0000FF">?</font><font color="#000000">l</font><font color="#0000FF">-</font><font color="#000000">x</font><font color="#0000FF">*</font><font color="#000000">4:l</font><font color="#0000FF">-</font><font color="#800080">(</font><font color="#00FF00">(</font><font color="#000000">x</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#00FF00">)</font><font color="#0000FF">*</font><font color="#000000">w</font><font color="#0000FF">+</font><font color="#7060A8">floor</font><font color="#00FF00">(</font><font color="#000000">y</font><font color="#0000FF">/</font><font color="#000000">w</font><font color="#00FF00">)</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#800080">)</font><font color="#800000">)</font>
+</pre>
+        vs:
+<!--eucode>
+    extra_space = iff(x<y?l-x*4:l-((x-1)*w+floor(y/w)*4)
+    s = append(s,extra_space)
+</eucode-->
+<pre>
+<font color="#000000">    extra_space</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">&lt;</font><font color="#000000">y</font><font color="#0000FF">?</font><font color="#000000">l</font><font color="#0000FF">-</font><font color="#000000">x</font><font color="#0000FF">*</font><font color="#000000">4:l</font><font color="#0000FF">-</font><font color="#800000">(</font><font color="#800080">(</font><font color="#000000">x</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">w</font><font color="#0000FF">+</font><font color="#7060A8">floor</font><font color="#800080">(</font><font color="#000000">y</font><font color="#0000FF">/</font><font color="#000000">w</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#800000">)
+</font><font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">extra_space</font><font color="#800000">)</font>
+</pre>
+        Such clarifications normally incur no additional penalty whatsoever over the hidden unnamed temporary variable that the compiler would otherwise use.
+        <br>
+        <br>
+       <table>
+        <col style="width: 8%"/>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="if.htm">if</a>,
+          <a href="append.htm">append</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+          A plain infix C-style syntax (<code>c?e1:e2</code> without an <code>iff()</code> container) is unfortunately not practical, 
+          since eg a = b?c:d would be treated as the statements <code>a = b</code> then <code><a href="qu.htm">?</a>c</code> and then an
+          error would be triggered as <code>:d</code> is not recognised. It would require Phix to become a multi-pass compiler, and
+          no-one (in their right mind) wants that.
+         </td>
+        </tr>
+       </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>
