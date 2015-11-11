@@ -58,6 +58,18 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
 --          jmp :!iDiag
             int3
     ::e09slinespp4
+        [32]
+            mov edx,[esp+16]        -- era
+            mov ecx,[esp]           -- (edi already set)
+            mov al,9                -- e09slin(edi,ecx)
+            sub edx,1
+        [64]
+            mov rdx,[rsp+32]        -- era
+            mov rcx,[rsp]           -- (edi already set)
+            mov al,9                -- e09slin(rdi,rcx)
+            sub rdx,1
+        []
+            jmp :!iDiag
             int3
     ::e04atsaa24
             int3

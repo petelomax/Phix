@@ -1,0 +1,169 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>CD_DGN</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<style type="text/css">
+.style1 {
+	font-family: Courier;
+}
+</style>
+</head>
+
+<body>
+
+<h2 style="text-align: left">CD_DGN - MicroStation Design File Driver (cddgn.h)</h2>
+
+  <p>This driver allows generating a MicroStation design file. The file name usually has an extension .DGN. The driver 
+  supports only MicroStation version 4.0 or later. The format's copyrights are property of
+  <a href="http://www.bentley.com" target="_top">Bentley Systems</a>.</p>
+
+<h3>Use</h3>
+
+  <p>The file is created and opened by calling function <font face="Courier">
+  <a href="../func/init.html#cdCreateCanvas"><strong>cdCreateCanvas</strong></a>(CD_DGN, 
+  Data)</font>, in which <font face="Courier">Data</font> contains the filename and canvas dimensions. This function 
+  opens the file and writes its header. Then, other functions in the CD library can be called as usual. The
+  <font face="Courier">Data</font> parameter string has the following format:</p>
+  
+    <pre><em>&quot;filename [width_mmxheight_mm] [resolution] [-f] [-sseedfile]&quot;   </em>or in C <em>&quot;<strong><tt>%s %gx%g %g %s</tt></strong>&quot;</em></pre>
+  
+  <p>Only the parameter <font face="Courier">filename</font> is required. The filename must be inside double quotes (&quot;) 
+  if it has spaces.<font face="Courier"> width_mm</font> and <font face="Courier">height_mm</font> are provided in millimeters 
+  (note the lowercase &quot;x&quot; between them), and their default value in pixels is <font face="Courier">INT_MAX</font> for 
+  both dimensions. <font face="Courier">Resolution </font>is the number of pixels per millimeter; its default value is 
+  &quot;3.78 pixels/mm&quot; (96 DPI). <font face="Courier">Width</font>, <font face="Courier">height</font> and
+  <font face="Courier">resolution</font> are real values. Parameter <font face="Courier">-f</font> modifies the polygon 
+  filling's behavior. Just as in MicroStation, you can specify a seed file using parameter <font face="Courier">-s</font>, it must be the last parameter.
+  <font face="Courier">width_mm</font>, <font face="Courier">height_mm</font> and <font face="Courier">resolution</font> are 
+  used only by <a href="../func/coordinates.html#cdGetCanvasSize">
+  <font face="Courier"><strong>cdCanvasGetSize</strong></font></a><font face="Courier"><strong> </strong></font>and in 
+  pixel-millimeter conversion.&nbsp;</p>
+  <p>Any amount of such canvases may exist simultaneously. It is important to note that a call to function
+  <a href="../func/init.html#cdKillCanvas"><font face="Courier"><strong>
+  cdKillCanvas</strong></font></a> is required to close the file properly.</p>
+  <p><b>Images and Colors</b> - The DGN format does not support server images and works with an indexed-color format. 
+  Color quality is limited to 256 colors, and the format uses a uniform palette to convert RGB colors into palette 
+  indices. If you configure a palette, the color conversion process will become slower.</p>
+  <p><b>Filling</b> - Up to version 5.0, MicroStation presents some limitations for polygon filling. You can disable 
+  filling by means of string &quot;<font face="Courier">-f</font>&quot; in the <font face="Courier">Data</font> parameter. Filled 
+  polygons can only have around 10,000 vertices; if the value is larger, the polygon style changes to closed lines.</p>
+  <p><b>Seed</b> - In the seed file, several DGN parameters can be defined to be used in the drawing. The library offers 
+  a seed file called &quot;seed2d.dgn&quot;, located on the folder pointed by the environment variable <strong>CDDIR</strong> 
+  (usually &quot;cd/etc&quot;).</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Control</h4>
+<ul>
+  <li><a href="../func/control.html#cdClear"><font face="Courier"><strong>Clear</strong></font></a>: 
+  does nothing.</li>
+  <li><a href="../func/other.html#cdPlay"><font face="Courier"><strong>Play</strong></font></a>: 
+  does nothing, returns <font face="Courier">CD_ERROR</font>. </li>
+</ul>
+<h4>Coordinate System and Clipping </h4>
+<ul>
+  <li><a href="../func/clipping.html#cdClip"><font face="Courier"><strong>Clip</strong></font></a>: 
+  does nothing (no clipping function is supported), returns <font face="Courier">CD_CLIPOFF</font>.</li>
+  <li><a href="../func/coordinates.html#cdUpdateYAxis"><font face="Courier">
+  <strong>UpdateYAxis</strong></font></a>: does nothing. The axis orientation is the same as the CD library.</li>
+  <li><strong>Transformation Matrix</strong>: not supported.</li>
+</ul>
+<h4>Primitives</h4>
+<ul>
+  <li><a href="../func/lines.html#cdBegin"><font face="Courier"><strong>Begin</strong></font></a>: 
+  if parameter <strong><tt>CD_CLIP</tt></strong> is specified, does nothing. <strong><tt>
+  CD_BEZIER</tt></strong> and <strong><tt>CD_PATH</tt></strong> 
+	are simulated with lines.</li>
+  <li><strong><font face="Courier"><a href="../func/filled.html#cdChord">cdChord</a></font></strong>: 
+  does nothing.</li>
+</ul>
+<h4>Attributes </h4>
+<ul>
+  <li><a href="../func/filled.html#cdBackOpacity"><font face="Courier"><strong>
+  BackOpacity</strong></font></a>: does nothing, returns <font face="Courier">CD_OPAQUE</font>.</li>
+  <li><a href="../func/attributes.html#cdWriteMode"><font face="Courier">
+  <strong>
+  WriteMode</strong></font></a>: does nothing, returns <font face="Courier">CD_REPLACE</font>.</li>
+  <li><a href="../func/filled.html#cdInteriorStyle"><font face="Courier">
+  <strong>
+  InteriorStyle</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdFillMode"><font face="Courier"><strong>
+  FillMode</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdLineCap"><font face="Courier"><strong>
+  LineCap</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdLineJoin"><font face="Courier"><strong>
+  LineJoin</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdHatch"><font face="Courier"><strong>Hatch</strong></font></a>: 
+  does nothing.</li>
+  <li><a href="../func/filled.html#cdStipple"><font face="Courier"><strong>
+  Stipple</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdPattern"><font face="Courier"><strong>
+  Pattern</strong></font></a>: does nothing.</li>
+  <li><a href="../func/text.html#cdTextSize"><font face="Courier"><strong>
+  TextSize</strong></font></a>: returns a bounding box which is usually larger than the text (the computation is based 
+  on the widest character).</li>
+  <li><a href="../func/text.html#cdTextAlignment"><font face="Courier"><strong>
+  TextAlignment</strong></font></a>: uses <font face="Courier"><strong>cdTextSize</strong></font>, therefore is not 
+  precise.</li>
+  <li><a href="../func/text.html#cdFont"><font face="Courier"><strong>Font</strong></font></a>: 
+  See the font mapping table for the equivalence used to map CD fonts into 
+  MicroStation fonts. Styles are not supported.</li>
+</ul>
+<div align="center">
+  <center>
+  <table border="1" cellpadding="5">
+    <caption valign="top"><font size="4">Font Mapping</font></caption>
+    <tr>
+      <th>CD Fonts</th>
+      <th>MicroStation Font Index</th>
+    </tr>
+    <tr>
+      <td><font face="Courier">S</font><span class="style1">ystem</span></td>
+      <td><font face="Courier">0</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">Courier</font> </td>
+      <td><font face="Courier">1</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">Times</font></td>
+      <td><font face="Courier">2</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">H</font><span class="style1">elvetica</span></td>
+      <td><font face="Courier">3</font></td>
+    </tr>
+    </table>
+  </center>
+</div>
+<h4>Colors </h4>
+<ul>
+  <li><a href="../func/color.html#cdGetColorPlanes"><font face="Courier">
+  <strong>
+  GetColorPlanes</strong></font></a>: returns 8 (MicroStation uses a palette with 256 values).</li>
+  <li><a href="../func/attributes.html#cdBackground"><font face="Courier">
+  <strong>
+  Background</strong></font></a>: always returns <code><font face="Times New Roman">CD_WHITE</font></code>.</li>
+</ul>
+<h4>Client Images </h4>
+<ul>
+  <li><a href="../func/client.html#cdGetImageRGB"><font face="Courier"><strong>
+  GetImageRGB</strong></font></a>: does nothing.</li>
+  <li><a href="../func/client.html#cdPutImageRGB"><font face="Courier"><strong>
+  PutImageRGB</strong></font></a>: considering that the format supports only 256 colors, image quality is quite poor.</li>
+  <li><a href="../func/client.html#cdPutImageRGBA"><font face="Courier"><strong>
+  PutImageRGBA</strong></font></a>: alpha is ignored.</li>
+  <li><a href="../func/client.html#cdPutImageMap"><font face="Courier"><strong>
+  PutImageMap</strong></font></a>: considering that the format supports only 256 colors, image quality is quite poor.</li>
+</ul>
+<h4>Server Images </h4>
+<ul>
+  <li>All functions do nothing.</li>
+</ul>
+
+</body>
+
+</html>

@@ -15,3 +15,11 @@ global function find(object x, sequence s, integer start=1)
     return 0
 end function
 
+global function rfind(object x, sequence s, integer start=-1)
+    if start=-1 then start = length(s) end if
+    for i=start to 1 by -1 do
+        if x=s[i] then return i end if
+    end for
+    return 0
+end function
+

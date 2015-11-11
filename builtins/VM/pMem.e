@@ -1124,7 +1124,7 @@ end procedure -- (for Edita/CtrlQ)
     []
 
 --/*
-procedure :%opPokeNS(:%)
+procedure :%opPokeNS(:%DEAD)
 end procedure -- (for Edita/CtrlQ)
 --*/
 --/*
@@ -1661,7 +1661,7 @@ procedure :%opMemSet(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
   :%opMemSet
--------------
+------------
     [32]
         -- calling convention:
         --  mov edi,[p1]        -- dest addr    (opUnassigned)

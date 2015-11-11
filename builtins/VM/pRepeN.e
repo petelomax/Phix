@@ -23,8 +23,8 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
 --DEV FIXME: (and the :!bang labels below)
 --  ::e04atsaa08
 --      int3
-    ::e04atsaa8
-        int3
+--  ::e04atsaa8
+--      int3
     ::e04atsaa9
         int3
     ::e04atsaa4
@@ -133,7 +133,15 @@ end procedure -- (for Edita/CtrlQ)
 
       ::RepeStr
         cmp byte[esi-1],0x82
-        jne :e04atsaa8          -- era @ [esp+ecx*4]
+--      jne :e04atsaa8          -- era @ [esp+ecx*4]
+        je @f
+--mov al,byte[esi-1]
+            mov edx,[esp+ecx*4+4]
+            mov al,4    -- e04atasaa
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
         sub ecx,1
         jnz :e04atsaa9          -- must be last index, era @ [esp+ecx*4+4]
         mov ecx,[esp+4]         -- replacement
@@ -294,7 +302,15 @@ end procedure -- (for Edita/CtrlQ)
 
       ::RepeStr
         cmp byte[rsi-1],0x82
-        jne :e04atsaa8          -- era @ [esp+ecx*4]
+--      jne :e04atsaa8          -- era @ [esp+ecx*4]
+        je @f
+--mov al,byte[rsi-1]
+            mov rdx,[rsp+rcx*8+8]
+            mov al,4    -- e04atsaa
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
         sub rcx,1
         jnz :e04atsaa9          -- must be last index, era @ [esp+ecx*4+4]
         mov rcx,[rsp+8]         -- replacement (from calling convention)
@@ -509,7 +525,11 @@ end procedure -- (for Edita/CtrlQ)
 --newEBP::
 --> mov ecx,[rep1ra]
         mov ecx,edx
-        jl :e04atsaa8               -- attempt to subscript an atom (era @ [esp+8])
+--      jl :e04atsaa8               -- attempt to subscript an atom (era @ [esp+8])
+        jge @f
+mov al, byte[ebx+esi*4-1]   -- type byte
+            int3
+      @@:
         mov edx,[esp+8]             -- era
         call :%pAllocSeq            -- damages eax only
         mov edx,[esp+4]             -- [0]
@@ -710,7 +730,11 @@ end procedure -- (for Edita/CtrlQ)
         -- [rsp] == rcx is rep (already increfd)
         -- [rsp+8] is addr ref
         mov rcx,rdx
-        jl :e04atsaa8               -- attempt to subscript an atom (era @ [ebp-8])
+--      jl :e04atsaa8               -- attempt to subscript an atom (era @ [ebp-8])
+        jge @f
+mov al,byte[rbx+rsi*4-1]    -- type byte
+          int3
+      @@:
         mov rdx,[rsp+16]            -- era
         call :%pAllocSeq            -- damages rax only
 --      mov rdx,[rsp+4]             -- [0]

@@ -3428,8 +3428,14 @@ end if
                 k = si[S_Name]
                 if k!=-1 then
                     dsidx = length(data_section)+1+(S_Name+4)*dsize
+if k>length(IdLinks) then
+    printf(1,"oops, bad IdLinks index, symtab[%d], line 3432 pEmit2.e\n",i)
+--  si[S_Name] = "***OOPS***"
+    si[S_Name] = 0
+else
                     si[S_Name] = IdLinks[k]
                     IdLinks[k] = dsidx
+end if
                 end if
 if bind and mapsymtab then
                 if siNTyp=S_TVar then
@@ -3763,8 +3769,11 @@ end if
         APIerritem[i] = thunk
     end for
     if not bind then
+--added 19/10/15:
+if length(APIerritem)!=0 then
         thunktable = allocate(length(APIerritem)*4)
         poke4(thunktable,APIerritem)
+end if
     end if
 --DEV bind only...
     relocations = {{{},{}},{{},{}}}     --  ie [DATA][DATA],[DATA][CODE],[CODE][DATA],[CODE][CODE]

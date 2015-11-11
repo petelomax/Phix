@@ -1,0 +1,179 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>CD_DXF</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2 style="text-align: left">CD_DXF - AutoCAD Image Exchange File Driver (cddxf.h)</h2>
+
+  <p>This driver allows generating an AutoCAD image exchange file. The file name usually has an extension .DXF. This 
+  driver supports only AutoCAD Release 10 (AC1006) or AutoCAD 2000 (AC1015). The format's copyrights are property of
+  <a href="http://www.autodesk.com" target="_top">Autodesk</a>.</p>
+
+<h3>Use</h3>
+
+  <p>The file is created and opened by calling function <font face="Courier">
+  <a href="../func/init.html#cdCreateCanvas"><strong>cdCreateCanvas</strong></a>(CD_DXF, 
+  Data)</font>, in which <font face="Courier">Data</font> contains the file name and canvas dimensions. This function 
+  opens the file and writes its header. Then, other functions in the CD library can be called as usual. The
+  <font face="Courier">Data</font> parameter string has the following format:</p>
+  
+    <pre><em>&quot;filename [width_mmxheight_mm] [resolution] [-ac2000] [-limits xmin ymin xmax ymax]&quot;    </em>or in C <em>&quot;<strong><tt>%s %gx%g %g %s %s %g %g %g %g</tt></strong>&quot;</em></pre>
+  
+  <p>Only the parameter <font face="Courier">filename</font> is required. The filename must be inside double quotes (&quot;) 
+  if it has spaces.<font face="Courier"> width_mm</font> and <font face="Courier">height_mm</font> are provided in millimeters 
+  (note the lowercase &quot;x&quot; between them), and their default value in pixels is <font face="Courier">INT_MAX</font> for 
+  both dimensions. <font face="Courier">Resolution </font>is the number of pixels per millimeter; its default value is 
+  &quot;3.78 pixels/mm&quot; (96 DPI). <font face="Courier">width_mm</font>, <font face="Courier">height_mm</font> and
+  <font face="Courier">resolution</font> are given in real values and are used only by
+  <a href="../func/coordinates.html#cdGetCanvasSize"><font face="Courier"><strong>
+  cdCanvasGetSize</strong></font></a><font face="Courier"><strong> </strong></font>and in pixel-millimeter conversion.&nbsp;</p>
+  <p>Any amount of such canvases may exist simultaneously. It is important to note that a call to function
+  <a href="../func/init.html#cdKillCanvas"><font face="Courier"><strong>
+  cdKillCanvas</strong></font></a> is required to close the DXF file properly.</p>
+  <p><b>Images </b>- The DXF format does not support client or server images and works with an indexed-color format 
+  (color quality is limited to 256 fixed colors).</p>
+  <p><strong>Precision of Coordinates -</strong> The primitives use coordinates in real numbers.</p>
+<p><strong>Fill Area</strong> - Only with AutoCAD 2000 version. This adds support for filled 
+primitives (solid and hatch style only). To use that support specify the &quot;-ac2000&quot; parameter. 
+(since 5.7)</p>
+<p><strong>Limits</strong> - the default limits are 0, 0, width, height, but a 
+custom limits can be specified using the &quot;-limits&quot; parameter followed by the 
+limits coordinates.&nbsp;(since 5.7)</p>
+  <p><strong>Layers -</strong> The format can work with several layers. It is 
+  necessary to draw the primitives of layer '0' first, then layer '1' and so on. 
+  Use function
+  <a href="../func/control.html#cdFlush"><font face="Courier"><strong>Flush</strong></font></a> 
+  to change the current layer.</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Control </h4>
+<ul>
+  <li><a href="../func/control.html#cdFlush"><font face="Courier"><strong>Flush</strong></font></a>: 
+  changes the current layer (the initial layer is '0', followed by '1' and so on). </li>
+  <li><a href="../func/control.html#cdClear"><font face="Courier"><strong>Clear</strong></font></a>: 
+  does nothing.</li>
+  <li><a href="../func/other.html#cdPlay"><font face="Courier"><strong>Play</strong></font></a>: 
+  does nothing, returns <font face="Courier">CD_ERROR</font>. </li>
+</ul>
+<h4>Coordinate System and Clipping</h4>
+<ul>
+  <li><a href="../func/clipping.html#cdClip"><font face="Courier"><strong>Clip</strong></font></a>: 
+  does nothing (no clipping function is supported), returns <font face="Courier">CD_CLIPOFF</font>.</li>
+  <li><a href="../func/coordinates.html#cdUpdateYAxis"><font face="Courier">
+  <strong>UpdateYAxis</strong></font></a>: does nothing. Axis orientation is the same as in the CD library.</li>
+  <li><strong>Transformation Matrix</strong>: not supported.</li>
+</ul>
+<h4>Primitives</h4>
+<ul>
+    <li><a href="../func/lines.html#cdBegin"><font face="Courier"><strong>Begin</strong></font></a>:
+  if parameter <strong><tt>CD_CLIP</tt></strong> is specified, does nothing. <strong><tt>
+  CD_BEZIER</tt></strong> and <strong><tt>CD_PATH</tt></strong> 
+	are simulated with lines.</li>
+  <li>Floating point primitives are supported.</li>
+	<li>All primitives are saved as polylines.</li>
+	<li>Filled primitives are supported only if parameter &quot;-ac2000&quot; is used.</li>
+</ul>
+<h4>Attributes</h4>
+<ul>
+  <li><a href="../func/filled.html#cdBackOpacity"><font face="Courier"><strong>
+  BackOpacity</strong></font></a>: does nothing, returns <font face="Courier">CD_TRANSPARENT</font>.</li>
+  <li><a href="../func/attributes.html#cdWriteMode"><font face="Courier">
+  <strong>
+  WriteMode</strong></font></a>: does nothing, returns <font face="Courier">CD_REPLACE</font>.</li>
+  <li><a href="../func/filled.html#cdHatch"><font face="Courier"><strong>Hatch</strong></font></a>: 
+  supported only if parameter &quot;-ac2000&quot; is used</li>
+  <li><a href="../func/filled.html#cdFillMode"><font face="Courier"><strong>
+  FillMode</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdLineCap"><font face="Courier"><strong>
+  LineCap</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdLineJoin"><font face="Courier"><strong>
+  LineJoin</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdStipple"><font face="Courier"><strong>
+  Stipple</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdPattern"><font face="Courier"><strong>
+  Pattern</strong></font></a>: does nothing.</li>
+  <li><a href="../func/text.html#cdTextSize"><font face="Courier"><strong>
+  TextSize</strong></font></a>: returns a bounding box usually larger than the text (the computation is based on the 
+  widest character).</li>
+  <li><a href="../func/text.html#cdTextOrientation"><font face="Courier">
+  <strong>
+  TextOrientation</strong></font></a>: does nothing.</li>
+  <li><a href="../func/text.html#cdFont"><font face="Courier"><strong>Font</strong></font></a>: 
+  italic styles correspond to the basic styles with an inclination of 15<sup>o</sup>. See the font mapping table for the 
+  equivalence used to map fonts of the CD library into AutoCAD&nbsp; fonts. No 
+  other fonts are supported.</li>
+</ul>
+<div align="center">
+  <center>
+  <table border="1" cellpadding="5">
+    <caption valign="top"><font size="4">Font Mapping</font></caption>
+    <tr>
+      <th>CD Fonts</th>
+      <th>AutoCAD Fonts</th>
+    </tr>
+    <tr>
+      <td><font face="Courier">S</font><span style="font-family: Courier">ystem</span></td>
+      <td><font face="Courier">STANDARD (sem arquivo)</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">Courier</font></td>
+      <td><font face="Courier">ROMAN (romanc.shx)</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">Courier + CD_BOLD</font></td>
+      <td><font face="Courier">ROMAN_BOLD (romant.shx)</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">Times</font></td>
+      <td><font face="Courier">ROMANTIC (rom_____.pfb)</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">Times + CD_BOLD</font></td>
+      <td><font face="Courier">ROMANTIC_BOLD (romb_____.pfb)</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">Helvetica</font></td>
+      <td><font face="Courier">SANSSERIF (sas_____.pfb)</font></td>
+    </tr>
+    <tr>
+      <td><font face="Courier">Helvetica + CD_BOLD</font></td>
+      <td><font face="Courier">SANSSERIF_BOLD (sasb____.pfb)</font></td>
+    </tr>
+  </table>
+  </center>
+</div>
+<h4>Colors</h4>
+<ul>
+  <li><a href="../func/attributes.html#cdForeground"><font face="Courier">
+  <strong>
+  Foreground</strong></font></a>: indexes<font face="Courier"> long int *color</font>&nbsp; in the fixed palette 
+  (AutoCAD uses a 256-color palette -&nbsp; for further detail, see AutoCAD's Reference Manual).</li>
+  <li><a href="../func/attributes.html#cdBackground"><font face="Courier">
+  <strong>
+  Background</strong></font></a>: does nothing, returns <font face="Courier">CD_WHITE</font>.</li>
+  <li><a href="../func/color.html#cdGetColorPlanes"><font face="Courier">
+  <strong>
+  GetColorPlanes</strong></font></a>: returns 8.</li>
+  <li><a href="../func/color.html#cdPalette"><font face="Courier"><strong>Palette</strong></font></a>: 
+  does nothing (the palette is fixed). </li>
+</ul>
+<h4>Client Images</h4>
+<ul>
+  <li>All functions do nothing.</li>
+</ul>
+<h4>Server Images </h4>
+<ul>
+  <li>All functions do nothing.</li>
+</ul>
+<p>&nbsp;</p>
+
+</body>
+
+</html>

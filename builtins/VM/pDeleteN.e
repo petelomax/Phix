@@ -2,7 +2,7 @@
 -- pDeleteN.e
 -- ==========
 --
--- Implements delete_routine and delete (auto-include)
+-- Implements delete_routine and delete (auto-include) [DEV make this part of pcfuncN.e]
 --
 --  This file is loaded automatically by Phix as and when needed. There is no
 --  need to manually include this file (unless you want a namespace on it).
@@ -241,13 +241,118 @@ integer freelist = 0
 sequence delete_sets        -- {{rid,rid,rid,...}}
 integer dinit = 0
 
+--global function reset_delete()
+---- for use by p.exw; no discernable effect when used elsewhere
+--end function
+
+global procedure delete(object o)
+--procedure fdelete(object o)
+integer delete_index
+sequence dsi
+    if not integer(o) then
+        -- get the current delete_index, if any
+        #ilASM{ [32]
+                    mov edx,[o]
+                    mov eax,[ebx+edx*4-4] -- (load index & type byte)
+                    mov ecx,eax
+                    and eax,0x00FFFFFF  -- (keep delete_index only)
+                    and ecx,0xFF000000  -- (keep type byte only)
+                    mov [ebx+edx*4-4],ecx -- (zeroise delete_index on data)
+                    mov [delete_index],eax
+                [64]
+                    mov rdx,[o]
+                    mov rax,[rbx+rdx*4-8] -- (load index & type byte)
+                    mov rcx,rax
+--                  and rax,0x00FFFFFFFFFFFFFF  -- (keep delete_index only)
+--                  and rcx,0xFF00000000000000  -- (keep type byte only)
+                    shl rax,8
+                    rol rcx,8
+                    shr rax,8
+                    shl rcx,32+24   -- (56, aka 64-8)
+                    mov [rbx+rdx*4-8],rcx -- (zeroise delete_index on data)
+                    mov [delete_index],rax
+              }
+
+        if delete_index then
+--          for i=length(delete_sets[delete_index]) to 1 by -1 do
+--              call_proc(delete_sets[delete_index][i],{o})
+--          end for
+            enter_cs()
+            dsi = delete_sets[delete_index]
+            leave_cs()
+            for i=length(dsi) to 1 by -1 do
+                call_proc(dsi[i],{o})
+            end for
+--DEV locking required (possibly just inside the "if not integer" test)
+            enter_cs()
+            delete_sets[delete_index] = freelist
+            freelist = delete_index
+            leave_cs()
+        end if
+    end if
+end procedure
+
 global function delete_routine(object o, integer rid)
+--function fdelete_routine(object o, integer rid)
 --
 -- attach rid to the data in o
 --
 integer delete_index
 --, refcount
     if dinit=0 then setup() end if
+--!/*
+    -- the penny drops: p.exw has to invoke delete_routine immediately
+    --  after running "#!:%opInterp", before any o/s delete() kick in.
+--DEV
+--  #ilASM{ call @f
+    #ilASM{ call :f
+
+            -- (3 nops to allow [pDelRtn] to be stored/4, see pHeap.e)
+            nop
+            nop
+            nop
+--      ::opDelete
+        [32]
+            -- calling convention (from pHeap.e/pDealloc only)
+            --  mov edx,ref         -- (refcount set to 2)
+            --  call [pDelRtn]      -- ~==delete(edx) [pDelRtn] is ::opDelete
+            push edx                            --[1] o
+            mov edx,routine_id(delete)          -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdelete][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+4]
+            pop dword[ebp]                      --[1] o
+            mov dword[ebp+16],:delret           -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:delete
+        [64]
+            -- calling convention (from pHeap.e/pDealloc only)
+            --  mov rdx,ref         -- (refcount set to 2)
+            --  call [pDelRtn]      -- ~==delete(rdx) [pDelRtn] is ::opDelete
+            push rdx                            --[1] o
+            mov rdx,routine_id(delete)          -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdelete][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+8]
+            pop qword[rbp]                      --[1] addr
+            mov qword[rbp+32],:delret           -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:delete
+        []
+          ::delret
+            ret
+--        @@:
+          ::f
+        [32]
+            pop eax
+            add eax,3
+        [64]
+            pop eax
+            add rax,3
+        []
+            call :%pSetDel }
+--!*/
+
     if integer(o) then
         -- promote to atom
         #ilASM{ [32]
@@ -318,6 +423,7 @@ integer delete_index
 --          For performance, we may want to keep a chain of all other delete_sets[] that are one item
 --          added from the current. (See the proof of concept I wrote for it, at the end.)
     if delete_index=0 then
+        enter_cs()
         if freelist then
             delete_index = freelist
             freelist = delete_sets[freelist]
@@ -331,6 +437,7 @@ integer delete_index
 --          if delete_index>#FFFFFFFFFFFFFF then ?9/0 end if    -- (limit of <lots> blown)
 --          end if
         end if
+        leave_cs()
         -- store the delete index
         #ilASM{ [32]
                     mov edx,[o]
@@ -346,46 +453,155 @@ integer delete_index
                     mov [rbx+rdx*4-8],rax
               }
     end if
+    enter_cs()
     delete_sets[delete_index] &= rid
+    leave_cs()
     return o
 end function
 
-global procedure delete(object o)
-integer delete_index
-    if not integer(o) then
-        -- get the current delete_index, if any
-        #ilASM{ [32]
-                    mov edx,[o]
-                    mov eax,[ebx+edx*4-4] -- (load index & type byte)
-                    mov ecx,eax
-                    and eax,0x00FFFFFF  -- (keep delete_index only)
-                    and ecx,0xFF000000  -- (keep type byte only)
-                    mov [ebx+edx*4-4],ecx -- (zeroise delete_index on data)
-                    mov [delete_index],eax
-                [64]
-                    mov rdx,[o]
-                    mov rax,[rbx+rdx*4-8] -- (load index & type byte)
-                    mov rcx,rax
---                  and rax,0x00FFFFFFFFFFFFFF  -- (keep delete_index only)
---                  and rcx,0xFF00000000000000  -- (keep type byte only)
-                    shl rax,8
-                    rol rcx,8
-                    shr rax,8
-                    shl rcx,32+24   -- (56, aka 64-8)
-                    mov [rbx+rdx*4-8],rcx -- (zeroise delete_index on data)
-                    mov [delete_index],rax
-              }
 
-        if delete_index then
-            for i=length(delete_sets[delete_index]) to 1 by -1 do
-                call_proc(delete_sets[delete_index][i],{o})
-            end for
---DEV locking required (possibly just inside the "if not integer" test)
-            delete_sets[delete_index] = freelist
-            freelist = delete_index
-        end if
-    end if
-end procedure
+--function fdelete_routine(object o, integer rid)
+--/*
+procedure :%opDelRtn(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+--/*
+    :%opDelRtn
+--------------
+        --
+        --  This is the "glue" needed to allow open_dll() to be put in the optable.
+        --  Sure, I could rewrite it as pure #ilASM, but it was much easier to
+        --  write (and test) as a (global) hll routine; plus writing something 
+        --  like x=s[i] in assembler gets real tedious real fast, trust me.
+        --
+        [32]
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov esi,[o]         -- (opUnassigned)
+            --  mov eax,[rid]       -- (opUnassigned)
+            --  call :%opDelRtn     -- [edi]:=delete_routine(esi,eax)
+            cmp esi,h4
+            jl @f
+                add dword[ebx+esi*4-8],1
+          @@:
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            push edi                            --[1] addr res
+            push eax                            --[2] rid
+            push esi                            --[3] o
+--          mov edx,routine_id(fdelete_routine) -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(delete_routine)  -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[delete_routine][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+12]
+            pop dword[ebp]                      --[3] o
+            pop dword[ebp-4]                    --[2] rid
+            mov dword[ebp+16],:delrtnret        -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fopen_dll
+          ::delrtnret
+            pop edi                             --[1] addr res
+            mov edx,[edi]
+            mov [edi],eax
+            cmp edx,h4
+            jle @f
+                sub dword[ebx+edx*4-8],1
+                jz :%pDealloc
+        [64]
+            -- calling convention
+            --  lea rdi,[res]       -- result location
+            --  mov rsi,[o]         -- (opUnassigned)
+            --  mov rax,[rid]       -- (opUnassigned)
+            --  call :%opOpenDLL    -- [rdi]:=delete_routine(rsi,rax)
+            mov r15,h4
+            cmp rsi,r15
+            jl @f
+                add qword[rbx+rsi*4-16],1
+          @@:
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            push rdi                            --[1] addr res
+            push rax                            --[2] rid
+            push rsi                            --[3] o
+--          mov rdx,routine_id(fdelete_routine) -- mov rdx,imm32 (sets K_ridt)
+            mov rdx,routine_id(delete_routine)  -- mov rdx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[delete_routine][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+24]
+            pop qword[rbp]                      --[3] o
+            pop qword[rbp-8]                    --[2] rid
+            mov qword[rbp+32],:delrtnret        -- return address
+            mov qword[rbp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fopen_dll
+          ::delrtnret
+            pop rdi                             --[1] addr res
+            mov rdx,[rdi]
+            mov [rdi],rax
+            cmp rdx,r15
+            jle @f
+                sub qword[rbx+rdx*4-16],1
+                jz :%pDealloc
+        []
+          @@:
+            ret
+
+--DEV obviously this becomes the backend entry point!!
+--procedure fdelete(object o)
+--/*
+procedure :%opDelete(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opDelete
+-------------
+        [32]
+            -- calling convention
+            --  mov eax,[o]     -- (opUnassigned)
+--?? mov [o],h4 (no)
+            --  call :%opDelete     -- delete(eax)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            push eax                            --[1] o
+--          mov edx,routine_id(fdelete)         -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(delete)          -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdelete][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+4]
+            pop dword[ebp]                      --[1] o
+            mov dword[ebp+16],:delret           -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fdelete
+        [64]
+            -- calling convention
+            --  mov rax,[o]         -- (opUnassigned)
+            --  call :%opDelete     -- delete(rax)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            push rax                            --[1] o
+--          mov rdx,routine_id(fdelete)         -- mov edx,imm32 (sets K_ridt)
+            mov rdx,routine_id(delete)          -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdelete][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+8]
+            pop qword[rbp]                      --[1] addr
+            mov qword[rbp+32],:delret           -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fdelete
+        []
+          ::delret
+            ret
+
+--*/
+
+
 
 --DEV replace with:
 --!/*
@@ -405,7 +621,7 @@ end procedure
 
     #ilASM{ jmp:%delfin
 --          align 16
-            :%pDelRtn   -- invoked from pHeap.e
+            :%pDelRtn   -- invoked from pHeap.e [DEV to go]
             [32]
                 push edx
             [64]
@@ -443,8 +659,12 @@ integer delcb
             call %opDelRtn}                         -- save delete callback
 --  delete_sets = {}
 --*/
-    delete_sets = {{0}} -- make 1 illegal (see pemit.e)
-    dinit = 1
+    enter_cs()
+    if dinit=0 then
+        delete_sets = {{0}} -- make 1 illegal (see pemit.e)
+        dinit = 1
+    end if
+    leave_cs()
 end procedure
 setup()
 

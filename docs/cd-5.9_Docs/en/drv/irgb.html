@@ -1,0 +1,146 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>CD_IMAGERGB</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<style type="text/css">
+.auto-style1 {
+	color: #808080;
+}
+</style>
+</head>
+
+<body>
+
+<h2 style="text-align: left">CD_IMAGERGB - RGB Client Image Driver (cdirgb.h)</h2>
+
+  <p>This driver allows access to a Client Image, an imaged based in RGB colors with 24 
+  or 32 bits per pixel (8 per channel). 
+  It is used to implement high-quality off-screen drawings, but is slower than the Server Image version. In fact, it is a 
+  rasterizer, that is, it converts vector primitives into a raster representation. All primitives are implemented by the 
+  library and are not system-dependent (the primitives of the Server Image version are system-dependent).</p>
+
+<h3>Use</h3>
+
+  <p>The canvas is created by means of a call to the function <font face="Courier">
+  <a href="../func/init.html#cdCreateCanvas"><strong>cdCreateCanvas</strong></a>(CD_IMAGERGB, 
+  Data)</font>, after which other functions in the CD library can be called as usual. The function creates an RGB image, 
+  and then a CD canvas. The <font face="Courier">Data</font> parameter string has the following format:</p>
+  
+    <pre><em>&quot;width<strong>x</strong>height [r g b] -<strong>r</strong>[resolution]&quot;</em>      in C &quot;<em><strong><tt>%dx%d %p %p %p -r%g&quot;
+or
+</tt></strong>&quot;width<strong>x</strong>height [r g b a] -<strong>r</strong>[resolution] -<strong>a</strong>&quot;</em>    in C &quot;<em><strong><tt>%dx%d %p %p %p %p -r%g -a&quot;</tt></strong></em></pre>
+  
+  <p>It must include the canvas' dimensions.<font face="Courier"> Width</font> and <font face="Courier">height</font> 
+  are provided in pixels (note the lowercase &quot;x&quot; between them). If 
+  width or height are 0 then 1 will be used. As an option, you can specify the buffers to be used by 
+  the driver, so that you can draw over an existing image, [r g b] or [r g b a] 
+	are pointers to the component buffer, just like PutImageRectRGB/A. The resolution can be defined with parameter
+  <font face="Courier">-r</font>; its default value is &quot;3.78 pixels/mm&quot; (96 DPI).&nbsp;</p>
+<p>When the parameter -a is specified an alpha channel will be added to the 
+canvas underlying image. All primitives will be composed using an over operator 
+if the foreground or background colors have alpha components. This channel is 
+initialized with transparent (0). The other channels are initialized with white 
+(255, 255, 255). After drawing in the RGBA image the resulting alpha channel can 
+be used to compose the image in another canvas.</p>
+<p>All channels are initialized only when allocated internally by the driver. 
+They are not initialized when allocated by the application.</p>
+  <p>Any amount of such canvases may exist simultaneously. It is important to note that a call to function
+  <a href="../func/init.html#cdKillCanvas"><strong>cdKillCanvas</strong></a> is required to 
+  release internal allocated memory.</p>
+  <p>In Lua, the canvas can be created in two ways: with an already defined image or without it. With an image, an RGB 
+  image must be passed as parameter instead of the string, created by functions <strong>
+  <a href="../func/client.html#cdCreateImageRGB">cd.CreateImageRGB</a>,</strong> 
+  <strong><a href="../func/client.html#cdCreateImageRGBA">cd.CreateImageRGBA</a></strong> or <strong>
+  <a href="../func/client.html#cdCreateBitmap">cd.CreateBitmap</a></strong> 
+  in Lua. The resolution must be passed in a second parameter after the image.</p>
+
+<h3>Exclusive Functions</h3>
+
+<h4><font face="Courier">cd.ImageRGB(canvas: cdCanvas) -&gt; (imagergb: cdImageRGB 
+or cdImageRGBA) [in Lua]<br>
+<span class="auto-style1"><strong>cd.ImageRGBBitmap(canvas: cdCanvas) -&gt; (bitmap: cdBitmap) [in Lua]</strong></span></font></h4>
+
+  <p>Returns the canvas' internal image.</p>
+
+<h3>Behavior of Functions</h3>
+
+  <p>This drivers depends on the <a href="sim.html">Simulation</a> driver. But 
+  the functions bellow behave differently. </p>
+
+<h4>Control</h4>
+<ul>
+  <li><a href="../func/control.html#cdFlush"><font face="Courier"><strong>Flush</strong></font></a>: 
+  does nothing.</li>
+  <li><a href="../func/other.html#cdPlay"><font face="Courier"><strong>Play</strong></font></a>: 
+  does nothing, returns <font face="Courier">CD_ERROR</font>. </li>
+</ul>
+<h4>Coordinate System and Clipping </h4>
+<ul>
+  <li><a href="../func/coordinates.html#cdUpdateYAxis"><font face="Courier">
+  <strong>UpdateYAxis</strong></font></a>: does nothing. The axis orientation is the same as the CD library's.</li>
+</ul>
+<h4>Attributes </h4>
+<ul>
+  <li><a href="../func/attributes.html#cdWriteMode"><font face="Courier">
+  <strong>
+  WriteMode</strong></font></a>: if alpha transparency is used in colors or 
+	images, then XOR or NOT_XOR behave as REPLACE.</li>
+    <li><a href="../func/text.html#cdFont">
+  <font face="Courier"><strong>Font</strong></font></a>: check the <a href="sim.html">Simulation</a> 
+	driver documentation. </li>
+</ul>
+<h4>Colors </h4>
+<ul>
+  <li><a href="../func/color.html#cdGetColorPlanes"><font face="Courier">
+  <strong>
+  GetColorPlanes</strong></font></a>: returns 24 if no alpha, returns 32 if 
+  exists an alpha channel.</li>
+  <li><a href="../func/color.html#cdPalette"><font face="Courier"><strong>Palette</strong></font></a>: 
+  does nothing.</li>
+  <li><a href="../func/attributes.html#cdForeground"><font face="Courier">
+  <strong>
+  Foreground</strong></font></a> &amp;
+  <a href="../func/attributes.html#cdBackground">
+  <font face="Courier"><strong>Background</strong></font></a>: accepts the transparency information encoded in the 
+  color.</li>
+</ul>
+<h4>Exclusive Attributes</h4>
+<ul>
+  <li>&quot;<strong><font face="Courier">REDIMAGE</font></strong>&quot;, &quot;<strong><font face="Courier">GREENIMAGE</font></strong>&quot;, 
+  &quot;<strong><font face="Courier">BLUEIMAGE</font></strong>&quot;, &quot;<span style="font-family: Courier"><strong>ALPHA</strong></span><strong><font face="Courier">IMAGE</font></strong>&quot;: return the respective pointers of the canvas image (read-only). Not accessible in Lua.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">ANTIALIAS</font></b>&quot;: controls the use of 
+	anti-aliasing for line primitives. Assumes values &quot;1&quot; (active) and &quot;0&quot; 
+	(inactive). Default value: &quot;1&quot;.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">RESOLUTION</font></b>&quot;: dynamically 
+  changes the resolution. When set will affect the size of the canvas in 
+  millimeters returned by <strong>cdCanvasGetSize</strong>. (since 5.9)</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">TEXTANTIALIAS</font></b>&quot;: controls the use of 
+	anti-aliasing for text primitives. Assumes values &quot;1&quot; (active) and &quot;0&quot; 
+	(inactive). Default value: &quot;1&quot;. (since 5.6)</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">ROTATE</font></b>&quot;:&nbsp; allows the usage of 1 
+  angle and 1 coordinate (x, y), that define a global rotation transformation 
+  centered in the specified coordinate. Use 1 real and 2 integer values inside a 
+  string (&quot;%g %d %d&quot; = angle x y). In this driver will change the 
+  current transformation matrix, if removed will reset the current 
+  transformation matrix.</li>
+</ul>
+
+</body>
+
+</html>

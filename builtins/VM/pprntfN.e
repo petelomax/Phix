@@ -19,7 +19,7 @@
 --  In particular, take care with type string; subtle changes (such as a
 --  missing floor()) can make the back-end expand a string to a sequence
 --  (which is something prepend, as opposed to append, /always/ does)
---  which causes a fatal error, eg see 'elsif format[i]='s' then'.
+--  which causes a fatal error, eg see 'elsif fmt[i]='s' then'.
 
 --!/**/without debug -- remove to debug (just keeps ex.err clutter-free)
 --!/**/with debug
@@ -43,17 +43,16 @@ include builtins\VM\pUnassigned.e   -- :%pRTErn (DEV/temp)
 type string(object o) return sequence(o) end type
 --*/
 
-function round(string result, atom f, integer exp, integer charflag, integer digit)--, integer minfieldwidth)
+function round(string result, atom f, integer exponent, integer charflag, integer digit)--, integer minfieldwidth)
 --
 -- Apply rounding to partially printed float, if required
 --
 integer tmp
 integer dot, dotm1
 --?result   --DOH, infinite loop! (use puts(1,<string>) instead!)
-    if exp>=1 then
-        f /= power(10,exp)
+    if exponent>=1 then
+        f /= power(10,exponent)
     end if
---DEV and_bits(digit,1) = remainder(digit,2). =1 pointless in both cases.
     if f>5 or (f=5 and remainder(digit,2)=1) then
         for i=length(result) to 1 by -1 do
             dot = result[i]
@@ -79,7 +78,7 @@ integer dot, dotm1
 --DEV gives bounds error...
 --DEV I suppose we should check it is a '0' as well.
 --                      result = result[1..length(result)-1]
---                      exp += 1
+--                      exponent += 1
                     end if
                 end if
             end if
@@ -94,8 +93,11 @@ integer dot, dotm1
 --      while tmp>1 and tmp>minfieldwidth do
         while tmp>1 do
             dot = result[tmp]
-            if dot='.' 
-            or dot='!' then
+-- 20/10/15: sprintf("%g",1e-14) was yielding "1e-15"!! It now keeps the the trailing '!' to adjust exponent.
+--          if dot='.' 
+--          or dot='!' then
+            if dot='!' then exit end if
+            if dot='.' then
                 tmp -= 1
                 exit
             end if
@@ -139,7 +141,7 @@ integer tmp
 integer digit
 atom f, fwk, epwr
 string result
-integer exp, k
+integer exponent, k
 
 --?result   --DOH, infinite loop! (use puts(1,<string>) instead!)
     f = pf
@@ -160,7 +162,7 @@ integer exp, k
 --      result = "+"
         result = repeat('+',1)
     end if
-    exp = 0
+    exponent = 0
     if f=nan then
 --      return result&"nan"
         return result&Nan()
@@ -172,12 +174,12 @@ integer exp, k
     if f>=10 then
         fwk = f
         while fwk>=10 do
-            exp += 1
+            exponent += 1
             fwk /= 10
         end while
     else
         while f<1 and f!=0 do
-            exp -= 1
+            exponent -= 1
             f *= 10
         end while
     end if
@@ -186,11 +188,13 @@ integer exp, k
         charflag += 32
         capE = 'E'
     end if
---  if charflag='e' or (charflag='g' and (exp>9 or exp<-4)) then
-    if charflag='e' or (charflag='g' and (exp>precision or exp<-4)) then
-        ewk = exp
-        if exp>0 then
-            epwr = power(10,exp)
+--  if charflag='e' or (charflag='g' and (exponent>9 or exponent<-4)) then
+--1/11/15:
+--  if charflag='e' or (charflag='g' and (exponent>precision or exponent<-4)) then
+    if charflag='e' or (charflag='g' and (exponent>=precision or exponent<-4)) then
+        ewk = exponent
+        if exponent>0 then
+            epwr = power(10,exponent)
             fwk = 0--epwr
             digit = 0
             while f>=fwk+epwr do
@@ -205,7 +209,9 @@ integer exp, k
         if precision>0 then
             result &= '.'
             dotdone = 1
-            for i=1 to precision do
+--1/11/15
+--          for i=1 to precision do
+            for i=1 to precision-(charflag='g') do
                 if ewk>0 then
                     f -= fwk
                     ewk -= 1
@@ -230,8 +236,8 @@ integer exp, k
                 f = (f-digit)*10
             end if
         end if
-        exp -= expadj
-        result = round(result,f,exp,charflag,digit)--,minfieldwidth)
+        exponent -= expadj
+        result = round(result,f,exponent,charflag,digit)--,minfieldwidth)
         k = find('!',result)
         if k then
             if k=length(result) then
@@ -239,24 +245,24 @@ integer exp, k
             else
                 result[k] = '.'
             end if
-            exp += 1
+            exponent += 1
         end if
-        exp += expadj
+        exponent += expadj
         result &= capE
-        if exp<0 then
+        if exponent<0 then
             result &= '-'
-            exp = 0-exp
+            exponent = 0-exponent
         else
             result &= '+'
         end if
-        if exp=0 then
+        if exponent=0 then
             reve = "0"
         else
 --          reve = ""
             reve = repeat(' ',0)
-            while exp do
-                reve = append(reve,floor(remainder(exp,10)+'0'))
-                exp = floor(exp/10)
+            while exponent do
+                reve = append(reve,floor(remainder(exponent,10)+'0'))
+                exponent = floor(exponent/10)
             end while
             revelen = length(reve)
             for j=1 to revelen do
@@ -270,16 +276,16 @@ integer exp, k
         result &= reve
     else
         digit = 0
-        if exp<-1 then
+        if exponent<-1 then
 --DEV not thread safe
 --          result &= "0."
             result &= '0'
             if charflag!='g' or f!=0 then
                 result &= '.'
                 dotdone = 1
-                while exp<-1
+                while exponent<-1
                   and (charflag!='g' or f!=0) do
-                    exp += 1
+                    exponent += 1
                     if precision then
                         result &= '0'
                         if minfieldwidth>0 then
@@ -293,18 +299,14 @@ integer exp, k
         end if
 
         while 1 do
-            if exp=-1 then
+            if exponent=-1 then
                 if precision>0 then
                     if not dotdone then
                         if charflag='g' then
                             if f=0 then exit end if
                         end if
                         if find(result,{"","-","+"}) then
---DEV not thread safe
---                          result &= "0."
                             result &= '0'
---                      else
---                          result &= '.'
                         end if
                         result &= '.'
                     end if
@@ -319,8 +321,8 @@ integer exp, k
                 end if
                 exit
             end if
-            if exp>=1 then
-                epwr = power(10,exp)
+            if exponent>=1 then
+                epwr = power(10,exponent)
                 fwk = 0--epwr
                 digit = 0
                 while f>=fwk+epwr do
@@ -336,7 +338,7 @@ integer exp, k
             if digit then
                 nzdigitprinted = 1
             end if
-            exp -= 1
+            exponent -= 1
             if charflag='g' then
                 if length(result)>=minfieldwidth and f=0 then exit end if
 --DEV: try printf(1,"%6.2f\n%6.2g\n",96.5)
@@ -351,7 +353,7 @@ integer exp, k
 --          result = "0"
             result = repeat('0',1)
         end if
-        result = round(result,f,exp,charflag,digit)--,minfieldwidth)
+        result = round(result,f,exponent,charflag,digit)--,minfieldwidth)
         k = find('!',result)
         if k then
             if k=length(result) then
@@ -359,12 +361,12 @@ integer exp, k
             else
                 result[k] = '.'
             end if
-            exp += 1
+            exponent += 1
         end if
-        if exp>-1 then
-            while exp>-1 do
+        if exponent>-1 then
+            while exponent>-1 do
                 result &= '0'
-                exp -= 1
+                exponent -= 1
             end while
         end if
     end if
@@ -387,16 +389,16 @@ procedure badfmt()
         abort(1)                                -- RDS --*/
 end procedure
 
-function useFlatString(sequence args, integer nxt, sequence format, integer i)
+function useFlatString(sequence args, integer nxt, sequence fmt, integer i)
 -- permit printf(1,"%s","Hello") to work as {"Hello"} - but only if:
 -- 1) this is the first % (nxt=1)
--- 2) there are no more %'s in the format, except for %%
+-- 2) there are no more %'s in the fmt, except for %%
 -- 3) args is a flat string
 object o
     if nxt!=1 then return 0 end if
-    for j=i+1 to length(format) do
-        if format[j]='%' then
-            if j=length(format) or format[j+1]!='%' then return 0 end if
+    for j=i+1 to length(fmt) do
+        if fmt[j]='%' then
+            if j=length(fmt) or fmt[j+1]!='%' then return 0 end if
         end if
     end for
     for j=1 to length(args) do
@@ -411,7 +413,7 @@ string hexchar
 sequence bases
 
 --without trace
-global function sprintf(sequence format, object args)
+function sprintf_(sequence fmt, object args)
 integer i, fi, fidx
 integer nxt
 string result, r1
@@ -452,12 +454,12 @@ integer tmp
 --  result = ""
     result = repeat(' ',0)
     i = 1
-    while i<=length(format) do
-        fi = format[i]
+    while i<=length(fmt) do
+        fi = fmt[i]
         if fi='%' then
             i += 1
-            if i>length(format) then badfmt() end if
-            fi = format[i]
+            if i>length(fmt) then badfmt() end if
+            fi = fmt[i]
             if fi='%' then
                 result &= '%'
             else
@@ -478,26 +480,26 @@ integer tmp
                     showcommas = 3
                     i+=1
                 end if
-                if i>length(format) then badfmt() end if
+                if i>length(fmt) then badfmt() end if
                 minfieldwidth = 0
                 while 1 do
-                    fi = format[i]
+                    fi = fmt[i]
                     if fi<'0' or fi>'9' then exit end if
                     minfieldwidth = minfieldwidth*10+fi-'0'
                     i += 1
-                    if i>length(format) then badfmt() end if
+                    if i>length(fmt) then badfmt() end if
                 end while
                 precision = -1
                 if fi='.' then
                     i += 1
-                    if i>length(format) then badfmt() end if
+                    if i>length(fmt) then badfmt() end if
                     precision = 0
                     while 1 do
-                        fi = format[i]
+                        fi = fmt[i]
                         if fi<'0' or fi>'9' then exit end if
                         precision = precision*10+fi-'0'
                         i += 1
-                        if i>length(format) then badfmt() end if
+                        if i>length(fmt) then badfmt() end if
                     end while
                 end if
 
@@ -629,8 +631,8 @@ end if
                     if atom(args) then
                         o = args
 --12/9/15:
---                  elsif useFlatString(args,nxt,format,i) then
-                    elsif fidx!=6 and useFlatString(args,nxt,format,i) then -- (not %c (ie %s) and useFlat..)
+--                  elsif useFlatString(args,nxt,fmt,i) then
+                    elsif fidx!=6 and useFlatString(args,nxt,fmt,i) then -- (not %c (ie %s) and useFlat..)
                         o = args
                         args = {}
                     else
@@ -746,12 +748,18 @@ end if
     return result
 end function
 
+-- (This is a wrapper so that the internal routine can apply 
+--  identical error handling for both sprintf and printf: we
+--  typically want to point at the application source code
+--  line, rather than confuse by landing developer in here.)
+global function sprintf(sequence fmt, object args)
+    return sprintf_(fmt,args)
+end function
+
 --DEV move this (once newEmit is done) [better yet put itin the optable]
 -- note: printf is now defined in pfileioN.e
-global procedure printf(integer fn, sequence format, 
---/**/                              object args={}) --/*
-                                    object args)    --*/
-    puts(fn,sprintf(format,args))
+global procedure printf(integer fn, sequence fmt, object args={})
+    puts(fn,sprintf_(fmt,args))
 end procedure
 
 

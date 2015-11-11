@@ -1,0 +1,236 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>CAIRO</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<style type="text/css">
+.style1 {
+	font-family: Courier;
+}
+.style3 {
+	text-decoration: underline;
+}
+</style>
+</head>
+
+<body>
+
+<h2>CAIRO Base Driver</h2>
+
+  <p>This driver represents a basic driver for all system-dependent drivers 
+  implemented in the X-Windows and MS-Windows systems. The implementation uses the
+  <a href="http://cairographics.org/">Cairo</a> and 
+	<a href="http://library.gnome.org/devel/pango/">Pango</a> functions. This driver can be 
+  compiled and used in all systems Cairo is supported. But the pre-compiled 
+  libraries will include it only in Linux. The drivers <b>Native Window</b>, 
+	<b>Image</b>, <b>EMF</b>, <b>Printer</b> and <b>Double Buffer</b> were also implemented.</p>
+<p>It can be used as the context plus driver of the GDI, GDK and X-Win based 
+drivers. But its primary focus is the GDK base driver, so the pre-compiled 
+libraries will be available only in Linux.</p>
+<p>The main motivation for the use of Cairo was transparency for all the 
+primitives. Beyond that we got other features like anti-aliasing, gradient 
+filling, transformations and other back-ends (support to rendering: PDF, PS, SVG and 
+IMAGERGB surfaces).</p>
+<p>This driver still does not completely replace the X-Windows, GDK and GDI Windows 
+base drivers, because Cairo does not have support for bitwise XOR operations and 
+for complex clipping regions.</p>
+  <p>So we let the programmer to choose what to use. We created the function <font face="Courier"><strong>
+  <a href="../func/init.html#cdUseContextPlus">cdUseContextPlus</a></strong></font> that allows to activate or to deactivate the use of 
+	Cairo for the available GDK, Win32 or X-Win based drivers. 
+  This function affects only the <font face="Courier"><strong>cdCreateCanvas</strong></font> function call, once created 
+  the canvas will be always a Cairo canvas. In fact the function affects primary the definitions 
+	<font face="Courier"><strong>CD_NATIVEWINDOW</strong></font>, 
+  <strong><span style="font-family: Courier">CD_IMAGE</span></strong>, 
+  <strong><span style="font-family: Courier">CD_EMF</span></strong>, 
+  <strong><span style="font-family: Courier">CD_PRINTER</span></strong> and <strong>
+  <span style="font-family: Courier">CD_DBUFFER</span></strong>, because they are 
+  function calls and not static defines. 
+  <strong><span style="font-family: Courier">CD_PRINTER</span></strong> can be used with 
+	the GDK base driver in UNIX, or with the Win32 base driver in Windows. 
+  <strong><span style="font-family: Courier">CD_EMF </span></strong> can be used 
+	in Windows only, with GDK or Win32 base drivers.</p>
+  <p>Using Cairo it is allowed to create more that one canvas at the same time for the same Window. And they can co-exist 
+  with a standard GDK, Win32 or X-Windows canvas.</p>
+  <p>To enable the use of Cairo based drivers you must call the initialization function <font face="Courier"><strong>
+  <a href="../func/init.html#cdInitContextPlus">cdInitContextPlus</a></strong></font> once, and link to the library &quot;<strong>cdcontextplus</strong>&quot;.</p>
+<p><strong>IMPORTANT</strong>: when using GTK 3.x the Cairo driver became also the main driver, 
+because there is no support for drawing primitives in GDK since GTK 3.0. The
+<strong>cdUseContextPlus</strong> function will do nothing internally.</p>
+<p>Also the Cairo library must be installed in your system.</p>
+  <p>In CDLua it is not necessary any additional initialization, and <strong>require&quot;cdluacontextplus&quot;</strong> can be used when 
+	using dynamic libraries. </p>
+
+<h3>Extra Drivers (cdcairo.h)</h3>
+<p>These are not ContextPlus drivers.</p>
+
+<h4>CD_CAIRO_PS - PostScript Driver</h4>
+
+  <p>Similar to <a href="ps.html">CD_PS</a>, uses the same creation parameters. 
+	But margins are not supported and Postscript level can be 2 (parameter -2) 
+	or 3 (parameter -3). The &quot;CMD&quot; attribute is not supported, and the new 
+	attribute &quot;DSCCOMMENT&quot; accepts a string that is saved as a DSC comment.</p>
+
+<h4>CD_CAIRO_PDF - PDF Driver</h4>
+
+  <p>Similar to <a href="pdf.html">CD_PDF</a>, uses the same creation 
+	parameters. The driver also does not depends on the PDFLib. The additional 
+	attributes &quot;OPACITY&quot;, &quot;PATTERN&quot;, &quot;PDF&quot;, &quot;PDFLIBVERSION&quot; and the description 
+	strings, are not supported.</p>
+<h4>CD_CAIRO_SVG - Scalable Vector Graphics Driver</h4>
+
+  <p>Similar to <a href="svg.html">CD_SVG</a>, uses the same creation 
+	parameters. The additional attributes &quot;OPACITY&quot; and &quot;CMD&quot; are not supported.</p>
+
+<h4>CD_CAIRO_IMAGERGB - RGB Client Image Driver</h4>
+
+  <p>Similar to <a href="irgb.html">CD_IMAGERGB</a>, uses <span class="style3">
+	almost</span> the same creation parameters. The main difference is that the 
+	data pointers are packed in RGBARGBARGBA... format. So it is used only 1 
+	pointer for data, instead of 3. Also the attributes &quot;REDIMAGE&quot;, 
+	&quot;GREENIMAGE&quot;, &quot;BLUEIMAGE&quot; and &quot;ALPHAIMAGE are not supported and replaced by 
+	the &quot;RGBDATA&quot; attribute. There are also two new attributes, &quot;STRIDE&quot; that 
+	returns the line size in bytes, when data is specified during creation then 
+	stride is always width*32. Even when there is not alpha channel, data is 
+	stored in 32 bits per pixel. Image data is also organized in top-bottom 
+	orientation, it means the data pointer points to the top-left corner. And 
+	the &quot;WRITE2PNG&quot; attribute that accepts a filename to save the image as a PNG 
+	file (this does not depends of the
+	<a href="http://www.tecgraf.puc-rio.br/im">IM</a> library).</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Control&nbsp; </h4>
+<ul>
+  <li><a href="../func/other.html#cdPlay">
+  <font face="Courier"><strong>Play</strong></font></a>: does nothing, returns
+  <font face="Courier">CD_ERROR</font>. </li>
+</ul>
+<h4>Coordinate System and Clipping </h4>
+<ul>
+  <li>
+  <a href="../func/coordinates.html#cdUpdateYAxis">
+  <font face="Courier"><strong>UpdateYAxis</strong></font></a>: the 
+  orientation of axis Y is the opposite to its orientation in the CD library.</li>
+	<li>
+    <b>Complex Regions</b>: not supported.</li>
+</ul>
+<h4>Primitives</h4>
+<ul>
+	<li>Floating point primitives are supported.</li>
+</ul>
+<h4>Attributes </h4>
+<ul>
+  <li>
+  <a href="../func/attributes.html#cdWriteMode">
+  <font face="Courier"><strong>WriteMode</strong></font></a>: does nothing. 
+  There is no support for XOR or NOT_XOR.</li>
+  <li>
+  <a href="../func/text.html#cdNativeFont">
+  <font face="Courier"><strong>NativeFont</strong></font></a>: also accepts the 
+  X-Windows font string format.</li>
+    <li><a href="../func/text.html#cdFont">
+  <font face="Courier"><strong>Font</strong></font></a>: &quot;Courier&quot; is mapped to 
+	&quot;Monospace&quot;, &quot;Helvetica&quot; is mapped to &quot;Sans&quot;, and &quot;Times&quot; is mapped to 
+	&quot;Serif&quot;. Underline and Strikeout are supported.</li>
+</ul>
+<h4>Colors </h4>
+<ul>
+  <li>
+  <a href="../func/color.html#cdPalette">
+  <font face="Courier"><strong>Palette</strong></font></a>: NOT supported.</li>
+</ul>
+<h4>Exclusive Attributes</h4>
+
+<ul>
+  <li>&quot;<b><font face="Courier">ANTIALIAS</font></b>&quot;:&nbsp;controls 
+  the use of anti-aliasing for drawing shapes. Assumes values &quot;1&quot; 
+  (active) and &quot;0&quot; (inactive). Default value: &quot;1&quot;.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">TEXTANTIALIAS</font></b>&quot;: controls the use of 
+	anti-aliasing for text primitives. Assumes values &quot;1&quot; (active) and &quot;0&quot; 
+	(inactive). Default value: &quot;1&quot;. (since 5.6)</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">CAIRODC</font></b>&quot; or &quot;<span class="style1"><strong>G</strong></span><b><font face="Courier">C</font></b>&quot;:&nbsp;returns the 
+  Cairo drawing context (get only). In Lua is returned as a user data.</li>
+</ul>
+
+<ul>
+    <li><b><font face="Courier">&quot;CAIROVERSION&quot;: </font></b>returns a string with 
+  the Cairo version number. It is empty if the Cairo is not available.</li>
+</ul>
+
+<ul>
+  <li><strong><span style="font-family: Courier">&quot;HATCHBOXSIZE&quot;</span></strong>: 
+  defines the size of smallest hatch box pattern. This affects the spacing 
+  between the hatch lines. The value passed must be a string containing an 
+  integer (&quot;%d&quot;). If the value of the attribute passed is NULL, the value is 
+  rest to the default. When consulted returns the current value (&quot;%d&quot;). Default: 
+  &quot;8&quot;.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">IMGINTERP</font></b>&quot;:&nbsp;changes how 
+  interpolation is used in image scale. Can be &quot;BEST&quot; (highest-quality), 
+  &quot;BILINEAR&quot; (linear interpolation), &quot;GOOD&quot; (quality similar to BILINEAR), 
+  &quot;NEAREST&quot; (nearest-neighbor filtering) or &quot;FAST&quot; (quality similar to NEAREST). 
+  Default: &quot;GOOD&quot;.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">LINEGRADIENT</font></b>&quot;:&nbsp;defines 
+  a filled interior style that uses a line gradient between two colors. It uses 
+  2 points (&quot;%d %d %d %d&quot; = x1 y1 x2 y2), one for the starting point using 
+  (using the foreground color), and another one for the end point (using the 
+  background color).</li>
+</ul>
+
+<ul>
+  <li>&quot;<span class="style1"><strong>PATTERNIMAGE</strong></span>&quot;:&nbsp;defines 
+  a filled interior style using a server image as pattern. Data must be a server 
+	image handle created with he Cairo base driver.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">POLYHOLE</font></b>&quot;:&nbsp;defines the index of 
+  the vertex where there is a hole in a closed polygon. It will affect the next
+  <strong>cdEnd</strong>. Can be called several times between <strong>cdBegin</strong> 
+  and <strong>cdEnd</strong> to define holes. The value passed must be a string 
+  containing an integer (&quot;%d&quot;). If the value of the attribute passed is NULL, 
+  all holes will no longer be considered.&nbsp;When consulted returns the current 
+  number of holes (&quot;%d&quot;). It can have a maximum of 500 holes. Default: NULL.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">STATUS</font></b>&quot;:&nbsp;returns a 
+  string describing with the current Cairo status. (since 5.9)</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">RADIALGRADIENT</font></b>&quot;:&nbsp;defines 
+  a filled interior style that uses a radial gradient between two colors. It 
+  uses 2 points and 2 radius (&quot;%d %d %g %d %d %g&quot; = x1 y1 rad1 x2 y2 rad2), one 
+  for the starting point using (using the foreground color), and another one for 
+  the end point (using the background color).</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">ROTATE</font></b>&quot;:&nbsp; allows the usage of 1 
+	angle and 1 coordinate (x, y), that define a global rotation transformation 
+	centered in the specified coordinate. Use 1 real and 2 integer values inside 
+	a string (&quot;%g %d %d&quot; = angle x y). Can not be set if a transformation is 
+	already set.</li>
+</ul>
+<ul>
+  <li><b><font face="Courier">&quot;UTF8MODE&quot;: </font></b>enables the usage 
+  of the UTF-8 encoding for strings. It can have the following 
+  values: &quot;1&quot; or &quot;0&quot;. Default is &quot;0&quot;.</li>
+</ul>
+
+</body>
+
+</html>

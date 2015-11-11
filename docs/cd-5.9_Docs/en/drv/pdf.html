@@ -1,0 +1,233 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>CD_PDF</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2 style="text-align: left">CD_PDF - PDF Driver (cdpdf.h)</h2>
+
+  <p>This drivers allows generating a PDF file. This format developed for representing documents in a manner that is 
+  independent of the original application software, hardware, and operating system used to create those documents. The 
+  format's copyrights are property of <a href="http://www.adobe.com" target="_top">Adobe Systems</a>. </p>
+  <p>This driver is very similar to the PS driver but it uses the PDFlib library to generate the PDF (<a href="http://www.pdflib.com/">http://www.pdflib.com/</a>). 
+  There are two PDFlib licenses available, one commercial and one free with a flexible license, see
+  <a href="http://www.pdflib.com/products/pdflib-family/pdflib-lite/pdflib-lite-licensing/">PDFlib Lite License</a>. The CD_PDF driver works with both 
+  versions. </p>
+<p>By default the pre-compiled library in the distribution uses the PDF Lite version code. The configuration of the PDF Lite code 
+included does not supports image 
+  file formats.&nbsp;The current PDF Lite version is 7.0.5.</p>
+  <p>PDFlib Copyright (c) 1997-2010 Thomas Merz and PDFlib GmbH. All rights reserved. Applications that use this driver 
+  are subject to the <a href="../../download/PDFlib-Lite-license.pdf">PDFlib GmbH License Agreement</a>.</p>
+
+<h3>Use</h3>
+
+  <p>The file is created and opened by calling function <font face="Courier">
+  <a href="../func/init.html#cdCreateCanvas"><strong>cdCreateCanvas</strong></a>(CD_PDF, 
+  Data)</font>, in which <font face="Courier">Data</font> contains the filename and canvas dimensions. This function 
+  opens the file and writes its header. Then, other functions in the CD library can be called as usual. The
+  <font face="Courier">Data</font> parameter string has the following format:</p>
+  
+    <pre>&quot;<em>filename -p[paper] -w[width_mm] -h[height_mm] -s[resolution_dpi] [-o]</em>&quot;
+or in C<em>
+&quot;<strong><tt>%s -p%d -w%g -h%g -s%d -o</tt></strong>&quot;</em></pre>
+  
+  <p>The filename must be inside double quotes (&quot;) if it has spaces. Any amount of such canvases may exist 
+  simultaneously. It is important to note that a call to function
+  <a href="../func/init.html#cdKillCanvas"><font face="Courier"><strong>
+  cdKillCanvas</strong></font></a> is required to <b>close</b> the file properly.</p>
+  
+
+
+  <p>To use this driver, the application must be linked with the &quot;<strong>cdpdf</strong>&quot; 
+	and &quot;<strong>pdflib</strong>&quot; libraries. </p>
+  <p>In Lua, it is necessary to call function <font face="Courier"> <strong>cdluapdf_open() </strong> </font>after a call 
+  to function <strong><font face="Courier">cdlua_open()</font></strong>, apart from linking with the &quot;<strong><font face="Courier">cdluapdf</font></strong>&quot; 
+  library. This is not necessary if you do require&quot;cdluapdf&quot;.</p>
+
+  <p><b>Paper Size - </b>The default paper size is A4. It is possible to change it by using one of the predefined sizes 
+  - <strong><tt>CD_A0</tt></strong>, <strong><tt>CD_A1</tt></strong>, <strong><tt>CD_A2</tt></strong>, <strong><tt>CD_A3</tt></strong>,
+  <strong><tt>CD_A4</tt></strong>, <strong><tt>CD_A5</tt></strong>, <strong><tt>CD_LETTER</tt></strong> and <strong><tt>
+  CD_LEGAL</tt></strong> - with parameter &quot;<font face="Courier">-p</font>&quot;. It is also possible to define a paper in a 
+  particular size by using parameters &quot;<font face="Courier">-w</font>&quot; e &quot;<font face="Courier">-h</font>&quot;. Values are 
+  provided in millimeters.</p>
+
+<div align="center">
+  <center>
+  <table border="1" cellpadding="3">
+    <caption valign="top"><font size="4">Default Paper Sizes</font></caption>
+    <tr>
+      <td>&nbsp;</td>
+      <th>Width (mm)</th>
+      <th>Length (mm)</th>
+    </tr>
+    <tr>
+      <td><strong>A0</strong></td>
+      <td align="center">841</td>
+      <td align="center">1187</td>
+    </tr>
+    <tr>
+      <td><strong>A1</strong></td>
+      <td align="center">594</td>
+      <td align="center">841</td>
+    </tr>
+    <tr>
+      <td><strong>A2</strong></td>
+      <td align="center">420</td>
+      <td align="center">594</td>
+    </tr>
+    <tr>
+      <td><strong>A3</strong></td>
+      <td align="center">297</td>
+      <td align="center">420</td>
+    </tr>
+    <tr>
+      <td><strong>A4</strong></td>
+      <td align="center">210</td>
+      <td align="center">297</td>
+    </tr>
+    <tr>
+      <td><strong>A5</strong></td>
+      <td align="center">148</td>
+      <td align="center">210</td>
+    </tr>
+    <tr>
+      <td><strong>Letter</strong></td>
+      <td align="center">216</td>
+      <td align="center">279</td>
+    </tr>
+    <tr>
+      <td><strong>Legal</strong></td>
+      <td align="center">216</td>
+      <td align="center">356</td>
+    </tr>
+  </table>
+  </center>
+</div>
+
+  <p><b>Resolution -</b> Resolution is used to convert values from millimeters to pixels (the same as points, but the 
+  number of points is per inch - DPI). Use parameter &quot;<font face="Courier">-s</font>&quot; to configure the resolution. The 
+  default value is 300 DPI.</p>
+  <p><b>Orientation -</b> The page can be oriented as portrait or landscape. The default value is portrait, but when the 
+  parameter &quot;-o&quot; is used, the horizontal and vertical values are switched.</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Control</h4>
+<ul>
+  <li><a href="../func/other.html#cdPlay"><font face="Courier"><strong>Play</strong></font></a>: 
+  does nothing, returns <font face="Courier">CD_ERROR</font>. </li>
+  <li><a href="../func/control.html#cdFlush"><font face="Courier"><strong>Flush</strong></font></a>: 
+  changes to a new page, preserving the previous one. </li>
+  <li><a href="../func/control.html#cdClear"><font face="Courier"><strong>Clear</strong></font></a>: 
+  does nothing.</li>
+</ul>
+<h4>Coordinate System&nbsp;&amp; Clipping</h4>
+<ul>
+  <li><a href="../func/coordinates.html#cdUpdateYAxis"><font face="Courier">
+  <strong>UpdateYAxis</strong></font></a>: does nothing.</li>
+  <li><b>Complex Regions</b>: not supported.</li>
+</ul>
+<h4>Attributes</h4>
+<ul>
+  <li><a href="../func/attributes.html#cdWriteMode"><font face="Courier">
+  <strong>
+  WriteMode</strong></font></a>: does nothing, returns <font face="Courier">CD_REPLACE</font>.</li>
+  <li><a href="../func/text.html#cdFont"><font face="Courier"><strong>Font</strong></font></a>: 
+  the old &quot;System&quot; font is mapped to the &quot;Courier&quot; font. For 
+  the PDF core fonts styles are added to the font name, for other fonts styles 
+  are simulated by PDFlib. Underline and Strikeout are supported. Following is the core fonts:</li>
+</ul>
+<pre>Courier, Courier-Bold, Courier-Oblique, Courier-BoldOblique,
+Helvetica, Helvetica-Bold, Helvetica-Oblique, Helvetica-BoldOblique,
+Times-Roman, Times-Bold, Times-Italic, Times-BoldItalic,
+Symbol, 
+ZapfDingbats</pre>
+<h4>Colors </h4>
+<ul>
+  <li><a href="../func/color.html#cdGetColorPlanes"><font face="Courier">
+  <strong>
+  GetColorPlanes</strong></font></a>: returns 24.</li>
+  <li><a href="../func/color.html#cdPalette"><font face="Courier"><strong>Palette</strong></font></a>: 
+  does nothing. </li>
+</ul>
+<h4>Client Images</h4>
+<ul>
+  <li><a href="../func/client.html#cdGetImageRGB"><font face="Courier"><strong>
+  GetImageRGB</strong></font></a>: does nothing.</li>
+  <li><font face="Courier"><strong><a href="../func/client.html#cdPutImageMap">
+  PutImageMap</a></strong></font>: stores an RGB image.</li>
+</ul>
+<h4>Primitives</h4>
+<ul>
+  <li><font face="Courier"><strong><a href="../func/marks.html#cdPixel">Pixel</a></strong></font>: 
+  does not exist in PDF, is simulated using a circle with radius=1.</li>
+  <li>Floating point primitives are supported.</li>
+  <li>Filled primitives do not include the line at the edges of the filled area.</li>
+	<li>When constructing a PATH the CD_PATH_ARC can add only a circular arc. 
+	The largest dimension will be used.</li>
+</ul>
+<h4>Server Images</h4>
+<ul>
+  <li>All functions do nothing.</li>
+</ul>
+<h4>Exclusive Attributes</h4>
+<ul>
+  <li><strong><font face="Courier">&quot;POLYHOLE&quot;</font></strong>: defines the index of 
+the vertex where there is a hole in a 
+  closed polygon. It will affect the next <strong>cdEnd</strong>. Can be called several times between
+  <strong>cdBegin</strong> and <strong>cdEnd</strong> to define holes. The value passed must 
+  be a string containing an integer (&quot;%d&quot;). If the value of the attribute passed is NULL, all holes will no longer be 
+  considered.&nbsp;When consulted returns the current number of holes (&quot;%d&quot;). It can have a maximum of 500 holes. 
+  Default: NULL.</li>
+</ul>
+<ul>
+  <li><strong><span style="font-family: Courier">&quot;HATCHBOXSIZE&quot;</span></strong>: 
+  defines the size of smallest hatch box pattern. This affects the spacing 
+  between the hatch lines. The value passed must be a string containing an 
+  integer (&quot;%d&quot;). If the value of the attribute passed is NULL, the value is 
+  rest to the default. When consulted returns the current value (&quot;%d&quot;). Default: 
+  &quot;8&quot;.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">ROTATE</font></b>&quot;:&nbsp; allows the usage of 1 angle and 1 coordinate (x, y), that 
+  define a global rotation transformation centered in the specified coordinate. Use 1 real and 2 integer values inside a 
+  string (&quot;%g %d %d&quot; = angle x y). Can not be set if a transformation 
+	is already set.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">OPACITY</font></b>&quot;:&nbsp; allows the usage of a global 
+	opacity value. The value passed must be a string containing an integer 
+	(&quot;%d&quot;) [0=full transparent, 255=full opaque]. Use NULL to reset to the 
+	default. Default: 255.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">PATTERN</font></b>&quot;:&nbsp; creates a pattern with 
+	regular primitives (except images). The value passed must be a string 
+	containing two integeres with the pattern size (&quot;%dx%d&quot;) [widthxheight]. 
+	Just call regular primitives. Use NULL to end the pattern creation and set 
+	the interior style.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">PDF</font></b>&quot;:&nbsp;Returns the &quot;PDF*&quot; handle 
+	of the PDFLib.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">PDFLIBVERSION</font></b>&quot;:&nbsp;Returns the full 
+	PDFlib version string in the format &lt;major&gt;.&lt;minor&gt;.&lt;revision&gt;.</li>
+</ul>
+
+<ul>
+  <li><b><font face="Courier">"SUBJECT","TITLE","CREATOR","AUTHOR","KEYWORDS"</font></b>:&nbsp;write 
+	only attributes that allows to set a description string for the respective 
+	document information field.</li>
+</ul>
+
+</body>
+
+</html>

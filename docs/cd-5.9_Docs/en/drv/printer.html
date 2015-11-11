@@ -1,0 +1,111 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>CD_PRINTER</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2 style="text-align: left">CD_PRINTER - Printer Driver (cdprint.h)</h2>
+
+  <p>This driver provides access to a System Default Printer. </p>
+  <p>The driver works only with the GDI, GDI+ and Cairo base drivers, but it is possible 
+  to use it in other platforms without the risk of compilation error. If you 
+  attempt to create a canvas in another platform, the function
+  <a href="../func/init.html#cdCreateCanvas">
+  <font face="Courier"><strong>cdCreateCanvas</strong></font></a> will return 
+  NULL.</p>
+
+<h3>Use</h3>
+
+  <p>The canvas is created by calling function <font face="Courier">
+  <a href="../func/init.html#cdCreateCanvas">
+  <strong>cdCreateCanvas</strong></a>(CD_PRINTER, Data)</font>, after which 
+  other CD functions can be called as usual. The <font face="Courier">Data</font> 
+  string has the following format:</p>
+  
+    <pre><span style="background-color: #CEE7FF">&quot;</span><i>name </i>[-d]&quot; <em>   or in C style &quot;</em><em><strong><tt>%s -d</tt></strong></em><em>&quot;</em></pre>
+  
+  <p><font face="Courier">name</font> is an optional document name that will 
+  appear in the printer queue. Optionally, <font face="Courier">-d</font> 
+  displays the system pre-defined printer dialog before starting to print, allowing 
+  you to configure the printer's parameters. When using this parameter and the 
+  return canvas is NULL, one must assume that the print was canceled by the 
+  user.</p>
+  <p>Any amount of such canvases may exist simultaneously. It is important to 
+  note that a call to function
+  <a href="../func/init.html#cdKillCanvas">
+  <font face="Courier"><strong>cdKillCanvas</strong></font></a> is required to 
+  properly send the data to the printer.</p>
+  <p><b>Pages -</b> Use
+  <a href="../func/control.html#cdFlush">
+  <font face="Courier"><strong>Flush</strong></font></a> to change to a new 
+  page. You can draw first on page 1, then on page 2 and so forth.</p>
+
+<h3>Behavior of Functions</h3>
+
+  <p>This driver is very platform-dependent and depends on the base driver used. </p>
+
+  <p>For further detail, see the <b>
+  Behavior of Functions</b> in each base driver: <a href="win32.html">GDI</a>. To use this driver 
+	with a context plus base driver is necessary to call 
+  <font face="Courier"><strong>
+  cdUseContextPlus</strong></font><strong><font face="Courier">(1)</font></strong> 
+  before creating the canvas, see the <a href="../drv/gdiplus.html">GDI+</a> and
+	<a href="../drv/cairo.html">Cairo</a> base drivers. This 
+  driver is NOT available for the other base drivers.</p>
+<p>Notice that a printer created in Windows has the same 
+  limitations as the <a href="emf.html">EMF driver</a>.</p>
+
+<h4>Control</h4>
+<ul>
+  <li>
+  <a href="../func/control.html#cdFlush">
+  <font face="Courier"><strong>Flush</strong></font></a>: changes to a new 
+  page, preserving the previous one. In the Win32 base driver, after the first 
+  page, function <font face="Courier"><strong>cdText</strong></font> draws the 
+  text below its correct position - we do not know why this happens.</li>
+</ul>
+<h4>Attributes </h4>
+<ul>
+  <li>
+  <a href="../func/filled.html#cdHatch">
+  <font face="Courier"><strong>Hatch</strong></font></a>: opaque in Win32 base 
+  driver (GDI).</li>
+</ul>
+
+<h4>Exclusive Attributes</h4>
+<ul>
+  <li><strong><font face="Courier">&quot;PRINTERNAME&quot;</font></strong>: Returns 
+	the name of the selected printer.</li>
+</ul>
+
+<h3>Notes</h3>
+
+<h4>Patterns</h4>
+<p>Usually when printing regions filled with patterns you have to compensate for 
+the printer high resolution or the pattern will come out very small. If you 
+don't want to create a high resolution version of your pattern, then the 
+simplest way is to use <strong>wdCanvasPattern</strong> to resize the pattern to 
+an expected millimeter size. This will increase the pattern raster size so it 
+will be more visible in the printer.</p>
+<p>But on some printers the result were not what we expect:</p>
+<ul>
+  <li>
+  Laser printers automatically increase the real size of the pattern, so it 
+	seems that <strong>wdCanvasPattern</strong> is not necessary on those 
+	printers.</li>
+	<li>
+  PDF and Postscript based printer drivers (like Adobe PDF Creator and CutePDF 
+	Writer) need that the pattern has a width multiple of 8, if not they will 
+	appear distorted with an increasing horizontal shift on every line. This 
+	does NOT applies to the CD_PDF or CD_PS drivers.</li>
+</ul>
+
+</body>
+
+</html>

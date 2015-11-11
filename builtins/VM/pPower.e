@@ -58,8 +58,9 @@ end procedure -- (for Edita/CtrlQ)
         -- handle power(x,0) as 1, except for power(0,0) and power(<seq>,0) which are errors
         test ecx,ecx
         jnz :notPow0
-        test eax,eax
-        jz :e102cr0tple0
+        -- 3/11/15 let power(0,0) be 1
+--      test eax,eax
+--      jz :e102cr0tple0
         cmp eax,h4
         jl @f
             cmp byte[ebx+eax*4-1],0x12
@@ -242,8 +243,9 @@ end procedure -- (for Edita/CtrlQ)
         -- handle power(x,0) as 1, except for power(0,0) and power(<seq>,0) which are errors
         test rcx,rcx
         jnz :notPow0
-        test rax,rax
-        jz :e102cr0tple0
+        -- 3/11/15 let power(0,0) be 1
+--      test rax,rax
+--      jz :e102cr0tple0
         cmp rax,r15
         jl @f
             cmp byte[rbx+rax*4-1],0x12

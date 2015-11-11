@@ -1,0 +1,295 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>Filled Areas</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2 align="center">Filled Areas</h2>
+
+  <p>It is an area filled with the foreground color, but it depends on the 
+  current interior style. The <font>SOLID</font> style 
+  depends only on the foreground color. The <font>HATCH</font> 
+  and
+  <font>STIPPLE </font> style depend on the foreground color, background color and on the back opacity attribute. The 
+  hatch lines drawn with this style do not depend on the other line attributes. The
+  <font>PATTERN</font> style depends only on global canvas 
+  attributes.</p>
+<p>The filled area includes the line at the edge of the area. So if you draw a 
+filled rectangle, sector or polygon on top of a non filled one using the same 
+coordinates, no style and 1 pixel width, the non filled primitive should be 
+obscured by the filled primitive. But depending on the driver implementation 
+some pixels at the edges may be not included. IMPORTANT: In the Postscript and 
+PDF drivers the line at the edge is not included at all.</p>
+  <p>If 
+  either the background or the foreground color are modified, the hatched and 
+  monochromatic fillings must be modified again in order to be updated.</p>
+  <p>Note that when a Filling Attribute is modified, the active filling style is 
+  now that of the modified attribute (hatch, stipple or pattern). Notice that 
+  this is not true for the clipping area. When the clipping area is modified, 
+  the clipping is only affected if it is active.</p>
+
+<hr>
+<h3>Filled <a name="Polygons">Polygons</a></h3>
+
+  <p>Filled polygons can be created using <font><strong>cdBegin(</strong>CD_FILL<strong>)/cdVertex(x,y)/.../cdEnd()</strong></font>.</p>
+  <p>See the documentation of <a href="polygon.html">cdBegin/cdVertex/cdEnd</a>.</p>
+<div class="function">
+<pre class="function"><span class="mainFunction">void <a name="cdBox">cdCanvasBox</a>(cdCanvas* canvas, int xmin, int xmax, int ymin, int ymax); [in C]</span>
+void cdfCanvasBox(cdCanvas* canvas, double xmin, double xmax, double ymin, double ymax); [in C]
+void wdCanvasBox(cdCanvas* canvas, double xmin, double xmax, double ymin, double ymax); (WC) [in C]
+
+canvas:Box(xmin, xmax, ymin, ymax: number) [in Lua]
+canvas:fBox(xmin, xmax, ymin, ymax: number) [in Lua]
+canvas:wBox(xmin, xmax, ymin, ymax: number) (WC) [in Lua]</pre>
+
+  <p>Fills a rectangle according to the current interior style. All points in 
+  the interval <font><strong>x_min&lt;=x&lt;=x_max, y_min&lt;=y&lt;=y_max</strong></font> 
+  will be painted. When the interior style <font>CD_HOLLOW</font> 
+  is defined, the function behaves like its equivalent <strong>
+  <font>cdRect</font>.</strong></p>
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">void <a name="cdSector">cdCanvasSector</a>(cdCanvas* canvas, int xc, int yc, int w, int h, double angle1, double angle2); [in C]</span>
+void cdfCanvasSector(cdCanvas* canvas, double xc, double yc, double w, double h, double angle1, double angle2); [in C]
+void wdCanvasSector(cdCanvas* canvas, double xc, double yc, double w, double h, double angle1, double angle2); (WC) [in C]
+
+canvas:Sector(xc, yc, w, h, angle1, angle2: number) [in Lua]
+canvas:fSector(xc, yc, w, h, angle1, angle2: number) [in Lua]
+canvas:wSector(xc, yc, w, h, angle1, angle2: number) (WC) [in Lua]</pre>
+
+  <p>Fills the arc of an ellipse aligned with the axis, according to the current 
+  interior style, in the shape of a pie. </p>
+<p>The 
+  coordinate <b>(xc,yc)</b> defines the center of the ellipse. 
+  Dimensions <b>w</b> and <b>h</b> define the elliptic axes X 
+  and Y, respectively. </p>
+  <p>Angles <b>angle1</b> and <b>angle2</b> are in degrees and oriented 
+	counter-clockwise. They 
+  define the arc start and end, but they are not the angle relative to the 
+  center, except when w==h and the ellipse is reduced to a circle. The arc 
+  starts at the point <b>(xc+(w/2)*cos(angle1), yc+(h/2)*sin(angle1))</b> 
+  and ends at <b>(xc+(w/2)*cos(angle2), yc+(h/2)*sin(angle2))</b>. A 
+  complete ellipse can be drawn using 0 and 360 as the angles.&nbsp; If <b>angle2</b> 
+	is less than <b>angle1</b> it will be increased by 360 until it is greater 
+	than <b>angle1</b>. </p>
+  <p>The angles are specified so if the size of the ellipse (w x h) is changed, 
+  its shape is preserved. So the angles relative to the center are dependent 
+  from the ellipse size. The actual angle can be obtained using <b>rangle = 
+  atan2((h/2)*sin(angle), (w/2)*cos(angle))</b>.</p>
+  <p>To specify the angle in radians, you can 
+  use the definition <font size="2"><strong>CD_RAD2DEG</strong></font> 
+  to multiply the value in radians before passing the angle to CD. </p>
+  <p>When the interior style <font><strong>CD_HOLLOW</strong></font> is defined, 
+  the function behaves like its equivalent <strong><font>cdCanvasArc</font></strong>, 
+  plus two lines connecting to the center.</p>
+  <p align="center"><font size="4">Sector Parameters</font><br>
+  <img src="../../img/sector.gif" border="2" width="161" height="160"></p>
+</div>
+<div class="function">
+<pre class="function"><span class="mainFunction">void <a name="cdChord">cdCanvasChord</a>(cdCanvas* canvas, int xc, int yc, int w, int h, double angle1, double angle2); [in C]</span>
+void cdfCanvasChord(cdCanvas* canvas, double xc, double yc, double w, double h, double angle1, double angle2); [in C]
+void wdCanvasChord(cdCanvas* canvas, double xc, double yc, double w, double h, double angle1, double angle2); (WC) [in C]
+
+canvas:Chord(xc, yc, w, h, angle1, angle2: number) [in Lua]
+canvas:fChord(xc, yc, w, h, angle1, angle2: number) [in Lua]
+canvas:wChord(xc, yc, w, h, angle1, angle2: number) (WC) [in Lua]</pre>
+
+  <p>Fills the arc of an ellipse aligned with the axis, according to the current 
+  interior style, the start and end points of the arc are connected. The 
+  parameters are the same as the <strong><font>cdSector</font></strong>.</p>
+  <p>When the interior style <font><strong>CD_HOLLOW</strong></font> is defined, 
+  the function behaves like its equivalent <strong><font>cdArc</font></strong>, 
+  plus a line connecting the arc start and end points.</p>
+  <p align="center"><font size="4">Chord Parameters</font><br>
+  <img src="../../img/chord.gif" border="2" width="161" height="160"></p>
+</div>
+<h3>Attributes</h3>
+<div class="function"><pre class="function"><span class="mainFunction">int <a name="cdBackOpacity">cdCanvasBackOpacity</a>(cdCanvas* canvas, int opacity); [in C]</span>
+
+canvas:BackOpacity(opacity: number) -&gt; (old_opacity: number) [in Lua]</pre>
+
+  <p>Configures the background opacity to filling primitives based on the 
+  foreground and background colors. Note that only when InteriorStyle is <b>
+    CD_HATCH</b> or <b>CD_STIPPLE</b> that backopacity is used. Values: <font><b>
+    CD_TRANSPARENT</b></font> or <b>CD_OPAQUE</b>. If it is opaque 
+  the primitive will erase whatever is in the background with the background color. 
+  If it is transparent, only the foreground color is painted. It returns the previous value. Default value: <b>
+    CD_TRANSPARENT</b>. Value <b><b>CD_QUERY</b> </b>simply returns the 
+  current value. In some drivers is always opaque.</p>
+  <p align="center"><font size="4">Back Opacity Attribute<br>
+  </font><img src="../../img/opacity.gif" border="2" width="260" height="136"></p>
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">int <a name="cdFillMode">cdCanvasFillMode</a>(cdCanvas* canvas, int mode); [in C]</span>
+
+canvas:FillMode(mode: number) -&gt; (old_mode: number) [in Lua]</pre>
+
+  <p>Selects a predefined polygon fill rule (<b>CD_EVENODD</b> or <strong>CD_WINDING</strong>). Returns the previous value. Default value: <b>
+    CD_EVENODD</b>. Value <b><b>CD_QUERY</b> </b>simply returns the current 
+  value.</p>
+  <p align="center"><font size="4">Fill Modes</font><br>
+  <img src="../../img/fillmode.gif" border="2" width="260" height="136"></p>
+
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">int <a name="cdInteriorStyle">cdCanvasInteriorStyle</a>(cdCanvas* canvas, int style); [in C]</span>
+
+canvas:InteriorStyle(style: number) -&gt; (old_style: number) [in Lua]</pre>
+
+  <p>Configures the current style for the area filling primitives: <b>
+    CD_SOLID</b>, <strong><b>CD_HOLLOW</b></strong>, <b>CD_HATCH</b>,
+  <b>CD_STIPPLE</b> or <b>CD_PATTERN</b>. Note that only <b>
+    CD_HATCH</b> and <b>CD_STIPPLE</b> are affected by the backopacity. It returns the previous value. Default value:  <b>CD_SOLID</b>. Value 
+  <b><b>CD_QUERY</b> </b>simply returns the 
+  current value.</p>
+  <p>If <i>a stipple</i> or <i>a pattern</i> were not defined, when they are 
+  selected the state of the 
+  attribute is not changed. </p>
+  <p>When the style <strong>CD_HOLLOW</strong> is defined, functions
+  <strong>cdBox</strong> and <strong>cdSector</strong> behave as their 
+  equivalent <strong>cdRect</strong> and <strong>cdArc+Lines</strong>, and the 
+  polygons with style <b>CD_FILL</b> behave like <b>CD_CLOSED_LINES</b>.</p>
+
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">int <a name="cdHatch">cdCanvasHatch</a>(cdCanvas* canvas, int style); [in C]</span>
+
+canvas:Hatch(style: number) -&gt; (old_style: number) [in Lua]</pre>
+
+  <p>Selects a predefined <i>hatch</i> style (<b>CD_HORIZONTAL</b>,  <b>CD_VERTICAL</b>, 
+  <b>CD_FDIAGONAL</b>, <b>CD_BDIAGONAL</b>,
+  <b>CD_CROSS</b> or <b>CD_DIAGCROSS</b>) and sets the 
+  interior style to <b>CD_HATCH</b>. The lines are drawn with the foreground 
+  color, and the background is drawn with the background color if back opacity 
+  is opaque. Returns the previous value. 
+  Default value: <b>CD_HORIZONTAL</b>. Value <b><b>CD_QUERY</b> </b>
+  simply returns the current value. The foreground and background colors must be 
+  set before setting the style. In some drivers is always opaque.</p>
+  <p align="center"><font size="4">Hatch Styles</font><br>
+  <img src="../../img/hatch.gif" border="2" width="182" height="348"></p>
+
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">void <a name="cdStipple">cdCanvasStipple</a>(cdCanvas* canvas, int w, int h, const unsigned char *fgbg) [in C]</span>
+<span>void cdCanvasStippleImImage(cdCanvas* canvas, const imImage* image);</span> [in C] (see <a href="../drv/imimage.html">CD_IMIMAGE</a>)
+
+canvas:Stipple(stipple: cdStipple) [in Lua]
+canvas:Stipple(image: imImage) [in Lua] (see <a href="../drv/imimage.html">CD_IMIMAGE</a>)</pre>
+
+  <p>Defines a <b><b>wxh</b> </b>matrix of zeros (0) and ones (1). The zeros are 
+  mapped to the background color or are transparent, according to the background 
+  opacity attribute. The ones are mapped to the foreground color. The function 
+  sets the interior style to <b>CD_STIPPLE</b>. To avoid having to deal 
+  with matrices in C, the element <b>(i,j)</b> of <b>fgbg</b> 
+  is stored as <b>fgbg[j*w+i]</b>. The origin is the left bottom corner 
+  of the image. It does not need to be stored by the 
+  application, as it is internally replicated by the library.&nbsp; In some 
+  drivers is always opaque. The foreground and background colors must be set 
+  before setting the style. </p>
+	<p>In the <strong>imImage</strong> version, it must be a binary image (color_space=IM_BINARY).</p>
+
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">void <a name="wdStipple">wdCanvasStipple</a>(cdCanvas* canvas, int w, int h, const unsigned char *fgbg, double w_mm, double h_mm); [in C]</span>
+
+canvas:wStipple(stipple: cdStipple, w_mm, h_mm: number) [in Lua]</pre>
+
+  <p>Allows specifying the stipple in world coordinates. Another stipple will be 
+  created with the size in pixels corresponding to the specified size in 
+  millimeters. The new size in pixels will be an integer factor of the original 
+	size that is closets to the size in millimeters. The use of this function may produce very large or very small 
+  stipples.</p>
+
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">unsigned char* <a name="cdGetStipple">cdCanvasGetStipple</a>(cdCanvas* canvas, int* w, int* h); [in C]</span>
+
+canvas:GetStipple() - &gt; (stipple: cdStipple) [in Lua]</pre>
+
+  <p>Returns the current <i>stipple</i> and its dimensions. Returns NULL if no
+  <i>stipple</i> was defined.</p>
+
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">void <a name="cdPattern">cdCanvasPattern</a>(cdCanvas* canvas, int w, int h, const long int *color); [in C]</span>
+<span>void cdCanvasPatternImImage(cdCanvas* canvas, const imImage* image);</span> [in C] (see <a href="../drv/imimage.html">CD_IMIMAGE</a>)
+
+canvas:Pattern(pattern: cdPattern) [in Lua]
+canvas:Pattern(image: imImage) [in Lua] (see <a href="../drv/imimage.html">CD_IMIMAGE</a>)</pre>
+
+  <p>Defines a new <b><b>wxh</b> </b>color matrix and sets the interior style 
+  to <b>CD_PATTERN</b>. To avoid having to deal with matrices in C, the 
+  color element <b>(i,j)</b> is stored as <b>color[j*w+i]</b>. 
+  The origin is the left bottom corner of the image. It 
+  does not need to be stored by the application, as it is internally replicated 
+  by the library.</p>
+	<p>In the <strong>imImage</strong> version, it must be a displayable image (<strong>imImageIsBitmap</strong>).</p>
+
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">void <a name="wdPattern">wdCanvasPattern</a>(cdCanvas* canvas, int w, int h, const long int *color, double w_mm, double h_mm); [in C]</span>
+
+canvas:wPattern(pattern: cdPattern, w_mm, h_mm: number) [in Lua]</pre>
+
+  <p>Allows specifying the pattern in world coordinates. Another pattern will be 
+  created with the size in pixels corresponding to the specified size in 
+  millimeters. The new size in pixels will be an integer factor of the original 
+	size that is closets to the size in millimeters. The use of this function may produce very large or very small 
+  patterns.</p>
+
+</div>
+<div class="function"><pre class="function"><span class="mainFunction">long int* <a name="cdGetPattern">cdCanvasGetPattern</a>(cdCanvas* canvas, int* w, int* h); [in C]</span>
+
+canvas:GetPattern() - &gt; (pattern: cdPattern) [in Lua]</pre>
+
+  <p>Returns the current <i>pattern</i> and its dimensions. Returns NULL if no
+  <i>pattern</i> was defined.</p>
+</div>
+<h3>Extras in Lua</h3>
+
+<div class="function"><pre class="function"><a name="cdCreatePattern">cd.CreatePattern</a>(width, height: number) -&gt; (pattern: cdPattern)</pre>
+
+  <p>Creates a pattern in Lua.</p>
+
+</div>
+<div class="function"><pre class="function"><a name="cdKillPattern">cd.KillPattern</a>(pattern: cdPattern)</pre>
+
+  <p>Destroys the created pattern and liberates allocated memory. If this 
+  function is not called in Lua, the garbage collector will call it.</p>
+
+</div>
+<div class="function"><pre class="function"><a name="cdCreateStipple">cd.CreateStipple</a>(width, height: number) -&gt; (stipple: cdStipple)</pre>
+
+  <p>Creates a stipple in Lua.</p>
+
+</div>
+<div class="function"><pre class="function"><a name="cdKillStipple">cd.KillStipple</a>(stipple: cdStipple)</pre>
+
+  <p>Destroys the created stipple and liberates allocated memory. If this 
+  function is not called in Lua, the garbage collector will call it.</p>
+</div>
+<h3><a name="DataAccess">Data Access</a></h3>
+
+  <p>Data access in Lua is done directly using the operator &quot;<font>[y*width 
+  + x]</font>&quot;. </p>
+  <p>All new types can have their values checked or changed directly as if they 
+  were Lua tables:</p>
+  
+    <pre>pattern[y*16 + x] = cd.EncodeColor(r, g, b)
+...
+color = pattern[y*16 + x]
+r, g, b = cd.DecodeColor(color)
+...
+cd.Pattern(pattern)</pre>
+  
+  <p>Notice that the type of value returned or received by
+  <font size="3">pattern[i]</font><font size="2"> </font>is a
+  <font>lightuserdata</font>, the same type used with functions <b>
+  <font size="3">cdEncodeColor</font></b>, <b>
+  <font size="3">cdDecodeColor</font></b>, <b>
+  <font size="3">cdPixel</font></b>, <b>
+  <font size="3">cdForeground</font></b><font size="2">
+  </font>and <b> <font size="3">cdBackground</font></b>. The value 
+  returned or received by <font>stipple</font><font size="3">[i]</font> 
+  is a number.</p>
+
+
+</body>
+
+</html>

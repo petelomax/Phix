@@ -233,8 +233,8 @@ end procedure
 procedure getFloat()
 -- finish off a float. The first few DIGITS (if any) have been processed;
 -- continue from '.' or 'eE'
-integer lenTC, exp, esign
-atom dec
+integer lenTC, exponent, esign
+atom dec, fraction
     lenTC = length(text[CurrLine])
     tokatm = tokint
     if Ch='.' then
@@ -244,15 +244,17 @@ atom dec
 --          col -= 1
         else
             toktype = FLOAT
-            dec = 10
+            dec = 1
+            fraction = 0
             while 1 do
                 col += 1
                 if col>lenTC then exit end if
                 Ch = text[CurrLine][col]
                 if charClass[Ch]!=DIGIT then exit end if
-                tokatm += (Ch-'0')/dec
+                fraction = fraction*10 + (Ch-'0')
                 dec *= 10
             end while
+            tokatm += fraction/dec
         end if
     end if
     if find(Ch,"eE")
@@ -266,15 +268,15 @@ atom dec
         else
             esign = +1
         end if
-        exp = 0
+        exponent = 0
         while 1 do
             col += 1
             if col>lenTC then exit end if
             Ch = text[CurrLine][col]
             if charClass[Ch]!=DIGIT then exit end if
-            exp = exp*10+Ch-'0'
+            exponent = exponent*10+Ch-'0'
         end while
-        tokatm = tokatm*power(10,exp*esign)
+        tokatm = tokatm*power(10,exponent*esign)
     end if
 --  token = text[CurrLine][tokstart..col-1]
     nextCh()

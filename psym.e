@@ -1359,10 +1359,10 @@ integer fpno = symtab[routineNo][S_FPno]
 end function
 r_getBuiltinName = routine_id("getBuiltinName") -- (for ptok.e)
 
---procedure Alias(sequence name, integer symidx)
---  tt_string(name,-2)
---  tt[ttidx+EQ] = symidx
---end procedure
+procedure Alias(sequence name, integer symidx)
+    tt_string(name,-2)
+    tt[ttidx+EQ] = symidx
+end procedure
 
 --      k = addSymEntry(ttidx,0,S_Nspc,prevfile,0,0)
 procedure defaultNamespace(sequence name)
@@ -1424,6 +1424,7 @@ global procedure syminit()
     --
     symlimit = 0                                                -- #00 / 0b0000   dummy type: unknown
     initialSymEntry("integer",  S_Type,"TI",opInt,  E_none)     -- #01 / 0b0001 integer
+--Alias("INTEGER",symlimit)
     initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #02 / 0b0010   dummy type: flt (atom but not integer)
     initialSymEntry("atom",     S_Type,"TN",opAtom, E_none)     -- #03 / 0b0011 atom (ie flt|int)
     initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #04 / 0b0100   dummy type: dseq (sequence but not string)
@@ -1539,7 +1540,7 @@ global procedure syminit()
     initialConstant("C_LPARAM",     #01000004)
     initialConstant("C_HRESULT",    #01000004)
     initialConstant("C_UINT",       #02000004)  -- a 32 bit signed integer
---  initialConstant("C_SIZE_T",     #02000004)
+    initialConstant("C_SIZE_T",     #02000004)
     initialConstant("C_DWORD",      #02000004)  -- a 32 bit unsigned integer
 --  initialConstant("C_DWORD32",    #02000004)  -- a 32 bit unsigned integer [DEV/SUG]
 --  initialConstant("C_DWORD64",    #02000008)  -- a 64 bit unsigned integer [DEV/SUG]
@@ -1603,7 +1604,19 @@ global procedure syminit()
 --  initialConstant("E_OBJECT",     #09000004)
 
     initialConstant("NULL", 0)
+    Alias("null", symlimit)
+--  initialConstant("null", 0)
 --DEV/SUG true, false, TRUE, FALSE, True, False
+    initialConstant("TRUE", 1)
+    Alias("True", symlimit)
+    Alias("true", symlimit)
+    initialConstant("FALSE", 0)
+    Alias("False", symlimit)
+    Alias("false", symlimit)
+--  initialConstant("True", 1)
+--  initialConstant("False", 0)
+--  initialConstant("true", 1)
+--  initialConstant("false", 0)
 
     -- from misc.e:
 --  initialConstant("DOS32", 1)                             -- ex.exe (not supported!)
@@ -1624,6 +1637,8 @@ atom pi
     initialConstant("PI",pi)
 --*/
     initialConstant("PI",3.141592653589793238)
+    initialConstant("E",2.7182818284590452)
+    initialConstant("INVLN10",0.43429448190325182765)
 
     -- from file.e:
     initialConstant("D_NAME",           1)
@@ -1790,137 +1805,137 @@ atom pi
     initialConstant("WAIT_FAILED",      #FFFFFFFF)
     initialConstant("STILL_ACTIVE",     259)
 
-if not newEmit then
-
-    -- the following builtins return an integer:
-
-    if asmfileio then
-        initialSymEntry("getc",         S_Func,"FI",    opGetc,     E_other)
-    end if
---trace(1)
-    initialSymEntry("equal",            S_Func,"FOO",   opSeq,      E_none)     T_equal = symlimit
-    initialSymEntry("compare",          S_Func,"FOO",   opScmp,     E_none)     T_compare = symlimit
-    initialSymEntry("find",             S_Func,"FOPI",  opFind,     E_none)     T_find = symlimit
-    symtab[symlimit][S_ParmN] = 2
---  Alias("find_from", T_find)  -- removed 19/8/15
-    initialSymEntry("match",            S_Func,"FPPI",  opMatch,    E_none)     T_match = symlimit
-    symtab[symlimit][S_ParmN] = 2
---  Alias("match_from", T_match)    -- removed 19/8/15
-    initialSymEntry("length",           S_Func,"FP",    opLen,      E_none)     T_length = symlimit
-    initialSymEntry("remainder",        S_Func,"FNN",   opRmdr,     E_none)
-    initialSymEntry("floor",            S_Func,"FN",    opFloor,    E_none)     T_floor = symlimit
-    if asmfileio then
-        initialSymEntry("lock_file",    S_Func,"FIIP",  opLock,     E_other)
-        initialSymEntry("open",         S_Func,"FPP",   opOpen,     E_other)
-    end if
-    initialSymEntry("get_key",          S_Func,"F",     opGetKey,   E_other)
-    initialSymEntry("wait_key",         S_Func,"F",     opWaitKey,  E_other)
-    if asmfileio then
-        initialSymEntry("seek",         S_Func,"FII",   opSeek,     E_other)
-        initialSymEntry("where",        S_Func,"FI",    opWhere,    E_none)
-    end if
-    initialSymEntry("rand",             S_Func,"FI",    opRand,     E_none)
-
---  T_Nres = symlimit
-
-    -- the following builtin functions return an atom:
-
-    initialSymEntry("allocate",         S_Func,"FI",    opAlloc,    E_none)     -- (not newEmit)
-    initialSymEntry("allocate_data",    S_Func,"FI",    opAlloc,    E_none)     -- (not newEmit)
---DEV/SUG: (erm... what happened to T_Nres etc? [StoreVar took over job, methinks])
---  newstyleSymEntry("allocate",        S_Func,"FI",    "pHeap.e",0,E_other)    -- (not newEmit)
-    initialSymEntry("and_bits",         S_Func,"FNN",   opAndBits,  E_none)
-    initialSymEntry("or_bits",          S_Func,"FNN",   opOrBits,   E_none)
-    initialSymEntry("xor_bits",         S_Func,"FNN",   opXorBits,  E_none)
-    initialSymEntry("not_bits",         S_Func,"FN",    opNotBits,  E_none)
-    -- assume busy loop if routine calls time
-    initialSymEntry("time",             S_Func,"F",     opTime,     E_other)
-    initialSymEntry("power",            S_Func,"FNN",   opPow,      E_none)
-    initialSymEntry("log",              S_Func,"FN",    opLog,      E_none)
-    initialSymEntry("float32_to_atom",  S_Func,"FP",    op32toA,    E_none)
-    initialSymEntry("float64_to_atom",  S_Func,"FP",    op64toA,    E_none)
---  initialSymEntry("chdir",            S_Func,"FP",    opChDir,    E_other)
-    initialSymEntry("instance",         S_Func,"F",     opInstance, E_none)
-    initialSymEntry("cos",              S_Func,"FN",    opCos,      E_none)
-    initialSymEntry("sin",              S_Func,"FN",    opSin,      E_none)
-    initialSymEntry("sqrt",             S_Func,"FN",    opSqrt,     E_none)
-    initialSymEntry("tan",              S_Func,"FN",    opTan,      E_none)
-    initialSymEntry("arctan",           S_Func,"FN",    opArcTan,   E_none)
-
---  T_Pres=symlimit
-
-    -- following builtin functions return a sequence
-
-    initialSymEntry("append",           S_Func,"FPO",   opApnd,     E_none)
-    initialSymEntry("prepend",          S_Func,"FPO",   opPpnd,     E_none)
-    initialSymEntry("repeat",           S_Func,"FOI",   opRepeat,   E_none)
-    initialSymEntry("atom_to_float32",  S_Func,"FN",    opAto32,    E_none)
-    initialSymEntry("atom_to_float64",  S_Func,"FN",    opAto64,    E_none)
---  initialSymEntry("date",             S_Func,"F",     opDate,     E_none) -- now in pdate.e
-    if asmfileio then
-        initialSymEntry("get_position", S_Func,"F",     opGetPos,   E_none)
-    end if
-
-    -- the following builtin functions return object
-
---  initialSymEntry("upper",            S_Func,"FO",    opUpper,    E_none) -- now in pcase.e
---  initialSymEntry("lower",            S_Func,"FO",    opLower,    E_none) -- ""
-    if asmfileio then
-        initialSymEntry("gets",         S_Func,"FO",    opGets,     E_other)    -- Phix allows gets({fn,-1|2}) forms [DEV?] [not newEmit; -> get_text]
-    end if
-    initialSymEntry("peek",             S_Func,"FO",    opPeek,     E_none)
-    initialSymEntry("peek4s",           S_Func,"FO",    opPeek4s,   E_none)
-    initialSymEntry("peek4u",           S_Func,"FO",    opPeek4u,   E_none)
-
---  T_Bfunc = symlimit
-
-    -- the remainder are builtin procedures
-
-    initialSymEntry("abort",            S_Proc,"PI",    opAbort,    E_other)                T_abort = symlimit
-    if asmfileio then
-        initialSymEntry("bk_color",     S_Proc,"PI",    opBkClr,    E_other)
-    end if
-    if asmfileio then
-        initialSymEntry("clear_screen", S_Proc,"P",     opClrScrn,  E_other)
-        initialSymEntry("close",        S_Proc,"PI",    opClose,    E_other)
-    end if
-    initialSymEntry("crash_file",       S_Proc,"PO",    opCrshFile, E_other)
-    initialSymEntry("crash_message",    S_Proc,"PO",    opCrshMsg,  E_other)
---  initialSymEntry("EnterCriticalSection",S_Proc,"PI", opEnterCS,  E_other)    T_ecs = symlimit
-    if asmfileio then
-        initialSymEntry("flush",        S_Proc,"PI",    opFlush,    E_other)
-    end if
-    initialSymEntry("free",             S_Proc,"PN",    opFree,     E_other)
-    if asmfileio then
-        initialSymEntry("free_console", S_Proc,"P",     opFreeCons, E_other)
-    end if
---  initialSymEntry("LeaveCriticalSection",S_Proc,"PI", opLeaveCS,  E_other)    T_lcs = symlimit
-    initialSymEntry("mem_copy",         S_Proc,"PNNI",  opMemCopy,  E_other)
-    initialSymEntry("mem_set",          S_Proc,"PNII",  opMemSet,   E_other)
---  initialSymEntry("pixel",            S_Proc,"POP",   opPixel,    E_other)    --DOS
-    initialSymEntry("poke",             S_Proc,"PIO",   opPoke,     E_other)
-    initialSymEntry("poke4",            S_Proc,"PIO",   opPoke4,    E_other)
-    if asmfileio then
-        initialSymEntry("position",     S_Proc,"PII",   opPosition, E_other)
-        initialSymEntry("puts",         S_Proc,"PIO",   opPuts,     E_other)
-    end if
---DEV
---  initialSymEntry("put_screen_char",  S_Proc,"PNNP",  opPSCh,     E_other)
-    initialSymEntry("set_rand",         S_Proc,"PI",    opSetRand,  E_none)
-    initialSymEntry("sleep",            S_Proc,"PN",    opSleep,    E_other)
-    initialSymEntry("trace",            S_Proc,"PI",    opTrace,    E_other)
-    if asmfileio then
-        initialSymEntry("text_color",   S_Proc,"PI",    opTxtClr,   E_other)
-    end if
-    initialSymEntry("profile",          S_Proc,"PI",    opProfile,  E_other)
-    initialSymEntry("unlock_file",      S_Proc,"PIP",   opUnLock,   E_other)
-else -- newEmit:
+--if not newEmit then
+--
+--  -- the following builtins return an integer:
+--
+--  if asmfileio then
+--      initialSymEntry("getc",         S_Func,"FI",    opGetc,     E_other)
+--  end if
+----trace(1)
+--  initialSymEntry("equal",            S_Func,"FOO",   opSeq,      E_none)     T_equal = symlimit
+--  initialSymEntry("compare",          S_Func,"FOO",   opScmp,     E_none)     T_compare = symlimit
+--  initialSymEntry("find",             S_Func,"FOPI",  opFind,     E_none)     T_find = symlimit
+--  symtab[symlimit][S_ParmN] = 2
+----    Alias("find_from", T_find)  -- removed 19/8/15
+--  initialSymEntry("match",            S_Func,"FPPI",  opMatch,    E_none)     T_match = symlimit
+--  symtab[symlimit][S_ParmN] = 2
+----    Alias("match_from", T_match)    -- removed 19/8/15
+--  initialSymEntry("length",           S_Func,"FP",    opLen,      E_none)     T_length = symlimit
+--  initialSymEntry("remainder",        S_Func,"FNN",   opRmdr,     E_none)
+--  initialSymEntry("floor",            S_Func,"FN",    opFloor,    E_none)     T_floor = symlimit
+--  if asmfileio then
+--      initialSymEntry("lock_file",    S_Func,"FIIP",  opLock,     E_other)
+--      initialSymEntry("open",         S_Func,"FPP",   opOpen,     E_other)
+--  end if
+--  initialSymEntry("get_key",          S_Func,"F",     opGetKey,   E_other)
+--  initialSymEntry("wait_key",         S_Func,"F",     opWaitKey,  E_other)
+--  if asmfileio then
+--      initialSymEntry("seek",         S_Func,"FII",   opSeek,     E_other)
+--      initialSymEntry("where",        S_Func,"FI",    opWhere,    E_none)
+--  end if
+--  initialSymEntry("rand",             S_Func,"FI",    opRand,     E_none)
+--
+----    T_Nres = symlimit
+--
+--  -- the following builtin functions return an atom:
+--
+--  initialSymEntry("allocate",         S_Func,"FI",    opAlloc,    E_none)     -- (not newEmit)
+--  initialSymEntry("allocate_data",    S_Func,"FI",    opAlloc,    E_none)     -- (not newEmit)
+----DEV/SUG: (erm... what happened to T_Nres etc? [StoreVar took over job, methinks])
+----    newstyleSymEntry("allocate",        S_Func,"FI",    "pHeap.e",0,E_other)    -- (not newEmit)
+--  initialSymEntry("and_bits",         S_Func,"FNN",   opAndBits,  E_none)
+--  initialSymEntry("or_bits",          S_Func,"FNN",   opOrBits,   E_none)
+--  initialSymEntry("xor_bits",         S_Func,"FNN",   opXorBits,  E_none)
+--  initialSymEntry("not_bits",         S_Func,"FN",    opNotBits,  E_none)
+--  -- assume busy loop if routine calls time
+--  initialSymEntry("time",             S_Func,"F",     opTime,     E_other)
+--  initialSymEntry("power",            S_Func,"FNN",   opPow,      E_none)
+--  initialSymEntry("log",              S_Func,"FN",    opLog,      E_none)
+--  initialSymEntry("float32_to_atom",  S_Func,"FP",    op32toA,    E_none)
+--  initialSymEntry("float64_to_atom",  S_Func,"FP",    op64toA,    E_none)
+----    initialSymEntry("chdir",            S_Func,"FP",    opChDir,    E_other)
+--  initialSymEntry("instance",         S_Func,"F",     opInstance, E_none)
+--  initialSymEntry("cos",              S_Func,"FN",    opCos,      E_none)
+--  initialSymEntry("sin",              S_Func,"FN",    opSin,      E_none)
+--  initialSymEntry("sqrt",             S_Func,"FN",    opSqrt,     E_none)
+--  initialSymEntry("tan",              S_Func,"FN",    opTan,      E_none)
+--  initialSymEntry("arctan",           S_Func,"FN",    opArcTan,   E_none)
+--
+----    T_Pres=symlimit
+--
+--  -- following builtin functions return a sequence
+--
+--  initialSymEntry("append",           S_Func,"FPO",   opApnd,     E_none)
+--  initialSymEntry("prepend",          S_Func,"FPO",   opPpnd,     E_none)
+--  initialSymEntry("repeat",           S_Func,"FOI",   opRepeat,   E_none)
+--  initialSymEntry("atom_to_float32",  S_Func,"FN",    opAto32,    E_none)
+--  initialSymEntry("atom_to_float64",  S_Func,"FN",    opAto64,    E_none)
+----    initialSymEntry("date",             S_Func,"F",     opDate,     E_none) -- now in pdate.e
+--  if asmfileio then
+--      initialSymEntry("get_position", S_Func,"F",     opGetPos,   E_none)
+--  end if
+--
+--  -- the following builtin functions return object
+--
+----    initialSymEntry("upper",            S_Func,"FO",    opUpper,    E_none) -- now in pcase.e
+----    initialSymEntry("lower",            S_Func,"FO",    opLower,    E_none) -- ""
+--  if asmfileio then
+--      initialSymEntry("gets",         S_Func,"FO",    opGets,     E_other)    -- Phix allows gets({fn,-1|2}) forms [DEV?] [not newEmit; -> get_text]
+--  end if
+--  initialSymEntry("peek",             S_Func,"FO",    opPeek,     E_none)
+--  initialSymEntry("peek4s",           S_Func,"FO",    opPeek4s,   E_none)
+--  initialSymEntry("peek4u",           S_Func,"FO",    opPeek4u,   E_none)
+--
+----    T_Bfunc = symlimit
+--
+--  -- the remainder are builtin procedures
+--
+--  initialSymEntry("abort",            S_Proc,"PI",    opAbort,    E_other)                T_abort = symlimit
+--  if asmfileio then
+--      initialSymEntry("bk_color",     S_Proc,"PI",    opBkClr,    E_other)
+--  end if
+--  if asmfileio then
+--      initialSymEntry("clear_screen", S_Proc,"P",     opClrScrn,  E_other)
+--      initialSymEntry("close",        S_Proc,"PI",    opClose,    E_other)
+--  end if
+--  initialSymEntry("crash_file",       S_Proc,"PO",    opCrshFile, E_other)
+--  initialSymEntry("crash_message",    S_Proc,"PO",    opCrshMsg,  E_other)
+----    initialSymEntry("EnterCriticalSection",S_Proc,"PI", opEnterCS,  E_other)    T_ecs = symlimit
+--  if asmfileio then
+--      initialSymEntry("flush",        S_Proc,"PI",    opFlush,    E_other)
+--  end if
+--  initialSymEntry("free",             S_Proc,"PN",    opFree,     E_other)
+--  if asmfileio then
+--      initialSymEntry("free_console", S_Proc,"P",     opFreeCons, E_other)
+--  end if
+----    initialSymEntry("LeaveCriticalSection",S_Proc,"PI", opLeaveCS,  E_other)    T_lcs = symlimit
+--  initialSymEntry("mem_copy",         S_Proc,"PNNI",  opMemCopy,  E_other)
+--  initialSymEntry("mem_set",          S_Proc,"PNII",  opMemSet,   E_other)
+----    initialSymEntry("pixel",            S_Proc,"POP",   opPixel,    E_other)    --DOS
+--  initialSymEntry("poke",             S_Proc,"PIO",   opPoke,     E_other)
+--  initialSymEntry("poke4",            S_Proc,"PIO",   opPoke4,    E_other)
+--  if asmfileio then
+--      initialSymEntry("position",     S_Proc,"PII",   opPosition, E_other)
+--      initialSymEntry("puts",         S_Proc,"PIO",   opPuts,     E_other)
+--  end if
+----DEV
+----    initialSymEntry("put_screen_char",  S_Proc,"PNNP",  opPSCh,     E_other)
+--  initialSymEntry("set_rand",         S_Proc,"PI",    opSetRand,  E_none)
+--  initialSymEntry("sleep",            S_Proc,"PN",    opSleep,    E_other)
+--  initialSymEntry("trace",            S_Proc,"PI",    opTrace,    E_other)
+--  if asmfileio then
+--      initialSymEntry("text_color",   S_Proc,"PI",    opTxtClr,   E_other)
+--  end if
+--  initialSymEntry("profile",          S_Proc,"PI",    opProfile,  E_other)
+--  initialSymEntry("unlock_file",      S_Proc,"PIP",   opUnLock,   E_other)
+--else -- newEmit:
 
     -- optimised away at compile-time:
     initialSymEntry("platform",         S_Func,"F",     opPlatform, E_none)     T_platform = symlimit
     initialSymEntry("machine_bits",     S_Func,"F",     opMachine,  E_none)     T_machine_bits = symlimit
 
-end if -- newEmit ends
+--end if -- newEmit ends
 
     T_Bin = symlimit --DEV this needs stashing somewhere (symtab[1]?) or maybe T_Bfunc?
 
@@ -1946,7 +1961,7 @@ if newEmit then
     AutoGlabel(opRetf,      "%opRetf",      "VM\\pStack.e")
     AutoGlabel(opCallOnce,  "%opCallOnce",  "VM\\pStack.e")
     AutoGlabel(opTchk,      "%opTchk",      "VM\\pStack.e")
-    AutoGlabel(opTchkFail,  "%opTchkFail",  "VM\\pStack.e")
+    AutoGlabel(opTcFail,    "%opTcFail",    "VM\\pStack.e")
 --DEV nope...
 --  AutoGlabel(opGetSP,     "%pGetSymPtr",  "VM\\pStack.e")
 --  AutoGlabel(opSetSP,     "%pSetSymPtr",  "VM\\pStack.e")
@@ -1976,8 +1991,9 @@ if newEmit then
     AutoGlabel(opUnassigned,"%pUnassigned", "VM\\pUnassigned.e")
     AutoGlabel(opBadRetf,   "%pBadRetf",    "VM\\pUnassigned.e")
     AutoGlabel(opCallOnceYeNot, "!opCallOnceYeNot", "VM\\pUnassigned.e")
-    AutoGlabel(opAddiii,    "%pAddiii",     "VM\\pUnassigned.e")
-    AutoGlabel(opDiviii,    "%pDiviii",     "VM\\pUnassigned.e")
+    AutoGlabel(opAddiii,    "%e01tcfAddiii","VM\\pUnassigned.e")
+--  AutoGlabel(opAddiii,    "%pAddiii",     "VM\\pUnassigned.e")
+    AutoGlabel(opDiviii,    "%e01tcfediDiv","VM\\pUnassigned.e")
     AutoGlabel(opDiv0,      "%pDiv0",       "VM\\pUnassigned.e")
 --  AutoGlabel(opDivf2,     "%e02atdb0",    "VM\\pUnassigned.e")    -- erm, actually the above should cope...
     AutoGlabel(opRTErn,     "%pRTErn",      "VM\\pUnassigned.e")
@@ -2080,10 +2096,14 @@ if newEmit then
     AutoGlabel(opRepeat,    "%opRepeat",    "VM\\pRepeatN.e")
     AutoGlabel(opRepCh,     "%opRepCh",     "VM\\pRepeatN.e")
     AutoGlabel(opInstance,  "%opInstance",  "VM\\pInstance.e")
-    AutoGlabel(opProfout,   "%opProfout",   "VM\\pProfile.e")
     AutoGlabel(opProfile,   "%opProfile",   "VM\\pProfile.e")
+    AutoGlabel(opProfout,   "%opProfout",   "VM\\pProfile.e")
     AutoGlabel(opLnp,       "%opLnp",       "VM\\pProfile.e")
     AutoGlabel(opLnpt,      "%opLnpt",      "VM\\pProfile.e")
+    AutoGlabel(opOpenDLL,   "%opOpenDLL",   "VM\\pcfuncN.e")
+    AutoGlabel(opDcfunc,    "%opDcfunc",    "VM\\pcfuncN.e")
+    AutoGlabel(opDcvar,     "%opDcvar",     "VM\\pcfuncN.e")
+    AutoGlabel(opCallback,  "%opCallback",  "VM\\pcfuncN.e")
 
 --DEV (maybe)
 --  AutoGlabel(opPuts1,     "%puts1",       "VM\\puts1.e",  vm_puts1)
@@ -2103,13 +2123,15 @@ if newEmit then
     AutoAsm("getc",             S_Func,"FI",    "VM\\pfileioN.e",   opGetc,     "%opGetc",      E_other,T_integer)
     AutoAsm("get_key",          S_Func,"F",     "VM\\pfileioN.e",   opGetKey,   "%opGetKey",    E_other,T_integer)
     AutoAsm("init_cs",          S_Func,"F",     "VM\\pHeap.e",      opInitCS,   "%pInitCS",     E_other,T_integer)
-    AutoAsm("open",             S_Func,"FSO",   "VM\\pfileioN.e",   opOpen  ,   "%opOpen",      E_other,T_integer)
+    AutoAsm("open",             S_Func,"FSO",   "VM\\pfileioN.e",   opOpen,     "%opOpen",      E_other,T_integer)
     AutoAsm("seek",             S_Func,"FIN",   "VM\\pfileioN.e",   opSeek,     "%opSeek",      E_other,T_integer)
     AutoAsm("try_cs",           S_Func,"FI",    "VM\\pHeap.e",      opTryCS,    "%pTryCS",      E_other,T_integer)
     AutoAsm("wait_key",         S_Func,"F",     "VM\\pfileioN.e",   opWaitKey,  "%opWaitKey",   E_other,T_integer)
     AutoAsm("lock_file",        S_Func,"FIIP",  "VM\\pfileioN.e",   opLock,     "%opLock",      E_other,T_integer)
     AutoAsm("text_rows",        S_Func,"FI",    "VM\\pfileioN.e",   opTextRows, "%opTextRows",  E_other,T_integer)
     AutoAsm("length",           S_Func,"FP",    "VM\\pLen.e",       opLen,      "%opLen",       E_none, T_integer)  T_length = symlimit
+    AutoAsm("define_c_funcN",   S_Func,"FNSPN", "VM\\pcfuncN.e",    opDcfunc,   "%opDcfunc",    E_other,T_integer)
+    AutoAsm("define_c_procN",   S_Func,"FNSP",  "VM\\pcfuncN.e",    opDcfunc,   "%opDcfunc",    E_other,T_integer)  T_dcproc = symlimit
 
     -- the following functions return an atom:
 
@@ -2133,6 +2155,9 @@ if newEmit then
     AutoAsm("time",             S_Func,"F",     "VM\\pTime.e",      opTime,     "%opTime",      E_none, T_atom)
     AutoAsm("rand",             S_Func,"FI",    "VM\\pRand.e",      opRand,     "%opRand",      E_none, T_atom)
     AutoAsm("where",            S_Func,"FI",    "VM\\pfileioN.e",   opWhere,    "%opWhere",     E_none, T_atom)
+    AutoAsm("open_dllN",        S_Func,"FP",    "VM\\pcfuncN.e",    opOpenDLL,  "%opOpenDLL",   E_other,T_atom)
+    AutoAsm("define_c_varN",    S_Func,"FNP",   "VM\\pcfuncN.e",    opDcvar,    "%opDcvar",     E_other,T_atom)
+    AutoAsm("call_backN",       S_Func,"FO",    "VM\\pcfuncN.e",    opCallback, "%opCallback",  E_other,T_atom)
 
     -- the following functions return a sequence (or string):
 
@@ -2244,6 +2269,8 @@ end if
 if newEmit then --DEV (temp) (T_find/T_match will be rqd once the asm conversion is completed)
     initialAutoEntry("find",            S_Func,"FOPI",  "VM\\pFind.e",0,E_none)     --T_find = symlimit
     symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("rfind",           S_Func,"FOPI",  "VM\\pFind.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
 --  Alias("find_from", T_find)  (--DEV)
 --  Alias("find_from", symlimit)    -- killed 3/8/15
     initialAutoEntry("match",           S_Func,"FOPI",  "VM\\pMatch.e",0,E_none)    --T_match = symlimit
@@ -2274,7 +2301,7 @@ elsif hllfileio then
 end if
     initialAutoEntry("walk_dir",        S_Func,"FPII",  "file.e",0,E_all)
     initialAutoEntry("save_bitmap",     S_Func,"FPP",   "image.e",0,E_other)
---DEV document/test:
+--DEV document/test/remove:
     initialAutoEntry("TlsAlloc",        S_Func,"F",     "ptls.ew",0,E_other)
     initialAutoEntry("wildcard_match",  S_Func,"FPP",   "wildcard.e",0,E_none)
     initialAutoEntry("wildcard_file",   S_Func,"FPP",   "wildcard.e",0,E_none)
@@ -2319,6 +2346,7 @@ else
 end if
     initialAutoEntry("factorial",       S_Func,"FN",    "factorial.e",0,E_none)
     initialAutoEntry("gcd",             S_Func,"FON",   "gcd.e",0,E_none)
+    initialAutoEntry("log10",           S_Func,"FN",    "log10.e",0,E_none)
 --DEV document*2
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
@@ -2326,10 +2354,10 @@ end if
     initialAutoEntry("poke_string",     S_Func,"FNIP",  "pokestr.e",0,E_other)
     initialAutoEntry("prompt_number",   S_Func,"FSP",   "get.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("rnd",             S_Func,"F",     "prnd.e",0,E_none)
     initialAutoEntry("round",           S_Func,"FNN",   "pmaths.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("sign",            S_Func,"FN",    "pmaths.e",0,E_none)
---DEV document
     initialAutoEntry("sum",             S_Func,"FO",    "psum.e",0,E_other)
 --  initialAutoEntry("sysexec",         S_Func,"FP",    "syswait.ew",0,E_other)
     initialAutoEntry("system_exec",     S_Func,"FPI",   "syswait.ew",0,E_other)
@@ -2368,6 +2396,7 @@ if newEmit then
     initialAutoEntry("sprint",          S_Func,"FOII",  "VM\\psprintN.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("substitute",      S_Func,"FSSS",  "substitute.e",0,E_none)
+    initialAutoEntry("substitute_all",  S_Func,"FSPP",  "substitute.e",0,E_none)
     initialAutoEntry("atom_to_float32", S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("atom_to_float64", S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
 --DEV document
@@ -2492,10 +2521,10 @@ end if
         initialAutoEntry("gets",        S_Func,"FO",    "pfileio.e",0,E_other)  -- ("FI" for newEmit, btw)
     end if
     initialAutoEntry("machine_func",    S_Func,"FIO",   "pmach.e",0,E_other)
-    initialAutoEntry("max",             S_Func,"FOO",   "pmaths.e",0,E_none)        T_min = symlimit
-    initialAutoEntry("maxsq",           S_Func,"FP",    "pmaths.e",0,E_none)        T_minsq = symlimit
-    initialAutoEntry("min",             S_Func,"FOO",   "pmaths.e",0,E_none)        T_max = symlimit
-    initialAutoEntry("minsq",           S_Func,"FP",    "pmaths.e",0,E_none)        T_maxsq = symlimit
+    initialAutoEntry("max",             S_Func,"FOO",   "pmaths.e",0,E_none)        T_max = symlimit
+    initialAutoEntry("maxsq",           S_Func,"FP",    "pmaths.e",0,E_none)        T_maxsq = symlimit
+    initialAutoEntry("min",             S_Func,"FOO",   "pmaths.e",0,E_none)        T_min = symlimit
+    initialAutoEntry("minsq",           S_Func,"FP",    "pmaths.e",0,E_none)        T_minsq = symlimit
     initialAutoEntry("read_bitmap",     S_Func,"FS",    "image.e",0,E_none)
 --  initialAutoEntry("round",           S_Func,"FOO",   "pmaths.e",0,E_none)
 --  symtab[symlimit][S_ParmN] = 1

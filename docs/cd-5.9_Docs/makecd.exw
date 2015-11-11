@@ -1,0 +1,456 @@
+--
+-- makecd.exw
+--
+--  creates cd.chm
+--
+constant justcompile = 0    -- (occasionally helpful if you need to manually edit something)
+
+procedure fatal(string msg)
+    puts(1,msg)
+    if getc(0) then end if
+    ?9/0
+end procedure
+
+sequence index = {},
+         links = {}
+
+procedure read_index()
+integer fn, startidx, endidx, k
+string text, oneline, onekey
+    fn = open("index.txt","rb")
+    if fn=-1 then fatal("error opening index.txt\n") end if
+    text = get_text(fn)
+    close(fn)
+    if text[$]!='\n' then
+        text &= '\n'
+    end if
+    startidx = 1
+    while 1 do
+        endidx = find('\n',text,startidx)
+        if endidx=0 then exit end if
+        oneline = trim(text[startidx..endidx-1])
+        if length(oneline) then
+            k = find(oneline[1],"-=>!")
+            if k=0 then
+                while 1 do
+                    k = find('\t',oneline)
+                    if k=0 then exit end if
+                    oneline[k] = ' '
+                end while
+                k = find(' ',oneline)
+                if k=0 then ?9/0 end if
+                onekey = oneline[1..k-1]
+                oneline = trim(oneline[k+1..$])
+                if find(onekey,index) then ?9/0 end if
+                index = append(index,onekey)
+                links = append(links,oneline)
+            end if
+        end if
+        startidx = endidx+1
+    end while
+end procedure
+
+constant hhhdr="""
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<HTML>
+ <HEAD>
+  <!-- Sitemap 1.0 -->
+ </HEAD>
+"""
+
+constant hhkhdr = """
+ <BODY>
+  <UL>
+"""
+constant hhkitem = """
+   <LI> <OBJECT type="text/sitemap">
+     <param name="Name" value="%s">
+     <param name="Local" value="%s">
+    </OBJECT>
+"""   
+
+constant hhktail = """
+  </UL>
+ </BODY>
+</HTML>
+"""
+
+procedure writehhk()
+string filename = "cd.hhk"
+integer fn = open(filename,"wb")
+    if fn=-1 then fatal("error opening "&filename&"\n") end if
+    puts(fn,hhhdr)
+    puts(fn,hhkhdr)
+    for i=1 to length(index) do
+        printf(fn,hhkitem,{index[i],links[i]})
+    end for
+    puts(fn,hhktail)
+    close(fn)
+end procedure
+
+constant iuphdr = """
+Help file:"..\..\docs\cd-5.9_Docs\cd.chm"
+Menu Text:cd.chm
+F1 keys:
+"""
+procedure writeiupdottxt()
+string filename = "..\\..\\demo\\edita\\help\\CD.txt"
+integer fn = open(filename,"wb")
+    if fn=-1 then fatal("error opening "&filename&"\n") end if
+    puts(fn,iuphdr)
+    for i=1 to length(index) do
+        printf(fn,"    %s\n",{index[i]})
+    end for
+    close(fn)
+end procedure
+
+procedure compile()
+string cmd, cd
+    cd = current_dir()
+    cmd = "hhc \""&cd&"\\cd.hhp\""
+    puts(1,cmd&"\n")
+    {} = system_exec(cmd,2)
+    if getc(0) then end if
+end procedure
+
+if justcompile then
+    compile()
+    abort(0)
+end if
+
+read_index()
+--readtoc()
+--writefiles()
+--writehhck()
+writehhk()
+writeiupdottxt()
+compile()
+
+--/*
+
+--  see comments at the start of src\toc.txt and src\index.txt [DEV/this is just a copy of makephix, hacked...]
+--
+-- TODO:
+--  collect/cross-check all hrefs
+--  full re-indent, perhaps
+--  full htmlise code, perhaps (which is a much better idea than Edita\tools\htmlise ever was! of course <eucode> ==> <codeSnippetContainer><pre>, nuff said!)
+--  rename existing as oldphix.chm etc
+--  create report files:
+--      content for Edita\help\phix.txt (and allow edita/help/*.txt to have a simple redirect)  [DEV]
+--      missing "" compared to oldphix.txt
+--      external (non js'd) links (if any)
+--      unreferenced files in \src
+--      unreferenced "<a name=" (nah)
+--      files with no entries in the toc/index
+-- map qu to ? (already done!!)
+-- make it more forgiving if src has a tailing blank line... (nah)
+
+constant replaceprewithcode = 0
+constant displaycompileprogress = 0
+
+sequence tocf = {}  -- filenames
+sequence tocl = {}  -- levels
+sequence tocln = {} -- line nos
+sequence contents
+sequence descriptions
+sequence index
+constant stubnames = {"header","body","banner","trailer"}
+constant HEAD = 1, BODY = 2, BANNER = 3, TAIL = 4
+sequence stubs = repeat("",length(stubnames))
+
+constant stdhdr = "<head>\n <body>\n  <toc>\n   <these>\n    <get>\n     <stripped>\n",
+         lenstdhdr = length(stdhdr),
+         stdtail = "     </stripped>\n    </get>\n   </these>\n  </toc>\n </body>\n</head>\n",
+         lenstdtail = length(stdtail),
+         ctitle = "<h1 class=\"title\">",
+         lenctitle = length(ctitle)
+
+--*/
+
+procedure readtoc()
+integer fn = open("src\\toc.txt","r")
+object line
+integer ch
+string filename
+string content, description
+integer dstart, dend
+integer level
+integer lineno = 0
+string oneline, onekey, text
+sequence keywords -- (for duplicate checking)
+integer startidx, endidx, k
+
+    puts(1,"Reading files...\n")
+    if fn=-1 then fatal("error opening src\\toc.txt\n") end if
+    while 1 do
+        line = trim_tail(gets(fn))
+        if atom(line) then exit end if
+        lineno += 1
+        if line="<EOF>" then exit end if
+        k = match("--",line)
+        if k!=0 then
+            line = trim_tail(line[1..k-1])
+        end if
+        if length(line)>0 then
+            for i=1 to length(line) do
+                ch = line[i]
+                if ch='\t' then fatal("tab in "&line&"\n") end if
+                if ch!=' ' then
+                    level = i-1
+                    if find(' ',line,i) then
+                        fatal("space in name "&line&"\n")
+                    end if
+                    exit
+                end if
+            end for
+            tocf = append(tocf,trim_head(line))
+            tocl = append(tocl,level)
+            tocln = append(tocln,lineno)
+        end if
+    end while
+    close(fn)
+
+    index = {}
+    keywords = {}
+    fn = open("src\\index.txt","rb")
+    if fn=-1 then fatal("error opening src\\index.txt\n") end if
+--newEmit:
+--  text = gets({fn,-2})
+    text = get_text(fn)
+    close(fn)
+    if text[$]!='\n' then
+        text &= '\n'
+    end if
+    startidx = 1
+    while 1 do
+        endidx = find('\n',text,startidx)
+        if endidx=0 then exit end if
+        oneline = trim(text[startidx..endidx-1])
+        if length(oneline) then
+            k = find(oneline[1],"-=>!")
+            if k=0 then
+                while 1 do
+                    k = find('\t',oneline)
+                    if k=0 then exit end if
+                    oneline[k] = ' '
+                end while
+                k = find(' ',oneline)
+                if k=0 then
+                    k = match(".htm",oneline)
+                    if k!=0 then ?9/0 end if
+                    onekey = oneline
+                    oneline &= ".htm"
+                else
+                    onekey = oneline[1..k-1]
+                    oneline = trim(oneline[k+1..$])
+                    k = match(".htm",oneline)
+--                  if k=0 or k!=length(oneline)-3 then ?9/0 end if
+                    if k=0 then ?9/0 end if
+                end if
+                if find(onekey,keywords) then ?9/0 end if
+                index = append(index,{onekey,oneline})
+                keywords = append(keywords,onekey)
+            end if
+        end if
+        startidx = endidx+1
+    end while
+
+    contents = repeat("",length(tocf))
+    descriptions = repeat("",length(tocf))
+    for i=1 to length(tocf) do
+        filename = tocf[i]
+        filename = "src\\"&filename&".htm" 
+        fn = open(filename,"r")
+        if fn=-1 then fatal("error opening "&filename&"\n") end if
+        content = ""
+        while 1 do
+            line = gets(fn)
+            if atom(line) then exit end if
+            --erm:
+--          while 1 do
+--              k = match("&lt;",line)
+--              if k=0 then exit end if
+--              line[k..k+3] = "<"
+--          end while
+--          while 1 do
+--              k = match("&gt;",line)
+--              if k=0 then exit end if
+--              line[k..k+3] = ">"
+--          end while
+            if replaceprewithcode then
+                while 1 do
+                    k = match("<pre>",line)
+                    if k=0 then
+                        k = match("</pre>",line)
+                        if k=0 then exit end if
+                        k += 1
+                    end if
+                    line[k+1..k+3] = "code"
+                end while
+            end if
+            content &= line
+        end while
+        -- these need to be byte-perfect:
+        if length(content)<length(stdhdr)
+        or content[1..lenstdhdr]!=stdhdr
+        or length(content)<length(stdtail)
+        or content[-lenstdtail..-1]!=stdtail then
+            fatal("invalid/incorrect hdr/tail in "&filename&"\n")
+        end if
+        content = content[lenstdhdr+1..-lenstdtail-1]
+        dstart = match(ctitle,content)
+        if dstart=0 then fatal("title error in "&filename&"\n") end if
+        dstart += lenctitle
+        dend = match("</h1>",content,dstart)
+        if dend=0 then fatal("close title error in "&filename&"\n") end if
+        description = content[dstart..dend-1]
+        contents[i] = content
+        descriptions[i] = description
+        close(fn)
+        if displaycompileprogress then
+            printf(1,"%s %s\n",{filename,description})
+        end if
+    end for
+    for i=1 to length(stubnames) do
+        filename = "src\\"&stubnames[i]&".htm" 
+        fn = open(filename,"r")
+        if fn=-1 then fatal("error opening "&filename&"\n") end if
+        content = ""
+        while 1 do
+            line = gets(fn)
+            if atom(line) then exit end if
+            content &= line
+        end while
+        stubs[i] = content
+        close(fn)
+    end for
+end procedure
+
+function b(string desc)
+-- output eg "machine_bits" as "m<b></b>achine_bits" in the middle toc.
+--  this excludes it from the search results: eg if you look at the docs
+--  for abort, it shows machine_bits as a sibling entry in the toc under 
+--  the "Operating System" sub-heading, but that should not be a reason
+--  to list abort (and all the rest) in the results for machine_bits.
+--  Likewise "Operating System" becomes "O<b></b>perating S<b></b>ystem".
+    desc = desc[1]&"<b></b>"&desc[2..$]
+    for i=length(desc) to 10 by -1 do   -- (10 is length("x<b></b>x")+1)
+        if desc[i] = ' ' then
+            desc = desc[1..i+1]&"<b></b>"&desc[i+2..$]
+        end if
+    end for
+    return desc
+end function
+
+--with trace
+procedure write_toc(integer fn, integer i)
+sequence toci       -- (1 for anything we want to appear)
+integer this, that
+integer current = i
+string filename
+integer level
+string toclevel
+
+    toci = repeat(0,length(tocl))
+    --
+    --  flag anything exactly one indent longer than "this", until we
+    --  find anything shorter or equal to that, then find our "parent" 
+    --  and repeat the process on that, until we hit/process the root.
+    --
+    this = tocl[i]+1
+    while i>=0 do
+        for k=i+1 to length(toci) do
+            that = tocl[k]
+            if that=this then
+                toci[k] = 1
+            elsif that<=this then
+                exit
+--          else
+                -- (skip any sub-sub-topics)
+            end if
+        end for
+        this -= 1
+        if this<0 then exit end if
+        while 1 do
+            i -= 1
+            if i=0 then exit end if
+            if tocl[i]=this-1 then exit end if
+        end while
+    end while       
+    
+    puts(fn,"    <div id=\"leftNav\">\n")
+    puts(fn,"     <div id=\"tocnav\">\n")
+    for i=1 to length(toci) do
+        if toci[i] then
+            level = tocl[i]
+            toclevel = sprintf("toclevel%d",level)
+            if i=current then
+                toclevel &= " current"
+            end if
+            printf(fn,"      <div class=\"%s\" data-toclevel=\"%d\">\n",{toclevel,level})
+            filename = tocf[i]
+            if current=1 and i!=1 then
+                filename = "html\\"&filename
+            end if
+            printf(fn,"       <a href=\"%s.htm\">%s</a>\n",{filename,b(descriptions[i])})
+            puts(fn,"      </div>\n")
+        end if
+    end for
+    puts(fn,"     </div>\n")
+    puts(fn,"     <div id=\"toc-resizable-ew\" class=\"toc-resizable-ew\"></div>\n")
+    puts(fn,"    </div>\n")
+    puts(fn,"    <div id=\"content\" class=\"content\">\n")
+    puts(fn,"     <div class=\"topic\">\n")
+end procedure
+
+procedure writefiles()
+integer fn
+string filename
+    puts(1,"Writing files...\n")
+    for i=1 to length(tocf) do
+        filename = tocf[i]
+        if i!=1 then
+            filename = "html\\"&filename
+        end if
+        filename &= ".htm"
+        fn = open(filename,"w")
+        if fn=-1 then fatal("error opening "&filename&"\n") end if
+        printf(fn,stubs[HEAD],{descriptions[i]})
+        if i=1 then
+            puts(fn,stubs[BANNER])
+        else
+            puts(fn,stubs[BODY])
+        end if
+--if i=2 then trace(1) end if
+        write_toc(fn,i)
+        puts(fn,contents[i])
+        puts(fn,stubs[TAIL])
+        close(fn)
+    end for
+end procedure
+
+--*/
+
+--constant hhchdr="""
+-- <BODY>
+--  <OBJECT type="text/site properties">
+--   <param name="Window Styles" value="0x800025">
+--  </OBJECT>
+--  <UL>
+--   <LI> <OBJECT type="text/sitemap">
+--   <param name="Name" value="Phix Reference">
+--   <param name="Local" value="phix.htm">
+--  </OBJECT><UL>"""
+--
+--constant hhcitem = """
+--   <LI> <OBJECT type="text/sitemap">
+--   <param name="Name" value="%s">
+--   <param name="Local" value="html/%s.htm">
+--  </OBJECT>"""
+--
+--constant hhctail = """
+-- </BODY>
+--</HTML>
+--"""
+--
+

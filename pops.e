@@ -3,6 +3,28 @@
 --
 -- Phix opcodes
 --
+
+--
+--DEV This is overdue for a complete rewrite. Most of the "careful ordering" stuff
+--  has been replaced with explicit declarations in psym.e, and optable.e seems to
+--  cope quite effectively with any reordering. The distinction between "real" and
+--  "virtual" opcodes is no longer important. Only {opInt,opAtom,opSq,opStr,opObj}
+--  still require any ordering, according to a quick test 23/10/15 (see pmain.e).   [now gone as per update below]
+--  It really deserves enum/nxt()/columnize, and some of the calling conventions
+--  shown below may now be out of date (see pilx86.e|builtins/VM for the gospel).
+--  Obviously, leave this as-is, create a pops2.e, toggle the include statement
+--  in p.exw to test, and only properly overwrite once fully tested. I expect it
+--  will need to be ~300 lines before it compiles cleanly.
+--  UPDATE: my first attempt at pops2.e was an abject failure. I have however 
+--  applied a few lessons learnt here (deleted a few things, including maxNVop,
+--  and opIres/opNres/opSres/opPres/opOres). I think we can suffer a few append,
+--  but constant opMove=1 is probably just about worth it over opMove=nxtOP():
+--  it makes editing this painful, but gives pilx86 a proper fixed jump table.
+--  (I may even have finally killed the 255 limit, but don't quote me on that.)
+--  I suppose the best thing would be to add entries for all opcodes to Phix.chm,
+--  and leave this looking rather sparse/clean.
+
+--
 -- Opcodes are used to locate entry points in the Virtual Machine, and hence the
 --  following definitions must exactly match the equivalent table in the assembly
 --  back-end [VMep]. Hence when/if Phix gets an "enum", this is probably the last
@@ -50,10 +72,10 @@ global constant
     --
     -- The following opcodes have fixed literal int as first param (up to opCallOnce):
     --
-    opStat = 5,         -- opstats[opcode]+=1 (for development/analysis use)
+--  opStat = 5,         -- opstats[opcode]+=1 (for development/analysis use)
                         -- [NB may be broken/not tested prior to any release]
 --DEV/SUG replace with opLn,line,flags (flags of 0=>opLn, 1=>opLnt, 2=>opLnp, 3=> opLnpt)??
---DEV better order is: opLn=1..opLnpt=4,opTchk=5,opTchkFail=6,opMove=7..opMovti=10, opStat elsewhere
+--DEV better order is: opLn=1..opLnpt=4,opTchk=5,opTcFail=6,opMove=7..opMovti=10, opStat elsewhere
 --      (oh, forgot about the fixed literal int thing...)
     opLnt = 6,          -- traceable line number
         -- output under "with trace" only.
@@ -69,9 +91,9 @@ global constant
 
     opTchk = 9,         -- type_check(symtab[p1])
         -- call the user defined type routine after assignment has occurred.
-        -- Builtin types are inlined/use opTchkFail
+        -- Builtin types are inlined/use opTcFail
 
-    opTchkFail = 10,    -- error: typecheck (builtin), See also opTchk.
+    opTcFail = 10,  -- error: typecheck (builtin), See also opTchk.
 
     opBadRetf = 11,     -- code should not reach this!
         -- emitted at the end of every function and type as a safety measure
@@ -97,7 +119,7 @@ global constant
         --  use :!opCallOnceYeNot instead of :%opRetf as both the intent is
         --  clearer, and it triggers should I accidentally add such code.
 --opTchk2 = 13,
---opTchkFail2 = 14,
+--opTcFail2 = 14,
     -- 13,14,15,16 spare
                                         
     --
@@ -228,7 +250,7 @@ global constant
     opJle = 45,         -- if b<=c then         /   both int
 
 --DEV14: dead (see invert on opJnotx)
-    opJifx = 46,        -- if b[c] then
+--  opJifx = 46,        -- if b[c] then
     opJnotx = 47,       -- if not b[c] then
 
     --
@@ -244,8 +266,9 @@ global constant
     -- (nb keep opSge..Sle mappable to/from opJge..opJle)
 
     opScmp = 54,        -- a = compare(b,c) [see also cmap() in pmain.e]
-    opFind = 55,        -- a = find(b,c[,from])
-    opMatch = 56,       -- a = match(b,c[,from])
+
+--  opFind = 55,        -- a = find(b,c[,from])
+--  opMatch = 56,       -- a = match(b,c[,from])
 
     opXor = 57,         -- a = b xor c  (a is set to 1 or 0)
     -- btw "and", "or" are always short-circuited: opAnd, opOr simply do not exist at all.
@@ -276,25 +299,26 @@ global constant
     opRand = 77,        -- a = rand(b)      -- NB b must be atom (see sq_rand)
 --  opChDir = 78,       -- a = chdir(b)
     -- 78 spare
+--DEV broken on newEmit?
     opPeeki = 79,       -- a = peek(b) where a is integer
 -->>5)
 -->> put 2 spare here
     -- 80,81 spare
-    opIres = 81,
+--  opIres = 81,
 
     -- builtins which return an atom (to opNres):
     opAdd = 82,         -- a = b+c      -- NB b,c must be atoms (see sq_add etc)
     opAddi = 83,        -- a = b+c      --                      when a is integer
-    opAddiii = 84,      -- a = b+c      --                      .. and b,c init ints
+    opAddiii = 84,      -- a = b+c      --                      .. and b,c init ints        (:%e01tcfAddiii)
     opSub = 85,         -- a = b-c      -- ""
     opSubi = 86,        -- a = b-c                              -- ""
-    opSubiii = 87,      -- a = b-c                                -- ""
+    opSubiii = 87,      -- a = b-c                                -- ""                     (:%e01tcfAddiii)
     opMul = 88,         -- a = b*c      -- ""
     opMuli = 89,        -- a = b*c                              -- ""
-    opMuliii = 90,      -- a = b*c                                -- ""
+    opMuliii = 90,      -- a = b*c                                -- ""                     (:%e01tcfediMul)
     opDiv = 91,         -- a = b/c      -- ""
     opDivi = 92,        -- a = b/c                              -- ""
-    opDiviii = 93,      -- a = b/c                                -- ""
+    opDiviii = 93,      -- a = b/c                                -- ""                     (:%e01tcfediDiv)
     opDiv2 = 94,        -- a = b/2              -- b is init int, a is atom or int
     opDivi2 = 95,       -- a = b/2              -- b is init int, a is integer
     opDivf = 96,        -- a = floor(b/c)       -- a,b are atom or int
@@ -318,14 +342,14 @@ global constant
 
 --DEV no longer used:
 --DEV opLen0?
-    oXpInc = 101,       -- a += 1               -- a must be init integer
+--  oXpInc = 101,       -- a += 1               -- a must be init integer
 -- 28/11/09 hijacked, see below:
 --  oXpDec = 102,       -- a -= 1               -- ""
     -- if a is atom, or not known to be initialised, then opAdd/Sub a,a,1 is used instead of Inc/Dec.
     -- The VMep entries for opInc and opDec are in fact error handlers (overflow) [opInc/Dec no longer used]
 
 -->>move me (this becomes spare):
-    oXpCatsi = 102,     -- p1 &= p2, when p1 is a gvar-scan-proven sequence of integer
+--  oXpCatsi = 102,     -- p1 &= p2, when p1 is a gvar-scan-proven sequence of integer
         
     opFloor = 103,      -- a = floor(b)         -- NB b must be atom (see sq_floor)
         -- nb: while most times floor() yields an integer, eg floor(1e308) yields 1e308, ie an atom.
@@ -344,39 +368,48 @@ global constant
     opArcTan = 116,     -- a = arctan(b)        -- ""
     opLog = 117,        -- a = log(b)           -- ""
     opSqrt = 118,       -- a = sqrt(b)          -- ""
-    op32toA = 119,      -- a = float32_to_atom(b)
-    op64toA = 120,      -- a = float64_to_atom(b)
---  opOpenDLL = 121,    -- a = open_dll(b)      -- (now only called from #ilasm (in pcfunc.e))
-    -- 121,122,123 spare
+--  op32toA = 119,      -- a = float32_to_atom(b)
+--  op64toA = 120,      -- a = float64_to_atom(b)
+    opCallFunc = 119,   -- o = call_func(rid,params)
+    opCallProc = 120,   -- call_proc(rid,params)
+    opOpenDLL = 121,    -- a = open_dll(s)      -- (:%opOpenDLL in pcfuncN.e)
+    opDcfunc = 122,     -- i = define_c_func(l,n,a,r) -- (:%opDcfunc "")
+    opDcvar = 123,      -- i = define_c_var(l,n)      -- (:%opDcvar "")
     opInstance = 124,   -- a = instance()
-    -- 125,126,127 spare
-    opNres = 127,
+    opCallback = 125,   -- a = call_back(id)          -- (:%opCallback "")
+    opCallA = 126,      -- call(addr)
+    opCfunc = 127,      -- a = c_func(rid,params)
+    opCproc = 128,      -- c_proc(rid,params)
+    opGpct = 129,       -- call :%opGpct (prev3/[edi] = fget_pcfunc_tables())
+    opRpct = 130,       -- call :%opRpct (frestore_pcfunc_tables(prev3/[esi]))
+
+    -- 126,127 spare
+--  opNres = 127,
 
     -- builtins which return a string (to opSres):
-    opCurrDir = 128,    -- a = current_dir()
---DEV delete for newEBP (or rewrite)
-    opCatsi = 129,      -- p1 &= p2, when p1 is a gvar-scan-proven sequence of integer
+--  opCurrDir = 128,    -- a = current_dir()
+----DEV delete for newEBP (or rewrite)
+--  opCatsi = 129,      -- p1 &= p2, when p1 is a gvar-scan-proven sequence of integer
     -- 130,131 spare
-    opSres = 131,
+--  opSres = 131,
 
-    -- builtins which return a sequence (to opPres):
-    --  (11/01/10: opAto32 & opAto64 now return a string, opGetPos is a T_Dsq,
-    --             rest are T_sequence (ie T_Dsq+T_string), though opGSCh has
-    --             still not yet been written [and is probably better done in
-    --             hll code, in say image.e as per save_text_image].)
     opApnd = 132,       -- a = append(b,c)
     opPpnd = 133,       -- a = prepend(b,c)
     opConcat = 134,     -- a = b&c, see also opConcatN
     opRepeat = 135,     -- a = repeat(b,c)
-    opAto32 = 136,      -- a = atom_to_float32(b)
-    opAto64 = 137,      -- a = atom_to_float64(b)
+    opCurrDir = 136,    -- a = current_dir()
+--DEV delete for newEBP (or rewrite)
+    opCatsi = 137,      -- p1 &= p2, when p1 is a gvar-scan-proven sequence of integer
+
+--  opAto32 = 136,      -- a = atom_to_float32(b)
+--  opAto64 = 137,      -- a = atom_to_float64(b)
 --  opDate = opCode("opDate",1),        -- a = date()   -- now in pdate.e
 --DEV
 --  oXpGSCh = 138,      -- a = get_screen_char(b,c)
     opGetRand = 138,    -- (opposite of opSetRand)
     opGetPos = 139,     -- s = get_position()   --DEV newEmit (now just a standard routine in pfileioN.e [BLUFF!])
     -- 140,141 spare
-    opPres = 141,
+--  opPres = 141,
 
     -- builtins which return an object (to opOres):
 --  opUpper = opCode("opUpper",2),      -- a = upper(b) -- now in pcase.e
@@ -389,7 +422,7 @@ global constant
 --  opMoveFRes = 147,   -- a = get_function_result_for_routine_no(b)
     -- 147,148 spare
 --DEV this should be named say lastObjRes, likewise things above
-    opOres = 148,
+--  opOres = 148,
 
     -- builtin procedures:
 
@@ -414,7 +447,7 @@ global constant
     opPuts = 161,       -- puts(a,b)
 --DEV
 --  oXpPSCh = 162,      -- put_screen_char(a,b,c)
-    opGetProcA = 162,   -- (see pcfunc.e)
+--  opGetProcA = 162,   -- (see pcfunc.e)
     opFlush = 163,      -- flush(a)
     opClose = 164,      -- close(a)
     opSetRand = 165,    -- set_rand(a)
@@ -429,60 +462,63 @@ opProfout = 171,        -- profile_dump()
 -- internals:
 
     opClrDbg = 172,     -- clear debug screen (notes below)
-    opTrap = 173,       -- temp (debug aid)
+--  opTrap = 173,       -- temp (debug aid)
 --DEV to go:
     opRTErn = 174,      -- internal, pdiag.e/eg pprntf.e. Trigger error by number.
 --DEV to go(?):
     opGetST = 175,      -- internal, a=symtab (NB 32-bit!), b=flag/crashmsg, c=crashfile.
 --opGetSP = 176,
 --opSetSP = 177,
-    opGetVMep = 176,    -- internal, p1=VMep,p2=debugleak see pemit.e/t97mleak
+    opDelRtn = 176,     -- see %opDelRtn in pDeleteN.e
+    opDelete = 177,     -- see %opDelete in pDeleteN.e
+--  opGetVMep = 176,    -- internal, p1=VMep,p2=debugleak see pemit.e/t97mleak
 -->>12)
-    opReadVM = 177,
+--  opReadVM = 177,
 --no longer used
 --  opPokeRef = 178,    -- internal, [p2]=p1, see pemit.e
 --DEV no longer used??
 --  opGetRaw = 179,     -- internal, [p2]=raw(p1), (debug aid) see pemit.e/t97mleak
 --newEmit
-    opLicence = 180,    -- internal, see pemit.e
-    opSetDbg = 181,     -- internal, see pexec.e/pdebug.e
-    opCrshRtn = 182,    -- internal, see pexec.e/pdiag.e
+--  opLicence = 180,    -- internal, see pemit.e
+--  opSetDbg = 181,     -- internal, see pexec.e/pdebug.e
+--  opCrshRtn = 182,    -- internal, see pexec.e/pdiag.e
 --newEmit
-    opRbldIds = 183,    -- internal, see pemit.e/calling convention below.
+--  opRbldIds = 183,    -- internal, see pemit.e/calling convention below.
     opCrshMsg = 184,    -- implements crash_message()
 --DEV togo/newEmit:
-    opDelRtn = 185,     -- internal, see pdelete.e/calling covention below.
+--  opDelRtn = 185,     -- internal, see pdelete.e/calling covention below.
     opCrshFile = 186,   -- implements crash_file()
-    opInterp = 187,     -- interpret(symtab,CSvaddr,DSvaddr,opstat,ptab,errorcode) [internal routine]
+--  opInterp = 187,     -- interpret(symtab,CSvaddr,DSvaddr,opstat,ptab,errorcode) [internal routine]
     opAbort = 188,      -- abort(a)
 --newEmit
-    opCleanUp = 189,    -- internal, for debugleak check
-    opCleanUp1 = 190,   -- internal, for debugleak check
+--  opCleanUp = 189,    -- internal, for debugleak check
+--  opCleanUp1 = 190,   -- internal, for debugleak check
 -->>13)
 -->> (becomes 7 spare)
 --newEmit
-    opGetRRC = 191,
-    opSetBatchMode = 192,
+--  opGetRRC = 191,
+--  opSetBatchMode = 192,
 --DEV???
 --newEmit
-    opLichk = 193,
-    opDelRef = 194,
+--  opLichk = 193,
+--  opDelRef = 194,
 --  opCrsh = 195,       -- implements crash()
-opInterp2 = 195,
+--opInterp2 = 195,
 --spare:
 --  opSq0 = 196,
 --DEV to go *2:
-opHeapAlloc = 196,
+--opHeapAlloc = 196,
 --  opStr0 = 197,
-opTlsGetValue = 197,
-    maxNVop = 197       -- max non-virtual opcode (checked against VM table in pemit.e)
-
+--opTlsGetValue = 197,
+--  maxNVop = 197       -- max non-virtual opcode (checked against VM table in pemit.e)
+--  maxNVop = 0     -- max non-virtual opcode (checked against VM table in pemit.e)
+--$
 --DEV newEmit...
 -- virtual opcodes (ie no actual code in the VM for these)
 --                  (technically, opMovbi/opMovsi/opMovti/opAddiii/opSubiii/opMuliii/opDiviii
 --                   are also kinda virtual, with VMep[i] being an error handler or somesuch.
 --                   Also opObj should probably really be here rather than above, I think.)
-global constant
+--global constant
     opCall = 201,
     opFrst = 202,       -- "Frame ReSTore"; used between opFrame and opCall, where all
                         -- local vars must be retrieved from the old stack frame.
@@ -502,7 +538,7 @@ global constant
     opLabel = 207,      -- opLabel,mergeSet,0/x86loc,link
     opNop = 208,
 --DEV unused:
-    opNopN = 209,
+--  opNopN = 209,
     opLoopTop = 210,    -- opLoopTop,lmask,gmask,end
     opEndFor = 211,
     opAsm = 212,        -- opAsm,len/loc,next,jlink
@@ -559,8 +595,8 @@ global constant
     -- (the last 4 currently rely on opUnassigned, but will accept varno in esi, if that helps any)
 
     opCrashMsg = 240,   -- opCrashMsg,cm
-    opCrash = 241,      -- opCrash,fmt,data
-    opCrash1 = 242,     -- opCrash,fmt
+--  opCrash = 241,      -- opCrash,fmt,data
+--  opCrash1 = 242,     -- opCrash,fmt
     opCrashFile = 243,  -- opCrashFile,file_path
 
     opWrap = 244,       -- opWrap,flag
@@ -584,12 +620,13 @@ global constant
     opName("opMovbi",opMovbi,4)
     opName("opMovsi",opMovsi,5)
     opName("opMovti",opMovti,4)
-    opName("opStat",opStat,0)   -- DEV??
+--  opName("opStat",opStat,0)   -- DEV??
+    opUsed += 1
     opName("opLnt",opLnt,2)
     opName("opLnp",opLnp,2)
     opName("opLnpt",opLnpt,2)
     opName("opTchk",opTchk,4)           -- opTchk,varno,wasOptTypeCheck,default
-    opName("opTchkFail",opTchkFail,0)
+    opName("opTcFail",opTcFail,0)
     opName("opBadRetf",opBadRetf,0)
     opName("opUnassigned",opUnassigned,2)
 --  opName("opCallOnceYeNot",opCallOnceYeNot,0)
@@ -629,7 +666,8 @@ global constant
     opName("opJne",opJne,8)
     opName("opJgt",opJgt,8)
     opName("opJle",opJle,8)
-    opName("opJifx",opJifx,7)   -- ??
+--  opName("opJifx",opJifx,7)   -- ??
+    opUsed += 1 -- spare
     opName("opJnotx",opJnotx,7)
     opName("opSge",opSge,7)
     opName("opSlt",opSlt,7)
@@ -638,8 +676,9 @@ global constant
     opName("opSgt",opSgt,7)
     opName("opSle",opSle,7)
     opName("opScmp",opScmp,4)
-    opName("opFind",opFind,5)
-    opName("opMatch",opMatch,5)
+--  opName("opFind",opFind,5)
+--  opName("opMatch",opMatch,5)
+    opUsed += 2 -- spare
     opName("opXor",opXor,4)
     opName("opInt",opInt,4)
     opName("opAtom",opAtom,4)
@@ -688,10 +727,11 @@ global constant
     opName("opDivi2",opDivi2,3)
     opName("opDivf",opDivf,4)
     opName("opDivf2",opDivf2,4)
-    opUsed += 3 -- spare
-    opName("oXpInc",oXpInc,2)           --DEV no longer used
+--  opUsed += 3 -- spare
+    opUsed += 5 -- spare
+--  opName("oXpInc",oXpInc,2)           --DEV no longer used
 --  opName("oXpDec",oXpDec,2)           -- ""
-opName("oXpCatsi",oXpCatsi,2)
+--opName("oXpCatsi",oXpCatsi,2)
     opName("opFloor",opFloor,3)
     opName("opRmdr",opRmdr,5)
     opName("opUminus",opUminus,3)
@@ -708,22 +748,35 @@ opName("oXpCatsi",oXpCatsi,2)
     opName("opArcTan",opArcTan,3)
     opName("opLog",opLog,3)
     opName("opSqrt",opSqrt,3)
-    opName("op32toA",op32toA,4)
-    opName("op64toA",op64toA,4)
---  opName("opOpenDLL",opOpenDLL,3)
+--  opName("op32toA",op32toA,4)
+--  opName("op64toA",op64toA,4)
 --  opUsed += 2 -- spare
-    opUsed += 3 -- spare
+    opName("opCallFunc",opCallFunc,4)
+    opName("opCallProc",opCallProc,3)
+    opName("opOpenDLL",opOpenDLL,3)
+    opName("opDcfunc",opDcfunc,6)       -- opDcfunc,res,lib,name,args,rtyp
+    opName("opDcvar",opDcvar,4)         -- opDcvar,res,lib,name
     opName("opInstance",opInstance,2)
-    opUsed += 3 -- spare
-    opName("opCurrDir",opCurrDir,2)
-    opName("opCatsi",opCatsi,2)
-    opUsed += 2 -- spare
+    opName("opCallback",opCallback,3)   -- opCallback,res,id
+--  opUsed += 4 -- spare
+--  opName("opCurrDir",opCurrDir,2)
+--  opName("opCatsi",opCatsi,2)
+--  opUsed += 2 -- spare
+    opName("opCallA",opCallA,2)
+    opName("opCfunc",opCfunc,4)
+    opName("opCproc",opCproc,3)
+    opName("opGpct",opGpct,0)       -- no opSkip/should not occur in il/#ilasm only
+    opName("opRpct",opRpct,0)       -- no opSkip/should not occur in il/#ilasm only
+    opUsed += 1 -- spare
     opName("opApnd",opApnd,4)
     opName("opPpnd",opPpnd,4)
     opName("opConcat",opConcat,4)
     opName("opRepeat",opRepeat,4)
-    opName("opAto32",opAto32,3)
-    opName("opAto64",opAto64,3)
+--  opName("opAto32",opAto32,3)
+--  opName("opAto64",opAto64,3)
+--  opUsed += 2 -- spare
+    opName("opCurrDir",opCurrDir,2)
+    opName("opCatsi",opCatsi,2)
 --  opName("opGSCh",opGSCh,0)       -- ??!!! [DEV]
     opName("opGetRand",opGetRand,0) -- no opSkip/should not occur in il/#ilasm only
     opName("opGetPos",opGetPos,2)
@@ -755,7 +808,8 @@ opName("oXpCatsi",oXpCatsi,2)
     opName("opPosition",opPosition,3)
     opName("opPuts",opPuts,3)
 --  opName("oXpPSCh",oXpPSCh,0)         -- ??!!!! [DEV]
-    opName("opGetProcA",opGetProcA,0)       -- (#ilasm only, see pcfunc.e) [to go?]
+--  opName("opGetProcA",opGetProcA,0)       -- (#ilasm only, see pcfunc.e) [to go?]
+    opUsed += 1
     opName("opFlush",opFlush,2)
     opName("opClose",opClose,2)
     opName("opSetRand",opSetRand,2)
@@ -767,7 +821,8 @@ opName("oXpCatsi",oXpCatsi,2)
 --  opUsed += 1 -- spare
     opName("opProfout",opProfout,1)
     opName("opClrDbg",opClrDbg,0)
-    opName("opTrap",opTrap,0)   -- ??   -- untested/ buried in #ilasm block and hence
+--  opName("opTrap",opTrap,0)   -- ??   -- untested/ buried in #ilasm block and hence
+    opUsed += 1
     opName("opRTErn",opRTErn,0) -- ??   --  there is no need for opSkip handling.
 --DEV to go:
     opName("opGetST",opGetST,0) -- ??                   -- ""
@@ -775,32 +830,38 @@ opName("oXpCatsi",oXpCatsi,2)
 --  opName("opGetSP",opGetSP,0) -- ??                   -- ""
 --  opName("opSetSP",opSetSP,0) -- ??                   -- ""
 --else
-    opName("opGetVMep",opGetVMep,0) --??
-    opName("opReadVM",opReadVM,0) --??
+--  opUsed += 2
+    opName("opDelRtn",opDelRtn,0) -- ??                 -- ""
+    opName("opDelete",opDelete,0) -- ??                 -- ""
+--  opName("opGetVMep",opGetVMep,0) --??
+--  opName("opReadVM",opReadVM,0) --??
 --end if
 --  opName("opPokeRef",opPokeRef,0) -- ??
 --  opName("opGetRaw",opGetRaw,0)   --??
-    opUsed += 2 -- spare
-    opName("opLicence",opLicence,0) -- (#ilASM only, see pemit.e)
-    opName("opSetDbg",opSetDbg,0)   --??
-    opName("opCrshRtn",opCrshRtn,0) --??
-    opName("opRbldIds",opRbldIds,0) --??
-    opName("opCrshMsg",opCrshMsg,2)
-    opName("opDelRtn",opDelRtn,0)   --??
+    opUsed += 8
+--  opName("opLicence",opLicence,0) -- (#ilASM only, see pemit.e)
+--  opName("opSetDbg",opSetDbg,0)   --??
+--  opName("opCrshRtn",opCrshRtn,0) --??
+--  opName("opRbldIds",opRbldIds,0) --??
+--  opName("opCrshMsg",opCrshMsg,2)
+--  opName("opDelRtn",opDelRtn,0)   --??
     opName("opCrshFile",opCrshFile,2)
-    opName("opInterp",opInterp,0)   --??
+    opUsed += 1
+--  opName("opInterp",opInterp,0)   --??
     opName("opAbort",opAbort,2)
-    opName("opCleanUp",opCleanUp,0) --??
-    opName("opCleanUp1",opCleanUp1,0)   --??
+    opUsed += 2
+--  opName("opCleanUp",opCleanUp,0) --??
+--  opName("opCleanUp1",opCleanUp1,0)   --??
 
-    opName("opGetRRC",opGetRRC,0)   -- (#ilASM only, see pgui.exw)
-    opName("opSetBatchMode",opSetBatchMode,0)
-    opName("opLichk",opLichk,0) -- (#ilASM only, TEMP!)
-    opName("opDelRef",opDelRef,0)
+    opUsed += 7
+--  opName("opGetRRC",opGetRRC,0)   -- (#ilASM only, see pgui.exw)
+--  opName("opSetBatchMode",opSetBatchMode,0)
+--  opName("opLichk",opLichk,0) -- (#ilASM only, TEMP!)
+--  opName("opDelRef",opDelRef,0)
 --  opName("opCrsh",opCrsh,0)
-opName("opInterp2",opInterp2,0)
-opName("opHeapAlloc",opHeapAlloc,0) -- (#ilASM only) [TEMP, to go]
-opName("opTlsGetValue",opTlsGetValue,0) -- (#ilASM only) [TEMP, to go]
+--opName("opInterp2",opInterp2,0)
+--opName("opHeapAlloc",opHeapAlloc,0) -- (#ilASM only) [TEMP, to go]
+--opName("opTlsGetValue",opTlsGetValue,0) -- (#ilASM only) [TEMP, to go]
 
 --  opUsed += 4
 --  opUsed += 2
@@ -817,7 +878,8 @@ opName("opTlsGetValue",opTlsGetValue,0) -- (#ilASM only) [TEMP, to go]
     opName("opJlen",opJlen,8)
     opName("opLabel",opLabel,4)
     opName("opNop",opNop,1)
-    opName("opNopN",opNopN,-1)
+--  opName("opNopN",opNopN,-1)
+    opUsed += 1
     opName("opLoopTop",opLoopTop,4) -- opLoopTop,lmask,gmask,end
     opName("opEndFor",opEndFor,3)   -- opEndFor,ctnr,bpFor
     opName("opAsm",opAsm,-4)
@@ -871,9 +933,10 @@ opName("opTlsGetValue",opTlsGetValue,0) -- (#ilASM only) [TEMP, to go]
     opName("opLeaveCS",opLeaveCS,2)
 
     opName("opCrashMsg",opCrashMsg,2)
-    opName("opCrash",opCrash,3)
+--  opName("opCrash",opCrash,3)
 --DEV??
-    opName("opCrash1",opCrash1,2)
+--  opName("opCrash1",opCrash1,2)
+    opUsed += 2
     opName("opCrashFile",opCrashFile,2)
 
     opName("opWrap",opWrap,2)

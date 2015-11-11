@@ -39,6 +39,7 @@ object s1i, s2i
     -- This line is also not RDS compliant
     --  (RDS gives error "first argument of match() must be a non-empty sequence")
     if ls1=0 then return 0 end if
+    if start<1 then return 0 end if
     ls2 = length(s2)
 --  if ls1 > ls2 then return 0 end if -- see below
     while 1 do

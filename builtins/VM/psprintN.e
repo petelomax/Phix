@@ -52,7 +52,8 @@ object s, xi
 --      return sprintf("%.10g", x)
         s = sprintf("%.10g", x)
         if not integer(x)
-        and integer(floor(x))
+--removed 3/11/15 (so that eg 2000000000 gets the ".0")
+--      and integer(floor(x))
         and not find('.',s)
         and not find('e',s)         -- eg 1e308
         and not find('n',s) then    -- (inf/nan)

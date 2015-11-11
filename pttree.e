@@ -741,6 +741,11 @@ procedure tt_stringF(sequence text, integer chk)
     end if
 end procedure
 
+--procedure tt_stringA(sequence text, integer alias)
+--  tt_string(text,-2)
+--  tt[pcurr] = alias
+--end procedure
+--
 --procedure tt_glabel(sequence glabel, integer chk)
 --  tt_string(glabel,-3)
 --  if chk!=ttidx then
@@ -1166,6 +1171,7 @@ global constant T_fmul          = 4832  tt_stringF("fmul",T_fmul)
 global constant T_override      = 4864  tt_stringF("override",T_override)   -- banned forever!!
 global constant T_iff           = 4872  tt_stringF("iff",T_iff)
 global constant T_iif           = 4884  tt_stringF("iif",T_iif)
+global constant T_EU4_1         = 4904  tt_stringF("EU4_1",T_EU4_1)
 
 --global constant gtiTestM  = T_ilASM+0     tt_glabel("%opTestM", gtiTestM)
 --global constant gtiopTestM        = 4020  tt_glabel("%opTestM", gtiopTestM)
@@ -1173,6 +1179,8 @@ global constant T_iif           = 4884  tt_stringF("iif",T_iif)
 --global constant gtiopRetf         = 4064  tt_glabel("%opRetf",  gtiopRetf)
 --global constant gtiopCallOnce = 4100  tt_glabel("%opCallOnce", gtiopCallOnce)
 
+--(from rosetta/"REAL" calendar)
+--tt_stringA("INCLUDE",T_include)
 
 --,T_dump_listing = tt_stringf("dump_listing")
 --,T_f = tt_stringf("f")
@@ -1259,7 +1267,7 @@ procedure init_il()
 sequence rs
 --integer xrm,
 --      xrw     -- work/base version of xrm. nb eg xrm = xrw+#40 is better than xrm+=#40
-object name
+--object name
 
 --/*
     iload("e_all",0)
@@ -1618,15 +1626,15 @@ end if
 
     -- and finally the opcodes
 --  for i=1 to length(opNames) do
-    for i=1 to maxNVop do   -- don't iload() virtual opcodes!
-        name = opNames[i]
-        if string(name) then
-            iload(name,i)
---DEV if replaceBuiltinOps then             -- (untried, just an idea)
---DEV   ilopcodes=append(ilopcodes,ttidx)   -- so that eg "::opLen" scores a hit
---DEV end if
-        end if
-    end for
+--  for i=1 to maxNVop do   -- don't iload() virtual opcodes!
+--      name = opNames[i]
+--      if string(name) then
+--          iload(name,i)
+----DEV if replaceBuiltinOps then           -- (untried, just an idea)
+----DEV ilopcodes=append(ilopcodes,ttidx)   -- so that eg "::opLen" scores a hit
+----DEV end if
+--      end if
+--  end for
 
 --DEV temporary, until newEBP bedded in (these are virtual opcodes to boot):
 --DEV actually, these are probably permanent now...

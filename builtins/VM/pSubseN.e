@@ -413,8 +413,7 @@ end procedure -- (for Edita/CtrlQ)
         --  call opSubse1is     -- [rcx]:=s[idx]
         --  mov [p3],rax        -- res  [DEV?]
         sub rdi,1
---DEV
---    :!opSubse1iRe92a:         -- exception here mapped to e94vhnbaavedxesifeh (edx contains var no, esi value. e94vhnbaav or e04atsaa)
+      :!opSubse1iRe92a          -- exception here mapped to e94vhnbaavedxesifeh (edx contains var no, esi value. e94vhnbaav or e04atsaa)
         mov rdx,[rbx+rsi*4-24]  -- length
         mov al,byte[rbx+rsi*4-1] -- type byte
         shl rsi,2
@@ -481,8 +480,7 @@ end procedure -- (for Edita/CtrlQ)
         --  call opSubse1ip     -- rax:=s[idx]
         --  mov [p3],rax        -- store res
         sub rdi,1
---DEV
---    :!opSubse1ipRe92a:            -- exception here mapped to e94vhnbaavedxesifeh
+      :!opSubse1ipRe92a         -- exception here mapped to e94vhnbaavedxesifeh
         mov rdx,[rbx+rsi*4-24]  -- length
         shl rsi,2
         cmp rdi,rdx
@@ -510,7 +508,7 @@ end procedure -- (for Edita/CtrlQ)
         sub edi,1
         xor eax,eax
 --DEV
---    :!opSubse1isRe92a:            -- exception here mapped to e94vhnbaavedxesifeh
+      :!opSubse1isRe92a         -- exception here mapped to e94vhnbaavedxesifeh
         mov edx,[ebx+esi*4-12]  -- length
         shl esi,2
         cmp edi,edx
@@ -529,8 +527,7 @@ end procedure -- (for Edita/CtrlQ)
         --  mov [p3],rax        -- store res
         sub rdi,1
         xor rax,rax
---DEV
---    :!opSubse1isRe92a:            -- exception here mapped to e94vhnbaavedxesifeh
+      :!opSubse1isRe92a         -- exception here mapped to e94vhnbaavedxesifeh
         mov rdx,[rbx+rsi*4-24]  -- length
         shl rsi,2
         cmp rdi,rdx

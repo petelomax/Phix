@@ -1,0 +1,95 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+<title>CD_NATIVEWINDOW</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2 style="text-align: left">CD_NATIVEWINDOW - Native Window Driver (cdnative.h)</h2>
+
+  <p>This driver provides access to an existing Native Window, a basic element of the user-interface system. It also 
+  provides access to other native handles like HDC handles in Windows.</p>
+
+<h3>Use</h3>
+
+  <p>The canvas is created by means of a call to the function <font face="Courier">
+  <a href="../func/init.html#cdCreateCanvas"><strong>cdCreateCanvas</strong></a>(CD_NATIVEWINDOW, 
+  Data)</font>, after which other functions in the CD library can be called as usual. This function <b>creates</b> a CD 
+  canvas based on an existing system canvas. The parameter <font face="Courier">Data</font> is a pointer to a handle of 
+  the canvas. It is system-dependent, having a different meaning in each platform:</p>
+  
+    <p><strong>GDI and GDI+</strong>: can be the handle of the Windows window (<font face="Courier">HWND</font>), 
+    or the handle of a previously created Device Context (<font face="Courier">HDC</font>), or can be a string in the 
+    format &quot;<font face="Courier">hdc width height</font>&quot; or, in C, &quot;<font face="Courier">%p %d %d</font>&quot;. 
+    To get the entire screen use a NULL data.<br>
+    <strong>X-Windows</strong>: is a string in the format &quot;<font face="Courier">display window</font>&quot; or, in C, &quot;<font face="Courier"><tt>%p 
+    %lu</tt></font>&quot; (uses the default screen).<br>
+	<strong>GDK and Cairo</strong>: is a <font SIZE="3">GdkDrawable* or 
+	GdkWindow* handle.</p>
+</font>
+  
+  <p>The given parameters must exists until <font face="Courier"><strong>cdKillCanvas</strong></font> is called. 
+	In Windows, the
+  <font face="Courier">HDC</font> is released only if created inside <font face="Courier"><strong>cdCreateCanvas</strong></font> 
+  from an <font face="Courier">HWND</font> or when data is NULL.</p>
+  <p>Any amount of such canvases may exist simultaneously, but they should not use the same window, except if you are 
+  using a GDI canvas and a GDI+ canvas at the same time for the same window.</p>
+  
+  <p>In CDLUA, the creation parameter must be a string in X-Windows and a userdata in 
+	others.</p>
+
+<h3>Exclusive Functions</h3>
+<h4><font face="Courier">void cdGetScreenSize(int *width, int *height, double *width_mm, double *height_mm); [in C]<br>
+<font face="Courier New" color="#808080">cd.Get</font></font><font color="#808080"><font face="Courier New">Screen</font><font face="Courier"><font face="Courier New">Size() 
+-&gt; (width, heigth, mm_width, mm_height:</font> <i>number</i><font face="Courier New">)</font> [in Lua]</font></font></h4>
+
+  <p>Equivalent to function <a href="../func/coordinates.html#cdGetCanvasSize">
+  <font face="Courier"><b>cdCanvasGetSize</b></font></a>, but returns the values relative to the main screen of the 
+  window system. It is not necessary to have an active canvas to call this function.</p>
+
+<h4><font face="Courier">int cdGetScreenColorPlanes(void); [in C]<br>
+<font color="#808080">cd.GetScreenColorPlanes() -&gt; (bpp: <em>number</em>) [in Lua]</font></font></h4>
+
+  <p>Equivalent to function <a href="../func/color.html#cdGetColorPlanes">
+  <font face="Courier"><b>cdCanvasGetColorPlanes</b></font></a>, but returns the value relative to the main screen of the 
+  window system. It is not necessary to have an active canvas to call this function.</p>
+
+<h3>Behavior of Functions</h3>
+
+  <p>This driver is very platform-dependent and depends on the base driver used.</p>
+
+  <p>For further detail, see the <b>
+  Behavior of Functions</b> in each base driver: <a href="win32.html">GDI</a>, 
+	<a href="gdk.html">GDK</a> and <a href="xwin.html">X-Win</a>. To use this driver 
+	with a context plus base driver is necessary to call 
+  <font face="Courier"><strong>
+  cdUseContextPlus</strong></font><strong><font face="Courier">(1)</font></strong> 
+  before creating the canvas, see the <a href="../drv/gdiplus.html">GDI+</a>,&nbsp;<a href="../drv/cairo.html">Cairo</a> 
+and <a href="../drv/xrender.html">XRender</a> base drivers.</p>
+
+<h4>Control</h4>
+<ul>
+  <li><a href="../func/init.html#cdActivate"><font face="Courier"><strong>
+  cdCanvasActivate</strong></font></a>: updates the canvas size; the window 
+  might have been resized. If the canvas was created using a HDC, the size will 
+  not be updated. <br>
+  <br>
+  <span style="color: #FF0000"><strong>IMPORTANT</strong></span>: For the 
+  standard Win32 base driver (not GDI+) if your Windows does not have one of the 
+  styles CS_OWNDC or CS_CLASSDC, then a temporary HDC will be created every time 
+  a <strong>cdCanvasActivate</strong> is called. To release this HDC call 
+  <strong>cdCanvasDeactivate</strong> after drawing. The IupCanvas control of 
+  the IUP library in the Win32 driver have the style, so this could be ignored 
+  for regular IUP applications. But the IupCanvas in the GTK driver running in 
+  Win32 does not have this style so 
+  <strong>cdCanvasDeactivate</strong> should be used.</li>
+</ul>
+
+</body>
+
+</html>

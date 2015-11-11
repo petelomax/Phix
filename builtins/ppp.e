@@ -103,6 +103,7 @@
 --          pp_StrFmt       0: print strings as eg "abc" (default)
 --                         -1:  ditto, but without quotes.
 --                         -2:  as 0, but chars number-only like +1
+--                         -3:  as -1, ""
 --                          1: as number only, eg {97, 98, 99}
 --                          3: as number&text, eg {97a, 98b, 99c}
 --          pp_IntFmt       Integer format, default "%d"
@@ -394,18 +395,21 @@ object chint
                                     -- blah\" ==> blah"&#22
                                     if i=1 then
                                         cl = "#22&\""&cl[2..length(cl)]
-                                        if ppp_StrFmt!=-1 then
+                                        if ppp_StrFmt!=-1
+                                        and ppp_StrFmt!=-3 then
                                             cl1q = 1
                                         end if
                                     elsif i=length(cl) then
                                         cl = cl[1..i-1]&"\"&#22"
-                                        if ppp_StrFmt!=-1 then
+                                        if ppp_StrFmt!=-1
+                                        and ppp_StrFmt!=-3 then
                                             cllq = 1
                                         end if
                                     else
                                         cl = cl[1..i-1]&"\"&#22&\""&cl[i+1..length(cl)]
                                     end if
-                                else
+--                              else
+                                elsif ppp_StrFmt!=-3 then
                                     cl[i] = '\\'
                                     ch = escChars[find(ch,escBytes)]
                                     cl = cl[1..i]&ch&cl[i+1..length(cl)]
@@ -413,7 +417,8 @@ object chint
                             end if
                         end for
                     end if
-                    if ppp_StrFmt=-1 then
+                    if ppp_StrFmt=-1
+                    or ppp_StrFmt=-3 then
                         sput(cl)
                     else
                         if ppp_Q22 and cl1q then
@@ -432,7 +437,8 @@ object chint
                         end if
                     end if
                 end if
-                if ppp_StrFmt!=-1 then
+                if ppp_StrFmt!=-1
+                and ppp_StrFmt!=-3 then
                     len += 2
                 end if
                 return len
@@ -490,7 +496,8 @@ object chint
         if graphic(cl)
         and (not find(cl,escBytes) or cl>=' ') then
             if ppp_StrFmt=1
-            or ppp_StrFmt=-2 then
+            or ppp_StrFmt=-2
+            or ppp_StrFmt=-3 then
                 txt = sprintf(ppp_IntFmt,cl)
             else
                 txt = sprintf("%d'%s'",{cl,cl})
@@ -625,6 +632,7 @@ global procedure ppOpt(sequence options)
 --      pp_StrFmt       0: print strings as eg "abc" (default)
 --                     -1:  ditto, but without quotes.
 --                     -2:  as 0, but chars number-only like +1
+--                     -3:  as -1, but chars number-only like +1
 --                      1: as number only, eg {97, 98, 99}
 --                      3: as number&text, eg {97a, 98b, 99c}
 --      pp_IntFmt       integer format, default "%d"

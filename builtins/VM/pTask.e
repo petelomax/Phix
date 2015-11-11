@@ -5,6 +5,155 @@
 --
 --DEV not yet an auto-include
 
+--For the initial idea of controlled lock-step, see demo\rosetta\Synchronous_concurrency.exw, third version
+--However, we need the scheduler to get every other go...
+
+Better strategy?
+
+I am trying to devise a lock-step scheduling algorithm, and it seems to help to phrase it in terms of a simple colour card game,
+with greedy/naughty children and a bowl of sweets. Just wanted to see if anyone can spot any simplifications/glaring errors.
+
+{{{
+Let there be a black card for the teacher, and (pair per child) two red, two orange, two yellow, two green, two blue, etc.
+The teacher starts with the black card and all colour2 cards in their hand. There are no cards on the table at the start.
+All children start with a colour1 card and wait for the matching colour2 card to be put on the table.
+<loop>
+The teacher selects a colour2 card and puts it down on the table, let's say red2, and waits for red1.
+The child with red1 picks up red2, takes a sweet, puts down red1, and waits for the black card.
+The teacher can now pick up red1, put down black, and wait for red2.
+The child with the red2 can now swap it for the black card, and wait for red1.
+The teacher can now pick up the red2 card, put down red1, and wait for the black.
+The child with the black card can pick up red1 and put down the black, and wait for red2.
+The teacher can now pick up the black and select another colour2 (goto loop)
+
+Notes:  Only one player is ever waiting for a specific card[1], different to the one they just put down[2].
+        Nobody can ever put down a card they are not currently holding[3].
+        There may be a simpler way (perhaps with red1<->red2 swapped per round) but I can't see it.
+        [1] not particularly important [2] important [3] extremely important!
+}}}
+
+Pete
+
+PS This is to implement tasks, so anyone suggesting using tasks will be e-kneecapped :-/
+
+(A busy wait is acceptable to ensure that the teacher does not start until all children are ready.)
+
+I implemented the following, using mutually exclusive locking, as a follow-up to a rosetta code task (if you must know it was Synchronous_concurrency, but reading that would not help here):
+-- Simple lock-step strategy:
+--  say we have three cards: Red, Green, and Blue (in a children's game).
+--  initially both players have one in hand and the other is on the table.
+--  (Tip: Deferring the "put down" as late as possible avoids any squabbles over picking a sweet from the sweet bowl)
+--  The player with  red  can pick up green (and take a sweet) then put down the  red  they already have
+--  The player with green can pick up  blue (and take a sweet) then put down the green they already have
+--  The player with  blue can pick up  red  (and take a sweet) then put down the  blue they already have
+--  The players are therefore forced to take alternate turns.
+--  After picking up  red  and putting down  blue they must wait for green.
+--  After picking up green and putting down  red  they must wait for  blue.
+--  After picking up  blue and putting down green they must wait for  red.
+The scheme can easily be extended, to red->orange->yellow->green->blue[->red] and accomodate more players (#cards-1), who are forced to play sequentially.
+I think it helps to phrase the problem in terms of greedy/naughty children and ensuring that they cannot cheat/play out of turn.
+
+With more than 2 players, most of their time is spent simply waiting for a specific card to be laid (/lock to be freed).
+
+It works well, however I now need a new variation (not related to any specific rosetta task): a teacher (/scheduler) is to get every other go, and
+can decide who goes next. As above, everyone (including the teacher) must spend most of the time waiting for a card to be laid down on the table, and
+no two players should ever be waiting for the same card. If it needs 4 or 5 times as many cards (/locks), so be it (feel free to use red/black, 
+hearts/clubs, 1..9, whatever). In all probability, the best solution probably mirrors the notion that children have small hands and can only hold a 
+few cards, whereas (as a grown-up) the teacher is perfectly capable of holding a whole classful of cards in their hands, but at any moment all of them 
+(including the teacher) should only ever be waiting for one specific card. I also predict there can only ever be one card on the table, but I'm not 
+completely certain about that.
+
+To be clear, I am looking for an //**english language**// strategy description (rather than any code) which not just lets but forces the teacher to have 
+every other go, and lets them decide who goes next, all based on the premise of everyone spending most of their time waiting for a specific card to be laid.
+
+Of course what I'm attempting is to implement tasks as step-locked threads. My google-fu has failed, perhaps no other language has both threads and tasks?
+
+OK, this is my first attempt. Before I try implementing this, can anyone improve on it?
+
+Let there be black (for the teacher), and (pair per child) two red, two orange, two yellow, two green, two blue, etc.
+
+    teacher         child1          child2          ...
+    lock black                                          -- (freely obtained)
+    lock *2                                             -- ("", prior to any create/resume_thread)
+                    lock red1       lock orange1        -- (freely obtained)
+    <busy wait>     init = 1        init = 1
+                  loop:
+                    lock red2       lock orange2        -- (stall)
+    unlock red2
+    lock red1                                           -- (stall)
+                    <run>
+                    unlock red1                         -- (aka task_yield)
+                    lock black                          -- (stall)
+    unlock black
+    lock red2                                           -- (stall)
+                    unlock red2
+                    lock red1                           -- (stall)
+    unlock red1
+    lock black                                          -- (stall)
+                    unlock black
+                    goto loop
+
+    unlock orange2
+    lock orange1                                        -- (stall)
+                                    <run>
+                                    unlock orange1      -- (aka task_yield)
+                                    lock black          -- (stall)
+    unlock black
+    lock orange2                                        -- (stall)
+                                    unlock orange2
+                                    lock orange1        -- (stall)
+    unlock orange1
+    lock black                                          -- (stall)
+                                    unlock black
+                                    goto loop
+
+The teacher starts with the black card and all colour2 cards in their hand.
+All children start with a colour1 card and wait for the matching colour2 card to be put on the table.
+(A busy wait is acceptable to ensure that the teacher does not start until all children are ready.)
+<loop>
+The teacher selects a colour2 card and puts it down on the table, let's say red2, and waits for red1.
+The child with red1 picks up red2, takes a sweet, puts down red1, and waits for the black card.
+The teacher can now pick up red1, put down black, and wait for red2.
+The child with the red2 can now swap it for the black card, and wait for red1.
+The teacher can now pick up the red2 card, put down red1, and wait for the black.
+The child with the black card can pick up red1 and put down the black, and wait for red2.
+The teacher can now pick up the black and select another colour2 (goto loop)
+
+Notes:  Only one person is ever waiting for a specific card, different to the one they just put down.
+        Nobody can ever put down a card they are not currently holding.
+        There may be a simpler way (perhaps with red1<->red2 swapped per round) but I can't see it.
+
+BETTER: (but bollocks... there's no stall in the loop!!) [SLEEP]
+******
+    teacher         child1          child2          ...
+    lock *2                                             -- (before any other create_thread(/task)[/resume_thread])
+    r,o = 2
+                    lock red1       lock orange1        -- (freely obtained)
+                    r = 2           o = 2
+                  loop:
+                    lock red[r]     lock orange[o]      -- (stall)
+    lock black
+    unlock red[r]
+    r = 3-r
+    lock red[r]                                         -- (stall)
+    unlock black
+                    <run>
+                    r = 3-r
+                    unlock red[r]                       -- (aka task_yield)
+                    lock black                          -- (stall)
+                    unlock black
+                    goto loop
+    unlock orange[o]
+    o = 3-o
+    lock orange[o]                                      -- (stall)
+                                    <run>
+                                    o = 3-o
+                                    unlock orange[o]    -- (aka task_yield)
+                                    goto loop
+Notes:  The o,r in the teacher(/scheduler) are independent variables [held in an array] to those in the children.
+        The teacher(/scheduler) must wait for the child to set their control var to 2 (non-0) before an unlock. (a spinwait shd be fine)
+        We can store a task_id in the thread local storage as provided by pHeap.e
+
 include builtins\VM\pStack.e    -- :%newStack and :%freeStack
 
 pete: let's not mess about trying to create a new threadstack on pre-newEmit!!

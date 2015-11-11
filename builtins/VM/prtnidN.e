@@ -44,6 +44,14 @@ constant
 --       T_callstk = 20,
          T_nslink = 18
 
+--DEV 
+--global function routine_id_p(sequence s, integer parentscope)
+--end function
+--
+--global function routine_id(sequence s)
+--  return routine_id_p(s,0)
+--end function
+
 global function routine_id(sequence s)
 --
 -- returns a routine number (actually an index into symtab), or
@@ -126,7 +134,7 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
             call :%opGetST      -- [edi]=symtab (ie our local:=the real symtab)
             mov edi,[ebp+20]    -- prev_ebp
 --DEV (16/03/2013) if we add parentscope to routine_id then we must add locals, see pemit.e
---          mov edi,[ebp+20]    -- prev_ebp
+--          mov edi,[edi+20]    -- prev_ebp
             mov edi,[edi+8]     -- calling routine no
             mov [rtn],edi
         [64]

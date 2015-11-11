@@ -1,0 +1,107 @@
+﻿<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<title>Simulation</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2>Simulation Base Driver</h2>
+
+  <p>The Simulation driver was created to simulate functions that were not supported by some CD drivers. It works 
+  jointly with the other driver (known as &quot;client&quot;), using its pixel, line and text functions to simulate arcs, sectors, 
+  polygons, boxes, and fillings with styles.</p>
+  <p><b>Important:</b> All simulation primitives are based in the client's Pixel, Image and/or Line functions.</p>
+
+<h3>Use</h3>
+
+  <p>The Simulation driver is used in several parts of the CD library.</p>
+  <p>In many drivers, the behavior of a given primitive may not be the expected. Usually this is documented in the 
+  manual. If you wish to activate the simulation of a primitive, simply call function <strong>
+  <font face="Courier"><a href="../func/init.html#cdSimulate">cdSimulate</a></font></strong> 
+  with the code of the primitive to be simulated.</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Clipping</h4>
+<ul>
+  <li>Clipping is not implemented in the simulation base driver. The primary 
+  driver must implement its own clipping.</li>
+</ul>
+<h4>Attributes</h4>
+<ul>
+  <li><a href="../func/filled.html#cdLineCap"><font face="Courier"><strong>
+  LineCap</strong></font></a>: only <font face="Courier">CD_CAPFLAT</font> is supported.</li>
+  <li><a href="../func/filled.html#cdLineJoin"><font face="Courier"><strong>
+  LineJoin</strong></font></a>: only <font face="Courier">CD_MITER</font> is supported.</li>
+  <li><font face="Courier"><strong><a href="../func/lines.html#cdLineStyle">
+  LineStyle</a></strong></font>: If line width is greater than 1, the style is 
+	always continuous.</li>
+  <li><a href="../func/text.html#cdFont"><font face="Courier"><strong>Font</strong></font></a>: 
+  Selects a Truetype font file for the
+  <a target="_blank" href="http://www.freetype.org/">FreeType</a> library to 
+  render the text. </li>
+	The typeface parameter is used to find the appropriate file.<p>The typeface 
+  parameter can be the name of a font or the name of a font file (not including 
+  path, nor the extension &quot;.ttf&quot;). If a name is specified some pre-defined 
+  correspondents are tried, for instance the know font names &quot;Courier&quot;, 
+  &quot;Times&quot; and &quot;Helvetica&quot; are mapped to &quot;cour&quot;, &quot;times&quot;, and 
+  &quot;arial&quot;, 
+  their styles are added to the font file name as a suffix: &quot;bd&quot;, &quot;i&quot; and 
+  &quot;bi&quot;, to match bold, italic and bold-italic. Those files are also available in 
+  the &quot;cd/etc&quot; folder of the CD distribution packages. If the pre-defined names 
+  are not used, the typeface parameter is used as the file name. It can also use a 
+  manual font map added using the attribute <strong>ADDFONTMAP</strong> (see 
+  bellow).<br>Font files can be located in the 
+  current directory, in the directory pointed by the CDDIR environment variable, in the 
+  native system font 
+  directory, or by using the full path of the file in the typeface parameter. 
+  The &quot;.ttf&quot; 
+  file extension is always automatically added to the end of the file name. In 
+  Linux font files are searched using
+	<a href="http://www.freedesktop.org/wiki/Software/fontconfig">FontConfig</a>.<br>
+  The search order is: ADDFONTMAP, pre-defined names, native system, and full 
+  path.</p>
+</ul>
+<h4><strong>Primitives</strong> </h4>
+<ul>
+  <li><b><font face="Courier"><a href="../func/marks.html#cdPixel">Pixel</a></font></b>: 
+  always uses the client's pixel function. When clipping simulation is active, it executes area and polygon clipping.</li>
+  <li><font face="Courier"><a href="../func/lines.html#cdLine"><b>Line</b></a></font>: 
+  draws lines pixel per pixel.</li>
+  <li><font face="Courier"><strong><a href="../func/lines.html#cdRect">Rect</a></strong></font>: 
+  simulated using the client's <strong>Line</strong>.</li>
+  <li><font face="Courier"><a href="../func/lines.html#cdArc"><b>Arc</b></a></font>: 
+  simulated using the client's <strong>Line</strong>. </li>
+  <li><font face="Courier"><a href="../func/filled.html#cdSector"><b>Sector</b></a></font>: 
+  simulated using the client's <strong>Poly</strong>. </li>
+  <li><font face="Courier"><b><a href="../func/filled.html#cdChord">Chord</a></b></font>: 
+  simulated using the client's <strong>Poly</strong></li>
+  <li><font face="Courier"><a href="../func/filled.html#cdBox"><b>Box</b></a></font>: 
+  simulated using the client's <strong>Poly</strong>. </li>
+  <li><font face="Courier"><b><a href="../func/lines.html#cdBegin">Begin</a></b></font>,
+  <font face="Courier"><a href="../func/lines.html#cdVertex"><b>Vertex</b></a></font> 
+  and <font face="Courier"><a href="../func/lines.html#cdEnd"><b>End</b></a></font>: 
+  simulated using the <strong>Line</strong> or <strong>Pixel</strong> functions, depending on the interior style.</li>
+  <li><font face="Courier"><a href="../func/text.html#cdText"><b>Text</b></a></font>: 
+  text simulation is made using TrueType font files in a transparent way for the 
+  user. Oriented text is not supported.</li>
+</ul>
+
+<h4>Exclusive Attributes</h4>
+<ul>
+  <li>&quot;<strong>ADDFONTMAP</strong>&quot;: Add a font map between a type face 
+  name and a file name. It has the format &quot;Type Face=filename&quot;, For ex: &quot;Arial 
+  Narrow Bold=ARIALNB&quot;. &quot;Type Face&quot; is not case sensitive.</li>
+</ul>
+
+<ul>
+  <li>&quot;<strong>FREETYPEVERSION</strong>&quot;: Returns a version string 
+	with the current Freetype library being used, in the format &quot;FreeType 
+	&lt;major&gt;.&lt;minor&gt;.&lt;patch&gt;&quot;.</li>
+</ul>
+
+</body>
+
+</html>

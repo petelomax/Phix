@@ -15,7 +15,6 @@ global constant newBase = 2 -- 0 = old style, with base @ ref*4-20 on seq/str
                             -- (nb: an error occurs if newBase does not match the backend.)
 
 global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
-global constant newOpMove = 01 -- working [yeah!]
 
 global constant phixversion = {0,6,7}   -- 0.6.7
 
@@ -498,9 +497,9 @@ global constant T_integer   = 1,
                 T_fileset   = 17,
                 T_nslink    = 18,
                 T_cmdlnflg  = 19,
-                T_callstk   = 20,   -- spare (newEmit) DEV T_prevsym/T_optable?
+--              T_callstk   = 20,   -- spare (newEmit) DEV T_prevsym/T_optable?
 --29/3/15:
-T_optable = 20,
+                T_optable   = 20,
                 T_maintls   = 21,
 --              T_EBP       = 22,   -- spare (DEV T_level/T_EBP) -- compiled=0, interpreted={ebp4,esp4,sym4,gvar4,level}
                 T_EBP       = 22,   -- compiled/listing=0, interpreted={ebp4,esp4,sym4} (set at last possible moment)
@@ -635,6 +634,7 @@ global integer T_routine        T_routine = 0
 global integer T_print          T_print = 0
 --DEV no longer needed?
 global integer T_call_func      T_call_func = 0
+global integer T_dcproc         T_dcproc = 0        -- map define_c_proc(l,n,a) to define_c_func(l,n,a,0)
 global integer T_command_line   T_command_line = 0  -- (for parameter defaulting)
 global integer Z_command_line   Z_command_line = 0  -- (1 iff needs linking for parameter defaulting)
 global integer T_platform       T_platform = 0

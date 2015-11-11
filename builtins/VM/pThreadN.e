@@ -16,6 +16,7 @@
 --global constant STILL_ACTIVE   = 259
 
 integer init = 0
+--DEV these should probably all be replaced with #ilASM...
 atom kernel32,
     xCreateEvent,
     xSetEvent,

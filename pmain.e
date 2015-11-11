@@ -169,10 +169,10 @@ integer lhsvar
 -- "(1+2)*3" -> {1,2,+} -> {tmp,3,*}.
 -- "1+2*3" -> {1,2,3,*} -> {1,tmp,+}.
 --
-procedure isInt(object o, integer f)
-    if integer(o)!=f then ?9/0 end if
-end procedure
-isInt("",0)
+--procedure isInt(object o, integer f)
+--  if integer(o)!=f then ?9/0 end if
+--end procedure
+--isInt("",0)
 
 sequence opstack, opstype, opsltrl, opsline, opstcol
          opstack = repeat(0,4) -- var nos [index to symtab] or opcode [see also opTopIsOp]
@@ -181,11 +181,11 @@ sequence opstack, opstype, opsltrl, opsline, opstcol
          opsline = repeat(0,4) -- for error reporting
          opstcol = repeat(0,4) --       ""
 
-procedure validate_opstack()
-    for i=1 to length(opstack) do
-        isInt(opstack[i],1)
-    end for
-end procedure
+--procedure validate_opstack()
+--  for i=1 to length(opstack) do
+--      isInt(opstack[i],1)
+--  end for
+--end procedure
 
 
 -- Technical/Linguistic point: The notion of "literal" bears some consideration.
@@ -587,7 +587,7 @@ else
 --                      emitHexMov(opMov,tvar,osi)
 --end if
                         opstack[i] = tvar
-validate_opstack()
+--validate_opstack()
                         opstype[i] = ttyp
                         opsltrl[i] = allowTempReuse -- mark for possible re-use
                     end if
@@ -1044,7 +1044,7 @@ procedure StoreVar(integer N, integer NTyp)
 -- 
 integer STyp
 integer popFactor
-integer scode, k, t, p4, isInit
+integer scode, k, t, p4, p5, isInit
 integer noofsubscripts, noofitems
 sequence sytmp
 integer resType
@@ -1152,52 +1152,56 @@ end if
             -- (DEV: equivalent code to that below may be required here as opcodes are migrated, then again
             --       wouldn't it be better to have opFloori and opRmdrii, which are the only ones of note..)
         else
+--if find(scode,{opInt,opAtom,opSq,opStr,opObj})=0 then
+--  if newEmit then ?9/0 end if -- DEV 23/10/15 (quick test)    -- needed above guard, so i think it is just symtab[1..15]
+--end if
             STyp = T_integer
---          if scode>T_Pres then
-            if scode>opIres then
-                if scode<=opNres then
-                    STyp = T_atom
-                    if scode=opFloor then
-                        opsidxm1 = opsidx-1
-                        if opstype[opsidxm1]=T_integer then
-                            STyp = T_integer
-                        end if
-                    elsif scode=opRmdr then
--- uh?? undone (above 6 lines replaced) 24/2/09:
--- 12/12/08: No! floor(99/1e-208) is 9.9e209, not an int!
---              if scode=opFloor
---              or scode=opRmdr then
-                        opsidxm1 = opsidx-1
-                        opsidxm2 = opsidx-2
-                        if opstype[opsidxm1]=T_integer
-                        and opstype[opsidxm2]=T_integer then
-                            STyp = T_integer
-                        end if
-                    end if
-                elsif scode<=opSres then
-                    STyp = T_string
-                elsif scode<=opPres then
---DEV T_Dsq for some?
---      opAto32/opAto64 currently return T_Dsq but T_string theoretically valid, (updated: 11/01/10)
---      opGetPos does indeed always return T_Dsq
---      opGSCh is not yet written! (DOS only??)
---      (in conclusion: these four are not really worth worrying about)
-                    STyp = T_sequence
-                    if scode=opAto32
-                    or scode=opAto64 then
-                        STyp = T_string
-                    elsif scode=opGetPos then
-                        STyp = T_Dsq
-                    end if
-                elsif scode<=opOres then
-                    --05/06/2010:
-                    if scode=opGets then
-                        STyp = 9 -- 0b1001
-                    else
-                        STyp = T_object
-                    end if
-                end if
-            end if
+--removed 23/10/15: (on the strength of the above test)
+----            if scode>T_Pres then
+--          if scode>opIres then
+--              if scode<=opNres then
+--                  STyp = T_atom
+--                  if scode=opFloor then
+--                      opsidxm1 = opsidx-1
+--                      if opstype[opsidxm1]=T_integer then
+--                          STyp = T_integer
+--                      end if
+--                  elsif scode=opRmdr then
+---- uh?? undone (above 6 lines replaced) 24/2/09:
+---- 12/12/08: No! floor(99/1e-208) is 9.9e209, not an int!
+----                if scode=opFloor
+----                or scode=opRmdr then
+--                      opsidxm1 = opsidx-1
+--                      opsidxm2 = opsidx-2
+--                      if opstype[opsidxm1]=T_integer
+--                      and opstype[opsidxm2]=T_integer then
+--                          STyp = T_integer
+--                      end if
+--                  end if
+--              elsif scode<=opSres then
+--                  STyp = T_string
+--              elsif scode<=opPres then
+----DEV T_Dsq for some?
+----        opAto32/opAto64 currently return T_Dsq but T_string theoretically valid, (updated: 11/01/10)
+----        opGetPos does indeed always return T_Dsq
+----        opGSCh is not yet written! (DOS only??)
+----        (in conclusion: these four are not really worth worrying about)
+--                  STyp = T_sequence
+--                  if scode=opAto32
+--                  or scode=opAto64 then
+--                      STyp = T_string
+--                  elsif scode=opGetPos then
+--                      STyp = T_Dsq
+--                  end if
+--              elsif scode<=opOres then
+--                  --05/06/2010:
+--                  if scode=opGets then
+--                      STyp = 9 -- 0b1001
+--                  else
+--                      STyp = T_object
+--                  end if
+--              end if
+--          end if
         end if
         RHStype = STyp  -- for Assignment()
         t = -1
@@ -1243,7 +1247,7 @@ end if
 
         end if
         opsidx -= 1
-        if scode<opOpen then
+        if scode<opOpen then        --DEV bad code smell!
             if scode=opLen then
                 if emitON then
                     p2 = opstack[opsidx]
@@ -1279,18 +1283,18 @@ end if
                 end if  -- emitON
                 freeTmp(-1)
 
-            elsif scode=opFind
-               or scode=opMatch then
-                if emitON then
-                    opsidxm1 = opsidx-1
-                    opsidxm2 = opsidx-2
-                    p2 = opstack[opsidxm2]
-                    p3 = opstack[opsidxm1]
-                    p4 = opstack[opsidx]
-                    apnds5({scode,N,p2,p3,p4})
-                end if  -- emitON
-                freeTmp(-3)
-
+--          elsif scode=opFind
+--             or scode=opMatch then
+--              if emitON then
+--                  opsidxm1 = opsidx-1
+--                  opsidxm2 = opsidx-2
+--                  p2 = opstack[opsidxm2]
+--                  p3 = opstack[opsidxm1]
+--                  p4 = opstack[opsidx]
+--                  apnds5({scode,N,p2,p3,p4})
+--              end if  -- emitON
+--              freeTmp(-3)
+--
             else
                 if emitON then
                     opsidxm1 = opsidx-1
@@ -1315,6 +1319,7 @@ end if
 
             end if
         elsif scode=opFloor 
+           or scode=opOpenDLL
            or scode=opGetc then
             if emitON then
                 p2 = opstack[opsidx]
@@ -1348,10 +1353,10 @@ end if
 --         or scode=opChDir
            or scode=opAlloc --DEV currently hll (but not for long)
            or scode=opNotBits
-           or scode=opRand
+           or scode=opRand then
 --DEV (spotted in passing) op80toA? or: these are hll now...
-           or scode=op32toA
-           or scode=op64toA then
+--         or scode=op32toA
+--         or scode=op64toA then
 
             if emitON then
                 p2 = opstack[opsidx]
@@ -1527,27 +1532,23 @@ end if
            or scode=opGetPos then
 
             if emitON then
-if newEmit then
                 agcheckop(scode)
-end if
                 apnds5({scode,N})
             end if
 
-        elsif (scode>=opCos and scode<=opSqrt)  -- opCos/opSin/opTan/opArcTan/opLog/opSqrt [92..97]
-           or scode=opAto32
-           or scode=opAto64 then
+--      elsif (scode>=opCos and scode<=opSqrt)  -- opCos/opSin/opTan/opArcTan/opLog/opSqrt [92..97]
+--         or scode=opAto32
+--         or scode=opAto64 then
+        elsif scode=opCos
+           or scode=opSin
+           or scode=opTan
+           or scode=opArcTan
+           or scode=opLog
+           or scode=opSqrt then
 
             if emitON then
                 p2 = opstack[opsidx]
-if newEmit then
---  ?9/0
---  if scode>=opCos and scode<=opSqrt then -- (temp)
                 agcheckop(scode)
---  else
-----puts(1,"missing agcheckop (opAto32/64), pmain.e line 1466\n") -- (these should go?) [DEV]
---      ?9/0 --("" should be done now) [DEV but two "or scode" above to go yet, once Phix6 fully self-hosted]
---  end if
-end if
                 apnds5({scode,N,p2})
             end if
             freeTmp(-1)
@@ -1650,6 +1651,7 @@ end if
                 apnds5({opInitCS,N})
             end if  -- emitON
         elsif scode=opTryCS
+           or scode=opCallback
            or scode=opTextRows then
             if emitON then
                 p2 = opstack[opsidx]
@@ -1660,7 +1662,8 @@ end if
                 apnds5({scode,N,p2})
             end if  -- emitON
             freeTmp(-1)
-        elsif scode=opGetText then
+        elsif scode=opGetText
+           or scode=opDcvar then
             if emitON then
                 opsidxm1 = opsidx-1
                 p2 = opstack[opsidxm1]
@@ -1672,9 +1675,31 @@ end if
                     Unassigned(p3)
                 end if
                 agcheckop(scode)
-                apnds5({opGetText,N,p2,p3})
+                apnds5({scode,N,p2,p3})
             end if  -- emitON
             freeTmp(-2)
+        elsif scode=opDcfunc then
+            if emitON then
+                p2 = opstack[opsidx-3]
+                if not symtab[p2][S_Init] then
+                    Unassigned(p2)
+                end if
+                p3 = opstack[opsidx-2]
+                if not symtab[p3][S_Init] then
+                    Unassigned(p3)
+                end if
+                p4 = opstack[opsidx-1]
+                if not symtab[p4][S_Init] then
+                    Unassigned(p4)
+                end if
+                p5 = opstack[opsidx]
+                if not symtab[p5][S_Init] then
+                    Unassigned(p5)
+                end if
+                agcheckop(scode)
+                apnds5({opDcfunc,N,p2,p3,p4,p5})
+            end if  -- emitON
+            freeTmp(-4)
         else
             printf(1,"internal error pmain.e line 1664, unknown scode(%d=%s), tokline=%d)\n",{scode,opNames[scode],tokline})
             ?9/0    -- unknown scode
@@ -2731,7 +2756,7 @@ end if
     opsline[opsidx] = tokline
     opstcol[opsidx] = tokcol
     opTopIsOp = optype
-validate_opstack()
+--validate_opstack()
 end procedure
 
 procedure PushSubOp(integer opcode, integer optype, integer noofsubscripts)
@@ -2758,7 +2783,7 @@ end if
     opsline[opsidx] = tokline
     opstcol[opsidx] = tokcol
     opTopIsOp = optype
-validate_opstack()
+--validate_opstack()
 end procedure
 
 procedure PushFactor(integer n, integer isLiteral, integer etype)
@@ -2780,12 +2805,15 @@ procedure PushFactor(integer n, integer isLiteral, integer etype)
 --if n=lhsvar then
 --  lhsvar = 0
 --end if
+if n=lhsvar and isLiteral=0 and lhspos!=0 then
+    lhsvar = 0
+end if
     opstack[opsidx] = n
     opsltrl[opsidx] = isLiteral
     opstype[opsidx] = etype
     opsline[opsidx] = tokline
     opstcol[opsidx] = tokcol
-validate_opstack()
+--validate_opstack()
 end procedure
 
 integer rExpr
@@ -2895,10 +2923,11 @@ procedure DoHexStr()
 sequence constseq
 integer idx, ch
 atom v
-integer etype
+integer etype, ctype
 integer N
 
-    constseq = {}
+--  constseq = {}
+    constseq = ""
     idx = 1
     etype = T_integer
     while idx<=length(TokStr) do
@@ -2925,13 +2954,18 @@ integer N
             end if
         end if
     end while
-    N = addUnnamedConstant(constseq, T_Dsq)
+    if string(constseq) then
+        ctype = T_string
+    else
+        ctype = T_Dsq
+    end if
+    N = addUnnamedConstant(constseq, ctype)
     if N then -- (N=0 can happen if emitON=0)
         if length(symtab[N])<S_gInfo then -- if not a duplicate
-            symtab[N] = append(symtab[N],{T_Dsq,0,0,etype,length(constseq)})
+            symtab[N] = append(symtab[N],{ctype,0,0,etype,length(constseq)})
         end if
     end if
-    PushFactor(N,1,T_Dsq)   -- yep, this is a literal!
+    PushFactor(N,1,ctype)   -- yep, this is a literal!
     getToken()
 end procedure
 
@@ -3908,6 +3942,16 @@ end if
             minsiglen = 1
         end if
 --?{sigidx,siglen,minsiglen,actsig}
+    elsif wasRoutineNo=T_dcproc then    -- opDcfunc (define_c_proc->define_c_func)
+--?{sigidx,siglen,minsiglen,actsig}
+--      if sigidx=1 then
+            PushFactor(T_const0,1,T_integer)    -- return_type of 0
+            actsig &= T_integer
+            sigidx += 1
+            siglen += 1
+--          minsiglen = 1
+--      end if
+--?{sigidx,siglen,minsiglen,actsig}
     end if
 
     -- initialise the parameter backpatch list if needed:
@@ -4496,10 +4540,9 @@ end if
                     else -- (not opTrace)
 --                      if not integer(opcode) then ?9/0 end if
                         if opcode<1 or opcode>maxVop then ?9/0 end if   -- (added 19/11/14)
---                      if opcode<1 or opcode>maxNVop then ?9/0 end if -- (maybe, untested, "")
 if newEBP then
-        -- save eax if rqd
-        saveFunctionResultVars(opsidx,NOTINTS)
+                        -- save eax if rqd
+                        saveFunctionResultVars(opsidx,NOTINTS)
 end if
                         p1 = opstack[1]
 --DEV added 27/7/14 (to get terror.exw working again):
@@ -4628,7 +4671,7 @@ end if
             and opTopIsOp
             and opstack[opsidx]=opDiv then
                 opstack[opsidx] = opDivf
-validate_opstack()
+--validate_opstack()
 --Moved below 24/3:
 --          elsif rtnNo=T_floor and routineNo!=T_floor then
 --              -- assume an inner sq_floor_div happened
@@ -6493,7 +6536,7 @@ object sig
 --              opstack[opsidx] = Bcde[notcode] -- not type-safe?   [DEV investigateme]
                 N = Bcde[notcode]
                 opstack[opsidx] = N
-validate_opstack()
+--validate_opstack()
                 etype = 0
             elsif (   (opTopIsOp=SubscriptOp and opstack[opsidxm1]=1)           -- single subscript
 --                 or (opTopIsOp=BltinOp and find(opstack[opsidx],opINSP)))     -- or builtin type test
@@ -6628,7 +6671,7 @@ validate_opstack()
                         etype = T_atom
                     end if
                     opstack[opsidx] = addUnnamedConstant(TokN,etype)
-validate_opstack()
+--validate_opstack()
                     etype = 0
                 elsif sqopNeeded(1) then
 --                  if sqopWarn then
@@ -7116,7 +7159,7 @@ object sig
                             thisp = opsltrl[compOp]     opsltrl[opsidx] = thisp
                             thisp = opsline[compOp]     opsline[opsidx] = thisp
                             thisp = opstcol[compOp]     opstcol[opsidx] = thisp
-validate_opstack()
+--validate_opstack()
                             -- <plus a PushOp which occurs below>
                         end if
                     elsif compOp<0 then -- lhs was literal int
@@ -7675,7 +7718,7 @@ end if -- emitON
                     -- ie w,[x,y,z,3,opConcatN] -> w,x,y,z,4,opConcatN ( & StoreVar w )
                     w = opstack[opsidx-1]+1
                     opstack[opsidx-1] = w
-validate_opstack()
+--validate_opstack()
                     -- (btw: opstack[i]+=1 screws up ginfo of sequence of integer - 
                     --       it becomes sequence of atom, which we'd rather avoid.)
                 end if
@@ -7684,7 +7727,7 @@ validate_opstack()
 --              -- replace x &={z} with x = append(x,z)
                 opsidx -= 1
                 opstack[opsidx] = opApnd
-validate_opstack()
+--validate_opstack()
                 opTopIsOp = BltinOp
             else
                 PushOp(opConcat,ConcatOp)
@@ -7753,7 +7796,7 @@ validate_opstack()
             opstack[opsidx] = tvar
             opstype[opsidx] = T_object
             opsltrl[opsidx] = allowTempReuse -- mark for possible re-use
-validate_opstack()
+--validate_opstack()
         end if
 --Added 16/11/09:
 --      w = opstype[opsidx]
@@ -8402,7 +8445,7 @@ if newEmit then -- (or set a flag)
                 agcheckop(opRetf)
 end if
                 s5[scBP] = opRetf
-                s5[scBP-2] = isOpCode --(replaces mergeSet, tested for this in pilxl)
+                s5[scBP-2] = isOpCode --(replaces mergeSet, tested for this in pilx86)
                 scBP = tmp
             end while
 
@@ -8874,7 +8917,7 @@ integer cnTyp
             emitHexMov(mcode,ivar,src)
 --          opstack[opsidx] = ivar
             opstack[1] = ivar
-validate_opstack()
+--validate_opstack()
 --          opstype[opsidx] = T_integer
 --          opstype[opsidx] = ftyp
 --          opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
@@ -8935,7 +8978,7 @@ validate_opstack()
             emitHexMov(mcode,tvar,src)
 --          opstack[opsidx] = tvar
             opstack[2] = tvar
-validate_opstack()
+--validate_opstack()
 --          opstype[opsidx] = T_integer
 --          opstype[opsidx] = ftyp
 --          opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
@@ -8998,7 +9041,7 @@ validate_opstack()
                 emitHexMov(mcode,bvar,src)
 --              opstack[opsidx] = bvar
                 opstack[3] = bvar
-validate_opstack()
+--validate_opstack()
 --              opstype[opsidx] = T_integer
 --              opstype[opsidx] = ftyp
 --              opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
@@ -9272,6 +9315,13 @@ integer link
     elsevalid = 2
     elsectrl = -1
 
+--15/10/5:
+    Expr(0,asBool)
+    if opTopIsOp then PopFactor() end if
+
+--28/9/15:
+    saveFunctionResultVars(opsidx,INTSTOO)
+
     ctrlink = 0
     if emitON then
         apnds5({opCtrl,IF,0,emitline})
@@ -9288,11 +9338,12 @@ integer link
     wasEmit = emitON
     emitElse = emitON   -- (minor optimisation [cmp vs opJcc] 18/3/09)
 
-    Expr(0,asBool)
-    if opTopIsOp then PopFactor() end if
-
---28/9/15:
-    saveFunctionResultVars(opsidx,INTSTOO)
+--15/10/15:
+--  Expr(0,asBool)
+--  if opTopIsOp then PopFactor() end if
+--
+----28/9/15:
+--  saveFunctionResultVars(opsidx,INTSTOO)
 
     N = opstack[opsidx]
 --DEV 1/11/2011:
@@ -9669,7 +9720,7 @@ sequence symtabN
 --trace(1)
                     p3 = 0
                     opstack[opsidx]=opDiviii
-validate_opstack()
+--validate_opstack()
                 end if
             end if
             if p3=0 then
@@ -9923,14 +9974,62 @@ integer lprev
     if not get_from_stack then
         tmpN = 0
         opsidx -= 1
+        if allequal and symtab[tmp][S_Name]=-1 and symtab[tmp][S_NTyp]!=S_Const then
+--10/11/15:
+            -- find an lhs element we can use...
+            for i=length(assignset) to 1 by -1 do
+                ai = assignset[i] -- {varno, localsubscripts, noofsubscripts, subscripts}
+                varno = ai[1]
+                if symtab[varno][S_Name]!=-1 then
+                    localsubscripts = ai[2]     -- 0/SliceOp/subscriptOp
+                    if localsubscripts=0 then
+                        subscripts = ai[4]
+                        if length(subscripts)!=1 then ?9/0 end if
+                        if emitON then
+                            emitHexMov(opMove, varno, tmp)
+                        end if
+                        tmp = varno
+                        assignset[i..i] = {}
+                        exit
+                    end if          
+                end if          
+            end for
+--          ?9/0
+            if symtab[tmp][S_Name]=-1 then
+                tokline = wastokline
+                tokcol  = wastokcol
+                Aborp("sorry, construct requires at least one plain var")
+                -- eg {a[i],b[j]} @= f()
+                -- The trouble is that the result of f() ends up in an un-named temporary, and
+                -- moving anything out of said avoids an unnecessary incref by h4-ing the temp.
+                -- In a statement such as {a[i],b,c[k]} @= f(), the compiler performs the b=f()
+                -- first, and uses b instead of the unnamed temp for the remaining assignments.
+                -- However when nothing with a name is available, then you get the above error.
+                -- If this gets really irksome, we /could/ (possibly) enhance the compiler to
+                -- automatically perform a[i] = b[j] to complete the operation, but unless we
+                -- /really/ have to, I'd prefer to avoid such complications. Bearing in mind
+                -- that we might have to repeat that trick for several terms, the difficulty
+                -- of adequate testing, and the probability of adding further bugs, it seems 
+                -- better to force the programmer to use a named temp for the result of f().
+            end if
+        end if
     end if
     for i=length(assignset) to 1 by -1 do
         ai = assignset[i] -- {varno, localsubscripts, noofsubscripts, subscripts}
         varno = ai[1]
         if varno=tmp and i>1 then
-            tokline = wastokline
-            tokcol  = wastokcol
-            Aborp("in {..}=x, can only assign x in the leftmost lhs element")
+--          tokline = wastokline
+--          tokcol  = wastokcol
+--          Aborp("in {..}=x, can only assign x in the leftmost lhs element")
+            -- Create a temp and stash it... (the new temp will always be
+            -- subscripted, so we don't have the @= problem outlined above)
+            if emitON then
+--              varno = newTempVar(Typ,Shared)
+                varno = newTempVar(T_object,Shared)
+                emitHexMov(opMove,varno,tmp)
+                tmp = varno
+                varno = ai[1]
+            end if
         end if
         localsubscripts = ai[2]     -- 0/SliceOp/subscriptOp
         if localsubscripts=0 then

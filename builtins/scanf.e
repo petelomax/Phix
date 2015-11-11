@@ -117,7 +117,9 @@ sequence res = {}
         if last=LITERAL then
             res[$] &= fmt[litstart..$]
         else
-            res &= fmt[litstart..$]
+--31/10/15:
+--          res &= fmt[litstart..$]
+            res = append(res,fmt[litstart..$])
         end if
     end if
     return res  
@@ -126,6 +128,9 @@ end function
 constant bases = {8,16,2,10}    -- NB: oxbd order
 
 string baseset
+integer binit = 0
+
+procedure initb()
     baseset = repeat(255,256)
     for i=0 to 9 do
         baseset['0'+i] = i
@@ -134,6 +139,8 @@ string baseset
         baseset['A'+i-10] = i
         baseset['a'+i-10] = i
     end for
+    binit = 1
+end procedure
 
 integer ch
 
@@ -144,23 +151,29 @@ integer tokvalid
 atom dec
 integer exponent
 integer esigned
+atom fraction
 
     if ch='.' then
         tokvalid = 0
-        dec = 10
+--      dec = 10
+        dec = 1
+        fraction = 0
         while 1 do
 --          sidx += 1
             if sidx>length(s) then exit end if
             ch = s[sidx]
             if ch!='_' then
                 if ch<'0' or ch>'9' then exit end if
-                N += (ch-'0') / dec
+--27/10/15
+--              N += (ch-'0') / dec
+                fraction = fraction*10+(ch-'0')
                 dec *= 10
                 tokvalid = 1
             end if
             sidx += 1
         end while
         if tokvalid=0 then return {} end if
+        N += fraction/dec
     else
         sidx -= 1
     end if
@@ -373,10 +386,11 @@ sequence resset = {}
 atom N
 integer goodres
     if fidx<=length(fmts) then
+        if not binit then initb() end if
         ffi = fmts[fidx]
         if string(ffi) then -- LITERAL
             for i=1 to length(ffi) do
-                if s[sidx]!=ffi[i] then return {} end if
+                if sidx>length(s) or s[sidx]!=ffi[i] then return {} end if
                 sidx += 1
             end for
             res = scanff(res,s,sidx,fmts,fidx+1)
@@ -418,7 +432,7 @@ integer goodres
         if sidx<=length(s) then return {} end if
         res = {res}
     end if
---DEV/DOH: this should almost certainly be in scanf itself! (spotted in passing)
+--DEV/DOH: this should almost certainly be in scanf itself! [ie no need for "and sidx=1 and fidx=1"] (spotted in passing)
     if length(res)>1 and sidx=1 and fidx=1 then
         -- filter multiple results to exact matches
         goodres = 0

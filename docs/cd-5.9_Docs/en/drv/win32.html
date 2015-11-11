@@ -1,0 +1,150 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+<title>Windows</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2>GDI Base Driver</h2>
+
+  <p>This driver represents a base driver for all system-dependent drivers implemented in the Microsoft Windows system. 
+  The implementation uses Win32 API graphics functions, the GDI. The driver works better in Windows NT, but it may also 
+  work in Windows 9x/Me.</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Control&nbsp;</h4>
+<ul>
+  <li><a href="../func/control.html#cdFlush"><font face="Courier"><strong>Flush</strong></font></a>: 
+  does nothing.</li>
+  <li><a href="../func/other.html#cdPlay"><font face="Courier"><strong>Play</strong></font></a>: 
+  does nothing, returns <font face="Courier">CD_ERROR</font>. </li>
+</ul>
+<h4>Coordinate System and Clipping </h4>
+<ul>
+  <li><a href="../func/coordinates.html#cdUpdateYAxis"><font face="Courier">
+  <strong>UpdateYAxis</strong></font></a>: the orientation of axis Y is the opposite to its orientation in the CD 
+  library.</li>
+</ul>
+<h4>Primitives</h4>
+<ul>
+  <li><a href="../func/text.html#cdText"><font face="Courier"><strong>Text</strong></font></a>: 
+  when Write Mode is <strong><tt>XOR</tt></strong> or <strong><tt>NOT_XOR</tt></strong>, the XOR effect is simulated 
+  using bitmaps.</li>
+  <li><font face="Courier"><strong><a href="../func/lines.html#cdLine">Line</a></strong></font>: 
+  needs to draw an extra pixel in the final position.</li>
+</ul>
+<h4>Attributes </h4>
+<ul>
+  <li><a href="../func/attributes.html#cdWriteMode"><font face="Courier">
+  <strong>
+  WriteMode</strong></font></a>: for the client and server image functions, the mode <strong><tt>NOT_XOR</tt></strong> 
+  works as <strong><tt>XOR</tt></strong>.</li>
+  <li><a href="../func/filled.html#cdStipple"><font face="Courier"><strong>
+  Stipple</strong></font></a>: is always opaque. If not in Windows NT and if <font face="Courier">width</font> or
+  <font face="Courier">height</font> are greater than 8, the stipple is simulated using non-regular Windows clipping 
+  regions and bitmaps. The simulation is made when filled boxes, sectors and polygons are drawn.</li>
+  <li><a href="../func/filled.html#cdPattern"><font face="Courier"><strong>
+  Pattern</strong></font></a>: If not in Windows NT and if <font face="Courier">width</font> or <font face="Courier">
+  height</font> are greater than 8, the pattern is simulated using non-regular Windows clipping regions and bitmaps. The 
+  simulation is made when filled boxes, sectors and polygons are drawn.</li>
+  <li><a href="../func/lines.html#cdLineWidth"><font face="Courier"><strong>
+  TextAlignment</strong></font></a>: the vertical alignment of CD_CENTER, CD_EAST, CD_WEST is manually calculated.</li>
+  <li><a href="../func/lines.html#cdLineWidth"><font face="Courier"><strong>
+  LineWidth</strong></font></a>: If not in Windows NT line width is always 1. If line width is 1, then a cosmetic pen 
+  is used for fast drawing.</li>
+  <li><font face="Courier"><strong><a href="../func/lines.html#cdLineStyle">
+  LineStyle</a></strong></font>: If line width is 1, the style is a little different from when line width is not 1, 
+  because a cosmetic pen is used for width=1.</li>
+  <li><a href="../func/text.html#cdNativeFont"><font face="Courier"><strong>
+  NativeFont</strong></font></a>: also accepts <em><strong>&quot;-d&quot;</strong></em><strong>
+  </strong>&nbsp;to show the font-selection dialog box.</li>
+  <li><a href="../func/text.html#cdFont"><font face="Courier"><strong>Font</strong></font></a>: 
+  &quot;Courier&quot; is mapped to &quot;Courier New&quot;, &quot;Helvetica&quot; is mapped to &quot;Arial&quot;, and 
+  &quot;Times&quot; is mapped to &quot;Times New Roman&quot;. Underline and 
+  Strikeout are supported. The System font does not have orientation.</li>
+</ul>
+<h4>Client Images </h4>
+<ul>
+  <li><font face="Courier"><strong><a href="../func/client.html#cdPutImageRGBA">
+  PutImageRGBA</a></strong></font>: Try to use the new GDI function AlphaBlend, if not available captures an image 
+  from the canvas to blend it manually.</li>
+</ul>
+<h4>Colors </h4>
+<ul>
+  <li><a href="../func/color.html#cdPalette"><font face="Courier"><strong>Palette</strong></font></a>: 
+  is useful only if the device has 256 colors. If it has less than 256 colors, ignore this function, for it will not 
+  make much difference. If two different canvases have their palettes modified, the last one to be modified will have 
+  the best quality; the other one will not have good quality and the colors might have a completely different 
+  appearance.</li>
+</ul>
+<h4>Exclusive Attributes</h4>
+<ul>
+  <li>&quot;<b><font face="Courier">HDC</font></b>&quot; or &quot;<b><font face="Courier">GC</font></b>&quot;: returns the HDC of the Win32 canvas. It can only be retrieved (get 
+  only). In Lua is returned as a user data.</li>
+</ul>
+<ul>
+  <li>&quot;<strong><font face="Courier">PENFILLPOLY</font></strong>&quot;: controls the polygon filling outline. Assumes values 
+  &quot;1&quot; (active) and &quot;0&quot; (inactive). Default value: &quot;1&quot;. When a filled polygon is drawn, a line in the same color is used 
+  to draw the border which is not included in the filling. Deactivating this attribute solves the problem of polygons 
+  with holes, in which there is a line connecting the external polygon to the internal polygon.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">IMAGEFORMAT</font></b>&quot;: defines the number of bits per pixel used to create server 
+  images. It uses 1 integer that can have the values: &quot;32&quot; or &quot;24&quot; (%d). Use NULL to remove the attribute. It is used 
+  only in the <font face="Courier"><strong>cdCreateImage</strong></font>. When not defined, the server images use the 
+  same format of the canvas.</li>
+</ul>
+<ul>
+  <li>&quot;<strong><font face="Courier">IMAGEALPHA</font></strong>&quot;:&nbsp; allows the usage of an alpha channel for server 
+  images if  IMAGEFORMAT=32. The attribute format is a pointer to the transparency values in a sequence of chars in 
+  the same format of alpha for client images. The attribute is used only in the <font face="Courier"><strong>
+  cdCreateImage</strong></font> and for every <font face="Courier"><strong>
+  cdPutImageRect</strong></font>,  the pointer must exists while the image exists. The alpha values are 
+  transferred to 
+  the image only in <font face="Courier"><strong>cdPutImageRect</strong></font>, so they can be freely changed any time. 
+  It will use the <strong><font face="Courier">AlphaBlend</font></strong> GDI 
+  function. The data is not duplicated, only the pointer is stored. The size of 
+  the data must be the same size of the image. Use NULL to remove the attribute. 
+  Not accessible in Lua.</li>
+</ul>
+<ul>
+  <li>&quot;<strong><font face="Courier">IMAGEMASK</font></strong>&quot;:&nbsp; defines a binary transparency mask for server 
+  images. The format is the same of a stipple, can contain only 0s and 1s. Use 2 integers, width and height, and a char 
+  pointer to the mask values inside a string (&quot;%d %d %p&quot;). Use NULL to remove the attribute. It can not be retrieved 
+  (set only). Not accessible in Lua. It will use the <font face="Courier"><strong>MaskBlt</strong></font> 
+  GDI function.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">IMAGEPOINTS</font></b>&quot;:&nbsp; define 3 coordinates of a 
+  parallelogram that will be used 
+  to warp server images. Use 6 integer values inside a string (&quot;%d %d %d %d %d %d&quot; = x1 y1 x2 y2 x3 y3). Use NULL to 
+  remove the attribute. The respective specified points are the upper-left corner, the upper-right corner and the lower 
+  left corner. The drawing is also affected by the &quot;IMAGEMASK&quot; attribute. It will use the <font face="Courier"><strong>
+  PlgBlt</strong></font> GDI function. </li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">ROTATE</font></b>&quot;:&nbsp; allows the usage of 1 
+  angle and 1 coordinate (x, y), that define a global rotation transformation 
+  centered in the specified coordinate. Use 1 real and 2 integer values inside a 
+  string (&quot;%g %d %d&quot; = angle x y).&nbsp; Can not be set if a 
+	transformation is already set.</li>
+</ul>
+<ul>
+  <li><b><font face="Courier">&quot;UTF8MODE&quot;: </font></b>enables the usage 
+  of the UTF-8 encoding for strings. It can have the following 
+  values: &quot;1&quot; or &quot;0&quot;. Default is &quot;0&quot;.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">WINDOWRGN</font></b>&quot;: set the shape of a window to the current complex clipping region 
+  (set only). If data is NULL the region is reset.</li>
+</ul>
+
+</body>
+
+</html>

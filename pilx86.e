@@ -348,10 +348,10 @@ constant
          mov_mem32_eax  =  #A3,         -- 0o243 m32                -- mov [m32],eax
          mov_al_imm8    =  #B0,         -- 0o260 imm8               -- mov al,imm8
          mov_eax_imm32  =  #B8,         -- 0o270 imm32              -- mov eax,imm32
-         mov_ecx_imm32  =  #B9,         -- 0o271 imm32              -- mov ecx,imm32
+--       mov_ecx_imm32  =  #B9,         -- 0o271 imm32              -- mov ecx,imm32
          mov_edx_imm32  =  #BA,         -- 0o272 imm32              -- mov edx,imm32
-         mov_ebx_imm32  =  #BB,         -- 0o273 imm32              -- mov ebx,imm32
-         mov_esi_imm32  =  #BE,         -- 0o276 imm32              -- mov esi,imm32
+--       mov_ebx_imm32  =  #BB,         -- 0o273 imm32              -- mov ebx,imm32
+--       mov_esi_imm32  =  #BE,         -- 0o276 imm32              -- mov esi,imm32
          mov_edi_imm32  =  #BF,         -- 0o277 imm32              -- mov edi,imm32
 --       shl_esi_imm8   = {#C1,#E6},    -- 0o301 0o346 imm8         -- shl esi,imm8
 --       shr_eax_imm8   = {#C1,#E8},    -- 0o301 0o350 imm8         -- shr esi,imm8
@@ -690,6 +690,10 @@ procedure quad2(integer isOther, integer i)
 -- (that is when not binding/fast "in situ" processing)
 integer w
     if q86<=1 then ?9/0 end if
+if newEmit then
+    if isOther=isOpCode then ?9/0 end if
+    -- isJmpG/isVar/isVno/isConstRef/isConstRefCount/isIL/isILa
+end if
     x86 &= isOther  -- isIL[a]/isOpCode/isConstRef[Count]
     w = length(x86)
     x86 &= 0
@@ -708,8 +712,8 @@ end procedure
 integer opLnv, oplnlen
 
 --q86 checked
-sequence call_op
-         call_op = {call_rel32,isOpCode,0,0,0}
+--sequence call_op
+--       call_op = {call_rel32,isOpCode,0,0,0}
 
 integer thisDbg
         thisDbg = 0
@@ -758,7 +762,7 @@ integer skipline
 --  emitHex5call(opTrace)                           -- call opXxxx
 --  callopTraceFirst = 0
 --end if
-if newEmit then
+--if newEmit then
                 lastline = emitline
                 movRegImm32(eax,emitline)           -- mov eax,imm32
 --              x86 &= mov_eax_imm32
@@ -775,17 +779,17 @@ if newEmit then
 --?{opLnv,lastline,emitline}
                 emitHex5callG(opLnv)                -- call :%pLnt/p/pt
                 opLntpcalled = 1
-else
-                x86 &= mov_eax_imm32
-                emitHexDword(emitline)
-                if q86>1 then
-                    x86 &= call_rel32
-                    quad2(isOpCode,opLnv)
-                else
-                    call_op[5] = opLnv
-                    x86 &= call_op
-                end if
-end if
+--else
+--              x86 &= mov_eax_imm32
+--              emitHexDword(emitline)
+--              if q86>1 then
+--                  x86 &= call_rel32
+--                  quad2(isOpCode,opLnv)
+--              else
+--                  call_op[5] = opLnv
+--                  x86 &= call_op
+--              end if
+--end if
                 -- all regs trashed
                 reginfo = 0
             end if
@@ -927,7 +931,7 @@ end procedure
 --                  -- NB: p2/3 obtained from [esp]-9/-14 on error
 --              --  will be completely spannered by this intrusion, not that it matters much as
 --              --  long as your test program does not actually crash.
---              if not find(v,{opTchkFail,opMovsi,opMovti,
+--              if not find(v,{opTcFail,opMovsi,opMovti,
 --                              opSubse,opConcatN,opSubss,opSubse1,opAddiii,
 --                              opDivi2,opDiviii,opMuliii,opMovbi,opMkSq,opRepe1,
 --                              opReps,opRepe,opFrame}) then
@@ -979,38 +983,38 @@ end function
 --  eg opMovsi is always inlined and VMep[opMovsi] is in fact deallocX, etc ;-)
 
 --DEV kill all these for newEmit:
-constant c_dealloc      = opMovsi,  -- (yes, VMep[opMovsi] is deallocX)
-         c_e01tcfediDiv = opDiviii, -- (yes, VMep[opDiviii] is e01tcfediDiv)
-         c_e01tcfDivi2  = opDivi2,  -- (yes, VMep[opDivi2] is e01tcfDivi2)
-         c_e01tcfediMul = opMuliii, -- (yes, VMep[opMuliii] is e01tcfediMul)
-         c_e01tcfAddiii = opAddiii, -- (yes, VMep[opAddiii] is e01tcfAddiii)
+--constant c_dealloc        = opMovsi,  -- (yes, VMep[opMovsi] is deallocX)
+--       c_e01tcfediDiv = opDiviii, -- (yes, VMep[opDiviii] is e01tcfediDiv)
+--       c_e01tcfDivi2  = opDivi2,  -- (yes, VMep[opDivi2] is e01tcfDivi2)
+--       c_e01tcfediMul = opMuliii, -- (yes, VMep[opMuliii] is e01tcfediMul)
+--       c_e01tcfAddiii = opAddiii, -- (yes, VMep[opAddiii] is e01tcfAddiii)
 --       c_e01tcfIncDec = opInc,    -- (yes, VMep[opInc] is e01tcfIncDec)
-         c_e02atdb0     = opDivf2,  -- (yes, VMep[opDivf2] is e02atdb0)         --(kill for newEmit)
-         c_e92movti     = opMovti   -- (yes, VMep[opMovti] is e92movti)
+--       c_e02atdb0     = opDivf2   -- (yes, VMep[opDivf2] is e02atdb0)         --(kill for newEmit)
+--       c_e92movti     = opMovti   -- (yes, VMep[opMovti] is e92movti)
 
-procedure emitHex5call(integer opcode)
-    -- Call an opcode. Btw, there is no real difference between calling this
-    --  and emitHex5s with one of the constants delared below, except for
-    --  the latter being easier to read in some cases, and those that need a
-    --  jump rather than a call obviously won't work here (see also the list
-    --  of opcodes given in the comments of emitHex5addr).
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
-if newEmit then
-    printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit (pilx86.e line 984, emitline=%d)\n",{opcode,opNames[opcode],emitline})
-?9/0
-    norun = 1
-else
-    if q86>1 then
-        x86 &= call_rel32
-        quad2(isOpCode,opcode)
-    else
-        call_op[5] = opcode
-        x86 &= call_op
-    end if
-end if
-end procedure
+--procedure emitHex5call(integer opcode)
+--  -- Call an opcode. Btw, there is no real difference between calling this
+--  --  and emitHex5s with one of the constants delared below, except for
+--  --  the latter being easier to read in some cases, and those that need a
+--  --  jump rather than a call obviously won't work here (see also the list
+--  --  of opcodes given in the comments of emitHex5addr).
+--  if not sched then
+--      if lastline!=emitline then lineinfo() end if
+--  end if
+----if newEmit then
+--  printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit (pilx86.e line 984, emitline=%d)\n",{opcode,opNames[opcode],emitline})
+--?9/0
+--  norun = 1
+----else
+----    if q86>1 then
+----        x86 &= call_rel32
+----        quad2(isOpCode,opcode)
+----    else
+----        call_op[5] = opcode
+----        x86 &= call_op
+----    end if
+----end if
+--end procedure
 
 procedure emitHex5cr(integer opcode, integer N)
 -- emit a 5 byte mov reg,constref instruction
@@ -1048,32 +1052,6 @@ procedure emitHex5j(integer offset)
 end procedure
 
 --q86 checked
-sequence jump_op
-         jump_op = {jump_rel32,isOpCode,0,0,0}
-
-procedure emitHex5jmpop(integer opcode)
-    -- Jump to an opcode. Used for opRetf and in tandem with emitHex5addr.
-    if not sched then
-        if lastline!=emitline then
-            if opcode!=opRetf then ?9/0 end if
-            lineinfo()
-        end if
-    end if
-if newEmit then ?9/0 end if -- use jmpG instead!
-if suppressopRetf then
-    if opcode=opRetf then
-        puts(1,"pilx86.e line 1024 (opRetf)\n")
-    end if
-end if
-    if q86>1 then
-        x86 &= jump_rel32
-        quad2(isOpCode,opcode)
-    else
-        jump_op[5] = opcode
-        x86 &= jump_op
-    end if
-end procedure
-
 sequence jump_G
          jump_G = {jump_rel32,isJmpG,0,0,0}
 --      x86 &= {call_rel32,isJmpG,0,0,lblidx}
@@ -1141,24 +1119,14 @@ end procedure
 --  eg opMovsi is always inlined and VMep[opMovsi] is in fact deallocX, etc ;-)
 
 --q86 checked
-constant call_dealloc       = {call_rel32,isOpCode,0,0,opMovsi},    -- (yes, VMep[opMovsi] is deallocX)
-         call_e01tcfediDiv  = {call_rel32,isOpCode,0,0,opDiviii},   -- (yes, VMep[opDiviii] is e01tcfediDiv)
-         call_e01tcfDivi2   = {call_rel32,isOpCode,0,0,opDivi2},    -- (yes, VMep[opDivi2] is e01tcfDivi2)
-         call_e01tcfediMul  = {call_rel32,isOpCode,0,0,opMuliii},   -- (yes, VMep[opMuliii] is e01tcfediMul)
-         call_e01tcfAddiii  = {call_rel32,isOpCode,0,0,opAddiii},   -- (yes, VMep[opAddiii] is e01tcfAddiii)
+--constant call_dealloc     = {call_rel32,isOpCode,0,0,opMovsi},    -- (yes, VMep[opMovsi] is deallocX)
+--       call_e01tcfediDiv  = {call_rel32,isOpCode,0,0,opDiviii},   -- (yes, VMep[opDiviii] is e01tcfediDiv)
+--       call_e01tcfDivi2   = {call_rel32,isOpCode,0,0,opDivi2},    -- (yes, VMep[opDivi2] is e01tcfDivi2)
+--       call_e01tcfediMul  = {call_rel32,isOpCode,0,0,opMuliii},   -- (yes, VMep[opMuliii] is e01tcfediMul)
+--       call_e01tcfAddiii  = {call_rel32,isOpCode,0,0,opAddiii},   -- (yes, VMep[opAddiii] is e01tcfAddiii)
 --       call_e01tcfIncDec  = {call_rel32,isOpCode,0,0,opInc},      -- (yes, VMep[opInc] is e01tcfIncDec)
-         call_e02atdb0      = {call_rel32,isOpCode,0,0,opDivf2},    -- (yes, VMep[opDivf2] is e02atdb0)
-         call_e92movti      = {call_rel32,isOpCode,0,0,opMovti}     -- (yes, VMep[opMovti] is e92movti)
---       jump_opRetf        = {jump_rel32,isOpCode,0,0,opRetf},
---       jump_opTchk        = {jump_rel32,isOpCode,0,0,opTchk},
---       jump_opMkSq        = {jump_rel32,isOpCode,0,0,opMkSq},
---       jump_opReps        = {jump_rel32,isOpCode,0,0,opReps},
---       jump_opRepe        = {jump_rel32,isOpCode,0,0,opRepe},
---       jump_opConcatN     = {jump_rel32,isOpCode,0,0,opConcatN},
---       jump_opSubse       = {jump_rel32,isOpCode,0,0,opSubse},
---       jump_opSubss       = {jump_rel32,isOpCode,0,0,opSubss},
---       jump_0             = {jump_rel32,isJmp,0,0,0}, -- gp jump, backpatched/shortened later
---       jump_8             = {jump_rel32,isJmp,0,0,8}  -- used in opEndFor
+--       call_e02atdb0      = {call_rel32,isOpCode,0,0,opDivf2}     -- (yes, VMep[opDivf2] is e02atdb0)
+--       call_e92movti      = {call_rel32,isOpCode,0,0,opMovti}     -- (yes, VMep[opMovti] is e92movti)
 
 procedure emitHex5s(sequence op5)
 -- emit a five byte opcode, eg call an opcode.
@@ -1251,6 +1219,7 @@ end procedure
 --q86 checked
 sequence cr4
          cr4 = {isConstRef,0,0,-1}
+--dev cf emitHex5cr...
 procedure emitHex5constref(integer op1, integer N)
 -- emit an opcode,isConstRef,0,0,N instruction
 if newEmit then ?9/0 end if
@@ -1343,27 +1312,27 @@ procedure emitHex6j(sequence op2, integer offset)
     end if
 end procedure
 
-procedure emitHex6ret(sequence op2)
--- emit a conditional return
---/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
-    if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    --(ditto as per emitHex6j)
-    if sched then
-        schend()
-    else
-        if lastline!=emitline then lineinfo() end if
-    end if
-    x86 &= op2
-if newEmit then ?9/0 end if -- see eg emitHex5jmpG
-if suppressopRetf then
-    puts(1,"emitHex6ret\n")
-end if
-    if q86>1 then
-        quad2(isOpCode,opRetf)
-    else
-        x86 &= {isOpCode,0,0,opRetf}
-    end if
-end procedure
+--procedure emitHex6ret(sequence op2)
+---- emit a conditional return
+----/**/    #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
+--  if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
+--  --(ditto as per emitHex6j)
+--  if sched then
+--      schend()
+--  else
+--      if lastline!=emitline then lineinfo() end if
+--  end if
+--  x86 &= op2
+--if newEmit then ?9/0 end if -- see eg emitHex5jmpG
+--if suppressopRetf then
+--  puts(1,"emitHex6ret\n")
+--end if
+--  if q86>1 then
+--      quad2(isOpCode,opRetf)
+--  else
+--      x86 &= {isOpCode,0,0,opRetf}
+--  end if
+--end procedure
 
 procedure emitHex6retg(sequence op2)
 -- emit a conditional return
@@ -1717,25 +1686,25 @@ procedure markConstUseds(sequence s)
     end for
 end procedure
 
-procedure cleanup(integer firstvar, integer lastvar, integer firstTidx, integer lastTidx)
--- common code for unused_cleanup:
-    if firstvar then
-        if q86>1 then ?9/0 end if   -- need to do something better here then...
-        s5 &= mov_esi_imm32
-        s5 &= {isVar,0,0}
-        s5 &= firstTidx
-        if firstvar=lastvar then
-            s5 &= {call_rel32,isOpCode,0,0}
-            s5 &= opCleanUp1
-        else
-            s5 &= mov_edi_imm32
-            s5 &= {isVar,0,0}
-            s5 &= lastTidx
-            s5 &= {call_rel32,isOpCode,0,0}
-            s5 &= opCleanUp
-        end if
-    end if
-end procedure
+--procedure cleanup(integer firstvar, integer lastvar, integer firstTidx, integer lastTidx)
+---- common code for unused_cleanup:
+--  if firstvar then
+--      if q86>1 then ?9/0 end if   -- need to do something better here then...
+--      s5 &= mov_esi_imm32
+--      s5 &= {isVar,0,0}
+--      s5 &= firstTidx
+--      if firstvar=lastvar then
+--          s5 &= {call_rel32,isOpCode,0,0}
+--          s5 &= opCleanUp1
+--      else
+--          s5 &= mov_edi_imm32
+--          s5 &= {isVar,0,0}
+--          s5 &= lastTidx
+--          s5 &= {call_rel32,isOpCode,0,0}
+--          s5 &= opCleanUp
+--      end if
+--  end if
+--end procedure
 
 procedure Aborc(sequence msg)
     if equal(expandedYet[fileno],0) then
@@ -1862,7 +1831,8 @@ global procedure unused_cleanup(integer asmoptions)
 --           if debugleak issue cleanup code (reset all
 --           vars to 0 for memory leak checks).
 --
-integer dlAsm, k
+integer dlAsm
+--, k
 integer firstGvar, lastGvar
 object si
 integer siNTyp, siState
@@ -2006,44 +1976,44 @@ and and_bits(siState,K_noclr) then
         si[S_ConstChain] = 0    -- initialise fixup chain
         symtab[i] = si
 end if
-if not newEmit then --DEV
-                if debugleak and repl=0 then    -- (all official releases should have debugleak set to 0, btw)
-                    if not LastStatementWasAbort then
-                        -- cleanup any non-integers which have actually been set
-                        if si[S_vtype]!=T_integer
---                  vtype = si[S_vtype]
---                  if length(si)>=S_gNew
---                  and sequence(si[S_gNew]) then
---                      vtype = si[S_gNew][gType]
---                  end if
---                  if vtype!=T_integer
---DEV 15/6:
---                      and and_bits(siState,S_set) then
-                        and and_bits(siState,S_set+K_aod) then
-                            if siNTyp=S_GVar2
-                            or (siNTyp=S_Const and and_bits(siState,K_noclr)=0) then
-                                if i!=lastGvar+1 then
-                                    cleanup(firstGvar,lastGvar,firstGvar,lastGvar)
-                                    firstGvar = i
-                                end if
-                                lastGvar = i
-                            end if
-                        end if -- S_set non-integer
-                    end if -- LastStatementWasAbort
-                end if  -- debugleak
-end if
+--if not newEmit then --DEV
+--              if debugleak and repl=0 then    -- (all official releases should have debugleak set to 0, btw)
+--                  if not LastStatementWasAbort then
+--                      -- cleanup any non-integers which have actually been set
+--                      if si[S_vtype]!=T_integer
+----                    vtype = si[S_vtype]
+----                    if length(si)>=S_gNew
+----                    and sequence(si[S_gNew]) then
+----                        vtype = si[S_gNew][gType]
+----                    end if
+----                    if vtype!=T_integer
+----DEV 15/6:
+----                        and and_bits(siState,S_set) then
+--                      and and_bits(siState,S_set+K_aod) then
+--                          if siNTyp=S_GVar2
+--                          or (siNTyp=S_Const and and_bits(siState,K_noclr)=0) then
+--                              if i!=lastGvar+1 then
+--                                  cleanup(firstGvar,lastGvar,firstGvar,lastGvar)
+--                                  firstGvar = i
+--                              end if
+--                              lastGvar = i
+--                          end if
+--                      end if -- S_set non-integer
+--                  end if -- LastStatementWasAbort
+--              end if  -- debugleak
+--end if
             end if -- S_Type/S_Gvar
         end if -- sequence(si)
     end for
-if not newEmit then
-    if debugleak and repl=0 then    -- (all official releases should have debugleak set to 0, btw)
-        if not LastStatementWasAbort then
-            cleanup(firstGvar,lastGvar,firstGvar,lastGvar)
-            k = length(s5)-dlAsm
-            s5[dlAsm-2] = k
-        end if
-    end if
-end if
+--if not newEmit then
+--  if debugleak and repl=0 then    -- (all official releases should have debugleak set to 0, btw)
+--      if not LastStatementWasAbort then
+--          cleanup(firstGvar,lastGvar,firstGvar,lastGvar)
+--          k = length(s5)-dlAsm
+--          s5[dlAsm-2] = k
+--      end if
+--  end if
+--end if
 end procedure
 
 sequence states,        -- The state table, eg if states[state] is {1,3,4,2}
@@ -2276,7 +2246,6 @@ integer k
 end procedure
 
 procedure loadMem(integer r, integer N)
--- used by loadReg below and from #ilasm (opLoadReg,%reg,var)
 integer k, xrm
     if newEmit and X64=1 then
         emitHex1(#48)
@@ -4388,11 +4357,7 @@ sequence jcode
 if suppressopRetf then
     puts(1,"pilx86.e line 4218 (jend/opRetf)\n")
 end if
-if newEmit then
                 emitHex5jmpG(opRetf)                        -- jmp opRetf
-else
-                emitHex5jmpop(opRetf)                       -- jmp opRetf
-end if
                 opcode = opRetf
                 tgt = -1    -- let jskip fall off end of code
                 if jskip() then return 1 end if -- if "", all done --> end while
@@ -4431,11 +4396,7 @@ end if
 --          schend() --??   -- a schedule is prolly fine here (untried):
 ----            schedule(0,0,0,pV,1,0)  -- oops, cannot set anything after the Retf...
 --end if
-if newEmit then
             emitHex6retg(jcode)                 -- jcc opRetf
-else
-            emitHex6ret(jcode)                  -- jcc opRetf
-end if
         else
             if sched then
                 if schidx then  --***DEV***??
@@ -4539,7 +4500,7 @@ fskip
         waspc       -- for opConcatN, opRepe, opMkSq, opJne, opMath, opMovxx
 ,flippable,
 useAndBits,     -- see opRmdr
-doNotXor,       -- see opJcc, opPuts
+--doNotXor,     -- see opJcc, opPuts
 dbpos,          -- backpatch point for defaulted params (see opTchk)
 backpatch,      -- general purpose jump backpatch
 backpatch2,     -- ""
@@ -4570,7 +4531,7 @@ integer stmt,link,tlink,switchable,orcount,
 
 integer wasOptTypeCheck, pDefault
 
-integer from, fmin, fmax
+--integer from, fmin, fmax
 
 -- 7/11/10 switch vars and stacks (for nested switch statements):
 integer switch_x86loc,      -- location of first jump table entry
@@ -4900,13 +4861,10 @@ end if
                         if isFresSrc then
                             if not isFresDst then
                                 if vroot!=T_integer and not onDeclaration then
-if newEmit then
                                     emitHex1(push_eax)                              -- save eax/rax (src)
 --DEV prefer edx...
                                     prev = loadReg(dest)                            -- mov prev,[dest]
                                     cmp_h4(prev)                                    -- cmp prev,h4
---DEVBPM backpatch me: [DONE]
---                                  emitHex6j(jle_rel32,17)                         -- jl @f [sj NOT ok]
                                     emitHex6j(jle_rel32,0)                          -- jl @f [sj NOT ok]
                                     backpatch = length(x86)
                                     sib = #83+prev*8 -- 0o2r3, ebx+prev*4
@@ -4917,8 +4875,6 @@ if newEmit then
                                     else
                                         emitHex5sib(subd_sibd8i8,sib,-8,1)          -- sub dword[ebx+prev*4-8],1 (decref)
                                     end if
---DEVBPM backpatch me: [DONE]
---                                  emitHex6j(jnz_rel32,7)                          -- jnz @f [sj NOT ok]
                                     emitHex6j(jnz_rel32,0)                          -- jnz @f [sj NOT ok]
                                     backpatch2 = length(x86)
 --DEV if prev!=edx? (just checked, it cannot be, as things stand, it seems)
@@ -4930,34 +4886,17 @@ if newEmit then
                                     emitHex5callG(opDealloc)                        -- call :%pDealloc
                                     x86[backpatch] = length(x86)-backpatch          -- @@:
                                     x86[backpatch2] = length(x86)-backpatch2
-else -- not newEmit
-                                    emitHex1(push_eax)                              -- save eax (src)
---DEV prefer edx...
-                                    prev = loadReg(dest)                            -- mov prev,[dest]
-                                    cmp_h4(prev)                                    -- cmp prev,h4
-                                    emitHex6j(jle_rel32,17)                         -- jl @f [sj NOT ok]
-                                    sib = #83+prev*8 -- 0o2r3, ebx+prev*4
-if newEmit then ?9/0 end if -- (we are already in not newEmit here)
-if X64 then ?9/0 end if
-                                    emitHex4sib(decd_sib,sib,-8)                    -- dec dword[ebx+prev*4-8]  ; decref prev
-                                    emitHex6j(jnz_rel32,7)                          -- jnz @f [sj NOT ok]
-                                    xrm = #D0+prev -- 0o32p
-                                    emitHex2(mov_dword,xrm)                         -- mov edx,prev
-                                    if q86 then
-                                        emitHex5call(c_dealloc)                     -- call deallocX
-                                    else
-                                        emitHex5s(call_dealloc)                     -- call deallocX
-                                    end if
-                                                                                    -- @@:
-end if
                                     popvar(dest)
                                     reginfo = 0  -- dealloc trashes all registers
                                 else
                                     storeReg(eax,dest,1,0)
                                 end if
                             end if
-                        elsif symtab[src][S_NTyp]=S_TVar
-                        and (isFresDst or onDeclaration=2 or symtab[src][S_Name]=-1) then
+--10/11/15:
+--                      elsif symtab[src][S_NTyp]=S_TVar
+--                      and (isFresDst or onDeclaration=2 or symtab[src][S_Name]=-1) then
+                        elsif (symtab[src][S_Name]=-1 and symtab[src][S_NTyp]=S_GVar2)
+                           or (symtab[src][S_NTyp]=S_TVar and (isFresDst or onDeclaration=2 or symtab[src][S_Name]=-1)) then
 -- bad idea!
 --                      elsif isFresDst
 --                         or (symtab[src][S_NTyp]=S_TVar and 
@@ -4980,7 +4919,10 @@ else
                                 end if
 end if
                                 storeReg(ebx,src,1,0)                           -- move [src],ebx(0)
+--10/11/15:
                             elsif onDeclaration then -- no need to decref/dealloc
+--                          elsif onDeclaration -- no need to decref/dealloc
+--                             or symtab[src][S_Name]=-1 then
                                 reg = loadReg(src)                              -- mov reg,[src]
                                 if sched then
                                     schedule(0,0,0,pUV,0,src)
@@ -5025,8 +4967,6 @@ end if
                                     if sched then
                                         schend()
                                     end if
---DEVBPM backpatch me: [DONE]
---                                  emitHex6j(jle_rel32,17)                         -- jle @f [sj NOT ok]
                                     emitHex6j(jle_rel32,0)                          -- jle @f [sj NOT ok]
                                     backpatch = length(x86)
                                     sib = #83+prev*8 -- 0o2r3, ebx+prev*4
@@ -5042,25 +4982,12 @@ if newEmit then
 else
                                     emitHex4sib(decd_sib,sib,-8)                    -- dec dword[ebx+prev*4-8]  ; decref prev
 end if
---DEVBPM backpatch me: [DONE]
---                                  emitHex6j(jnz_rel32,7)                          -- jnz @f [sj NOT ok]
                                     emitHex6j(jnz_rel32,0)                          -- jnz @f [sj NOT ok]
                                     backpatch2 = length(x86)
                                     xrm = #D0+prev -- 0o32p
 --DEV use mov_reg?/if not already edx
                                     emitHex2(mov_dword,xrm)                         -- mov edx,prev
-if newEmit then
---  puts(1,"warning: deallocX skipped for newEmit (pilx86.e line 4561)\n")
---                                  lblidx = tt[aatidx[opDealloc]+EQ]
---                                  if lblidx=0 then ?9/0 end if
                                     emitHex5callG(opDealloc)                        -- call :%pDealloc
-else
-                                    if q86 then
-                                        emitHex5call(c_dealloc)                     -- call deallocX
-                                    else
-                                        emitHex5s(call_dealloc)                     -- call deallocX
-                                    end if
-end if
                                     x86[backpatch] = length(x86)-backpatch          -- @@:
                                     x86[backpatch2] = length(x86)-backpatch2
                                     reginfo = 0  -- dealloc trashes all registers
@@ -5255,18 +5182,7 @@ end if
                                 xrm = #C2 + prev*8 -- 0o3r2
                                 emitHex2(mov_reg,xrm)                   -- mov edx,reg
                             end if
-if newEmit then
---  puts(1,"warning: deallocX skipped for newEmit (pilx86.e line 4723)\n")
---                          lblidx = tt[aatidx[opDealloc]+EQ]
---                          if lblidx=0 then ?9/0 end if
                             emitHex5callG(opDealloc)                    -- call :%pDealloc
-else
-                            if q86 then
-                                emitHex5call(c_dealloc)                 -- call deallocX
-                            else
-                                emitHex5s(call_dealloc)                 -- call deallocX
-                            end if
-end if
                             x86[backpatch] = length(x86)-backpatch      -- @@:
                             x86[backpatch2] = length(x86)-backpatch2
 --;newEBP:: (not yet attempted) (extend this with builtin typechecking? - no, see opMovti)
@@ -5444,18 +5360,7 @@ end if
 --                              emitHex6j(jnz_rel32,5)                          -- jnz @f [sj NOT ok]
                                 emitHex6j(jnz_rel32,0)                          -- jnz @f [sj NOT ok]
                                 backpatch2 = length(x86)
-if newEmit then
---  puts(1,"warning: deallocX skipped for newEmit (pilx86.e line 4871)\n")
---                              lblidx = tt[aatidx[opDealloc]+EQ]
---                              if lblidx=0 then ?9/0 end if
                                 emitHex5callG(opDealloc)                        -- call :%pDealloc
-else
-                                if q86 then
-                                    emitHex5call(c_dealloc)                     -- call deallocX
-                                else
-                                    emitHex5s(call_dealloc)                     -- call deallocX
-                                end if
-end if
                                 x86[backpatch] = length(x86)-backpatch          -- @@:
                                 x86[backpatch2] = length(x86)-backpatch2
                                 reginfo = 0 -- trashes all registers
@@ -5504,8 +5409,6 @@ end if
                             if sched then
                                 schedule(0,0,0,pV,1,0)  -- treat next 4 as one instruction
                             end if
-if newEmit then
---  puts(1,"warning: e92movti (fatal error) skipped for newEmit (pilx86.e line 5278)\n")
 -- 30/1/15: for callpending, we just want unassigned on the call; typecheck error we can leave until the routine is called...
     if callpending then
                             emitHex6j(jne_rel32,0)                  -- jne @f [sj NOT ok]
@@ -5526,42 +5429,6 @@ if newEmit then
                             movRegVno(esi,src)                      -- mov esi,src (var no for unassigned)
                             movRegVno(edi,dest)                     -- mov edi,dest (var no for type check error)
                             emitHex5callG(opUnassigned)
---  end if
-else
-                            emitHex6j(jl_rel32,0)                   -- jl @f [sj NOT ok]
-                            backpatch = length(x86)
-                            if not isFresSrc then
-                                leamov(esi,src)                     -- lea esi,[src]/mov esi,addr src
---                          elsif newEmit then
---                              leamov(esi,dest)                    -- lea esi,[dest]/mov esi,addr src
-                            end if
-                            if not isFresDst then
-                                leamov(edx,dest)                    -- lea edx,[dest]/mov edx,addr dest
-                            end if
---7/3/2010:
-if callpending then
-                            -- use a push/jmp pair instead of a call to get ex.err right:
-    if q86>1 then
---DEV not in use (yet)
-    --  ?"9/0 (x87 3861)\n" -- separate chain for isIL??
-                            x86 &= push_imm32                       -- push <routine_code>
-                            quad2(isILa,routineNo)
-                            x86 &= jump_rel32                       -- jmp e92movti (fatal error)
-                            quad2(isOpCode,c_e92movti)
-    else
-                            h5 = {push_imm32,isILa,0,0,routineNo}   -- (keeps that ginfo happy) [DEV temp?]
-                            emitHex5s(h5)                           -- push <routine_code>
-                            jump_op[5] = c_e92movti
-                            x86 &= jump_op                          -- jmp e92movti (fatal error)
-    end if
-else -- not callpending
-                            if q86 then
-                                emitHex5call(c_e92movti)            -- call e92movti (fatal error)
-                            else
-                                emitHex5s(call_e92movti)            -- call e92movti (fatal error)
-                            end if
-end if -- callpending
-end if -- newEmit
                             x86[backpatch] = length(x86)-backpatch
                             -- e92movti is unassigned [esi] or type check [edx], does not return
 
@@ -5700,16 +5567,7 @@ end if -- newEmit
                     if sched then
                         schend()
                     end if
-if newEmit then
---  puts(1,"warning: opFrame skipped for newEmit (pilx86.e line 5091)\n")
---                  lblidx = find(aatidx[opFrame],glbttidx)
---                  lblidx = tt[aatidx[opFrame]+EQ]
---                  if lblidx=0 then ?9/0 end if
---                  x86 &= {call_rel32,isJmpG,0,0,lblidx}
                     emitHex5callG(opFrame)
-else
-                    emitHex5call(opFrame)                       -- call makeFrame
-end if
                     reginfo = 0 -- leaves registers as:
                                 -- eax is h4, ebx is 0, ecx is 0, 
                                 -- edx is threadstack (==[ebp+28])
@@ -6355,8 +6213,8 @@ end if
                         end if
                         tokline = emitline
                         tokcol = linestarts[tokline]+match("switch",exptext[fileno][tokline])-1
-                        -- (we may be able to generate more helpful messages that this...)
-                        Abort(sprintf("cannot create jump table[%d,%d]",{swecode,npc}))
+                        -- (we may be able to generate more helpful messages than this...)
+                        Abort(sprintf("cannot create jump table[swecode=%d,npc=%d,opcode=%d(%s)]",{swecode,npc,opcode,opNames[opcode]}))
                     end if
 
 --      :  opLn,2,                               --: if i=1 or i=2 then
@@ -6457,7 +6315,13 @@ end if
                             --              
                             -- swmin/swmax are the range of svar
                             -- smin/smax are the range of the switch
+--15/10/15: (in a switch v with fallthru, even if we know v=3 (say), we still need to generate the full construct,
+--           although admittedly we could [possibly] ditch the actual jump table... and even do a "start from"..)
+--if tmpd and tmpr=-1 then
+--  
+--else
                             if tmpd then
+--                          if tmpd and tmpr!=-1 then
                                 if tmpd!=switch_var then ?9/0 end if -- oops?
                                 if tmpr=-1 then ?9/0 end if -- oops?
                                 reg = tmpr
@@ -6505,11 +6369,14 @@ else
                             sib = 0o205 + reg*8                         
                             emitHex7base(jmp_si5_imm32,sib,-4*smin) -- jmp dword[i*s+imm32]
 end if
+--end if -- 15/10/15
                             -- (of course if the table has a first entry corresponding to say 7,
                             --  then pretend it starts at -28; only if smin==0 does imm32 actually 
                             --  point at the table (immediately following).)
                             switch_x86loc = length(x86)
+--15/10/15: (nope)
                             for i=smin to smax do
+--                          for i=swmin to swmax do
                                 if q86 then
                                     quad(isAddr,-1)     -- "-1" indicates "unused" entries.
                                 else
@@ -6945,16 +6812,7 @@ end if
                             if sched then
                                 schend()
                             end if
-if newEmit then
---  puts(1,"warning: opFrame in opTchk skipped for newEmit (pilx86.e line 6186)\n")
---                          lblidx = find(aatidx[opFrame],glbttidx)
---                          lblidx = tt[aatidx[opFrame]+EQ]
---                          if lblidx=0 then ?9/0 end if
---                          x86 &= {call_rel32,isJmpG,0,0,lblidx}
                             emitHex5callG(opFrame)
-else
-                            emitHex5call(opFrame)                   -- call makeFrame
-end if
                             reginfo = 0 -- opFrame leaves registers as:
                                         -- eax is h4, ebx is 0, ecx is 0, 
                                         -- edx is threadstack (==[ebp+28])
@@ -7028,15 +6886,9 @@ end if
                                 end if
                             else
                                 leamov(edi,src)                         -- lea edi,[src]/mov edi,src (addr result)
-if newEmit then
                                 loadToReg(esi,src2)                     -- mov esi,[src2]
                                 movRegVno(edx,src2)                     -- mov e/rdx,src2 (var no)
                                 emitHex5callG(opLen)                    -- call :%opLen
-else
-                                loadToReg(eax,src2)                     -- mov eax,[src2]
-                                emitHex5w(mov_edx_imm32,src2)           -- mov edx,src2 (var no)
-                                emitHex5call(opLen)                     -- call opLen
-end if
 --                              clearReg(edi)
 --                              storeReg(eax,src2,0,1)  -- just record that eax==[src2]
 --                              storeReg(ecx,src,0,1)   -- just record that ecx==[src]
@@ -7060,15 +6912,7 @@ end if
                         --  (ie there is no "dest", and this is instead of typecheck, since src is unassigned)
 
                         if pDefault=2 then  -- divide by zero
-if newEmit then
                             emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pdiagN.e)
-else
-                            if q86 then
-                                emitHex5call(c_e02atdb0)                        -- call e02atdb0
-                            else
-                                emitHex5s(call_e02atdb0)                        -- call e02atdb0
-                            end if
-end if
                             -- fatal error, does not return
 --                          opcode = opRTErn -- for opLabel
 -- (DEV almost removed 24/11, but I think more code follows in this case...)
@@ -7209,15 +7053,15 @@ end if
                                     emitHex6j(je_rel32,0)                       -- je @f (ok) [sj NOT ok]
                                 elsif sudt=T_sequence then
 --DEVBPM backpatch me: [DONE]
---                                  emitHex6j(jl_rel32,11)                      -- jl (mov edx/call opTchkFail) [sj NOT ok]
-                                    emitHex6j(jl_rel32,0)                       -- jl (mov edx/call opTchkFail) [sj NOT ok]
+--                                  emitHex6j(jl_rel32,11)                      -- jl (mov edx/call opTcFail) [sj NOT ok]
+                                    emitHex6j(jl_rel32,0)                       -- jl (mov edx/call opTcFail) [sj NOT ok]
                                     backpatch2 = length(x86)
                                     emitHex5sib(tstb_sibd8i8,sib,-1,#80)        -- test byte[ebx+reg*4-1],0x80
                                     emitHex6j(jnz_rel32,0)                      -- jnz @f (ok) [sj NOT ok]
                                 elsif sudt=T_string then
 --DEVBPM backpatch me: [DONE]
---                                  emitHex6j(jl_rel32,11)                      -- jl (mov edx/call opTchkFail) [sj NOT ok]
-                                    emitHex6j(jl_rel32,0)                       -- jl (mov edx/call opTchkFail) [sj NOT ok]
+--                                  emitHex6j(jl_rel32,11)                      -- jl (mov edx/call opTcFail) [sj NOT ok]
+                                    emitHex6j(jl_rel32,0)                       -- jl (mov edx/call opTcFail) [sj NOT ok]
                                     backpatch2 = length(x86)
                                     emitHex5sib(cmpb_sibd8i8,sib,-1,#82)        -- cmp byte[ebx+reg*4-1],0x82
                                     emitHex6j(je_rel32,0)                       -- je @f (ok) [sj NOT ok]
@@ -7228,13 +7072,8 @@ end if
                             if sudt>T_atom then
                                 x86[backpatch2] = length(x86)-backpatch2
                             end if
-if newEmit then
                             movRegVno(ecx,src)                              -- mov e/rcx,varno of src
-                            emitHex5callG(opTchkFail)
-else
-                            emitHex5w(mov_edx_imm32,src)                    -- mov edx,varno of src
-                            emitHex5call(opTchkFail)                        -- call opTchkFail
-end if
+                            emitHex5callG(opTcFail)
                             -- "" fatal error, does not return              -- @@:
                             x86[backpatch] = length(x86)-backpatch
 --                          if sudt=T_atom then
@@ -7299,13 +7138,7 @@ end if
                             emitHex5s(h5)                                   -- push addr typecheck code
                         end if
                         pushvar(src)                                        -- push dword[src]
-if newEmit then
---  puts(1,"warning: opTchk skipped for newEmit (pilx86.e line 6936)\n")
---                      emitHex5callG(opTchk)
                         emitHex5jmpG(opTchk)
-else
-                        emitHex5jmpop(opTchk)                               -- jmp opTchk (actually a double-call, isILa and return addr pushed above)
-end if
                         x86[backpatch] = length(x86)-backpatch
                         -- NB src obtained from [esp]-29 on error
                         reginfo = 0
@@ -7330,24 +7163,10 @@ end if
                 if pc>length(s5) then exit end if
             else
                 if sched then
---          if schidx then schend() end if
                     schend()
                 end if
                 if opcode=opRetf then
-if newEmit then
---  puts(1,"warning: opRetf skipped for newEmit (pilx86.e line 6451)\n")
---                  lblidx = tt[aatidx[opRetf]+EQ]
---DEV (temp)
---                  if lblidx=0 then ?9/0 end if
---  if lblidx=0 then
---      puts(1,"warning: opRetf skipped for newEmit (pilx86.e line 6451)\n")
---  else
---                  x86 &= {call_rel32,isJmpG,0,0,lblidx}  (should have been a jump anyway)
                     emitHex5jmpG(opRetf)
---  end if
-else
-                    emitHex5jmpop(opRetf)       -- jmp opRetf
-end if
                     pc += 1
                     --
                     -- if an opRetf is immediately followed by an
@@ -7367,11 +7186,7 @@ end if
                     end if
                     if pc>length(s5) then exit end if
                 else
-if newEmit then
                     emitHex5callG(opBadRetf)    -- call :%opBadRetf
-else
-                    emitHex5call(opBadRetf)     -- call opBadRetf
-end if
                     if pc<length(s5) then ?9/0 end if
                     exit
                 end if
@@ -7558,15 +7373,9 @@ end if
 else -- not S_Const, K_noclr
                         loadToReg(eax,src)                          -- mov eax,[src]
 end if
-if newEmit then
                         movRegVno(esi,src2)                         -- mov e/rsi,src2 (var no)
                         movRegVno(edx,src)                          -- mov e/rdx,src (var no)
                         emitHex5callG(opcode)                       -- call :%opJcc/JccE
-else
-                        emitHex5w(mov_esi_imm32,src2)               -- mov esi,src2 (var no)
-                        emitHex5w(mov_edx_imm32,src)                -- mov edx,src (var no)
-                        emitHex5call(opcode)                        -- call opJcc/JccE
-end if
                         -- NB: src/2 obtained from [esp]-9/-14 on error.
                         reginfo = 0 -- all regs trashed
                     end if
@@ -8052,13 +7861,8 @@ end if
                     end if
 --DEV we may need opUnassigned here for opcode!=opSubse1? (testing will tell rsn)
                     loadToReg(esi,src)                              -- mov esi,[src] (s)
-if newEmit then
                     movRegVno(edx,src)                              -- mov e/rdx,varno of s
                     emitHex5callG(opcode)                           -- call opSubse1[i[s|p]] ([ecx]/eax:=esi[edi])
-else
-                    emitHex5w(mov_edx_imm32,src)                    -- mov edx,varno of s
-                    emitHex5call(opcode)                            -- call opSubse1[i[s|p]] ([ecx]/eax:=esi[edi])
-end if
                     reginfo = 0
 -- 27/3/2013:
 --                  if opcode!=opSubse1 then
@@ -8379,17 +8183,8 @@ end if
                             emitHex2s(shl_edx_1)                            -- shl edx,1
                             emitHex6j(jno_rel32,0)                          -- jno @f [sj NOT ok]
                             backpatch = length(x86)
-if newEmit then
                             leamov(edi,dest)                                -- lea edi,[dest]
-                            emitHex5callG(opAddiii)                         -- call :%pAddiii (same for addiii & subiii)
-else
-                            leamov(edx,dest)                                -- lea edx,[dest]/mov edx,addr dest
-                            if q86 then
-                                emitHex5call(c_e01tcfAddiii)                -- call e01tcfAddiii (same for addiii & subiii)
-                            else
-                                emitHex5s(call_e01tcfAddiii)                -- call e01tcfAddiii (same for addiii & subiii)
-                            end if
-end if
+                            emitHex5callG(opAddiii)                         -- call :%e01tcfAddiii (same for addiii & subiii)
                             -- fatal error, does not return
                             x86[backpatch] = length(x86)-backpatch          -- @@:
                         else
@@ -8596,28 +8391,10 @@ end if
                                 schedule(0,0,0,pV,1,0)  -- treat next pair as one instruction
                             end if
 --DEVBPM backpatch me: [DONE, for newEmit anyway]
-if newEmit then
                             emitHex6j(jnc_rel32,0)                      -- jnc @f [sj NOT ok]
                             backpatch = length(x86)
-if find(opcode,{opDivi2}) then --DEV temp
---printf(1,"checkme: line 8334 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
                             emitHex5callG(opcode)                       -- call :%e01tcfDivi2
-else
-                            if q86 then
-                                emitHex5call(c_e01tcfDivi2)             -- call e01tcfDivi2 (invokes type check error)
-                            else
-                                emitHex5s(call_e01tcfDivi2)             -- call e01tcfDivi2 (invokes type check error)
-                            end if                                      -- @@:
-end if
                             x86[backpatch] = length(x86)-backpatch
-else
-                            emitHex6j(jnc_rel32,5)                      -- jnc @f [sj NOT ok]
-                            if q86 then
-                                emitHex5call(c_e01tcfDivi2)             -- call e01tcfDivi2 (invokes type check error)
-                            else
-                                emitHex5s(call_e01tcfDivi2)             -- call e01tcfDivi2 (invokes type check error)
-                            end if                                      -- @@:
-end if
                             -- fatal error, does not return ([edx]:=eax+0.5)
 -- end if
                             storeReg(eax,dest,1,1)                      -- mov [dest],eax
@@ -8628,22 +8405,39 @@ end if
                             -- nb error handling below assumes all [sj OK] are so when all's finished
                         end if
                         if slroot2=T_integer and smin2=0 and smax2=0 then
-if newEmit then
---puts(1,"opDiv0 line 8153 pilx86.e\n")
                             emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pdiagN.e)
-else
-                            if q86 then
-                                emitHex5call(c_e02atdb0)                        -- call e02atdb0
-                            else
-                                emitHex5s(call_e02atdb0)                        -- call e02atdb0
-                            end if
-end if
                             -- fatal error, does not return
                             opcode = opRTErn -- for opLabel
                         else
                             if and_bits(symtab[src][S_State],K_Fres) then ?9/0 end if
                             loadMem(edx,src)                                    -- mov edx,[src]    init int
                             loadToReg(ecx,src2)                                 -- mov ecx,[src2]   init int
+if 1 then -- new code 2/11/15
+                            clearReg(ecx)   -- (btw, this block leaves edi intact)
+                            clearReg(esi)
+                            emitHex2s(mov_eax_edx)                              -- mov eax,edx
+                            emitHex3(sar_edx_imm8,#1F)                          -- sar edx,31
+                            emitHex2s(test_ecx_ecx)                             -- test ecx,ecx (check for /0)
+                            emitHex6j(jnz_rel32,0)                              -- jnz @f [sj OK]
+                            backpatch = length(x86)
+                            emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pdiagN.e)
+                            x86[backpatch] = length(x86)-backpatch              -- @@:
+                            emitHex2s(idiv_ecx)                                 -- idiv ecx [eax:edx/=ecx; eax:=quotient, edx:=remainder]
+                            emitHex2s(mov_esi_eax)                              -- mov esi,eax
+                            emitHex2s(test_edx_edx)                             -- test edx,edx
+                            emitHex6j(jnz_rel32,0)      -- if rmdr, not int     -- jnz @f (call e01, dest is flt) [sj OK]
+                            backpatch = length(x86)
+                            emitHex2s(shl_esi_1)                                -- shl esi,1
+                            emitHex6j(jno_rel32,0)      -- >31 bit result       -- jno @f [sj OK]
+                                                        -- (can only happen for -#40000000/-1, btw)
+                            x86[backpatch] = length(x86)-backpatch              -- @@:
+                            backpatch = length(x86)
+                                leamov(edi,dest)                                --    lea edi,[dest]
+                                emitHex5callG(opDiviii)                         --    call :%e01tcfediDiv (fatal error)
+                                -- fatal error, does not return. (calc [edi]=(eax*ecx+edx)/ecx, as a float, and tcf it.)
+                            x86[backpatch] = length(x86)-backpatch              -- @@:
+                            storeReg(eax,dest,1,1)                          -- mov [dest],eax
+else
                             clearReg(ecx)   -- (btw, this block leaves esi,edi intact)
                             emitHex2s(mov_eax_edx)                              -- mov eax,edx
 --                      clearReg(eax) not needed, storeReg(,,,1,) below
@@ -8655,16 +8449,7 @@ end if
                             emitHex6j(jnz_rel32,0)                              -- jnz @f
 --DEVBPM backpatch me: [DONE] (that next backwards target is here)
                             backpatch = length(x86)
-if newEmit then
-                            emitHex5callG(opDiviii)                             -- call :%opDiviii (fatal error)
-else
-                            if q86 then
-                                emitHex5call(c_e01tcfediDiv)                    -- call e01tcfediDiv
-                            else
-                                emitHex5s(call_e01tcfediDiv)                    -- call e01tcfediDiv
-                            end if
-end if
---DEV                       --NB dest/src/src2 obtained from [esp]+13/-24/-18 on error
+                            emitHex5callG(opDiviii)                             -- call :%e01tcfediDiv (fatal error)
                             -- fatal error, does not return. (if [src2]=0 attempt to divide by zero,
                             -- else calculate [dest]=[src]/[src2], as a float, and tcf it.)
                             x86[backpatch] = length(x86)-backpatch              -- @@:
@@ -8689,6 +8474,7 @@ end if
                             if sched then
                                 sch00n = 0 -- (just the above line)
                             end if
+end if
                         end if
                     end if
                 end if
@@ -8794,17 +8580,10 @@ end if
                             emitHex6j(jno_rel32,0)                      -- jno @f [sj NOT ok]
                             backpatch = length(x86)
 --DEV would it not be easier to load var no and value separately?
-if newEmit then
                             leamov(edi,dest)                            -- lea edi,[dest]
-                            emitHex5callG(opAddiii)                     -- call :%pAddiii (same for addiii & subiii)
-else
-                            leamov(edx,dest)                            -- lea edx,[dest]/mov edx,addr dest
-                            if q86 then
-                                emitHex5call(c_e01tcfAddiii)            -- call e01tcfAddiii (same for addiii & subiii)
-                            else
-                                emitHex5s(call_e01tcfAddiii)            -- call e01tcfAddiii (same for addiii & subiii)
-                            end if
-end if
+                            emitHex5callG(opAddiii)                     -- call :%e01tcfAddiii (same for addiii & subiii)
+-- (spotted in passing) are we quite sure that should not be: [update: yes, we are.]
+--                          emitHex5callG(opMuliii)                     -- call :%e01tcfediMul
                             -- fatal error, does not return
                             -- (we can use e01tcfAddiii here as long as we have a 32-bit result,
                             --  whereas e01tcfediMul needs to do the full 64-bit ecx:eax thing.)
@@ -8853,32 +8632,17 @@ end if
                             emitHex2s(mov_ecx_edx)                      -- mov ecx,edx
                             emitHex1(cdq)                               -- cdq
                             emitHex2s(cmp_ecx_edx)                      -- cmp ecx,edx  -- >32 bits?
---DEVBPM backpatch me:
---printf(1,"backpatch line 8532 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
-if newEmit then
+--DEVBPM backpatch me: [DONE]
                             emitHex6j(je_rel32,0)                       -- je @f [sj OK]
                             backpatch = length(x86)
---  printf(1,"checkme: line 8591 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
                             emitHex5callG(opMuliii)                     -- call :%e01tcfediMul
                             x86[backpatch] = length(x86)-backpatch      -- @@:
-else
-                            emitHex6j(je_rel32,5)                       -- je @f [sj OK]
-                            if q86 then
-                                emitHex5call(c_e01tcfediMul)            -- call e01tcfediMul
-                            else
-                                emitHex5s(call_e01tcfediMul)            -- call e01tcfediMul
-                            end if
-end if
                             -- fatal error, does not return (loads ecx:eax as 64-bit float)
                             emitHex2s(mov_esi_eax)                      -- mov esi,eax
                             emitHex2s(shl_esi_1)                        -- shl esi,1
---DEVBPM backpatch me: (backwards)
-if newEmit then
+--DEVBPM backpatch me: (backwards) [DONE]
                             emitHex6j(jo_rel32,0)                       -- jo (call e01tcfediMul) [sj OK]
                             x86[length(x86)] = backpatch-length(x86)
-else
-                            emitHex6j(jo_rel32,-15)                     -- jo (call e01tcfediMul) [sj OK]
-end if
                             emitHex2s(mov_medi_eax)                     -- mov [edi],eax
 --7/12/2011:
 --                          storeReg(eax,dest,0,0) -- just record the fact that eax==[dest]
@@ -8900,7 +8664,8 @@ end if
                 if slroot=T_integer then
                     if src=dest then
                         smin = 0
-                        smax = 0
+-- removed 1/11/15:
+--                      smax = 0
                     else
                         p2 = power(2,src2-1)
                         smin = floor(smin/p2)
@@ -9116,15 +8881,7 @@ end if
                         if sched then
                             schend()
                         end if
-if newEmit then
                         emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pdiagN.e)
-else
-                        if q86 then
-                            emitHex5call(c_e02atdb0)                        -- call e02atdb0
-                        else
-                            emitHex5s(call_e02atdb0)                        -- call e02atdb0
-                        end if
-end if
                         -- fatal error, does not return
                         opcode = opRTErn -- for opLabel
 --DEV handle */1 here?
@@ -9142,7 +8899,6 @@ end if
 -- vs.   mov_edx_imm32  = #BA,          -- 0o272 imm32              -- mov edx,imm32
 
 
-if newEmit then
 --DEV damn. have to knock this on the head till we have an isInit for src: (but we now opUnassign things, so...)
 --                      if opcode=opDiv and srcInit
 --                      if newEmit and opcode=opDiv
@@ -9166,21 +8922,6 @@ if newEmit then
                             schend()
                         end if
                         emitHex5callG(opcode)                           -- call opXxx (mathop)
-else
-                        if sched then
-                            schedule(0,0,esibit,pUV,0,0)
-                        end if
-                        leamov(esi,src)                                 -- lea esi,[src]/mov esi,addr src
-                        if sched then
-                            schedule(0,0,edxbit,pUV,0,0)
-                        end if
-                        leamov(edx,src2)                                -- lea edx,[src2]/mov edx,addr src2
---                  end if
-                        if sched then
-                            schend()
-                        end if
-                        emitHex5call(opcode)                            -- call opXxx (mathop)
-end if
                         reginfo = 0 -- all regs trashed
                     end if
                 end if -- isGscan
@@ -9276,13 +9017,8 @@ end if  -- NOLT
                     if newEmit and X64=1 then
                         emitHex1(#48)
                     end if
-if newEmit then
                     movRegVno(edx,src)              -- mov e/rdx,src
                     emitHex5callG(opJif)            -- call :%opJif -- handles unassigned, non-ATOM errors
-else
-                    emitHex5w(mov_edx_imm32,src)    -- mov edx,src
-                    emitHex5call(opJif)             -- call opJif -- handles unassigned, non-ATOM errors
-end if
                     -- NB src obtained from [esp]-9 on error
                     -- ebx=0, all other regs left unaltered
                 end if
@@ -9373,15 +9109,9 @@ end if
                     if sched then
                         schend()    -- [esp]-9
                     end if
-if newEmit then
                     loadToReg(esi,src,CLEAR)                        -- mov esi,[src]
                     movRegVno(edx,src)                              -- mov e/rdx,src (var no)
                     emitHex5callG(opLen)                            -- call :%opLen
-else
-                    loadToReg(eax,src,CLEAR)                        -- mov eax,[src]
-                    emitHex5w(mov_edx_imm32,src)                    -- mov edx,src (var no)
-                    emitHex5call(opLen)                             -- call opLen
-end if
                     -- NB: src is determined from [esp]-9 on error [DEV]
                     -- all regs trashed, unless result is integer, in ecx (and [dest]), esi untouched
                     if dtype=T_integer then
@@ -9488,32 +9218,20 @@ end if
                 if sched then
                     schend()
                 end if
-if newEmit then
---  if opcode!=opApnd then
----- set prepend flag (mov eax,0         or 1 for prepend)
---      puts(1,"warning: opApnd/Ppnd skipped for newEmit (pilx86.e line 8815)\n")
---  else
                 if opcode=opApnd then
                     if newEmit and X64=1 then
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_eax_eax)                      -- xor eax,eax (eax:=0)
                 elsif opcode=opPpnd then
---                  emitHex5w(mov_eax_imm32,1)                  -- mov eax,1
                     movRegImm32(eax,1)                          -- mov eax,1
                 else
                     ?9/0
                 end if
 --              emitHex5callG(opcode)                           -- call :%opApnd/Ppnd (this line wd work fine btw)
                 emitHex5callG(opApnd)                           -- call :%opApnd (same for both opApnd and opPpnd)
---  end if
-else
-                emitHex5call(opcode)                            -- call opApnd/Ppnd
-end if
                 reginfo = 0 -- all regs trashed
             end if
---puts(1,"opApnd over\n")
---trace(1)
         elsif opcode=opMkSq then        -- 16
             waspc = pc
             noofitems = s5[pc+1]
@@ -9639,16 +9357,18 @@ end if
                     pc += 1
                 end for
                 loadToReg(edi,dest)                                 -- mov edi,[dest] (prev)
-if newEmit then
                 emitHex5jmpG(opMkSq)
-else
-                -- (both these are actually a call, return pushed above)
-                if dtype=T_Dsq and detyp=T_integer then
-                    emitHex5jmpop(opMkSqi)                          -- jmp opMkSqi
-                else
-                    emitHex5jmpop(opMkSq)                           -- jmp opMkSq
-                end if
-end if
+--DEV:
+--  if newEmit then
+--                  emitHex5jmpG(opMkSq)
+--  else
+--                  -- (both these are actually a call, return pushed above)
+--                  if dtype=T_Dsq and detyp=T_integer then
+--                      emitHex5jmpop(opMkSqi)                          -- jmp opMkSqi
+--                  else
+--                      emitHex5jmpop(opMkSq)                           -- jmp opMkSq
+--                  end if
+--  end if
                 -- set return addr offset:
                 x86[raoffset] = length(x86)-raoffset
                 reginfo = 0 -- all regs trashed                     -- <return addr>:
@@ -9889,13 +9609,7 @@ end if
                     loadToReg(esi,dest)                 -- mov esi,[dest]       ; ref
                 end if
                 leamov(eax,dest)                        -- lea/mov eax,addr ref
-if newEmit then
---  printf(1,"opRepe1, emitline=%d (pilx86 line 9354)\n",emitline)
---trace(1)
                 emitHex5callG(opcode)                   -- call opRepe1[is/p]   ; ref[idx]:=rep
-else
-                emitHex5call(opcode)                    -- call opRepe1[ip] ; ref[idx]:=rep
-end if
                 -- NB addr idx/rep/ref obtained from [esp]-21/-15/-9 on error [DEV]
                 reginfo = 0 -- all regs trashed
 -- as above (26/7/14)
@@ -9998,16 +9712,9 @@ end if -- NOLT
                         loadToReg(eax,src)                          -- mov eax,[src] (var ref)
 --DEV 18/1/2013 expect errors here...
                         ltype = opTyp0[ltype]
-if newEmit then
                         movRegVno(ecx,src)                          -- mov e/rcx,varno of src
---puts(1,"opInt0/a/s/s pilx86.e line 9424\n")
                         clearReg(ecx)
                         emitHex5callG(ltype)                        -- call :%opInt0/Atom0/Sq0/Str0
-else
-                        emitHex5w(mov_ecx_imm32,src)                -- mov ecx,varno of src
-                        clearReg(ecx)
-                        emitHex5call(ltype)                         -- call opInt0/Atom0/Sq0/Str0
-end if
                         -- NB: src is determined from [esp]-9 on error [DEV testme]
                         --  edx is now 0/1, and eax is still [src]
                         storeReg(eax,src,0,1) -- just record that eax==[src]
@@ -10046,14 +9753,7 @@ end if
 --end if
                                         if invert then
                                             if mergeSet=isOpCode then
---17/6/15:
---                                              emitHex6ret(jl_rel32)               -- jl opRetf
-if newEmit then
                                                 emitHex6retg(jl_rel32)              -- jl opRetf
-else
-                                                emitHex6ret(jl_rel32)               -- jl opRetf
-end if
-
                                             else
                                                 emitHex6j(jl_rel32,0)               -- jl xxx (backpatched later)
 -- Since we have two jumps to backpatch, aim for:
@@ -10110,14 +9810,7 @@ end if
                                             backpatch = length(x86)
                                         else
                                             if mergeSet=isOpCode then
---19/9/15:
---                                              emitHex6ret(jl_rel32)               -- jl opRetf
-if newEmit then
                                                 emitHex6retg(jl_rel32)              -- jl opRetf
-else
-                                                emitHex6ret(jl_rel32)               -- jl opRetf
-end if
-
                                             else
                                                 emitHex6j(jl_rel32,0)               -- jl xxx (backpatched later)
                                                 --  as above, two jumps to link:
@@ -10265,65 +9958,30 @@ end if
             if not isGscan then
                 markConstUseds({dest,src,src2})
 --28/11/09
-if bind                     -- (else no gvar_scan, so no type info)
-and not newEBP --DEV (rewrite opCatsi)  [done, test with newEmit]
-and dest=src                -- p1 &= p2, aka p1 = p1 & p2
-and dest!=src2              -- but not p1 &= p1 (erm, why exactly not [also 28/11]?!)
-    -- DEV: just removing the above "dest!=src2" should be ok, but untried, and needs much testing!
-and slroot=T_Dsq            -- \dest is sequence of integer, and hence
-and setyp=T_integer then    -- /p3 is in fact (int|sequence of integer)
---if 0 then
---;calling convention:                              octal:         binary:          code:
---; mov edx,[p1]        ; tgt ref                   213 025     8B 15 m32       mov edx,[m32]       (uv 1 clock)
---; mov esi,p2          ; src addr                  276         BE imm32        mov esi,imm32
---; call opCatsi                                    350         E8 rel32        call rel32
---; nb p1/p2 obtained from [esp]-14/-9 on error, or if clone rqd (not refcount=1, not hard left, or no space)
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,dest)
-                end if
-                if and_bits(symtab[dest][S_State],K_Fres) then ?9/0 end if -- (unlikely)
-                loadMem(edx,dest)
-                if sched then
-                    schedule(0,0,esibit,pUV,0,0)
-                end if
---if newEBP then -- DEV use (opUnassigned and) new calling convention
---?9/0 -- not going to work! (always use opConcat then)
-                leamov(esi,src2)                                    -- lea esi,[src2]/mov esi,addr src2
---else
---              emitHex5v(mov_esi_imm32,src2)                       -- mov esi,src2
---end if
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opCatsi)                               -- call opCatsi
-else -- not opCatsi
-    if newEmit then
+--if bind                   -- (else no gvar_scan, so no type info)
+----and not newEBP --DEV (rewrite opCatsi)  [done, test with newEmit]
+--and dest=src              -- p1 &= p2, aka p1 = p1 & p2
+--and dest!=src2                -- but not p1 &= p1 (erm, why exactly not [also 28/11]?!)
+--  -- DEV: just removing the above "dest!=src2" should be ok, but untried, and needs much testing!
+--and slroot=T_Dsq          -- \dest is sequence of integer, and hence
+--and setyp=T_integer then  -- /p3 is in fact (int|sequence of integer)
+--              --calling convention:                               octal:         binary:          code:
+--              --  mov edi,[p1]    -- (ref)
+--              --  lea edx,[p1]    -- (address)    -- (must be init sequence of integer)
+--              --  lea esi,[p2]    --   ""         -- (must be init [sequence of] integer)
+--              --  call :%opCatsi
+--              if and_bits(symtab[dest][S_State],K_Fres) then ?9/0 end if -- (unlikely)
+--              loadMem(edi,dest)
+--              leamov(edx,dest)
+--              leamov(esi,src2)                                    -- lea esi,[src2]/mov esi,addr src2
+--              emitHex5callG(opCatsi)                              -- call :%opCatsi (in VM/pApnd.e)
+--else -- not opCatsi
                 -- (these now match opApnd)
                 leamov(edx,dest)                                    -- lea/mov edx,addr result var
                 leamov(edi,src)                                     -- lea edi,[src]/mov edi,addr src
                 leamov(ecx,src2)                                    -- lea ecx,[src2]/mov ecx,addr src2
                 emitHex5callG(opConcat)                             -- call :%opConcat (in VM/pApnd.e)
-    else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,eaxbit,pUV,0,0)
-                end if
-                leamov(eax,dest)                                    -- lea/mov eax,addr result var
-                if sched then
-                    schedule(0,0,esibit,pUV,0,0)
-                end if
-                leamov(esi,src)                                     -- lea esi,[src]/mov esi,addr src
-                if sched then
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,src2)                                    -- lea edi,[src2]/mov edi,src2 (addr result)
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opConcat)                              -- call opConcat
-    end if
-end if
+--end if
                 reginfo = 0 -- all regs trashed
             end if
 
@@ -10484,11 +10142,7 @@ end if -- NOLT (opLoopTop should not actually be emitted?)
                         xrm = #D0+prev  -- 0o32r
                         emitHex2(mov_dword,xrm)                 -- mov edx,reg
                     end if
-if newEmit then
                     emitHex5callG(opDealloc)                    -- call :%pDealloc
-else
-                    emitHex5call(c_dealloc)                     -- call deallocX
-end if
                     x86[backpatch] = length(x86)-backpatch
                     x86[backpatch2] = length(x86)-backpatch2
                 end if
@@ -10501,16 +10155,9 @@ end if
                         emitHex6j(jl_rel32,0)                   -- jl @f [sj prolly ok]
                         backpatch = length(x86)
                         emitHex2(mov_al_imm8,120)               -- mov al,120 (for e120fle[init])
-if newEmit then
                         movRegVno(edi,p1)                       -- ep1 (=var no of init)
                         movRegImm32(esi,1)                      -- "init"
                         emitHex5callG(opRTErn)
-else
-                        emitHex5w(mov_edi_imm32,p1)             -- ep1 (=var no of init)
---                      emitHex5w(mov_esi_imm32,1)              -- "init"
-                        movRegImm32(esi,1)                      -- "init"
-                        emitHex5call(opRTErn)
-end if
                         x86[backpatch] = length(x86)-backpatch
                     end if
                     storeReg(reg,dest,1,0)                      -- mov [ctl],reg
@@ -10537,16 +10184,9 @@ end if
                         emitHex6j(jl_rel32,0)                   -- jl @f [sj prolly ok]
                         backpatch = length(x86)
                         emitHex2(mov_al_imm8,120)               -- mov al,120 (for e120fle[step])
-if newEmit then
                         movRegVno(edi,src2)                     -- ep1 (=var no of step)
                         movRegImm32(esi,4)                      -- "step"
                         emitHex5callG(opRTErn)
-else
-                        emitHex5w(mov_edi_imm32,src2)           -- ep1 (=var no of step)
---                      emitHex5w(mov_esi_imm32,4)              -- "step"
-                        movRegImm32(esi,4)                      -- "step"
-                        emitHex5call(opRTErn)
-end if
                         x86[backpatch] = length(x86)-backpatch
                     end if
                 else
@@ -10563,16 +10203,9 @@ or not integer(smax+smax2) then
                         emitHex6j(jl_rel32,0)                   -- jl @f [sj prolly ok]
                         backpatch = length(x86)
                         emitHex2(mov_al_imm8,120)               -- mov al,120 (for e120fle[limit])
-if newEmit then
                         movRegVno(edi,src)                      -- ep1 (=var no of limit)
                         movRegImm32(esi,2)                      -- "limit"
                         emitHex5callG(opRTErn)
-else
-                        emitHex5w(mov_edi_imm32,src)            -- ep1 (=var no of limit)
---                      emitHex5w(mov_esi_imm32,2)              -- "limit"
-                        movRegImm32(esi,2)                      -- "limit"
-                        emitHex5call(opRTErn)
-end if
                         x86[backpatch] = length(x86)-backpatch
                     end if  
                     if X64 then
@@ -10619,16 +10252,9 @@ end if
                     emitHex6j(jno_rel32,0)                      -- jno @f [sj prolly ok]
                     backpatch = length(x86)
                     emitHex2(mov_al_imm8,121)                   -- mov al,121 (for e121flelimstep)
-if newEmit then
                     movRegVno(edi,src)                          -- ep1 (=var no of limit)
                     movRegImm32(esi,src2)                       -- ep2 (=var no of step)
                     emitHex5callG(opRTErn)
-else
-                    emitHex5w(mov_edi_imm32,src)                -- ep1 (=var no of limit)
---                  emitHex5w(mov_esi_imm32,src2)               -- ep2 (=var no of step)
-                    movRegImm32(esi,src2)                       -- ep2 (=var no of step)
-                    emitHex5call(opRTErn)
-end if
                     x86[backpatch] = length(x86)-backpatch
                 end if
 end if
@@ -10719,16 +10345,9 @@ end if
                         backpatch = length(x86)
                     end if
                     emitHex2(mov_al_imm8,120)                   -- mov al,120 (for e120fle[step])
-if newEmit then
                     movRegVno(edi,src2)                         -- ep1 (=var no of step)
                     movRegImm32(esi,4)                          -- "step"
                     emitHex5callG(opRTErn)
-else
-                    emitHex5w(mov_edi_imm32,src2)               -- ep1 (=var no of step)
---                  emitHex5w(mov_esi_imm32,4)                  -- "step"
-                    movRegImm32(esi,4)                          -- "step"
-                    emitHex5call(opRTErn)
-end if
                     x86[backpatch2] = length(x86)-backpatch2    -- looptop:
                 else
                     if stepreg=-1 then ?9/0 end if --DEV?
@@ -10776,16 +10395,9 @@ end if
                     emitHex6j(jnz_rel32,0)                      -- jnz @f [sj NOT ok]
                     backpatch3 = length(x86)
                     emitHex2(mov_al_imm8,120)                   -- mov al,120 (for e121fle[step])
-if newEmit then
                     movRegVno(edi,src2)                         -- ep1 (=var no of step) [==0]
                     movRegImm32(esi,4)                          -- "step" (as part of error msg)
                     emitHex5callG(opRTErn)                      -- fatal error
-else
-                    emitHex5w(mov_edi_imm32,src2)               -- ep1 (=var no of step) [==0]
---                  emitHex5w(mov_esi_imm32,4)                  -- "step" (as part of error msg)
-                    movRegImm32(esi,4)                          -- "step" (as part of error msg)
-                    emitHex5call(opRTErn)                       -- fatal error
-end if
                     x86[backpatch3] = length(x86)-backpatch3
 
                     if iroot!=T_integer     -- init not integer
@@ -11157,87 +10769,88 @@ end while
             end if
             if pc>length(s5) then exit end if   -- [needed for when opRetf omitted in EvoGen tests]
 
-        elsif opcode=opFind             -- 43
-           or opcode=opMatch then       -- 44
-            dest = s5[pc+1]
-            src = s5[pc+2]
-            from = s5[pc+4]
-            src2 = from
-            getSrc2()
-            fmin = smin2
-            fmax = smax2
-            src2 = s5[pc+3]
-            pc += 5
-            getDest()
-            getSrc()
-            getSrc2()
--- DEV  We could also try Find: slroot vs setyp2, Match: setyp vs setyp2,
---      and if no overlap result is just 0... maybe even ple(0) it...
-            if slen2>=0 then
-                if opcode=opMatch
-                and slen>=0 then
-                    slen2 -= (slen-1)
-                    if slen2<0 then
-                        slen2 = 0
-                    end if
-                end if
-            else
-                slen2 = MAXLEN
-            end if
-            slroot = T_integer
-            sltype = slroot
-            smin = 0
-            smax = slen2
-            storeDest()
-            --else
-            if not isGscan then
---if opcode=opFind then
---;new 29/6/10:
---;calling convention:                              octal:         binary:          code:
---; mov ecx,p1      ; result location               271         B9 imm32        mov ecx,imm32
---; mov esi,imm32   ; start from (known/1)          276         BE imm32        mov esi,imm32
---;> or
---; mov esi,[p4]    ; start from (var)              213 065     8B 35 m32       mov esi,[m32]
---;                                             or mov esi,[ebp-nn]
---;                                             or mov esi,[ebp-nnnn]
---; mov eax,[p2]    ; ref of p2                     241         A1 m32          mov eax,[m32]
---; mov edi,[p3]    ; ref of p3                     213 075     8B 3D m32       mov edi,[m32]
---; call opFind     ; [ecx] = find(eax,edi)         350         E8 rel32        call rel32
---;     nb p2/3/4 obtained from [esp]-15/-9/-20 on error (dev newEBP)
-                markConstUseds({dest,src,src2,from})
-                if sched then
---                  schend()
-                    ?9/0 --(??)
-                end if
-                leamov(ecx,dest)                            -- lea ecx,[dest]/mov ecx,addr dest
-                if fmin=fmax then
---if fmin=0 then ?9/0 end if    --DEV proper message
---                  emitHex5w(mov_esi_imm32,fmin)           -- mov esi,imm32
-                    movRegImm32(esi,fmin)                   -- mov esi,imm32
-                    clearReg(esi)
-                else    
-                    loadToReg(esi,from)                     -- mov esi,[from]
-                end if
-                loadToReg(eax,src)                          -- mov eax,[src]
-                loadToReg(edi,src2)                         -- mov edi,[src2]
-if newEmit then
-                movRegVno(ebx,src2)                         -- mov ebx,src2 (var no)
-                movRegVno(edx,src)                          -- mov edx,src (var no)
-?9/0
-else
-                emitHex5w(mov_ebx_imm32,src2)               -- mov ebx,src2 (var no)
-                emitHex5w(mov_edx_imm32,src)                -- mov edx,src (var no)
-end if
-                emitHex5call(opcode) -- call opFind/Match ; [ecx] = find/match([esi],[edx])
-                -- all regs trashed, unless result is integer, in ecx (and [dest])
-                reginfo = 0
-                if symtab[dest][S_vtype]=T_integer then
---DEV tryme:
---              if dtype=T_integer then
-                    storeReg(ecx,dest,0,0)  -- just record that ecx==[dest]
-                end if
-            end if
-
+--      elsif opcode=opFind             -- 43
+--         or opcode=opMatch then       -- 44
+--if newEmit then ?9/0 end if
+--          dest = s5[pc+1]
+--          src = s5[pc+2]
+--          from = s5[pc+4]
+--          src2 = from
+--          getSrc2()
+--          fmin = smin2
+--          fmax = smax2
+--          src2 = s5[pc+3]
+--          pc += 5
+--          getDest()
+--          getSrc()
+--          getSrc2()
+---- DEV    We could also try Find: slroot vs setyp2, Match: setyp vs setyp2,
+----        and if no overlap result is just 0... maybe even ple(0) it...
+--          if slen2>=0 then
+--              if opcode=opMatch
+--              and slen>=0 then
+--                  slen2 -= (slen-1)
+--                  if slen2<0 then
+--                      slen2 = 0
+--                  end if
+--              end if
+--          else
+--              slen2 = MAXLEN
+--          end if
+--          slroot = T_integer
+--          sltype = slroot
+--          smin = 0
+--          smax = slen2
+--          storeDest()
+--          --else
+--          if not isGscan then
+----if opcode=opFind then
+----;new 29/6/10:
+----;calling convention:                                octal:         binary:          code:
+----; mov ecx,p1        ; result location               271         B9 imm32        mov ecx,imm32
+----; mov esi,imm32 ; start from (known/1)          276         BE imm32        mov esi,imm32
+----;> or
+----; mov esi,[p4]  ; start from (var)              213 065     8B 35 m32       mov esi,[m32]
+----;                                           or mov esi,[ebp-nn]
+----;                                           or mov esi,[ebp-nnnn]
+----; mov eax,[p2]  ; ref of p2                     241         A1 m32          mov eax,[m32]
+----; mov edi,[p3]  ; ref of p3                     213 075     8B 3D m32       mov edi,[m32]
+----; call opFind   ; [ecx] = find(eax,edi)         350         E8 rel32        call rel32
+----;   nb p2/3/4 obtained from [esp]-15/-9/-20 on error (dev newEBP)
+--              markConstUseds({dest,src,src2,from})
+--              if sched then
+----                    schend()
+--                  ?9/0 --(??)
+--              end if
+--              leamov(ecx,dest)                            -- lea ecx,[dest]/mov ecx,addr dest
+--              if fmin=fmax then
+----if fmin=0 then ?9/0 end if  --DEV proper message
+----                    emitHex5w(mov_esi_imm32,fmin)           -- mov esi,imm32
+--                  movRegImm32(esi,fmin)                   -- mov esi,imm32
+--                  clearReg(esi)
+--              else    
+--                  loadToReg(esi,from)                     -- mov esi,[from]
+--              end if
+--              loadToReg(eax,src)                          -- mov eax,[src]
+--              loadToReg(edi,src2)                         -- mov edi,[src2]
+--if newEmit then
+--              movRegVno(ebx,src2)                         -- mov ebx,src2 (var no)
+--              movRegVno(edx,src)                          -- mov edx,src (var no)
+--?9/0
+--else
+--              emitHex5w(mov_ebx_imm32,src2)               -- mov ebx,src2 (var no)
+--              emitHex5w(mov_edx_imm32,src)                -- mov edx,src (var no)
+--end if
+--              emitHex5call(opcode) -- call opFind/Match ; [ecx] = find/match([esi],[edx])
+--              -- all regs trashed, unless result is integer, in ecx (and [dest])
+--              reginfo = 0
+--              if symtab[dest][S_vtype]=T_integer then
+----DEV tryme:
+----                if dtype=T_integer then
+--                  storeReg(ecx,dest,0,0)  -- just record that ecx==[dest]
+--              end if
+--          end if
+--
         elsif opcode=opNop then
             opcode = lastop
             pc += 1
@@ -11247,7 +10860,6 @@ end if
             if not isGscan then
                 src = s5[pc+1]  -- fileno
                 src2 = s5[pc+2] -- object to print
-if newEmit then
                 -- calling convention:
                 -- mov eax,[src]    ; fileno (opUnassigned)
                 -- mov edx,[src2]   ; object to print (opUnassigned)
@@ -11294,87 +10906,6 @@ if newEmit then
                     end if
                 end if
                 emitHex5callG(opPuts)                           -- call :%opPuts
-else
---; calling convention:
---; mov edi,[p1]    ; fileno                        213 075     8B 3D C8194000      MOV EDI,DWORD PTR DS:[4019C8]
---; mov eax,[p2]    ; object to print
---; call opPuts                                     350         E8 <relative dword>
---; --NB p2 obtained from [esp]-9 on error
---;     (an unassigned file no is reported as "file number is not an integer", and of course will
---;         have a "var = <novalue>" somewhere later on in the ex.err file to further explain things.)
-
-                markConstUseds({src,src2})
-                getSrc()
-                getSrc2()
-                ref = loadReg(src2,NOLOAD)
-                if ref=edi then
-                    xrm = #C0 + ref*8 -- 0o3r0
-                    emitHex2(mov_reg,xrm)                   -- mov eax,ref
-                    ref = eax
-                    clearReg(eax)
-                end if
-
-                if slroot=T_integer and smin=smax then
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,edibit,pUV,0,0)
-                    end if
---                  emitHex5w(mov_edi_imm32,smin)               -- mov edi,imm32
-                    movRegImm32(edi,smin)                       -- mov edi,imm32
---DEV ug??
-                    if sched then
-                        schend()    -- [esp]-9 (-15 won't happen unless smin=smax=h4)
-                    end if
-                    doNotXor = 0
-                else
-                    if sched then
-                        schend()    -- [esp]-15/-9
-                    end if
-                    loadToReg(edi,src)                          -- mov edi,[src] (fileno)
-                    -- In case src is unassigned, ensure it is kept
-                    --  available at [esp]-14... Two points though:
-                    -- We don't actually use [esp]-14 anyway, intead
-                    --  just "file number is not an integer" and rely
-                    --  on some other "var = <no value>" in ex.err.
-                    -- We could use an Init flag here, but then again
-                    --  puts(fn,0) is not really all that likely - I
-                    --  just checked database.e as a likely candidate,
-                    --  (maybe some kind of terminator) but no.
-                    doNotXor = 1
-                end if
---getSrc2()
---DEV: (breaks p -cp)
---DOH: (ok now, when binding anyway)
---getSrc2()
--- 3/3/10: (all OK!, I think!)
---if bind and ssNTyp2=S_Const and and_bits(state2,K_noclr) then
-if ref!=eax then
-                if ssNTyp2=S_Const and and_bits(state2,K_noclr) then
-                    if slroot2=T_integer then
-                        if smin2!=smax2 then ?9/0 end if
-                        if smin2 or doNotXor then
---                          emitHex5w(mov_eax_imm32,smin2)      -- mov eax,imm32
-                            movRegImm32(eax,smin2)              -- mov eax,imm32
-                        else
-?9/0 --DEV (should never be doing puts(0,xxx) anyway...?)
-                            if newEmit and X64=1 then
-                                emitHex1(#48)
-                            end if
-                            emitHex2s(xor_eax_eax)              -- xor eax,eax
-                        end if
-                    else
-    if newEmit then
-                        loadToReg(eax,src2)                     -- mov eax,[src2] (object to print)
-    else
-                        emitHex5cr(mov_eax_imm32,src2)          -- mov eax,constref
-    end if
-                    end if
-                else
-                    loadToReg(eax,src2)                         -- mov eax,[src2] (object to print)
-                end if
-end if
-                emitHex5call(opPuts)                            -- call opPuts
-end if
                 -- NB src2 obtained from [esp]-9 on error
                 reginfo = 0
             end if
@@ -11434,7 +10965,6 @@ end if
             --else
             if not isGscan then
                 markConstUseds({dest,src,src2})
-if newEmit then
 --DEV if src2 is in edi or eax then end if
 --DEV if src is in edi or ecx then end if
 -- (went with clearReg() for now)
@@ -11451,25 +10981,6 @@ clearReg(eax)
                     loadToReg(ecx,src2)                         -- mov ecx,[src2] (count)
                 end if
                 emitHex5callG(opcode)                           -- call opRepeat/opRepCh
-else
-                if sched then
-                    sch00n = sch00n
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
-                leamov(ecx,dest)                                -- lea ecx,[dest]/mov ecx,addr dest (result)
-                if sched then
-                    schedule(0,0,eaxbit,pUV,0,0)
-                end if
-                leamov(eax,src)                                 -- lea/mov eax,addr src (item to repeat)
-                if sched then
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,src2)                                -- lea edi,[src2]/mov edi,src2 (addr repeat count)
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opRepeat)                          -- call opRepeat
-end if
                 reginfo = 0 -- all regs trashed
             end if
 
@@ -11523,11 +11034,7 @@ if dest then
                 if sched then
                     schend()
                 end if
-if newEmit then
                 emitHex5callG(opFloor)                          -- call :%opFloor
-else
-                emitHex5call(opFloor)                           -- call opFloor
-end if
                 -- all regs trashed, unless result is integer, in eax (and [dest])
                 reginfo = 0
 --DEV is it worth doing rootType, if a udt typecheck is about to occur??
@@ -11690,11 +11197,7 @@ end if -- tmpd
                 if sched then
                     schend()
                 end if
-if newEmit then
                 emitHex5callG(opPow)
-else
-                emitHex5call(opPow)
-end if
     end if -- dest!=0
                 reginfo = 0 -- all regs trashed
             end if
@@ -11749,15 +11252,9 @@ end if
                 if sched then
                     schend()
                 end if
-if newEmit then
                 movRegVno(ecx,src)                              -- mov ecx,varno of src
                 movRegVno(edx,src2)                             -- mov edx,varno of src2
                 emitHex5callG(opXor)
-else
-                emitHex5w(mov_ecx_imm32,src)                    -- mov ecx,varno of src
-                emitHex5w(mov_edx_imm32,src2)                   -- mov edx,varno of src2
-                emitHex5call(opXor)
-end if
 --DEV (as implemented below) all regs only trashed if result is not integer; else
 --  (when result is integer), result in eax, esi is only trashed if [BLUFF:]
 --  it is/can be non-integer, edi/ecx unchanged (edx is also trashed)
@@ -11935,11 +11432,7 @@ end if
                         schend()
                     end if
                     emitHex5w(mov_eax_imm32,103)        -- e103atgrondb0esp
-if newEmit then
                     emitHex5callG(opRTErn)
-else
-                    emitHex5call(opRTErn)
-end if
                     opcode = opRTErn    -- for opLabel
                 else
                     if tii and dtype=T_integer then     -- inline the int/int/int case
@@ -12062,11 +11555,7 @@ else -- not useAndBits
                                 backpatch = length(x86)
                                 -- e103atgrondb0esp  ; attempt to get remainder of a number divided by 0
                                 emitHex5w(mov_eax_imm32,103)
-if newEmit then
                                 emitHex5callG(opRTErn) -- (fatal error)
-else
-                                emitHex5call(opRTErn) -- (fatal error)
-end if
                                 x86[backpatch] = length(x86)-backpatch      -- @@:
                                 if newEmit and X64=1 then
                                     emitHex1(#48)
@@ -12105,11 +11594,7 @@ end if -- useAndBits
                         end if
                         loadToReg(eax,src)                              -- mov eax,[src]
                         loadToReg(ecx,src2)                             -- mov ecx,[src2]
-if newEmit then
                         emitHex5callG(opRmdr)                           -- call :%opRmdr
-else
-                        emitHex5call(opRmdr)                            -- call opRmdr
-end if
                         -- NB src/2 obtained from [esp]-15/-9 on error [DEV]
                         reginfo = 0 -- all regs trashed
                     end if -- not inlined
@@ -12282,11 +11767,7 @@ end if
                     if sched then
                         schend()
                     end if
-if newEmit then
                     emitHex5callG(opcode)                           -- call opUminus/opNot
-else
-                    emitHex5call(opcode)                            -- call opUminus/opNot
-end if
                     if dtype=T_integer then
                         clearReg(edi)
                         if opcode=opUminus then
@@ -12420,7 +11901,6 @@ end if
                     if sched then
                         schend()    -- no attempt to/thought about schedule this
                     end if
-if newEmit then
                     leamov(eax,dest)                                -- lea eax,[dest]/mov eax,dest (addr result)
                     src2 = s5[pc+4] -- slice start
                     getSrc2()
@@ -12460,62 +11940,6 @@ if newEmit then
                     movRegVno(edx,src)                              -- mov e/rdx, varno of src
 --puts(1,"warning: opSubsss skipped for newEmit (pilx86.e line 11717)\n")
                     emitHex5callG(opSubsss)                         -- call opSubsss
-else -- not newEmit
-                    leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                    src2 = s5[pc+4] -- slice start
-                    getSrc2()
-                    if slroot2=T_integer and smin2=smax2 then
-                        if smin2 then
---                          emitHex5w(mov_eax_imm32,smin2)          -- mov eax,imm32
-                            movRegImm32(eax,smin2)                  -- mov eax,imm32
-                        else
-                            if newEmit and X64=1 then
-                                emitHex1(#48)
-                            end if
-                            emitHex2s(xor_eax_eax)                  -- xor eax,eax
-                        end if
-                        clearReg(eax)
-                        flag = 1
-                    else
-                        loadToReg(eax,src2)                         -- mov eax,[src2]
---DEV we could use init flags here...
-                        flag = 0
-                    end if
-                    src2 = s5[pc+3] -- slice end
-                    if flag then
-                        getSrc2()
-                        if slroot2=T_integer and smin2=smax2 then
-                            if smin2 then
---                              emitHex5w(mov_ecx_imm32,smin2)      -- mov ecx,imm32
-                                movRegImm32(ecx,smin2)              -- mov ecx,imm32
-                            else
-                                if newEmit and X64=1 then
-                                    emitHex1(#48)
-                                end if
-                                emitHex2s(xor_ecx_ecx)              -- xor ecx,ecx
-                            end if
---                          clearReg(ecx)
-                        else
-                            loadToReg(ecx,src2)                     -- mov ecx,[src2]
-                            flag = 0
-                        end if
-                    else
-                        loadToReg(ecx,src2)                         -- mov ecx,[src2]
-                    end if
-                    clearReg(ecx)
---DEV this (flag) is about not upsetting [ebp-n] handling, which may(?) all go...
-                    if flag then
-                        if ssNTyp1=S_Const and and_bits(state1,K_noclr) then
-                            emitHex5cr(mov_esi_imm32,src)           -- mov esi,constref
-                        else
-                            loadToReg(esi,src)                      -- mov esi,[src]
-                        end if
-                    else
-                        loadToReg(esi,src)                          -- mov esi,[src]
-                        emitHex5w(mov_edx_imm32,src)                -- mov edx, varno of src
-                    end if
-                    emitHex5call(opSubsss)                          -- call opSubsss
-end if
                     reginfo = 0 -- trashes all registers
                     pc += 6
                 else
@@ -12571,13 +11995,8 @@ end if
 --                  loadToReg(esi,s5[pc])                           -- mov esi,[ref]
                     src = s5[pc]
                     loadToReg(esi,src)                              -- mov esi,[ref]
-if newEmit then
---puts(1,"warning: opSubss skipped for newEmit (pilx86.e line 11763)\n")
                     movRegVno(edx,src)                              -- mov e/rdx, varno of src
                     emitHex5jmpG(opSubss)                           -- jmp opSubss (actually a call, return pushed above)
-else
-                    emitHex5jmpop(opSubss)                          -- jmp opSubss (actually a call, return pushed above)
-end if
                     x86[backpatch] = length(x86)-backpatch
                     reginfo = 0 -- all regs trashed
                     pc += 1
@@ -12632,13 +12051,7 @@ end if
                 movRegImm32(ecx,noofitems)                      -- mov ecx,no of params
                 src = s5[pc]
                 leamov(edx,src)                                 -- lea edx,[src]/mov edx,addr src
-if newEmit then
---              lblidx = tt[aatidx[opSubse]+EQ]
---              if lblidx=0 then ?9/0 end if
                 emitHex5jmpG(opSubse)                           -- jmp %pSubse (actually a call, return pushed above)
-else
-                emitHex5jmpop(opSubse)                          -- jmp opSubse (actually a call, return pushed above)
-end if
                 -- set return addr offset:
                 x86[raoffset] = length(x86)-raoffset
                 -- all regs trashed, unless result is integer, in eax (and [dest])
@@ -12656,14 +12069,8 @@ end if
                 cmp_h4(reg)                                 -- cmp reg,h4
                 emitHex6j(jne_rel32,0)                      -- jne @f [sj prolly ok]
                 backpatch = length(x86)
-if newEmit then
                 movRegVno(esi,src)                          --  mov esi,src (var no/symtab index)
                 emitHex5callG(opUnassigned)                 --  call :%pUnassigned (in pdiagN.e)
---puts(1,"warning: opUnassigned skipped for newEmit (pilx86.e line 11844)\n")
-else
-                leamov(esi,src)                             --  lea esi,[src]/mov esi,addr src
-                emitHex5call(opUnassigned)                  --  call opUnassigned
-end if
                 x86[backpatch] = length(x86)-backpatch      -- @@:
             end if
             pc += 2
@@ -12872,18 +12279,7 @@ end if
 --                      emitHex6j(jnz_rel32,5)                          -- jnz @f [sj NOT ok]
                         emitHex6j(jnz_rel32,0)                          -- jnz @f [sj NOT ok]
                         backpatch2 = length(x86)
-if newEmit then
---  puts(1,"warning: deallocX skipped for newEmit (pilx86.e line 11328)\n")
---                      lblidx = tt[aatidx[opDealloc]+EQ]
---                      if lblidx=0 then ?9/0 end if
                         emitHex5callG(opDealloc)                        -- call :%pDealloc
-else
-                        if q86 then
-                            emitHex5call(c_dealloc)                     -- call deallocX
-                        else
-                            emitHex5s(call_dealloc)                     -- call deallocX
-                        end if
-end if
                         x86[backpatch] = length(x86)-backpatch          -- @@:
                         x86[backpatch2] = length(x86)-backpatch2
                         if sched then
@@ -12898,7 +12294,6 @@ end if
                         schedule(0,0,edibit,pUV,0,0)
                     end if
                     leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-if newEmit then
                     loadToReg(ecx,src)                              -- mov ecx,[src]
                     loadToReg(eax,src2)                             -- mov eax,[src2]
 --  printf(1,"warning: emitHex5callG(%d=%s) skipped for newEmit (pilx86.e line 12189)\n",{opcode,opNames[opcode]})
@@ -12908,25 +12303,6 @@ if newEmit then
 --                  if isInt then
 --                      storeReg(eax,dest,0,0)  -- just record that eax==[dest]
 --                  end if
-else
-                    if sched then
-                        schedule(0,0,edxbit,pUV,0,0)
-                    end if
-                    leamov(edx,src)                                 -- lea edx,[src]/mov edx,addr src
-                    if sched then
-                        schedule(0,0,esibit,pUV,0,0)
-                    end if
-                    leamov(esi,src2)                                -- lea esi,[src2]/mov esi,addr src2
-                    if sched then
-                        schend()
-                    end if
-                    emitHex5call(opcode)                            -- call opXxxBits
-                    -- all regs trashed, unless result is integer, in eax (and [dest])
-                    reginfo = 0
-                    if isInt then
-                        storeReg(eax,dest,0,0)  -- just record that eax==[dest]
-                    end if
-end if
                 end if
             end if
 
@@ -13184,13 +12560,9 @@ end if
                         sch00n = schoon
                         schedule(0,0,edxbit,pUV,0,0)
                     end if
-if not newEmit then
-                    leamov(edx,dest)                                    -- lea edx,[dest]/mov edx,addr dest
-end if
                     if sched then
                         schend()    -- [esp]-9/-15
                     end if
-if newEmit then
                     loadToReg(edi,src2,CLEAR)                           -- mov edi,[src2]
                     loadToReg(eax,src,CLEAR)                            -- mov eax,[src]
                     movRegVno(esi,src2)                                 -- mov e/rsi,src2 (var no)
@@ -13228,21 +12600,6 @@ if newEmit then
                         x86[backpatch] = length(x86)-backpatch          -- @@:
                         x86[backpatch2] = length(x86)-backpatch2
                     end if
-else -- not newEmit
-                    loadToReg(edi,src2)                                 -- mov edi,[src2]
-                    loadToReg(eax,src)                                  -- mov eax,[src]
-                    emitHex5w(mov_esi_imm32,src2)                       -- mov esi,src2 (var no)
-                    emitHex5w(mov_ecx_imm32,src)                        -- mov ecx,src (var no)
-                    emitHex5call(opcode)                                -- call opSxx
---DEV newEBP:
-                    -- NB: src/2 obtained [esp]-9/-15 on error
-                    -- all regs trashed, unless result is integer, in eax (and [dest])
-                    reginfo = 0
---                  if NTyp=T_integer then
-                    if isInt then
-                        storeReg(eax,dest,0,0)  -- just record that eax==[dest]
-                    end if
-end if
                 end if
             end if
 
@@ -13278,7 +12635,6 @@ end if
                 src = s5[pc+2]
                 src2 = s5[pc+3]
                 markConstUseds({dest,src,src2})
-if newEmit then
                 if opcode=opOpen
                 or opcode=opSeek then
                     leamov(edi,dest)                -- lea edi,[dest]           -- result location
@@ -13299,34 +12655,6 @@ if newEmit then
                         storeReg(eax,dest,0,0)  -- just record that eax==[dest]
                     end if
                 end if
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
-                leamov(edx,dest)                    -- lea edx,[dest]/mov edx,addr dest (result)
-                if sched then
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,src)                     -- lea edi,[src]/mov edi,src (addr src)
-                if sched then
-                    schedule(0,0,esibit,pUV,0,0)
-                end if
-                leamov(esi,src2)                    -- lea esi,[src2]/mov esi,addr src2
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opcode)                -- call opXxxx
-                reginfo = 0 -- all regs trashed
-                if opcode=opSeek then
---                  if rootType(symtab[dest][S_vtype])=T_integer then
---DEV tryme:
---                  if dtype=T_integer then
-                    if vroot=T_integer then
-                        storeReg(ecx,dest,0,0)  -- just record that ecx==[dest]
-                    end if
-                end if
-end if
             end if
             pc += 4
 
@@ -13399,7 +12727,6 @@ if {smin,smax}!={Tsmin,Tsmax} then ?9/0 end if
                 --DEV unused??
                 isInit = s5[pc+3]
                 markConstUseds({src,dest})
-if newEmit then
     if opcode=opNotBits
     or opcode=opRand then
 --DEVimm enhanced 24/12/14:
@@ -13427,21 +12754,6 @@ if newEmit then
 --puts(1,"opAlloc missing line 12697 pilx86.e\n")   -- (currently hll, but should really be :%opAlloc)
                 ?9/0
     end if
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                if sched then
-                    schedule(0,0,esibit,pUV,0,0)
-                end if
-                leamov(esi,src)                                 -- lea esi,[src]/mov esi,addr src
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opcode)                            -- call opAlloc/NotBits/Rand
-end if
                 reginfo = 0 -- all regs trashed
             end if
             pc += 4
@@ -13538,16 +12850,7 @@ end if
                 if sched then
                     schend()
                 end if
-if newEmit then
---  puts(1,"warning: opCallOnce skipped for newEmit (pilx86.e line 11830)\n")
---DEV/SUG:      emitAutoJmpG(opCallOnce)
---              lblidx = tt[aatidx[opCallOnce]+EQ]
---              if lblidx=0 then ?9/0 end if
---              x86 &= {call_rel32,isJmpG,0,0,lblidx}
                 emitHex5callG(opCallOnce)
-else
-                emitHex5call(opCallOnce)                    -- call opCallOnce
-end if
                 reginfo = 0 -- all regs trashed
 if newEmit then
 else
@@ -13667,12 +12970,7 @@ end if
                     pc += 1
                 end for
                 leamov(eax,s5[pc])                                  -- lea/mov eax,addr res
-if newEmit then
---puts(1,"warning: opConcatN skipped for newEmit (pilx86.e line 12776)\n")
                 emitHex5jmpG(opConcatN)                             -- jmp opConcatN (actually a call, return pushed above)
-else
-                emitHex5jmpop(opConcatN)                            -- jmp opConcatN (actually a call, return pushed above)
-end if
                 x86[backpatch] = length(x86)-backpatch
                 reginfo = 0 -- all regs trashed
                 pc += 1
@@ -13701,18 +12999,12 @@ end if
 --  callopTraceFirst = src
 --  lineinfo()
 --else
-if newEmit then
     if opcode=opSetRand 
---  or opcode=opSleep then
     or opcode=opSleep
     or opcode=opFree
 --DEV??
     or opcode=opTrace
     or opcode=opProfile then
---DEV imm handling:
-if 0 then
-                loadToReg(eax,src)                              -- mov eax,[src]
-else -- added 25/5/15:
                 getSrc()
                 if slroot=T_integer and smin=smax then
                     if smin then
@@ -13726,22 +13018,10 @@ else -- added 25/5/15:
                 else
                     loadToReg(eax,src)                          -- mov eax,[src]
                 end if
-end if
                 emitHex5callG(opcode)                           -- call opXxxx
     else
 printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit, pilx86.e line 13580\n",{opcode,opNames[opcode]})
     end if
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,src)                                 -- lea edi,[src]/mov edi,src
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opcode)                            -- call opXxxx
-end if
 --end if
                 reginfo = 0
             end if
@@ -13800,15 +13080,9 @@ end if
                     if sched then
                         schend()    -- [esp]-9
                     end if
-if newEmit then
                     loadToReg(esi,src)                              -- mov esi,[src]
                     movRegVno(edx,src)                              -- mov e/rdx,src (var no)
                     emitHex5callG(opLen)                            -- call :%opLen
-else
-                    loadToReg(eax,src)                              -- mov eax,[src]
-                    emitHex5w(mov_edx_imm32,src)                    -- mov edx,src (var no)
-                    emitHex5call(opLen)                             -- call opLen
-end if
                     -- all regs trashed, unless result is integer, in ecx (and [tvar]), esi untouched
                     --                   (\ which it always is /), since tvar=newTmpVar(T_integer)
                     if reginfo then clearReg(edi) end if
@@ -13927,12 +13201,7 @@ end if
 --              emitHex5w(mov_ecx_imm32,noofitems)              -- mov ecx,noofsubscripts
                 movRegImm32(ecx,noofitems)                      -- mov ecx,noofsubscripts
                 leamov(eax,s5[pc])                              -- lea/mov eax,addr ref
-if newEmit then
---  printf(1,"opRepe, emitline=%d (pilx86 line 13021)\n",emitline)
                 emitHex5jmpG(opRepe)                            -- jmp :%opRepe (actually a call, return pushed above)
-else
-                emitHex5jmpop(opRepe)                           -- jmp opRepe (actually a call, return pushed above)
-end if
                 -- set return addr offset:
                 x86[raoffset] = length(x86)-raoffset
                 reginfo = 0 -- all regs trashed
@@ -14065,12 +13334,7 @@ end if
                     pc += 1
                 end for
                 leamov(eax,s5[pc])                                  -- lea/mov eax,addr res
-if newEmit then
---puts(1,"warning: opReps skipped for newEmit (pilx86.e line 13113)\n")
                 emitHex5jmpG(opReps)                                -- jmp opReps (actually a call, return pushed above)
-else
-                emitHex5jmpop(opReps)                               -- jmp opReps (actually a call, return pushed above)
-end if
                 x86[backpatch] = length(x86)-backpatch
                 reginfo = 0 -- all regs trashed
                 pc += 1
@@ -14156,15 +13420,9 @@ end if
 --; call opJnotx                                    350         E8 rel32        call rel32
 --;eax=p2[p3], edx=length(p2), edi=normalised (+ve) idx, esi=raw(p2)
 --31/12/2012:
-if newEmit then
                     movRegVno(ecx,src2)                 -- mov e/rcx,src2 (var no)
                     movRegVno(edx,src)                  -- mov e/rdx,src (var no)
                     emitHex5callG(opJnotx)              -- call :%opJnotx   (test s[idx])
-else
-                    emitHex5w(mov_ecx_imm32,src2)       -- mov ecx,src2 (var no)
-                    emitHex5w(mov_edx_imm32,src)        -- mov edx,src (var no)
-                    emitHex5call(opJnotx)               -- call opJnotx     (test s[idx])
-end if
                     reginfo = 0 -- all regs trashed
                     -- DEV (regs as above, but no way as yet to store or use such info)
                 end if
@@ -14343,19 +13601,11 @@ end if
                         schend()    -- [esp-9]
                     end if
                     loadToReg(eax,src)                              -- mov eax,[src] (var ref)
-if newEmit then
 --?                        ltype = opTyp0[ltype] (NO)
                     if opcode!=opObj then
                         movRegVno(ecx,src)                          -- mov e/rcx,varno of src
                     end if
---lblidx = tt[aatidx[opcode]+EQ]
---printf(1,"pilx86.e line 14203, opcode=%d, aatidx[opcode]=%d, lblidx=%d)\n",{opcode,aatidx[opcode],lblidx})
---(printf(1,"psym.e/syminit line 2077: aatidx[opObj]=%d, agtidx[$=%d]=%d, agfnos[$=%d]=%d\n",{aatidx[opObj],length(agtidx),agtidx[$],length(agfnos),agfnos[$]}))
                     emitHex5callG(opcode)                           -- call opInt/Atom/Sq/Str/Obj
-else
-                    emitHex5w(mov_ecx_imm32,src)                    -- mov ecx,varno of src
-                    emitHex5call(opcode)                            -- call opInt/Atom/Sq/Str
-end if
                     -- all regs trashed, unless result is integer,
                     --  in which case eax is still [src] and only edx was damaged
                     --  (but we never care about edx anyway)
@@ -14402,11 +13652,7 @@ end if
                 end if
                 loadToReg(edi,src2)                             -- mov edi,[src2]
                 loadToReg(eax,src)                              -- mov eax,[src]
-if newEmit then
                 emitHex5callG(opScmp)                           -- call opScmp
-else
-                emitHex5call(opScmp)                            -- call opScmp
-end if
                 --; NB: src/2 obtained from [esp]-9/-14 on error
                 -- all regs trashed, unless result is integer, in eax (and [dest])
                 reginfo = 0
@@ -14429,7 +13675,6 @@ end if
             if not isGscan then
                 src = s5[pc+2]  -- fileno/name
                 markConstUsed(src)
-if newEmit then
                 leamov(edi,dest)                                -- lea edi,[dest]
                 getSrc()
                 if slroot=T_integer and smin=smax then
@@ -14449,43 +13694,6 @@ if newEmit then
                 if slroot=T_integer then
                     storeReg(ecx,dest,0,0)  -- just record that ecx==[dest]
                 end if
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
-                leamov(edx,dest)                                -- lea edx,[dest]/mov edx,addr dest (result)
-                getSrc()
-                if slroot=T_integer and smin=smax then
-                    if sched then
-                        schedule(0,0,eaxbit,pUV,0,0)
-                    end if
-                    if smin=0 then
-                        if newEmit and X64=1 then
-                            emitHex1(#48)
-                        end if
-                        emitHex2s(xor_eax_eax)                  -- xor eax,eax
-                    else
---                      emitHex5w(mov_eax_imm32,smin)           -- mov eax,imm32
-                        movRegImm32(eax,smin)                   -- mov eax,imm32
-                    end if
-                    if sched then
-                        schend()
-                    end if
-                else
-                    if sched then
-                        schend()    -- [esp]-9
-                    end if
-                    loadToReg(eax,src)                          -- mov eax,[src] (fileno)
-                end if
-                emitHex5call(opcode)                            -- call opGetc
-                -- NB: src obtained from [esp]-9 on error
-                reginfo = 0 -- all regs trashed
-                if slroot=T_integer then
-                    storeReg(eax,dest,0,0)  -- just record that eax==[dest]
-                end if
-end if
-
             end if
             pc += 3
 
@@ -14501,35 +13709,22 @@ end if
                 src = s5[pc+2]   -- fileno
                 isInit = s5[pc+3]
                 markConstUsed(src)
-if newEmit then
                 leamov(edi,dest)                        -- lea edi,[dest]
                 loadToReg(eax,src)                      -- mov eax,[src]
                 emitHex5callG(opcode)                   -- call :%opGets
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
-                leamov(ecx,dest)                        -- lea ecx,[dest]/mov ecx,addr dest (result)
-                if sched then
-                    schend()    -- [esp]-9
-                end if
-                loadToReg(eax,src)                      -- mov eax,[src]
-                emitHex5call(opcode)                    -- call opGets
-                -- NB src obtained from [esp]-9 on error
-end if
                 reginfo = 0 -- all regs trashed
             end if
             pc += 4
 
-        elsif opcode=opWhere            -- 58
+--      elsif opcode=opWhere            -- 58
+        elsif opcode=opWhere then
 --         or opcode=opChDir            -- 62
-           or opcode=op32toA            -- 98
-           or opcode=op64toA then       -- 99
+--         or opcode=op32toA            -- 98
+--         or opcode=op64toA then       -- 99
             dest = s5[pc+1]
 --if isGscan then
             getDest()
-            if opcode=opWhere then      -- 58
+--          if opcode=opWhere then      -- 58
                 smin = 0
                 smax = MAXINT
                 -- reasonably safe to assume integer result [?]
@@ -14539,10 +13734,10 @@ end if
 --              smin = 0
 --              smax = 1
 --              slroot = T_integer
-            elsif opcode=op32toA            -- 98
-               or opcode=op64toA then       -- 99
-                slroot = T_atom
-            end if
+--          elsif opcode=op32toA            -- 98
+--             or opcode=op64toA then       -- 99
+--              slroot = T_atom
+--          end if
             sltype = slroot
             storeDest()
             --          pc += 4
@@ -14552,31 +13747,15 @@ end if
                 isInit = s5[pc+3]
 --          pc += 4
                 markConstUsed(src)
-if newEmit then
-                if opcode!=opWhere then ?9/0 end if
+--              if opcode!=opWhere then ?9/0 end if
                 leamov(edi,dest)                                -- lea edi,[dest]
                 loadToReg(eax,src)                              -- mov eax,[src]
                 emitHex5callG(opcode)                           -- call opXxx
-            --  lea edi,[res]       -- result location
-            --  mov eax,[fn]        -- file number (opUnassigned, integer)
-            --  call :%opWhere      -- [edi]:=where(eax)
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
-                leamov(ecx,dest)                        -- lea ecx,[dest]/mov ecx,addr dest (result)
-                if sched then
-                    schend()    -- [esp]-9
-                end if
-                loadToReg(eax,src)                      -- mov eax,[src]
-                emitHex5call(opcode)                    -- call opXxxx
-end if
-                -- NB src obtained from [esp]-9 on error
                 reginfo = 0 -- all regs trashed
-                if opcode=opWhere and symtab[dest][S_vtype]=T_integer then
+--              if opcode=opWhere and symtab[dest][S_vtype]=T_integer then
+                if symtab[dest][S_vtype]=T_integer then
 --DEV tryme:
---              if opcode=opWhere and dtype=T_integer then
+--              if dtype=T_integer then
                     storeReg(eax,dest,0,0)  -- just record that eax==[dest]
                 end if
             end if
@@ -14588,52 +13767,35 @@ end if
            or opcode=opTan
            or opcode=opArcTan
            or opcode=opLog
-           or opcode=opSqrt
-           or opcode=opAto32            -- 110
-           or opcode=opAto64 then       -- 111
+           or opcode=opSqrt then
+--         or opcode=opAto32            -- 110
+--         or opcode=opAto64 then       -- 111
             dest = s5[pc+1]
 --if isGscan then
             getDest()
-            if opcode>=opCos and opcode<=opSqrt then -- 92/93/94/95/96/97
+--          if opcode>=opCos and opcode<=opSqrt then -- 92/93/94/95/96/97
                 slroot = T_atom
-            else
---          elsif opcode=opAto32            -- 110
---             or opcode=opAto64 then       -- 111
-                setyp = T_integer
---              slroot = T_Dsq
-                slroot = T_string   -- 10/01/10
-                if opcode=opAto32 then
-                    slen = 4
-                else
-                    slen = 8
-                end if
-            end if
+--          else
+----            elsif opcode=opAto32            -- 110
+----               or opcode=opAto64 then       -- 111
+--              setyp = T_integer
+----                slroot = T_Dsq
+--              slroot = T_string   -- 10/01/10
+--              if opcode=opAto32 then
+--                  slen = 4
+--              else
+--                  slen = 8
+--              end if
+--          end if
             sltype = slroot
             storeDest()
             --else
             if not isGscan then
                 src = s5[pc+2]
                 markConstUseds({dest,src})
-if newEmit then
                 leamov(edi,dest)                                -- lea edi,[dest]
                 loadToReg(eax,src)                              -- mov eax,[src]
                 emitHex5callG(opcode)                           -- call opXxx
-else
-                --DEV push dest instead (changes rqd to backend) [erm how?!]
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                if sched then
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
-                leamov(edx,src)                                 -- lea edx,[src]/mov edx,addr src
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opcode)                            -- call opXxx
-end if
                 reginfo = 0
             end if
             pc += 3
@@ -14689,10 +13851,11 @@ end if
             storeDest()
             --else
             if not isGscan then
-if newEmit then
                 --calling convention:
                 --  lea edi,[dest]  ; target addr
                 --  mov esi,[src]   ; addr or {addr,len} (opUnassigned)
+                --  mov ecx,???
+                --  mov edx,???
                 --  call opPeek[i|4(u|s)]
                 leamov(edi,dest)                        -- lea edi,[dest]
                 loadToReg(esi,src)                      -- mov esi,[src]
@@ -14759,25 +13922,6 @@ if newEmit then
                     ?9/0
                 end if
                 emitHex5callG(opcode)                   -- call opXxxx
-else
-            --;calling convention:                              octal:         binary:          code:
-            --;  mov ecx,dest ; target addr                 271         B9 0A000000         MOV ECX,0000000A
-            --;  mov edx,src ; addr or {addr,len}           272         BA 00200000         MOV EDX,2000
-            --;  call opPeek4uR                             350         E8 <relative dword>
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
-                leamov(ecx,dest)                                -- lea ecx,[dest]/mov ecx,addr dest
-                if sched then
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
-                leamov(edx,src)                                 -- lea edx,[src]/mov edx,addr src
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opcode)                            -- call opXxxx
-end if
                 reginfo = 0
             end if
             if opcode=opPeekNS then
@@ -14879,16 +14023,10 @@ end if
                     if sched then
                         schend()    -- [esp]-9
                     end if
-if newEmit then
 --DEV do we not need a var no? (or are we using opUnassigned and tce is misleading and this code is dead?)
                     loadToReg(esi,src)                          -- mov esi,[src]
 --DEV calls opAddiii??? (simply stopped using this)
                     emitHex5callG(opPeeki)                      -- call opPeeki -- flt->eax/unassigned/tce
-else
-                    loadToReg(edi,src)                          -- mov edi,[src]
-                    emitHex5call(opPeeki)                       -- call opPeeki -- flt->eax/unassigned/tce
-end if
-                    --NB dest/src obtained from [esp]+1/-9 on error
                     -- result in eax, damages edx/edi, ecx/esi/ebx unaltered
                     if sched then
                         -- needed for [esp]+1 error handling:
@@ -14981,7 +14119,6 @@ or opcode=opPokeN then
                 if sched then
                     schend()
                 end if
-if newEmit then
                 if opcode=opPoke1 then
                     movRegImm32(ecx,1)                  -- mov ecx,1
                 elsif opcode=opPoke2 then
@@ -15012,11 +14149,7 @@ if newEmit then
                     ?9/0
                 end if
                 emitHex5callG(opcode)                   -- call opXxxx
-else
-                emitHex5call(opcode)                    -- call opXxxx
-end if
 else -- opPosition
-    if newEmit then
             -- calling convention
             --  mov eax,[line]      -- line (opUnassigned, integer)
             --  mov ecx,[col]       -- col (opUnassigned, integer)
@@ -15025,25 +14158,6 @@ else -- opPosition
                 loadToReg(eax,src)                      -- mov eax,[src]
                 loadToReg(ecx,src2)                     -- mov ecx,[src2]
                 emitHex5callG(opcode)                   -- call opXxxx
-    else
---; calling convention:
---;  mov edx,p1 ; addr x-coord
---;  mov esi,p2 ; addr y-coord
---;  call opPosition
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
-                leamov(edx,src)                         -- lea edx,[src]/mov edx,addr src
-                if sched then
-                    schedule(0,0,esibit,pUV,0,0)
-                end if
-                leamov(esi,src2)                        -- lea esi,[src2]/mov esi,addr src2
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opcode)                    -- call opXxxx
-    end if
 end if
                 reginfo = 0 -- all regs trashed
             end if
@@ -15156,7 +14270,6 @@ if not newEmit then ?9/0 end if
             if not isGscan then
                 dest = s5[pc+1] -- (actually src for last 4)
                 markConstUsed(dest)
-if newEmit then
                 if opcode=opTime
                 or opcode=opGetKey
                 or opcode=opInstance
@@ -15174,17 +14287,6 @@ if newEmit then
                 else
 printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit, pilx86.e line 15009\n",{opcode,opNames[opcode]})
                 end if
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
-                leamov(edx,dest)                                -- lea edx,[dest]/mov edx,addr dest
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opcode)                            -- call opXxxx
-end if
                 reginfo = 0 -- all regs trashed
             end if
             pc += 2
@@ -15204,7 +14306,6 @@ end if
                 src2 = s5[pc+3] -- locktype
                 p4 = s5[pc+4]   -- byterange
                 markConstUseds({src2,p4})
-if newEmit then
                 leamov(edi,dest)                                -- lea edi,[dest]/mov edi,addr dest
                 loadToReg(eax,src)                              -- mov eax,[src] (fn)
                 getSrc2()
@@ -15228,29 +14329,6 @@ if newEmit then
             --  mov ecx,[locktype]  -- lock type (opUnassigned, integer)
             --  mov esi,[byterange] -- byte range (opUnassigned, sequence)
             --  call :%opLock       -- [edi]:=lock_file(eax,ecx,esi)
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
-                leamov(edx,dest)                                -- lea edx,[dest]/mov edx,addr dest
-                if sched then
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,src)                                 -- lea edi,[src]/mov edi,src (addr fileno)
-                if sched then
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
-                leamov(ecx,src2)                                -- lea ecx,[src2]/mov ecx,addr src2 (locktype)
-                if sched then
-                    schedule(0,0,esibit,pUV,0,0)
-                end if
-                leamov(esi,p4)                                  -- lea esi,[p4]/mov esi,addr p4 (byterange)
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opLock)                            -- call opLock
-end if
                 reginfo = 0
 --              if rootType(symtab[dest][S_vtype])=T_integer then
 --DEV tryme:
@@ -15265,28 +14343,12 @@ end if
             if not isGscan then
                 src = s5[pc+1]      -- fileno
                 src2 = s5[pc+2]     -- byterange
-if newEmit then
                 loadToReg(eax,src)                              -- mov eax,[src] (fn)
                 loadToReg(esi,src2)                             -- mov esi,[p4] (byterange)
                 emitHex5callG(opUnLock)                         -- call :%opUnLock
             --  mov eax,[fn]        -- file number (opUnassigned, integer)
             --  mov esi,[byterange] -- byte range (opUnassigned, sequence)
             --  call :%opUnLock     -- unlock_file(eax,esi)
-else
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,src)                                 -- lea edi,[src]/mov edi,src addr
-                if sched then
-                    schedule(0,0,esibit,pUV,0,0)
-                end if
-                leamov(esi,src2)                                -- lea esi,[src2]/mov esi,addr src2
-                if sched then
-                    schend()
-                end if
-                emitHex5call(opUnLock)                          -- call opUnLock
-end if
                 reginfo = 0
             end if
             pc += 3
@@ -15294,15 +14356,7 @@ end if
         elsif opcode=opClrScrn
            or opcode=opFreeCons then -- 124
             if not isGscan then
-if newEmit then
                 emitHex5callG(opcode)                           -- call :%opXxxx
-else
-                if sched then
---                  if schidx then schend() end if
-                    schend()
-                end if
-                emitHex5call(opcode)                            -- call opXxxx
-end if
                 reginfo = 0
             end if
             pc += 1
@@ -15444,7 +14498,6 @@ if not newEmit then ?9/0 end if
            or opcode=opMachine then
             ?9/0 -- should have been resolved by pmain.e
         elsif opcode=opAbort then
-if newEmit then
             if not isGscan then
                 src = s5[pc+1]      -- error code
                 markConstUsed(src)
@@ -15467,34 +14520,7 @@ if newEmit then
             end if
             pc += 2
             if pc>length(s5) then exit end if
-else
-            if not isGscan then
-                src = s5[pc+1]
-                markConstUsed(src)
-                if sched then
-                    schend()
-                end if
-                getSrc()
-                if slroot=T_integer and smin=smax then
-                    if smin=0 then
-                        if newEmit and X64=1 then
-                            emitHex1(#48)
-                        end if
-                        emitHex2s(xor_edx_edx)                  -- xor edx,edx
-                    else
---                      emitHex5w(mov_edx_imm32,smin)           -- mov edx,imm32
-                        movRegImm32(edx,smin)                   -- mov edx,imm32
-                    end if
-                else
-                    if and_bits(symtab[src][S_State],K_Fres) then ?9/0 end if
-                    loadMem(edx,src)
-                end if
-                emitHex5call(opAbort)                           -- call opAbort
-                -- fatal, does not return
-            --DEV so jskip?? (or does emitON in pmain.e cover that?)
-            end if
-            pc += 2
-end if
+
         elsif opcode=opInitCS then
             dest = s5[pc+1]
             getDest()
@@ -15598,7 +14624,8 @@ end if
                 reginfo = 0 -- all regs trashed
             end if
             pc += 1
-        elsif opcode=opGetText then
+        elsif opcode=opGetText 
+           or opcode=opDcvar then
             if not isGscan then
                 dest = s5[pc+1]
                 src = s5[pc+2]
@@ -15606,7 +14633,7 @@ end if
 --              getSrc()
                 leamov(edi,dest)                                -- lea edi,[dest]
                 loadToReg(eax,src)                              -- mov eax,[fn]
---DEV constant handling...
+--DEV constant handling (opGetText only)...
                 loadToReg(ecx,src2)                             -- mov ecx,[option]
                 emitHex5callG(opcode)                           -- call opGetText
                 reginfo = 0 -- all regs trashed
@@ -15641,22 +14668,63 @@ end if
                 reginfo = 0 -- all regs trashed
             end if
             pc += 4
-        elsif opcode=opTextRows then
+        elsif opcode=opTextRows
+           or opcode=opOpenDLL
+           or opcode=opCallback then
             -- calling convention
             --  lea edi,[res]       -- result location
             --  mov eax,[lines]     -- lines (opUnassigned, integer)
-            --  call :%opTextRows   -- [edi]:=text_rows(eax)
+            --  call :%opXXX        -- [edi]:=text_rows/open_dll/call_back(eax)
+            --DEV potentially merge-able with opFloor/opRand/opGetc/opGets/opWhere/opCos(etc)...
             if not isGscan then
                 dest = s5[pc+1]
                 src = s5[pc+2]
 --              getSrc()
                 leamov(edi,dest)                                -- lea edi,[dest]
---DEV constant handling...
+--DEV constant handling... (opTextRows/opCallback only)
                 loadToReg(eax,src)                              -- mov eax,[fn]
-                emitHex5callG(opcode)                           -- call opTextRows
+                emitHex5callG(opcode)                           -- call opTextRows/opOpenDLL/opCallback
                 reginfo = 0 -- all regs trashed
             end if
             pc += 3
+        elsif opcode=opDcfunc then
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov eax,[lib]       -- (opUnassigned)
+            --  mov ecx,[fname]     -- (opUnassigned)
+            --  mov esi,[args]      -- (opUnassigned)
+            --  mov edx,[rtyp]      -- (opUnassigned) [0 for define_c_proc]
+            --  call :%opDcfunc     -- [edi]:=define_c_func(eax,ecx,esi,edx)
+            if not isGscan then
+                dest = s5[pc+1]
+                src = s5[pc+2]
+                src2 = s5[pc+3]
+                leamov(edi,dest)                                -- lea edi,[dest]
+                loadToReg(eax,src)                              -- mov eax,[lib]
+                loadToReg(ecx,src2)                             -- mov eax,[fname]
+                src = s5[pc+4]
+                src2 = s5[pc+5]
+                loadToReg(esi,src)                              -- mov esi,[args]
+                markConstUsed(src2)
+                getSrc2()
+                if and_bits(state2,K_rtn) then ?9/0 end if
+                if and_bits(state2,K_Fres) then ?9/0 end if
+                if slroot2=T_integer and smin2=smax2 then
+                    if smin2=0 then
+                        if newEmit and X64=1 then
+                            emitHex1(#48)
+                        end if
+                        emitHex2s(xor_edx_edx)                  -- xor edx,edx
+                    else
+                        movRegImm32(edx,smin2)                  -- mov edx,imm32
+                    end if
+                else
+                    loadMem(edx,src2)                           -- mov edx,[src2]
+                end if
+                emitHex5callG(opcode)                           -- call opTextRows/opOpenDLL
+                reginfo = 0 -- all regs trashed
+            end if
+            pc += 6
         else
             if opcode>=1 and opcode<=length(opNames) then
                 opName = opNames[opcode]
@@ -15847,7 +14915,7 @@ end procedure
 --  opCleanUp                               first   last
 --  opMove          [src]           [dest]          dest
 --  opFrame         first   N                       rtnid
---  opTchkFail                      src
+--  opTcFail                        src
 --  opSubse1                dest            [src]   [idx]
 --  opSubse1i[s/p]  <dest>                  [src]   [idx]
 --  opJcc/JccE      [src]                           [src2]
@@ -16107,7 +15175,8 @@ string options
 end procedure
 
 --integer pc, opcode
-string bcomma, cleancode
+string bcomma
+--, cleancode
 integer Dfileno
 
 --DEV//SUG use decode_flags()
@@ -16212,60 +15281,62 @@ object desc
                     --  really not much point adding a full disassembler here, given the
                     --  ready availability of list.asm to go with this ildump.txt... but
                     --  on dirt-simple code with no #ilasm{}s, let 'em know what it is).
-                    if clean
-                    and remainder(i+1,5)=0 then -- only bother with 5-byte instructions!
-                        k = s5[pc-4]
-                        cleancode = "\t\t\t-- "
---DEV use find?
-                        if k=mov_esi_imm32
-                        or k=mov_edi_imm32
-                        or k=mov_ecx_imm32 then
-                            if s5[pc-3]=isVar then
-                                cleancode &= "mov "
-                                if k=mov_esi_imm32 then
-                                    cleancode &= "esi"
-                                elsif k=mov_edi_imm32 then
-                                    cleancode &= "edi"
-                                elsif k=mov_ecx_imm32 then
-                                    cleancode &= "ecx"
-                                else
---                                  cleancode &= "???"
-                                    clean = 0
-                                end if
-                                cleancode &= sprintf(",[symtab[%d]]",byte)
-                            else
-                                clean = 0
-                            end if
-                        elsif k=call_rel32 then
-                            if s5[pc-3]=isOpCode then
---DEV use find?
-                                if byte=opCleanUp1 then
-                                    cleancode &= "call opCleanUp1"
-                                elsif byte=opCleanUp then
-                                    cleancode &= "call opCleanUp"
-                                elsif byte=opGetST then
-                                    cleancode &= "call opGetST"
-                                elsif byte=opRTErn then
-                                    cleancode &= "call opRTErn"
-                                elsif byte=opCrshRtn then
-                                    cleancode &= "call opCrshRtn"
-                                else
-                                    clean = 0
-                                end if
-                            else
-                                clean = 0
-                            end if
-                        else
-                            clean = 0   -- (unrecognised code)
-                        end if
-                        if clean then
-                            puts(dilfn,cleancode)
-                            if i<skip then
-                                puts(dilfn,"\n\t")
-                                dlen = 8
-                            end if
-                        end if
-                    end if
+--removed 23/10/15...
+--                  if clean
+--                  and remainder(i+1,5)=0 then -- only bother with 5-byte instructions!
+--                      k = s5[pc-4]
+--                      cleancode = "\t\t\t-- "
+----DEV use find?
+--                      if k=mov_esi_imm32
+--                      or k=mov_edi_imm32
+--                      or k=mov_ecx_imm32 then
+--                          if s5[pc-3]=isVar then
+--                              cleancode &= "mov "
+--                              if k=mov_esi_imm32 then
+--                                  cleancode &= "esi"
+--                              elsif k=mov_edi_imm32 then
+--                                  cleancode &= "edi"
+--                              elsif k=mov_ecx_imm32 then
+--                                  cleancode &= "ecx"
+--                              else
+----                                    cleancode &= "???"
+--                                  clean = 0
+--                              end if
+--                              cleancode &= sprintf(",[symtab[%d]]",byte)
+--                          else
+--                              clean = 0
+--                          end if
+--                      elsif k=call_rel32 then
+--                          if s5[pc-3]=isOpCode then
+----DEV newEmit??
+----DEV use find?
+--                              if byte=opCleanUp1 then
+--                                  cleancode &= "call opCleanUp1"
+--                              elsif byte=opCleanUp then
+--                                  cleancode &= "call opCleanUp"
+--                              elsif byte=opGetST then
+--                                  cleancode &= "call opGetST"
+--                              elsif byte=opRTErn then
+--                                  cleancode &= "call opRTErn"
+--                              elsif byte=opCrshRtn then
+--                                  cleancode &= "call opCrshRtn"
+--                              else
+--                                  clean = 0
+--                              end if
+--                          else
+--                              clean = 0
+--                          end if
+--                      else
+--                          clean = 0   -- (unrecognised code)
+--                      end if
+--                      if clean then
+--                          puts(dilfn,cleancode)
+--                          if i<skip then
+--                              puts(dilfn,"\n\t")
+--                              dlen = 8
+--                          end if
+--                      end if
+--                  end if
                     pc += 1
                 end for
                 puts(dilfn,"\n")

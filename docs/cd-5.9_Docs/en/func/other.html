@@ -1,0 +1,129 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>Other</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<style type="text/css">
+.auto-style1 {
+        font-size: 110%;
+}
+</style>
+</head>
+
+<body>
+
+<h2 align="center">System</h2>
+<div class="function"><pre class="function"><span class="mainFunction">char*&nbsp;<a name="cdVersion">cdVersion</a>(void); [in C]</span>
+
+cd.Version() -&gt; (version: string) [in Lua]</pre>
+
+  <p>Returns the current version number of the library. The string with the 
+  version number has a format &quot;<font>major.minor.build</font>&quot;. 
+  For instance, the string &quot;2.1.3&quot; has number 2 as the main (major) version 
+  number, 1 as the secondary (minor) version number, and 3 as the build number. 
+  The major version number represents a change in the structure or behavior of 
+  functions; the minor version number represents one or more new drivers and 
+  functions added to the library; and the build version number represents one or 
+  more corrected bugs.</p>
+
+</div><div class="function"><pre class="function"><span class="mainFunction">char* <a name="cdVersionDate">cdVersionDate</a>(void); [in C]
+</span>
+cd.VersionDate() -&gt; (versiondate: string) [in Lua]</pre>
+<p>Returns the release date of the current version of the library.</p>
+</div><div class="function"><pre class="function"><span class="mainFunction">int <a name="cdVersionNumber">cdVersionNumber</a>(void); [in C]
+</span>
+cd.VersionNumber() -&gt; (version: number) [in Lua]</pre>
+<p>Returns the current version number of the library.</p>
+</div><div class="function"><pre class="function">[in C]
+<span class="mainFunction">CD_NAME</span>           &quot;CD - Canvas Draw&quot;
+<span class="mainFunction">CD_DESCRIPTION</span>    &quot;A 2D Graphics Library&quot;
+<span class="mainFunction">CD_COPYRIGHT</span>      &quot;Copyright (C) 1994-2007 Tecgraf/PUC-Rio and PETROBRAS S/A&quot;
+<span class="mainFunction">CD_VERSION</span>        &quot;5.0&quot;
+<span class="mainFunction">CD_VERSION_DATE</span>   &quot;2007/04/09&quot;
+<span class="mainFunction">CD_VERSION_NUMBER</span> 500000
+
+[in Lua]
+cd._NAME
+cd._DESCRIPTION
+cd._COPYRIGHT
+cd._VERSION
+cd._VERSION_DATE
+cd._VERSION_NUMBER</pre>
+
+  <p>Useful definitions. They have the same value returned by <b>cdVersion</b>* 
+  functions, except that they do not include the build number.</p>
+</div>
+<hr>
+<h2 align="center">Metafile Interpretation</h2>
+<div class="function"><pre class="function"><span class="mainFunction">int&nbsp;<a name="cdPlay">cdCanvasPlay</a>(cdCanvas* canvas, cdContext* ctx, int xmin, int xmax, int ymin, int ymax, void *data); [in C]</span>
+<span class="auto-style1">int&nbsp;<a name="cdPlay0">wdCanvasPlay</a>(cdCanvas* canvas, cdContext* ctx, double xmin, double xmax, double ymin, double ymax, void *data); (WC) [in C]</span>
+
+canvas:Play(ctx, xmin, xmax, ymin, ymax: number, data: string) -&gt; (status: number) [in Lua]
+canvas:wPlay(ctx, xmin, xmax, ymin, ymax: number, data: string) -&gt; (status: number) [in Lua]</pre>
+
+  <p>Interprets the graphical contents (primitives and attributes) in a given 
+  driver and calls equivalent functions of the CD library using the given 
+  canvas. The primitives are drawn inside the region defined by the given 
+  limits. If <font>limits are 0 (xmin</font>, <font>xmax</font>,
+  <font>ymin</font> and <font>ymax)</font> the primitives will be drawn with their coordinates having the original 
+  values in the file. The WD version will simply use the given limits in World 
+  Coordinates (since 5.9). </p>
+        <p>Returns CD_OK or CD_ERROR.</p>
+
+  <p>Only some drivers implement this function:</p>
+
+
+  <ul>
+    <li><a href="../drv/clipbd.html"><b>
+        CD_CLIPBOARD</b></a> = Clipboard, <font>data</font> is 
+    ignored. </li>
+    <li><a href="../drv/wmf.html"><b>
+        CD_WMF</b></a> = Windows Metafile, <font>data</font> is 
+    a <b>char*</b> for the string ''<i>filename</i>''. Works only in 
+    the MS Windows system.</li>
+    <li><a href="../drv/emf.html"><b>
+        CD_EMF</b></a> = Windows Enhanced Metafile, <font>data</font> 
+    is a <b>char*</b> for the string ''<i>filename</i>''. Works only in 
+    the MS Windows system.</li>
+    <li><a href="../drv/cgm.html"><b>
+        CD_CGM</b></a> = Computer Graphics Metafile ISO, <font>
+    data</font> is a <b>char*</b> for the string ''<i>filename</i>''.</li>
+    <li><a href="../drv/mf.html"><b>
+        CD_METAFILE</b></a> = CD Metafile, <font>data</font> 
+    is a <b>char*</b> for the string ''<i>filename</i>''.</li>
+    <li><a href="../drv/picture.html"><b>
+        CD_PICTURE</b></a> = CD Picture, <font>data</font> 
+    is a <strong>cdCanvas</strong><b>*</b> of the Picture canvas.</li>
+  </ul>
+
+</div><div class="function"><pre class="function"><span class="mainFunction">int&nbsp;<a name="cdRegisterCallback">cdContextRegisterCallback</a>(cdContext *ctx, int cb, int(*func)(cdCanvas* canvas, ...)); [in C]</span>
+
+cd.ContextRegisterCallback(ctx, cb: number, func: function) -&gt; (status: number) [in Lua]</pre>
+
+  <p>Used to customize the behavior of the&nbsp; <b><font>Play</font></b> 
+  function. If you register a known callback function, it will be called during 
+  the processing loop of <font><strong>cdCanvasPlay</strong></font>. Returns 
+        CD_OK if the specified callback is supported or CD_ERROR otherwise.</p>
+  <p>The callback itself should return <font>CD_CONTINUE</font>, if it 
+  returns <font>CD_ABORT</font>, the <font>cdPlay</font> 
+  function is aborted. The callback identifiers of a given driver must be in the 
+  header file relative to that driver, with prefix &quot;<font>CD_XXYYYCB</font>&quot;, 
+  where <font>XX</font> identifies that driver and
+  <font>YYY</font> identifies the callback name.</p>
+  <p>There is a default callback common to all implementations of
+  <font>cdPlay</font>, <b>CD_SIZECB</b>. Its definition 
+  is:</p>
+<pre>int cdResizeCB(cdCanvas* canvas, int width, int height, double mm_width, double mm_height)</pre>
+<p>It returns the size of the image in the 
+  file before any function in the CD library is called, so that you can call the&nbsp;
+  <font>cdPlay</font> function without an active canvas and 
+  create the canvas inside the callback. Its values are the same as returned by 
+the&nbsp; <b>
+  <font><a href="coordinates.html#cdGetCanvasSize">cdCanvasGetSize</a></font></b> function.</p>
+
+</div>
+</body>
+
+</html>

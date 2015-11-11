@@ -1,0 +1,119 @@
+--
+-- Optimised best-fit algorithm
+-- Pete Lomax 7th April 2003
+--
+
+atom required
+
+sequence sizes
+    sizes = {377,378,384,387,388,391,396,422,424,425,488,505}
+
+sequence includeset
+
+integer best, levelbest, worktot, level, item, bound
+sequence bestset
+
+procedure display()
+--sequence dtext, integer dtot, sequence dset, integer dlevel)
+--integer ib
+--sequence srem
+--integer srl
+--  srem=sizes
+--  srl=length(srem)
+    if best=required then
+        printf(1,"Exact match %d\n",{best})
+    else
+        printf(1,"Best match %d [required %d]\n",{best,required})
+    end if
+--  for b=1 to dlevel do
+--      ib=dset[b]
+--      printf(1,"%d  %d\n",{ib,sizes[ib]})
+--      sizes[ib]=sizes[srl]
+--      srl-=1
+--  end for
+--  ?sizes[1..srl]
+--  ib=0
+--  for i = 1 to srl do
+--      ib+=sizes[i]
+--  end for
+--  ?ib
+--  if getc(0) then end if
+end procedure
+
+procedure find_combination()
+--
+-- This section tries to find a set of sizes which add up to the
+-- required amount exactly.
+--
+    level = 1
+    best = 0
+    item = length(sizes)
+    includeset = repeat(0,item)
+    worktot = 0
+    while 1 do
+        includeset[level] = item
+        worktot += sizes[item]
+        if worktot>bound then   -- Thanks to Ricardo Forno
+            if worktot>best then
+                if worktot<=required then
+                    best = worktot
+                    levelbest = level
+                    bestset = includeset
+                    if best=required then return end if -- Found exact fit
+                end if
+            end if
+        end if
+        if item>1 -- More to be tested
+        and worktot<required then
+            item -= 1
+            level += 1 -- Leave item in table;
+        else
+            while 1 do
+                --
+                -- Now we need to backtrack;  remove item from running 
+                -- total and look at the next instead.
+                --
+                worktot -= sizes[item] --v
+                item -= 1
+                if item then exit end if
+                --
+                -- We have exhausted all possibilities at this level; 
+                -- backtrack to a previous level.
+                --
+                level -= 1
+                if level=0 then return end if -- All done
+                item = includeset[level]
+            end while
+        end if
+    end while
+end procedure
+
+set_rand(1)
+
+procedure main()
+atom t
+integer a, b
+    a = 20000
+    b = 20000
+--  sizes = rand(repeat(a, b))
+
+    t = time()
+
+    sizes = sort(sizes)
+    required = 0
+    for i=1 to length(sizes) do
+        required += sizes[i]
+    end for
+    required = floor(required/2)
+    bound = required-sizes[length(sizes)]
+
+    find_combination()
+
+    printf(1, "n = %d m = %d Time: %f\n", {a, b, time()-t})
+    printf(1,"Required: %d\n",{required})
+
+    display()
+    if getc(0) then end if
+end procedure
+
+main()

@@ -1,0 +1,219 @@
+﻿
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en">
+<title>GDI+</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2>GDI+ Base <em style="font-style: normal">Driver</em></h2>
+
+  <p>This driver represents a base driver for all system-dependent drivers implemented in the Microsoft Windows system, 
+  but uses a new API called GDI+. The drivers <b>Clipboard, Native Window</b>, <b>IUP</b>, <b>Image</b>, <b>Printer</b>,
+  <b>EMF</b> and <b>Double Buffer</b> were implemented. The driver <b>WMF</b>, and the function <font face="Courier">
+  <strong>cdPlay</strong></font> of the <b>Clipboard</b> and <b>EMF</b> drivers were not implemented using GDI+.</p>
+<p>It can be used only as the context plus driver of the GDI based drivers.</p>
+  <p>The main motivation for the use of GDI+ was transparency for all the primitives. Beyond that we got other features 
+  like anti-aliasing, gradient filling, bezier lines and filled cardinal splines.</p>
+  <p>This driver still does not completely replace the GDI Windows base driver, because GDI+ does not have support for 
+  XOR. Also the applications need to adapt the rendering of text that is slightly different from GDI. It is know that 
+  GDI+ can be slower than GDI in some cases and faster in other cases, Microsoft does not make this clear.</p>
+  <p>So we let the programmer to choose what to use. We created the function <font face="Courier"><strong>
+  <a href="../func/init.html#cdUseContextPlus">cdUseContextPlus</a> </strong></font> that allows to activate or to deactivate the use of GDI+ for the 
+	GDI based drivers. 
+  This function affects only the <font face="Courier"><strong>cdCreateCanvas</strong></font> function call, once created 
+  the canvas will be always a GDI+ canvas. In fact the function affects primary the definitions 
+	<font face="Courier"><strong>CD_NATIVEWINDOW</strong></font>, 
+  <strong><span style="font-family: Courier">CD_IMAGE</span></strong>, <strong>
+  <span style="font-family: Courier">CD_PRINTER</span></strong>, <strong>
+  <span style="font-family: Courier">CD_EMF</span></strong>, <strong>
+  <span style="font-family: Courier">CD_DBUFFER</span></strong> and <strong>
+  <span style="font-family: Courier">CD_CLIPBOARD</span></strong>, because they are 
+  function calls and not static defines.</p>
+  <p>Using GDI+ it is allowed to create more that one canvas at the same time for the same Window. And they can co-exist 
+  with a standard GDI canvas.</p>
+  <p>To enable the use of GDI+ based drivers you must call the initialization function <font face="Courier"><strong>
+  <a href="../func/init.html#cdInitContextPlus">cdInitContextPlus</a></strong></font> once, and link to the libraries &quot;<strong>cdcontextplus.lib</strong>&quot; and &quot;<strong>gdiplus.lib</strong>&quot;. 
+  Also the file &quot;<strong>gdiplus.dll</strong>&quot; must be available in your system. These files already came with Visual 
+  C++ 7 and Windows XP. For other compilers or systems you will need to copy the &quot;.lib&quot; file for you libraries area, and 
+  you will need to copy the DLL for the Windows\System (Win98/Me) or Windows\System32 (Win2000/NT4-SP6) folder. The 
+  gdiplus files can be obtained from
+  <a href="http://www.microsoft.com/downloads/details.aspx?familyid=6a63ab9c-df12-4d41-933c-be590feaa05a&displaylang=en">
+  Microsoft</a> or from <a href="../../download/gdiplus.zip">here</a>.</p>
+  <p>In CDLua it is not necessary any additional initialization, but the 
+	application must still be linked with the <strong>cdcontextplus.lib</strong> 
+	library or a <strong>require&quot;cdluacontextplus&quot;</strong> can be used when 
+	using dynamic libraries.</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Control</h4>
+<ul>
+  <li><a href="../func/other.html#cdPlay"><font face="Courier"><strong>Play</strong></font></a>: 
+  does nothing, returns <font face="Courier">CD_ERROR</font>. </li>
+</ul>
+<h4>Coordinate System and Clipping</h4>
+<ul>
+  <li><a href="../func/coordinates.html#cdUpdateYAxis"><font face="Courier">
+  <strong>UpdateYAxis</strong></font></a>: the orientation of axis Y is the opposite to its orientation in the CD 
+  library. Except when using transformations.</li>
+</ul>
+<h4>Primitives</h4>
+<ul>
+  <li>Floating point primitives are supported.</li>
+	<li><font face="Courier"><strong><a href="../func/marks.html#cdPixel">Pixel</a></strong></font>: 
+  uses GDI. Excepting when the canvas is an image so it is done using GDI+.</li>
+  <li><font face="Courier"><a href="../func/filled.html#cdSector"><b>Sector</b></a></font>: 
+  it also draws an arc in the same position to complete the size of the sector.</li>
+  <li><font face="Courier"><a href="../func/text.html#cdText"><b>Text</b></a></font>: 
+  opaque text is simulated using a rectangle in the back.</li>
+  <li><a href="../func/lines.html#cdBegin"><font face="Courier"><strong>Begin</strong></font></a>: 
+  Beyond the standard modes it accepts the additional modes: <strong><tt>CD_FILLSPLINE</tt></strong> and <strong><tt>
+  CD_FILLGRADIENT</tt></strong>. The C definitions of these modes are available in the <b>cdgdiplus.h</b> header.<br>
+  <strong><tt><br>
+  CD_SPLINE</tt></strong> defines the points of a curve constructed by a cardinal spline. Uses the current line style.<br>
+  <strong><tt>CD_FILLSPLINE</tt></strong> defines the points of a filled curve constructed by a cardinal spline. Uses 
+  the current interior style.<br>
+  <strong><tt>CD_FILLGRADIENT</tt></strong> defines the points of a filled polygon. It is filled with a gradient from 
+  colors in each vertex to a color in its center. The colors are defined by the &quot;<strong><tt>GRADIENTCOLOR</tt></strong>&quot; 
+  attribute, that must be set before each <strong><tt>cdVertex</tt></strong> call and before <strong><tt>cdEnd</tt></strong> 
+  for the center color. This will not affect the current interior style.</li>
+</ul>
+<h4>Attributes </h4>
+<ul>
+  <li><a href="../func/attributes.html#cdWriteMode"><font face="Courier">
+  <strong>
+  WriteMode</strong></font></a>: does nothing. There is no support for XOR or NOT_XOR.</li>
+  <li><a href="../func/filled.html#cdPattern"><font face="Courier"><strong>
+  Pattern</strong></font></a>: each pixel can contain transparency information.</li>
+  <li><font face="Courier"><strong><a href="../func/lines.html#cdLineStyle">
+  LineStyle</a></strong></font>: uses a custom GDI+ style when line width is 1. In World Coordinates the line style 
+  has its scaled changed.</li>
+  <li><a href="../func/text.html#cdFontDim"><font face="Courier"><strong>FontDim</strong></font></a>: 
+  the maximum width is estimated from the character &quot;W&quot;.</li>
+  <li><font face="Courier"><strong><a href="../func/text.html#cdTextAlignment">
+  TextAlignment</a></strong></font>: is simulated. Although GDI+ has text alignment, the results 
+  do not match the CD text alignment.</li>
+  <li><a href="../func/text.html#cdNativeFont"><font face="Courier"><strong>
+  NativeFont</strong></font></a>: also accepts <em><strong>&quot;-d&quot;</strong></em><strong>
+  </strong>&nbsp;to show the font-selection dialog box.</li>
+  <li><a href="../func/text.html#cdFont"><font face="Courier"><strong>Font</strong></font></a>: 
+  &quot;System&quot; is mapped to &quot;MS Sans Serif&quot;, &quot;Courier&quot; is mapped to &quot;Courier New&quot;, 
+  &quot;Helvetica&quot; is mapped to &quot;Arial&quot;, and &quot;Times&quot; is mapped to &quot;Times New Roman&quot;. 
+  Underline and Strikeout are supported.</li>
+</ul>
+<h4>Colors </h4>
+<ul>
+  <li><a href="../func/color.html#cdPalette"><font face="Courier"><strong>Palette</strong></font></a>: 
+  works only when the canvas is a server image.</li>
+  <li><a href="../func/attributes.html#cdForeground"><font face="Courier">
+  <strong>
+  Foreground</strong></font></a> &amp;
+  <a href="../func/attributes.html#cdBackground">
+  <font face="Courier"><strong>Background</strong></font></a>: accepts the transparency information encoded in the 
+  color.</li>
+</ul>
+<h4>Client Images </h4>
+<ul>
+  <li><a href="../func/client.html#cdGetImageRGB"><font face="Courier"><strong>
+  GetImageRGB</strong></font></a>: uses GDI. Excepting when the canvas is an image so it is done using GDI+.</li>
+</ul>
+<h4>Server Images </h4>
+<ul>
+  <li><strong><a href="../func/server.html#cdGetImage">GetImage</a></strong>: 
+  uses GDI. Excepting when the canvas is an image so it is done using GDI+.</li>
+  <li><strong><a href="../func/server.html#cdScrollArea">ScrollArea</a></strong>: 
+  uses GDI. Excepting when the canvas is an image so it is done using GDI+.</li>
+</ul>
+<h4>Exclusive Attributes</h4>
+<ul>
+  <li>&quot;<span style="font-family: Courier"><strong>GDI+</strong></span>&quot;: 
+  returns &quot;1&quot;. So the application can detect if the driver uses the GDI+ base 
+  driver. Other drivers that do not implement this attribute will return NULL.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">HDC</font></b>&quot; or &quot;<b><font face="Courier">GC</font></b>": returns the HDC of the Win32 canvas. It can only be retrieved (get 
+  only). In Lua is returned as a user data. It is not NULL only in some Native Windows canvas and in the printer canvas.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">ANTIALIAS</font></b>&quot;: controls the use of anti-aliasing 
+  for drawing shapes. Assumes values &quot;1&quot; (active) and &quot;0&quot; (inactive). Default value: &quot;1&quot;. </li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">TEXTANTIALIAS</font></b>&quot;: controls the use of 
+	anti-aliasing for text primitives. Assumes values &quot;1&quot; (active) and &quot;0&quot; 
+	(inactive). Default value: &quot;1&quot;. (since 5.6)</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">GRADIENTCOLOR</font></b>&quot;: necessary for the creation of the gradient fill defined by a 
+  polygon (see details in the function <font face="Courier"><strong>cdBegin</strong></font> above). Defines the color of 
+  each vertex and the center (%d %d %d&quot; = r g b). It can not be retrieved (set only).</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">IMAGETRANSP</font></b>&quot;: defines an interval of colors to be considered transparent in 
+  client and server images (except for RGBA images). It uses two colors to define the interval (&quot;%d %d %d %d %d %d&quot; = r1 
+  g1 b1 r2 g3 b3). Use NULL to remove the attribute. </li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">IMAGEFORMAT</font></b>&quot;: defines the number of bits per pixel used to create server 
+  images. It uses 1 integer that can have the values: &quot;32&quot; or &quot;24&quot; (%d). Use NULL to remove the attribute. It is used 
+  only in the <font face="Courier"><strong>cdCreateImage</strong></font>. When not defined, the server images use the 
+  same format of the canvas.</li>
+</ul>
+<ul>
+  <li>&quot;<strong><font face="Courier">IMAGEALPHA</font></strong>&quot;:&nbsp; allows the usage of an alpha channel for server 
+  images if  IMAGEFORMAT=32. The attribute format is a pointer to the transparency values in a sequence of chars in 
+  the same format of alpha for client images. The attribute is used  in the <strong>
+  <font face="Courier">cdCreateImage</font></strong> and for every <font face="Courier"><strong>
+  cdPutImageRect</strong></font>,  the pointer must exists while the image exists. The alpha values are transfered to 
+  the image only in <font face="Courier"><strong>cdPutImageRect</strong></font>, so they can be freely changed any time. 
+  The data is not duplicated, only the pointer is stored. The size of the data must be the same size of the image. Use 
+  NULL to remove the attribute. Not accessible in Lua.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">IMAGEPOINTS</font></b>&quot;:&nbsp; define 3 coordinates of a paralelogram that will be used 
+  to warp server and client images in the subsequent calls of <font face="Courier"><strong>PutImage</strong></font> 
+  functions. Use 6 integer values inside a string (&quot;%d %d %d %d %d %d&quot; = x1 y1 x2 y2 x3 y3). Use NULL to remove the 
+  attribute. The destination rectangle of the <font face="Courier"><strong>PutImage</strong></font> functions will be 
+  ignored. The respective specified points are the upper-left corner, the upper-right corner and the lower left corner. 
+  In GDI+ this attribute is more complete than in GDI, because affects also client images.</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">IMGINTERP</font></b>&quot;:&nbsp;changes how 
+  interpolation is used in image scale. Can be &quot;BEST&quot; (highest-quality), 
+  &quot;BILINEAR&quot; (linear interpolation), &quot;GOOD&quot; (quality similar to BILINEAR), 
+  &quot;NEAREST&quot; (nearest-neighbor filtering) or &quot;FAST&quot; (quality similar to NEAREST). 
+  Default: &quot;GOOD&quot;. (since 5.8.3)</li>
+</ul>
+<ul>
+  <li>&quot;<b><font face="Courier">ROTATE</font></b>&quot;:&nbsp; allows the usage of 1 angle and 1 coordinate (x, y), that 
+  define a global rotation transformation centered in the specified coordinate. Use 1 real and 2 integer values inside a 
+  string (&quot;%g %d %d&quot; = angle x y). Can not be set if a transformation 
+	is already set.</li>
+</ul>
+<ul>
+  <li><b><font face="Courier">&quot;LINEGRADIENT&quot;: </font></b>defines a filled interior style that uses a line gradient 
+  between two colors. It uses 2 points (&quot;%d %d %d %d&quot; = x1 y1 x2 y2), one for the starting point using (using the 
+  foreground color), and another one for the end point (using the background color).</li>
+</ul>
+<ul>
+  <li><b><font face="Courier">&quot;LINECAP&quot;: </font></b>defines additional line cap styles. It can have the following 
+  values: &quot;Triangle&quot;, &quot;NoAnchor&quot;, &quot;SquareAnchor&quot;, &quot;RoundAnchor&quot;, &quot;DiamondAnchor&quot;, or &quot;ArrowAnchor&quot;. It can not be 
+  retrieved (set only).</li>
+</ul>
+<ul>
+  <li><b><font face="Courier">&quot;UTF8MODE&quot;: </font></b>enables the usage 
+  of the UTF-8 encoding for strings. It can have the following 
+  values: &quot;1&quot; or &quot;0&quot;. Default is &quot;0&quot;.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">WINDOWRGN</font></b>&quot;: set the shape of a window to the current complex clipping region 
+  (set only). If data is NULL the region is reset.</li>
+</ul>
+
+</body>
+
+</html>

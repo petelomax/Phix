@@ -152,7 +152,7 @@ include builtins\pchdir.e as cd
 --DEV
 --include builtins\pfileio.e as pfileio
 --include builtins\VM\pfileioN.e as pfileioN
-
+include builtins\VM\pFloatN.e as pfloat
 
 global function machine_func(atom a, object x)
 --
@@ -217,21 +217,29 @@ object res, p1, p2, p3, p4
         #ilASM{ lea edx,[res]
                 call %opWaitKey}    -- [edx] = wait_key()
     elsif a=M_A_TO_F64 then
-        #ilASM{ lea edi,[res]
-                lea edx,[x]
-                call %opAto64}      -- [edi] = atom_to_float64([edx])
+--      #ilASM{ lea edi,[res]
+--              lea edx,[x]
+--              call %opAto64}      -- [edi] = atom_to_float64([edx])
+        p1 = x[1]
+        res = pfloat:atom_to_float64(p1)
     elsif a=M_F64_TO_A then
-        #ilASM{ lea ecx,[res]
-                mov eax,[x]
-                call %op64toA}      -- [ecx] = float64_to_atom(eax)
+--      #ilASM{ lea ecx,[res]
+--              mov eax,[x]
+--              call %op64toA}      -- [ecx] = float64_to_atom(eax)
+        p1 = x[1]
+        res = pfloat:float64_to_atom(p1)
     elsif a=M_A_TO_F32 then
-        #ilASM{ lea edi,[res]
-                lea edx,[x]
-                call %opAto32}      -- [edi] = atom_to_float32([edx])
+--      #ilASM{ lea edi,[res]
+--              lea edx,[x]
+--              call %opAto32}      -- [edi] = atom_to_float32([edx])
+        p1 = x[1]
+        res = pfloat:atom_to_float32(p1)
     elsif a=M_F32_TO_A then
-        #ilASM{ lea ecx,[res]
-                mov eax,[x]
-                call %op32toA}      -- [ecx] = float32_to_atom(eax)
+--      #ilASM{ lea ecx,[res]
+--              mov eax,[x]
+--              call %op32toA}      -- [ecx] = float32_to_atom(eax)
+        p1 = x[1]
+        res = pfloat:float32_to_atom(p1)
     elsif a=M_OPEN_DLL then
         res = dll:open_dll(x)
     elsif a=M_DEFINE_C then

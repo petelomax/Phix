@@ -1347,8 +1347,8 @@ integer bklpos = -1
 integer bklopa = -1
 
 procedure jcc(integer cc)
-object ilstuff
-integer k
+--object ilstuff
+--integer k
 
     skipSpacesAndComments()
     if Ch=':' then
@@ -1356,20 +1356,20 @@ integer k
     elsif Ch='[' then
         jlabel(get_mem(P_MEM+P_LBL,0),cc)
     elsif Ch='%' then -- opcode
-if newEmit then
+--if newEmit then
 --DEV (eventually, drop the whole %opXxxx syntax... [or start a new VMep])
 --  if intellisense=0 then -- (temp)
         Aborp("invalid for newEmit")
 --  end if
-end if
-        -- eg jz %opDivf2   -- (aka e02atdb0)
-        getCh()
-        ilstuff = il_search(0)
-        if not integer(ilstuff) then Aborp("invalid") end if
-        if emitON then
-            k = ilstuff
-            emit_jmp(cc,isOpCode,0,0,k)
-        end if
+--end if
+--      -- eg jz %opDivf2   -- (aka e02atdb0)
+--      getCh()
+--      ilstuff = il_search(0)
+--      if not integer(ilstuff) then Aborp("invalid") end if
+--      if emitON then
+--          k = ilstuff
+--          emit_jmp(cc,isOpCode,0,0,k)
+--      end if
     elsif Ch='@' then
         getCh()
         if Ch='f' then 
@@ -3171,16 +3171,16 @@ end if
                     ilstuff = il_search(0)
                     if not integer(ilstuff) then Aborp("invalid") end if
                     if emitON then
-if newEmit then
+--if newEmit then
     if intellisense=0 then
         Aborp("invalid for newEmit")
     end if
 --  sprintf(1,"warning: emitHex5call(%d=%s) skipped for newEmit (pilx86.e line 952)\n",{opcode,opNames[opcode]})
-else
-                        k = ilstuff
-                        -- 0o350 offset32
-                        s5 &= {0o350,isOpCode,0,0,k}
-end if
+--else
+--                      k = ilstuff
+--                      -- 0o350 offset32
+--                      s5 &= {0o350,isOpCode,0,0,k}
+--end if
                     end if
                 elsif Ch='[' then
                     call_mem()

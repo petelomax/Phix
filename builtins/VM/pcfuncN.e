@@ -2,7 +2,7 @@
 -- pcfuncN.e (Phix compatible 0.6.3)
 --
 --  Phix implementations of define_c_func, define_c_proc, define_c_var,
---                          call_back, c_func, and c_proc.
+--                          open_dll, call_back, c_func, and c_proc.
 --
 --  WARNING: Fragile code ahead! Mistakes in this code may completely
 --           spanner diagnostics and tracing. You have been warned.
@@ -230,6 +230,7 @@ end function
 function OpenOneDLL(sequence filename)
 atom res
     if not string(filename) then
+        --DEV add to test/terror: open_dll({'u','s','e','r',"32.dll"}) -- e73atodmbs
         filename = toString(filename,ASALPHANUM,e73atodmbs,4)
     end if
     #ilASM{
@@ -273,6 +274,7 @@ atom res
 end function
 
 global function open_dll(sequence filename)
+--function fopen_dll(sequence filename)
 atom res = 0
 sequence fi
     if length(filename)>0 and atom(filename[1]) then
@@ -301,7 +303,6 @@ procedure check(object o, integer level)
                     C_FLOAT,C_DOUBLE}) then
 --                  E_INTEGER,E_ATOM,
 --                  E_SEQUENCE,E_OBJECT}) then
---      fatal(e74dcfpe)
         fatalN(level,e74dcfpe)
     end if
 end procedure
@@ -320,13 +321,25 @@ constant T_name         = 1,  -- (kept for ref/debugging purposes only)
 constant STDCALL = 1,
          CDECL   = 2 -- T_convention values
 
---DEV not thread safe! (critical section should be fine)
-sequence table
+--DEV not thread safe! (critical section should be fine). Also, a cleanup (or delete) routine might be nice...
+sequence table      -- all defined c_func/procs {{name,addr,args,return_type,convention}}
+
+sequence previd,    -- table of all previous call_backs created (id)
+         prevcb     -- result for each "" (the memory address)
 
 integer tinit
         tinit = 0
 
+procedure Tinit()
+    table = {}
+    previd = {}
+    prevcb = {}
+    tinit = 1
+end procedure
+if not tinit then Tinit() end if
+
 global function define_c_func(object lib, object fname, sequence args, atom return_type)
+--function fdefine_c_func(object lib, object fname, sequence args, atom return_type)
 --
 -- Define the characteristics of either:
 --  * a C function in a dll or .so file, or
@@ -530,11 +543,7 @@ integer level = 2+(return_type=0)
 
 --DEV locking...
 --  enter_cs()
-    if not tinit then
-        table = {}
-        tinit = 1
-    end if
---DEV delete_routine? [probably not rqd]
+    if not tinit then Tinit() end if
     table = append(table,{name,addr,args,return_type,convention})
     res = length(table)
 --  leave_cs()
@@ -542,6 +551,7 @@ integer level = 2+(return_type=0)
 end function
 
 global function define_c_proc(object lib, object name, sequence args)
+--<to go>
 --
 -- Define the characteristics of either:
 --  * a C function with a VOID return type / ignored return value, or
@@ -551,6 +561,7 @@ global function define_c_proc(object lib, object name, sequence args)
 end function
 
 global function define_c_var(atom lib, sequence name)
+--function fdefine_c_var(atom lib, sequence name)
 --
 -- Get the address of a public C variable defined in a dll or .so file.
 --
@@ -646,25 +657,25 @@ constant S_NTyp     = 2,
          DEBUG      = 0
 
 
---DEV not thread safe (locking rqd). Also, a cleanup (or delete) routine might be nice...
-sequence previd,    -- table of all previous call_backs created (id)
-         prevcb     -- result for each ""
-integer pinit
-        pinit = 0
+----DEV not thread safe (locking rqd). Also, a cleanup (or delete) routine might be nice...
+--sequence previd,  -- table of all previous call_backs created (id)
+--       prevcb     -- result for each ""
+--integer pinit
+--      pinit = 0
+--
+--procedure Pinit()
+--  previd = {}
+--  prevcb = {}
+--  pinit = 1
+--end procedure
+--if not pinit then Pinit() end if
 
-procedure Pinit()
-    previd = {}
-    prevcb = {}
-    pinit = 1
-end procedure
-if not pinit then Pinit() end if
-
-    --DEV not thread safe!!
+    --DEV not thread safe!! (done)
     -- save ebp (/4 to avoid any 31-bit integer issues).
     -- set by every call()/c_func()/c_proc(), which each have was_ebp_xx,
     --  and used in cbhandler (below) /reset to 0 before resuming Phix code.
     -- (ebp is the current frame/callstack, in case you didn't know.)
-    ----DEV use TLS:
+    ----DEV use TLS: (done)
 --integer ebp_save = 0  -- stored /4 to avoid any 31-bit integer issues
 --  --
 --  #ilASM{ jmp :fin
@@ -705,6 +716,7 @@ if not pinit then Pinit() end if
 --
 
 global function call_back(object id)
+--function fcall_back(object id)
 --
 -- Get a (32-bit) machine address for calling a routine
 --
@@ -727,7 +739,7 @@ global function call_back(object id)
 --  the code below expects a return address at the top of the stack, before 
 --  any parameters. That may sound obvious, and is mentioned only in order
 --  to specifically say that you cannot optimise "push push call ret" to
---  to "push push jmp", although "pop push push push jmp" might be ok.
+--  to "push push jmp", although "popx push push pushx jmp" might be ok.
 --
 integer k, siNTyp, sigi, noofparams
 --integer d1234
@@ -737,8 +749,10 @@ atom r
 integer convention
 
     k = 0
-    if not pinit then
-        Pinit()
+--  if not pinit then
+    if not tinit then
+--      Pinit()
+        Tinit()
     else
         k = find(id,previd)
     end if
@@ -772,18 +786,15 @@ integer convention
         if not integer(id)
         or id<=T_const1             -- (no real routines that far down there mate)
         or id>length(symtab) then   -- (nor any "" "" after the end of the symtab!)
---          fatal(e72iri,id)
             fatalN(2,e72iri,id)
         end if
         si = symtab[id]
         if atom(si) then
---          fatal(e72iri,id)
             fatalN(2,e72iri,id)
         end if
         siNTyp = si[S_NTyp]
         if siNTyp!=S_Func
         and siNTyp!=S_Type then
---          fatal(e72iri,id)
             fatalN(2,e72iri,id)
         end if
         sig = si[S_sig]
@@ -823,7 +834,6 @@ integer convention
         -- (Though normally there would be only one callback required.)
         noofparams = si[S_ParmN]
         if noofparams!=length(sig)-1 then
---          fatal(e16cbchop) -- call_backs cannot have optional parameters
             fatalN(2,e16cbchop) -- call_backs cannot have optional parameters
         end if
 --SUG: should we check the return type for non-atom as well? (warning)
@@ -862,14 +872,14 @@ integer convention
                 -- [esp+8] is saved ebp
                 -- [esp+12] is saved esp
                 -- [esp+16] is saved ebx
-                -- [esp+20] is saved edx
+                -- [esp+20] is saved edx    -- (now used for prevebp)
                 -- [esp+24] is saved ecx
                 -- [esp+28] is saved eax    -- (save of symtab[routineno], then result)
                 -- [esp+32] is return address into stdcb clone (ret nnn instruction)
                 -- [esp+36] is routine no   -- (also used to save result addr)
---              -- [esp+40] is saved ebp [DEV no longer rqd/used]
---              -- [esp+44] another return address [into C code, probably]
---              -- [esp+48] params
+--X             -- [esp+40] is saved ebp [DEV no longer rqd/used]
+--X             -- [esp+44] another return address [into C code, probably]
+--X             -- [esp+48] params
                 -- [esp+40] another return address [into C code, probably]
                 -- [esp+44] params
 
@@ -887,13 +897,16 @@ integer convention
 --            @@:
 --                              push ebp                    -- see note[2] below
                 xor edx,edx                 -- edx:=0
+--mov esi,2
                 call :%pSetSaveEBP
                 test eax,eax
                 jz @f
                     mov ebp,eax
               @@:
-                push eax
-                mov edx,[esp+40]        -- rtnid
+--              push eax
+                mov [esp+20],eax
+--              mov edx,[esp+40]        -- rtnid
+                mov edx,[esp+36]        -- rtnid
 
 --              mov esi,[ebp+24]        -- symtab
 --14/8/15
@@ -903,8 +916,8 @@ integer convention
 --^             mov esi,[ebp+24]        -- vsb_root
 --^             mov esi,[esi+8]         -- symtabptr
                 mov esi,[esi+edx*4-4]   -- esi:=symtab[rtnid]
---              mov [esp+28],esi        -- save symtab[rtnid] (in eax after popad)
-                mov [esp+32],esi        -- save symtab[rtnid] (in eax after popad)
+                mov [esp+28],esi        -- save symtab[rtnid] (in eax after popad)
+--              mov [esp+32],esi        -- save symtab[rtnid] (in eax after popad)
                 mov edi,[ebx+esi*4+32]  -- edi:=esi[S_ParmN=9]
                 push edi                -- [1] push edi (no of params [min==max])
                 mov ecx,[ebx+esi*4+36]  -- ecx:=esi[S_Ltot=10]
@@ -924,8 +937,8 @@ integer convention
                 test ecx,ecx
                 jz :zeroparams
 --                  lea esi,[esp+48]    -- params (on stack)
---                  lea esi,[esp+44]    -- params (on stack)
-                    lea esi,[esp+48]    -- params (on stack)
+                    lea esi,[esp+44]    -- params (on stack)
+--                  lea esi,[esp+48]    -- params (on stack)
                 ::paramloop
                     lodsd               --  eax:=[esi], esi+=4
                     cmp eax,h4
@@ -956,18 +969,22 @@ integer convention
                     jnz :paramloop
             ::zeroparams
 --              mov eax,[ebp_save]
---              mov esi,[esp+28]        -- restore symtab[rtnid]
-                mov esi,[esp+32]        -- restore symtab[rtnid]
+                mov esi,[esp+28]        -- restore symtab[rtnid]
+--              mov esi,[esp+32]        -- restore symtab[rtnid]
 --              mov [ebp_save],ebx      -- (0)  ; important!
 --              mov [esp+28],eax        -- was_ebp_save
                 mov dword[ebp+16],:retaddr
                 jmp dword[ebx+esi*4+40] -- execute first opcode (S_il=11)
             ::retaddr
-                pop edx
-                mov ecx,eax
+--              pop edx
+                mov edx,[esp+20]
+--              mov ecx,eax
+push eax
+--mov esi,-2
                 call :%pSetSaveEBP
 --                              pop ebp                     -- see note[2] below
-                mov eax,ecx
+--              mov eax,ecx
+pop eax
 
                 -- result is in eax, but >31bit stored as a float
                 cmp eax,h4 --DEV :%pLoadMint
@@ -1267,7 +1284,6 @@ integer convention
             []
         }
 --      previd = append(previd,id)  -- done above
---DEV delete_routine?
         prevcb = append(prevcb,r)
     else
         r = prevcb[k]
@@ -1276,6 +1292,7 @@ integer convention
 end function
 
 global procedure call(atom addr)
+--procedure fcall(atom addr)
 integer local_ebp4 -- (stored /4)
     #ilASM{
             [32]
@@ -1284,6 +1301,7 @@ integer local_ebp4 -- (stored /4)
 --              call :%save_ebp
 --              mov [local_ebp],eax
                 mov edx,ebp
+--mov esi,3
                 call :%pSetSaveEBP
                 shr eax,2
                 mov [local_ebp4],eax
@@ -1306,6 +1324,7 @@ integer local_ebp4 -- (stored /4)
 --              call :%restore_ebp
                 mov edx,[local_ebp4]
                 shl edx,2
+--mov esi,-3
                 call :%pSetSaveEBP
 
             [64]
@@ -1422,10 +1441,8 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
 --*/
     end if
     if flag=FUNC then
---      if return_type=0 then fatal(e117rdnrav) end if
         if return_type=0 then fatalN(3,e117rdnrav) end if
     else -- flag=PROC
---      if return_type!=0 then fatal(e118rrav) end if
         if return_type!=0 then fatalN(3,e118rrav) end if
     end if
     #ilASM{ e_all               -- set "all side-effects"
@@ -1564,7 +1581,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                 if DEBUG then
                     if not find(argdefi,{
                                          #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
---                                           #12000004      -- C_WIDEPTR [DEV]
+--                                       #12000004      -- C_WIDEPTR [DEV]
                                         }) then ?9/0 end if
                 end if
                 -- convert to a string and push that (cstrings ensures these temporaries are
@@ -1590,6 +1607,7 @@ end function
 
 
 global function c_func(integer rid, sequence args={})
+--function fc_func(integer rid, sequence args={})
 integer return_type
 object r
 --DEV /4 trick:
@@ -1610,7 +1628,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                 mov [c_esp_hi],eax
                 mov [c_esp_lo],ecx
             [64]
---DEV better yet: use the push rsp twice, or rsp,8 trick... (nah...)
+--DEV better yet: use the push rsp twice, or rsp,8 trick... (nah...) {YES, we need to do this!!}
                 mov rax,rsp
                 mov rcx,rsp
                 shr rax,32
@@ -1620,6 +1638,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
             []
         }
     {return_type,addr,cstrings} = c_common(rid,args,FUNC)
+--  {return_type,addr,cstrings,esp4} = c_common(rid,args,FUNC)
 
 --(DEV: delete once all types are handled)
     if not find(return_type,{
@@ -1658,6 +1677,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --              call :%save_ebp
 --              mov [local_ebp],eax
                 mov edx,ebp
+--mov esi,4
                 call :%pSetSaveEBP
                 shr eax,2
                 mov [local_ebp4],eax
@@ -1751,6 +1771,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --              call :%restore_ebp
                 mov edx,[local_ebp4]
                 shl edx,2
+--mov esi,-4
                 call :%pSetSaveEBP
 
             [64]
@@ -2039,6 +2060,7 @@ end function
 --
 
 global procedure c_proc(integer rid, sequence args={})
+--procedure fc_proc(integer rid, sequence args={})
 integer return_type
 integer c_esp_lo = 0    --DEV esp is dword-aligned!
 integer c_esp_hi = 0
@@ -2068,12 +2090,14 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
             []
         }
     {return_type,addr,cstrings} = c_common(rid,args,PROC)
+--  {return_type,addr,cstrings,esp4} = c_common(rid,args,PROC)
     -- (return_type has already been tested for 0 in c_common)
     #ilASM{
             [32]
 --              call :%save_ebp         --DEV this is stupid!!
 --              mov [local_ebp],eax
                 mov edx,ebp
+--mov esi,5
                 call :%pSetSaveEBP
                 shr eax,2
                 mov [local_ebp4],eax
@@ -2099,6 +2123,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --              call :%restore_ebp
                 mov edx,[local_ebp4]
                 shl edx,2
+--mov esi,-5
                 call :%pSetSaveEBP
 
             [64]
@@ -2193,7 +2218,6 @@ object res
           }
     if rid<T_const1
     or rid>length(symtab) then
---      fatal(e72iri,rid)
         fatalN(3,e72iri,rid)
     end if
 
@@ -2203,7 +2227,6 @@ object res
     if sNtyp<S_Type
     or sNtyp>S_Proc
     or (sNtyp=S_Proc)!=isProc then
---      fatal(e72iri,rid)
         fatalN(3,e72iri,rid)
     end if
 
@@ -2334,17 +2357,744 @@ global procedure call_proc(integer rid, sequence params)
     if call_common(rid,params,1)!=0 then ?9/0 end if
 end procedure
 
+--DEV tryme: (once pcfuncN.e is in the optable, and remove c_cleanup)
+-- The next two routines are used by p.exw when interpreting:
+-- In p.exe test.exw, the three tables mentioned below are populated and being used by p.exe,
+--  but when it decides to execute the code it has just generated for test.exw, it must save
+--  the current state (the previous content could still be used via the optable) so that if/
+--  when test.exw extends them we can restore them back to their initial state when control
+--  returns to p.exe (specially for the -test case). But the real issue here is that we have
+--  called :%pNewGtcbChain (see pHeap.e) and are about to call :%pRestoreGtcbChain: what we
+--  must do is treat the previous state like something from the global constant pool, which
+--  is achieved (in a subtle way) by relying on reference counts. Note the order carefully:
+--
+--      call :%opGcft
+--      mov [prev3],eax
+--      call :%pNewGtcbChain        -- <no longer safe to deallocate prev3>
+--      ...
+--      mov eax,[prev3]
+--      call :%opRcft               -- <can safely deallocate any cloned copies>
+--      call :%pRestoreGtcbChain    -- <now it is safe to deallocate prev3>
+--
+-- (Alternatively we could create the prev3 container after pNewGtcbChain, and then zero/h4
+--  prev3 before invoking opRcft, which would deliberately /not/ incref it, but that would
+--  be a really tiny gain, at the cost of serious head-scratching should it go wrong.)
+--
+
+--function fget_pcfunc_tables()     -- (can only be invoked via the optable)
+--  if not tinit then Tinit() end if
+--  return {prevcb,previd,table}    -- (length-3 container on the old/current heap, pls)
+--end function
+--
+--procedure frestore_pcfunc_tables(sequence prev3)  -- ("")
+--  if tinit then -- (should always be true)
+--      for i=length(prev3[1])+1 to length(prevcb) do
+--          free(prevcb[i]) -- (recent additions only)
+--      end for
+--  end if
+--  {prevcb,previd,table} = prev3 -- (should free any cloned/extended copies)
+--end procedure
+
 global procedure c_cleanup()
-    if pinit then
+    if tinit then
         for i=1 to length(prevcb) do
             free(prevcb[i])
         end for
-        Pinit() -- (may not be necessary)
+        Tinit()
     end if
-    table = {}
 end procedure
 
 #ilASM{ jmp :fin
+
+--/*
+--global function open_dll(sequence filename)
+--/*
+procedure :%opOpenDLL(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opOpenDLL
+---------------
+        --
+        --  This is the "glue" needed to allow open_dll() to be put in the optable.
+        --  Sure, I could rewrite it as pure #ilASM, but it was much easier to
+        --  write (and test) as a (global) hll routine; plus writing something 
+        --  like x=s[i] in assembler gets real tedious real fast, trust me.
+        --
+        [32]
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov eax,[filename]  -- (opUnassigned)
+            --  call :%opOpenDLL    -- [edi]:=open_dll(eax)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            push edi                            --[1] addr res
+            push eax                            --[2] filename
+--          mov edx,routine_id(fopen_dll)       -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(open_dll)        -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fopen_dll][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+8]
+            pop dword[ebp]                      --[2] filename
+            mov dword[ebp+16],:opendllret       -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fopen_dll
+          ::opendllret                          -- (also used for define_c_func etc)
+            pop edi                             --[1] addr res
+            mov edx,[edi]
+            mov [edi],eax
+            cmp edx,h4
+            jle @f
+                sub dword[ebx+edx*4-8],1
+                jz :%pDealloc
+        [64]
+            -- calling convention
+            --  lea rdi,[res]       -- result location
+            --  mov rax,[filename]  -- (opUnassigned)
+            --  call :%opOpenDLL    -- [rdi]:=open_dll(rax)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            push rdi                            --[1] addr res
+            push rax                            --[2] filename
+--          mov rdx,routine_id(fopen_dll)       -- mov rdx,imm32 (sets K_ridt)
+            mov rdx,routine_id(open_dll)        -- mov rdx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[fopen_dll][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+16]
+            pop qword[rbp]                      --[2] filename
+            mov qword[rbp+32],:opendllret       -- return address
+            mov qword[rbp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fopen_dll
+          ::opendllret                          -- (also used for define_c_func etc)
+            pop rdi                             --[1] addr res
+            mov rdx,[rdi]
+            mov [rdi],rax
+            cmp rdx,r15
+            jle @f
+                sub qword[rbx+rdx*4-16],1
+                jz :%pDealloc
+        []
+          @@:
+            ret
+
+--global function define_c_func(object lib, object fname, sequence args, atom return_type)
+--global function define_c_proc(object lib, object name, sequence args)
+--  return define_c_func(lib, name, args, 0)
+--end function
+--/*
+procedure :%opDcfunc(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opDcfunc
+--------------
+        [32]
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov eax,[lib]       -- (opUnassigned)
+            --  mov ecx,[fname]     -- (opUnassigned)
+            --  mov esi,[args]      -- (opUnassigned)
+            --  mov edx,[rtyp]      -- (opUnassigned) [0 for define_c_proc]
+            --  call :%opDcfunc     -- [edi]:=define_c_func(eax,ecx,esi,edx)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            cmp ecx,h4
+            jl @f
+                add dword[ebx+ecx*4-8],1
+          @@:
+            cmp esi,h4
+            jl @f
+                add dword[ebx+esi*4-8],1
+          @@:
+            cmp edx,h4
+            jl @f
+                add dword[ebx+edx*4-8],1
+          @@:
+            push edi                            --[1] addr res
+            push edx                            --[2] return_type
+            push esi                            --[3] args
+            push ecx                            --[4] fname
+            push eax                            --[5] lib
+--          mov edx,routine_id(fdefine_c_func)  -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(define_c_func)   -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdefine_c_func][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+20]
+            pop dword[ebp]                      --[5] lib
+            pop dword[ebp-4]                    --[4] fname
+            pop dword[ebp-8]                    --[3] args
+            pop dword[ebp-12]                   --[2] return_type
+--          mov dword[ebp+16],:dcfret           -- return address
+            mov dword[ebp+16],:opendllret       -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fdefine_c_func
+--        ::dcfret  
+--          pop edi                             --[1] addr res
+--          mov edx,[edi]
+--          mov [edi],eax
+--          cmp edx,h4
+--          jle @f
+--              sub dword[ebx+edx*4-8],1
+--              jz :%pDealloc
+        [64]
+            -- calling convention
+            --  lea rdi,[res]       -- result location
+            --  mov rax,[lib]       -- (opUnassigned)
+            --  mov rcx,[fname]     -- (opUnassigned)
+            --  mov rsi,[args]      -- (opUnassigned)
+            --  mov rdx,[rtyp]      -- (opUnassigned) [0 for define_c_proc]
+            --  call :%opDcfunc     -- [rdi]:=define_c_func(rax,rcx,rsi,rdx)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            cmp rcx,r15
+            jl @f
+                add qword[rbx+rcx*4-16],1
+          @@:
+            cmp rsi,r15
+            jl @f
+                add qword[rbx+rsi*4-16],1
+          @@:
+            cmp rdx,r15
+            jl @f
+                add qword[rbx+rdx*4-16],1
+          @@:
+            push rdi                            --[1] addr res
+            push rdx                            --[2] return_type
+            push rsi                            --[3] args
+            push rcx                            --[4] fname
+            push rax                            --[5] lib
+--          mov rdx,routine_id(fdefine_c_func)  -- mov edx,imm32 (sets K_ridt)
+            mov rdx,routine_id(define_c_func)   -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdefine_c_func][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+40]
+            pop qword[rbp]                      --[5] lib
+            pop qword[rbp-8]                    --[4] fname
+            pop qword[rbp-16]                   --[3] args
+            pop qword[rbp-24]                   --[2] return_type
+--          mov qword[rbp+32],:dcfret           -- return address
+            mov qword[rbp+32],:opendllret       -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fdefine_c_func
+        []
+--        @@:
+--          ret
+
+--global function define_c_var(atom lib, sequence name)
+--DEV untested
+--/*
+procedure :%opDcvar(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opDcvar
+-------------
+        [32]
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov eax,[lib]       -- (opUnassigned)
+            --  mov ecx,[name]      -- (opUnassigned)
+            --  call :%opDcvar      -- [edi]:=define_c_var(eax,ecx)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            cmp ecx,h4
+            jl @f
+                add dword[ebx+ecx*4-8],1
+          @@:
+            push edi                            --[1] addr res
+            push ecx                            --[2] name
+            push eax                            --[3] lib
+--          mov edx,routine_id(fdefine_c_var)   -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(define_c_var)    -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdefine_c_var][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+12]
+            pop dword[ebp]                      --[3] lib
+            pop dword[ebp-4]                    --[2] name
+            mov dword[ebp+16],:opendllret       -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fdefine_c_func
+        [64]
+            -- calling convention
+            --  lea rdi,[res]       -- result location
+            --  mov rax,[lib]       -- (opUnassigned)
+            --  mov rcx,[name]      -- (opUnassigned)
+            --  call :%opDcvar      -- [rdi]:=define_c_var(rax,rcx)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            cmp rcx,r15
+            jl @f
+                add qword[rbx+rcx*4-16],1
+          @@:
+            push rdi                            --[1] addr res
+            push rcx                            --[2] name
+            push rax                            --[3] lib
+--          mov rdx,routine_id(fdefine_c_var)   -- mov edx,imm32 (sets K_ridt)
+            mov rdx,routine_id(define_c_var)    -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdefine_c_var][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+24]
+            pop qword[rbp]                      --[3] lib
+            pop qword[rbp-8]                    --[2] name
+            mov qword[rbp+32],:opendllret       -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fdefine_c_func
+        []
+
+
+--global function call_back(object id)
+--/*
+procedure :%opCallback(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opCallback
+----------------
+        [32]
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov eax,[id]        -- (opUnassigned)
+            --  call :%opCallback   -- [edi]:=call_back(eax)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            push edi                            --[1] addr res
+            push eax                            --[2] id
+--          mov edx,routine_id(fcall_back)      -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(call_back)       -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fcall_back][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+8]
+            pop dword[ebp]                      --[2] id
+            mov dword[ebp+16],:opendllret       -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fcall_back
+        [64]
+            -- calling convention
+            --  lea rdi,[res]       -- result location
+            --  mov rax,[id]        -- (opUnassigned)
+            --  call :%opCallback   -- [rdi]:=call_back(rax)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            push rdi                            --[1] addr res
+            push rax                            --[2] id
+--          mov rdx,routine_id(fcall_back)      -- mov edx,imm32 (sets K_ridt)
+            mov rdx,routine_id(call_back)       -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fcall_back][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+16]
+            pop qword[rbp]                      --[2] id
+            mov qword[rbp+32],:opendllret       -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fcall_back
+        []
+
+
+--global procedure call(atom addr)
+--/*
+procedure :%opCallA(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opCallA
+-------------
+        [32]
+            -- calling convention
+            --  mov eax,[addr]      -- (opUnassigned)
+            --  call :%opCallA      -- call(eax)
+--          call :%pLoadMint
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            push eax                            --[1] addr
+--          mov edx,routine_id(fcall)           -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(call)            -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fcall][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+4]
+            pop dword[ebp]                      --[2] addr
+            mov dword[ebp+16],:callret          -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fcall_back
+          ::callret
+            ret
+        [64]
+            -- calling convention
+            --  mov rax,[addr]      -- (opUnassigned)
+            --  call :%opCallA      -- call(rax)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            push rax                            --[1] addr
+--          mov rdx,routine_id(fcall)           -- mov edx,imm32 (sets K_ridt)
+            mov rdx,routine_id(call)            -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fcall][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+8]
+            pop qword[rbp]                      --[1] addr
+            mov qword[rbp+32],:callret          -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fcall_back
+          ::callret
+            ret
+        []
+
+--global function c_func(integer rid, sequence args={})
+--/*
+procedure :%opCfunc(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opCfunc
+-------------
+        [32]
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov eax,[rid]       -- (opUnassigned)
+            --  mov esi,[args]      -- (opUnassigned)
+            --  call :%opCfunc      -- [edi]:=c_func(eax,esi)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            cmp esi,h4
+            jl @f
+                add dword[ebx+esi*4-8],1
+          @@:
+            push edi                            --[1] addr res
+            push esi                            --[2] args
+            push eax                            --[3] rid
+--          mov edx,routine_id(fc_func)         -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(c_func)          -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fc_func][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+12]
+            pop dword[ebp]                      --[3] rid
+            pop dword[ebp-4]                    --[2] args
+            mov dword[ebp+16],:opendllret       -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fc_func
+        [64]
+            -- calling convention
+            --  lea rdi,[res]       -- result location
+            --  mov rax,[rid]       -- (opUnassigned)
+            --  mov rsi,[args]      -- (opUnassigned)
+            --  call :%opCfunc      -- [rdi]:=c_func(rax,rsi)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            cmp rsi,r15
+            jl @f
+                add qword[rbx+rsi*4-16],1
+          @@:
+            push rdi                            --[1] addr res
+            push rsi                            --[2] args
+            push rax                            --[3] rid
+--          mov rdx,routine_id(fc_func)         -- mov edx,imm32 (sets K_ridt)
+            mov rdx,routine_id(c_func)          -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fc_func][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+24]
+            pop qword[rbp]                      --[3] rid
+            pop qword[rbp-8]                    --[2] args
+            mov qword[rbp+32],:opendllret       -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fc_func
+        []
+
+--global procedure c_proc(integer rid, sequence args={})
+--/*
+procedure :%opCproc(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opCproc
+-------------
+        [32]
+            -- calling convention
+            --  mov eax,[rid]       -- (opUnassigned)
+            --  mov esi,[args]      -- (opUnassigned)
+            --  call :%opCproc      -- c_proc(eax,esi)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            cmp esi,h4
+            jl @f
+                add dword[ebx+esi*4-8],1
+          @@:
+            push esi                            --[1] args
+            push eax                            --[2] rid
+--          mov edx,routine_id(fc_proc)         -- mov edx,imm32 (sets K_ridt)
+            mov edx,routine_id(c_proc)          -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fc_proc][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+8]
+            pop dword[ebp]                      --[2] rid
+            pop dword[ebp-4]                    --[1] args
+            mov dword[ebp+16],:cprocret         -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fc_func
+        [64]
+            -- calling convention
+            --  mov rax,[rid]       -- (opUnassigned)
+            --  mov rsi,[args]      -- (opUnassigned)
+            --  call :%opCproc      -- c_proc(rax,rsi)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            cmp rsi,r15
+            jl @f
+                add qword[rbx+rsi*4-16],1
+          @@:
+            push rsi                            --[1] args
+            push rax                            --[2] rid
+--          mov rdx,routine_id(fc_proc)         -- mov edx,imm32 (sets K_ridt)
+            mov rdx,routine_id(c_proc)          -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fc_proc][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+16]
+            pop qword[rbp]                      --[2] rid
+            pop qword[rbp-8]                    --[1] args
+            mov qword[rbp+32],:cprocret         -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fc_proc
+        []
+          ::cprocret
+            ret
+
+--global function call_func(integer rid, sequence params)
+--  return call_common(rid,params,0)
+--end function
+--/*
+procedure :%opCallFunc(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opCallFunc
+----------------
+        [32]
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov eax,[rid]       -- (opUnassigned)
+            --  mov esi,[args]      -- (opUnassigned)
+            --  call :%opCallFunc   -- [edi]:=call_func(eax,esi)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            cmp esi,h4
+            jl @f
+                add dword[ebx+esi*4-8],1
+          @@:
+            push edi                            --[1] addr res
+            push esi                            --[2] args
+            push eax                            --[3] rid
+            mov edx,routine_id(call_common)     -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[call_common][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+12]
+            pop dword[ebp]                      --[3] rid
+            pop dword[ebp-4]                    --[2] args
+            mov dword[ebp+16],:opendllret       -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:call_common
+        [64]
+            -- calling convention
+            --  lea rdi,[res]       -- result location
+            --  mov rax,[rid]       -- (opUnassigned)
+            --  mov rsi,[args]      -- (opUnassigned)
+            --  call :%opCallFunc   -- [rdi]:=call_func(rax,rsi)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            cmp rsi,r15
+            jl @f
+                add qword[rbx+rsi*4-16],1
+          @@:
+            push rdi                            --[1] addr res
+            push rsi                            --[2] args
+            push rax                            --[3] rid
+            mov rdx,routine_id(call_common)     -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[call_common][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+24]
+            pop qword[rbp]                      --[3] rid
+            pop qword[rbp-8]                    --[2] args
+            mov qword[rbp+32],:opendllret       -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:call_common
+        []
+
+--global procedure call_proc(integer rid, sequence params)
+--  if call_common(rid,params,1)!=0 then ?9/0 end if
+--end procedure
+--/*
+procedure :%opCallProc(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opCallProc
+----------------
+        [32]
+            -- calling convention
+            --  mov eax,[rid]       -- (opUnassigned)
+            --  mov esi,[args]      -- (opUnassigned)
+            --  call :%opCallProc   -- call_proc(eax,esi)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            cmp esi,h4
+            jl @f
+                add dword[ebx+esi*4-8],1
+          @@:
+            push esi                            --[1] args
+            push eax                            --[2] rid
+            mov edx,routine_id(call_common)     -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[call_common][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+8]
+            pop dword[ebp]                      --[2] rid
+            pop dword[ebp-4]                    --[1] args
+            mov dword[ebp+16],:callprocret      -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:fc_func
+          ::callprocret
+            test eax,eax
+            jnz :%e02atdb0
+            ret
+        [64]
+            -- calling convention
+            --  mov rax,[rid]       -- (opUnassigned)
+            --  mov rsi,[args]      -- (opUnassigned)
+            --  call :%opCallProc   -- call_proc(rax,rsi)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            cmp rsi,r15
+            jl @f
+                add qword[rbx+rsi*4-16],1
+          @@:
+            push rsi                            --[1] args
+            push rax                            --[2] rid
+            mov rdx,routine_id(call_common)     -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[call_common][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+16]
+            pop qword[rbp]                      --[2] rid
+            pop qword[rbp-8]                    --[1] args
+            mov qword[rbp+32],:callprocret      -- return address
+            mov qword[ebp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:fc_proc
+          ::callprocret
+            test rax,rax
+            jnz :%e02atdb0
+            ret
+        []
+
+--function fget_pcfunc_tables()
+--/*
+procedure :%opGpct(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opGpct
+------------
+        [32]
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  call :%opGpct       -- [edi]:=prev3
+            push edi                                --[1] addr res
+            mov edx,routine_id(fget_pcfunc_tables)  -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                          -- mov ecx,imm32 (=symtab[fget_pcfunc_tables][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+4]
+            mov dword[ebp+16],:opendllret           -- return address
+            mov dword[ebp+12],edx                   -- called from address
+            jmp $_il                                -- jmp code:fget_pcfunc_tables
+        [64]
+            -- calling convention
+            --  lea rdi,[res]       -- result location
+            --  call :%opGpct       -- [rdi]:=prev3
+            push rdi                                --[1] addr res
+            mov rdx,routine_id(fget_pcfunc_tables)  -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                          -- mov ecx,imm32 (=symtab[fget_pcfunc_tables][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+8]
+            mov qword[rbp+32],:opendllret           -- return address
+            mov qword[ebp+24],rdx                   -- called from address
+            jmp $_il                                -- jmp code:fget_pcfunc_tables
+        []
+
+--procedure frestore_pcfunc_tables(sequence prev3)
+--opRpct
+--/*
+procedure :%opRpct(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%opRpct
+------------
+        [32]
+            -- calling convention
+            --  mov eax,[prev3]     -- (opUnassigned)
+            --  call :%opRpct       -- call_proc(eax)
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            push eax                                    --[1] prev3
+            mov edx,routine_id(frestore_pcfunc_tables)  -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                              -- mov ecx,imm32 (=symtab[frestore_pcfunc_tables][S_Ltot])
+            call :%opFrame  
+            mov edx,[esp+8]
+            pop dword[ebp]                              --[1] prev3
+            mov dword[ebp+16],:rpctret                  -- return address
+            mov dword[ebp+12],edx                       -- called from address
+            jmp $_il                                    -- jmp code:frestore_pcfunc_tables
+        [64]
+            -- calling convention
+            --  mov rax,[rid]       -- (opUnassigned)
+            --  call :%opRpct       -- call_proc(rax)
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            push rax                                    --[1] prev3
+            mov rdx,routine_id(frestore_pcfunc_tables)  -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                              -- mov ecx,imm32 (=symtab[frestore_pcfunc_tables][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+16]
+            pop qword[rbp]                              --[1] prev
+            mov qword[rbp+32],:rpctret                  -- return address
+            mov qword[ebp+24],rdx                       -- called from address
+            jmp $_il                                    -- jmp code:frestore_pcfunc_tables
+        []
+          ::rpctret
+            ret
+--*/
+
         --
         -- These nops are here because we are storing ::Cleanup/4,
         -- so a "shr 2; call" may land up to 3 bytes early(!!)
@@ -2371,6 +3121,7 @@ end procedure
         ret
         
     ::fin
+--DEV we should be able to (/will probably need to) get rid of this if we implement that get3/restore3 handling...
 --14/8/15:
 --      mov esi,[ds+8]              -- esi:=raw addr of symtab[1]
         call :%pGetSymPtr
@@ -2381,6 +3132,9 @@ end procedure
             -- interpreted
             mov eax,:CCleanup
             shl eax,2
+            call :%SetCCleanup      -- see pStack.e
+--          mov [cNext],eax
+      @@:
     [64]
         mov rdx,[rsi+21*8]          -- rdx:=symtab[T_EBP=22]
         test rdx,rdx
@@ -2388,8 +3142,9 @@ end procedure
             -- interpreted
             mov rax,:CCleanup
             shl rax,2
-    []
-            call :%SetCCleanup
+            call :%SetCCleanup      -- see pStack.e
+--          mov [cNext],rax
       @@:
+    []
       }
 

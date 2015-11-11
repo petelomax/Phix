@@ -1,0 +1,132 @@
+--
+-- demo\rosetta\crc32.exw
+-- ======================
+--
+--  Included as demo\rosetta\crc32.exw, which also includes a thread-safe version
+
+sequence table
+integer have_table = 0
+
+procedure make_crc()
+atom rem
+    if have_table=0 then
+        have_table = 1;
+        table = repeat(0,256)
+        /* Calculate CRC table. */
+        for i=0 to 255 do
+            rem = i  /* remainder from polynomial division */
+            for j=1 to 8 do
+                if and_bits(rem,1) then
+                    rem = xor_bits(floor(rem/2),#EDB88320)
+                else
+                    rem = floor(rem/2)
+                end if
+                if rem<0 then
+                    rem += #100000000
+                end if
+            end for
+            table[i+1] = rem;
+        end for
+    end if
+end procedure
+make_crc()
+
+function crc32(string s)
+--integer byte, c4
+atom crc
+--atom ti
+ 
+    if have_table=0 then make_crc() end if
+ 
+    crc = #FFFFFFFF
+    for i=1 to length(s) do
+--      byte = s[i]
+--      c4 = and_bits(crc,0xff)
+--      c4 = xor_bits(c4,byte)
+--      ti = table[c4+1]
+--      c4 = floor(crc/#100)
+--      crc = xor_bits(c4,ti)
+        crc = xor_bits(floor(crc/#100),table[xor_bits(and_bits(crc,0xff),s[i])+1])
+        if crc<0 then
+            crc += #100000000
+        end if
+    end for
+    return not_bits(crc)
+end function
+
+--/*
+-- The following version should be thread-safe, and only lock during initialisation, but free(pMemCRC4*4) should be called at shutdown.
+--  (it is the hidden reference counts of sequence table [entries] that make the above version non-thread-safe, btw, whereas
+--   in the following code there simply aren't any reference counts that could be shared/accessed by more than one thread.)
+
+integer pMemCRC4 = 0
+
+procedure make_crc2()
+atom pMem, rem
+    enter_cs()
+    if pMemCRC4=0 then
+        pMem = allocate(4*256)
+        pMemCRC4 = pMem/4
+        /* Calculate CRC table. */
+        for i=0 to 255 do
+            rem = i  /* remainder from polynomial division */
+            for j=1 to 8 do
+                if and_bits(rem,1) then
+                    rem = xor_bits(floor(rem/2),#EDB88320)
+                else
+                    rem = floor(rem/2)
+                end if
+                if rem<0 then
+                    rem += #100000000
+                end if
+            end for
+            poke4(pMem,rem)
+            pMem += 4
+        end for
+    end if
+    leave_cs()
+end procedure
+--make_crc2()       -- (optional, may as well omit if crc32() is not always used)
+
+function crc32(string s)
+--integer byte, c4
+atom crc
+--atom ti
+ 
+    if pMemCRC4=0 then make_crc2() end if   -- (above omitted, or a forward call)
+
+    crc = #FFFFFFFF
+    for i=1 to length(s) do
+--      byte = s[i]
+--      c4 = and_bits(crc,0xff)
+--      c4 = xor_bits(c4,byte)
+--      ti = peek4u((pMemCRC4+c4)*4)
+--      c4 = floor(crc/#100)
+--      crc = xor_bits(c4,ti)
+        crc = xor_bits(floor(crc/#100),peek4u(pMemCRC4*4+xor_bits(and_bits(crc,0xff),s[i])*4))
+        if crc<0 then
+            crc += #100000000
+        end if
+    end for
+    return not_bits(crc)
+end function
+
+--  ... free(pMemCRC4*4)
+--*/
+ 
+string s = "The quick brown fox jumps over the lazy dog"
+printf(1,"The CRC of %s is %08x\n",{s,crc32(s)})
+
+atom pMem = allocate(32)
+mem_set(pMem,0,32)
+printf(1,"#%08x (should be #190A55AD)\n",crc32(peek({pMem,32})))
+poke(pMem+1,tagset(31))
+printf(1,"#%08x (should be #91267E8A)\n",crc32(peek({pMem,32})))
+mem_set(pMem,-1,32)
+printf(1,"#%08x (should be #FF6CAB0B)\n",crc32(peek({pMem,32})))
+{} = wait_key()
+
+--0000000000000000000000000000000000000000000000000000000000000000 190A55AD
+--FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF FF6CAB0B
+--000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F 91267E8A
+

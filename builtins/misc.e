@@ -42,6 +42,7 @@ sequence t
 
     n = length(s)
     n2 = floor(n/2)+1
+--!/**/  t = repeat(iff(string(s)?' ':0),n) --/*
 --/**/ if string(s) then        --   -- Phix
 --/**/   t = repeat(' ',n)
 --/**/ else

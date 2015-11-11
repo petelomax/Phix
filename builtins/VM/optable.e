@@ -17,22 +17,34 @@
 --  label entry points (:%xxx, and their :!xxx, :>xxx variants) as externally accessible. 
 --  In truth it could be acceptable to have some hll globals shared by one or more VM 
 --  components, but not meant to be externally visible, however it is easy enough to use 
---  low-level getter/setter global label entry points anyway. The latter do not need to
---  be part of the optable proper if they are only meant for internal use.
+--  low-level getter/setter global label entry points anyway. The latter do not usually 
+--  need to be part of the optable proper if they are only meant for internal use.
 --  As a related example, pLenN.e declares :!opLene36or92 for use in pDiagN.e but since 
---  both pLenN.e and pDiagN.e are in the optable, :!opLene36or92 need not be.
+--  both pLenN.e and pDiagN.e are in the optable, :!opLene36or92 need not be. (Not quite
+--  the same thing, since it is more "there or not there" in that particular case.)
 --
 --  NB: Having a "global function open" in pfileioN.e and an AutoAsm("open",.."%opOpen")
 --  in psyme.e led to some very difficult to diagnose problems. Renaming the routine in
---  pfileioN with (local) "function myopen" solved the issue. Make of that what you will.
+--  pfileioN with (local) "function fopen" solved the issue. Make of that what you will.
 --
 --  Adding items to the optable may involve: writing new code to actually implement it,
 --  changes to pmain.e, especially in relation to T_Asm, changes to pilx86.e, typically 
 --  related to using emitHex5callG and whatever calling convention the new code requires,
 --  and changes to psym.e, AutoGlabel/AutoAsm (instead of) initialAutoEntry, as well as
 --  new entries in the vm_names table below. My advice is to pick something similar and
---  perform a global search/try to follow what that does.
+--  perform a global search/try to follow what that does. Closest match being func/proc
+--  and no/type of params and result, rather than similar behaviour/area/functionality.
 --
+--  TIP: when changing existing labels, it may help to compile with both the old and new
+--  names active, then remove the old: eg pUnassigned.e :%pAddiii -> :%e01tcfAddiii was
+--  one case where this was required. Changing pUnassigned/optable/psym all at the same
+--  time failed but adding both to pUnassigned.e/recompile/change optable.e/recompile/
+--  change psym.e/recompile/and finally delete old from pUnassigned.e worked just fine.
+--  (Fewer steps may also work, but it only takes ~50s for the long method anyhow.)
+--  Likewise it can help to put a new unused label into optable and recompile, and only
+--  then attempt to actually use it and recompile, rather than try both in one step.
+--  
+
 --
 -- Technical notes
 -- ===============
@@ -346,19 +358,6 @@
 -- Note: the "p -test" set may one day contain various format directives, hence
 --       this routine should cope if invoked with different X64 etc settings.
 --
---sequence vm_names = {
---constant vm_names = {
---      -- builtins\VM\puts1.e
---      "%puts1",
-----        "%puts1ediesi", -- or "%puts1rdirsi"
---      {"%puts1ediesi","%puts1rdirsi"},
---      "%puthex32a",
---      "%puthex32",
---      "%puthex64",
---      "%putsint",
---      "%getc0",
---      $}
---!/*
 -- The following groupings (1..4) are just comments, see also "_readme.txt"
 constant vm_names = {
                      -- group 1: proof of concept, optional, no dependencies
@@ -378,8 +377,8 @@ constant vm_names = {
                                     "!SetBatchMode",
                                     "!iDiag",
                                     "!fehDiag"}},
-                    -- NB the next six entries are often all zero in .exe other than p[w].exe,
-                    --  since normally only p.exw includes the files pTrace.e and pProfile.e.
+                    -- NB the next seven entries (opTrace..opLnpt) are often all zero in .exe other than 
+                    --  p[w].exe, since normally only p.exw includes the files pTrace.e and pProfile.e.
                      {"pTrace.e",  {"%opTrace",
                                     "%opLnt",
                                     "%opClrDbg"}},
@@ -395,10 +394,12 @@ constant vm_names = {
                                      "%pRestoreGtcbChain",
                                      "%pSetSaveEBP",
 --                                   "%pRestoreEBP",
+                                     "%pSetDel",
                                      "%pAllocStr",
                                      "%pAllocSeq",
                                      "%pStoreFlt",
                                      "%pStoreMint",
+                                     "%pLoadMint",
                                      "%pDealloc",
                                      "%pDealloc0",
                                      "%pGetPool",   -- (pStack only)
@@ -427,12 +428,14 @@ constant vm_names = {
                                      "%opRetf", 
                                      "%pFreeStack",
                                      "%opTchk",
-                                     "%opTchkFail",
+                                     "%opTcFail",
                                      "%SetCCleanup",
                                      "%RunCleanup",     -- (DEV may not be necessary) [erm, maybe for p p p p parlour tricks]
                                      "%opAbort"}},
 --                   {"pAbort.e",   {"%opAbort"}},
-                     -- group 4: optional, except for pDiag
+                     -- group 4: optional, except for pDiagN (ie without these, pDiagN will start doing cmp 0's, and
+                     --                                       hence some errors may start being incorrectly reported,
+                     --                                       but all the non-error stuff should be just fine.)
                      {"pType.e",    {"%opInt",
                                      "%opAtom",
                                      "%opStr",
@@ -444,17 +447,17 @@ constant vm_names = {
                                      "%down64",
                                      "%near64",
                                      "%trunc64"}},
-                     {"pFEH.e",     {}},            -- (:>initFEH)
+                     {"pFEH.e",     {}},                -- (:>initFEH)
                      {"pUnassigned.e",
                                     {"%pUnassigned",
                                      "%pBadRetf",
-                                     "%pAddiii",
-                                     "%pDiviii",
+                                     "%e01tcfAddiii",
+                                     "%e01tcfediDiv",
                                      "%pRTErn",
                                      "%pDiv0", 
                                      "%e02atdb0",
-                                     "%e01tcfDivi2",    -- (opDivi2)
-                                     "%e01tcfediMul",   -- (opMuliii)
+                                     "%e01tcfDivi2",
+                                     "%e01tcfediMul",
                                      "!opCallOnceYeNot"}},
                      {"pMath.e",    {"%opAdd",
                                      "%opAddi",
@@ -541,8 +544,23 @@ constant vm_names = {
                                      "%opTxtClr",
                                      "%opClrScrn",
                                      "%opFreeCons",
-                                     "%opPosition"
-                                    }},
+                                     "%opPosition"}},
+--/*
+--group3 (probably mandatory) [erm, too much hll cleanup rqd]
+--                   {"pcfuncN.e",  {"%opOpenDLL",
+--                                   "%opDcfunc",
+--                                   "%opDcvar",
+--                                   "%opCallback",
+--                                   "%opCallA",
+--                                   "%opCfunc",
+--                                   "%opCproc",
+--                                   "%opCallFunc",
+--                                   "%opCallProc",
+--                                   "%opGpct",
+--                                   "%opRpct"}},
+--                   {"pDeleteN.e", {"%opDelRtn",
+--                                   "%opDelete"}},
+--*/
 --/*
                      {"puts1.e",   {"%puts1",
                                     {"%puts1ediesi","%puts1rdirsi"},

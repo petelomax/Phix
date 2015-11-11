@@ -137,19 +137,19 @@ end type
 function get_number()
 -- read a number
 -- ch is "live" at entry and exit
-plus_or_minus sign, e_sign
+plus_or_minus n_sign, e_sign
 natural ndigits
 integer hex_digit
-atom mantissa, dec
+atom mantissa, fraction, dec
 integer e_mag
 
-    sign = +1
+    n_sign = +1
     mantissa = 0
     ndigits = 0
 
     -- process sign
     if ch='-' then
-        sign = -1
+        n_sign = -1
         get_ch()
     elsif ch='+' then
         get_ch()
@@ -168,7 +168,7 @@ integer e_mag
                 get_ch()
             else
                 if ndigits>0 then
-                    return {GET_SUCCESS, sign*mantissa}
+                    return {GET_SUCCESS, n_sign*mantissa}
                 else
                     return {GET_FAIL, 0}
                 end if
@@ -186,20 +186,22 @@ integer e_mag
     if ch='.' then
         -- get fraction
         get_ch()
-        dec = 10
+        dec = 1
+        fraction = 0
         while ch>='0' and ch<='9' do
             ndigits += 1
-            mantissa += (ch-'0')/dec
+            fraction = fraction*10 + ch-'0'
             dec *= 10
             get_ch()
         end while
+        mantissa += fraction/dec
     end if
 
     if ndigits=0 then
         return {GET_FAIL, 0}
     end if
 
-    mantissa = sign*mantissa
+    mantissa = n_sign*mantissa
 
     if ch='e' or ch='E' then
         -- get exponent sign

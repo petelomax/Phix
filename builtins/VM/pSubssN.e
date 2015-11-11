@@ -24,7 +24,23 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
     ::e04atsaap12
         int3
     ::e09slinecx
-        int3
+        [32]
+            mov edx,[esp+8]         -- era
+            mov edi,[esp]
+            add ecx,edi
+            add edi,1
+            mov al,9                -- e09slin(edi,ecx)
+            sub edx,1
+        [64]
+            mov rdx,[rsp+16]        -- era
+            mov rdi,[rsp]
+            add rcx,rdi
+            add rdi,1
+            mov al,9                -- e09slin(rdi,rcx)
+            sub rdx,1
+        []
+            jmp :!iDiag
+            int3
 --  ::e09slinecx2
 --      int3
 

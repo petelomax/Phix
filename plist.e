@@ -84,7 +84,7 @@
 --  the cycles from the jl to after the call opIchkFail even though 
 --  in this case it would be the more interesting number, and since
 --  opIchkFail does not return, the cycle against @@: is useless.
---    (opIchkFail has since been replaced with opTchkFail, btw.)
+--    (opIchkFail has since been replaced with opTcFail, btw.)
 --  The above also shows an earlier bug in the implementation of 
 --  cycle - the jl should end in "1  2" as it pairs with the last 
 --  clock of the cmp, not the first. While this specific instance
@@ -308,7 +308,7 @@ constant dumpVM = 0
 --   Note that many opcodes have strange rules, which may hamper
 --   things, such as "NB p1 obtained from [esp]-15 on error".
 --   Some of the worst offenders at this could be changed; I have
---   recently changed opTchkFail for a very similar reason.
+--   recently changed opTcFail for a very similar reason.
 --   As far as I have thought this through, I think the best plan
 --   would be for the emitHex() routines to slap code into s5 as
 --   they do now, but maintain a mini table of {offset,length},
@@ -449,13 +449,13 @@ constant dumpVM = 0
 --      cmp eax,h4
 --      jl @f
 --      mov edx,a1
---      call opTchkFail
+--      call opTcFail
 --     @@:
 --      mov ecx,[b2]
 --      cmp ecx,h4
 --      jl @f
 --      mov edx,b2
---      call opTchkFail
+--      call opTcFail
 --     @@:
 --      ...
 --      call opRetf
@@ -467,12 +467,12 @@ constant dumpVM = 0
 --      cmp eax,h4
 --      jl @f
 --      mov edx,a1
---      call opTchkFail
+--      call opTcFail
 --     @@:
 --      cmp ecx,h4
 --      jl @f
 --      mov edx,b2
---      call opTchkFail
+--      call opTcFail
 --     @@:
 --      ...
 --      call opRetf
@@ -495,7 +495,7 @@ constant dumpVM = 0
 --      mov edx,b2
 --     @@:
 --      push L0     ;; fake return addr
---      jmp opTchkFail
+--      jmp opTcFail
 --
 --  I have to admit this is possibly alot of work for small gain.
 --
@@ -1531,8 +1531,8 @@ end if
                         sState = sprintf("%d (T_nslink)",si)
                     elsif sidx=T_cmdlnflg then
                         sState = sprintf("%d (T_cmdlnflg)",si)
-                    elsif sidx=T_callstk then   --DEV T_optable
-                        sState = sprintf("%d (for T_callstk)",si)
+--                  elsif sidx=T_callstk then   --DEV T_optable
+--                      sState = sprintf("%d (for T_callstk)",si)
                     elsif sidx=T_ds4 then
                         sState = sprintf("#%08x[#%08x] (T_ds4)",{si,si*4})
                     else

@@ -1446,7 +1446,6 @@ integer iThis
             end for
             -- (DEV) may want a few free() here...
 --(eg)
---/*
             enter_cs(fdcs)
             for i=1 to fdmax do -- (file nos 3 and up)
                 iThis = fdtbl[i]
@@ -1457,10 +1456,8 @@ integer iThis
             freelist = 0
             fdmax = 0
             leave_cs(fdcs)
--- and possibly:
             delete_cs(fdcs)
             finit = 0
---*/
         end if
     elsif fn>2 then
 --      {iThis,fidx,..} = get_this(fn,F_DIRTY)

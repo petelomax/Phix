@@ -1,0 +1,243 @@
+--
+-- demo\rosetta\Synchronous_concurrency.exw
+-- ========================================
+--
+-- Author Pete Lomax, August 2015
+--
+--DEV:
+-- It would be nice to find some way to make countlines block properly when the queue is empty.
+-- It would be nice for countlines to signal completion by a better means than terminating.
+
+-- Busy wait version:
+atom frThread,  -- file reader thread
+     lcThread   -- line counter thread
+
+sequence queue = {}
+integer qlock = init_cs()
+
+integer linecount = 1
+
+procedure readfile()
+object line
+integer fn = open(command_line()[2],"r")
+    while 1 do
+        line = gets(fn)
+        enter_cs(qlock)
+        queue = append(queue,line)
+        leave_cs(qlock)
+        if atom(line) then exit end if
+    end while
+    close(fn)
+    wait_thread(lcThread)
+    printf(1,"Lines read: %d\n",linecount)
+    exit_thread(0)
+end procedure
+
+procedure countlines()
+object line
+    linecount = 0
+    while 1 do
+        enter_cs(qlock)
+        if length(queue)=0 then
+            leave_cs(qlock)
+--          sleep(0.1)
+        else
+            line = queue[1]
+            queue = queue[2..$]
+            leave_cs(qlock)
+            if atom(line) then exit end if
+--          ?line
+            linecount += 1
+        end if
+    end while
+    exit_thread(0)
+end procedure
+
+frThread = create_thread(routine_id("readfile"),{})
+lcThread = create_thread(routine_id("countlines"),{})
+
+wait_thread(frThread)
+puts(1,"done")
+
+{} = wait_key()
+--include test\t02parms.exw
+abort(0)
+
+
+-- Simple lock-step strategy:
+--  say we have three cards: Red, Green, and Blue (in a children's game).
+--  initially both players have one in hand and the other is on the table.
+--  The player with  red  can pick up green and put down the  red  they already have
+--  The player with green can pick up  blue and put down the green they already have
+--  The player with  blue can pick up  red  and put down the  blue they already have
+--  The players are therefore forced to take alternate turns.
+--  After picking up  red  and putting down  blue they must wait for green.
+--  After picking up green and putting down  red  they must wait for  blue.
+--  After picking up  blue and putting down green they must wait for  red.
+-- Note this is significantly slower than busy waiting because it forces many more context switches.
+-- Deadlock is not possible, because there are n+1 locks of which only n can be held at any moment,
+--  therefore one of them must be waiting on the unheld lock. However, should any thread die then 
+--  all the rest will patiently wait for their turn for ever (and even if that death releases the 
+--  held lock, all it will grant is one extra turn before they all wait on the dead guy again).
+--  You could of course quite easily add a monitor thread to periodically restart dead threads,
+--  though getting round/replacing a lock that was not released may prove rather more tricky.
+-- Also note that the (locking) queue is still required, because the implementation of alternate()
+--  unleashes the other thread immediately; it might make more sense to defer that release a bit,
+--  and I've done precisely that in the third version, below.
+-- Unlike above, where readlines simply waits for countlines to terminate, this uses one extra call
+--  to alternate() as the means of ensuring that everything is properly synchronised.
+
+integer redlock = init_cs(),
+        greenlock = init_cs(),
+        bluelock = init_cs()
+
+function alternate(integer havelock)
+integer needlock = iff(havelock=redlock?greenlock:iff(havelock=greenlock?bluelock:redlock))
+    enter_cs(needlock)
+    leave_cs(havelock)
+    return needlock     -- (the new havelock)
+end function
+
+atom frThread,  -- file reader thread
+     lcThread   -- line counter thread
+
+sequence queue = {}
+integer qlock = init_cs()
+
+integer linecount = 1
+
+procedure readfile()
+object line
+integer havelock = bluelock     -- this gets first go
+integer fn = open(command_line()[2],"r")
+    enter_cs(bluelock)
+    resume_thread(lcThread)
+    while linecount!=0 do       -- initial sync
+        sleep(1)
+    end while
+    while 1 do
+        line = gets(fn)
+        enter_cs(qlock)
+        queue = append(queue,line)
+        leave_cs(qlock)
+        havelock = alternate(havelock)
+        if atom(line) then exit end if
+    end while
+    havelock = alternate(havelock)
+    printf(1,"Lines read: %d\n",linecount)
+    leave_cs(havelock)
+    close(fn)
+    wait_thread(lcThread)
+    exit_thread(0)
+end procedure
+
+procedure countlines()
+object line
+integer havelock = greenlock    -- this gets second go
+    enter_cs(greenlock)
+    linecount = 0
+    while 1 do
+        havelock = alternate(havelock)
+        enter_cs(qlock)
+        line = queue[1]
+        queue = queue[2..$]
+        leave_cs(qlock)
+        if atom(line) then exit end if
+        ?line
+        linecount += 1
+    end while
+    leave_cs(havelock)
+    exit_thread(0)
+end procedure
+
+frThread = create_thread(routine_id("readfile"),{},CREATE_SUSPENDED)
+lcThread = create_thread(routine_id("countlines"),{},CREATE_SUSPENDED)
+
+resume_thread(frThread)
+
+wait_thread(frThread)
+puts(1,"done")
+
+{} = wait_key()
+--include test\t02parms.exw
+abort(0)
+
+
+-- Queue-less lock-step strategy:
+-- In this version the need for a locked queue is eliminated, by deferring the release of the other
+--  thread to as late as possible (and therefore this is about as slow as it can reasonably get, ie
+--  as many context switches as reasonably possible, and never taxing more than one core, which is
+--  not to say that it is painfully slow, just (/barely) noticeably slower than the other two).
+
+integer redlock = init_cs(),
+        greenlock = init_cs(),
+        bluelock = init_cs()
+
+function alternate(integer prevlock, integer havelock)
+integer needlock = iff(havelock=redlock?greenlock:iff(havelock=greenlock?bluelock:redlock))
+    if prevlock!=0 then
+        leave_cs(prevlock)
+    end if
+    enter_cs(needlock)
+--  leave_cs(havelock)
+    return {havelock,needlock}
+end function
+
+atom frThread,  -- file reader thread
+     lcThread   -- line counter thread
+
+object line
+
+integer linecount = 1
+
+procedure readfile()
+integer havelock = bluelock     -- this gets first go
+integer prevlock = 0
+integer fn = open(command_line()[2],"r")
+    enter_cs(bluelock)
+    resume_thread(lcThread)
+    while linecount!=0 do       -- initial sync
+        sleep(1)
+    end while
+    {prevlock,havelock} = alternate(prevlock,havelock)
+    while 1 do
+        line = gets(fn)
+        {prevlock,havelock} = alternate(prevlock,havelock)
+        if atom(line) then exit end if
+    end while
+    printf(1,"Lines read: %d\n",linecount)
+    leave_cs(prevlock)
+    leave_cs(havelock)
+    close(fn)
+    wait_thread(lcThread)
+    exit_thread(0)
+end procedure
+
+procedure countlines()
+integer havelock = greenlock    -- this gets second go
+integer prevlock = 0
+    enter_cs(greenlock)
+    linecount = 0
+    while 1 do
+        {prevlock,havelock} = alternate(prevlock,havelock)
+        if atom(line) then exit end if
+--      ?line
+        linecount += 1
+    end while
+    leave_cs(prevlock)
+    leave_cs(havelock)
+    exit_thread(0)
+end procedure
+
+frThread = create_thread(routine_id("readfile"),{},CREATE_SUSPENDED)
+lcThread = create_thread(routine_id("countlines"),{},CREATE_SUSPENDED)
+
+resume_thread(frThread)
+
+wait_thread(frThread)
+puts(1,"done")
+
+{} = wait_key()
+include test\t02parms.exw
+abort(0)
+

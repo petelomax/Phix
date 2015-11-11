@@ -1,0 +1,88 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>Complex Clipping Regions</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2 align="center">Complex Clipping Regions</h2>
+
+  <p>A complex region can composed of boxes, sectors, chords, polygons and 
+  texts. It is implemented only in the Windows GDI, Windows GDI+, GDK, Cairo(*), and X-Windows base drivers.</p>
+
+  <p>Complex clipping regions can be created using <font><strong>
+  cdBegin(</strong></font><b><tt>CD_REGION</tt></b><font><strong>)/(filled 
+  primtives)/.../cdEnd()</strong></font>. For more about cdBegin and cdEnd see
+  <a href="polygon.html">Polygons</a>.</p>
+  <p>Between a <strong><font>cdBegin(</font></strong><b><tt>CD_REGION</tt></b><strong><font>)</font></strong> 
+  and a <strong><font>cdEnd()</font></strong>, all calls to
+  <font><strong>cdBox</strong></font>, <font>
+  <strong>cdSector</strong></font>, <font><strong>cdChord, 
+  cdBegin(CD_FILL)/cdVertex(x,y)/.../cdEnd()</strong></font> and
+  <font><strong>cdText</strong></font> will be composed in a 
+  region for clipping. This is the only exception when you can call a
+  <font><strong>cdBegin</strong></font> after another
+  <font><strong>cdBegin</strong></font>.</p>
+  <p>When you call <font><strong>cdBegin(</strong></font><b><tt>CD_REGION</tt></b><strong><font>)</font></strong> 
+  a new empty region will be created. So for the first operation you should use
+  <b><tt>CD_UNION</tt></b> or <b><tt>CD_NOTINTERSECT</tt></b> combine modes. 
+  When you finished to compose the region call <font><strong>
+  cdEnd()</strong></font>.</p>
+  <p>To make the region active you must call <strong><font>
+  cdClip(</font></strong><b><tt>CD_CLIPREGION</tt></b><strong><font>)</font></strong>. 
+  For other clipping regions see <a href="clipping.html">Clipping</a>.</p>
+<p>Although Cairo is capable of creating regions, you can not use them for 
+clipping, just to use <span><strong>IsPointInRegion</strong>. And it can create 
+only rectangle based regions, i.e. only <strong>cdBox</strong> will actually 
+combine rectangles into the region.</span></p>
+<p>Complex clipping regions are not saved by <strong>cdSaveState</strong>.</p>
+
+<hr>
+<div class="function"><pre class="function"><span class="mainFunction">int&nbsp;cdCanvasRegionCombineMode(cdCanvas* canvas, int mode); [in C]</span>
+
+canvas:RegionCombineMode(mode: number) -&gt; (old_mode: number) [in Lua]</pre>
+
+  <p>Changes the way regions are combined when created. Returns the previous 
+  status. Values: <b><tt>CD_UNION, CD_INTERSECT, CD_DIFFERENCE or 
+  CD_NOTINTERSECT</tt></b>. The value <b><tt>CD_QUERY</tt></b> simply returns 
+  the current status. Default value: <b><tt>CD_UNION</tt></b>.</p>
+  <p align="center"><font size="4">Combine Modes<br>
+  </font><img src="../../img/regions.gif" border="2" width="297" height="361"></p>
+
+</div><div class="function"><pre class="function"><span class="mainFunction">int&nbsp;cdCanvasIsPointInRegion(cdCanvas* canvas, int x, int y); [in C]</span>
+int wdCanvasIsPointInRegion(cdCanvas* canvas, double x, double y); (WC) [in C]
+
+canvas:IsPointInRegion(x, y: number) -&gt; (status: boolean) [in Lua]
+canvas:wIsPointInRegion(x, y: number) -&gt; (status: boolean) [in Lua]</pre>
+
+  <p>Returns a non zero value if the point is contained inside the current 
+  region.</p>
+
+</div><div class="function"><pre class="function"><span class="mainFunction">void&nbsp;cdCanvasOffsetRegion(cdCanvas* canvas, int dx, int dy); [in C]</span>
+void wdCanvasOffsetRegion(cdCanvas* canvas, double dx, double dy); (WC) [in C]
+
+canvas:OffsetRegion(dx, dy: number) [in Lua]
+canvas:wOffsetRegion(dx, dy: number) (WC) [in Lua]</pre>
+
+  <p>Moves the current region by the given offset. In X-Windows, if the region 
+  moves to outside the canvas border, the part moved outside will be lost, the 
+  region will need to be reconstructed.</p>
+
+</div><div class="function"><pre class="function"><span class="mainFunction">void&nbsp;cdCanvasGetRegionBox(cdCanvas* canvas, int *xmin, int *xmax, int *ymin, int *ymax); [in C]</span>
+void wdCanvasGetRegionBox(cdCanvas* canvas, double *xmin, double *xmax, double *ymin, double *ymax); (WC) [in C]
+
+canvas:GetRegionBox() -&gt; (xmin, xmax, ymin, ymax, status: number) [in Lua]
+canvas:wGetRegionBox() -&gt; (xmin, xmax, ymin, ymax, status: number) (WC) [in Lua]</pre>
+
+  <p>Returns the rectangle of the bounding box of the current region. It is not 
+  necessary to provide all return pointers, you can provide only the desired 
+  values and <i><tt>NULL</tt></i> for the others.</p>
+
+</div>
+</body>
+
+</html>

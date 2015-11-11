@@ -1,0 +1,120 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<title>Lua Binding</title>
+<meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
+<link rel="stylesheet" type="text/css" href="../style.css">
+<style type="text/css">
+.auto-style1 {
+	color: #FF0000;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Lua Binding</h2>
+<h3><a name="Overview">Overview</a></h3>
+
+  <p>
+    All the CD functions are available in Lua, with a few exceptions. We call it <strong>
+        CDLua</strong>. To use them the general application will do 
+	require&quot;cdlua&quot;, and require&quot;cdluaxxxx&quot; to all other secondary libraries that 
+	are needed. The functions and definitions will be available under the table 
+	&quot;cd&quot; using the following name rules:</p>
+    <pre>cdXxx  -&gt; cd.Xxx    (for functions)<br />wdXxx  -&gt; cd.wXxx   (for WD functions)<br />CD_XXX -&gt; cd.XXX    (for definitions)<br />cdCanvasXXX(canvas,... =&gt; canvas:XXX(...   (for methods)<br /></pre>
+    <p>
+        New functions (without equivalents in C) were implemented to create and 
+		destroy objects that do not exist in C. For instance functions were 
+		developed to create and destroy images, pattern, stipple and 
+		palette.&nbsp;All the metatables have the &quot;tostring&quot; metamethod implemented 
+		to help debugging. Some functions were modified to receive those objects 
+		as parameters.</p>
+    <p>
+        Also the functions which receive values by reference in C were modified. 
+		Generally, the values of parameters that would have their values 
+		modified are now returned by the function in the same order.</p>
+    <p>
+        Notice that, as opposed to C, in which enumeration flags are<i> </i>
+		combined with the bitwise operator OR, in Lua the flags are added 
+		arithmetically.</p>
+    <p>
+        In Lua all parameters are checked and a Lua error is emitted when the 
+		check fails.</p>
+    <p>
+        All the objects are garbage collected by the Lua garbage collector, 
+		except the canvas because there can be different Lua canvases pointing 
+		to the same C canvas. The &quot;tostring&quot; metamethod of the Lua canvas will 
+		print both values, Lua and C. The equal method will compare the C canvas 
+		value.</p>
+    <h3>
+        Initialization</h3>
+    <p>
+        <strong>Lua</strong> 5.1 &quot;require&quot; can be used for all the <strong>
+		CDLua</strong> 
+		libraries. You can use <b>require</b>&quot;<b>cdlua</b>&quot; and so on, but the 
+		LUA_CPATH must also contains the following: 
+    </p>
+
+<pre>&quot;./lib?51.so;&quot;    [in UNIX]
+
+&quot;.\\?51.dll;&quot;     [in Windows]
+</pre>
+<p>The <a href="http://luabinaries.luaforge.net/">LuaBinaries</a> distribution 
+already includes these modifications on the default search path.</p>
+<p>The simplest form <b>require</b>&quot;<b>cd</b>&quot; and so on, can not be used 
+because there are CD dynamic libraries with names that will conflict with the 
+names used by <b>require</b> during search.</p>
+    <p>
+        Additionally you can statically link the <strong>CDLua</strong> 
+		libraries, but you must call the initialization functions manually. The <strong>
+  <font face="Courier New">cdlua_open</font></strong> function is declared in 
+		the header file <strong><font face="Courier New">cdlua</font><font size="2" face="Courier New">.</font><font face="Courier New">h</font></strong>, 
+		see the example below:</p>
+  
+    <div align="center">
+      <center>
+      <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse" bordercolor="#111111" id="AutoNumber1">
+        <tr>
+          <td>
+          <pre>#include &lt;lua.h&gt;
+#include &lt;lualib.h&gt;
+#include &lt;lauxlib.h&gt;
+<b><font color="#FF0000">#include &lt;cdlua.h&gt;</font></b></pre>
+          <pre>void main(void)
+{
+  lua_State *L = lua_open();
+
+  luaopen_string(L);
+  luaopen_math(L);
+  luaopen_io(L);  
+
+<b>  <font color="#FF0000">cdlua_open(L);</font>
+</b>
+  lua_dofile(&quot;myprog.lua&quot;);
+
+  <span class="auto-style1"><strong>cdlua_close(L);</strong></span>
+  
+  lua_close(L);
+}</pre>
+          </td>
+        </tr>
+      </table>
+      </center>
+    </div>
+
+<p>Calling <strong>cdlua_close</strong> is optional. In Lua it can be called 
+using &quot;cd.Close()&quot;. It can be used to avoid a small memory leak. (since 5.8.2)</p>
+<h3>Exchanging Values between C and Lua</h3>
+
+  <p>Because of some applications that interchange the use of CD canvases in Lua 
+	and C, we build a few C functions that are available in &quot;cdlua.h&quot;:</p>
+
+<pre>cdCanvas* cdlua_checkcanvas(lua_State* L, int pos);
+void cdlua_pushcanvas(lua_State* L, cdCanvas* canvas);</pre>
+
+
+</body>
+
+</html>

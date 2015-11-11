@@ -1,0 +1,155 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>XRender</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2>XRender Base Driver</h2>
+
+  <p>This driver represents a basic driver for all system-dependent drivers 
+  implemented in the X-Windows system using the XRender extension. The implementation uses the 
+	XRender and Xft API functions.</p>
+<p>It can be used only as the context plus driver of the X-Win based drivers.</p>
+  <p>The main motivation for the use of XRender was transparency for all the primitives. Beyond that we got other features 
+  like anti-aliasing, gradient filling and transformations.</p>
+  <p>This driver still does not completely replace the X-Windows base driver, because 
+	XRender does not have support for 
+  XOR and for line styles.</p>
+  <p>So we let the programmer to choose what to use. We created the function <font face="Courier"><strong>
+  <a href="../func/init.html#cdUseContextPlus">cdUseContextPlus</a> </strong></font> that allows to activate or to deactivate the use of 
+	X-Render for the available X-Win based drivers. 
+  This function affects only the <font face="Courier"><strong>cdCreateCanvas</strong></font> function call, once created 
+  the canvas will be always a XRender canvas. In fact the function affects primary the definitions 
+	<font face="Courier"><strong>CD_NATIVEWINDOW</strong></font>, 
+  <strong><span style="font-family: Courier">CD_IMAGE</span></strong> and <strong>
+  <span style="font-family: Courier">CD_DBUFFER</span></strong>, because they are 
+  function calls and not static defines.</p>
+  <p>Using XRender it is allowed to create more that one canvas at the same time for the same Window. And they can co-exist 
+  with a standard X-Windows canvas.</p>
+  <p>To enable the use of XRender based drivers you must call the initialization function <font face="Courier"><strong>
+  <a href="../func/init.html#cdInitContextPlus">cdInitContextPlus</a></strong></font> once and link to the libraries &quot;<strong>cdcontextplus</strong>&quot;, &quot;<strong>Xrender</strong>&quot and &quot;<strong>Xft</strong>&quot;. 
+  Also the libraries &quot;<strong>Xrender</strong>&quot and &quot;<strong>Xft</strong>&quot; 
+	must be installed in your system. The XRender extension must be available in 
+	the X-Windows server for the driver to work.</p>
+<p>Currently, pre-compiled binaries are available for Linux 
+and BSD. It is not available for the systems we have with AIX, SunOS and 
+IRIX.</p>
+  <p>In CDLua it is not necessary any additional initialization, but the 
+	application must still be linked with the <strong>cdcontextplus.lib</strong> 
+	library or a <strong>require&quot;cdluacontextplus&quot;</strong> can be used when 
+	using dynamic libraries. When using require, it is NOT available in Linux.</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Control&nbsp; </h4>
+<ul>
+  <li><a href="../func/other.html#cdPlay">
+  <font face="Courier"><strong>Play</strong></font></a>: does nothing, returns
+  <font face="Courier">CD_ERROR</font>. </li>
+</ul>
+<h4>Coordinate System and Clipping </h4>
+<ul>
+  <li>
+  <a href="../func/coordinates.html#cdUpdateYAxis">
+  <font face="Courier"><strong>UpdateYAxis</strong></font></a>: the 
+  orientation of axis Y is the opposite to its orientation in the CD library. 
+	Except when using transformations.</li>
+</ul>
+<h4>Primitives</h4>
+<ul>
+  <li><font face="Courier"><a href="../func/lines.html#cdLine"><b>Line</b></a></font>: 
+  simulated using the client's <strong>Poly</strong>.</li>
+  <li><a href="../func/text.html#cdText"><font face="Courier"><strong>Text</strong></font></a>: 
+  Generic transformation 
+  matrix affects only the position of the text. Complex clipping regions can not 
+	contain text regions.</li>
+  <li><a href="../func/lines.html#cdBegin">
+  <font face="Courier"><strong>Begin</strong></font></a>: <strong><tt>
+  CD_BEZIER</tt></strong> and <strong><tt>CD_PATH</tt></strong> 
+	are simulated with lines.</li>
+  <li><font face="Courier"><strong><a href="../func/lines.html#cdRect">Rect</a></strong></font>: 
+  simulated using the client's <strong>Line</strong>.</li>
+  <li><font face="Courier"><a href="../func/lines.html#cdArc"><b>Arc</b></a></font>: 
+  simulated using the client's <strong>Line</strong>. </li>
+  <li><font face="Courier"><a href="../func/filled.html#cdSector"><b>Sector</b></a></font>: 
+  simulated using the client's <strong>Poly</strong>. </li>
+  <li><font face="Courier"><b><a href="../func/filled.html#cdChord">Chord</a></b></font>: 
+  simulated using the client's <strong>Poly</strong></li>
+  <li><font face="Courier"><a href="../func/filled.html#cdBox"><b>Box</b></a></font>: 
+  simulated using the client's <strong>Poly</strong>.</li>
+	<li>Floating point primitives are supported.</li>
+</ul>
+<h4>Attributes </h4>
+<ul>
+  <li>
+  <a href="../func/lines.html#cdLineWidth">
+  <font face="Courier"><strong>LineWidth</strong></font></a>: the driver will 
+	use a polygon that fits to the line extents, even when linewidth==1.</li>
+  <li>
+  <a href="../func/lines.html#cdLineStyle">
+  <font face="Courier"><strong>LineStyle</strong></font></a>: NOT supported.</li>
+  <li><a href="../func/filled.html#cdPattern"><font face="Courier"><strong>
+  Pattern</strong></font></a>: each pixel can contain transparency information.</li>
+  <li>
+  <a href="../func/text.html#cdNativeFont">
+  <font face="Courier"><strong>NativeFont</strong></font></a>: also accepts the 
+  X-Windows font string format. You can use program <strong>xfontsel</strong> to select a font and obtain the string. 
+  For ex: &quot;-*-times-bold-r-*-*-24-*-*-*-*-*-*-*&quot; (equivalent of <strong>Font</strong>(&quot;Times&quot;, 
+  CD_BOLD, -24).</li>
+  <li><a href="../func/text.html#cdFont">
+  <font face="Courier"><strong>Font</strong></font></a>: font support is 
+	implemented using the Xft library. Internally the Xft library uses the 
+	Freetype library.</li>
+</ul>
+<h4>Colors </h4>
+<ul>
+  <li>
+  Use the X-Windows base driver support for colors.</li>
+</ul>
+<h4>Client and Server Images</h4>
+<ul>
+  <li>
+  All functions use the X-Windows base driver functions.</li>
+</ul>
+<h4>Exclusive Attributes</h4>
+<ul>
+  <li>&quot;<b><font face="Courier">GC</font></b>&quot;:&nbsp; returns the X11 graphics 
+  context (get only). In Lua is returned as a user data.</li>
+</ul>
+
+<ul>
+  <li>&quot;<b><font face="Courier">ROTATE</font></b>&quot;:&nbsp; allows the usage of 1 
+  angle and 1 coordinate (x, y), that define a global rotation transformation 
+  centered in the specified coordinate. Use 1 real and 2 integer values inside a 
+  string (&quot;%g %d %d&quot; = angle x y). In this driver will change the 
+  current transformation matrix, if removed will reset the current 
+  transformation matrix.</li>
+</ul>
+
+<ul>
+	<li>&quot;<b><font face="Courier">ANTIALIAS</font></b>&quot;: controls the use of anti-aliasing 
+  for the text, image zoom and line 
+  drawing primitives. Assumes values &quot;1&quot; (active) and &quot;0&quot; (inactive). Default value: &quot;1&quot;. </li>
+</ul>
+
+<ul>
+  <li><b><font face="Courier">&quot;LINEGRADIENT&quot;: </font></b>defines a filled interior style that uses a line gradient 
+  between two colors. It uses 2 points (&quot;%d %d %d %d&quot; = x1 y1 x2 y2), one for the starting point using (using the 
+  foreground color), and another one for the end point (using the background color). 
+	(available only if Xrender version &gt;= 0.10)</li>
+</ul>
+
+<ul>
+  <li><b><font face="Courier">&quot;XRENDERVERSION&quot;: </font></b>returns a 
+	string with the XRender version number. It is empty if the XRender extension 
+	is not available in the X-Windows server.</li>
+</ul>
+
+</body>
+
+</html>

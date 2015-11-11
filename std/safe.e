@@ -676,6 +676,7 @@ export function prepare_block(atom a, integer n, natural protection)
         return a
 end function
 
+--/* Not Phix (DEV)
 public function allocate_data(positive_int n, integer cleanup = 0)
 -- allocate memory block and add it to safe list
         atom a
@@ -688,6 +689,7 @@ public function allocate_data(positive_int n, integer cleanup = 0)
                 return sla
         end if
 end function
+--*/
 
 public function allocate(positive_int n, integer cleanup = 0)
 -- allocate memory block and add it to safe list

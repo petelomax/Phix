@@ -1,0 +1,157 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">delete_routine</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+             object o = delete_routine(object o, integer rid)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Associate the routine identified by rid with the
+          <i>data</i> passed in the first parameter, to be invoked when it gets destroyed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            When the reference count on a data object drops to zero it is automatically garbage collected. This routine allows additional processing
+            to occur at the point when that happens. It is also possible to explicitly invoke <a href="delete.htm">delete</a>() on remaining objects
+            ahead of their eventual destruction, to force any such additional processing to occur immediately. There is also a third way in which the
+            cleanup processing occurs: when appending or prepending to a sequence finds insufficient space it "clones" the entire sequence into a new
+            longer one, and when the old is destroyed, any (top-level) delete_routines associated with it are invoked. The new longer sequence will
+            be devoid of any cleanup routine associations. Any associations for individual table elements are however preserved. See Technicalia.
+          <br>
+          <br>
+            It is important to realise that delete_routines are associated with a particular data instance, rather than a variable. For instance if
+            item is appended to list, nothing happens when item ceases to exist, as long as there is still a reference to the data in list.
+          <br>
+          <br>
+            Examples where <a href="delete_routine.htm">delete_routine</a>() may be useful include freeing some allocated memory, releasing some other 
+            resource, closing a file, or removing indexes that point to an item.
+          <br>
+          <br>
+            It is usually the case that you would manage individual table elements rather than the whole table.
+          <br>
+          <br>
+            Should an integer be passed as the first parameter, it is promoted to atom.
+          <br>
+          <br>
+            Multiple cleanup routines may be associated with an object, in which case they are invoked in reverse order of association.
+          <br>
+          <br>
+            The routine specified by rid should be a procedure that takes a single parameter, being the object to be cleaned up after.
+          <br>
+          <br>
+            Some memory allocation routines offer default delete_routines as part of automatic memory management.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+sequence list = {}
+
+procedure unlink(sequence item)
+    if item[PREV]=0 then
+        head = item[NEXT]
+    else
+        list[item[PREV]][NEXT] = item[NEXT]
+    end if
+    if item[NEXT]!=0 then
+        list[item[NEXT]][PREV] = item[PREV]
+    end if
+    close(item[FILEHANDLE])
+    free(item[MEMPTR])
+end procedure
+
+procedure add()
+sequence item = new_item()
+    list = append(list,delete_routine(item,routine_id("unlink")))
+    -- nb: although the variable item now ceases to exist, there 
+    --     is still a reference to the data it held within list.
+end procedure
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> list</font><font color="#0000FF"> = {}
+
+</font><font color="#008080">procedure</font><font color="#000000"> unlink</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> item</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> item</font><font color="#0000FF">[</font><font color="#000000">PREV</font><font color="#0000FF">]=</font><font color="#000000">0</font><font color="#008080"> then
+</font><font color="#800080">        head</font><font color="#0000FF"> =</font><font color="#000000"> item</font><font color="#0000FF">[</font><font color="#000000">NEXT</font><font color="#0000FF">]
+</font><font color="#008080">    else
+</font><font color="#000000">        list</font><font color="#0000FF">[</font><font color="#000000">item</font><font color="#800000">[</font><font color="#000000">PREV</font><font color="#800000">]</font><font color="#0000FF">][</font><font color="#000000">NEXT</font><font color="#0000FF">] =</font><font color="#000000"> item</font><font color="#0000FF">[</font><font color="#000000">NEXT</font><font color="#0000FF">]
+</font><font color="#008080">    end if
+    if</font><font color="#000000"> item</font><font color="#0000FF">[</font><font color="#000000">NEXT</font><font color="#0000FF">]!=</font><font color="#000000">0</font><font color="#008080"> then
+</font><font color="#000000">        list</font><font color="#0000FF">[</font><font color="#000000">item</font><font color="#800000">[</font><font color="#000000">NEXT</font><font color="#800000">]</font><font color="#0000FF">][</font><font color="#000000">PREV</font><font color="#0000FF">] =</font><font color="#000000"> item</font><font color="#0000FF">[</font><font color="#000000">PREV</font><font color="#0000FF">]
+</font><font color="#008080">    end if
+</font><font color="#7060A8">    close</font><font color="#0000FF">(</font><font color="#000000">item</font><font color="#800000">[</font><font color="#000000">FILEHANDLE</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#7060A8">    free</font><font color="#0000FF">(</font><font color="#000000">item</font><font color="#800000">[</font><font color="#000000">MEMPTR</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#008080">end procedure
+
+procedure</font><font color="#000000"> add</font><font color="#0000FF">()
+</font><font color="#004080">sequence</font><font color="#000000"> item</font><font color="#0000FF"> =</font><font color="#000000"> new_item</font><font color="#0000FF">()
+</font><font color="#000000">    list</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">list</font><font color="#0000FF">,</font><font color="#800080">delete_routine</font><font color="#800000">(</font><font color="#000000">item</font><font color="#0000FF">,</font><font color="#800080">routine_id(</font><font color="#008000">"unlink"</font><font color="#800080">)</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#000080"><i>    -- nb: although the variable item now ceases to exist, there 
+    --     is still a reference to the data it held within list.
+</i></font><font color="#008080">end procedure</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="delete.htm">delete</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+          This routine is not "toolchain-safe". Should p.exw start using delete_routine, it would have to artifically invoke delete_routine immediately 
+          after control returns from the interpret part, to reset the back-end link, before any other delete handling occurs. (This has not been tested.)
+          <br>
+          <br>
+          Fanciful "carry-over" schemes are deliberately dismissed, for instance append/prepend could theoretically drag any delete_routine associations 
+          over, but that way lies madness: What if a clone occurs because of a refcount>1? Should the association be left on the old and the new? Should 
+          a&b&c somehow "merge" any delete_routine associations, and if it did, how exactly would the associated routines be expected to cope? Instead
+          the assumption is made that delete_routine is only ever invoked on "finalised" data (which still stands for individual table elements), with
+          no guarantee that any futher (partial) fiddling will or will not trigger cleanup, just destruction.
+          <br>
+          <br>
+          Tip: When testing, especially in top-level code, it can be helpful to always store the result of delete_routine in a named variable. Code such 
+          as <code>test(delete_routine(..))</code> may store the result in an unnamed temporary variable, 
+         </td>
+        </tr>
+       </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

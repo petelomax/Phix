@@ -1628,7 +1628,7 @@ end procedure -- (for Edita/CtrlQ)
     :%opCatsi
 -------------
         --
-        --  Optimised form of opConcat for p1&=p2 (===p1:=p2&p2), when p2 
+        --  Optimised form of opConcat for p1&=p2 (===p1:=p1&p2), when p2 
         --  is integer or sequence of integer (as proven in the gvar_scan) 
         --  and p1 is a dword-sequence, and p1!=p2 and both p1,p2 are init.
         --  (So obviously it uses rep movsd instead of a test/incref loop.)

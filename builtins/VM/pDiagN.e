@@ -122,7 +122,8 @@ include builtins\ppp.e
 integer fn
 
 -- added 17/5/15:
-constant MAXLINELEN = 77    -- approximate screen/printer width
+--constant MAXLINELEN = 77  -- approximate screen/printer width
+constant MAXLINELEN = 129   -- approximate screen/printer width
                             -- (77 rather than 80 as sprint(o,l) may tag
                             --  a ".." in addition to the passed length)
 
@@ -144,7 +145,7 @@ constant MAXLINELEN = 77    -- approximate screen/printer width
 --       as it (p.exe) struggles to give birth to some monster ex.err files, and
 --       would fully expect exponential slowdown as things get even bigger.
 --
-constant MAXLENN = 5000     -- longest string/sequence you will ever really need
+constant MAXLENN = 500-0    -- longest string/sequence you will ever really need
 
 -- Note: The following may not honor MAXLENN like it should/used to (which is, if 
 --       anything, a problem in ppp.e rather than here). You may want this if, in 
@@ -267,6 +268,26 @@ integer newprst,                -- Scratch/innner version of prst.
         stringo = 0,            -- string(o)/allascii(o) shorthand
         wasstacklen             -- to check if something got dumped
 
+-- added 15/10/15:
+    if not integer(o) then
+        this = "**CORRUPT TYPE BYTE**"
+        #ilASM{
+            [32]
+                mov eax,[o]
+                mov cl,byte[ebx+eax*4-1]
+            [64]
+                mov rax,[o]
+                mov cl,byte[rbx+rax*4-1]
+            []
+                cmp cl,#12
+                je @f
+                cmp cl,#80
+                je @f
+                cmp cl,#82
+                jne :badtypebyte
+              @@:
+            }
+    end if
     wasstacklen = length(printstack)
 
     if string(o) then
@@ -395,6 +416,7 @@ integer newprst,                -- Scratch/innner version of prst.
         addtostack(idii,newprst,name,this)
         return {prdx+1,""}
     end if
+#ilASM{ ::badtypebyte }
     return {prdx,this}
 end function
 
@@ -615,7 +637,7 @@ constant msgs =
  "invalid find start index\n",                                  -- e21ifsi
     -- In find('3',"123",s), s of 1..3 and -1..-3 yield 3,
     --  4 yields 0, but all other values, including non-atoms,
-    --  unassigned variables, and s<=-4, yield this error.
+    --  unassigned variables, 0, and s<=-4, yield this error.
     --  Of course -1, being shorthand for length(), is the 
     --  same as 3 in the above, and -3 is the same as 1.
     -- Aside: find('.',filename,-5) could be used to quickly
@@ -637,18 +659,12 @@ constant msgs =
  "invalid mem_set memory address\n",                            -- e25imsma
     -- a machine exception occurred in a mem_set operation
  "invalid argument type for integer := peek()\n",               -- e26iatfpi
-    -- Occurs, for example, in:
-    --  integer i
-    --      i = peek({addr,4}).
-    -- Technically speaking, opPeeki is called (if not inlined,
-    --  that is) instead of the normal opPeek, because it knows
-    --  the result ought to be an integer. The former has no
-    --  dealloc code, and no code for the above, so instead it
-    --  displays this message. Arguably, it should perform the
-    --  peek anyway, then typecheck - but that would only make
-    --  things slower. Also, arguably the above should fail to
-    --  compile, though we would still have to handle the more
-    --  general i=peek(object) case with this run-time message.
+    -- Occurs, for example, in integer i = peek(x), when x is
+    --  assigned to something like {addr,4}.
+    -- The compiler emits opPeeki rather than opPeek because 
+    --  the result is an integer, however opPeeki does not
+    --  have any code to deal with a sequence argument, and 
+    --  even if it did, a typecheck on i would occur anyway.
  "argument to rand() must be >= 1\n",                           -- e27atrmbge1
  "argument to %s() must be an atom (use sq_%s?)\n",             -- e28NNatXmbausq
  "argument to set_rand() must be an atom\n",                    -- e29atsrmba
@@ -678,7 +694,9 @@ constant msgs =
     -- only occurs on debug builds
  "heap corruption [era=%08x, edi=%08x]\n",                      -- e32hc(era,edi)
     -- oh dear...
- "argument to arctan() must be atom (use sq_arctan?)\n",        -- e33atatmba   -- no longer in use (see e28)
+-- "argument to arctan() must be atom (use sq_arctan?)\n",      -- e33atatmba   -- no longer in use (see e28)
+ "memory allocation failure\n",                                 -- e33maf
+    -- oh dear...
  "power() function underflow\n",                                -- e34pfu
     -- result is less than -1.7976931348623146e308
     -- (technically the term underflow is usually
@@ -701,7 +719,8 @@ constant msgs =
     -- btw, the above messages occur for an unassigned argument, rather
     --  than the usual e92/"variable xxx has not been assigned a value".
 -- "argument to chdir() must be string\n",                      -- e48atcdmbs
- -1,                                                            -- no longer in use
+-- -1,                                                          -- no longer in use
+ "argument to :%LoadMint must be an atom\n",                    -- e48atlmmba
  "argument to atom_to_float32() must be atom\n",                -- e49atatf32mba
  "argument to atom_to_float64() must be atom\n",                -- e50atatf64mba
  "HeapFree error code [%08x]\n",                                -- e51hfec
@@ -863,7 +882,7 @@ constant msgs =
     -- May be removed for compatibility reasons, see pprntf.e.
  "index %d out of bounds, reading sequence length %d\n",        -- e106ioob
     -- (edi,edx)
- -1,                                                            -- e107 - DEV no longer used
+ "invalid free memory address\n",                               -- e107ifma
  "position error [%s]\n",                                       -- e108pe
     -- Maybe the co-ordinates specified are outside the boundaries
     -- of the (Windows) screen buffer. See also e83atpmbi, which
@@ -3532,8 +3551,10 @@ end procedure -- (for Edita/CtrlQ)
             cmp edx,:%pSubsss
             je :e94vhnbaavedx
             cmp edx,:!opSubse1iRe92a
+            je :e94_or_e04
+            cmp edx,:!opSubse1isRe92a
             jne @f
---DEV if or_esi is integer, e04...
+              ::e94_or_e04
               [32]
                 mov edi,[a32h4]
                 mov eax,[or_esi]
@@ -3757,6 +3778,21 @@ end procedure -- (for Edita/CtrlQ)
             []
                 call :%pStoreMint
                 mov al,100          -- e100ipma
+                jmp :setal
+          @@:
+            cmp edx,:%pFree_e107ifma
+            jne @f
+            [32]
+                mov eax,[esp+4]
+                lea edi,[or_era]
+                sub eax,1
+            [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_era]
+                sub rax,1
+            []
+                call :%pStoreMint
+                mov al,107          -- e107ifma
                 jmp :setal
           @@:
             mov al,30

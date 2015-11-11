@@ -8,6 +8,15 @@
 --  Mind you, the "Memory Use At The Lowest Level" stuff is probably worthwhile skimming,
 --  but even I do not trouble myself to remember the precise details of all of it.
 --
+-- Technical note
+-- ==============
+--  Low-level errors in this code are almost always extremely serious and mapping them
+--  to some hll source code line is not typically very helpful. For instance a heap
+--  corruption is quite likely to be detected on some subsequent and entirely innocent
+--  statement, and pointing the programmer at that will often hinder rather than help.
+--  These routines are written in a "fast fail" style.
+--
+--
 -- The point of a heap manager is to scale effortlessly when it allocates /billions/ of
 --  small blocks of memory, and allow them to be freed and re-used in any order, all in
 --  a thread-safe manner, which is a decidedly non-trivial task. I am extremely proud of 
@@ -478,8 +487,8 @@
 --
 -- Memory Leak Checking And Heap Diagnostics
 -- =========================================
---  Every entry on the free list has a logical partner that we can examine. While that block might
---  be further split internally, it should be enough to report on the leftmost chunk.
+--  Every entry on the free list has a logical partner that we can examine. While that block 
+--  might be further split internally, it should be enough to report on the leftmost chunk.
 --
 --  This approach does not locate anything in completely full superblocks, but is deemed to be 
 --  good enough for our purposes - if that ever proves otherwise it should prove relatively 
@@ -817,7 +826,20 @@ integer pGtcb = 0       -- the global control block (dwThreadId=0, stored /4)
 
 integer stdcs = 0       -- for very short one-off inits in \builtins (opEnter/LeaveCS).
 
+integer pDelRtn = 0     -- ::pDelete in pDeleteN.e, once delete_routine gets called.
+                        -- NB: This is not, of itself, "tool-chain safe": should p.exw
+                        --     start using delete_routine, it will also have to invoke 
+                        --     delete_routine (in pDeleteN.e) artificially, before any
+                        --     delete() kick in, to reset this after interpreting a 
+                        --     user application.
+
 --integer gt1tcb = 0
+
+--DEV/temp:
+--constant pssebp = "pSetSaveEBP: #"
+--constant psslmh = " <- #"
+--constant psssob = " ("
+--constant pssccr = ")\n"
 
 #ilASM{ jmp :!opCallOnceYeNot
 
@@ -995,14 +1017,14 @@ end procedure -- (for Edita/CtrlQ)
         -- local routine for pSetSaveEBP; could also be used by pGetPool?
     [32]
         -- <no parameters>
-        -- on exit, pTCB in esi
+        -- on exit, pTCB/4 in esi
         xor ebx,ebx -- (save some grief)
         call :pGetThread
         mov esi,[pGtcb]
         test esi,esi
     [64]
         -- <no parameters>
-        -- on exit, pTCB in rsi
+        -- on exit, pTCB/4 in rsi
         xor rbx,rbx     -- (save some grief)
         call :pGetThread
         mov rsi,[pGtcb]
@@ -1097,10 +1119,34 @@ end procedure
     :%pSetSaveEBP
 --------------
         -- save ebp before c_func (etc), in case of call_back, in a thread safe manner
+--push esi
         call :pGetTCB           -- (factored out as a prelude to using it elsewhere)
+--pop edi
     [32]
         mov eax,[ebx+esi*4+264]     -- SaveEBP
         mov [ebx+esi*4+264],edx     -- SaveEBP
+--DEV temp code:
+--pushad
+---- pSetSaveEBP: #00000000 <- #00000000 (%d)
+--mov edi,[pssebp]
+--call :%puts1
+--mov edx,[esp+28]  -- eax
+--push ebx
+--call :%puthex32
+--mov edi,[psslmh]
+--call :%puts1
+--mov edx,[esp+20]  -- edx
+--push ebx
+--call :%puthex32
+--mov edi,[psssob]
+--call :%puts1
+----mov eax,[esp+4]     -- esi
+--mov eax,[esp]     -- edi
+--push ebx
+--call :%putsint
+--mov edi,[pssccr]
+--call :%puts1
+--popad
     [64]
         mov rax,[rbx+rsi*4+1008]    -- SaveEBP
         mov [rbx+rsi*4+1008],rdx    -- SaveEBP
@@ -1181,6 +1227,25 @@ end procedure -- (for Edita/CtrlQ)
         mov [pGtcb],rax
     []
         ret
+
+--/*
+procedure :%pSetDel(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%pSetDel
+-------------
+        -- set [pDelRtn] (stored /4 for simplicity)
+    [32]
+--      mov edx,[pDelRtn]
+        shr eax,2
+        mov [pDelRtn],eax
+    [64]
+--      mov rdx,[pDelRtn]
+        shr rax,2
+        mov [pDelRtn],rax
+    []
+        ret
+
 
 --/*
 procedure ::EnterCriticalSection(::)
@@ -2067,9 +2132,9 @@ end procedure -- (for Edita/CtrlQ)
 --      jmp :%e02atdb0
         int3
         nop
-      ::e37atambpi
-        int3
-        nop
+--    ::e37atambpi
+--      int3
+--      nop
       ::e38atfmba   -- argument to free must be an atom
         int3
         nop
@@ -3363,6 +3428,11 @@ end procedure -- (for Edita/CtrlQ)
         test eax,eax
 --      jz :memoryallocationfailure
         jnz @f
+            popad
+            pop edx
+            mov al,33   -- e33maf
+            sub edx,1
+            jmp :!iDiag
             int3
       @@:
         mov edi,[esp]                   -- restore original edi (pGetPool trashes all regs)
@@ -3405,6 +3475,10 @@ end procedure -- (for Edita/CtrlQ)
         test rax,rax
 --      jz :memoryallocationfailure
         jnz @f
+            mov rdx,[rsp+40]
+            mov al,33   -- e33maf
+            sub rdx,1
+            jmp :!iDiag
             int3
       @@:
 --      mov rdi,[rsp]                   -- restore original rdi (pGetPool trashes all regs) [DEV]
@@ -3489,21 +3563,22 @@ end procedure -- (for Edita/CtrlQ)
 procedure :%pLoadMint(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
---/*
---  :%pLoadMint -- load a machine-sized (32/64-bit) integer
     :%pLoadMint -- finish loading a machine-sized (32/64-bit) integer
 ---------------
     [32]
---      -- eax:=(int32)[edi]
         -- eax:=(int32)eax
---DEV   -- edx = era
         -- All other registers are preserved (ebx:=0).
---      mov eax,[edi]
         xor ebx,ebx         -- (save some grief)
         cmp eax,h4
         jle @f
             cmp byte[ebx+eax*4-1],#12
-            jne :internalerror  -- DEV return carry flag?
+            je :LoadMintFlt
+                pop edx
+                mov al,48               -- e48atlmmba
+                sub edx,1
+                jmp :!iDiag
+                int3
+          ::LoadMintFlt
             sub esp,8
             fld qword[ebx+eax*4]
             call :%down53
@@ -3511,27 +3586,32 @@ end procedure -- (for Edita/CtrlQ)
             call :%near53
             mov eax,[esp]
             add esp,8
+      @@:
+        ret
     [64]
---      -- rax:=(int64)[rdi]
         -- rax:=(int64)rax
         -- All other registers are preserved (rbx:=0).
---      mov rax,[rdi]
         mov r15,h4
         xor rbx,rbx         -- (save some grief)
         cmp rax,r15
         jle @f
             cmp byte[rbx+rax*4-1],#12
-            jne :internalerror
+            je :LoadMintFlt
+                pop edx
+                mov al,48               -- e48atlmmba
+                sub edx,1
+                jmp :!iDiag
+                int3
+          ::LoadMintFlt
             sub rsp,8
             fld tbyte[rbx+rax*4]
             call :%down64
             fistp qword[rsp]
             call :%near64
             pop rax
-    []
       @@:
         ret
---*/
+    []
 
 --/*
 procedure :%pDealloc[0](:%)
@@ -3557,15 +3637,20 @@ end procedure -- (for Edita/CtrlQ)
         jz @f
             push edx
             -- put a refcount of 1 back (normally but not necessarily 0 by now)
-            mov dword[edx-8],1
+--          mov dword[edx-8],1
+            mov dword[edx-8],2
+            mov eax,[pDelRtn]
             -- reconstruct the ref
             add edx,1
 --      mov eax,[DelRtn]            ; see builtins/pdelete.e/deletef()
+            shl eax,2
             ror edx,2
 --      mov [DelRef],edx
 --      call eax
 --DEV:
 --          call :%DelRtn
+--          call [pDelRtn]
+            call eax
 --        ::pDealloc12
             pop edx
             mov dword[edx-8],ebx        -- and re-zero the refcount
@@ -3582,15 +3667,19 @@ end procedure -- (for Edita/CtrlQ)
         jz @f
             push rdx
             -- put a refcount of 1 back (normally but not necessarily 0 by now)
-            mov qword[rdx-16],1
+--          mov qword[rdx-16],1
+            mov qword[rdx-16],2
+            mov rax,[pDelRtn]
             -- reconstruct the ref
             add rdx,1
 --      mov eax,[DelRtn]            ; see builtins/pdelete.e/deletef()
+            shl rax,2
             ror rdx,2
 --      mov [DelRef],edx
 --      call eax
 --DEV:
 --          call :%DelRtn
+            call rax
 --        ::pDealloc24
             pop rdx
             mov qword[rdx-16],rbx       -- and re-zero the refcount
@@ -3750,32 +3839,48 @@ end procedure -- (for Edita/CtrlQ)
             jz :nodeleteroutine
     [32]
                 pushad
-                mov dword[eax-8],1      -- put a refcount of 1 back
+--              mov dword[eax-8],1      -- put a refcount of 1 back
+                mov dword[eax-8],2      -- put a refcount of 2 back
+                mov ecx,[pDelRtn]
                 add eax,1               -- reconstruct the ref
 --      mov edx,[DelRtn]
+                shl ecx,2
                 ror eax,2
 --      mov [DelRef],eax
 --      call edx
                 mov edx,eax
 --DEV
 --              call :%DelRtn
+                call ecx
 --            ::pDealloc40
                 popad
                 mov dword[eax-8],0
     [64]
+                push rax
+                push rcx
                 push rdx
+                push rsi
                 --rsi?
-                mov qword[rdx-16],1     -- puts a refcount of 1 back
-                add rdx,1               -- reconstruct the ref
+--              mov qword[rdx-16],1     -- puts a refcount of 1 back
+                mov qword[rax-16],2     -- puts a refcount of 1 back
+                mov rcx,[pDelRtn]
+                add rax,1               -- reconstruct the ref
 --      mov rdx,[DelRtn]            ; see builtins/pdelete.e/deletef()
-                ror rdx,2
+                shl rcx,2
+                ror rax,2
 --      mov [DelRef],eax
 --      call edx
 --DEV:
 --              call :%DelRtn
+                mov rdx,rax
+                call rcx
 --            ::pDealloc24a
+                pop rsi
                 pop rdx
-                mov qword[rdx-16],rbx       -- and re-zero the refcount
+                pop rcx
+                pop rax
+--DEV++??
+                mov qword[rax-16],rbx       -- and re-zero the refcount
     []
           ::nodeleteroutine
     [32]
@@ -3954,8 +4059,17 @@ end procedure -- (for Edita/CtrlQ)
             call :%near53
             mov ecx,[esp]
             add esp,8
-            test ecx,ecx
-            jle :e37atambpi  -- argument to allocate must be positive integer
+      @@:
+        test ecx,ecx
+--      jle :e37atambpi     -- argument to allocate must be positive integer
+--      jg @f
+        jge @f              -- 25/10/15 allocate(0) should be allowed
+          ::e37atambpi      -- argument to allocate must be positive integer
+            pop edx
+            mov al,37       -- e37atambpi
+            sub edx,1
+            jmp :!iDiag
+            int3
       @@:
         add ecx,4           -- for nSize
         mov edx,[esp]       -- era
@@ -3988,17 +4102,25 @@ end procedure -- (for Edita/CtrlQ)
             fistp qword[rsp]
             call :%near64
             pop rcx
-            test rcx,rcx
-            jle :e37atambpi  -- argument to allocate must be positive integer
       @@:
-        add rcx,8   -- for nSize
+        test rcx,rcx
+--      jle :e37atambpi     -- argument to allocate must be positive integer
+        jg @f
+          ::e37atambpi      -- argument to allocate must be positive integer
+            pop rdx
+            mov al,37       -- e37atambpi
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
+        add rcx,8           -- for nSize
         mov rdx,[rsp+8]     -- era
         call :%pGetPool
         -- result is rdx bytes at rax, but we use first 8 bytes to save the size, for free().
         test rax,rax
         jz @f
-            mov [rax],rdx -- so this is 28 when returning 20 bytes of useable space (at rax+8).
-            add rax,8   -- for nSize (see also "Minor point" above)
+            mov [rax],rdx   -- so this is 28 when returning 20 bytes of useable space (at rax+8).
+            add rax,8       -- for nSize (see also "Minor point" above)
       @@:
         pop rdi
         push rax
@@ -4015,7 +4137,6 @@ end procedure -- (for Edita/CtrlQ)
 ------------
     [32]
         -- addr in eax
---DEV should free(0) crash? -- (methinks yes)
         xor ebx,ebx -- (save some grief)
         cmp eax,h4  --DEV :%pLoadMint
         jl @f
@@ -4029,9 +4150,10 @@ end procedure -- (for Edita/CtrlQ)
             mov eax,[esp]
             add esp,8
       @@:
-        mov ecx,[eax-4] -- retrieve size
+      :%pFree_e107ifma      -- exception here mapped to e107ifma
+        mov ecx,[eax-4]     -- retrieve size
         sub eax,4
-        mov edx,[esp]   -- era
+        mov edx,[esp]       -- era
     [64]
         -- addr in rax
         mov r15,h4
@@ -4046,10 +4168,10 @@ end procedure -- (for Edita/CtrlQ)
             fistp qword[rsp]
             call :%near64
             pop rax
-      @@:
-        mov rcx,[rax-8] -- retrieve size
+      :%pFree_e107ifma      -- exception here mapped to e107ifma
+        mov rcx,[rax-8]     -- retrieve size
         sub rax,8
-        mov rdx,[rsp]   -- era
+        mov rdx,[rsp]       -- era
     []
         call :%pFreePool
         ret

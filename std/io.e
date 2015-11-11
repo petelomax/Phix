@@ -1365,6 +1365,7 @@ end function
 -- See Also:
 --     [[:write_file]], [[:read_lines]]
 
+--/* Not Phix
 public function read_file(object file, integer as_text = BINARY_MODE, integer encoding = ANSI)
     integer fn
     integer len
@@ -1828,6 +1829,7 @@ public function read_file(object file, integer as_text = BINARY_MODE, integer en
 
     return ret
 end function
+--*/
 
 --**
 -- Write a sequence of bytes to a file.

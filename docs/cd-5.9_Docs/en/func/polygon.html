@@ -1,0 +1,156 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>Polygons</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2 align="center">Open, Closed and Filled Polygons,<br>
+Bezier Lines and<br>
+Regions Creation</h2>
+
+  <p>The functions <font><strong>cdBegin</strong></font>,
+  <font><strong>cdVertex</strong></font> and <font>
+  <strong>cdEnd</strong></font> are use for many situations.
+  <font><strong>cdBegin</strong></font> is called once,
+  <font><strong>cdVertex</strong></font> can be called many 
+  times, and <font><strong>cdEnd</strong></font> is called once 
+  to actually do something. If you call <font><strong>cdBegin</strong></font> 
+  again before <font><strong>cdEnd</strong></font> the process is 
+  restarted, except for <strong><font>cdBegin(</font></strong><b>CD_REGION</b><strong><font>)</font></strong> 
+  that can contains one or more polygons inside. </p>
+
+<hr>
+<div class="function"><pre class="function"><span class="mainFunction">void <a name="cdBegin">cdCanvasBegin</a>(cdCanvas* canvas, int mode); [in C]</span>
+
+canvas:Begin(mode: number) [in Lua]</pre>
+
+  <p>Starts defining a polygon to be drawn (or filled) according to the mode:&nbsp;
+  <b>CD_CLOSED_LINES</b>, <b>CD_OPEN_LINES</b>, <b>CD_FILL</b><strong><b>,
+  </b></strong><b>CD_CLIP, CD_REGION</b> or <strong><b>CD_BEZIER</b></strong>. 
+  Do not create embedded polygons, that is, do not call function
+  <font><strong>cdBegin</strong></font> twice without a call to
+  <font><strong>cdEnd</strong></font> in between.</p>
+
+<ul>
+  <li><strong>CD_OPEN_LINES</strong><b>:</b> connects all the points at cdEnd. Depends 
+  on line width and line style attributes. </li>
+  <li><b><b>CD_CLOSED_LINES:</b> </b>connects all the points at cdEnd and 
+  connects the last point to the first.&nbsp; Depends on line width and line 
+  style attributes. </li>
+  <li><b>CD_FILL:</b> connects the last point to the first and fills 
+  the resulting polygon according to the current interior style. When the 
+  interior style <strong><b>CD_HOLLOW</b></strong> is defined the it behaves 
+  as if the mode were <b>CD_CLOSED_LINES</b><strong>.</strong></li>
+  <li><b>CD_CLIP: i</b>nstead of creating a polygon to be drawn, 
+  creates a polygon to define a polygonal clipping region. </li>
+  <li><strong><b>CD_BEZIER:</b></strong><b> </b>defines the points of a bezier 
+  curve. There must be at least 4 points: <i>start</i>, <i>control</i>, <i>
+  control</i> and <i>end</i>. To specify a sequence of curves use 3 more points 
+  for each curve: <i>control</i>, <i>control</i>, <i>end</i>, <i>control</i>, <i>
+  control</i>, <i>end</i>, ... The end point is used as start point for the next 
+  curve.</li>
+  <li><strong><b>CD_REGION</b></strong>: starts the creation of a complex 
+  region for clipping. All calls to <font><strong>cdBox</strong></font>,
+  <font><strong>cdSector</strong></font>, <font>
+  <strong>cdChord, Filled</strong></font> <font><strong>Polygons</strong></font> 
+  and <font><strong>cdText</strong></font> will be composed in a 
+  region for clipping. See <a href="region.html">Regions</a> documentation.</li>
+	<li><strong>CD_PATH</strong>: creates a path composed of several primitives 
+	that can be line draw, filled or used as clipping. Must call <strong>
+	cdCanvasPathSet</strong> to configure the action between sequences of
+	<strong>cdCanvasVertex</strong>.</li>
+</ul>
+<p align="center"><font size="4">Open, Closed and Filled Polygons<br>
+</font><img src="../../img/polygon.gif" border="2" width="249" height="116"></p>
+<p align="center"><font size="4">Bezier Lines<br>
+</font><img src="../../img/bezier.gif" border="2" width="241" height="220"></p>
+</div><div class="function"><pre class="function"><span class="mainFunction">void <a name="cdVertex">cdCanvasVertex</a>(cdCanvas* canvas, int x, int y); [in C]</span>
+void cdfCanvasVertex(cdCanvas* canvas, double x, double y); [in C]
+void wdCanvasVertex(cdCanvas* canvas, double x, double y); (WC) [in C]
+
+canvas:Vertex(x, y: number) [in Lua]
+canvas:wVertex(x, y: number) (WC) [in Lua]</pre>
+
+  <p>Adds a vertex to the polygon definition.</p>
+
+</div><div class="function"><pre class="function"><span class="mainFunction">void <a name="cdEnd">cdCanvasEnd</a>(cdCanvas* canvas); [in C]</span>
+
+canvas:End() [in Lua]</pre>
+
+  <p>Ends the polygon's definition and draws it.</p>
+
+
+</div><div class="function"><pre class="function"><span class="mainFunction">void <a name="cdPathSet">cdCanvasPathSet</a>(cdCanvas* canvas, int action); [in C]</span>
+
+canvas:PathSet(action: number) [in Lua]</pre>
+
+  <p>Configures the action between sequences of <strong>cdCanvasVertex</strong>.
+	<strong>action</strong> can be:</p>
+<ul>
+	<li>&nbsp;<strong>CD_PATH_NEW</strong> - creates a new empty path. Useful if more than one 
+	path is configured. <strong>cdCanvasBegin</strong>(CD_PATH) already creates 
+	a new path.</li>
+	<li><strong>CD_PATH_MOVETO</strong> - moves the current position to the given coordinates. 
+	Must be followed by 1 call to <strong>cdCanvasVertex</strong>, <strong>
+	cdfCanvasVertex</strong>, or <strong>wdCanvasVertex</strong>.</li>
+	<li><strong>CD_PATH_LINETO</strong> - adds a line to the path from the current position to 
+	the given coordinates. The current position is updated to the&nbsp; given 
+	coordinates. If there is no current position, nothing is connected and only 
+	the current position is updated. Must be followed by 1 call to <strong>
+	cdCanvasVertex</strong>, <strong>cdfCanvasVertex</strong>, or <strong>
+	wdCanvasVertex</strong>.</li>
+	<li><strong>CD_PATH_ARC</strong> - adds an arc to the path. If there is a current position 
+	adds also a line from the current position to the start of the arc. The end 
+	of the arc becomes the current position. Must be followed by 3 calls to
+	<strong>cdCanvasVertex</strong>, <strong>cdfCanvasVertex</strong>, or
+	<strong>wdCanvasVertex</strong>. One for the center of the arc (xc,yc), one 
+	for the bounding rectangle size (w,h), and one for the start and end angles 
+	(angle1,angle2). Angles are in degrees and oriented counter-clockwise, but 
+	angle2 can be smaller than angle1 to describe a clockwise arc. When using integer coordinates 
+	angles must be multiplied by 1000.</li>
+	<li><strong>CD_PATH_CURVETO</strong> - adds a bezier curve to the path. If there is no 
+	current position, the first point will be used twice. The end point becomes 
+	the current position. Must be followed by 3 calls to <strong>cdCanvasVertex</strong>,
+	<strong>cdfCanvasVertex</strong>, or <strong>wdCanvasVertex</strong>. Must 
+	be first control point (x1,y1) + second control point (x2,y2) + end point 
+	(x3,y3).</li>
+	<li><strong>CD_PATH_CLOSE</strong> - adds a line to the path that connects the last point 
+	with the first point of the path, closing it.</li>
+	<li><strong>CD_PATH_FILL</strong> - fills the path with the current fill attributes, 
+	then the path is discarded.</li>
+	<li><strong>CD_PATH_STROKE</strong> - strokes the path with the current line attributes, then the 
+	path is discarded.</li>
+	<li><strong>CD_PATH_FILLSTROKE</strong> - fills the path with the current fill 
+	attributes, strokes the path with the current line attributes, then the path 
+	is discarded.</li>
+	<li><strong>CD_PATH_CLIP</strong> - use the path as a clipping area to be 
+	intersected with the current clipping area, then the path is discarded.</li>
+	</ul>
+	
+
+<p>So the normal path creation to draw a line will do:</p>
+<pre>cdCanvasBegin(canvas, CD_PATH);
+cdCanvasPathSet(canvas, CD_PATH_MOVETO);
+cdCanvasVertex(canvas, x1, y1);
+cdCanvasPathSet(canvas, CD_PATH_LINETO);
+cdCanvasVertex(canvas, x2, y2);
+cdCanvasPathSet(canvas, CD_PATH_CURVETO);
+cdCanvasVertex(canvas, x3, y3);  /* control point for start point */ 
+cdCanvasVertex(canvas, x4, y4);  /* control point for end point */
+cdCanvasVertex(canvas, x5, y5);  /* end point */
+cdCanvasPathSet(canvas, CD_PATH_ARC);
+cdCanvasVertex(canvas, x6, y6);  /* center */
+cdCanvasVertex(canvas, x7, y7);  /* width, height */
+cdCanvasVertex(canvas, x8, y8);  /* start angle, end angle (degrees / 1000) */
+cdCanvasPathSet(canvas, CD_PATH_STROKE);
+cdCanvasEnd(canvas);</pre>
+	
+</div>
+</body>
+
+</html>

@@ -1,0 +1,260 @@
+--
+-- demo\rosetta\Tree_traversal.exw
+-- ======================================
+--
+-- Author Pete Lomax, October 2015
+--
+-- This source contains the solution to the original problem, a way to build such a nested structure,
+-- and thirdly a "flat list of nodes" tree, that allows more interesting options such as a tag sort.
+
+-- First version, solution to http://rosettacode.org/wiki/Tree_traversal
+
+constant VALUE = 1, LEFT = 2, RIGHT = 3
+
+constant tree = {1, {2, {4, {7, 0, 0}, 0},
+                        {5, 0, 0}},
+                    {3, {6, {8, 0, 0}, 
+                            {9, 0, 0}},
+                        0}}
+ 
+procedure preorder(object tree)
+    if sequence(tree) then
+        printf(1,"%d ",{tree[VALUE]})
+        preorder(tree[LEFT])
+        preorder(tree[RIGHT])
+    end if
+end procedure
+ 
+procedure inorder(object tree)
+    if sequence(tree) then
+        inorder(tree[LEFT])
+        printf(1,"%d ",{tree[VALUE]})
+        inorder(tree[RIGHT])
+    end if
+end procedure
+ 
+procedure postorder(object tree)
+    if sequence(tree) then
+        postorder(tree[LEFT])
+        postorder(tree[RIGHT])
+        printf(1,"%d ",{tree[VALUE]})
+    end if
+end procedure
+ 
+procedure level_order(object tree, sequence more = {})
+    if sequence(tree) then
+        more &= {tree[LEFT],tree[RIGHT]}
+        printf(1,"%d ",{tree[VALUE]})
+    end if
+    if length(more) > 0 then
+        level_order(more[1],more[2..$])
+    end if
+end procedure
+ 
+puts(1,"\n preorder:    ")  preorder(tree)
+puts(1,"\n inorder:     ")  inorder(tree)
+puts(1,"\n postorder:   ")  postorder(tree)
+puts(1,"\n level-order: ")  level_order(tree)
+
+{} = wait_key()
+--include test\t02parms.exw
+abort(0)
+
+--/*
+-- Second version, showing one way to build such a tree:
+
+--  original rosetta code:    revised values:
+--           1                       5.1
+--          / \                     / \
+--         /   \                   /   \
+--        /     \                 /     \
+--       2       3               3.2     9.3
+--      / \     /               / \     /
+--     4   5   6               2.4 4.5 7.6
+--    /       / \             /       / \
+--   7       8   9           1.7     6.8 8.9
+--
+-- A suitable order for building the revised tree:
+--
+sequence s = {5.1, 3.2, 9.3, 2.4, 4.5, 7.6, 1.7, 6.8, 8.9}
+
+constant VALUE = 1, LEFT = 2, RIGHT = 3
+
+object tree = 0
+
+function insert_tree(object tree, object val)
+    if atom(tree) then
+        tree = {val,0,0}
+    elsif val<tree[VALUE] then
+        tree[LEFT] = insert_tree(tree[LEFT],val)
+    elsif val>tree[VALUE] then
+        tree[RIGHT] = insert_tree(tree[RIGHT],val)
+    end if
+    return tree
+end function
+
+for i=1 to 9 do
+    tree = insert_tree(tree,s[i])
+end for
+?tree
+--  {5.1,{3.2,{2.4,{1.7,0,0},
+--                  0},
+--            {4.5,0,0}},
+--       {9.3,{7.6,{6.8,0,0},
+--                 {8.9,0,0}},
+--             0}}
+
+-- and using this instead of the printf above:
+procedure putv(atom v)
+    printf(1,"%d ",mod(v*10,10))
+end procedure
+
+procedure preorder(object tree)
+    if sequence(tree) then
+        putv(tree[VALUE])
+        preorder(tree[LEFT])
+        preorder(tree[RIGHT])
+    end if
+end procedure
+ 
+procedure inorder(object tree)
+    if sequence(tree) then
+        inorder(tree[LEFT])
+        putv(tree[VALUE])
+        inorder(tree[RIGHT])
+    end if
+end procedure
+ 
+procedure postorder(object tree)
+    if sequence(tree) then
+        postorder(tree[LEFT])
+        postorder(tree[RIGHT])
+        putv(tree[VALUE])
+    end if
+end procedure
+ 
+procedure level_order(object tree, sequence more = {})
+    if sequence(tree) then
+        more &= {tree[LEFT],tree[RIGHT]}
+        putv(tree[VALUE])
+    end if
+    if length(more) > 0 then
+        level_order(more[1],more[2..$])
+    end if
+end procedure
+ 
+puts(1,"\n preorder:    ")  preorder(tree)
+puts(1,"\n inorder:     ")  inorder(tree)
+puts(1,"\n postorder:   ")  postorder(tree)
+puts(1,"\n level-order: ")  level_order(tree)
+
+{} = wait_key()
+--include test\t02parms.exw
+abort(0)
+--*/
+
+--/*
+-- Third version, showing a tree as a list of nodes rather than a nested structure.
+-- This allows, for example, a tag sort on the nodes, and other interesting options. 
+-- (Tagsorts create separate lists of indexes without modifying nodes in any way.)
+-- (LEFT and RIGHT are indexes of/to child nodes, rather than subtrees.)
+
+constant VALUE = 1, LEFT = 2, RIGHT = 3
+
+sequence s = {5.1,3.2,9.3,2.4,4.5,7.6,1.7,6.8,8.9}  -- (as above)
+ 
+sequence tree = {}
+
+procedure insert_tree(object val)
+object nval
+integer ndx, ldx
+    if length(tree)=0 then
+        tree = {{val,0,0}}
+    else
+        ndx = 1
+        while 1 do
+            ldx = ndx
+            nval = tree[ndx][VALUE]
+            if val<nval then
+                ndx = tree[ndx][LEFT]
+                if ndx=0 then
+                    tree = append(tree,{val,0,0})
+                    tree[ldx][LEFT] = length(tree)
+                    exit
+                end if
+            elsif val>nval then
+                ndx = tree[ndx][RIGHT]
+                if ndx=0 then
+                    tree = append(tree,{val,0,0})
+                    tree[ldx][RIGHT] = length(tree)
+                    exit
+                end if
+            else
+                exit    -- already in tree, do nowt
+            end if
+        end while
+    end if
+end procedure
+
+for i=1 to 9 do
+    insert_tree(s[i])
+end for
+?tree
+--{{5.1,2,3},   -- 1
+-- {3.2,4,5},   -- 2
+-- {9.3,6,0},   -- 3
+-- {2.4,7,0},   -- 4
+-- {4.5,0,0},   -- 5
+-- {7.6,8,9},   -- 6
+-- {1.7,0,0},   -- 7
+-- {6.8,0,0},   -- 8
+-- {8.9,0,0}}   -- 9
+
+procedure putv(atom v)
+    printf(1,"%d ",mod(v*10,10))
+end procedure
+
+procedure preorder(integer tdx = 1)
+    if tdx!=0 then
+        putv(tree[tdx][VALUE])
+        preorder(tree[tdx][LEFT])
+        preorder(tree[tdx][RIGHT])
+    end if
+end procedure
+ 
+procedure inorder(integer tdx = 1)
+    if tdx!=0 then
+        inorder(tree[tdx][LEFT])
+        putv(tree[tdx][VALUE])
+        inorder(tree[tdx][RIGHT])
+    end if
+end procedure
+ 
+procedure postorder(integer tdx = 1)
+    if tdx!=0 then
+        postorder(tree[tdx][LEFT])
+        postorder(tree[tdx][RIGHT])
+        putv(tree[tdx][VALUE])
+    end if
+end procedure
+ 
+procedure level_order(integer tdx = 1, sequence more = {})
+    if tdx!=0 then
+        more &= {tree[tdx][LEFT],tree[tdx][RIGHT]}
+        putv(tree[tdx][VALUE])
+    end if
+    if length(more) > 0 then
+        level_order(more[1],more[2..$])
+    end if
+end procedure
+ 
+puts(1,"\n preorder:    ")  preorder()
+puts(1,"\n inorder:     ")  inorder()
+puts(1,"\n postorder:   ")  postorder()
+puts(1,"\n level-order: ")  level_order()
+
+{} = wait_key()
+--include test\t02parms.exw
+abort(0)
+
+--*/

@@ -7,7 +7,7 @@ include builtins\VM\puts1.e         -- low-level console i/o
 --DEV?
 --include builtins\VM\pStack.e
 
-constant eBadRetf = "eBadRetf called, return address is #\n"
+--constant eBadRetf = "eBadRetf called, return address is #\n"
 
 --#ilASM{ jmp :%opRetf
 #ilASM{ jmp :!opCallOnceYeNot
@@ -82,21 +82,28 @@ e92movti:
 --*/
     :%pBadRetf
         [32]
-            mov edi,[eBadRetf]          -- "eBadRetf called, return address is #"
-            call :%puts1
+--          mov edi,[eBadRetf]          -- "eBadRetf called, return address is #"
+--          call :%puts1
             mov edx,[esp]
-            push 1                      -- cr
-            call :%puthex32
+            mov al,13                   -- e13ateafworav
+            sub edx,1
+--          push 1                      -- cr
+--          call :%puthex32
         [64]
-            mov rdi,[eBadRetf]          -- "eBadRetf called, return address is #"
-            call :%puts1
-            mov rdx,[rsp]
-            push 1                      -- cr
-            call :%puthex64
+--          mov rdi,[eBadRetf]          -- "eBadRetf called, return address is #"
+--          call :%puts1
+--          mov rdx,[rsp]
+--          push 1                      -- cr
+--          call :%puthex64
+            mov rdx,[esp]
+            mov al,13                   -- e13ateafworav
+            sub rdx,1
         []
+            jmp :!iDiag
             int3
 
-    :%pAddiii
+    :%e01tcfAddiii
+--  :%pAddiii
     [32]
         -- [edi] has blown 31-bit int; store as float and typecheck
         pop edx
@@ -125,10 +132,49 @@ e92movti:
         jmp :!iDiag
         int3
 
-    :%pDiviii
+    :%e01tcfediDiv
+        -- calculate [edi]=(eax*ecx+edx)/ecx, as a float, and tcf it.
+    [32]
+        push edx
+        fild dword[esp]
+        mov [esp],eax
+        fild dword[esp]
+        mov [esp],ecx
+        fild dword[esp]
+        fmulp
+        faddp
+        fild dword[esp]
+        fdivp
+        add esp,4
+        call :%pStoreFlt
+        pop edx
+        mov ecx,edi     
+        mov al,110  -- e110tcf(ecx)
+        sub edx,1
+        jmp :!iDiag
+    [64]
+        push rdx
+        fild qword[rsp]
+        mov [rsp],rax
+        fild qword[rsp]
+        mov [rsp],rcx
+        fild qword[rsp]
+        fmulp
+        faddp
+        fild qword[rsp]
+        fdivp
+        add rsp,8
+        call :%pStoreFlt
+        pop rdx
+        mov rcx,rdi     
+        mov al,110  -- e110tcf(ecx)
+        sub rdx,1
+        jmp :!iDiag
+    []
         int3
 --  :%pRTErf
 --      int3
+--DEV to go:
     :%pRTErn
         -- error code in al,
         -- ep1 in edi,
@@ -161,7 +207,29 @@ e92movti:
 --!*/
 
     :%e01tcfDivi2   -- (opDivi2)
-        int3
+--      int3
+    [32]
+        push eax
+--  pop ecx             ; return address
+        fild dword[esp]
+--  mov [era],ecx
+--  fadd [half]
+        mov edi,edx
+        add esp,4
+    [64]
+        push rax
+        fild qword[rsp]
+        mov rdi,rdx
+        add rsp,8
+    []
+        fld1
+        fld1
+        fld1
+        faddp
+        fdivp
+        faddp
+        jmp @f
+
 --;calling convention:
 --; mov eax,[p2]
 --; mov edx,p1
@@ -170,29 +238,32 @@ e92movti:
 --; call :%e01tcfDivi2  -- type check error, <p1> is xxx.5
     :%e01tcfediMul -- (opMuliii)
         [32]
+-- this might want to be push eax:ecx; fild qword[esp]...
             push eax
             fild dword[esp]
             add esp,4
---        @@:
-            call :%pStoreFlt
+          @@:
+            call :%pStoreFlt        -- [edi]!=st0
             pop edx
             mov al,110              -- e110tce(ecx)
             sub edx,1
             mov ecx,edi
             jmp :!iDiag
+            int3
         [64]
             push rax
             fild qword[rsp]
 --  ::e01tcfst0rdi
             add rsp,8
-            call :%pStoreFlt
+          @@:
+            call :%pStoreFlt        -- [rdi]!=st0
             pop rdx
             mov al,110              -- e110tce(ecx)
             sub rdx,1
             mov rcx,rdi
             jmp :!iDiag
-        []
             int3
+        []
 --;calling convention:
 --; mov ecx,[p3]
 --; mov eax,[p2]

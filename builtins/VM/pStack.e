@@ -95,6 +95,7 @@ integer nocleanup = 0   -- set to 1 if (eg) :!iDiag has been called,
 
 integer CClean = 0      -- cleanup code for pcfuncN.e
 
+constant oom = "Your program has run out of memory, one moment please\n"
 --DEV opCallOnceYeNot
 --#ilASM{ jmp :%opRetf
 --#ilASM{ jmp :fin
@@ -206,13 +207,10 @@ end procedure -- (for Edita/CtrlQ)
         call :%pGetPool                 -- sets eax,edx, trashes ecx,esi,edi
         pop edi                         -- restore (vsb_root)
         pop esi                         -- restore
---**DEV we need a fatal crash here if eax==0 returned... [maybe not, there is a #C0000005 coming right up...]
---  test eax,eax
---  jz :trimStack
---  cmp edx,12280
---  jne ???
         pop edx                         -- restore
         pop ecx                         -- restore
+        test eax,eax
+        jz :trimStackPop
         mov [edi+4],eax                 -- prev_block.vsb_next:=new_block
         mov [eax],edi                   -- new_block.vsb_prev:=prev_block
         mov [eax+4],ebx                 -- new_block.vsb_next:=0
@@ -426,6 +424,15 @@ end procedure -- (for Edita/CtrlQ)
 --      push esi                    -- save called from addr (we ran out of registers!)
 -- ::makeFrameX [DEV killme]
         mov edi,[ebp+24]            -- vsb_root
+--DEV test:
+cmp dword[edi+16],#40565342     -- magic ("@VSB")
+je @f
+  int3
+@@:
+cmp dword[edi+12276],#3C565342  -- magic ("<VSB")
+je @f
+  int3
+@@:
 --  lea esi,[ebp+ecx*4+36]      -- new ebp (provisional!)   
         lea esi,[ebp+ecx*4+28]      -- new ebp (provisional!)   
 
@@ -509,6 +516,16 @@ je @f
 --      mov r12,rsi                 -- save called from addr
 -- ::makeFrameX
         mov rdi,[rbp+48]            -- vsb_root
+--DEV test:
+cmp qword[rdi+32],#40565342     -- magic ("@VSB")
+je @f
+  int3
+@@:
+cmp qword[rdi+11240],#3C565342  -- magic ("<VSB")
+je @f
+  int3
+@@:
+
         lea rsi,[rbp+rcx*8+56]      -- new ebp (provisional!)  --DEV try this again!
 --      lea rsi,[rbx+rcx*4+28]
 --      shl rsi,2               --DEV? shl rsi,1??
@@ -816,8 +833,159 @@ end procedure -- (for Edita/CtrlQ)
     []
         ret
 
---::trimStack
+--/*
+procedure :%trimStack(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+  ::trimStackPop
+----------------
+    -- (assumes this is from opFrame/newVSB, not newStack/newVSB):
+    [32]
+        add esp,4
+    [64]
+        add rsp,8
+    []
+  :%trimStack
 -------------
+    -- cleanup the call stack and raise e33maf. era @ [esp].
+    [32]
+        mov edi,[oom]           -- "Your program has run out of memory, one moment please\n"
+        call :%puts1
+        mov eax,[ebp+24]        -- vsb_root
+        cmp [eax],ebx           -- vsb_prev
+        je :trimNP              -- no trimming possible
+        push eax                --[1]
+        push ebp                --[2]
+        --
+        -- skip down the stack until we've got a different vsb_root
+        --
+      @@:
+        mov edx,ebp
+        mov ebp,[ebp+20]        -- prev_ebp
+        cmp eax,[ebp+24]        -- vsb_root
+        je @b
+        --
+        -- call opRetf until vsb_prev is 0
+        --
+        push dword[ebp+24]      --[3] save vsb_root of last_but_one block
+        push edx                --[4] save last[1] for prev_ebp relink
+      ::trimRetLoop
+        mov eax,[ebp+24]        -- vsb_root
+        cmp [eax],ebx           -- vsb_prev
+        je @f
+            mov dword[ebp+16],:trimRetLoop  -- replace return address
+            jmp :%opRetf
+      @@:
+        --
+        -- free any stack blocks emptied by the previous loop
+        --
+        pop edx                 --[4] last[1] (first frame in last block)
+        mov [edx+20],ebp        -- reroute prev_ebp chain around removed blocks
+        pop eax                 --[3] last_but_one (a vsb_root)
+      ::trimFreeLoop    
+        cmp [eax],ebx           -- vsb_prev
+        je @f
+            push dword[eax]     --[3] vsb_prev
+            mov ecx,12280
+            -- (no sensible edx/era here)
+            call :%pFreePool        -- release ecx bytes of memory at eax.
+            pop eax             --[3]
+            jmp :trimFreeLoop
+      @@:
+        --
+        -- re-attach the last block, and link that last[1] up.
+        --
+        pop ebp                 --[2] original
+        pop dword[eax+4]        --[1] vsb_next
+        mov edx,[ebp+24]        -- vsb_root
+        mov [edx],eax           -- vsb_prev
+
+      ::trimNP
+        --
+        -- and finally trigger e33maf
+        --
+        pop edx
+        mov al,33   -- e33maf
+        sub edx,1
+        jmp :!iDiag
+        int3
+    [64]
+        mov rdi,[oom]           -- "Your program has run out of memory, one moment please\n"
+        call :%puts1
+        mov rax,[rbp+48]        -- vsb_root
+        cmp [rax],rbx           -- vsb_prev
+        je :trimNP              -- no trimming possible
+        push rax                --[1]
+        push rbp                --[2]
+        --
+        -- skip down the stack until we've got a different vsb_root
+        --
+      @@:
+        mov rdx,rbp
+        mov rbp,[rbp+40]        -- prev_ebp
+        cmp rax,[rbp+48]        -- vsb_root
+        je @b
+        --
+        -- call opRetf until vsb_prev is 0
+        --
+        push qword[rbp+48]      --[3] save vsb_root of last_but_one block
+        push rdx                --[4] save last[1] for prev_ebp relink
+      ::trimRetLoop
+        mov rax,[rbp+48]        -- vsb_root
+        cmp [rax],rbx           -- vsb_prev
+        je @f
+            mov dword[rbp+32],:trimRetLoop  -- replace return address
+            jmp :%opRetf
+      @@:
+        --
+        -- free any stack blocks emptied by the previous loop
+        --
+        pop rdx                 --[4] last[1] (first frame in last block)
+        mov [rdx+40],rbp        -- reroute prev_ebp chain around removed blocks
+        pop rax                 --[3] last_but_one (a vsb_root)
+      ::trimFreeLoop    
+        cmp [rax],rbx           -- vsb_prev
+        je @f
+            push qword[rax]     --[3] vsb_prev
+            mov rcx,11248
+            -- (no sensible rdx/era here)
+            call :%pFreePool        -- release rcx bytes of memory at rax.
+            pop rax             --[3]
+            jmp :trimFreeLoop
+      @@:
+        --
+        -- re-attach the last block, and link that last[1] up.
+        --
+        pop rbp                 --[2] original
+        pop qword[rax+8]        --[1] vsb_next
+        mov rdx,[rbp+48]        -- vsb_root
+        mov [rdx],rax           -- vsb_prev
+
+      ::trimNP
+        --
+        -- and finally trigger e33maf
+        --
+        pop rdx
+        mov al,33   -- e33maf
+        sub rdx,1
+        jmp :!iDiag
+        int3
+    []
+--  A virtual stack block (32-bit) is:
+--      dd vsb_prev                 [vsb_root]
+--      dd vsb_next                 [vsb_root+4]
+--  A (32-bit) frame is:
+--      dd return address           [ebp+16] (0 means callback)
+--      dd prev_ebp                 [ebp+20] (0 means top-level quit [maybe?])
+--      dd vsb_root                 [ebp+24]
+
+--  A virtual stack block (64-bit) is:
+--      dq vsb_prev                 [vsb_root]
+--      dq vsb_next                 [vsb_root+8]
+--  A (64-bit) frame is:
+--      dq return address           [rbp+32] (0 means callback)
+--      dq prev_ebp                 [rbp+40] (0 means top-level quit [maybe?])
+--      dq vsb_root                 [rbp+48]
 ----    puts(1,"Your program has run out of memory, one moment please\n")
 --! mov eax,[ebp+32]                -- vsb_root
 --  --
@@ -906,14 +1074,14 @@ end procedure -- (for Edita/CtrlQ)
         pop ecx             -- var no
         cmp eax,0
         jne @f
-    :%opTchkFail
-----------------
+    :%opTcFail
+--------------
 --(no)      pop eax         -- return address
 --DEV:
 --          mov [ep1],ecx   -- var no (just leave it in ecx)
 --          mov [era],eax   -- (just leave it on the stack)
             pop edx
-            mov al,1
+            mov al,1        -- e01tcf(ecx==idx)
             sub edx,1
             jmp :!iDiag
             int3
@@ -940,7 +1108,7 @@ end procedure -- (for Edita/CtrlQ)
         pop rcx             -- var no
         cmp rax,0
         jne @f
-    :%opTchkFail
+    :%opTcFail
 --(no)      pop rax         -- return address
 --DEV:
 --          mov [ep1],rcx   -- var no (just leave it in rcx)
@@ -1252,7 +1420,7 @@ end procedure -- (for Edita/CtrlQ)
         mov esi,[ds+8]              -- esi:=raw addr of symtab[1]
         cmp eax,h4
         jl @f
-            int3    -- abort code must be integer
+            int3    -- abort code must be integer [DEV]
       @@:
         mov edx,[esi+84]            -- edx:=symtab[T_EBP=22]
         mov ecx,[nocleanup]
@@ -1272,7 +1440,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rsi,[ds+8]              -- rsi:=raw addr of symtab[1]
         cmp rax,r15
         jl @f
-            int3
+            int3    -- abort code must be integer [DEV]
       @@:
         mov rdx,[rsi+168]           -- rdx:=symtab[T_EBP=22]
         mov rcx,[nocleanup]

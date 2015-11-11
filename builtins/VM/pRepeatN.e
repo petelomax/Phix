@@ -123,9 +123,18 @@ end procedure -- (for Edita/CtrlQ)
         cmp rcx,r15
     []
         jb :repeatCh
---DEV:
      ::e52rcmbnni  -- repeat count must be non negative integer
+    [32]
+        pop edx
         mov al,52
+        sub edx,1
+        jmp :!iDiag
+    [64]
+        pop rdx
+        mov al,52
+        sub rdx,1
+        jmp :!iDiag
+    []
         int3
 
 --/*

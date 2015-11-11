@@ -1,0 +1,115 @@
+﻿<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<title>Samples</title>
+<link rel="stylesheet" type="text/css" href="../style.css">
+</head>
+
+<body>
+
+<h2>Samples</h2>
+<h3><a name="Simple Draw">Simple Draw</a></h3>
+
+  <p>This is an example of a simple drawing program using a IUP canvas: </p>
+
+
+  
+    <pre>cdCanvas* canvas = cdCreateCanvas(CD_NATIVEWINDOW, IupGetAttribute(IupCanvas,&quot;WID&quot;)); <br>cdCanvasLineStyle(canvas, CD_DASHED);<br>cdCanvasLine(canvas, 0, 0, 100, 100);<br>cdKillCanvas(canvas);</pre>
+  
+
+
+  <p>If you want to use <a name="World Coordinates"><strong>World Coordinates</strong></a>: </p>
+
+
+  
+    <pre>cdCanvas* canvas = cdCreateCanvas(CD_NATIVEWINDOW, IupGetAttribute(IupCanvas,&quot;WID&quot;)); <br>wdCanvasViewport(canvas, 0, 100, 0, 100); <br>wdCanvasWindow(canvas, -1.5, 1.5, -3000, 3000); <br>cdCanvasLineStyle(canvas, CD_DASHED); <br>wdCanvasLine(canvas, -0.5, -500, 1.0, 1000); <br>cdKillCanvas(canvas);<code> </code></pre>
+  
+
+<h3><a name="Off Screen Drawing">Off Screen Drawing</a> (Double Buffering) </h3>
+
+  <p>To draw in the background and later on transfer the drawing to the screen, use: </p>
+
+
+  
+    <pre>cdCanvas* canvas = cdCreateCanvas(CD_NATIVEWINDOW, IupGetAttribute(IupCanvas,&quot;WID&quot;)); <br>cdCanvas* db_canvas = cdCreateCanvas(CD_DBUFFER, canvas); cdCanvasActivate(db_canvas); // update canvas size, window could be resized<br>cdCanvasLineStyle(db_canvas, CD_DASHED); <br>cdCanvasLine(db_canvas, 10, 10, 50, 50); <br>cdCanvasFlush(db_canvas);  // swap to the window canvas <br>cdKillCanvas(db_canvas); <br>cdKillCanvas(canvas); </pre>
+  
+  <p>To draw in a RGB image, use:</p>
+  
+    <pre><code>cdCanvas* canvas = cdCreateCanvasf(CD_IMAGERGB, &quot;%dx%d&quot;, width, height);
+</code>cd<code>Canvas</code>LineStyle(<code>canvas, </code>CD_DASHED); 
+cd<code>Canvas</code>Line(<code>canvas, </code>10, 10, 50, 50); 
+cdKillCanvas(canvas); </pre>
+<p>To save the contents of the CD_IMAGERGB canvas in a file using IM, after 
+drawing and before destroying the canvas do:</p>
+<pre>unsigned char* data = cdCanvasGetAttribute(canvas, &quot;REDIMAGE&quot;); // Also a pointer to the full buffer
+imImage* image = <strong>imImageInit</strong>(width, height, IM_RGB, IM_BYTE, data, NULL, 0); 
+// Can use also IM_RGB|IM_ALPHA is canvas has support for alpha
+<strong>imFileImageSave</strong>(file_name, &quot;PNG&quot;, image);
+image-&gt;data[0] = NULL; // to avoid duplicate memory release
+<strong>imImageDestroy</strong>(image);</pre>
+<p>Or using another approach:</p>
+<pre>imImage* image = <strong>imImageCreate</strong>(width, height, IM_RGB, IM_BYTE);
+// Can also call <strong>imImageAddAlpha</strong> if alpha support is wanted
+
+<code>cdCanvas* canvas = cdCreateCanvasf(CD_IMAGERGB, &quot;%dx%d %p %p %p&quot;, width, height, 
+                                   image-&gt;data[0], image-&gt;data[1], image-&gt;data[2]);
+</code>cd<code>Canvas</code>LineStyle(<code>canvas, </code>CD_DASHED); 
+cd<code>Canvas</code>Line(<code>canvas, </code>10, 10, 50, 50); 
+cdKillCanvas(canvas);
+
+<strong>imFileImageSave</strong>(file_name, &quot;PNG&quot;, image);
+<strong>imImageDestroy</strong>(image);
+</pre>
+  
+
+<h3>Lua Samples</h3>
+
+  <p>To draw in a RGB image in CDLua for Lua 5:</p>
+  
+    <pre>bitmap = cd.CreateBitmap(200,200,cd.RGB)
+canvas = cd.CreateCanvas(cd.IMAGERGB, bitmap)
+canvas:Font(&quot;Times&quot;, cd.BOLD, 12)
+canvas:Text(10, 10, &quot;Test&quot;)
+canvas:KillCanvas()</pre>
+  
+  <p>Check the file <a href="../download/samples_cdlua5.zip">samples_cdlua5.zip</a> or <a href="../download/samples_cdlua5.tar.gz">samples_cdlua5.tar.gz</a> for several samples in Lua. 
+        For some of them you will need also the IUP libraries.&nbsp;You can also browse the examples folder. </p>
+
+<h3>Screen Capture in Windows</h3>
+
+  <p>Using a NULL parameter to the NATIVEWINDOW driver you can get access to the entire screen:</p>
+  
+    <pre>cdCanvas *canvas = cdCreateCanvas(CD_NATIVEWINDOW, NULL);
+cdCanvasGetSize(canvas, &amp;width, &amp;height, NULL, NULL);
+// allocate red, green and blue pointers
+cdCanvasGetImageRGB(canvas, red, green, blue, 0, 0, width, height);
+cdKillCanvas(canvas);</pre>
+  
+
+<h3>Generating an EMF file that contains an IM Image in Lua</h3>
+
+<pre>image = im.FileImageLoadBitmap(image_filename)
+canvas = cd.CreateCanvas(cd.EMF,emf_filename.." "..image:Width().."x"..image:Height())
+image:cdCanvasPutImageRect(canvas,0,0,0,0)
+cd.KillCanvas(canvas)
+</pre>
+  
+
+<h3><a name="Complete Example">Complete Example</a></h3>
+
+  <p>We have created an application called Simple Draw that illustrates the use of all functions in the CD library 
+  (including WD). You can see the source code in the file
+  <a href="../download/simple.zip">simple.zip</a>.</p>
+
+<h3>Example for Tests</h3>
+
+  <p>The <a href="../download/cdtest.zip">CDTEST</a> example is actually one of the applications used to test virtually 
+  all functions of the CD library. Its interface uses the IUP library, and it can run in several platforms. You can take 
+  either the .EXE files or the source code. Extract the files creating subfolders, using parameter &quot;<font face="Courier New">-d</font>&quot;. 
+  Warning: This application is not didactic. </p>
+
+
+</body>
+
+</html>

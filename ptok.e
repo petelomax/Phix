@@ -1185,7 +1185,7 @@ end procedure
     for i=0 to 9 do
         baseset['0'+i] = i
     end for
-    for i=10 to 15 do
+    for i=10 to 35 do
         baseset['A'+i-10] = i
         baseset['a'+i-10] = i
     end for
@@ -1214,10 +1214,10 @@ end procedure
 --                 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
 --                 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,  0,     -- '0'
 --                   1,  2,  3,  4,  5,  6,  7,  8,  9,255,255,255,255,255,255,255,     -- '1'..'9'
---                  10, 11, 12, 13, 14, 15,255,255,255,255,255,255,255,255,255,255,     -- 'A'..'F'
---                 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
---                  10, 11, 12, 13, 14, 15,255,255,255,255,255,255,255,255,255,255,     -- 'a'..'f'
---                 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+--                  10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,     -- 'A'..'Z'
+--                  26, 27, 28, 29, 30, 31, 32, 33, 34, 35,255,255,255,255,255,255,
+--                  10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,     -- 'a'..'z'
+--                  26, 27, 28, 29, 30, 31, 32, 33, 34, 35,255,255,255,255,255,255,
 --                 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
 --                 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
 --                 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
@@ -1345,12 +1345,15 @@ procedure completeFloat()
 -- Note that "1.0" is effectively treated as "1".
 atom dec
 --integer ndp -- number of decimal places
-integer exp -- exponent
+integer exponent
 integer esigned
 --  ndp=0
+atom fraction
     if Ch='.' then
         toktype = DIGIBAD
-        dec = 10
+--      dec = 10
+        dec = 1
+        fraction = 0
         while 1 do
             col += 1
             Ch = text[col]
@@ -1359,15 +1362,18 @@ integer esigned
             if Ch!='_' then
                 if Ch<'0' or Ch>'9' then exit end if
 --              TokN = TokN*10 + Ch-'0'
-                TokN += (Ch-'0') / dec
+--27/10/15:
+--              TokN += (Ch-'0') / dec
+                fraction = fraction*10+(Ch-'0')
                 dec *= 10
                 toktype = DIGIT
 --              ndp += 1
             end if
         end while
+        TokN += fraction/dec
     end if
     if toktype=DIGIBAD then Abort("illegal") end if
-    exp = 0
+    exponent = 0
     if Ch='e' or Ch='E' then
         toktype = DIGIBAD
         esigned = 0
@@ -1386,30 +1392,30 @@ integer esigned
                     end if
                 end if
             else
-                exp = exp*10 + Ch-'0'
+                exponent = exponent*10 + Ch-'0'
                 toktype = DIGIT
             end if
         end while
         if esigned then
-            exp = -exp
+            exponent = -exponent
         end if
 --  end if
     if toktype=DIGIBAD then Abort("illegal") end if
---  exp-=ndp
---  if exp then
-        if exp>308 then
+--  exponent-=ndp
+--  if exponent then
+        if exponent>308 then
             -- rare case: avoid power() overflow
             TokN *= power(10, 308)
-            if exp>1000 then
-                exp = 1000 
+            if exponent>1000 then
+                exponent = 1000 
             end if
-            for i=1 to exp-308 do
+            for i=1 to exponent-308 do
                 TokN *= 10
             end for
-        elsif exp<0 then
-            TokN /= power(10,-exp)
+        elsif exponent<0 then
+            TokN /= power(10,-exponent)
         else
-            TokN *= power(10, exp)
+            TokN *= power(10, exponent)
         end if
     end if
 
@@ -1484,7 +1490,7 @@ procedure loadBase()
             end if
         end while
 --      if not find(base,bases) then
-        if base<2 or base>16 then
+        if base<2 or base>36 then
             -- TIP:
             -- If you want to allow eg base 64 literals as eg 0(64)9QJZB3FX (terminating space?)
             --  Then 1) fill in 17..64 in baseset and/or use a basesetBig with 'a'..'f' not
@@ -1774,12 +1780,13 @@ global procedure getToken()
         -- 0..9
         -- note that eg "1.0" is treated as the integer "1"
         --
-        TokN = prevCh - '0'
+        TokN = prevCh-'0'
 
         if TokN=0 then  -- check for 0x/o/b/d formats
 -- 't' added as octal to match Open Euphoria 13/12/2010
 --          base = find(Ch,"oxbd(")
-            base = find(Ch,"toxbd(")
+--          base = find(Ch,"toxbd(")
+            base = find(lower(Ch),"toxbd(")
             if base then
                 if base>1 then
                     base -= 1
@@ -2182,6 +2189,7 @@ sequence name
                    or ttidx=T_SUNOS
                    or ttidx=T_OPENBSD
                    or ttidx=T_OSX
+                   or ttidx=T_EU4_1
                    or ttidx=T_UNIX then
                     thisflag = 0    -- DEV (PE==1 && X64==0?)
                 elsif ttidx=T_WIN32_GUI

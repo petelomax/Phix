@@ -9,9 +9,19 @@ include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
 
 #ilASM{ jmp :%opRetf
 
---DEV
         ::e103atgrondb0esp
+        [32]
+            pop edx
+            mov al,103  -- e103atgrondb0
+            sub edx,1
+        [64]
+            pop rdx
+            mov al,103  -- e103atgrondb0
+            sub rdx,1
+        []
+            jmp :!iDiag
             int3
+--DEV
         ::e1405sora
             int3
 

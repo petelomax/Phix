@@ -1,0 +1,207 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+<title>Guide</title>
+<link rel="stylesheet" type="text/css" href="../style.css">
+<style type="text/css">
+.style2 {
+	color: #008000;
+}
+.style3 {
+	color: #FF0000;
+}
+.style4 {
+	color: #0000FF;
+}
+.style1 {
+	color: #0000FF;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Guide</h1>
+<h3><a name="start">Getting Started</a></h3>
+
+  <p>The CD library is a basic graphic library (GL). In a GL paradigm you use <strong>primitives</strong>, which have
+  <strong>attributes</strong>, to draw on a <strong>canvas</strong>. All the library functions reflect this paradigm.</p>
+  <p>The <strong>canvas</strong> is the basic element. It can have several forms: a paper, a video monitor, a graphic 
+  file format, etc. The virtual drawing surface where the canvas exists is represented by a <strong>driver</strong>. 
+  Only the driver knows how to draw on its surface. The user does not use the driver directly, but only the canvas.</p>
+  <p>To make the library simple we use the concept of an active canvas, over which all the primitives are drawn. This 
+  also allows the use of an expansion mechanism using function tables. Unfortunately if a function is called without an 
+  active canvas a memory invasion will occur. On the other hand, the mechanism allows the library to be expanded with 
+  new drivers without limits.</p>
+  <p>The <strong>attributes</strong> are also separated from the primitives. They reside in the canvas in a state 
+  mechanism. If you change the attribute's state in the canvas all the primitives drawn after that canvas and that 
+  depend on the attribute will be drawn in a different way.</p>
+  <p>The set of <strong>primitives</strong> is very small but complete enough to compose a GL. Some primitives are 
+  system dependent for performance reasons. Some drivers (window and device based) use system functions to optimally 
+  implement the primitives. Sometimes this implies in a in small different behavior of some functions. Also some 
+  primitives do not make sense in some drivers, like server images in file-based drivers.</p>
+  <p>The set of available functions is such that it can be implemented in most drivers. Some drivers have sophisticated 
+  resources, which cannot be implemented in other drivers but can be made available using a generic attribute 
+  mechanism.
+  </p>
+
+<h3><a name="buildapp">Building Applications</a></h3>
+
+  <p>All the CD functions are declared in the <tt>cd.h</tt> header file; World Coordinate functions are declared in the
+  <tt>wd.h</tt> header file; and each driver has a correspondent header file that must be included to create a canvas. 
+  It is important to include each driver header <u>after</u> the inclusion of the <tt>cd.h</tt> header file.</p>
+  <p>To link the application you must add the <b>&quot;cd</b>&quot; library. If statically 
+  linking then you will need at least the&nbsp; <b>
+	&quot;freetype&quot; and the &quot;zlib&quot; </b> libraries. If you use 
+  an IUP Canvas then you must also link with the <b>&quot;iupcd&quot;</b> library 
+	available in the IUP distribution. Other drivers may need additional 
+  secondary libraries.</p>
+  <p>In UNIX, CD uses GDK or the Xlib (X11) libraries. To statically link an application in UNIX 
+  with CD, add also the GDK or the X11 libraries.</p>
+  <p>The download files list includes the <a href="download_tips.html">Tecgraf/PUC-Rio Library 
+  Download Tips</a> document, with a description of all the available binaries.</p>
+
+<h3 align="left"><a name="buildlib">Building the Library</a> </h3>
+
+<p>In the Downloads you will be able to find pre-compiled binaries for many 
+platforms, all those binaries were built using Tecmake. Tecmake is a command line multi compiler build tool 
+based on GNU make, available at
+  <a target="_blank" href="http://www.tecgraf.puc-rio.br/tecmake">http://www.tecgraf.puc-rio.br/tecmake</a>. Tecmake is 
+  used by all the Tecgraf libraries and many applications.</p>
+<p>You do not need to install Tecmake, scripts for Posix and Windows systems are already included in the source code package. Just type &quot;make&quot; 
+in the command line on the main folder and all libraries and executables will be 
+build.</p>
+<p>In Linux, check the &quot;<a href="building.html">Building Lua, IM, CD and IUP in 
+Linux</a>&quot; guide.</p>
+<p>In Windows, check the &quot;<a href="buildwin.html">Building Lua, IM, CD and IUP in 
+Window</a>&quot; guide.</p>
+<p>If you decide to install Tecmake, the Tecmake configuration 
+files (*.mak) are available at the &quot;src&quot; folder, and are very easy to understand. 
+In the<b> </b>main folder, and in each source folder, there are files 
+named 
+<i>make_uname.bat</i> that build the libraries using <b>Tecmake</b>. To build 
+for Windows using Visual C 9.0 (2008) for example, just execute <i>&quot;make_uname 
+vc9&quot;</i> in the iup main folder, or for the DLLs type <i>
+&quot;make_uname dll9&quot;</i>. The Visual Studio workspaces with the respective projects 
+available in the source package is for debugging purposes only.</p>
+<p>Make sure you have all the dependencies for the library you want installed, 
+see the documentation bellow.</p>
+<p>If you are going to build all the libraries, 
+the makefiles and projects expect the following directory tree:</p>
+<pre>\mylibs\
+        cd\
+        im\
+        lua5.1\</pre>
+<p>To control that location set the TECTOOLS_HOME environment variable to the 
+folder were the IM and Lua libraries are installed.</p>
+<h4>Libraries Dependencies</h4>
+<pre>cd -&gt; <strong><span class="style2">FreeType</span></strong> -&gt; <span class="style2"><strong>zlib</strong></span> (included as separate libraries)
+<em>   cdwin*</em> -&gt; <strong><span class="style4">gdi32</span></strong> <strong><span class="style4">user32</span></strong> <strong><span class="style4">comdlg32</span></strong> (system - Windows)
+<em>   cdx11*</em> -&gt; <strong><span class="style4">X11</span></strong> (system - UNIX)
+          -&gt; <span class="style4"><strong>fontconfig</strong></span> (system - Linux)
+<em>   </em><em>cdgdk+cdcairo*</em> -&gt; <strong><span class="style1">gdk-win32-2.0/gdk-3 pangowin32-1.0</span></strong>(system - Windows)
+<em>   </em>       -&gt; <strong><span class="style1">gdk-x11-2.0/gdk-3</span></strong> <strong><span class="style1">pangox-1.0 </span></strong>(system - UNIX)
+          -&gt; <span class="style1"><strong>cairo </strong></span><strong><span class="style1">gdk_pixbuf-2.0 pango-1.0 gobject-2.0</span></strong> <strong><span class="style1">gmodule-2.0 glib-2.0</span></strong> (system - Windows/UNIX)
+<em>cdgdiplus*</em> -&gt; cd
+          -&gt; <strong><span class="style4">gdiplus</span></strong> (system - Windows)
+<em>cdxrender*</em> -&gt; cd
+          -&gt; <strong><span class="style4">Xrender</span></strong> <strong><span class="style4">Xft</span></strong> (system - UNIX)
+cdcairo  -&gt; <span class="style1"><strong>pangocairo-1.0 cairo</strong></span> (system - Windows/UNIX)
+cdpdf    -&gt; <strong><span class="style2">pdflib </span></strong>-&gt;<strong><span class="style2"> zlib</span></strong> (included as separate libraries)
+<em>cd</em>gl     -&gt; <span class="style1">opengl32</span> (system - Windows)
+         -&gt; <span class="style1">GL</span> (system - UNIX)
+         -&gt; <strong><span class="style2">ftgl</span></strong> (included as separate library)
+cdlua51  -&gt; cd
+         -&gt; <strong><span class="style3">lua5.1</span></strong>
+cdluacontextplus -&gt; cdlua51
+                 -&gt; cdcontextplus
+cdluaim51 -&gt; cdlua51
+          -&gt; <strong><span class="style3">imlua51</span></strong> 
+cdluapdf51 -&gt; cdlua51
+           -&gt; cdpdf
+cdluagl51 -&gt; cdlua51
+          -&gt; cdgl
+
+(*) In Windows, &quot;<strong>cdwin</strong>&quot; is called &quot;<strong>cd</strong>&quot;, &quot;<strong>cdgdiplus</strong>&quot; is called &quot;<strong>cdcontextplus</strong>&quot;. 
+    In Linux and BSD &quot;<strong>cdgdk+cdcairo</strong>&quot; is called &quot;<strong>cd</strong>&quot;, &quot;<strong>cdxrender</strong>&quot; is called &quot;<strong>cdcontextplus</strong>&quot;. 
+    In IRIX, AIX and SunOS &quot;<strong>cdx11</strong>&quot; is called &quot;<strong>cd</strong>&quot;, &quot;<strong>cdxrender</strong>&quot; is called &quot;<strong>cdcontextplus</strong>&quot;.</pre>
+
+<p>As a general rule (excluding system dependencies and included third party 
+libraries): CD has NO external dependencies, and CDLua depends on Lua and IMLua. 
+Just notice that not all CDLua libraries depend on IMLua.</p>
+<p>The Lua bindings for IUP, CD and IM (Makefiles and Pre-compiled binaries) 
+depend on the <a href="http://luabinaries.luaforge.net/">LuaBinaries</a> 
+distribution. So if you are going to build from source, then use the <strong>LuaBinaries</strong> 
+source package also, not the <strong>Lua.org</strong> original source package. 
+If you like to use another location for the Lua files define LUA_SUFFIX, LUA_INC, 
+LUA_LIB and LUA_BIN before using Tecmake.</p>
+<p>To build the driver with GTK 3.x support define USE_GTK3=Yes before calling 
+make in the &quot;cd/src&quot; folder. Just the main library must be rebuilt. </p>
+<p>In Ubuntu you will need to install the following packages:</p>
+<pre>libfreetype6-dev
+libgl1-mesa-dev and libglu1-mesa-dev (for the ftgl library used by CD_GL)
+libgtk2.0-dev (for the GDK driver)
+or
+libgtk3.0-dev (for the GTK driver)
+  libx11-dev (for the X11 driver, OPTIONAL)
+  libxpm-dev (&quot;)
+  libxmu-dev (&quot;) 
+  libxft-dev (for the XRender driver, OPTIONAL)</pre>
+
+<h3><a name="Environment">Environment Variables</a></h3>
+
+  <p><font face="Courier New"><b>CDDIR</b></font> - This environment variable is used by some drivers to locate useful 
+  data files, such as font definition files. It contains the directory path without the final slash.<br>
+  <font face="Courier New"><b>CD_QUIET</b></font> - In UNIX, if this variable is defined, it does not show the library's 
+  version info on <em>sdtout</em>.<br>
+  <font face="Courier New"><b>CD_</b></font><b><font face="Courier New">XERROR</font></b> - In UNIX, if this variable is 
+  defined, it will show the X-Windows error messages on <em>sdterr</em>.</p>
+
+<h3><a name="NewDriver">Implementing a Driver</a></h3>
+
+  <p>The best way to implement a new driver is based on an existing one. For this reason, we provide 
+  a code of the 
+  simplest driver possible, see <a href="../download/cdxx.h">CDXX.H</a> and <a href="../download/cdxx.c">CDXX.C</a>. 
+  But first you should read the <a href="internal.html">Internal Architecture</a>.</p>
+
+<h3><a name="Play">Intercepting Primitives</a></h3>
+
+  <p>To fill data structures of library primitives during a <font face="Courier New">cdPlay</font> call you must 
+  implement a driver and activate it before calling <font face="Courier New">cdPlay</font>. Inside your driver 
+  primitives you can fill your data structure with the information interpreted by the <font face="Courier New">cdPlay</font> 
+  function.</p>
+
+<h3><a name="IUP">IUP Compatibility</a></h3>
+
+  <p>The <strong>IupCanvas</strong> element of the <a target="_blank" href="http://www.tecgraf.puc-rio.br/iup/">IUP</a> 
+  interface toolkit can be used as a visualization surface for a CD canvas. There are two moments in which one must be 
+  careful when an application is using both libraries: when creating the CD canvas, and when changing the size of the 
+  IUP canvas.</p>
+  <h4>Creating the CD Canvas</h4>
+  
+    <p>The CD_IUP driver parameter needs only the Ihandle* of the <strong>
+	IupCanvas</strong>. But <strong>cdCreateCanvas</strong> must be called <u>after</u> the <strong>IupCanvas</strong> element has been 
+    mapped into the native system.</p>
+    <p>But a call to <strong>IupShow</strong> generates an ACTION callback. And a 
+	direct call to <strong>IupMap</strong> can generate a RESIZE_CB callback.&nbsp; </p>
+    <p>So the best way to create a CD canvas for a IUP canvas is to use the
+	<strong>IupCanvas</strong> MAP_CB callback. This callback will be always called before 
+	any other callback.</p>
+    
+    <p>The application must be linked with the <strong>iupcd</strong> 
+    library that it is available in the IUP package.</p>
+  
+  <h4>Resizing the IUP Canvas</h4>
+  
+    <p>When a IupCanvas is resized the CD canvas must be notified of the size 
+	change. To do that simply call <strong>cdCanvasActivate</strong> in the 
+	RESIZE_CB callback.</p>
+  
+
+
+</body>
+
+</html>

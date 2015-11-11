@@ -1,0 +1,77 @@
+--
+-- demo\rosetta\Window_creation.exw
+-- ================================
+--
+-- Author Pete Lomax, November 2015
+--
+-- Note: these (probably) won't work when run from this file. They are copies of 
+--  code I got working in ../.. and at least for me are far more useful like that.
+--
+
+abort(0)
+
+
+--Arwen  
+include demo\arwen\arwen.ew
+ 
+constant main = create(Window, "ARWEN window", 0, 0,100,100,640,480,{0,0})
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+    if msg=WM_CHAR
+      and wParam=VK_ESCAPE then
+        closeWindow(main)
+        if id or object(lParam) then end if -- suppress warnings
+    end if
+    return 0
+end function
+setHandler({main},routine_id("mainHandler"))
+ 
+WinMain(main, SW_NORMAL)
+
+abort(0)
+
+
+--tinEWG
+include demo\tinEWGdemo\tinewg.ew
+
+WindowType = StandardWin
+{} = Window("HangMan",100,100,300,200)
+
+procedure KeyPressed()
+    if Event=Key and EventItem=KEY_ESCAPE then
+        CloseApp(0)
+    end if
+end procedure
+SetHandler(WinHwnd,Key,routine_id("KeyPressed"))
+
+WinMain()
+
+abort(0)
+
+
+--IUP  Note there is a new version out (10/2015) that I haven't got working just yet.
+{} = chdir("demo\\pIUP")
+include demo\pIUP\iup.e
+
+function OnEntryKey(Ihandle ih, object key)
+    if ih then end if
+    if key = 141 then   -- escape (??!)
+        return IUP_CLOSE
+    end if
+    return IUP_CONTINUE
+end function
+
+{} = IupOpen()
+
+Ihandle hIupCanvas = IupCanvas()
+IupSetAttributes(hIupCanvas, "RASTERSIZE=400x400")
+Ihandle hDialog = IupDialog(hIupCanvas)
+IupStoreAttribute(hDialog, "TITLE", "IUP demo")
+IupSetCallback(hDialog, "K_ANY", routine_id("OnEntryKey"))
+{} = IupShow(hDialog)
+
+IupMainLoop()
+IupClose()
+
+abort(0)
+

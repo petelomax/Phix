@@ -141,6 +141,7 @@ end function
 -- Allocate n bytes of memory and return the address.
 -- Free the memory using free() below.
 
+--/* Not Phix (DEV)
 public function allocate_data(positive_int n, integer cleanup = 0)
     if cleanup then
 --DEV ...
@@ -152,6 +153,7 @@ public function allocate_data(positive_int n, integer cleanup = 0)
         return machine_func(M_ALLOC, n)
     end if
 end function
+--*/
 
 -- Internal use of the library only.  free() calls this.  It works with
 -- only atoms and in the SAFE implementation is different.

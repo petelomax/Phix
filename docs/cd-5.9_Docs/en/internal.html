@@ -1,0 +1,207 @@
+<html>
+
+<head>
+<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+<title>Internal Architecture</title>
+<link rel="stylesheet" type="text/css" href="../style.css">
+</head>
+
+<body>
+
+<h2>Internal Architecture</h2>
+
+<h3>Modularity</h3>
+
+
+  <p>Apart from the several drivers, the CD library is composed of a few modules, the public
+  header files <b>cd.h</b> and <b>wd.h</b>, those which implement the functions
+  independently from drivers,<b> cd*.c</b> and <b>wd.c</b>, and the header file <b>cd_private.h</b>,
+  apart from some other modules which implement non-exported specific functions. Such
+  modules are totally independent from the implemented drivers, as well as every driver
+  independs from one another, unless there is an intentional dependency.</p>
+
+
+<h3>Linking</h3>
+
+
+  <p>Since the drivers independ from one another, we could create a library for each of
+  them. For the drivers provided with CD it was easy to include them in their own library,
+  thus simplifying the application's linking process. Note: Internally, the drivers are
+  called &quot;context&quot;.</p>
+  <p>In order to establish this dependency, when creating a canvas in a given driver the
+  user must specify the driver to be used. This specification is done by means of a macro
+  which is actually a function with no parameter, which passes the function table from that
+  driver to the canvas creation function. For instance:</p>
+  
+    <pre><b>CD_PS</b> <em>(is in fact)</em> cdContextPS()
+cdCreateCanvas(<b>CD_PS</b>, &quot;teste.ps&quot;); <em>(will do)</em> canvas-&gt;<b>Line</b> = context-&gt;<b>Line</b></pre>
+<p>If the context function is not invoqued then that driver does not need to be 
+linked with the application. This is usefull if the application uses a custom 
+build of the CD library and usefull for additional drivers not included in the 
+main library, like IUP and PDF, that have external dependencies.</p>
+  
+
+
+<h3>Structures</h3>
+
+
+  <p>The core implementation defines the structures declared in the cd.h header. 
+  But declares an undefined structure called cdCtxCanvas. This structure is 
+  defined in each driver according to their needs. But the first member of this 
+  structure must be a pointer to the cdCanvas structure.</p>
+  <p>The drivers need not to implement all functions from the function table, 
+  only a few are required.</p>
+  <p>Here is the definition of the cdContext and cdCanvas structures:&nbsp; </p>
+  <table BORDER="1" CELLPADDING="5">
+    <tr>
+      <td><pre>struct <b>_cdContext
+</b>{
+  unsigned long caps;
+
+  /* can NOT be NULL */
+  void (*CreateCanvas)(cdCanvas* canvas, void *data);
+  void (*InitTable)(cdCanvas* canvas);
+
+  /* can be NULL */
+  int (*Play)(cdCanvas* canvas, int xmin, int xmax, int ymin, int ymax, void *data); 
+  int (*RegisterCallback)(int cb, cdCallback func);
+};</pre>
+      </td>
+    </tr>
+    <tr>
+      <td><pre>struct <b>_cdCanvas
+</b>{
+&nbsp; ...
+&nbsp; void (*Line)(cdCtxCanvas* ctxcanvas, int x1, int y1, int x2, int y2);
+&nbsp; void (*Rect)(cdCtxCanvas* ctxcanvas, int xmin, int xmax, int ymin, int ymax);
+&nbsp; void (*Box)(cdCtxCanvas* ctxcanvas, int xmin, int xmax, int ymin, int ymax);
+&nbsp; ...
+
+&nbsp; ...
+&nbsp; int mark_type, mark_size;
+&nbsp; int line_style, line_width;
+&nbsp; int interior_style, hatch_style;
+&nbsp; ...
+
+  cdVectorFont* vector_font;
+  cdSimulation* simulation;
+  cdCtxCanvas* ctxcanvas;     // context dependent defintion
+  cdContext* context;
+};</pre>
+      </td>
+    </tr>
+  </table>
+
+
+
+  <p>Internally each driver defines its cdCtxCanvas strcuture:</p>
+<pre>struct _cdCtxCanvas 
+{
+  cdCanvas* canvas;
+
+  char* filename; 
+
+  int last_line_style;
+  int last_fill_mode;
+  FILE* file;
+};</pre>
+<p>Then it must implement the cdcreatecanvas and cdinittable functions:</p>
+<pre>/* In the driver implementation file */
+
+static void cdcreatecanvas(cdCanvas *canvas, void *data)
+{
+  cdCtxCanvas* ctxcanvas = (cdCtxCanvas *)malloc(sizeof(cdCtxCanvas));
+
+  // parse data parameters
+  ...
+
+  ctxcanvas-&gt;canvas = canvas;
+  canvas-&gt;ctxcanvas = ctxcanvas;
+
+  /* update canvas context */
+  canvas-&gt;w = (int)(w_mm * res);
+  canvas-&gt;h = (int)(h_mm * res);
+  canvas-&gt;w_mm = w_mm;
+  canvas-&gt;h_mm = h_mm;
+  canvas-&gt;bpp = 24;
+  canvas-&gt;xres = res;
+  canvas-&gt;yres = res;
+}
+
+static void cdinittable(cdCanvas* canvas)
+{
+  canvas-&gt;Flush = cdflush;
+  canvas-&gt;Clear = cdclear;
+  canvas-&gt;Pixel = cdpixel;
+  canvas-&gt;Line = cdline;
+  canvas-&gt;Poly = cdpoly;
+  ...
+ }
+
+static cdContext cdMetafileContext =
+{
+  CD_CAP_ALL &amp; ~(CD_CAP_GETIMAGERGB|CD_CAP_IMAGESRV|CD_CAP_REGION|CD_CAP_FONTDIM|CD_CAP_TEXTSIZE),
+  cdcreatecanvas,
+  cdinittable,
+  cdplay,
+  cdregistercallback,
+};
+
+cdContext* cdContextMetafile(void)
+{
+  return &amp;cdMetafileContext;
+}</pre>
+<p>To simplify driver administration, the context structure's linking is done as follows:</p>
+  
+    <pre>/* In the header file */
+#define <b>CD_METAFILE</b> <b><i>cdContextMetafile()
+</i>cdContext</b>* <b><i>cdContextMetafile</i></b>(void)
+</pre>
+  
+
+
+
+<h3>Attributes</h3>
+
+
+  <p>The query mechanism of an attribute is done in the core and does not
+  depends on the driver. Due to this fact, the attributes which are modified several times for the same
+  value are not updated in the drivers, thus saving processing. Similarly, if an attribute
+  modification in a driver was not successful, its value is not updated. Nevertheless, the
+  fact that a driver does not implement the attribute's modification function does not mean
+  that it rejects that attribute - the driver just does not need to do anything with this
+  attribute on that moment and will query it later, before drawing the primitive.</p>
+  <p>The creation of customized attributes for each driver is made generically, using
+  string-like attributes. A structure with the attribute's name and its <em>set</em> and <em>get</em>
+  functions must be declared, as in the example below:</p>
+  
+    <pre>static void set_fill_attrib(cdCtxCanvas* ctxcanvas, char* data)
+{
+  ctxcanvas-&gt;fill_attrib[0] = data[0];
+}
+
+static char* get_fill_attrib(cdCtxCanvas* ctxcanvas)
+{
+  return ctxcanvas-&gt;fill_attrib;
+}
+
+static cdAttribute fill_attrib =
+{
+  &quot;SIMPENFILLPOLY&quot;,
+  set_fill_attrib,
+  get_fill_attrib
+}; </pre>
+  
+  <p>At <em>createcanvas</em> in the driver: </p>
+  
+    <pre>ctxcanvas-&gt;fill_attrib[0] = '1';
+ctxcanvas-&gt;fill_attrib[1] = 0;
+
+cdRegisterAttribute(canvas, &amp;fill_attrib);</pre>
+  
+  <p>, for instance, must exist, thus initializing the attribute and registering it in the
+  canvas' attribute list.</p>
+
+
+</body>
+</html>

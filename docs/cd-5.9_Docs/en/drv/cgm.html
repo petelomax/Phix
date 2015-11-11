@@ -1,0 +1,192 @@
+
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>CD_CGM</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+</head>
+
+<body>
+
+<h2 style="text-align: left">CD_CGM - <em>Computer Graphics Metafile Driver </em>(cdcgm.h)</h2>
+
+  <p>This driver allows generating a Computer Graphics Metafile version 1, which is an ANSI standard for the persistent storage of 
+  graphics primitives. The file usually has an extension .CGM.</p>
+
+<h3>Use</h3>
+
+  <p>The file file is created by means of a call to the function <font face="Courier">
+  <a href="../func/init.html#cdCreateCanvas"><strong>cdCreateCanvas</strong></a>(CD_CGM, 
+  Data)</font>, which <b>opens</b> the file and writes its header. Then, other functions in the CD library can be called 
+  as usual. The <font face="Courier">Data</font> parameter string has the following format:</p>
+  
+    <pre><em>&quot;filename [width_mmxheight_mm] [resolution] [-t] [-pprec] -d[description]&quot; or in C style &quot;<strong><tt>%s %gx%g %g %s</tt></strong>&quot;</em></pre>
+  
+  <p>Only the parameter <font face="Courier">filename</font> is required. The filename must be inside double quotes (&quot;) 
+  if it has spaces.<font face="Courier"> width_mm</font> and <font face="Courier">height_mm</font> are provided in millimeters 
+  (note the lowercase &quot;x&quot; between them), and their default value in pixels is <font face="Courier">INT_MAX</font> for 
+  both dimensions. The resolution is the number of pixels per millimeter; its default value is &quot;3.78 pixels/mm&quot; (96 DPI).
+  <font face="Courier">Width</font>, <font face="Courier">height</font> and <font face="Courier">resolution</font> are 
+  real values. <font face="Courier">width_mm</font>, <font face="Courier">height_mm</font> and <font face="Courier">resolution</font> 
+  are used only by <strong><font face="Courier">cdGetCanvasSize</font> </strong>and in pixel-millimeter conversion. 
+  Parameter <font face="Courier">-t</font> modifies the codification. Parameter <font face="Courier">-p</font> specifies 
+  the precision which can be &quot;16&quot; bits integer (default), &quot;32&quot; bits (integer), 
+  &quot;F&quot; (float) or &quot;D&quot; (double). Parameter <font face="Courier">-d</font> 
+  specifies a description, must be the last parameter&nbsp; (since 5.6).</p>
+  <p>Any amount of such canvases may exist simultaneously. It is important to note that a call to function
+  <a href="../func/init.html#cdKillCanvas"><font face="Courier"><strong>
+  cdKillCanvas</strong></font></a> is required to <b>close</b> the file properly.</p>
+  <p><strong>Coding -</strong> The CGM format supports binary and text encoding. If you are not sure what to do, use 
+  binary encoding, which is the default. Should you prefer text coding, add a &quot;<font face="Courier">-t</font>&quot; string to 
+  the <font face="Courier">Data</font> parameter.</p>
+  <p><strong>Precision of Coordinates -</strong> The primitives can use 
+  coordinates in real numbers. But to be effective the parameters &quot;-pF&quot; or &quot;-pD&quot; 
+  must be used when creating the canvas (since 5.6).</p>
+
+<h3>Behavior of Functions</h3>
+<h4>Control&nbsp; </h4>
+<ul>
+  <li><a href="../func/control.html#cdClear"><font face="Courier"><strong>Clear</strong></font></a>: 
+  does nothing.</li>
+  <li><a href="../func/control.html#cdFlush"><font face="Courier"><strong>Flush</strong></font></a>: 
+  creates a new picture. The CGM format supports multiple picture in the file.</li>
+  <li><a href="../func/other.html#cdPlay"><font face="Courier"><strong>Play</strong></font></a>: 
+  works with files created with text or binary coding. There are several callbacks for this driver. If one of the 
+  callbacks returns a value different from zero, <font face="Courier">cdPlay</font>'s processing is interrupted. The 
+  driver implements the callback <tt><strong><font face="Courier">CD_SIZECB</font> </strong></tt>and other callbacks 
+  associated to CGM:<ul>
+	  <li><tt><font face="Courier"><strong>CD_COUNTERCB</strong></font> - int(*cdcgmcountercb)(cdCanvas* canvas, double 
+  percent) - </tt>Executed for each header of CGM commands; returns the percentage (0-100%) of headers read.</li>
+	  <li><font face="Times New Roman"><code><strong>
+	  <span style="font-family: Courier">CD_SCLMDECB</span></strong></code></font><tt> - int(*cdcgmsclmdecb)(cdCanvas* canvas, short scl_mde, short *drw_mode, double *factor)</tt>
+	  <font face="Courier">-</font> 
+  Executed for the command CGM SCALE MODE. Returns the current CGM scale mode 
+  and allows the callback to modify the scale mode used internally 
+	  <font face="Courier">(ABSTRACT=0, METRIC=1)</font>. 
+  You can choose the 
+  METRIC or ABSTRACT scale mode, but if the original scale mode is METRIC, then you must provide the conversion factor in mm per 
+  pixel.</li>
+	  <li><font face="Times New Roman"><code><strong>
+	  <span style="font-family: Courier">CD_VDCEXTCB</span></strong></code></font><tt> - int(*cdcgmvdcextcb)(cdCanvas* canvas, short type, double *first_x, double *first_y, double *second_x, 
+	  double *second_y)</tt> <font face="Courier">-</font> Executed for the 
+  CGM command CGM VDC EXTENT, returns the VDC SPACE. Currently type is always 1.</li>
+	  <li><font face="Times New Roman"><code><strong>
+	  <span style="font-family: Courier">CD_BEGPICTCB</span></strong></code></font><tt> - int(*cdcgmbegpictcb)(cdCanvas* canvas, char *pict)</tt> <font face="Courier">-</font> Executed for the command BEGIN PICTURE, returns the string 
+  that describes the image.</li>
+	  <li><font face="Times New Roman"><code><strong>
+	  <span style="font-family: Courier">CD_BEGPICTBCB</span></strong></code></font><tt> - int(*cdcgmbegpictbcb)(cdCanvas* canvas)</tt> <font face="Courier">-</font> Executed for the command BEGIN PICTURE BODY.</li>
+	  <li><font face="Times New Roman"><code><strong>
+	  <span style="font-family: Courier">CD_CGMBEGMTFCB</span></strong></code></font> - 
+	  <font face="Times New Roman"><code>int (*cdcgmbegmtfcb)(cdCanvas* canvas, int *xmin, int *ymin, int *xmax, int *ymax)</code></font> - Executed for the 
+  command BEGIN METAFILE, provides the drawing limits of the image in the file. 
+  These are the same parameters passed to <strong>cdCanvasPlay</strong>.</li>
+  </ul>
+	</li>
+</ul>
+<h4>Coordinate System and Clipping</h4>
+<ul>
+  <li><a href="../func/coordinates.html#cdUpdateYAxis"><font face="Courier">
+  <strong>UpdateYAxis</strong></font></a>: does nothing. The axis orientation is the same as the CD library.</li>
+  <li><b>Complex Regions</b>: not supported.</li>
+  <li><strong>Transformation Matrix</strong>: not supported.</li>
+</ul>
+<h4>Primitives</h4>
+<ul>
+  <li><a href="../func/lines.html#cdBegin"><font face="Courier"><strong>Begin</strong></font></a>: 
+  if parameter <strong><tt>CD_CLIP</tt></strong> is specified, does nothing.<strong><tt>
+  CD_BEZIER</tt></strong> and <strong><tt>CD_PATH</tt></strong> 
+	are simulated with lines.</li>
+  <li><font face="Courier"><strong><a href="../func/marks.html#cdPixel">Pixel</a></strong></font>: 
+  does not exist in CGM, is simulated using a mark with size 1.</li>
+  <li>Floating point primitives are supported. But to be effective the 
+  parameters &quot;-pF&quot; or &quot;-pD&quot; must be used when creating the canvas.</li>
+</ul>
+<h4>Attributes </h4>
+<ul>
+  <li><a href="../func/attributes.html#cdWriteMode"><font face="Courier">
+  <strong>
+  WriteMode</strong></font></a>: does nothing, returns <font face="Courier">CD_REPLACE</font>.</li>
+  <li><a href="../func/text.html#cdFontDim"><font face="Courier"><strong>FontDim</strong></font></a>: 
+  is simulated.</li>
+  <li><a href="../func/filled.html#cdFillMode"><font face="Courier"><strong>
+  FillMode</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdLineCap"><font face="Courier"><strong>
+  LineCap</strong></font></a>: does nothing.</li>
+  <li><a href="../func/filled.html#cdLineJoin"><font face="Courier"><strong>
+  LineJoin</strong></font></a>: does nothing.</li>
+  <li><a href="../func/text.html#cdTextSize"><font face="Courier"><strong>
+  TextSize</strong></font></a>: is simulated.</li>
+  <li><a href="../func/text.html#cdFont"><font face="Courier"><strong>Font</strong></font></a>: 
+  see the table bellow for the generated font names. No other fonts are 
+  supported.</li>
+</ul>
+<div align="center">
+  <center>
+  <table border="1" cellpadding="5">
+    <caption style="text-align: center"><font size="4">Font Mapping</font></caption>
+    <tr>
+      <th rowspan="2">CD Fonts</th>
+      <th colspan="4">Generated Font Names</th>
+    </tr>
+    <tr>
+      <th>CD_PLAIN</th>
+      <th>CD_BOLD</th>
+      <th>CD_ITALIC</th>
+      <th>CD_BOLD|CD_ITALIC</th>
+    </tr>
+    <tr>
+      <td>&quot;System&quot;</td>
+      <td>&quot;SYSTEM&quot;</td>
+      <td>&quot;SYSTEM_BOLD&quot;</td>
+      <td>&quot;SYSTEM_ITALIC&quot;</td>
+      <td>&quot;SYSTEM_BOLDITALIC&quot;</td>
+    </tr>
+    <tr>
+      <td>&quot;Courier&quot;</td>
+      <td>&quot;COURIER&quot; </td>
+      <td>&quot;COURIER_BOLD&quot; </td>
+      <td>&quot;COURIER_ITALIC&quot; </td>
+      <td>&quot;COURIER_BOLDITALIC&quot;</td>
+    </tr>
+    <tr>
+      <td>&quot;Times&quot;</td>
+      <td>&quot;TIMES_ROMAN&quot; </td>
+      <td>&quot;TIMES_ROMAN_BOLD&quot;</td>
+      <td>&quot;TIMES_ROMAN_ITALIC&quot;</td>
+      <td>&quot;TIMES_ROMAN_BOLDITALIC&quot; </td>
+    </tr>
+    <tr>
+      <td>&quot;Helvetica&quot;</td>
+      <td>&quot;HELVETICA&quot; </td>
+      <td>&quot;HELVETICA_BOLD&quot;</td>
+      <td>&quot;HELVETICA_ITALIC&quot;</td>
+      <td>&quot;HELVETICA_BOLDITALIC&quot;</td>
+    </tr>
+  </table>
+  </center>
+</div>
+<h4>Colors </h4>
+<ul>
+  <li><a href="../func/color.html#cdGetColorPlanes"><font face="Courier">
+  <strong>
+  GetColorPlanes</strong></font></a>: returns 24.</li>
+  <li><a href="../func/color.html#cdPalette"><font face="Courier"><strong>Palette</strong></font></a>: 
+  does nothing. </li>
+</ul>
+<h4>Client Images&nbsp; </h4>
+<ul>
+  <li><a href="../func/client.html#cdGetImageRGB"><font face="Courier"><strong>
+  GetImageRGB</strong></font></a>: does nothing.</li>
+  <li><a href="../func/client.html#cdPutImageRGBA"><font face="Courier"><strong>
+  PutImageRGBA</strong></font></a>: alpha is ignored.</li>
+</ul>
+<h4>Server Images</h4>
+<ul>
+  <li>All functions do nothing.</li>
+</ul>
+
+</body>
+
+</html>

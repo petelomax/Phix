@@ -238,7 +238,7 @@ function get_number()
 integer sign, e_sign
 integer ndigits
 integer hex_digit
-atom mantissa, dec, e_mag
+atom mantissa, fraction, dec, e_mag
 
     sign = +1
     mantissa = 0
@@ -282,13 +282,15 @@ atom mantissa, dec, e_mag
     if ch='.' then
         -- get fraction
         get_ch()
-        dec = 10
+        dec = 1
+        fraction = 0
         while ch>='0' and ch<='9' do
             ndigits += 1
-            mantissa += (ch-'0')/dec
+            fraction = fraction*10 + ch-'0'
             dec *= 10
             get_ch()
         end while
+        mantissa += fraction/dec
     end if
 
     if ndigits=0 then

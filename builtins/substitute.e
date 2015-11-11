@@ -28,3 +28,9 @@ sequence chunks = {}
     return text
 end function
 
+global function substitute_all(string text, sequence strings, sequence replacements)
+    for i=1 to length(strings) do
+        text = substitute(text,strings[i],replacements[i])
+    end for
+    return text
+end function

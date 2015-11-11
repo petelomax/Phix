@@ -61,6 +61,14 @@ Version 0.6.7
             want to make builtins\timedate.e an auto-include, or anything 
             else with user defined types.
 28/09/2015  BUGFIX: switch lower(ch) do needed a saveFunctionResultVars().
+20/10/2015  BUGFIX: sprintf("%g",1e-14) was yielding "1e-15"!! Trivial fix, 
+            once spotted. The problem was that it starts printing 9.9999e-15,
+            as we expect, then round() does what it should, namely convert
+            that "9.9999" to 10!0000 and trim, except the replaced '!' was 
+            also discarded, so the caller (sprintf2 in pprntfN.e) did not 
+            know to exp += 1. It now keeps the trailing '!', which sprintf2 
+            was already getting rid of properly anyway.
+
 
 Version 0.6.6
 =============
