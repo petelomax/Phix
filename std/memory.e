@@ -157,6 +157,7 @@ end function
 
 -- Internal use of the library only.  free() calls this.  It works with
 -- only atoms and in the SAFE implementation is different.
+--/*
 export procedure deallocate(atom addr)
     ifdef DATA_EXECUTE and WINDOWS then
         if dep_works() then
@@ -167,7 +168,7 @@ export procedure deallocate(atom addr)
     machine_proc(M_FREE, addr)
 end procedure
 FREE_RID = routine_id("deallocate")
-
+--*/
 
 --****
 -- === Reading from, Writing to, and Calling into Memory
@@ -966,6 +967,7 @@ end function
 
 export atom VirtualFree_rid
 
+--/*
 public procedure free_code( atom addr, integer size, valid_wordsize wordsize = 1 )
     ifdef WIN32 then
         if dep_works() then
@@ -977,3 +979,4 @@ public procedure free_code( atom addr, integer size, valid_wordsize wordsize = 1
         machine_proc(M_FREE,addr)
     end ifdef
 end procedure
+--*/

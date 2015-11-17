@@ -6,6 +6,7 @@
 -- <<LEVELTOC depth=2>>
 
 namespace io
+--/**/ **NOT PHIX COMPATIBLE!!**
 
 public enum
     BINARY_MODE,
@@ -849,9 +850,11 @@ end type
 -- See Also:
 --      [[:get_bytes]], [[:puts]], [[:where]]
 
+--/*
 public function seek(file_number fn, file_position pos)
     return machine_func(M_SEEK, {fn, pos})
 end function
+--*/
 
 --**
 -- Retrieves the current file position for an opened file or device.
@@ -874,9 +877,11 @@ end function
 -- been opened in text mode.
 --
 
+--/*
 public function where(file_number fn)
     return machine_func(M_WHERE, fn)
 end function
+--*/
 
 --**
 -- Force writing any buffered data to an open file or device.
@@ -917,9 +922,11 @@ end function
 -- See Also:
 --      [[:close]], [[:crash_routine]]
 
+--/*
 public procedure flush(file_number fn)
     machine_proc(M_FLUSH, fn)
 end procedure
+--*/
 
 --**
 -- When multiple processes can simultaneously access a
@@ -996,9 +1003,11 @@ end procedure
 -- See Also:
 --      [[:unlock_file]]
 
+--/*
 public function lock_file(file_number fn, lock_type t, byte_range r={})
     return machine_func(M_LOCK_FILE, {fn, t, r})
 end function
+--*/
 
 --**
 -- Unlock (a portion of) an open file.
@@ -1026,10 +1035,12 @@ end function
 -- See Also:
 --      [[:lock_file]]
 
+--/*
 public procedure unlock_file(file_number fn, byte_range r={})
 -- The byte range can be {} if you want to unlock the whole file.
     machine_proc(M_UNLOCK_FILE, {fn, r})
 end procedure
+--*/
 
 --****
 -- === File Reading/Writing

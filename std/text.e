@@ -2,6 +2,7 @@
 --
 namespace text
 
+--/**/ **NOT PHIX COMPATIBLE!**
 --DEV earein.e does not like this:
 --!/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
 --!/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)
@@ -19,6 +20,7 @@ namespace text
 --****
 -- === Routines
 
+--/*
 include std/filesys.e
 include std/types.e
 include std/sequence.e
@@ -29,6 +31,7 @@ include std/serialize.e
 include std/pretty.e
 include std/error.e
 include std/eds.e
+--*/
 
 --****
 -- Signature:
@@ -1121,8 +1124,7 @@ end function
 --
 
 --#withtype t_text
-public function quote(sequence text_in, object quote_pair = {"\"", "\""}, integer esc = -1,
-                t_text sp = "")
+public function quote(sequence text_in, object quote_pair = {"\"", "\""}, integer esc = -1, t_text sp = "")
     if length(text_in)=0 then
         return text_in
     end if
@@ -2001,6 +2003,7 @@ end function
 -- looks for keys in the format {"", msgnum}, and if that fails it looks for a
 -- key of just the msgnum.
 --
+--/*
 public function get_text(integer MsgNum, sequence LocalQuals = {}, sequence DBBase = "teksto")
 integer idx = 1
 integer db_res
@@ -2047,4 +2050,4 @@ object lMsgText
     return lMsgText
 
 end function
-
+--*/

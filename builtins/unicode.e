@@ -1,9 +1,4 @@
--- (c) Copyright - See License.txt
---
-namespace unicode
---/**/include builtins\unicode.e
---/*
-
+-- copy of std/unicode.e
 --****
 -- == Unicode
 --
@@ -604,5 +599,4 @@ public function toUTF( sequence input_string, integer source_encoding = utf_32, 
         return lResult[1 .. lIdx-1]
         
 end function
---*/
 

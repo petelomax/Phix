@@ -4778,75 +4778,18 @@ dbg = symtab[routineNo]
     calltokline = wascalltokline
 end procedure
 
---DEV:
---/*
-procedure DoIff()
-integer iffvar
-
---??
---if erm then
-    if exprBP!=0 then ?9/0 end if
-
-    saveIchain = Ichain
-    Ichain = -1
-
-    ctrlink = 0
-    if emitON then
-        apnds5({opCtrl,IF,0,emitline})
-        iftop = length(s5)-1    -- patched at/pointed to the end if
-        ctrlink = iftop         -- where to point next elsif/else/endif
-        if NOLT=0 or bind or lint then
-            ltCtrl(iftop)
-        end if -- NOLT
-    end if
-
-    wasSideEffects = SideEffects
-    SideEffects = E_none
-    wasEmit = emitON
-    emitElse = emitON   -- (minor optimisation [cmp vs opJcc] 18/3/09)
---end if
-
-    iffvar = newTempVar(T_object,Shared)
-    MatchString(T_iff)
-    MatchChar('(')
-    Expr(0,asBool)
---  if opTopIsOp then PopFactor() end if
-    jcc...iffvar
-    MatchChar(',')
-    Expr(0,asBool)
---  if opTopIsOp then PopFactor() end if
-    RHStype = T_object
-    if not opTopIsOp and opsidx=1 then
-        RHStype = opstype[1]
-    end if
-    StoreVar(iffvar,RHStype)
-    jmp...
-    backpatch...
-    MatchChar(',')
-    Expr(0,asBool)
-    RHStype = T_object
-    if not opTopIsOp and opsidx=1 then
-        RHStype = opstype[1]
-    end if
-    StoreVar(iffvar,RHStype)
-    MatchChar(')')
-    backpatch...
-    PushFactor(iffvar,0,T_object)
-end procedure
---*/
-
 integer exprBP      -- expression/short circuit back patch link
         exprBP = 0
 
---!/!*
 procedure DoIff()
 --
 -- Recognize and translate an "iff" construct
+-- (note: this is a rudely hacked copy of DoIf, some names/comments might still reflect that)
 --
 integer emitElse, wasEmit
 
 integer ifBP, saveIchain
-integer EndIfBP, tmp
+integer EndIfBP = 0, tmp
 
 sequence sytmp
 
@@ -4860,12 +4803,8 @@ integer wasSideEffects
 integer iftop, ctrlink, ctrltyp
 --integer scode, wasEmit2
 integer iffvar
---trace(1)
---  if opsidx then ?9/0 end if  -- leave in (outside if DEBUG then)
-    EndIfBP = 0
 
---if traceif then trace(1) end if
-    if exprBP!=0 then ?9/0 end if
+    if exprBP!=0 then ?9/0 end if   -- [we may yet have a problem with "if iff() then" [or "while iff() do"], when enough and/or/() get involved] [DEV]
 
     saveIchain = Ichain
     Ichain = -1
@@ -5006,7 +4945,6 @@ integer iffvar
     emitON = (wasEmit and emitElse)
     if exprBP!=0 then ?9/0 end if
     oktoinit = 0
---  while 1 do
 
     Expr(0,0)
 
@@ -5053,7 +4991,6 @@ integer iffvar
     PushFactor(iffvar,0,T_object)
 
 end procedure
---!*!/
 
 procedure ForwardProc(integer isFunc)
 --
@@ -9812,7 +9749,9 @@ integer rtype
                 Aborp("unrecognised")
             end if
             if isDeclaration then
-                if InTable(InTop) then Duplicate() end if
+--12/11/15...
+--              if InTable(InTop) then Duplicate() end if
+                if InTable(InVeryTop) then Duplicate() end if
             end if
             tokno = InTable(InAny)
             if tokno<=0 then

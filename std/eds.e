@@ -3,6 +3,7 @@
 --****
 -- == Euphoria Database (EDS)
 --
+--/**/ **NOT PHIX COMPATIBLE!**
 namespace eds
 
 include std/error.e

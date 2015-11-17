@@ -1880,7 +1880,7 @@ end if
     Match("}")
 end procedure
 
-procedure Params()
+procedure Params(integer asiff)
 integer wasNest -- see eg Indent()
 integer wasinexpression
     getToken()
@@ -1894,7 +1894,11 @@ integer wasinexpression
         nest = ExpLength(filetext[currfile][tokline][1..tokstart-1])+inPend()
         while Ch!=-1 do
             call_proc(rExpression,{})
-            if not equal(token,",") then exit end if
+            if asiff then
+                if not find(token,{",","?",":"}) then exit end if
+            else
+                if not equal(token,",") then exit end if
+            end if
             getToken()
             if parser_tokno=1 then Indent(0) end if
         end while
@@ -1970,7 +1974,7 @@ integer wasindentandor
             if Ch=':' then skip_namespace() end if
         end if
         if Ch='(' then  -- a function, we presume
-            Params()
+            Params(find(token,{"iff","iif"}))
         else            -- a variable, we presume
             DoSubScripts()
         end if
@@ -2408,7 +2412,7 @@ integer k
         else
             if parser_tokno=1 then Indent(isTabWidth) end if
             if Ch=':' then skip_namespace() end if
-            if Ch='(' then Params()
+            if Ch='(' then Params(0)
             else Assignment()
             end if
         end if

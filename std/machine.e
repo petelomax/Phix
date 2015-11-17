@@ -49,7 +49,8 @@ atom saved, ptr
     ptr = peek4u(pointers_array)
 
     while ptr do
-        deallocate(ptr)
+--      deallocate(ptr)
+        free(ptr)
 
         pointers_array += 4
         ptr = peek4u(pointers_array)
@@ -609,10 +610,12 @@ ifdef WIN32 then
         iaddr = c_func(VirtualAlloc_rid,
                        {0, size+BORDER_SPACE*2, or_bits(MEM_RESERVE, MEM_COMMIT), first_protection})
     else
-        iaddr = machine_func(M_ALLOC, size+BORDER_SPACE*2)
+--/**/  iaddr = allocate(size+BORDER_SPACE*2)                   --/*
+        iaddr = machine_func(M_ALLOC, size+BORDER_SPACE*2)      --*/
     end if
 elsedef
-    iaddr = machine_func(M_ALLOC, size+BORDER_SPACE*2)
+--/**/  iaddr = allocate(size+BORDER_SPACE*2)                   --/*
+    iaddr = machine_func(M_ALLOC, size+BORDER_SPACE*2)          --*/
 end ifdef
     if iaddr=0 then
         return 0

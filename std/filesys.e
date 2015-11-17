@@ -8,8 +8,9 @@
 -- <<LEVELTOC depth=2>>
 namespace filesys
 
---/**/forward global function split(sequence st, object delim=' ', integer limit=0, integer no_empty = 0)
+--!/**/forward global function split(sequence st, object delim=' ', integer limit=0, integer no_empty = 0)
 
+--/*
 include std/dll.e
 
 include std/machine.e
@@ -21,6 +22,7 @@ include std/sequence.e
 include std/types.e
 include std/text.e
 include std/io.e
+--*/
 include std/datetime.e as dt
 
 --#without reformat
@@ -28,26 +30,22 @@ ifdef UNIX then
     include std/get.e -- for disk_size()
 end ifdef
 
+--/*
 constant
     M_DIR         = 22,
-    M_CURRENT_DIR = 23
---/*
-    ,
+    M_CURRENT_DIR = 23,
     M_CHDIR       = 63
 --*/
 
 ifdef WIN32 then
     constant lib = open_dll("kernel32")
-    constant xCopyFile         = define_c_func(lib, "CopyFileA",   {C_POINTER, C_POINTER, C_BOOL},
-        C_BOOL)
+    constant xCopyFile         = define_c_func(lib, "CopyFileA",   {C_POINTER, C_POINTER, C_BOOL}, C_BOOL)
     constant xMoveFile         = define_c_func(lib, "MoveFileA",   {C_POINTER, C_POINTER}, C_BOOL)
     constant xDeleteFile       = define_c_func(lib, "DeleteFileA", {C_POINTER}, C_BOOL)
-    constant xCreateDirectory  = define_c_func(lib, "CreateDirectoryA",
-        {C_POINTER, C_POINTER}, C_BOOL)
+    constant xCreateDirectory  = define_c_func(lib, "CreateDirectoryA", {C_POINTER, C_POINTER}, C_BOOL)
     constant xRemoveDirectory  = define_c_func(lib, "RemoveDirectoryA", {C_POINTER}, C_BOOL)
     constant xGetFileAttributes = define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT) -- N.B DWORD return fails this.
-    constant xGetDiskFreeSpace = define_c_func(lib, "GetDiskFreeSpaceA",
-        {C_POINTER, C_POINTER, C_POINTER, C_POINTER, C_POINTER}, C_BOOL)
+    constant xGetDiskFreeSpace = define_c_func(lib, "GetDiskFreeSpaceA",{C_POINTER, C_POINTER, C_POINTER, C_POINTER, C_POINTER}, C_BOOL)
 
 elsifdef LINUX then
     constant lib = open_dll("")
@@ -1099,13 +1097,13 @@ end function
 -- See Also:
 --   [[:pathinfo]], [[:filebase]], [[:fileext]]
 
-public function filename(sequence path)
-sequence data
-
-    data = pathinfo(path)
-
-    return data[2]
-end function
+--  public function filename(sequence path)
+--  sequence data
+--
+--      data = pathinfo(path)
+--
+--      return data[2]
+--  end function
 
 --**
 -- Return the base filename of path.
@@ -1323,7 +1321,7 @@ public function canonical_path(sequence path_in, integer directory_given = 0)
 sequence lPath = ""
 integer lPosA = -1
 integer lPosB = -1
-integer lPosC = -1
+--integer lPosC = -1
 sequence lLevel = ""
 sequence lHome
 sequence lDrive

@@ -1400,7 +1400,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
 
     --20/8/15: (ensure shadow space and align)
     if machine_bits()=64 then
-        --DEV actually, this should be more like pHeap.e/pGetMem...
+        --DEV actually, this should be more like pHeap.e/pGetMem... (nah, this shd be fine...)
         la = length(args)
         if la<5 then
             args &= repeat(0,5-la)
@@ -1409,6 +1409,30 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
             args &= 0
             argdefs &= #01000004    -- (C_INT)
         end if
+        #ilASM{
+            [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
+--          sub rsp,8*5                             -- minimum 4 param shadow space, and align/somewhere to save rax
+--          mov [rsp+32],rax                        -- save rax (required length)
+--          call "kernel32.dll","GetProcessHeap"
+--          mov r8,[rsp+32]                         -- dwBytes (p3)
+--          mov rdx,rbx                             -- dwFlags (p2,0)
+--          mov rcx,rax                             -- hHeap (p1)
+--          call "kernel32.dll","HeapAlloc"
+--          add rsp,8*5
+--          pop rsp
+--          mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+
+            [ELF64]
+                pop al
+            []              
+              }
     end if
 
     la = length(args)

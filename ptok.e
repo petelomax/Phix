@@ -241,6 +241,8 @@ integer semicolon, sm1
     addPath(mainpath)
     alwaysactive = length(filepaths)
     activepaths = repeat(1,alwaysactive)
+--printf(1,"initFilePathSet: ")
+--?activepaths
 end procedure
 
 -- Files which should have a "Phix compatible" marker:
@@ -514,6 +516,8 @@ global integer trapline, trapcol, trapmode, trapns
             filepaths = append(filepaths,thispath)
             pathno = length(filepaths)
             activepaths = append(activepaths,length(filenames)+1)
+--printf(1,"includeFile pathno=0 case (%s): ",{file})
+--?activepaths
         else
 --          fileno = find({pathno,file},filenames)
             k = find({pathno,file},filenames)
@@ -536,7 +540,10 @@ global integer trapline, trapcol, trapmode, trapns
                 return
             end if
             if not activepaths[pathno] then
+--printf(1,"includeFile pathno!=0 case (%s): ",{file})
+--?activepaths
                 activepaths[pathno] = length(filenames)+1
+--?activepaths
             end if
         end if
 
@@ -1020,7 +1027,11 @@ integer k
     Ch = -1
     k = find(fileno,activepaths)
     if k and activepaths[k]=fileno then
+--printf(1,"eof_processing (fileno=%d): ",fileno)
+--?activepaths
         activepaths[k] = 0
+--?activepaths
+--if fileno=2 then ?9/0 end if
     end if
 end procedure
 
@@ -1153,6 +1164,8 @@ string charset, baseset
     charset['A'..'Z'] = LETTER
 --  charset['_'] = ILLEGAL  -- Specifically checked for after 1st character of LETTER
 --  charset['_'] = USCORE
+--12/11/15:
+    charset['_'] = LETTER
     charset['['] = BRACES
     charset[']'] = BRACES
     charset['a'..'z'] = LETTER
@@ -2375,6 +2388,8 @@ procedure preprocess() -- called from getToken()
 string name
 integer wasline, wascol
 integer wasmapEndToMinusOne
+--12/11/15: (either this or use a flag to switch off eof_processing)
+sequence was_activepaths = activepaths
 
 --trace(1)
     wascol = col
@@ -2415,6 +2430,8 @@ integer wasmapEndToMinusOne
     col = wascol
     line = wasline
     Ch = ' '
+--12/11/15:
+    activepaths = was_activepaths
 
 end procedure
 --r_preprocess = routine_id("preprocess")

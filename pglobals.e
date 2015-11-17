@@ -903,7 +903,6 @@ constant default_rs_manifest =
  "</trustInfo>\r\n"&
 "</assembly>\r\n"
 --/*
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?> 
   <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"> 
     <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1"> 
       <application> 
@@ -926,29 +925,12 @@ constant default_rs_manifest =
 --*/
 --/*
 : from http://stackoverflow.com/questions/20096706/how-does-windows-decide-whether-to-display-the-uac-prompt :
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"> 
  <assemblyIdentity version="1.0.0.0" processorArchitecture="X86" name="client" type="win32"/> 
  <description>Update checker</description> 
- <!-- Run as standard user. Disable file and registry virtualization -->
- <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
-  <security>
-   <requestedPrivileges>
-    <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
-   </requestedPrivileges>
-  </security>
- </trustInfo>
 </assembly>
 :and from a gamer site:
-<?xml version="1.0" encoding="utf-8"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
- <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
-  <security>
-   <requestedPrivileges>
-    <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
-   </requestedPrivileges>
-  </security>
- </trustInfo>
  <dependency>
   <dependentAssembly>
    <assemblyIdentity type="win32" name="Microsoft.VC90.CRT" version="9.0.21022.8" processorArchitecture="x86" publicKeyToken="1fc8b3b9a1e18e3b" />
@@ -956,16 +938,18 @@ constant default_rs_manifest =
  </dependency>
 </assembly>
 :and from codeproject:
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
- <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
-  <security>
-   <requestedPrivileges>
-    <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
-   </requestedPrivileges>
-  </security>
- </trustInfo>
 </assembly>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity type="win32"
+                    name="AutoLogon"
+                    version="1.0.0.0"
+                    processorArchitecture="X86" />
+  <description>
+    Auto logon tool
+  </description>
+</assembly>
+ 
 --*/
 global sequence rs_manifest
                 rs_manifest = default_rs_manifest

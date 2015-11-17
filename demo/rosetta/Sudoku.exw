@@ -1,0 +1,174 @@
+--
+-- demo\rosetta\Sudoku.exw
+-- =======================
+--
+-- Author Pete Lomax, November 2015
+--
+-- Resizable, with automatic font and line width scaling.
+-- Selection by mouse or keyboard. Constants for easy modification.
+
+include ..\arwen\arwen.ew
+include ..\arwen\axtra.ew
+
+sequence board = split("""
+  4 5  6 
+ 6 1  8 9
+3    7   
+ 8    5  
+   4 3   
+  6    7 
+   2    6
+1 5  4 3 
+ 2  7 1  
+""",'\n')
+
+constant N = 5, -- columns
+         M = 4, -- rows
+--       cLetter = Yellow,  -- initial colour(!)
+--       cChosen = Purple,
+--       cPlayr2 = Purple,  -- (2 player if!=c_Chosen)
+--       cHover  = White,
+--       cLines  = Black,
+--       cSelect = Black,   -- (text/list of selected letters)
+         cBackgnd = #EFF8FA,
+         letters = shuffle("ABCDEFGHIJKLMNOPQRSTUVWXYZ")[1..N*M]
+sequence fonts  -- list of {width,handle}, see set_font()
+string chosen = ""
+
+constant main = create(Window, "honeycomb", 0, 0, 20, 20, 520, 540, 0),
+         mainDC = getPrivateDC(main),
+         viewDC = c_func(xCreateCompatibleDC, {NULL}),
+         pSize = allocate_Point() 
+
+integer ls,ls9,     -- length of a single side
+        dx, dy,     -- bounding rectangle of a sloping side
+        ox, oy,     -- offsets needed to center things
+        lw          -- line width (10% of ls, tweaked)
+
+function font_info(integer size)
+atom hFont = createFontForDC(viewDC, "Calibri", size, Bold)
+    {} = selectObject(viewDC,hFont)
+    {} = c_func(xGetTextExtentPoint32,{viewDC,"W",1,pSize})
+    return {peek4u(pSize),hFont}
+end function
+fonts = {font_info(1)}
+
+procedure set_font(atom ls)
+    while length(fonts)<=200    -- (arbitrary limit)
+      and fonts[$][1]<ls do     -- until slightly too big
+        fonts = append(fonts,font_info(length(fonts)+1))
+    end while
+    for i=length(fonts) to 1 by -1 do
+        if fonts[i][1]<=ls then
+            {} = selectObject(viewDC,fonts[i][2])
+            exit
+        end if
+    end for
+end procedure
+
+integer mx=0, my=0  -- mouse hover cell
+
+function xy_to_hex(sequence xy)
+integer x, y, gx, gy, rx, ry, hx=0, hy=0
+
+    if dx!=0 and dy!=0 then -- (avoid divide by 0)
+        x = xy[1]-ox-5
+        y = xy[2]-oy-10+2*dy
+
+        gx = floor(x/dx)
+        gy = floor((y-dy)/dy)
+        rx = remainder(x,dx)
+        ry = remainder(y,dy)
+
+        hx = floor(gx/3+0.7)
+        if remainder(gx,3)<1 then
+            atom mxb = (dx/dy)*ry
+            -- need to check the slope
+            if remainder(hx,2)!=remainder(gy,2) then
+                mxb = dx-mxb
+            end if
+            hx += (rx>mxb)
+        end if
+        hy = floor((gy+remainder(hx,2))/2)
+    end if
+    return {hx,hy}
+end function
+
+integer dw = 0, dh = 0      -- client area width and height
+atom bmView
+integer vwX = 0, vwY = 0    -- actual size of the view bitmap
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+integer ch
+
+    if msg=WM_SIZE then
+        {{},{},dw,dh} = getClientRect(main)
+        if dw>vwX or dh>vwY then
+            -- we need a bigger bitmap
+            bmView = c_func(xCreateCompatibleBitmap, {mainDC, dw, dh})
+            {} = deleteObject(selectObject(viewDC,bmView))
+            {vwX,vwY} = {dw,dh}
+        end if
+        ls = floor(min(dw-10,dh-10)/9)
+        ls9 = ls*9
+dx = 0
+dy = 0
+        ox = floor((dw-9*ls)/2)
+        oy = floor((dh-9*ls)/2)
+lw = floor((ls-10)/10)+2
+--      setPenWidth(lw)
+        set_font(ls)
+    elsif msg=WM_PAINT then
+        setPenColor(cBackgnd)
+        drawRectangleh(viewDC, True, 0, 0, dw, dh)
+        setPenColor(Black)
+        for x=0 to 9 do
+            setPenWidth(iff(mod(x,3)=0?3:1))
+            drawLineh(viewDC, ox+x*ls, oy, ox+x*ls, oy+ls9)
+            drawLineh(viewDC, ox, oy+x*ls, ox+ls9, oy+x*ls)
+        end for
+        for x=1 to 9 do
+            for y=1 to 9 do
+                ch = board[x][y]
+--              if ch!=' ' then
+----                    wPuts2(viewDC,ox+ls/2+x*ls,oy+ls/2+y*ls,ch&"")
+--              end if
+            end for
+        end for
+        void = c_func(xBitBlt,{mainDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(main)
+            if id then end if -- suppress warnings
+--      elsif wParam='!' then
+--          ?9/0
+        else
+            ch = upper(wParam)
+            if find(ch,letters) and not find(ch,chosen) then
+                chosen &= ch
+                repaintWindow(main)
+            end if
+        end if
+--  elsif msg=WM_MOUSEMOVE then
+--      {mx,my} = xy_to_hex(lParam)
+--      repaintWindow(main)
+    elsif msg = WM_LBUTTONDOWN then
+        {mx,my} = xy_to_hex(lParam)
+        if mx>=1 and mx<=N
+        and my>=1 and my<=M then
+            ch = letters[(my-1)*N+mx]
+            if find(ch,letters) and not find(ch,chosen) then
+                chosen &= ch
+                repaintWindow(main)
+            end if
+        end if
+--  elsif msg=WM_GETMINMAXINFO then
+        -- below this, things stop working...
+--      poke4(lParam+MINMAXINFO_ptMinTrackSize,{188,250})
+    end if
+    return 0
+end function
+setHandler(main,routine_id("mainHandler"))
+
+WinMain(main, SW_NORMAL)
+

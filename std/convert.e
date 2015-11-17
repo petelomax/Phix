@@ -8,6 +8,7 @@
 namespace convert
 --*/
 
+--/*
 constant
     M_A_TO_F64 = 46,
     M_F64_TO_A = 47,
@@ -15,7 +16,9 @@ constant
     M_F32_TO_A = 49
 
 constant M_ALLOC = 16
-atom mem  = machine_func(M_ALLOC,4)
+--atom mem  = machine_func(M_ALLOC,4)
+--*/
+atom mem  = allocate(4)
 
 --****
 -- === Routines
@@ -247,9 +250,11 @@ end function
 -- See Also:
 --     [[:float64_to_atom]], [[:int_to_bytes]], [[:atom_to_float32]]
 
+--/*
 public function atom_to_float64(atom a)
     return machine_func(M_A_TO_F64, a)
 end function
+--*/
 
 --**
 -- Convert an atom to a sequence of 4 bytes in IEEE 32-bit format
@@ -284,9 +289,11 @@ end function
 -- See Also:
 --      [[:float32_to_atom]], [[:int_to_bytes]], [[:atom_to_float64]]
 
+--/*
 public function atom_to_float32(atom a)
     return machine_func(M_A_TO_F32, a)
 end function
+--*/
 
 --**
 -- Convert a sequence of 8 bytes in IEEE 64-bit format to an atom
@@ -314,10 +321,12 @@ end function
 -- See Also:
 --      [[:float32_to_atom]], [[:bytes_to_int]], [[:atom_to_float64]]
 
+--/*
 public function float64_to_atom(sequence_8 ieee64)
 -- Convert a sequence of 8 bytes in IEEE 64-bit format to an atom
     return machine_func(M_F64_TO_A, ieee64)
 end function
+--*/
 
 --**
 -- Convert a sequence of 4 bytes in IEEE 32-bit format to an atom
@@ -345,9 +354,11 @@ end function
 -- See Also:
 --      [[:float64_to_atom]], [[:bytes_to_int]], [[:atom_to_float32]]
 
+--/*
 public function float32_to_atom(sequence_4 ieee32)
     return machine_func(M_F32_TO_A, ieee32)
 end function
+--*/
 
 --**
 -- Convert a text representation of a hexadecimal number to an atom

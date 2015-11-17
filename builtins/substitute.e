@@ -30,7 +30,11 @@ end function
 
 global function substitute_all(string text, sequence strings, sequence replacements)
     for i=1 to length(strings) do
-        text = substitute(text,strings[i],replacements[i])
+        if string(strings) then
+            text = substitute(text,strings[i..i],replacements[i..i])
+        else
+            text = substitute(text,strings[i],replacements[i])
+        end if
     end for
     return text
 end function

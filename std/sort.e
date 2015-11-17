@@ -1,6 +1,7 @@
 -- (c) Copyright - See License.txt
 --
 namespace stdsort
+--/**/ **NOT PHX COMPATIBLE!**
 
 --****
 -- == Sorting

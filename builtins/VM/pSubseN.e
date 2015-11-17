@@ -22,8 +22,8 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
 #ilASM{ jmp :%opRetf
 
 --DEV FIXME: (and the :!bang labels below)
-    ::e04atsaa8
-        int3
+--  ::e04atsaa8
+--      int3
 --  ::e04atsaa0
 --      int3
 --  ::e110ecxesp
@@ -118,10 +118,24 @@ end procedure -- (for Edita/CtrlQ)
 
       ::opSubseStr
         cmp ecx,1
-        jne :e04atsaa8          -- attempt to subscript an atom, era @ [esp+ecx*4]
+--      jne :e04atsaa8          -- attempt to subscript an atom, era @ [esp+ecx*4]
+        je @f
+            mov edx,[esp+ecx*4]
+            mov al,4            -- e04atssaa
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
         pop ecx
         cmp byte[eax-1],0x82
-        jne :e04atsaa8          -- attempt to subscript an atom, era @ [esp+ecx*4]
+--      jne :e04atsaa8          -- attempt to subscript an atom, era @ [esp+ecx*4]
+        je @f
+            pop edx
+            mov al,4            -- e04atssaa
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
         cmp edi,edx
         jb @f                   -- unsigned jump, lets 0..len-1 through
                                 --               (we just did a dec edi)
@@ -215,10 +229,24 @@ end procedure -- (for Edita/CtrlQ)
 
       ::opSubseStr
         cmp rcx,1
-        jne :e04atsaa8          -- attempt to subscript an atom, era @ [rsp+rcx*8]
+--      jne :e04atsaa8          -- attempt to subscript an atom, era @ [rsp+rcx*8]
+        je @f
+            mov rdx,[rsp+rcx*8]
+            mov al,4            -- e04atssaa
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
         pop rcx
         cmp byte[rax-1],0x82
-        jne :e04atsaa8          -- attempt to subscript an atom, era @ [rsp+rcx*4]
+--      jne :e04atsaa8          -- attempt to subscript an atom, era @ [rsp+rcx*4]
+        je @f
+            pop rdx
+            mov al,4            -- e04atssaa
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
         cmp rdi,rdx
         jb @f                   -- unsigned jump, lets 0..len-1 through
                                 --               (we just did a dec rdi)

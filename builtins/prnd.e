@@ -17,3 +17,11 @@ atom a,b,r
      return r
 end function
 
+global function sq_rnd(object a)
+    if atom(a) then return rnd() end if
+    for i=1 to length(a) do
+        a[i] = sq_rnd(a[i])
+    end for
+    return a
+end function
+

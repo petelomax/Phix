@@ -2137,7 +2137,7 @@ if newEmit then
 
     AutoAsm("allocate",         S_Func,"FI",    "VM\\pHeap.e",      opAlloc,    "%pAlloc",      E_none, T_atom)
 --DEV... (not documented either)
-    AutoAsm("allocate_data",    S_Func,"FI",    "VM\\pHeap.e",      opAlloc,    "%pAlloc",      E_none, T_atom)
+--  AutoAsm("allocate_data",    S_Func,"FI",    "VM\\pHeap.e",      opAlloc,    "%pAlloc",      E_none, T_atom)
     AutoAsm("remainder",        S_Func,"FNN",   "VM\\pRmdr.e",      opRmdr,     "%opRmdr",      E_none, T_atom)
     AutoAsm("and_bits",         S_Func,"FNN",   "VM\\pMath.e",      opAndBits,  "%opAndBits",   E_none, T_atom)
     AutoAsm("or_bits",          S_Func,"FNN",   "VM\\pMath.e",      opOrBits,   "%opOrBits",    E_none, T_atom)
@@ -2177,6 +2177,7 @@ if newEmit then
     AutoAsm("peek2u",           S_Func,"FO",    "VM\\pMem.e",       opPeek2u,   "%opPeekNx",    E_none, T_object)   -- (215)
     AutoAsm("peek4s",           S_Func,"FO",    "VM\\pMem.e",       opPeek4s,   "%opPeekNx",    E_none, T_object)
     AutoAsm("peek4u",           S_Func,"FO",    "VM\\pMem.e",       opPeek4u,   "%opPeekNx",    E_none, T_object)
+--  Alias("peek_pointer",symlimit)
     AutoAsm("peek8s",           S_Func,"FO",    "VM\\pMem.e",       opPeek8s,   "%opPeekNx",    E_none, T_object)
     AutoAsm("peek8u",           S_Func,"FO",    "VM\\pMem.e",       opPeek8u,   "%opPeekNx",    E_none, T_object)
     AutoAsm("peekNS",           S_Func,"FOII",  "VM\\pMem.e",       opPeekNS,   "%opPeekNx",    E_none, T_object)
@@ -2304,6 +2305,7 @@ end if
 --DEV document/test/remove:
     initialAutoEntry("TlsAlloc",        S_Func,"F",     "ptls.ew",0,E_other)
     initialAutoEntry("wildcard_match",  S_Func,"FPP",   "wildcard.e",0,E_none)
+    Alias("is_match", symlimit)
     initialAutoEntry("wildcard_file",   S_Func,"FPP",   "wildcard.e",0,E_none)
 
     T_AInt = symlimit   -- DEV: T_SAtm, T_AStr, T_ASeq, T_SObj...
@@ -2319,6 +2321,7 @@ end if
 ----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
 ----    initialAutoEntry("allocate_data",   S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
 --end if
+    initialAutoEntry("allocate_data",   S_Func,"FII",   "allocate_data.e",0,E_none)
     initialAutoEntry("allocate_string", S_Func,"FP",    "machine.e",0,E_none)
     initialAutoEntry("arccos",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("arcsin",          S_Func,"FN",    "misc.e",0,E_none)
@@ -2591,6 +2594,7 @@ end if
     initialAutoEntry("sq_or",           S_Func,"FOO",   "psqop.e",0,E_none)
     initialAutoEntry("sq_xor",          S_Func,"FOO",   "psqop.e",opXor,E_none)
     initialAutoEntry("sq_rand",         S_Func,"FO",    "psqop.e",opRand,E_none)
+    initialAutoEntry("sq_rnd",          S_Func,"FO",    "prnd.e",0,E_none)
     initialAutoEntry("sq_uminus",       S_Func,"FO",    "psqop.e",opUminus,E_none)
     initialAutoEntry("sq_not",          S_Func,"FO",    "psqop.e",opNot,E_none)
     initialAutoEntry("sq_and_bits",     S_Func,"FOO",   "psqop.e",opAndBits,E_none)

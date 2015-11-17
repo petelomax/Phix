@@ -1122,6 +1122,7 @@ end type
 -- See Also:
 --   [[:put_screen_char]], [[:save_text_image]]
 
+--/*
 public function get_screen_char(positive_atom line, positive_atom column, integer fgbg = 0)
 sequence ca
 
@@ -1132,6 +1133,7 @@ sequence ca
 
     return ca
 end function
+--*/
 
 --**
 -- Stores/displays a sequence of characters with attributes at a given location.
@@ -1164,10 +1166,11 @@ end function
 -- See Also:
 --   [[:get_screen_char]], [[:display_text_image]]
 
+--/*
 public procedure put_screen_char(positive_atom line, positive_atom column, sequence char_attr)
         machine_proc(M_PUT_SCREEN_CHAR, {line, column, char_attr})
 end procedure
-
+--*/
 
 --**
 -- Converts an attribute code to its foreground and background color components.
@@ -1254,6 +1257,7 @@ end function
 --   [[:save_text_image]], [[:put_screen_char]]
 --
 
+--/*
 public procedure display_text_image(text_point xy, sequence text)
 integer extra_col2, extra_lines
 sequence vc, one_row
@@ -1282,6 +1286,7 @@ sequence vc, one_row
         machine_proc(M_PUT_SCREEN_CHAR, {xy[1]+row-1, xy[2], one_row})
     end for
 end procedure
+--*/
 
 --**
 -- Copy a rectangular block of text out of screen memory
@@ -1313,6 +1318,7 @@ end procedure
 -- See Also:
 --   [[:display_text_image]], [[:get_screen_char]]
 
+--/*
 public function save_text_image(text_point top_left, text_point bottom_right)
 sequence image, row_chars
 
@@ -1327,6 +1333,7 @@ sequence image, row_chars
     end for
     return image
 end function
+--*/
 
 --**
 -- Set the number of lines on a text-mode screen.
@@ -1419,9 +1426,11 @@ end procedure
 -- See Also:
 --     [[:clear_screen]]
 
+--/*
 public procedure free_console()
     machine_proc(M_FREE_CONSOLE, 0)
 end procedure
+--*/
 
 
 --**

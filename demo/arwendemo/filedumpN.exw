@@ -2482,7 +2482,7 @@ integer AddressOfNames
 integer AddressOfNameOrdinals
 
 integer k
-sequence Names
+sequence Names, tmp
 sequence NameIdx
 
 string text
@@ -2559,111 +2559,96 @@ typedef struct IMAGE_EXPORT_DIRECTORY {
     size -= 40
     addsep()
 
---  if address!=AddressOfFunctions then return fatal("Wrong AddressOfFunctions") end if
-    if address!=AddressOfFunctions then
---DEV NotPhix:
---padding
---      return fatal(sprintf("Wrong AddressOfFunctions [%08x!=%08x]",{address,AddressOfFunctions}))
-        k = find(address,Names)
-        if k!=0 then
-            text = toString(-1)
-            line = {address,"Name","-",text,""}
-            res[tabidx] = append(res[tabidx],line)
-            res[tabidx][NameIdx[k]][R_NOTES] = sprintf("[0x%08x:%s]",{address,text})
-            OrdinalIdx = NameOrdinal[k]
-            if OrdinalIdx!=0 then
-                res[tabidx][Ordinalk[OrdinalIdx]][R_NOTES] = text
-                OrdinalIdx = Functionk[Ordinal[OrdinalIdx]+1]
-                if OrdinalIdx!=0 then
-                    res[tabidx][OrdinalIdx][R_NOTES] = text
-                end if
-            end if
-            Names[k..k] = {}
-            NameIdx[k..k] = {}
-            NameOrdinal[k..k] = {}
-            address += length(text)+1
-            size -= length(text)+1
-        else
-            k = AddressOfFunctions-address
-            if k<0 then ?9/0 end if
-            binary_dump(k,"padding?")
-            size -= k
-        end if
-    end if
-    if address!=AddressOfFunctions then
-        return fatal(sprintf("Wrong AddressOfFunctions [%08x!=%08x]",{address,AddressOfFunctions}))
-    end if
-    Functionk = repeat(0,NumberOfFunctions)
-    for i=1 to NumberOfFunctions do
-        RVA = decode("RVA","h4","")+ExportBase
-        k = length(res[tabidx])
-        if RVA<StartAddress or RVA>EndAddress then
-            desc = "Export RVA"
-            Functionk[i] = k
-        else
-            desc = "Forwarder RVA"
-            res[tabidx][k][R_NOTES] = sprintf("see 0x%08x",RVA)
-            Names = append(Names,RVA)
-            NameIdx = append(NameIdx,k)
-            NameOrdinal = append(NameOrdinal,0)
-        end if
-        res[tabidx][$][R_DESC] = sprintf("%s[%d]",{desc,i})
-        size -= 4
-    end for
-    addsep()
-    if address!=AddressOfNames then return fatal("Wrong AddressOfNames") end if
-    for i=1 to NumberOfNames do
-        RVA = decode(sprintf("Name RVA[%d]",i),"h4","")
-        if RVA!=0 then
-            RVA += ExportBase
-            k = length(res[tabidx])
-            res[tabidx][k][R_NOTES] = sprintf("see 0x%08x",RVA)
-            Names = append(Names,RVA)
-            NameIdx = append(NameIdx,k)
-            NameOrdinal = append(NameOrdinal,i)
-            size -= 4
-        end if
-    end for
-    addsep()
-    if address!=AddressOfNameOrdinals then return fatal("Wrong AddressOfNameOrdinals") end if
-    Ordinal = repeat(0,NumberOfNames)
-    Ordinalk = repeat(0,NumberOfNames)
-    for i=1 to NumberOfNames do
-        Ordinal[i] = decode(sprintf("Ordinal [%d]",i),"h2","") -- -Base?
-        Ordinalk[i] = length(res[tabidx])
-        size -= 2
-    end for
-    addsep()
-
     while 1 do
-        k = find(address,Names)
-        if k=0 then
---          exit
-            if length(Names)=0 then exit end if
-            k = smallest(Names)-address
-            if k<0 then ?9/0 end if
-            binary_dump(k,"padding?")
-            size -= k
-        else
-            text = toString(-1)
-            line = {address,"Name","-",text,""}
-            res[tabidx] = append(res[tabidx],line)
-            res[tabidx][NameIdx[k]][R_NOTES] = sprintf("[0x%08x:%s]",{address,text})
-            OrdinalIdx = NameOrdinal[k]
-            if OrdinalIdx!=0 then
-                res[tabidx][Ordinalk[OrdinalIdx]][R_NOTES] = text
-                OrdinalIdx = Functionk[Ordinal[OrdinalIdx]+1]
-                if OrdinalIdx!=0 then
-                    res[tabidx][OrdinalIdx][R_NOTES] = text
+        if address=AddressOfFunctions then
+            Functionk = repeat(0,NumberOfFunctions)
+            for i=1 to NumberOfFunctions do
+                RVA = decode("RVA","h4","")+ExportBase
+                k = length(res[tabidx])
+                if RVA<StartAddress or RVA>EndAddress then
+                    desc = "Export RVA"
+                    Functionk[i] = k
+                else
+                    desc = "Forwarder RVA"
+                    res[tabidx][k][R_NOTES] = sprintf("see 0x%08x",RVA)
+                    Names = append(Names,RVA)
+                    NameIdx = append(NameIdx,k)
+                    NameOrdinal = append(NameOrdinal,0)
                 end if
+                res[tabidx][$][R_DESC] = sprintf("%s[%d]",{desc,i})
+                size -= 4
+            end for
+            addsep()
+            AddressOfFunctions = 0
+        elsif address=AddressOfNames then
+            for i=1 to NumberOfNames do
+                RVA = decode(sprintf("Name RVA[%d]",i),"h4","")
+                if RVA!=0 then
+                    RVA += ExportBase
+                    k = length(res[tabidx])
+                    res[tabidx][k][R_NOTES] = sprintf("see 0x%08x",RVA)
+                    Names = append(Names,RVA)
+                    NameIdx = append(NameIdx,k)
+                    NameOrdinal = append(NameOrdinal,i)
+                    size -= 4
+                end if
+            end for
+            addsep()
+            AddressOfNames = 0
+        elsif address=AddressOfNameOrdinals then
+            Ordinal = repeat(0,NumberOfNames)
+            Ordinalk = repeat(0,NumberOfNames)
+            for i=1 to NumberOfNames do
+                Ordinal[i] = decode(sprintf("Ordinal [%d]",i),"h2","") -- -Base?
+                Ordinalk[i] = length(res[tabidx])
+                size -= 2
+            end for
+            addsep()
+            AddressOfNameOrdinals = 0
+        else
+            k = find(address,Names)
+            if k=0 then
+                tmp = Names
+                if AddressOfFunctions!=0    then tmp = append(tmp,AddressOfFunctions)    end if
+                if AddressOfNames!=0        then tmp = append(tmp,AddressOfNames)        end if
+                if AddressOfNameOrdinals!=0 then tmp = append(tmp,AddressOfNameOrdinals) end if
+                if length(tmp)=0 then exit end if
+                k = smallest(tmp)-address
+                if k<0 then ?9/0 end if
+                binary_dump(k,"padding?")
+                size -= k
+            else
+                text = toString(-1)
+                line = {address,"Name","-",text,""}
+                res[tabidx] = append(res[tabidx],line)
+                res[tabidx][NameIdx[k]][R_NOTES] = sprintf("[0x%08x:%s]",{address,text})
+                OrdinalIdx = NameOrdinal[k]
+                if OrdinalIdx!=0 then
+                    res[tabidx][Ordinalk[OrdinalIdx]][R_NOTES] = text
+                    OrdinalIdx = Functionk[Ordinal[OrdinalIdx]+1]
+                    if OrdinalIdx!=0 then
+                        res[tabidx][OrdinalIdx][R_NOTES] = text
+                    end if
+                end if
+                Names[k..k] = {}
+                NameIdx[k..k] = {}
+                NameOrdinal[k..k] = {}
+                address += length(text)+1
+                size -= length(text)+1
             end if
-            Names[k..k] = {}
-            NameIdx[k..k] = {}
-            NameOrdinal[k..k] = {}
-            address += length(text)+1
-            size -= length(text)+1
         end if
     end while
+
+    if AddressOfFunctions!=0 then
+        return fatal(sprintf("AddressOfFunctions not found [%08x]",{AddressOfFunctions}))
+    end if
+    if AddressOfNames!=0 then
+        return fatal(sprintf("AddressOfNames not found [%08x]",{AddressOfNames}))
+    end if
+    if AddressOfNameOrdinals!=0 then
+        return fatal(sprintf("AddressOfNameOrdinals not found [%08x]",{AddressOfNameOrdinals}))
+    end if
+
     if size!=0 then -- oops
         if size<16 then
             binary_dump(size,"padding?")
@@ -3722,6 +3707,9 @@ glblname = {}
 --      address = PointerToRawData[nCodeSection] + SH_VirtualSizes[nCodeSection]
         if address+size>file_size then
             return fatal(sprintf("unexpected end of file (Addr(#%08x)+size(#%08x)>filesize(#%08x)",{address,size,file_size}))
+        end if
+        if size<0 then
+            return fatal(sprintf("oops,size<0 (%d)",{size}))
         end if
         binary_dump(size,"%08x:  padding")
     end if
@@ -7834,7 +7822,9 @@ procedure main()
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\pe32.exe")   --(OLD?)
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\pe64.exe")   --(OLD?)
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\e01.exe")
-    load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
+--  load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
+--  load_file("C:\\Program Files (x86)\\Phix\\ok64.exe")
+    load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\Speech\\Speech.dll")
 --  load_file("C:\\Program Files (x86)\\Phix\\e02.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\demo\\arwenpcomdemo\\fileopen.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\demo\\eicar.com")

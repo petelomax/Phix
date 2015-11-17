@@ -6,56 +6,53 @@
 -- This is an auto-include file; there is no need to manually include
 --  it, unless you want a namespace.
 --
---DEV document this.
---  example?: split("one},{two},{three","},{") is {"one","two","three"}
---  whereas split_any("one},{two},{three","},{") is {"one","","","two","","","three"}
 
-global function split(sequence src, object delim=' ', integer limit=0, integer no_empty = 0)
+global function split(sequence source, object delimiter=' ', integer limit=0, integer no_empty = 0)
 sequence ret = {}
 integer start
 integer pos
 integer k
 
-    if length(src)!=0 then
+    if length(source)!=0 then
 
-        if sequence(delim) then
+        if sequence(delimiter) then
             -- Handle the simple case of split("123", ""), opposite is join({"1","2","3"}, "") -- "123"
-            if length(delim)=0 then
-                for i=1 to length(src) do
-                    src[i] = src[i..i]
+            if length(delimiter)=0 then
+                for i=1 to length(source) do
+                    source[i] = source[i..i]
                     limit -= 1
                     if limit=0 then
---                      src = append(src[1..i],src[i+1..$])
-                        src[i+1] = src[i+1..$]
-                        src = src[1..i+1]
+--                      source = append(source[1..i],source[i+1..$])
+                        source[i+1] = source[i+1..$]
+                        source = source[1..i+1]
                         exit
                     end if
                 end for
-                return src
+                return source
             end if
 
             start = 1
-            while start<=length(src) do
-                pos = match(delim, src, start)
+            while start<=length(source) do
+                pos = match(delimiter, source, start)
                 if pos=0 then exit end if
-                ret = append(ret, src[start..pos-1])
-                start = pos+length(delim)
+                ret = append(ret, source[start..pos-1])
+                start = pos+length(delimiter)
                 limit -= 1
                 if limit=0 then exit end if
             end while
         else
             start = 1
-            while start<=length(src) do
-                pos = find(delim, src, start)
+            while start<=length(source) do
+                pos = find(delimiter, source, start)
                 if pos=0 then exit end if
-                ret = append(ret, src[start..pos-1])
+                ret = append(ret, source[start..pos-1])
                 start = pos+1
                 limit -= 1
                 if limit=0 then exit end if
             end while
         end if
 
-        ret = append(ret, src[start..$])
+        ret = append(ret, source[start..$])
 
         k = length(ret)
         if no_empty then
@@ -77,29 +74,29 @@ integer k
     return ret
 end function
 
-global function split_any(sequence src, object delim, integer limit=0, integer no_empty=0)
+global function split_any(sequence source, sequence delimiters, integer limit=0, integer no_empty=0)
 sequence ret = {}
 integer start = 1, pos, k
 
-    if atom(delim) then
-        delim = {delim}
-    end if
+--  if atom(delimiter) then
+--      delimiter = {delimiter}
+--  end if
 
-    if length(delim)=0 then
---      crash("sequence:split_any(): delimiter length must be greater than 0")
+    if length(delimiters)=0 then
+--      crash("split_any(): delimiter length must be greater than 0")
         ?9/0 --DEV
     end if
 
     while 1 do
-        pos = find_any(delim, src, start)
+        pos = find_any(delimiters, source, start)
         if pos=0 then exit end if
-        ret = append(ret, src[start..pos-1])
+        ret = append(ret, source[start..pos-1])
         start = pos+1
         limit -= 1
         if limit=0 then exit end if
     end while
 
-    ret = append(ret, src[start..$])
+    ret = append(ret, source[start..$])
 
     k = length(ret)
     if no_empty then

@@ -1,8 +1,7 @@
 -- (c) Copyright - See License.txt
 -- wildcard.e
---/*
+
 namespace wildcard
---*/
 
 --****
 -- == Wildcard Matching

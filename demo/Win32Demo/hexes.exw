@@ -1,0 +1,180 @@
+-- hex.exw  
+-- by Matt Lewis
+without warning
+include win32lib.ew
+integer width = 400, height = 400
+
+atom ax,ay,ldc
+
+constant
+    win = create(Window, "Hex Test", 0, 100, 100, width, height, 0),
+    pix = create(Pixmap, "", win, 0, 0, width, height, 0),
+    control = create(Window, "Controls", 0, 500, 300, 240, 240, 0),
+
+    zoom = create(EditText, "50", control, 10, 10, 50, 25, 0),
+    zoom_ud = create(UpDown, "", control, 60, 10, 10, 10, or_all(
+        {UDS_AUTOBUDDY,UDS_ALIGNRIGHT,UDS_SETBUDDYINT,UDS_ARROWKEYS})),
+    zoom_lbl = create(LText, "Size", control, 70,13, 40, 25, 0),
+
+    XRatio = create(EditText, "112", control, 10, 70, 50, 25, 0),
+    XRatio_ud = create(UpDown, "", control, 60, 70, 10, 10, or_all(
+        {UDS_AUTOBUDDY,UDS_ALIGNRIGHT,UDS_SETBUDDYINT,UDS_ARROWKEYS})),
+    XRatio_lbl = create(LText, "Horz. Aspect", control, 70,73, 100, 25, 0),
+
+    YRatio = create(EditText, "60", control, 10, 130, 50, 25, 0),
+    YRatio_ud = create(UpDown, "", control, 60, 130, 10, 10, or_all(
+        {UDS_AUTOBUDDY,UDS_ALIGNRIGHT,UDS_SETBUDDYINT,UDS_ARROWKEYS})),
+    YRatio_lbl = create(LText, "Vert. Aspect", control, 70,133, 100, 25, 0)
+
+
+integer dx = 0, dy = 0
+atom slope = 0
+integer columns, rows
+integer shapeheight = 0
+
+procedure draw_hexes()
+integer xc, yt, xr, y1, xl, yb,y2
+sequence hex, ext
+integer whichX
+sequence offX
+sequence shape
+integer temp
+
+    setPenColor(pix, BrightWhite)
+    drawRectangle(pix, 1, 0, 0, width, height)
+
+    temp = dx
+    for i=1 to columns do
+        offX = {temp, temp-dx}
+        temp += dx+dx
+        whichX = 0
+        yt = 0
+        for j=1 to rows do
+            whichX = not whichX
+            xc = offX[whichX+1]
+
+            xr = xc+dx
+            y1 = yt+dy
+            xl = xc-dx
+            y2 = yt+shapeheight
+            yb = y2+dy
+
+if i=2 and j=2 then
+    ?{dx,dy,{xc,yt,xr,y1},{xr,y2},{xc,yb},{xl,y2},{xl,y1},{xc,yt}}
+end if
+            shape = {Black, {xc,yt,xr,y1},{xr,y2},{xc,yb},{xl,y2},{xl,y1},{xc,yt}}
+
+            drawLines(pix, shape)
+
+            yt = y2
+        end for
+    end for
+    copyBlt(win, 0, 0, pix)
+end procedure
+
+procedure on_zoom(integer self, atom event, sequence params)
+atom z
+    z = getNumber(zoom)
+    dx = floor(z*getNumber(XRatio)/100)
+    dy = floor(z*getNumber(YRatio)/100)
+    if dx=0 or dy=0 then
+        return
+    end if
+
+    columns = floor(width/dx)+1
+    slope = dy/dx
+    shapeheight = 3*dy
+    rows = floor(height/shapeheight)+1
+
+    if shapeheight!=0 then
+        draw_hexes()
+    end if
+end procedure
+setHandler({zoom,XRatio,YRatio}, w32HChange, routine_id("on_zoom"))
+
+
+procedure on_resize(integer self, atom event, sequence params)
+sequence lExt
+
+    lExt = getCtlSize(self)
+    width = lExt[1]
+    height = lExt[2]
+    setCtlSize(pix, width, height)
+    on_zoom(self, event, params)
+end procedure
+
+procedure win_activate(integer self, atom event, sequence params)
+    setScrollRange(zoom_ud, 10, 100)
+    setScrollRange(XRatio_ud, 40, 200)
+    setScrollRange(YRatio_ud, 40, 200)
+    setText(zoom, "50")
+    setText(XRatio, "112")
+    setText(YRatio, "60")
+    if shapeheight!=0 then
+        draw_hexes()
+    end if
+    openWindow(control, Normal)
+    setHandler(win, w32HResize, routine_id("on_resize"))
+end procedure
+setHandler(win, w32HActivate, routine_id("win_activate"))
+
+procedure win_paint(integer self, atom event, sequence params)
+    copyBlt(win, 0, 0, pix)
+end procedure
+setHandler(win, w32HPaint, routine_id("win_paint"))
+
+
+
+function xy_to_hex(sequence xy)
+integer x, y, gx, gy, rx, ry, hx, hy
+atom mxb
+
+    if dx=0 or dy=0 then
+        return {0,0}
+    end if
+
+    x = xy[1]
+    y = xy[2]
+
+    gx = floor(x/dx)
+    gy = floor(y/dy)
+    rx = remainder(x, dx)
+    ry = remainder(y,dy)
+
+    hy = floor(gy/3+0.7)
+    if remainder(gy,3)<1 then
+        mxb = slope*rx
+        -- need to check the slope
+        if not remainder(hy,2) then
+            if remainder(gx, 2) then
+                mxb = dy-mxb
+            end if
+        else
+            if not remainder(gx, 2) then
+                mxb = dy-mxb
+            end if
+        end if
+        if ry>mxb then
+            hy += 1
+        end if
+    end if
+
+    if not remainder(hy, 2) then
+        hx = floor(gx/2)+1
+    else
+        hx = floor((gx+1)/2)+1
+    end if
+
+    return {hx,hy}
+end function
+
+procedure win_mouse(integer self, atom event, sequence params)
+integer x, y, gx, gy, r, rx, ry
+    if params[1]=MouseMove then
+--      setText(win, sprintf("Hex Test: ( %d, %d )",xy_to_hex(params[2..3])))
+        setText(win, sprint({dx,dy,params[2..3],xy_to_hex(params[2..3])}))
+    end if
+end procedure
+setHandler(win, w32HMouse, routine_id("win_mouse"))
+
+WinMain(win, Normal)

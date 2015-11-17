@@ -110,7 +110,8 @@ constant M_ALLOC = 16,
                  M_SLEEP = 64
 
 puts(1, "\n\t\tUsing Debug Version of machine.e\n")
-machine_proc(M_SLEEP, 3)
+--machine_proc(M_SLEEP, 3)
+sleep(3)
 
 
 
@@ -691,6 +692,7 @@ public function allocate_data(positive_int n, integer cleanup = 0)
 end function
 --*/
 
+--/*
 public function allocate(positive_int n, integer cleanup = 0)
 -- allocate memory block and add it to safe list
         atom a  
@@ -705,7 +707,9 @@ public function allocate(positive_int n, integer cleanup = 0)
         end if
         return a
 end function
+--*/
 
+--/*
 export procedure deallocate(atom a)
         -- free address a - make sure it was allocated
         for i = 1 to length(safe_address_list) do
@@ -738,6 +742,7 @@ export procedure deallocate(atom a)
         die("ATTEMPT TO FREE USING AN ILLEGAL ADDRESS!")
 end procedure
 FREE_RID = routine_id("deallocate")
+--*/
 
 -- Returns 1 if the DEP executing data only memory would cause an exception
 export function dep_works()
@@ -750,6 +755,7 @@ end function
 
 export atom VirtualFree_rid
 
+--/*
 public procedure free_code( atom addr, integer size, valid_wordsize wordsize = 1 )
         integer free_succeeded
         sequence block
@@ -780,3 +786,4 @@ public procedure free_code( atom addr, integer size, valid_wordsize wordsize = 1
         end ifdef
         machine_proc(M_FREE, addr-BORDER_SPACE)
 end procedure
+--*/

@@ -485,6 +485,7 @@ end function
 -- See Also:
 --     [[:task_schedule]], [[:task_yield]], [[:task_delay]]
 
+--/*
 public procedure sleep(atom t)
 -- go to sleep for t seconds
 -- allowing (on WIN32 and Linux) other processes to run
@@ -492,6 +493,7 @@ public procedure sleep(atom t)
                 machine_proc(M_SLEEP, t)
         end if
 end procedure
+--*/
 
 --****
 -- Signature:

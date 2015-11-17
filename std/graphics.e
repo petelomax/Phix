@@ -63,9 +63,11 @@ constant
 -- See Also:
 --   [[:position]]
 
+--/*
 public function get_position()
         return machine_func(M_GET_POSITION, 0)
 end function
+--*/
 
 --public include std/graphcst.e
 
@@ -121,13 +123,14 @@ end procedure
 -- See Also:
 --   [[:text_color]]
 
+--/*
 public procedure bk_color(color c)
 -- set the background color to c - text or graphics modes
         c = and_bits(c, 0x1F)
         c = true_bgcolor[c+1]
         machine_proc(M_SET_B_COLOR, c)
 end procedure
-
+--*/
 --**
 -- Set the codes for the colors used in text_color and bk_color.
 --
@@ -242,9 +245,11 @@ end function
 -- See Also:
 --   [[:puts]], [[:position]]
 
+--/*
 public procedure wrap(object on = 1)
         machine_proc(M_WRAP, not equal(on, 0))
 end procedure
+--*/
 
 --**
 -- Scroll a region of text on the screen.
@@ -267,11 +272,13 @@ end procedure
 -- See Also:
 --   [[:clear_screen]], [[:text_rows]]
 
+--/*
 public procedure scroll(integer amount, 
                                                 console:positive_int top_line, 
                                                 console:positive_int bottom_line)
         machine_proc(M_SCROLL, {amount, top_line, bottom_line})
 end procedure
+--*/
 
 --****
 -- === Graphics Modes
@@ -291,6 +298,8 @@ end procedure
 -- See Also:
 --              [[:video_config]]
 
+--/*
 public function graphics_mode(object m = -1)
    return machine_func(M_GRAPHICS_MODE, m)
 end function
+--*/
