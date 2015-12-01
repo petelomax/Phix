@@ -1460,6 +1460,7 @@ end if
 --      puts(fn,";                K_othr = #010000  -- other routine parameter\n")
 --      puts(fn,";                K_ridt = #020000  -- known routine_id target\n")
 --      puts(fn,";                K_dlft = #040000  -- defaulted param\n")
+--      puts(fn,";                K_drid = #080000  -- default routine_id\n")
         puts(fn,";\n")
 --    end if
 --      symtab[1][S_Name] = "integer"
@@ -1633,6 +1634,7 @@ end if
                     stateDesc("K_othr",K_othr)
                     stateDesc("K_ridt",K_ridt)
                     stateDesc("K_dlft",K_dlft)
+                    stateDesc("K_drid",K_drid)
                     if siState then
                         sState &= sprintf(" + *** #%x ***??",siState)
                     end if

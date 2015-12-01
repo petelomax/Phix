@@ -62,7 +62,83 @@ end for
           <a href="factorial.htm">factorial</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            There is no corresponding library routine for generating combinations. The following template routine shows one way 
+            to generate combinations of a given set. It is expected that you would need to modify this for each specific use.
+<!--eucode>
+procedure comb(integer pool, needed, done=0, sequence chosen={})
+    if needed=0 then    -- got a full set
+        ?chosen         -- or call a routine[id] or whatever
+        return
+    end if
+    if done+needed>pool then return end if -- cannot fulfil
+    -- get all combinations with and without the next item:
+    done += 1
+    comb(pool,needed-1,done,append(chosen,done))
+    comb(pool,needed,done,chosen)
+end procedure           
+
+comb(3,2)   -- outputs {1,2} {1,3} {2,3}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> pool</font><font color="#0000FF">,</font><font color="#000000"> needed</font><font color="#0000FF">,</font><font color="#000000"> done</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> chosen</font><font color="#0000FF">=</font><font color="#800000">{}</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> needed</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then   </font><font color="#000080"><i> -- got a full set
+</i></font><font color="#0000FF">        ?</font><font color="#000000">chosen        </font><font color="#000080"><i> -- or call a routine[id] or whatever
+</i></font><font color="#008080">        return
+    end if
+    if</font><font color="#000000"> done</font><font color="#0000FF">+</font><font color="#000000">needed</font><font color="#0000FF">&gt;</font><font color="#000000">pool</font><font color="#008080"> then return end if</font><font color="#000080"><i> -- cannot fulfil
+    -- get all combinations with and without the next item:
+</i></font><font color="#000000">    done</font><font color="#0000FF"> +=</font><font color="#000000"> 1
+    comb</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">chosen</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#000000">    comb</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)
+</font><font color="#008080">end procedure           
+
+</font><font color="#000000">comb</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)  </font><font color="#000080"><i> -- outputs {1,2} {1,3} {2,3}</i></font>
+</pre>
+            <br>
+            And here is a version that returns all combinations - many other variations are possible <img src="Images/ksk-smile.png" />
+<!--eucode>
+function comb(sequence res, pool, integer needed, done=0, sequence chosen={})
+    if needed=0 then    -- got a full set
+        res = append(res,chosen)
+    elsif done+needed<=length(pool) then
+        -- get all combinations with and without the next item:
+        done += 1
+        res = comb(res,pool,needed-1,done,append(chosen,pool[done]))
+        res = comb(res,pool,needed,done,chosen)
+    end if
+    return res
+end function            
+
+?comb({},{4,5,6},2) -- {{4,5},{4,6},{5,6}}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF">,</font><font color="#000000"> pool</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> needed</font><font color="#0000FF">,</font><font color="#000000"> done</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> chosen</font><font color="#0000FF">=</font><font color="#800000">{}</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> needed</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then   </font><font color="#000080"><i> -- got a full set
+</i></font><font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)
+</font><font color="#008080">    elsif</font><font color="#000000"> done</font><font color="#0000FF">+</font><font color="#000000">needed</font><font color="#0000FF">&lt;=</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#000080"><i>        -- get all combinations with and without the next item:
+</i></font><font color="#000000">        done</font><font color="#0000FF"> +=</font><font color="#000000"> 1
+        res</font><font color="#0000FF"> =</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">chosen</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#800080">[</font><font color="#000000">done</font><font color="#800080">]</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)
+</font><font color="#008080">    end if
+    return</font><font color="#000000"> res
+</font><font color="#008080">end function            
+
+</font><font color="#0000FF">?</font><font color="#000000">comb</font><font color="#0000FF">(</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- {{4,5},{4,6},{5,6}}</i></font>
+</pre>
+            <br>
+            A practical application can be seen in demo\rosetta\Sudoku.exw
+         </td>
+        </tr>
        </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
       </div>
      </stripped>
     </get>

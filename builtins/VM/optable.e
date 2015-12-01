@@ -354,6 +354,8 @@
 -- had to do this in pMath.e:
 --include builtins\VM\pXor.e        -- not actually used in p.exe, but in optable for pdiagN.e
 
+include builtins\VM\pDeleteN.e
+
 --
 -- Note: the "p -test" set may one day contain various format directives, hence
 --       this routine should cope if invoked with different X64 etc settings.
@@ -394,7 +396,7 @@ constant vm_names = {
                                      "%pRestoreGtcbChain",
                                      "%pSetSaveEBP",
 --                                   "%pRestoreEBP",
-                                     "%pSetDel",
+--                                   "%pSetDel",
                                      "%pAllocStr",
                                      "%pAllocSeq",
                                      "%pStoreFlt",
@@ -433,6 +435,8 @@ constant vm_names = {
                                      "%RunCleanup",     -- (DEV may not be necessary) [erm, maybe for p p p p parlour tricks]
                                      "%opAbort"}},
 --                   {"pAbort.e",   {"%opAbort"}},
+                     {"pDeleteN.e", {"%opDelRtn",
+                                     "%opDelete"}},
                      -- group 4: optional, except for pDiagN (ie without these, pDiagN will start doing cmp 0's, and
                      --                                       hence some errors may start being incorrectly reported,
                      --                                       but all the non-error stuff should be just fine.)
@@ -558,8 +562,6 @@ constant vm_names = {
 --                                   "%opCallProc",
 --                                   "%opGpct",
 --                                   "%opRpct"}},
---                   {"pDeleteN.e", {"%opDelRtn",
---                                   "%opDelete"}},
 --*/
 --/*
                      {"puts1.e",   {"%puts1",

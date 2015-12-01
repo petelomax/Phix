@@ -1663,7 +1663,8 @@ end if
             end if  -- emitON
             freeTmp(-1)
         elsif scode=opGetText
-           or scode=opDcvar then
+           or scode=opDcvar
+           or scode=opDelRtn then
             if emitON then
                 opsidxm1 = opsidx-1
                 p2 = opstack[opsidxm1]
@@ -1671,6 +1672,10 @@ end if
                     Unassigned(p2)
                 end if
                 p3 = opstack[opsidx]
+                if scode=opDelRtn
+                and and_bits(symtab[p3][S_State],K_rtn)=0 then
+                    Aborp("routine_id expected")
+                end if
                 if not symtab[p3][S_Init] then
                     Unassigned(p3)
                 end if
@@ -2971,6 +2976,104 @@ end procedure
 
 
 --without trace
+with trace
+integer Q_Routine
+
+--object Part2  -- now in psym.e
+--procedure LiteralPart2()
+---- called by InTable to grab second half of eg "fred:myroutine" when
+---- trying to resolve routine_id("fred:myroutine") at compile-time.
+--  tt_string(Part2,-2)
+--  Part2 = 0
+--end procedure
+--rLiteralPart2 = routine_id("LiteralPart2")
+
+function resolveRoutineId()
+--
+-- (factored out of ParamList for readability reasons only)
+--DEV
+-- (now also used by getOneDefault)
+-- Process routine_id(<literal string>), which we have proved is the case, 
+--  right up to and including the closing ")", before calling this routine.
+-- If successfully resolved return 1 (true) and leave Q_Routine!=0, for Call().
+--
+integer nsi, k
+string emsg
+    nsi = find(':',TokStr)
+    if nsi then
+        nsPart2 = TokStr[nsi+1..length(TokStr)]&" "
+        TokStr = TokStr[1..nsi-1]
+        tt_string(TokStr,-2)
+        Q_Routine = InTable(InNS)
+        -- (btw: these msgs could equally be under "if listing or bind>1", as below)
+        if sequence(nsPart2) then
+            Warn("namespace not resolved",tokline,tokcol,0)
+            if Q_Routine!=0 then ?9/0 end if    -- cannot possibly be!
+--      elsif Q_Routine=0 then
+        elsif Q_Routine<=T_object then
+            Warn("routine name not resolved",tokline,tokcol,0)
+        end if
+    else
+        tt_string(TokStr,-2)
+        Q_Routine = InTable(InAny)
+        -- For testing purposes only: syswait.e/doEvents, pmsgs.e/proemh, t40/X, 
+        --  and t45/p2 all serve as counter-examples. Note that I am keen to keep
+        --  p.exw itself unresolved routine_id free, to avoid linking in prtnid.e
+        if listing or bind>1 or Q_Routine<0 then
+            -- ie, show this message for "p -d xxx" or in rounds 2/3/4 of "p -cp",
+            --      but not in the common everyday "p xxx" and/or "p -c xxx" cases.
+--          if Q_Routine=0 then
+--DEV should this not be T_Bin (ditto below)?
+            if Q_Routine<=T_object then
+--trace(1)
+--tt_string(TokStr,-2)
+--Q_Routine = InTable(InAny)
+                Warn("routine name not resolved at compile-time",tokline,tokcol,0)
+            end if
+        end if
+    end if
+--  if Q_Routine!=0 then
+    if Q_Routine>T_object then
+        k = symtab[Q_Routine][S_NTyp]
+
+        if k<S_Type then
+            -- oops!
+            if k=S_Nspc then
+                emsg = "namespace)"
+            elsif k=S_Rsvd then
+                emsg = "reserved word)"
+            elsif k=S_Const then
+                emsg = "constant)"
+            elsif k=S_GVar2 then
+                k = symtab[Q_Routine][S_State]
+                if and_bits(k,K_gbl) then
+                    emsg = "global variable)"
+                else
+                    emsg = "file-level variable)"
+                end if
+            elsif k=S_TVar then
+                emsg = "local variable)"
+--DEV autoasm? (test routine_id("platform"), routine_id("append"), etc)
+            else
+                emsg = "???)"   -- BUG!
+            end if
+            Aborp("invalid routine name (this is a "&emsg)
+        end if
+
+--emitON? (or is that covered by Q_Routine!=0)
+        k = symtab[Q_Routine][S_State]
+        k = or_bits(k,S_used+K_ridt)
+        symtab[Q_Routine][S_State] = k
+--removed PL 26/11/15:
+--      getToken()
+--      MatchChar(')')
+        return 1
+    end if
+    Q_Routine = 0
+    return 0
+end function
+
+--without trace
 
 sequence paramNames = {},   -- ttidx values
          paramTypes = {},   -- eg/ie T_integer..T_object, or udts
@@ -2984,8 +3087,12 @@ sequence paramNames = {},   -- ttidx values
                             -- (sequence): {T_command_line}
                             --          or {T_length,N}
                             --                 where N can be +/- as above
+--DEV (24/11/15)
+                            --          or {T_routine_id,N}
                             -- NB/IE general expressions are NOT supported,
                             --  just the bare minimum to get by...
+                            --  T_routine is only supported for the immediately
+                            --  preceding parameter... a string [DEV see how we get on]
                             --
                             -- Also note this is different to the default value 
                             --  in opTchk il, which is (always integer):
@@ -3136,6 +3243,53 @@ object Default
 --                  paramDflts[nParams] = {T_command_line}
                     Default = {T_command_line}
                     MatchChar(')')
+--DEV
+--!/*
+                elsif N=T_routine then
+                    getToken()
+                    MatchChar('(')
+                    if toktype=LETTER then
+                        k = find(ttidx,paramNames)
+                        if k!=0 and k<nParams then
+                            -- eg (sequence a, integer b=routine_id(a))
+                            if k!=nParams-1 
+                            or paramDflts[k]!=0 then
+                                Aborp("unsupported")
+                            end if
+                            -- (must be resolved at compile-time)
+--                          Default = {T_routine,-k?}
+                            Default = {T_routine}
+--                      else
+--                          N = InTable(InAny)
+--                          if N<=0 then Aborp("unrecognised") end if
+--                          dsig = symtab[N][S_sig]
+--                          if sequence(dsig) then
+--                              Aborp("unsupported")
+--                          elsif symtab[N][S_NTyp]=S_Rsvd then
+--                              Aborp("illegal use of a reserved word")
+--                          end if
+----or resolve now..
+--                          Default = {T_routine,N}
+                        end if
+--                  elsif toktype=DQUOTE then
+--                      Q_Routine = 0
+--                      if Ch!=')' then skipSpacesAndComments() end if
+--                      if Ch!=')'      -- not eg "do"&opname[i]
+--                      or resolveRoutineId()=0 then
+--                          Aborp("unsupported")
+--                      end if
+--DEV I think this would cause problems/requires addRoutineId(Q_Routine)
+--  - plus we're expecting {T_routine}...
+--                      Default = Q_Routine --{T_routine,N}
+--                      Default = addRoutineId(Q_Routine)?
+--                      Default = {T_routine,addRoutineId(Q_Routine)}?
+--                      Q_Routine = 0
+                    else
+                        Aborp("unsupported")
+                    end if
+                    getToken()
+                    MatchChar(')')
+--!*/
                 else
                     Aborp("unsupported")
                 end if
@@ -3433,7 +3587,7 @@ integer SNtyp
     return signature
 end function
 
-procedure Locals()
+procedure Locals(integer AllowOnDeclaration)
 -- process local declarations
 --  invoked from DoRoutineDef and Block
 integer N
@@ -3481,7 +3635,8 @@ integer SNtyp
                 N = addSymEntry(ttidx,0,S_TVar,Typ,0,0)
                 getToken()
                 if toktype='=' then
-                    onDeclaration = 1
+--                  onDeclaration = 1
+                    onDeclaration = AllowOnDeclaration
                     call_proc(r_Assignment,{N,Typ})
                     onDeclaration = 0
                 end if  -- toktype='='
@@ -3495,100 +3650,6 @@ integer SNtyp
     end while
 end procedure
 
---without trace
-with trace
-integer Q_Routine
-
---object Part2  -- now in psym.e
---procedure LiteralPart2()
----- called by InTable to grab second half of eg "fred:myroutine" when
----- trying to resolve routine_id("fred:myroutine") at compile-time.
---  tt_string(Part2,-2)
---  Part2 = 0
---end procedure
---rLiteralPart2 = routine_id("LiteralPart2")
-
-function resolveRoutineId()
---
--- (factored out of ParamList for readability reasons only)
--- Process routine_id(<literal string>), which we have proved is the case, 
---  right up to and including the closing ")", before calling this routine.
--- If successfully resolved return 1 (true) and leave Q_Routine!=0, for Call().
---
-integer nsi, k
-string emsg
-    nsi = find(':',TokStr)
-    if nsi then
-        nsPart2 = TokStr[nsi+1..length(TokStr)]&" "
-        TokStr = TokStr[1..nsi-1]
-        tt_string(TokStr,-2)
-        Q_Routine = InTable(InNS)
-        -- (btw: these msgs could equally be under "if listing or bind>1", as below)
-        if sequence(nsPart2) then
-            Warn("namespace not resolved",tokline,tokcol,0)
-            if Q_Routine!=0 then ?9/0 end if    -- cannot possibly be!
---      elsif Q_Routine=0 then
-        elsif Q_Routine<=T_object then
-            Warn("routine name not resolved",tokline,tokcol,0)
-        end if
-    else
-        tt_string(TokStr,-2)
-        Q_Routine = InTable(InAny)
-        -- For testing purposes only: syswait.e/doEvents, pmsgs.e/proemh, t40/X, 
-        --  and t45/p2 all serve as counter-examples. Note that I am keen to keep
-        --  p.exw itself unresolved routine_id free, to avoid linking in prtnid.e
-        if listing or bind>1 or Q_Routine<0 then
-            -- ie, show this message for "p -d xxx" or in rounds 2/3/4 of "p -cp",
-            --      but not in the common everyday "p xxx" and/or "p -c xxx" cases.
---          if Q_Routine=0 then
---DEV should this not be T_Bin (ditto below)?
-            if Q_Routine<=T_object then
---trace(1)
---tt_string(TokStr,-2)
---Q_Routine = InTable(InAny)
-                Warn("routine name not resolved at compile-time",tokline,tokcol,0)
-            end if
-        end if
-    end if
---  if Q_Routine!=0 then
-    if Q_Routine>T_object then
-        k = symtab[Q_Routine][S_NTyp]
-
-        if k<S_Type then
-            -- oops!
-            if k=S_Nspc then
-                emsg = "namespace)"
-            elsif k=S_Rsvd then
-                emsg = "reserved word)"
-            elsif k=S_Const then
-                emsg = "constant)"
-            elsif k=S_GVar2 then
-                k = symtab[Q_Routine][S_State]
-                if and_bits(k,K_gbl) then
-                    emsg = "global variable)"
-                else
-                    emsg = "file-level variable)"
-                end if
-            elsif k=S_TVar then
-                emsg = "local variable)"
---DEV autoasm? (test routine_id("platform"), routine_id("append"), etc)
-            else
-                emsg = "???)"   -- BUG!
-            end if
-            Aborp("invalid routine name (this is a "&emsg)
-        end if
-
---emitON? (or is that covered by Q_Routine!=0)
-        k = symtab[Q_Routine][S_State]
-        k = or_bits(k,S_used+K_ridt)
-        symtab[Q_Routine][S_State] = k
-        getToken()
-        MatchChar(')')
-        return 1
-    end if
-    Q_Routine = 0
-    return 0
-end function
 
 
 --DEV 18/6/2013:
@@ -3683,6 +3744,8 @@ sequence ptext
 integer maxparms
 --integer lblidx
 
+--object DBG
+
 -- verify compiler gets this right:
 --/**/  #isginfo{actsig,0b0100,MIN,MAX,integer,-2}
 
@@ -3737,6 +3800,8 @@ end if
                 if Ch!=')' then skipSpacesAndComments() end if
                 if Ch=')' then  -- not eg "do"&opname[i]
                     if resolveRoutineId() then
+                        getToken()
+                        MatchChar(')')
                         -- (btw, this return value is not actually used, as
                         --  routineNo=T_routine and Q_Routine is non zero,
                         --  although it does get stored, but then ignored.)
@@ -3953,6 +4018,69 @@ end if
 --      end if
 --?{sigidx,siglen,minsiglen,actsig}
     end if
+-- 26/11/15 (routine x(string name, rid=routine_id(name)) support)
+--?{length(actsig),minsiglen}
+    if length(actsig)>0 
+    and length(actsig)=minsiglen-1
+    and paramsOnStack=0
+    and not forward_call
+    and symtab[lastparam][S_Name]=-1
+    and symtab[lastparam][S_NTyp]=S_Const
+    and symtab[lastparam][S_ltype]=T_string
+    and and_bits(symtab[lastparam][S_State],K_litnoclr)=K_litnoclr then
+--?2
+        k = symtab[wasRoutineNo][S_Parm1]+length(actsig)
+        if and_bits(symtab[k][S_State],K_drid) then
+            TokStr = symtab[lastparam][S_value]
+--?TokStr
+            Q_Routine = 0
+            if resolveRoutineId() then
+                k = addRoutineId(Q_Routine)
+                PushFactor(k,1,T_integer)
+                actsig &= T_integer
+                sigidx += 1
+                siglen += 1
+            end if
+            Q_Routine = 0
+        end if
+--          DBG = {symtab[lastparam][S_value],symtab[k]}
+--  DBG = {"Icallback",{21736,3,1,#90113,-2,0,3,0,-1,623,1,3,0,0,0}}
+--          if rest_must_be_named=0 then
+--                      maxparms = length(symtab[routineNo][S_sig])-1
+--                      txids = repeat(0,maxparms)
+--                      txcols = repeat(0,maxparms)
+--                      for i=1 to maxparms do
+--                          txids[i] = symtab[pfirst][S_Name]
+--                          pfirst += 1
+--                      end for
+--
+--              K_lit  = #004000,   -- literal flag
+--              K_noclr= #000200,   -- do not clear on load (ie assignment on declaration occurred)
+--              S_set  = #000002,   -- bit for never assigned a value warnings
+--  siglen = 1
+--  sigidx = 2
+--  minsiglen = 2
+--  wasRoutineNo = 893
+--  lastparam = 911
+--lastparam
+--              DBG = symtab[lastparam]--[S_ltype]
+--  DBG = {-1,1,1,#4202,0,0,8,"Icallback",0,0,21744,8,0}
+--                      Default = ?
+--                  elsif toktype=DQUOTE then
+--                      Q_Routine = 0
+--                      if Ch!=')' then skipSpacesAndComments() end if
+--                      if Ch!=')'      -- not eg "do"&opname[i]
+--                      or resolveRoutineId()=0 then
+--                          Aborp("unsupported")
+--                      end if
+--              k = addRoutineId(Q_Routine)
+--                      Q_Routine = 0
+--K_drid
+--          actsig &= T_integer
+--          sigidx += 1
+
+    end if
+--?{siglen,minsiglen}
 
     -- initialise the parameter backpatch list if needed:
     if forward_call then
@@ -4502,6 +4630,21 @@ object dbg -- DEV (temp)
                         apnds5(opcode)
 --                  end if
                 elsif opsidx=1 then
+                    if DEBUG then
+--                      if opcode!=opTrace
+--                      and opcode!=opFree
+--                      and opcode!=opClose
+--                      and opcode!=opFlush
+--                      and opcode!=opSleep
+--                      and opcode!=opBkClr
+--                      and opcode!=opTxtClr
+--                      and opcode!=opEnterCS
+--                      and opcode!=opLeaveCS
+--                      and opcode!=opDeleteCS
+--                      and opcode!=opAbort then
+--                          ?9/0
+--                      end if
+                    end if
 --DEV I think we need similar (not bind) handling for opProfile! (also, unsure about that 6/12/09 change... elsif??)
 if opcode=opProfile and not bind then
     -- (it does not really matter as long as opLnp/opLnpt are not invoked, btw,
@@ -5363,6 +5506,9 @@ end if
                     pDef = -pDef[2]
                 end if
 --?             pTi = T_integer
+            elsif pDef={T_routine} then
+                Ktype = or_bits(Ktype,K_drid)
+                pDef = 0
             else
                 pDef = -T_command_line
 --?             pTi = T_Dsq
@@ -5396,6 +5542,9 @@ end if
             opsidx -= 1
         end if
         pN = addSymEntryAt(ttidx,0,S_TVar,pTi,0,Ktype,pCol)
+        if and_bits(Ktype,K_drid) then
+            Ktype -= K_drid
+        end if
 --      paramNames[i] = pN
         --
         -- In eg p(object a, b=a), paramDflts[2] is -1, so when
@@ -5563,7 +5712,7 @@ end if
         symtab[N][S_State] -= S_fwd
     end if
 
-    Locals()
+    Locals(1)
 --DEV can use returntype?
     CheckForFunctionReturn = 0
 
@@ -10376,9 +10525,9 @@ integer drop_scope = 0
 --  -- Fixing this may be much simpler that I first feared.
 --  Aborp("sorry, not (yet) supported under emitON=0")
 --end if
-                    TopDecls()
+                    TopDecls(0)
                 else
-                    Locals()
+                    Locals(0)
                 end if
                 if find(ttidx,T_endelseelsif) then exit end if
             end if
@@ -10396,7 +10545,7 @@ end procedure
 
 
 --with trace
-procedure TopDecls()
+procedure TopDecls(integer AllowOnDeclaration)
 -- Parse and Translate Data Declarations
 integer N, Name
 integer Typ, rootInt
@@ -10446,8 +10595,10 @@ integer Typ, rootInt
                         getToken()
                     end if
     --              onDeclaration = rootInt     --DEV or no fwd calls outstanding... (see t45aod.exw)
-                    onDeclaration = (rootInt or no_of_fwd_calls=0)
-                    fromTopDecls = 1
+--                  onDeclaration = (rootInt or no_of_fwd_calls=0)
+                    onDeclaration = AllowOnDeclaration and (rootInt or no_of_fwd_calls=0)
+--                  fromTopDecls = 1
+                    fromTopDecls = AllowOnDeclaration
                     Assignment(N,Typ)
                     fromTopDecls = 0
                     onDeclaration = 0
@@ -11288,7 +11439,7 @@ integer t
                     tokno = InTable(InAny)
                 end if
                 if tokno>0 and symtab[tokno][S_NTyp]=S_Type then
-                    TopDecls()
+                    TopDecls(1)
                     isGlobal = 0
                 else
                     if isGlobal then

@@ -826,13 +826,6 @@ integer pGtcb = 0       -- the global control block (dwThreadId=0, stored /4)
 
 integer stdcs = 0       -- for very short one-off inits in \builtins (opEnter/LeaveCS).
 
-integer pDelRtn = 0     -- ::pDelete in pDeleteN.e, once delete_routine gets called.
-                        -- NB: This is not, of itself, "tool-chain safe": should p.exw
-                        --     start using delete_routine, it will also have to invoke 
-                        --     delete_routine (in pDeleteN.e) artificially, before any
-                        --     delete() kick in, to reset this after interpreting a 
-                        --     user application.
-
 --integer gt1tcb = 0
 
 --DEV/temp:
@@ -1227,25 +1220,6 @@ end procedure -- (for Edita/CtrlQ)
         mov [pGtcb],rax
     []
         ret
-
---/*
-procedure :%pSetDel(:%)
-end procedure -- (for Edita/CtrlQ)
---*/
-    :%pSetDel
--------------
-        -- set [pDelRtn] (stored /4 for simplicity)
-    [32]
---      mov edx,[pDelRtn]
-        shr eax,2
-        mov [pDelRtn],eax
-    [64]
---      mov rdx,[pDelRtn]
-        shr rax,2
-        mov [pDelRtn],rax
-    []
-        ret
-
 
 --/*
 procedure ::EnterCriticalSection(::)
@@ -3636,21 +3610,24 @@ end procedure -- (for Edita/CtrlQ)
         test dword[edx-4],0x00FFFFFF    -- delete_routine in low 3 bytes of type
         jz @f
             push edx
+            lea eax,[edx+1]
             -- put a refcount of 1 back (normally but not necessarily 0 by now)
---          mov dword[edx-8],1
-            mov dword[edx-8],2
-            mov eax,[pDelRtn]
+            mov dword[edx-8],1
+--          mov dword[edx-8],2
+--          mov eax,[pDelRtn]
             -- reconstruct the ref
-            add edx,1
+--          add edx,1
 --      mov eax,[DelRtn]            ; see builtins/pdelete.e/deletef()
-            shl eax,2
-            ror edx,2
+--          shl eax,2
+--          ror edx,2
+            ror eax,2
 --      mov [DelRef],edx
 --      call eax
 --DEV:
 --          call :%DelRtn
 --          call [pDelRtn]
-            call eax
+--          call eax
+            call :%opDelete
 --        ::pDealloc12
             pop edx
             mov dword[edx-8],ebx        -- and re-zero the refcount
@@ -3666,20 +3643,22 @@ end procedure -- (for Edita/CtrlQ)
         test qword[rdx-8],rax                   -- delete_routine in low 7 bytes of type?
         jz @f
             push rdx
+            lea rax,[rdx+1]
             -- put a refcount of 1 back (normally but not necessarily 0 by now)
---          mov qword[rdx-16],1
-            mov qword[rdx-16],2
-            mov rax,[pDelRtn]
+            mov qword[rdx-16],1
+--          mov qword[rdx-16],2
+--          mov rax,[pDelRtn]
             -- reconstruct the ref
-            add rdx,1
+--          add rdx,1
 --      mov eax,[DelRtn]            ; see builtins/pdelete.e/deletef()
-            shl rax,2
-            ror rdx,2
+--          shl rax,2
+            ror rax,2
 --      mov [DelRef],edx
 --      call eax
 --DEV:
 --          call :%DelRtn
-            call rax
+--          call rax
+            call :%opDelete
 --        ::pDealloc24
             pop rdx
             mov qword[rdx-16],rbx       -- and re-zero the refcount
@@ -3839,19 +3818,20 @@ end procedure -- (for Edita/CtrlQ)
             jz :nodeleteroutine
     [32]
                 pushad
---              mov dword[eax-8],1      -- put a refcount of 1 back
-                mov dword[eax-8],2      -- put a refcount of 2 back
-                mov ecx,[pDelRtn]
+                mov dword[eax-8],1      -- put a refcount of 1 back
+--              mov dword[eax-8],2      -- put a refcount of 2 back
+--              mov ecx,[pDelRtn]
                 add eax,1               -- reconstruct the ref
 --      mov edx,[DelRtn]
-                shl ecx,2
+--              shl ecx,2
                 ror eax,2
 --      mov [DelRef],eax
 --      call edx
-                mov edx,eax
+--              mov edx,eax
 --DEV
 --              call :%DelRtn
-                call ecx
+--              call ecx
+                call :%opDelete
 --            ::pDealloc40
                 popad
                 mov dword[eax-8],0
@@ -3861,19 +3841,20 @@ end procedure -- (for Edita/CtrlQ)
                 push rdx
                 push rsi
                 --rsi?
---              mov qword[rdx-16],1     -- puts a refcount of 1 back
-                mov qword[rax-16],2     -- puts a refcount of 1 back
-                mov rcx,[pDelRtn]
+                mov qword[rdx-16],1     -- puts a refcount of 1 back
+--              mov qword[rax-16],2     -- puts a refcount of 1 back
+--              mov rcx,[pDelRtn]
                 add rax,1               -- reconstruct the ref
 --      mov rdx,[DelRtn]            ; see builtins/pdelete.e/deletef()
-                shl rcx,2
+--              shl rcx,2
                 ror rax,2
 --      mov [DelRef],eax
 --      call edx
 --DEV:
 --              call :%DelRtn
-                mov rdx,rax
-                call rcx
+--              mov rdx,rax
+--              call rcx
+                call :%opDelete
 --            ::pDealloc24a
                 pop rsi
                 pop rdx

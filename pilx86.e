@@ -14589,8 +14589,8 @@ if not newEmit then ?9/0 end if
 --                      end if
 --                      emitHex2s(xor_ecx_ecx)                  -- xor ecx,ecx
 --                  else
---                      ?9/0 -- DEV better message?
-                        movRegImm32(ecx,smin)                   -- mov ecx,imm32
+                        ?9/0 -- DEV better message?
+--                      movRegImm32(ecx,smin)                   -- mov ecx,imm32
 --                  end if
                 else
                     loadToReg(ecx,src)                          -- mov ecx,[src]
@@ -14725,6 +14725,39 @@ if not newEmit then ?9/0 end if
                 reginfo = 0 -- all regs trashed
             end if
             pc += 6
+
+        elsif opcode=opDelRtn then
+            --  lea edi,[res]       -- result location
+            --  mov esi,[o]         -- (opUnassigned)
+            --  mov eax,[rid]       -- (opUnassigned)
+            --  call :%opDelRtn     -- [edi]:=delete_routine(esi,eax)
+            if not isGscan then
+                dest = s5[pc+1]
+                src = s5[pc+2]
+                src2 = s5[pc+3]
+                getSrc2()
+                leamov(edi,dest)                                -- lea edi,[dest]
+                loadToReg(esi,src)                              -- mov eax,[o]
+                loadToReg(eax,src2)                             -- mov eax,[rid]
+--              if slroot2=T_integer and smin2=smax2 then
+--                  if smin2=0 or and_bits(state2,K_rtn)=0 then
+----                        if newEmit and X64=1 then
+----                            emitHex1(#48)
+----                        end if
+----                        emitHex2s(xor_eax_eax)                  -- xor eax,eax
+--                      ?9/0 -- DEV better message?
+--                  else
+----                        ?9/0 -- DEV better message?
+--                      movRegImm32(eax,smin2)                  -- mov eax,imm32
+--                  end if
+--              else
+--                  loadToReg(eax,src2)                         -- mov eax,[rid]
+--              end if
+                emitHex5callG(opcode)                           -- call opDelRtn
+                reginfo = 0 -- all regs trashed
+            end if
+            pc += 4
+
         else
             if opcode>=1 and opcode<=length(opNames) then
                 opName = opNames[opcode]

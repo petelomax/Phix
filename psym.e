@@ -2169,6 +2169,7 @@ if newEmit then
 
     -- the following functions return an object:
 
+    AutoAsm("delete_routine",   S_Func,"FOI",   "VM\\pDeleteN.e",   opDelRtn,   "%opDelRtn",    E_other,T_object)
     AutoAsm("gets",             S_Func,"FI",    "VM\\pfileioN.e",   opGets,     "%opGets",      E_other,T_object)
     AutoAsm("peek",             S_Func,"FO",    "VM\\pMem.e",       opPeek,     "%opPeekNx",    E_none, T_object)
     AutoAsm("peek1s",           S_Func,"FO",    "VM\\pMem.e",       opPeek1s,   "%opPeekNx",    E_none, T_object)
@@ -2192,6 +2193,7 @@ if newEmit then
     AutoAsm("clear_screen",     S_Proc,"P",     "VM\\pfileioN.e",   opClrScrn,  "%opClrScrn",   E_other,0)
     AutoAsm("close",            S_Proc,"PI",    "VM\\pfileioN.e",   opClose,    "%opClose",     E_other,0)
     AutoAsm("crash_message",    S_Proc,"PO",    "VM\\pDiagN.e",     opCrashMsg, "%pCrashMsg",   E_other,0)
+    AutoAsm("delete",           S_Proc,"PO",    "VM\\pDeleteN.e",   opDelete,   "%opDelete",    E_other,0)
     AutoAsm("delete_cs",        S_Proc,"PI",    "VM\\pHeap.e",      opDeleteCS, "%pDeleteCS",   E_other,0)
     AutoAsm("enter_cs",         S_Proc,"PI",    "VM\\pHeap.e",      opEnterCS,  "%pEnterCS",    E_other,0)      T_EnterCS = symlimit
     symtab[symlimit][S_ParmN] = 0
@@ -2511,8 +2513,7 @@ end if
     initialAutoEntry("db_record_data",  S_Func,"FI",    "database.e",0,E_other)
     initialAutoEntry("db_record_key",   S_Func,"FI",    "database.e",0,E_other)
 if newEmit then
---DEV document
-    initialAutoEntry("delete_routine",  S_Func,"FOI",   "VM\\pDeleteN.e",0,E_other)
+--  initialAutoEntry("delete_routine",  S_Func,"FOI",   "VM\\pDeleteN.e",0,E_other)
 else
     initialAutoEntry("delete_routine",  S_Func,"FOI",   "pdelete.e",0,E_other)
 end if
@@ -2672,8 +2673,7 @@ end if
 --DEV document
     initialAutoEntry("db_set_fatal_id",     S_Proc,"PI",    "database.e",0,E_other)
 if newEmit then
---DEV document
-    initialAutoEntry("delete",              S_Proc,"PO",    "VM\\pDeleteN.e",0,E_other)
+--  initialAutoEntry("delete",              S_Proc,"PO",    "VM\\pDeleteN.e",0,E_other)
 else
     initialAutoEntry("delete",              S_Proc,"PO",    "pdelete.e",0,E_other)
 end if

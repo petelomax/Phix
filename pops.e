@@ -831,8 +831,8 @@ opProfout = 171,        -- profile_dump()
 --  opName("opSetSP",opSetSP,0) -- ??                   -- ""
 --else
 --  opUsed += 2
-    opName("opDelRtn",opDelRtn,0) -- ??                 -- ""
-    opName("opDelete",opDelete,0) -- ??                 -- ""
+    opName("opDelRtn",opDelRtn,4) -- ??                 -- ""
+    opName("opDelete",opDelete,2) -- ??                 -- ""
 --  opName("opGetVMep",opGetVMep,0) --??
 --  opName("opReadVM",opReadVM,0) --??
 --end if

@@ -5,48 +5,1081 @@
 -- Author Pete Lomax, November 2015
 --
 -- Resizable, with automatic font and line width scaling.
--- Selection by mouse or keyboard. Constants for easy modification.
+-- Selection by mouse or keyboard.
+-- up/down/left/right and 1..9, or use mouse to enter numbers.
+-- (move the mouse off the board before using the keyboard)
+-- ? solves the board, L applies logic only, H toggles hints, 
+-- ! clears the board, R restarts the same puzzle, 
+-- space or right click clears a number (even if original..)
+-- boards can be specified using any character <= '0' for the
+-- blank spaces: ".-*0" ideally, ' ' may cause tab replacement
+-- issues during copy/paste, underscore/? are /NOT/ supported.
+--
+
+--This is an extended version of the one posted on rosettacode.
+
+--: http://rosettacode.org/wiki/Combinations#Phix :
+-- See [[Soduku#Phix|Soduku]] for a practial application of this algorithm
+
+--/*
+OTT solution. Implements line/col and set exclusion, and x-wings. 
+The included program demo\rosetta\Sudoku.exw is an extended version of this that performs extended validation, 
+contains 339 puzzles, can be run as a command-line or gui program, check for multiple solutions, and produce 
+a more readable single-puzzle output (example below).
+--*/
+
+constant CheckForMultipleSolutions = 0
+constant GUI = 0
+
+-- Working directly on 81-character strings ultimately proves easier: Originally I 
+--  just wanted to simplify the final display, but later I realised that a 9x9 grid
+--  encourages laborious indexing/looping everwhere whereas using a flat 81-element 
+--  approach encourages precomputation of index sets, and once you commit to that, 
+--  the rest of the code starts to get a whole lot cleaner. Below we create 27+18
+--  sets and 5 tables of lookup indexes to locate them quickly.
+
+sequence nines = {},                -- will be 27 in total
+         cols = repeat(0,9*9),      -- remainder(i-1,9)+1
+         rows = repeat(0,9*9),      -- floor((i-1)/9)+10
+         squares = repeat(0,9*9),
+         sixes = {},                -- will be 18 in total
+         dotcol = repeat(0,9*9),    -- same col, diff square
+         dotrow = repeat(0,9*9)     -- same row, diff square
+
+procedure set_nines()
+sequence nine, six
+integer idx, ndx
+    for x=0 to 8 do                     -- columns
+        nine = {}
+        ndx = length(nines)+1
+        for y=1 to 81 by 9 do
+            idx = y+x
+            nine = append(nine,idx)
+            cols[idx] = ndx
+        end for
+        nines = append(nines,nine)
+    end for
+    for y=1 to 81 by 9 do               -- rows
+        nine = {}
+        ndx = length(nines)+1
+        for x=0 to 8 do
+            idx = y+x
+            nine = append(nine,idx)
+            rows[idx] = ndx
+        end for
+        nines = append(nines,nine)
+    end for
+    if length(nines)!=18 then ?9/0 end if
+    for y=0 to 8 by 3 do                -- small squares [19..27]
+        for x=0 to 8 by 3 do
+            nine = {}
+            ndx = length(nines)+1
+            for sy=y*9 to y*9+18 by 9 do
+                for sx=x to x+2 do
+                    idx = sy+sx+1
+                    nine = append(nine,idx)
+                    squares[idx] = ndx
+                end for
+            end for
+            nines = append(nines,nine)
+        end for
+    end for
+    if length(nines)!=27 then ?9/0 end if
+    for i=1 to 9*9 do
+        six = {}
+        nine = nines[cols[i]]           -- dotcol
+        for j=1 to length(nine) do
+            if squares[i]!=squares[nine[j]] then
+                six = append(six,nine[j])
+            end if
+        end for
+        ndx = find(six,sixes)
+        if ndx=0 then
+            sixes = append(sixes,six)
+            ndx = length(sixes)
+        end if
+        dotcol[i] = ndx
+        six = {}
+        nine = nines[rows[i]]           -- dotrow
+        for j=1 to length(nine) do
+            if squares[i]!=squares[nine[j]] then
+                six = append(six,nine[j])
+            end if
+        end for
+        ndx = find(six,sixes)
+        if ndx=0 then
+            sixes = append(sixes,six)
+            ndx = length(sixes)
+        end if
+        dotrow[i] = ndx
+    end for
+end procedure
+set_nines()
+
+integer improved = 0
+
+function eliminate_in(sequence valid, sequence set, integer ch)
+    for i=1 to length(set) do
+        integer idx = set[i]
+        if string(valid[idx]) then
+            integer k = find(ch,valid[idx])
+            if k!=0 then
+                valid[idx][k..k] = ""
+                improved = 1
+            end if
+        end if
+    end for
+    return valid
+end function
+
+function test_comb(sequence chosen, sequence pool, sequence valid)
+--
+-- (see deep_logic()/set elimination)
+-- chosen is a sequence of length 2..4 of integers 1..9: ordered elements of pool.
+-- pool is a set of elements of the sequence valid, each of which is a sequence.
+-- (note that elements of valid in pool not in chosen are not necessarily sequences)
+--
+sequence contains = repeat(0,9)
+integer ccount = 0, ch
+object set
+
+    for i=1 to length(chosen) do
+        set = valid[pool[chosen[i]]]
+        for j=1 to length(set) do
+            ch = set[j]-'0'
+            if contains[ch]=0 then
+                contains[ch] = 1
+                ccount += 1
+            end if
+        end for
+    end for
+    if ccount=length(chosen) then
+        for i=1 to length(pool) do
+            if find(i,chosen)=0 then
+                set = valid[pool[i]]
+                if sequence(set) then
+                    -- (reverse order so deletions don't foul indexes)
+                    for j=length(set) to 1 by -1 do
+                        ch = set[j]-'0'
+                        if contains[ch] then
+                            valid[pool[i]][j..j] = ""
+                            improved = 1
+                        end if
+                    end for
+                end if
+            end if
+        end for
+    end if
+    return valid
+end function
+
+-- from [[Combinations#Phix|Combinations]]
+-- from http://rosettacode.org/wiki/Combinations#Phix
+function comb(sequence pool, valid, integer needed, done=0, sequence chosen={})
+-- (used by deep_logic()/set elimination)
+    if needed=0 then    -- got a full set
+        return test_comb(chosen,pool,valid)
+    end if
+    if done+needed>length(pool) then return valid end if -- cannot fulfil
+    -- get all combinations with and without the next item:
+    done += 1
+    if sequence(valid[pool[done]]) then
+        valid = comb(pool,valid,needed-1,done,append(chosen,done))
+    end if
+    return comb(pool,valid,needed,done,chosen)
+end function
+
+function deep_logic(string board, sequence valid)
+--
+--  Create a grid of valid moves. Note this does not modify board, but instead creates
+--  sets of permitted values for each cell, which can also be and are used for hints.
+--  Apply standard eliminations of known cells, then try some more advanced tactics:
+--
+--  1) row/col elimination
+--      If in any of the 9 small squares a number can only occur in one row or column,
+--      then that number cannot occur in that row or column in two other corresponding
+--      small squares. Example (this one with significant practical benefit):
+--              000|000|036
+--              840|000|000
+--              000|000|020
+--              ---+---+---
+--              000|203|000
+--              010|000|700
+--              000|600|400
+--              ---+---+---
+--              000|410|050
+--              003|000|200
+--              600|000|000 <-- 3
+--                        ^-- 3
+--      Naively, the br can contain a 3 in the four corners, but looking at mid-right and
+--      mid-bottom leads us to eliminating 3s in column 9 and row 9, leaving 7,7 as the 
+--      only square in the br that can be a 3. Uses dotcol and dotrow.
+--      Without this, brute force on the above takes ~8s, but with it ~0s
+--      
+--  2) set elimination
+--      If in any 9-set there is a set of n blank squares that can only contain n digits,
+--      then no other squares can contain those digits. Example (with some benefit):
+--              75.|.9.|.46
+--              961|...|352
+--              4..|...|79.
+--              ---+---+---
+--              2..|6.1|..7
+--              .8.|...|.2.
+--              1..|328|.65
+--              ---+---+---
+--              ...|...|...     <-- [7,8] is {1,3,8}, [7,9] is {1,3,8}
+--              3.9|...|2.4     <-- [8,8] is {1,8}
+--              84.|.3.|.79
+--      The three cells above the br 479 can only contain {1,3,8}, so the .. of the .2. 
+--      in column 7 of that square are {5,6} (not 1) and hence [9,4] must be a 1.
+--      (Relies on plain_logic to spot that "must be a 1", and serves as a clear example 
+--       of why this routine should not bother to attempt updating the board itself - as
+--       it spends almost all of its time looking in a completely different place.)
+--      (One could argue that [7,7] and [9,7] are the only places that can hold {5,6} and
+--       therefore we should eliminate all non-{5,6} from those squares, as an alternative
+--       strategy. However I think that would be harder to code and cannot imagine a case
+--       said complementary logic covers, that the above does not, cmiiw.)
+--
+--  3) x-wings
+--      If a pair of rows or columns can only contain a given number in two matching places,
+--      then once filled they will occupy opposite diagonal corners, hence that said number 
+--      cannot occur elsewhere in those two columns/rows. Example (with a benefit):
+--              .43|98.|25. <-- 6 in [1,{6,9}]
+--              6..|425|...
+--              2..|..1|.94
+--              ---+---+---
+--              9..|..4|.7.                     <-- hence 6 not in [4,9]
+--              3..|6.8|...
+--              41.|2.9|..3
+--              ---+---+---
+--              82.|5..|...                     <-- hence 6 not in [7,6],[7,9]
+--              ...|.4.|..5                     <-- hence 6 not in [8,6]
+--              534|89.|71. <-- 6 in [9,{6,9}]
+--      A 6 must be in [1,6] or [1,9] and [9,6] or [9,9], hence [7,9] is not 6 and must be 9.
+--      (we also eliminate 6 from [4,9], [7,6] and [8,6] to no great use)
+--      In practice this offers little benefit over a single trial-and-error step, as
+--       obviously trying either 6 in row 1 or 9 immediately pinpoints that 9 anyway.
+--
+--  4) swordfish (not attempted)
+--      There is an extension to x-wings known as swordfish: three (or more) pairs form
+--      a staggered pair (or more) of rectangles that exhibit similar properties, eg:
+--              8-1|-5-|-3-
+--              953|-68|---
+--              -4-|-*3|5*8
+--              ---+---+---
+--              6--|9-2|---
+--              -8-|-3-|-4-
+--              3*-|5-1|-*7     <-- hence [6,3] is not 9, must be 4
+--              ---+---+---
+--              5*2|-*-|-8-
+--              --8|37-|--9
+--              -3-|82-|1--
+--               ^---^---^-- 3 pairs of 9s (marked with *) on 3 rows (only)
+--      It is not a swordfish if the 3 pairs are on >3 rows, I trust that is obvious.
+--      Logically you can extend this to N pairs on N rows, however I cannot imagine a 
+--      case where this is not immediately solved by a single trial-step being invalid.
+--      (eg above if you try [3,5]:=9 it is quickly proved to be invalid, and the same
+--       goes for [6,8]:=9 and [7,2]:=9, since they are all entirely inter-dependent.)
+--      Obviously where I have said rows, the same concept can be applied to columns.
+--      Likewise there are "Alternate Pairs" and "Hook or X-Y wing" strategies, which 
+--      are easily solved with a single trial-and-error step, and of course the brute
+--      force algorithm is going to select pairs first anyway. [Erm, no it doesn't, 
+--      it selects shortest - I've noted the possible improvement below.]
+--
+integer col, row
+sequence c, r
+sequence nine, prevsets, set
+object vj
+integer ch, k, idx, sx, sy, count
+
+    if length(valid)=0 then
+        -- initialise/start again from scratch
+        valid = repeat("123456789",9*9)
+    end if
+    --
+    -- First perform standard eliminations of any known cells:
+    --  (repeated every time so plain_logic() does not have to worry about it)
+    --
+    for i=1 to 9*9 do
+        ch = board[i]
+        if ch>'0'
+        and string(valid[i]) then
+            valid[i] = ch
+            valid = eliminate_in(valid,nines[cols[i]],ch)
+            valid = eliminate_in(valid,nines[rows[i]],ch)
+            valid = eliminate_in(valid,nines[squares[i]],ch)
+        end if
+    end for
+    --
+    -- 1) row/col elimination
+    --
+    for s=19 to 27 do
+        c = repeat(0,9) -- 0 = none seen, 1..9 this col only, -1: >1 col
+        r = repeat(0,9) -- ""                       row              row
+        nine = nines[s]
+        for n=1 to 9 do
+            k = nine[n]
+            vj = valid[k]
+            if string(vj) then
+                for i=1 to length(vj) do
+                    ch = vj[i]-'0'
+                    col = dotcol[k]
+                    row = dotrow[k]
+                    c[ch] = iff(find(c[ch],{0,col})!=0?col:-1)
+                    r[ch] = iff(find(r[ch],{0,row})!=0?row:-1)
+                end for
+            end if
+        end for
+        for i=1 to 9 do
+            ch = i+'0'
+            col = c[i]
+            if col>0 then
+                valid = eliminate_in(valid,sixes[col],ch)
+            end if
+            row = r[i]
+            if row>0 then
+                valid = eliminate_in(valid,sixes[row],ch)
+            end if
+        end for
+    end for
+    --
+    -- 2) set elimination
+    --
+    for i=1 to length(nines) do
+        --
+        --  Practical note: Meticulously counting empties to eliminate larger set sizes
+        --                  would at best reduce 6642 tests to 972, not deemed worth it.
+        --
+        for set_size=2 to 4 do
+            --if floor(count_empties(nines[i])/2)>=set_size then -- (untested)
+            valid = comb(nines[i],valid,set_size)
+            --end if
+        end for
+    end for
+    --
+    -- 3) x-wings
+    --
+    for ch='1' to '9' do
+        prevsets = repeat(0,9)
+        for x=1 to 9 do
+            count = 0
+            set = repeat(0,9)
+            for y=0 to 8 do
+                idx = y*9+x
+                if sequence(valid[idx]) and find(ch,valid[idx]) then
+                    set[y+1] = 1
+                    count += 1
+                end if
+            end for
+            if count=2 then
+                k = find(set,prevsets)
+                if k!=0 then
+                    for y=0 to 8 do
+                        if set[y+1]=1 then
+                            for sx=1 to 9 do
+                                if sx!=k and sx!=x then
+                                    valid = eliminate_in(valid,{y*9+sx},ch)
+                                end if
+                            end for
+                        end if
+                    end for
+                else
+                    prevsets[x] = set
+                end if
+            end if
+        end for
+        prevsets = repeat(0,9)
+        for y=0 to 8 do
+            count = 0
+            set = repeat(0,9)
+            for x=1 to 9 do
+                idx = y*9+x
+                if sequence(valid[idx]) and find(ch,valid[idx]) then
+                    set[x] = 1
+                    count += 1
+                end if
+            end for
+            if count=2 then
+                k = find(set,prevsets) 
+                if k!=0 then
+                    for x=1 to 9 do
+                        if set[x]=1 then
+                            for sy=0 to 8 do
+                                if sy+1!=k and sy!=y then
+                                    valid = eliminate_in(valid,{sy*9+x},ch)
+                                end if
+                            end for
+                        end if
+                    end for
+                else
+                    prevsets[y+1] = set
+                end if
+            end if
+        end for
+    end for
+    return valid
+end function
+
+function permitted_in(string board, sequence sets, sequence valid, integer ch)
+sequence set
+integer pos, idx, bch
+    for i=1 to 9 do
+        set = nines[sets[i]]
+        pos = 0
+        for j=1 to 9 do
+            idx = set[j]
+            bch = board[idx]
+            if bch>'0' then
+                if bch=ch then pos = -1 exit end if
+            elsif find(ch,valid[idx]) then
+                if pos!=0 then pos = -1 exit end if
+                pos = idx
+            end if
+        end for
+        if pos>0 then
+            board[pos] = ch
+            improved = 1
+        end if
+    end for
+    return board
+end function
+
+enum INVALID = -1, INCOMPLETE = 0, SOLVED = 1, MULTIPLE = 2, BRUTE = 3
+
+function plain_logic(string board)
+--
+-- Responsible for:
+--  1) cells with only one option
+--  2) numbers with only one home
+--
+integer solved
+sequence valid = {}
+object vi
+
+    while 1 do
+        solved = SOLVED
+        improved = 0
+        valid = deep_logic(board,valid)
+
+        -- 1) cells with only one option:
+        for i=1 to length(valid) do
+            vi = valid[i]
+            if string(vi) then
+                if length(vi)=0 then return {board,{},INVALID} end if
+                if length(vi)=1 then
+                    board[i] = vi[1]
+                    improved = 1
+                end if
+            end if
+            if board[i]<='0' then
+                solved = INCOMPLETE
+            end if
+        end for
+        if solved=SOLVED then return {board,{},SOLVED} end if
+
+        -- 2) numbers with only one home
+        for ch='1' to '9' do
+            board = permitted_in(board,cols,valid,ch)
+            board = permitted_in(board,rows,valid,ch)
+            board = permitted_in(board,squares,valid,ch)
+        end for
+        if not improved then exit end if
+    end while
+    return {board,valid,solved}
+end function
+
+function validate(string board)
+-- (sum9 should be sufficient - if you want, get rid of nine/nines)
+integer ch, sum9
+sequence nine, nines = tagset(9)
+
+    for x=0 to 8 do                 -- columns
+        sum9 = 0
+        nine = repeat(0,9)
+        for y=1 to 81 by 9 do
+            ch = board[y+x]-'0'
+            if ch<1 or ch>9 then return 0 end if
+            sum9 += ch
+            nine[ch] = ch
+        end for
+        if sum9!=45 then return 0 end if
+        if nine!=nines then return 0 end if
+    end for
+    for y=1 to 81 by 9 do           -- rows
+        sum9 = 0
+        nine = repeat(0,9)
+        for x=0 to 8 do
+            ch = board[y+x]-'0'
+            sum9 += ch
+            nine[ch] = ch
+        end for
+        if sum9!=45 then return 0 end if
+        if nine!=nines then return 0 end if
+    end for
+    for y=0 to 8 by 3 do            -- small squares
+        for x=0 to 8 by 3 do
+            sum9 = 0
+            nine = repeat(0,9)
+            for sy=y*9 to y*9+18 by 9 do
+                for sx=x to x+2 do
+                    ch = board[sy+sx+1]-'0'
+                    sum9 += ch
+                    nine[ch] = ch
+                end for
+            end for
+            if sum9!=45 then return 0 end if
+            if nine!=nines then return 0 end if
+        end for
+    end for
+    return 1
+end function
+
+function solve(string board, sequence valid={})
+sequence solution, solutions
+integer solved
+integer minopt, mindx
+object vi
+    {solution,valid,solved} = plain_logic(board)
+    if solved=INVALID then return {{},INVALID} end if
+    if solved=SOLVED then return {{solution},SOLVED} end if
+    if solved=BRUTE then return {{solution},BRUTE} end if
+    if solved!=INCOMPLETE then ?9/0 end if
+    -- find the cell with the fewest options:
+    -- (a possible improvement here would be to select the shortest 
+    --  with the "most pairs" set, see swordfish etc above.)
+    minopt = 10
+    for i=1 to 9*9 do
+        vi = valid[i]
+        if string(vi) then
+            if length(vi)<=1 then ?9/0 end if   -- should be caught above
+            if length(vi)<minopt then
+                minopt = length(vi)
+                mindx = i
+            end if
+        end if
+    end for
+    solutions = {}
+    for i=1 to minopt do
+        board[mindx] = valid[mindx][i]
+        {solution,solved} = solve(board,valid)
+        if solved=MULTIPLE then
+            return {solution,MULTIPLE}
+        elsif solved=SOLVED
+           or solved=BRUTE then
+            if not find(solution[1],solutions)
+            and validate(solution[1]) then
+                solutions = append(solutions,solution[1])
+            end if
+            if length(solutions)>1 then
+                return {solutions,MULTIPLE}
+            elsif not CheckForMultipleSolutions
+              and length(solutions) then
+                return {solutions,BRUTE}
+            end if
+        end if
+    end for
+    if length(solutions)=1 then
+        return {solutions,BRUTE}
+    end if
+    return {{},INVALID}
+end function
+
+function test_one(string board)
+sequence solutions
+string solution, desc
+integer solved
+    {solutions,solved} = solve(board)
+    if solved=SOLVED then
+        desc = "(logic)"
+    elsif solved=BRUTE then
+        desc = "(brute force)"
+    else
+        desc = "???" -- INVALID/INCOMPLETE/MULTIPLE
+    end if
+    if length(solutions)=0 then
+        solution = board
+        desc = "*** NO SOLUTIONS ***"
+    elsif length(solutions)=1 then
+        solution = solutions[1]
+        if not validate(solution) then
+            desc = "*** ERROR ***"  -- (should never happen)
+        end if
+    else
+        solution = board
+        desc = "*** MULTIPLE SOLUTIONS ***"
+    end if
+    return {solution,desc}
+end function
+
+--NB Blank cells can be represented by any character <'1'. Spaces are not recommended since
+--   they can all too easily be converted to tabs by copy/paste/save. In particular, ? and
+--   _ are NOT valid characters for representing a blank square. Use any of .0-* instead.
+
+constant tests = {
+    -- should fail(1) from Scala
+--  "394302670000300400500690020045000900600000007007000580010067008009008000026400735",    -- (0.00s, *** NO SOLUTIONS ***)
+    -- should fail(2) from Scala
+--  "123456789456789123789123456045008900600000007207000580310067008009008000026400735",    -- (0.00s, *** NO SOLUTIONS ***)
+    -- (obviously if the check for multiple solutions is off, just reports the first)
+    -- (in practice at the start plain/deep_logic just gets in the way of brute force 
+    --  recursing (48 times), before suddenly finishing it off quite quickly twice)
+    ".................................................................................",    -- (0.37s, *** MULTIPLE SOLUTIONS ***)
+
+--!/*
+    "..............3.85..1.2.......5.7.....4...1...9.......5......73..2.1........4...9",    -- (0.01s, (logic))
+    -- row/col elimination (was 8s w/o logic first)
+    "000000036840000000000000020000203000010000700000600400000410050003000200600000000",    -- (0.04s, (brute force))
+    ".......39.....1..5..3.5.8....8.9...6.7...2...1..4.......9.8..5..2....6..4..7.....",    -- (1.12s, (brute force))
+    "000037600000600090008000004090000001600000009300000040700000800010009000002540000",    -- (0.00s, (logic))
+    "....839..1......3...4....7..42.3....6.......4....7..1..2........8...92.....25...6",    -- (0.04s, (brute force))
+    "..1..5.7.92.6.......8...6...9..2.4.1.........3.4.8..9...7...3.......7.69.1.8..7..",    -- (0.00s, (logic))
+    -- (the following takes ~8s when checking for multiple solutions)
+    "--3------4---8--36--8---1---4--6--73---9----------2--5--4-7--686--------7--6--5--",    -- (0.01s, (brute force))
+    "..3.2.6..9..3.5..1..18.64....81.29..7.......8..67.82....26.95..8..2.3..9..5.1.3..",    -- (0.00s, (logic))
+    "--4-5--6--6-1--8-93----7----8----5-----4-3-----6----7----2----61-5--4-3--2--7-1--",    -- (0.00s, (logic))
+    -- x-wings
+    ".4398.25.6..425...2....1.949....4.7.3..6.8...41.2.9..382.5.........4...553489.71.",    -- (0.00s, (logic))
+    ".9...4..7.....79..8........4.58.....3.......2.....97.6........4..35.....2..6...8.",    -- (0.00s, (logic))
+    -- "AL Escargot", so-called "hardest sudoku"
+    "1....7.9..3..2...8..96..5....53..9...1..8...26....4...3......1..4......7..7...3..",    -- (0.26s, (brute force))
+    "12.3....435....1....4........54..2..6...7.........8.9...31..5.......9.7.....6...8",    -- (0.48s, (brute force))
+    "12.4..3..3...1..5...6...1..7...9.....4.6.3.....3..2...5...8.7....7.....5.......98",    -- (1.07s, (brute force))
+    "394..267....3..4..5..69..2..45...9..6.......7..7...58..1..67..8..9..8....264..735",    -- (0.00s, (logic))
+    "4......6.5...8.9..3....1....2.7....1.9.....4.8....3.5....2....7..6.5...8.1......6",    -- (0.01s, (brute force))
+    "5...7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79",    -- (0.00s, (logic))
+    "503600009010002600900000080000700005006804100200003000030000008004300050800006702",    -- (0.00s, (logic))
+    "53..247....2...8..1..7.39.2..8.72.49.2.98..7.79.....8.....3.5.696..1.3...5.69..1.",    -- (0.00s, (logic))
+    "530070000600195000098000060800060003400803001700020006060000280000419005000080079",    -- (0.00s, (logic))
+    -- set exclusion
+    "75..9..46961...3524.....79.2..6.1..7.8.....2.1..328.65.........3.9...2.484..3..79",    -- (0.00s, (logic))
+    -- Worlds hardest sudoku:
+    "800000000003600000070090200050007000000045700000100030001000068008500010090000400",    -- (0.21s, (brute force))
+    "819--5-----2---75--371-4-6-4--59-1--7--3-8--2--3-62--7-5-7-921--64---9-----2--438",    -- (0.00s, (logic))
+    "85...24..72......9..4.........1.7..23.5...9...4...........8..7..17..........36.4.",    -- (0.01s, (logic))
+    "9..2..5...4..6..3...3.....6...9..2......5..8...7..4..37.....1...5..2..4...1..6..9",    -- (0.17s, (brute force))
+    "97.3...6..6.75.........8.5.......67.....3.....539..2..7...25.....2.1...8.4...73..",    -- (0.00s, (logic))
+
+--!*/
+
+--!/*
+    "-46--57-----9------9---1--6------9---3-------4--52---8-8-----7-57-3---822-----3--",    -- (1.23s, (brute force))
+    "2----7-5-------3----12-8---7----3--1--2----6--6---14----41-6--8--8---7---5-----9-",    -- (0.01s, (brute force))
+    "-8----15-4-65-9-8------8--------------2-4---33--8-1---9---7----6-------415-----9-",    -- (0.53s, (brute force))
+    "-61--7--3-92--3--------------853----------5-45----8----4------1---16-8--6--------",    -- (0.00s, (logic))
+--!*/
+
+--!/*
+    --Swordfish (3 pairs of 9s in columns 2, 5, and 8: eliminate 9s -> [6,3] must be 4)
+    "8-1-5--3-953-68----4---35-86--9-2----8--3--4-3--5-1--75-2----8---837---9-3-82-1--",    -- (0.00s, (brute force))
+    --Alternate Pairs (erm?)
+    "--1-6-5-4-5-1-4-8--4-5--1-9--425679---581764--76943--54-7----5--1---5---5-9-8----",    -- (0.01s, (brute force))
+    --Alternate Pair Deduction (pairs of 7 in cols 2,4,5 and rows 6,7. Basically if [6,4] is a 7
+    --                          the both [1,2] and [1,5] must be 7, hence [6,4] is not a 7)
+    "---8--9-5-5-39----489512736834259617-9743-5822-5--84935--98-364----4527--4--23-5-",    -- (0.00s, (brute force))
+    -- Multicoloured Alternate Pairs (A 6 in both [5,8] and [6,7] forbid a 6 in [9,6]...)
+    "964---781815-6-324723481596631---978598---4-24728---5334---82--289-3--4515----83-",    -- (0.01s, (brute force))
+    -- Hook or X-Y wing (Because [2,4] is {2,7}, and (taking advantage of the naked pair of {4,9} in [4,6] and [4,9]),
+    --                   [4,5] is {2,5} and [4,8] is {5,7}, then a sort of 2_5_7 dependency forms, and 2,8 cannot be 7.)
+    "-3---62--5---8-3-118-3--6----19725--859--3742723845916-1---78-52-85314-7-754-81--",    -- (0.00s, (brute force))
+--!*/
+
+--!/*
+    -- Project Euler, p096_sudoku.txt
+    "003020600900305001001806400008102900700000008006708200002609500800203009005010300",    -- (0.00s, (logic))
+    "200080300060070084030500209000105408000000000402706000301007040720040060004010003",    -- (0.00s, (logic))
+    "000000907000420180000705026100904000050000040000507009920108000034059000507000000",    -- (0.00s, (logic))
+    "030050040008010500460000012070502080000603000040109030250000098001020600080060020",    -- (0.00s, (logic))
+    "020810740700003100090002805009040087400208003160030200302700060005600008076051090",    -- (0.00s, (logic))
+    "100920000524010000000000070050008102000000000402700090060000000000030945000071006",    -- (0.01s, (logic))
+    "043080250600000000000001094900004070000608000010200003820500000000000005034090710",    -- (0.00s, (logic))
+    "480006902002008001900370060840010200003704100001060049020085007700900600609200018",    -- (0.00s, (logic))
+    "000900002050123400030000160908000000070000090000000205091000050007439020400007000",    -- (0.00s, (logic))
+    "001900003900700160030005007050000009004302600200000070600100030042007006500006800",    -- (0.01s, (logic))
+    "000125400008400000420800000030000095060902010510000060000003049000007200001298000",    -- (0.00s, (logic))
+    "062340750100005600570000040000094800400000006005830000030000091006400007059083260",    -- (0.00s, (logic))
+    "300000000005009000200504000020000700160000058704310600000890100000067080000005437",    -- (0.00s, (logic))
+    "630000000000500008005674000000020000003401020000000345000007004080300902947100080",    -- (0.00s, (logic))
+    "000020040008035000000070602031046970200000000000501203049000730000000010800004000",    -- (0.00s, (logic))
+    "361025900080960010400000057008000471000603000259000800740000005020018060005470329",    -- (0.01s, (logic))
+    "050807020600010090702540006070020301504000908103080070900076205060090003080103040",    -- (0.00s, (logic))
+    "080005000000003457000070809060400903007010500408007020901020000842300000000100080",    -- (0.00s, (logic))
+    "003502900000040000106000305900251008070408030800763001308000104000020000005104800",    -- (0.00s, (logic))
+    "000000000009805100051907420290401065000000000140508093026709580005103600000000000",    -- (0.00s, (logic))
+    "020030090000907000900208005004806500607000208003102900800605007000309000030020050",    -- (0.00s, (logic))
+    "005000006070009020000500107804150000000803000000092805907006000030400010200000600",    -- (0.00s, (logic))
+    "040000050001943600009000300600050002103000506800020007005000200002436700030000040",    -- (0.00s, (logic))
+    "004000000000030002390700080400009001209801307600200008010008053900040000000000800",    -- (0.00s, (logic))
+    "360020089000361000000000000803000602400603007607000108000000000000418000970030014",    -- (0.01s, (logic))
+    "500400060009000800640020000000001008208000501700500000000090084003000600060003002",    -- (0.00s, (logic))
+    "007256400400000005010030060000508000008060200000107000030070090200000004006312700",    -- (0.00s, (logic))
+    "000000000079050180800000007007306800450708096003502700700000005016030420000000000",    -- (0.00s, (logic))
+    "030000080009000500007509200700105008020090030900402001004207100002000800070000090",    -- (0.00s, (logic))
+    "200170603050000100000006079000040700000801000009050000310400000005000060906037002",    -- (0.01s, (logic))
+    "000000080800701040040020030374000900000030000005000321010060050050802006080000000",    -- (0.00s, (logic))
+    "000000085000210009960080100500800016000000000890006007009070052300054000480000000",    -- (0.00s, (logic))
+    "608070502050608070002000300500090006040302050800050003005000200010704090409060701",    -- (0.00s, (logic))
+    "050010040107000602000905000208030501040070020901080406000401000304000709020060010",    -- (0.00s, (logic))
+    "053000790009753400100000002090080010000907000080030070500000003007641200061000940",    -- (0.00s, (logic))
+    "006080300049070250000405000600317004007000800100826009000702000075040190003090600",    -- (0.00s, (logic))
+    "005080700700204005320000084060105040008000500070803010450000091600508007003010600",    -- (0.00s, (logic))
+    "000900800128006400070800060800430007500000009600079008090004010003600284001007000",    -- (0.00s, (logic))
+    "000080000270000054095000810009806400020403060006905100017000620460000038000090000",    -- (0.01s, (logic))
+    "000602000400050001085010620038206710000000000019407350026040530900020007000809000",    -- (0.00s, (logic))
+    "000900002050123400030000160908000000070000090000000205091000050007439020400007000",    -- (0.00s, (logic))
+    "380000000000400785009020300060090000800302009000040070001070500495006000000000092",    -- (0.00s, (logic))
+    "000158000002060800030000040027030510000000000046080790050000080004070100000325000",    -- (0.01s, (logic))
+    "010500200900001000002008030500030007008000500600080004040100700000700006003004050",    -- (0.00s, (logic))
+    "080000040000469000400000007005904600070608030008502100900000005000781000060000010",    -- (0.00s, (logic))
+    "904200007010000000000706500000800090020904060040002000001607000000000030300005702",    -- (0.00s, (logic))
+    "000700800006000031040002000024070000010030080000060290000800070860000500002006000",    -- (0.01s, (logic))
+    "001007090590080001030000080000005800050060020004100000080000030100020079020700400",    -- (0.00s, (logic))
+    "000003017015009008060000000100007000009000200000500004000000020500600340340200000",    -- (0.01s, (logic))
+    "300200000000107000706030500070009080900020004010800050009040301000702000000008006",    -- (0.01s, (logic))
+--!*/
+
+--!/*
+    "85...24..72......9..4.........1.7..23.5...9...4...........8..7..17..........36.4.",    -- (0.00s, (logic))
+    "..53.....8......2..7..1.5..4....53...1..7...6..32...8..6.5....9..4....3......97..",    -- (0.18s, (brute force))
+    "12..4......5.69.1...9...5.........7.7...52.9..3......2.9.6...5.4..9..8.1..3...9.4",    -- (0.03s, (brute force))
+    "...57..3.1......2.7...234......8...4..7..4...49....6.5.42...3.....7..9....18.....",    -- (0.00s, (logic))
+    "7..1523........92....3.....1....47.8.......6............9...5.6.4.9.7...8....6.1.",    -- (0.00s, (logic))
+    "1....7.9..3..2...8..96..5....53..9...1..8...26....4...3......1..4......7..7...3..",    -- (0.26s, (brute force))
+    "1...34.8....8..5....4.6..21.18......3..1.2..6......81.52..7.9....6..9....9.64...2",    -- (0.00s, (brute force))
+    "...92......68.3...19..7...623..4.1....1...7....8.3..297...8..91...5.72......64...",    -- (0.00s, (brute force))
+    ".6.5.4.3.1...9...8.........9...5...6.4.6.2.7.7...4...5.........4...8...1.5.2.3.4.",    -- (0.03s, (brute force))
+    "7.....4...2..7..8...3..8.799..5..3...6..2..9...1.97..6...3..9...3..4..6...9..1.35",    -- (0.00s, (brute force))
+    "....7..2.8.......6.1.2.5...9.54....8.........3....85.1...3.2.8.4.......9.7..6....",    -- (0.06s, (brute force))
+--!*/
+
+--!/*
+    "4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......",    -- (0.01s, (logic))
+    "52...6.........7.13...........4..8..6......5...........418.........3..2...87.....",    -- (0.00s, (logic))
+    "6.....8.3.4.7.................5.4.7.3..2.....1.6.......2.....5.....8.6......1....",    -- (0.01s, (logic))
+    "48.3............71.2.......7.5....6....2..8.............1.76...3.....4......5....",    -- (0.03s, (brute force))
+    "....14....3....2...7..........9...3.6.1.............8.2.....1.4....5.6.....7.8...",    -- (0.06s, (brute force))
+    "......52..8.4......3...9...5.1...6..2..7........3.....6...1..........7.4.......3.",    -- (0.00s, (logic))
+    "6.2.5.........3.4..........43...8....1....2........7..5..27...........81...6.....",    -- (0.06s, (brute force))
+    ".524.........7.1..............8.2...3.....6...9.5.....1.6.3...........897........",    -- (0.01s, (brute force))
+    "6.2.5.........4.3..........43...8....1....2........7..5..27...........81...6.....",    -- (0.04s, (brute force))
+    ".923.........8.1...........1.7.4...........658.........6.5.2...4.....7.....9.....",    -- (0.03s, (brute force))
+    "6..3.2....5.....1..........7.26............543.........8.15........4.2........7..",    -- (0.04s, (brute force))
+    ".6.5.1.9.1...9..539....7....4.8...7.......5.8.817.5.3.....5.2............76..8...",    -- (0.20s, (brute force))
+    "..5...987.4..5...1..7......2...48....9.1.....6..2.....3..6..2.......9.7.......5..",    -- (0.57s, (brute force))
+    "3.6.7...........518.........1.4.5...7.....6.....2......2.....4.....8.3.....5.....",    -- (0.03s, (brute force))
+    "1.....3.8.7.4..............2.3.1...........958.........5.6...7.....8.2...4.......",    -- (0.00s, (logic))
+    "6..3.2....4.....1..........7.26............543.........8.15........4.2........7..",    -- (0.04s, (brute force))
+    "....3..9....2....1.5.9..............1.2.8.4.6.8.5...2..75......4.1..6..3.....4.6.",    -- (0.01s, (brute force))
+    "45.....3....8.1....9...........5..9.2..7.....8.........1..4..........7.2...6..8..",    -- (0.00s, (logic))
+    ".237....68...6.59.9.....7......4.97.3.7.96..2.........5..47.........2....8.......",    -- (0.00s, (brute force))
+    "..84...3....3.....9....157479...8........7..514.....2...9.6...2.5....4......9..56",    -- (0.04s, (brute force))
+    ".98.1....2......6.............3.2.5..84.........6.........4.8.93..5...........1..",    -- (0.00s, (logic))
+    "..247..58..............1.4.....2...9528.9.4....9...1.........3.3....75..685..2...",    -- (0.03s, (brute force))
+    "4.....8.5.3..........7......2.....6.....5.4......1.......6.3.7.5..2.....1.9......",    -- (0.00s, (logic))
+    ".2.3......63.....58.......15....9.3....7........1....8.879..26......6.7...6..7..4",    -- (0.15s, (brute force))
+    "1.....7.9.4...72..8.........7..1..6.3.......5.6..4..2.........8..53...7.7.2....46",    -- (0.14s, (brute force))
+    "4.....3.....8.2......7........1...8734.......6........5...6........1.4...82......",    -- (0.01s, (logic))
+    ".......71.2.8........4.3...7...6..5....2..3..9........6...7.....8....4......5....",    -- (0.00s, (logic))
+    "6..3.2....4.....8..........7.26............543.........8.15........8.2........7..",    -- (0.04s, (brute force))
+    ".47.8...1............6..7..6....357......5....1..6....28..4.....9.1...4.....2.69.",    -- (0.04s, (brute force))
+    "......8.17..2........5.6......7...5..1....3...8.......5......2..4..8....6...3....",    -- (0.00s, (logic))
+    "38.6.......9.......2..3.51......5....3..1..6....4......17.5..8.......9.......7.32",    -- (0.09s, (brute force))
+    "...5...........5.697.....2...48.2...25.1...3..8..3.........4.7..13.5..9..2...31..",    -- (0.03s, (brute force))
+    ".2.......3.5.62..9.68...3...5..........64.8.2..47..9....3.....1.....6...17.43....",    -- (0.01s, (logic))
+    ".8..4....3......1........2...5...4.69..1..8..2...........3.9....6....5.....2.....",    -- (0.00s, (logic))
+    "..8.9.1...6.5...2......6....3.1.7.5.........9..4...3...5....2...7...3.8.2..7....4",    -- (0.12s, (brute force))
+    "4.....5.8.3..........7......2.....6.....5.8......1.......6.3.7.5..2.....1.8......",    -- (0.00s, (logic))
+    "1.....3.8.6.4..............2.3.1...........958.........5.6...7.....8.2...4.......",    -- (0.01s, (logic))
+    "1....6.8..64..........4...7....9.6...7.4..5..5...7.1...5....32.3....8...4........",    -- (0.06s, (brute force))
+    "249.6...3.3....2..8.......5.....6......2......1..4.82..9.5..7....4.....1.7...3...",    -- (0.03s, (brute force))
+    "...8....9.873...4.6..7.......85..97...........43..75.......3....3...145.4....2..1",    -- (0.03s, (brute force))
+    "...5.1....9....8...6.......4.1..........7..9........3.8.....1.5...2..4.....36....",    -- (0.03s, (brute force))
+    "......8.16..2........7.5......6...2..1....3...8.......2......7..3..8....5...4....",    -- (0.01s, (logic))
+    ".476...5.8.3.....2.....9......8.5..6...1.....6.24......78...51...6....4..9...4..7",    -- (0.03s, (brute force))
+    ".....7.95.....1...86..2.....2..73..85......6...3..49..3.5...41724................",    -- (0.07s, (brute force))
+    ".4.5.....8...9..3..76.2.....146..........9..7.....36....1..4.5..6......3..71..2..",    -- (0.07s, (brute force))
+    ".834.........7..5...........4.1.8..........27...3.....2.6.5....5.....8........1..",    -- (0.06s, (brute force))
+    "..9.....3.....9...7.....5.6..65..4.....3......28......3..75.6..6...........12.3.8",    -- (0.01s, (brute force))
+    ".26.39......6....19.....7.......4..9.5....2....85.....3..2..9..4....762.........4",    -- (0.04s, (brute force))
+    "2.3.8....8..7...........1...6.5.7...4......3....1............82.5....6...1.......",    -- (0.00s, (logic))
+    "6..3.2....1.....5..........7.26............843.........8.15........8.2........7..",    -- (0.04s, (brute force))
+    "1.....9...64..1.7..7..4.......3.....3.89..5....7....2.....6.7.9.....4.1....129.3.",    -- (0.07s, (brute force))
+    ".........9......84.623...5....6...453...1...6...9...7....1.....4.5..2....3.8....9",    -- (0.17s, (brute force))
+    ".2....5938..5..46.94..6...8..2.3.....6..8.73.7..2.........4.38..7....6..........5",    -- (0.00s, (brute force))
+    "9.4..5...25.6..1..31......8.7...9...4..26......147....7.......2...3..8.6.4.....9.",    -- (0.09s, (brute force))
+    "...52.....9...3..4......7...1.....4..8..453..6...1...87.2........8....32.4..8..1.",    -- (0.12s, (brute force))
+    "53..2.9...24.3..5...9..........1.827...7.........981.............64....91.2.5.43.",    -- (0.20s, (brute force))
+    "1....786...7..8.1.8..2....9........24...1......9..5...6.8..........5.9.......93.4",    -- (0.00s, (logic))
+    "....5...11......7..6.....8......4.....9.1.3.....596.2..8..62..7..7......3.5.7.2..",    -- (0.04s, (brute force))
+    ".47.2....8....1....3....9.2.....5...6..81..5.....4.....7....3.4...9...1.4..27.8..",    -- (0.09s, (brute force))
+    "......94.....9...53....5.7..8.4..1..463...........7.8.8..7.....7......28.5.26....",    -- (0.03s, (brute force))
+    ".2......6....41.....78....1......7....37.....6..412....1..74..5..8.5..7......39..",    -- (0.14s, (brute force))
+    "1.....3.8.6.4..............2.3.1...........758.........7.5...6.....8.2...4.......",    -- (0.01s, (logic))
+    "2....1.9..1..3.7..9..8...2.......85..6.4.........7...3.2.3...6....5.....1.9...2.5",    -- (0.01s, (logic))
+    "..7..8.....6.2.3...3......9.1..5..6.....1.....7.9....2........4.83..4...26....51.",    -- (0.03s, (brute force))
+    "...36....85.......9.4..8........68.........17..9..45...1.5...6.4....9..2.....3...",    -- (0.01s, (brute force))
+    "34.6.......7.......2..8.57......5....7..1..2....4......36.2..1.......9.......7.82",    -- (0.23s, (brute force))
+    "......4.18..2........6.7......8...6..4....3...1.......6......2..5..1....7...3....",    -- (0.00s, (logic))
+    ".4..5..67...1...4....2.....1..8..3........2...6...........4..5.3.....8..2........",    -- (0.01s, (brute force))
+    ".......4...2..4..1.7..5..9...3..7....4..6....6..1..8...2....1..85.9...6.....8...3",    -- (0.24s, (brute force))
+    "8..7....4.5....6............3.97...8....43..5....2.9....6......2...6...7.71..83.2",    -- (0.03s, (brute force))
+    ".8...4.5....7..3............1..85...6.....2......4....3.26............417........",    -- (0.04s, (brute force))
+    "....7..8...6...5...2...3.61.1...7..2..8..534.2..9.......2......58...6.3.4...1....",    -- (0.06s, (brute force))
+    "......8.16..2........7.5......6...2..1....3...8.......2......7..4..8....5...3....",    -- (0.01s, (logic))
+    ".2..........6....3.74.8.........3..2.8..4..1.6..5.........1.78.5....9..........4.",    -- (0.03s, (brute force))
+    ".52..68.......7.2.......6....48..9..2..41......1.....8..61..38.....9...63..6..1.9",    -- (0.17s, (brute force))
+    "....1.78.5....9..........4..2..........6....3.74.8.........3..2.8..4..1.6..5.....",    -- (0.03s, (brute force))
+    "1.......3.6.3..7...7...5..121.7...9...7........8.1..2....8.64....9.2..6....4.....",    -- (0.00s, (brute force))
+    "4...7.1....19.46.5.....1......7....2..2.3....847..6....14...8.6.2....3..6...9....",    -- (0.01s, (brute force))
+    "......8.17..2........5.6......7...5..1....3...8.......5......2..3..8....6...4....",    -- (0.01s, (logic))
+    "963......1....8......2.5....4.8......1....7......3..257......3...9.2.4.7......9..",    -- (0.03s, (brute force))
+    "15.3......7..4.2....4.72.....8.........9..1.8.1..8.79......38...........6....7423",    -- (0.01s, (brute force))
+    "..........5724...98....947...9..3...5..9..12...3.1.9...6....25....56.....7......6",    -- (0.10s, (brute force))
+    "....75....1..2.....4...3...5.....3.2...8...1.......6.....1..48.2........7........",    -- (0.10s, (brute force))
+    "6.....7.3.4.8.................5.4.8.7..2.....1.3.......2.....5.....7.9......1....",    -- (0.00s, (logic))
+    "....6...4..6.3....1..4..5.77.....8.5...8.....6.8....9...2.9....4....32....97..1..",    -- (0.06s, (brute force))
+    ".32.....58..3.....9.428...1...4...39...6...5.....1.....2...67.8.....4....95....6.",    -- (0.00s, (brute force))
+    "...5.3.......6.7..5.8....1636..2.......4.1.......3...567....2.8..4.7.......2..5..",    -- (0.26s, (brute force))
+    ".5.3.7.4.1.........3.......5.8.3.61....8..5.9.6..1........4...6...6927....2...9..",    -- (0.04s, (brute force))
+    "..5..8..18......9.......78....4.....64....9......53..2.6.........138..5....9.714.",    -- (0.07s, (brute force))
+    "..........72.6.1....51...82.8...13..4.........37.9..1.....238..5.4..9.........79.",    -- (0.01s, (brute force))
+    "...658.....4......12............96.7...3..5....2.8...3..19..8..3.6.....4....473..",    -- (0.03s, (brute force))
+    ".2.3.......6..8.9.83.5........2...8.7.9..5........6..4.......1...1...4.22..7..8.9",    -- (0.03s, (brute force))
+    ".5..9....1.....6.....3.8.....8.4...9514.......3....2..........4.8...6..77..15..6.",    -- (0.06s, (brute force))
+    ".....2.......7...17..3...9.8..7......2.89.6...13..6....9..5.824.....891..........",    -- (0.11s, (brute force))
+    "3...8.......7....51..............36...2..4....7...........6.13..452...........8..",    -- (0.01s, (logic))
+--!*/
+
+--!/*
+    "--------------3-85--1-2-------5-7-----4---1---9-------5------73--2-1--------4---9",    -- (0.00s, (logic))
+    "000000000000390280040021093600070900900502006005060001180250030064018000000000000",    -- (0.01s, (logic))
+    "000000012400090000000000050070200000600000400000108000018000000000030700502000000",    -- (0.01s, (brute force))
+    "000000014000000203800050000000207000031000000000000650600000700000140000000300000",    -- (0.06s, (brute force))
+    "000000015020060000000000408003000900000100000000008000150400000000070300800000060",    -- (0.04s, (brute force))
+    "000000600050030070000006000002070800070403090000010200000709002010000030008000500",    -- (0.01s, (logic))
+    "000001004302007800010000069001040006020103400400080200560000030009300605200900000",    -- (0.01s, (brute force))
+    "000003490906800300000070000300000045710204039690000001000020000003006502067400000",    -- (0.00s, (logic))
+    "000090500090006481400070000006002054100000002280300600000080005370100040001040000",    -- (0.01s, (brute force))
+    "...13...2.532.789.........328...69..5.4.2.1....95...279..........54...793...91...",    -- (0.01s, (logic))
+    "000410009600000134009000080000320008020507090700089000090000600543000002800035000",    -- (0.00s, (brute force))
+    "000450789006000123000000000000567000000000234000000000345678000678000000000000000",    -- (0.01s, (logic))
+    "000500007030009040600003958004012000060000080000480700481300005020100070500004000",    -- (0.01s, (brute force))
+    "000600029040500030007001400700054000053000240000120003005400100060008050820005000",    -- (0.01s, (logic))
+    "000800792000090000000200103805460007600000005100027609904006000560032000732008000",    -- (0.00s, (logic))
+    "000810065510067008000000000090004030061000970050300080000000000600780093170059000",    -- (0.01s, (brute force))
+    "002000081056082000300600000805704000020000070000205308000001002000530140180000500",    -- (0.01s, (logic))
+    "**31*69************8*354*6**1**6**3**4*7*8*2**5**2**9**6*543*1************16*24**",    -- (0.00s, (logic))
+    "**49**528****4*169*8***13745**3***8***1***6***6***4**347*2**93**93*5******6*398**",    -- (0.00s, (logic))
+    "006000500000009027870460000000000018187000462490000000000018096760300000008000200",    -- (0.01s, (logic))
+    "008000000000060507400708100000100302002409700801006000009601005307090000000000800",    -- (0.00s, (logic))
+    -- (multiple solutions)
+    "008002000000600040064000092017005004200000008800100730470000910080001000000900200",    -- (0.03s, (brute force))
+    "*21***564*****5*21***2****813*592***64******2**2643*1*7***291**2**15****514***2**",    -- (0.01s, (logic))
+    "030500810000760090400000000043905006010000070600801930000000009090086000061002080",    -- (0.00s, (brute force))
+    "-4925----17---4-9--3---7-8---3--2----84-7-23---14--6---9-6---4-41-----67---7451--",    -- (0.00s, (logic))
+    "060020000300805002005000710040000000003946100000000030039000500700102008000070040",    -- (0.01s, (logic))
+    "060104050008305600200000001800407006006000300700901004500000002007206900040508070",    -- (0.00s, (logic))
+    "070005000090060084005000900400206000010080060000904008007000100930070020000300050",    -- (0.00s, (logic))
+    "*8*746329632**9***79432*16***863**1****2**6***26*948***679*348****8***36853462**1",    -- (0.01s, (logic))
+    "2..3.....8.4.62..3.138...........39.5.7...6.1.32...........914.6..25.8.9.....1..2",    -- (0.03s, (brute force))
+    "280006100600700500000000030300902060000000000070401008060000000008004003001500074",    -- (0.01s, (logic))
+    "300904001002000400061000790600247005000000000200836004046000230009000600500309008",    -- (0.00s, (logic))
+    "320001800600309700000000360500013020038070500060590003073100000056430000002907035",    -- (0.00s, (logic))
+    "46-1-8-2----4761----19-24--8--5-4--1----17--4614893752--67495---4-3852---3---1-4-",    -- (0.01s, (logic))
+    "47.859.3696..23..5..3.619.....574.6...61384.....296.....79826..1..647..262.315.9.",    -- (0.00s, (logic))
+    "500002010000570060070800002083060000700903001000080790100008020050096000090700004",    -- (0.00s, (logic))
+    "500120007030000240010076003000005002007000900100200000600910030045000010900054006",    -- (0.01s, (brute force))
+    "507400000000609080900000400030100800020305010004008030008000002050206000000004706",    -- (0.00s, (logic))
+    "56..2...3...3....4...914.....5...92.4.9.5.3.8.86...7.....249...1....8...8...3..62",    -- (0.00s, (logic))
+    "600300000970080000002000860040602001200107006500908020065000400000090052000004007",    -- (0.00s, (logic))
+    "610000000030070040002040003000100200060798050009005000700050300040030020000000098",    -- (0.01s, (logic))
+    "700100002000006080000800109007009010093000540060400900308004000040300000100005003",    -- (0.00s, (logic))
+    "709002030000019006400030100001000060008207900040000500006080009900620000050900604",    -- (0.01s, (brute force))
+    "92.5...3.......52..35.28.9.1.634.....7...63..34.8..6.5.97...861.6...92.32.368....",    -- (0.03s, (brute force))
+    "92.5...3.......52..35.28.9.1.6342....7...63..34.8..6.5.97...861.6...92.32.368....",    -- (0.00s, (logic))
+--!*/
+
+--!/*
+    "...............5.94.3.9..1..2.....4.98..3.1.535.7........54.2..2....3........28.1",    -- (0.00s, (logic))
+    ".....3.6........1..975...8.....9.2....8.7.4....3.6.....1...289..4........5.1.....",    -- (0.17s, (brute force))
+    "....1.78.5....9..........4..26.........6....3.74.8.........3..2.8..4..1.6..5.....",    -- (0.03s, (brute force))
+    "....2..6........28.3..........4..3..2.6...........71...7.3..4..8......5....1.....",    -- (0.03s, (brute force))
+    "....3....93..6.8..56......4..2.16...85.47....6...29..37.....21.................59",    -- (0.00s, (logic))
+    "....3....93..6.8..56......43.2.16...85.473...6...29..37.....21.................59",    -- (0.01s, (logic))
+    "....7....349....7...65..84...3.86..92..........59.....5...2...19.......7..8..16..",    -- (0.03s, (brute force))
+    "....7..9......8..4.42..1.7...4.....88..2.5..95.....7...7.6..13.2..8......6..3....",    -- (0.07s, (brute force))
+    "....7.94..7..9...53....5.7..874..1..463.8.........7.8.8..7.....7......28.5.268...",    -- (0.04s, (brute force))
+    "...9..8.7.....7.....3.....2..9..4.....1.6.....6...3..1..8.4.1...3.6..78.7....9.25",    -- (0.04s, (brute force))
+    "..1.8.6.4.376.....5.............5.....6.1.8.....4.............3.....752.8.2.9.7..",    -- (0.10s, (brute force))
+    "..12...6...9..8.4..5..4.9..73..8......5.3.1......6..34..3.2..9..2.8..5...9...14..",    -- (0.07s, (brute force))
+    "..2.9.1.7.386.....4.............5.....9.1.3.....4.............4.....792.8.6.3.7..",    -- (0.04s, (brute force))
+    "..26......9....4...1...9..7....46..5..4.9..8....71.3.48...31...3..98.......4...32",    -- (0.04s, (brute force))
+    "..3.5.4..7...6.....5.8...6.5....3..4.1..7..8.2..4....7.4...8.5.....4...9..6.1.2..",    -- (0.03s, (brute force))
+    "..4.....2....9......9..64.5..65....754.3......3..1..2..5..2.....6..4..1....1....8",    -- (0.07s, (brute force))
+    "..5.7.2.8.8..42..52.......6..6.......1..8....35...1.....7.64.......2.3..1..7...4.",    -- (0.12s, (brute force))
+    "..9..1.87......4....1.8..6....836.2...6......45...7..65....8..9.1..6...2...42....",    -- (0.12s, (brute force))
+    ".18...7.....3..2...7...........71...6......4.3........4..5....3.2..8...........6.",    -- (0.00s, (logic))
+    ".18...7.....3..2...7...........71...6......4.3........5..4....3.2..8...........6.",    -- (0.00s, (logic))
+    ".2..........6....3.74.8.........3..2.8..4..1.6..5.........1.78.5....9..........4.",    -- (0.03s, (brute force))
+    ".2.5..7..6...9..........1...1.4....2....83....7.......3.9....8....1.....8........",    -- (0.00s, (logic))
+    ".5..9.....86..2..4..9..16...1....95....324...........8.71.6...........41..5..9...",    -- (0.06s, (brute force))
+    ".5.6..8..2...4..........1......73....1.5......8.......3.4.....77......2....1.....",    -- (0.00s, (logic))
+    ".6.....7.9...8...6..3..91....8.95....2.4.8.6....21.8....59..6..3...4...8.4.....2.",    -- (0.04s, (brute force))
+    ".7.......6..54...3..1..24....7..8......29.....49..3..8..3...7..2..734..9.......6.",    -- (0.12s, (brute force))
+    ".8...3.6..3.....1..975..38.....9.2....8.7.4....3.6.....16..289..49....2..521.964.",    -- (0.12s, (brute force))
+    "1...4...2.5.....9...8...3.....5.9...7...8...3...7.6.....7...5...9.....4.6...2...1",    -- (0.04s, (brute force))
+    "3...5...1.4.....6...7...8.....9.4...2...8...3...1.6.....9...4...6.....2.5...1...7",    -- (0.10s, (brute force))
+    "2...8...6.1.....7...9...5.....9.5...3...1...7...2.3.....5...4...7.....9.8...4...3",    -- (0.07s, (brute force))
+    "3...6...5.2.....4...7...2.....6.7...9...8...6...9.1.....2...7...4.....1.6...5...9",    -- (0.09s, (brute force))
+    "3...8.......7....51..............36...2..4....7...........6.13..452...........8..",    -- (0.00s, (logic))
+    "3...9...7.2.....5...7...8.....3.4...1...6...3...7.2.....4...2...8.....4.9...3...1",    -- (0.09s, (brute force))
+    "31.6.......2.......5..3.89......5....8..1..7....4......47.8..3.......9.......7.62",    -- (0.03s, (brute force))
+    "31.6.......2.......5..9.78......5....9..1..6....4......75.6..3.......4.......7.92",    -- (0.04s, (brute force))
+    "31.6.......2.......6..8.37......5....3..1..6....4......75.3..9.......6.......7.42",    -- (0.09s, (brute force))
+    "31.6.......4.......5..9.28......5....7..1..3....4......38.5..9.......4.......7.62",    -- (0.06s, (brute force))
+    "31.6.......5.......9..7.82......5....8..1..7....4......74.9..3.......4.......7.12",    -- (0.03s, (brute force))
+    "31.6.......7.......9..2.85......5....3..1..9....4......84.9..1.......6.......7.32",    -- (0.03s, (brute force))
+    "32.6.......5.......6..8.71......5....8..1..3....4......16.3..8.......9.......7.62",    -- (0.03s, (brute force))
+    "32.6.......6.......4..7.81......5....9..1..7....4......85.4..9.......3.......7.42",    -- (0.03s, (brute force))
+    "32.6.......7.......1..8.37......5....7..1..2....4......86.2..9.......4.......7.12",    -- (0.01s, (brute force))
+    "32.6.......7.......1..9.58......5....9..1..2....4......48.3..9.......6.......7.12",    -- (0.04s, (brute force))
+    "32.6.......7.......4..3.18......5....6..1..3....4......38.4..6.......5.......7.92",    -- (0.03s, (brute force))
+    "32.6.......7.......4..8.59......5....3..1..7....4......98.3..1.......6.......7.42",    -- (0.03s, (brute force))
+    "32.6.......9.......1..8.45......5....8..1..2....4......75.3..8.......9.......7.62",    -- (0.07s, (brute force))
+    "32.6.......9.......6..4.58......5....8..1..2....4......17.5..3.......9.......7.62",    -- (0.04s, (brute force))
+    "32.6.......9.......6..8.57......5....8..1..2....4......37.4..1.......9.......7.62",    -- (0.09s, (brute force))
+    "32.6.......9.......8..7.15......5....7..1..3....4......15.8..7.......6.......7.82",    -- (0.06s, (brute force))
+    "34.6.......2.......6..9.83......5....8..1..7....4......75.8..1.......4.......7.62",    -- (0.06s, (brute force))
+    "34.6.......2.......7..3.51......5....3..1..7....4......28.5..6.......1.......7.32",    -- (0.07s, (brute force))
+    "34.6.......5.......8..7.12......5....7..1..3....4......16.2..4.......9.......7.82",    -- (0.04s, (brute force))
+    "34.6.......7.......2..8.57......5....7..1..2....4......36.2..1.......9.......7.82",    -- (0.23s, (brute force))
+    "34.6.......7.......2..9.57......5....7..1..2....4......68.2..1.......3.......7.92",    -- (0.43s, (brute force))
+    "35.6.......2.......6..5.48......5....3..1..6....4......18.3..5.......7.......7.92",    -- (0.17s, (brute force))
+    "35.6.......2.......9..5.48......5....6..1..9....4......18.6..5.......7.......7.32",    -- (0.04s, (brute force))
+    "35.6.......4.......1..7.29......5....7..1..3....4......68.9..7.......4.......7.52",    -- (0.01s, (brute force))
+    "35.6.......4.......2..7.89......5....7..1..2....4......36.9..1.......5.......7.82",    -- (0.06s, (brute force))
+    "35.6.......7.......9..3.18......5....6..1..9....4......18.9..6.......5.......7.32",    -- (0.07s, (brute force))
+    "35.6.......9.......6..8.71......5....8..1..3....4......16.3..7.......4.......7.82",    -- (0.07s, (brute force))
+    "37..9...........81.2.........16...4.2...7.3...........5.....2.....1.4......8.....",    -- (0.01s, (logic))
+    "37.6.......4.......1..8.52......5....2..1..8....4......47.5..3.......8.......7.62",    -- (0.04s, (brute force))
+    "37.6.......4.......1..8.52......5....2..1..8....4......47.5..9.......8.......7.62",    -- (0.04s, (brute force))
+    "37.6.......4.......5..8.19......5....9..1..3....4......85.3..7.......6.......7.42",    -- (0.04s, (brute force))
+    "37.6.......5.......6..2.19......5....2..1..6....4......38.6..1.......5.......7.32",    -- (0.04s, (brute force))
+    "37.6.......9.......2..8.16......5....9..1..8....4......58.6..9.......3.......7.42",    -- (0.01s, (brute force))
+    "37.6.......9.......6..2.18......5....2..1..9....4......16.9..7.......5.......7.42",    -- (0.14s, (brute force))
+    "37.6.......9.......8..2.71......5....2..1..8....4......16.8..7.......4.......7.32",    -- (0.06s, (brute force))
+    "38.6.......2.......7..3.51......5....9..1..6....4......18.6..3.......4.......7.92",    -- (0.06s, (brute force))
+    "38.6.......4.......1..7.52......5....7..1..9....4......58.9..7.......4.......7.52",    -- (0.03s, (brute force))
+    "38.6.......4.......1..9.37......5....9..1..8....4......35.8..6.......4.......7.12",    -- (0.12s, (brute force))
+    "38.6.......4.......1..9.72......5....3..1..6....4......98.6..3.......5.......7.42",    -- (0.01s, (brute force))
+    "38.6.......4.......6..9.17......5....9..1..3....4......16.3..9.......5.......7.82",    -- (0.03s, (brute force))
+    "38.6.......5.......6..2.71......5....2..1..8....4......16.8..7.......9.......7.42",    -- (0.11s, (brute force))
+    "38.6.......6.......2..7.41......5....9..1..7....4......48.2..5.......3.......7.92",    -- (0.09s, (brute force))
+    "38.6.......9.......2..3.51......5....3..1..6....4......17.5..8.......9.......7.32",    -- (0.09s, (brute force))
+    "38.6.......9.......4..7.12......5....7..1..8....4......15.8..9.......3.......7.42",    -- (0.14s, (brute force))
+    "39.6.......2.......1..3.87......5....3..1..6....4......64.9..3.......6.......7.52",    -- (0.06s, (brute force))
+    "39.6.......2.......1..8.75......5....7..1..8....4......38.5..7.......6.......7.92",    -- (0.04s, (brute force))
+    "39.6.......2.......4..3.85......5....6..1..9....4......15.6..3.......7.......7.82",    -- (0.09s, (brute force))
+    "39.6.......5.......2..7.46......5....7..1..9....4......86.9..4.......3.......7.12",    -- (0.03s, (brute force))
+    "39.6.......6.......4..2.81......5....7..1..2....4......85.4..7.......3.......7.42",    -- (0.01s, (brute force))
+    "39.6.......6.......4..8.52......5....2..1..9....4......18.6..4.......9.......7.32",    -- (0.04s, (brute force))
+    "39.6.......7.......1..4.28......5....8..1..9....4......46.3..1.......5.......7.62",    -- (0.03s, (brute force))
+    "39.6.......7.......6..4.82......5....8..1..6....4......46.8..1.......3.......7.92",    -- (0.01s, (brute force))
+    "39.6.......7.......6..9.12......5....2..1..6....4......85.6..9.......4.......7.32",    -- (0.03s, (brute force))
+    "4..............8....61.4..73.7..6.8..5..38..66.49.....1..5......2....79......352.",    -- (0.00s, (logic))
+    "4...1...8.5.....2...6...9.....9.2...8...5...3...1.8.....9...6...2.....5.1...7...4",    -- (0.15s, (brute force))
+    "5......1....4..2...8.2......2....6......3..7.....1....1.3....5....6..4..7........",    -- (0.01s, (logic))
+    "5......1....4..2...8.2......2....6......3..7.....1....1.3....5....8..4..7........",    -- (0.01s, (logic))
+    "6....2....4.....3....89..2...5...389....3.5..9....1...42.68.7....71..89..........",    -- (0.04s, (brute force))
+    "6...4...3.1.....7...5...8.....5.2...3...9...2...1.3.....8...9...7.....5.2...3...4",    -- (0.07s, (brute force))
+    "6...7...9.1.....2...5...4.....1.2...9...8...6...6.9.....1...2...3.....4.7...5...8",    -- (0.04s, (brute force))
+    "6.5......2..4...7..1..7.6.94.....7..19..3.8....3..9..2.6.3.89...4...7......1..2..",    -- (0.17s, (brute force))
+    "7......1946.19.......6827.4.9......7...3..4.5..67.......1......2...74......2..3..",    -- (0.06s, (brute force))
+    "7...2...4.5.....8...1...6.....3.7...1...6...9...5.8.....6...5...8.....4.9...4...1",    -- (0.04s, (brute force))
+    "7..6.3...9.....2...........3.91.........5.8.2......4...2..4.......7...3..8.......",    -- (0.01s, (logic))
+    "8.........74..6...53.8.....3....7....6..2.3.7...1....2...6.4.19.1...2.4.......85.",    -- (0.03s, (brute force))
+    "8.2.....4.9......7..5..139..8..17......5.2..1.....8.36..71.....4...7....32...5...",    -- (0.06s, (brute force))
+    "9...7...4.1.....5...8...2.....8.9...7...4...6...2.7.....3...1...2.....8.6...9...7",    -- (0.03s, (brute force))
+--!*/
+    "920500030000000520035028090106342000070006300340800605097000861060009203203680000",    -- (0.00s, (logic))
+
+    -- "the beast" (an earlier algorithm took 318s (5min 18s) on this):
+    "000060080020000000001000000070000102500030000000000400004201000300700600000000050",    -- (0.03s, (brute force))
+    $},
+
+    lt = length(tests),
+    run_one_test = 0
+
+constant l = " x x x | x x x | x x x ",
+         s = "-------+-------+-------",
+         l3 = join({l,l,l},"\n"),
+         fmt = substitute(join({l3,s,l3,s,l3},"\n"),"x","%c")&"\n"
+
+procedure print_board(string board)
+    printf(1,fmt,board)
+end procedure
+
+procedure test()
+string board    -- (81 characters)
+string solution, desc
+atom t0 = time()
+    if run_one_test then
+        board = tests[run_one_test]
+        print_board(board)
+        {solution,desc} = test_one(board)
+        if length(solution)!=0 then
+            printf(1,"solution:\n")
+            print_board(solution)
+        end if
+        printf(1,"%s, %3.2fs\n",{desc,time()-t0})
+    else
+        for i=1 to lt do
+            atom t1 = time()
+            board = tests[i]
+            {solution,desc} = test_one(board)
+            printf(1,"    \"%s\",    -- (%3.2fs, %s)\n",{board,time()-t1,desc})
+--          printf(1,"    \"%s\",    -- (%3.2fs, %s)\n",{solution,time()-t1,desc})
+        end for
+        t0 = time()-t0
+        printf(1,"%d puzzles solved in %3.2fs (av %3.2fs)\n",{lt,t0,t0/lt})
+    end if
+end procedure
 
 include ..\arwen\arwen.ew
 include ..\arwen\axtra.ew
 
-sequence board = split("""
-  4 5  6 
- 6 1  8 9
-3    7   
- 8    5  
-   4 3   
-  6    7 
-   2    6
-1 5  4 3 
- 2  7 1  
-""",'\n')
+--DEV ought to have a sudoku.txt really... (81-char format, comment lines skipped)
+--    or better yet: Sudoku_examples.e (and have this load a random puzzle) and
+--    Sudoku_test.exw as a command-line program.. which means Sudoku.e to factor
+--    out the common routines. (group into sub_second, sub_ten_second, and really_hard)
 
-constant N = 5, -- columns
-         M = 4, -- rows
---       cLetter = Yellow,  -- initial colour(!)
---       cChosen = Purple,
---       cPlayr2 = Purple,  -- (2 player if!=c_Chosen)
---       cHover  = White,
---       cLines  = Black,
---       cSelect = Black,   -- (text/list of selected letters)
-         cBackgnd = #EFF8FA,
-         letters = shuffle("ABCDEFGHIJKLMNOPQRSTUVWXYZ")[1..N*M]
+string board, original
+sequence valid
+integer hints = 0
+
+procedure newGame()
+    board = tests[rand(length(tests))]
+    original = board
+    valid = {}
+end procedure
+
+constant cBackgnd = #EFF8FA,
+         cHover  = White,
+         cLines  = Black,
+         cNumber = Blue,
+         cSmall  = Red
 sequence fonts  -- list of {width,handle}, see set_font()
-string chosen = ""
 
-constant main = create(Window, "honeycomb", 0, 0, 20, 20, 520, 540, 0),
+constant main = create(Window, "Sudoku", 0, 0, 20, 20, 520, 540, 0),
          mainDC = getPrivateDC(main),
          viewDC = c_func(xCreateCompatibleDC, {NULL}),
          pSize = allocate_Point() 
 
-integer ls,ls9,     -- length of a single side
-        dx, dy,     -- bounding rectangle of a sloping side
+integer ls, ls9,    -- length of a single square/full thing
         ox, oy,     -- offsets needed to center things
         lw          -- line width (10% of ls, tweaked)
 
 function font_info(integer size)
-atom hFont = createFontForDC(viewDC, "Calibri", size, Bold)
+atom hFont = createFontForDC(viewDC, "Arial", size, Normal)
     {} = selectObject(viewDC,hFont)
     {} = c_func(xGetTextExtentPoint32,{viewDC,"W",1,pSize})
     return {peek4u(pSize),hFont}
@@ -54,12 +1087,12 @@ end function
 fonts = {font_info(1)}
 
 procedure set_font(atom ls)
-    while length(fonts)<=200    -- (arbitrary limit)
-      and fonts[$][1]<ls do     -- until slightly too big
+    while length(fonts)<=200        -- (arbitrary limit)
+      and fonts[$][1]<ls*0.7 do     -- until slightly too big
         fonts = append(fonts,font_info(length(fonts)+1))
     end while
     for i=length(fonts) to 1 by -1 do
-        if fonts[i][1]<=ls then
+        if fonts[i][1]<=ls*0.7 or i=1 then
             {} = selectObject(viewDC,fonts[i][2])
             exit
         end if
@@ -67,31 +1100,24 @@ procedure set_font(atom ls)
 end procedure
 
 integer mx=0, my=0  -- mouse hover cell
+integer sn=0        -- small number within "" (only valid if mx,my are)
 
-function xy_to_hex(sequence xy)
-integer x, y, gx, gy, rx, ry, hx=0, hy=0
+function xy_to_grid(sequence xy)
+integer x, y, gx=0, gy=0, sx, sy
 
-    if dx!=0 and dy!=0 then -- (avoid divide by 0)
-        x = xy[1]-ox-5
-        y = xy[2]-oy-10+2*dy
+    if ls!=0 then   -- (avoid divide by 0)
+        x = xy[1]-ox--5
+        y = xy[2]-oy--5
 
-        gx = floor(x/dx)
-        gy = floor((y-dy)/dy)
-        rx = remainder(x,dx)
-        ry = remainder(y,dy)
-
-        hx = floor(gx/3+0.7)
-        if remainder(gx,3)<1 then
-            atom mxb = (dx/dy)*ry
-            -- need to check the slope
-            if remainder(hx,2)!=remainder(gy,2) then
-                mxb = dx-mxb
-            end if
-            hx += (rx>mxb)
-        end if
-        hy = floor((gy+remainder(hx,2))/2)
+        gx = floor(x/ls)+1
+        gy = floor(y/ls)+1
+        
+        -- small number within gx,gy
+        sx = floor(mod(x,ls)/(ls/3))
+        sy = floor(mod(y,ls)/(ls/3))
+        sn = sy*3+sx+1
     end if
-    return {hx,hy}
+    return {gx,gy}
 end function
 
 integer dw = 0, dh = 0      -- client area width and height
@@ -99,7 +1125,10 @@ atom bmView
 integer vwX = 0, vwY = 0    -- actual size of the view bitmap
 
 function mainHandler(integer id, integer msg, atom wParam, object lParam)
-integer ch
+integer ch, idx, solved
+string s
+atom x0,y0,x1,y1
+string desc
 
     if msg=WM_SIZE then
         {{},{},dw,dh} = getClientRect(main)
@@ -111,28 +1140,63 @@ integer ch
         end if
         ls = floor(min(dw-10,dh-10)/9)
         ls9 = ls*9
-dx = 0
-dy = 0
         ox = floor((dw-9*ls)/2)
         oy = floor((dh-9*ls)/2)
-lw = floor((ls-10)/10)+2
---      setPenWidth(lw)
+        lw = floor((ls-10)/10)+2
         set_font(ls)
     elsif msg=WM_PAINT then
         setPenColor(cBackgnd)
         drawRectangleh(viewDC, True, 0, 0, dw, dh)
-        setPenColor(Black)
+        if mx>=1 and mx<=9
+        and my>=1 and my<=9 then
+            setPenColor(cHover)
+            x0 = ox+(mx-1)*ls
+            y0 = oy+(my-1)*ls
+            setPenWidth(1)
+            drawRectangleh(viewDC, True, x0+1, y0+1, x0+ls, y0+ls)
+        end if
+        setPenColor(cLines)
         for x=0 to 9 do
-            setPenWidth(iff(mod(x,3)=0?3:1))
+            setPenWidth(iff(mod(x,3)=0?lw:1))
             drawLineh(viewDC, ox+x*ls, oy, ox+x*ls, oy+ls9)
             drawLineh(viewDC, ox, oy+x*ls, ox+ls9, oy+x*ls)
         end for
-        for x=1 to 9 do
-            for y=1 to 9 do
-                ch = board[x][y]
---              if ch!=' ' then
-----                    wPuts2(viewDC,ox+ls/2+x*ls,oy+ls/2+y*ls,ch&"")
---              end if
+        setPenColor(cNumber)
+        if hints then
+            valid = deep_logic(board,valid)
+        end if
+        for y=1 to 9 do
+            for x=1 to 9 do
+                idx = (y-1)*9+x
+                ch = board[idx]
+                if ch>'0' then
+                    s = ""&ch
+                    {} = c_func(xGetTextExtentPoint32,{viewDC,s,1,pSize})
+                    x0 = ox+ls/2-peek4u(pSize)/2      -- centre-width/2
+                    y0 = oy+ls/2-peek4u(pSize+4)/2    -- (centre)-height/2
+                    wPuts2(viewDC,x0+(x-1)*ls,y0+(y-1)*ls,s)
+                elsif hints or {x,y}={mx,my} then
+                    set_font(ls/4)
+                    setPenColor(cSmall)
+                    s = "1"
+                    {} = c_func(xGetTextExtentPoint32,{viewDC,s,1,pSize})
+                    x0 = ox+(x-1)*ls
+                    y0 = oy+(y-1)*ls
+                    y1 = y0+lw/2-ls/6-peek4u(pSize+4)/2      -- (centre)-height/2
+                    for y2=0 to 2 do
+                        x1 = x0+lw/2-ls/6-peek4u(pSize)/2    -- centre-width/2
+                        y1 += ls/3-lw/4
+                        for x2=0 to 2 do
+                            x1 += ls/3-lw/4
+                            if hints=0 or find(s[1],valid[idx]) then
+                                wPuts2(viewDC,x1,y1,s)
+                            end if
+                            s[1] += 1
+                        end for
+                    end for
+                    set_font(ls)
+                    setPenColor(cNumber)
+                end if
             end for
         end for
         void = c_func(xBitBlt,{mainDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
@@ -140,35 +1204,121 @@ lw = floor((ls-10)/10)+2
         if wParam=VK_ESCAPE then
             closeWindow(main)
             if id then end if -- suppress warnings
---      elsif wParam='!' then
---          ?9/0
-        else
-            ch = upper(wParam)
-            if find(ch,letters) and not find(ch,chosen) then
-                chosen &= ch
+        elsif wParam>='1' and wParam<='9' then
+            if mx>=1 and mx<=9
+            and my>=1 and my<=9 then
+                idx = (my-1)*9+mx
+                if board[idx]<='0'
+                and find(wParam,valid[idx]) then
+                    board[(my-1)*9+mx] = wParam
+                    repaintWindow(main)
+                end if
+            end if
+        elsif wParam=' ' then
+            if mx>=1 and mx<=9
+            and my>=1 and my<=9 then
+                idx = (my-1)*9+mx
+                if board[idx]>'0' then
+                    board[idx] = '-'
+                    repaintWindow(main)
+                end if
+            end if
+        elsif wParam='!' then
+            board = repeat('-',9*9)
+            original = board
+            valid = {}
+            repaintWindow(main)
+        elsif wParam='?' then
+            {board,desc} = test_one(board)
+            setText(main,desc)
+            repaintWindow(main)
+        elsif upper(wParam)='N' then
+            newGame()
+            repaintWindow(main)
+        elsif upper(wParam)='H' then
+            hints = 1-hints
+            repaintWindow(main)
+        elsif upper(wParam)='L' then
+            {board,valid,solved} = plain_logic(board)
+            if solved=INCOMPLETE then
+                setText(main,"INCOMPLETE")
+            elsif solved=MULTIPLE then
+                setText(main,"MULTIPLE SOLUTIONS")
+            elsif solved=INVALID
+               or not validate(board) then
+                setText(main,"INVALID")
+            else -- SOLVED (/BRUTE?)
+                setText(main,"Solved. Press 'N' for a new game, ESC to quit")
+            end if
+            repaintWindow(main)
+        elsif upper(wParam)='O' then
+            original = board
+        elsif upper(wParam)='P' then
+            ?board
+        elsif upper(wParam)='R' then
+            board = original
+            valid = {}
+            repaintWindow(main)
+        end if
+    elsif msg=WM_KEYDOWN then
+        if wParam=VK_RIGHT then
+            if mx<9 then
+                mx += 1
+                repaintWindow(main)
+            end if
+        elsif wParam=VK_LEFT then
+            if mx>1 then
+                mx -= 1
+                repaintWindow(main)
+            end if
+        elsif wParam=VK_DOWN then
+            if my<9 then
+                my += 1
+                repaintWindow(main)
+            end if
+        elsif wParam=VK_UP then
+            if my>1 then
+                my -= 1
                 repaintWindow(main)
             end if
         end if
---  elsif msg=WM_MOUSEMOVE then
---      {mx,my} = xy_to_hex(lParam)
---      repaintWindow(main)
+    elsif msg=WM_MOUSEMOVE then
+        {mx,my} = xy_to_grid(lParam)
+        repaintWindow(main)
     elsif msg = WM_LBUTTONDOWN then
-        {mx,my} = xy_to_hex(lParam)
-        if mx>=1 and mx<=N
-        and my>=1 and my<=M then
-            ch = letters[(my-1)*N+mx]
-            if find(ch,letters) and not find(ch,chosen) then
-                chosen &= ch
+        {mx,my} = xy_to_grid(lParam)
+        ch = '0'+sn
+        if mx>=1 and mx<=9
+        and my>=1 and my<=9 then
+            idx = (my-1)*9+mx
+            if board[idx]<='0'
+            and find(ch,valid[idx]) then
+                board[idx] = ch
                 repaintWindow(main)
             end if
         end if
---  elsif msg=WM_GETMINMAXINFO then
-        -- below this, things stop working...
---      poke4(lParam+MINMAXINFO_ptMinTrackSize,{188,250})
+    elsif msg = WM_RBUTTONDOWN then
+        {mx,my} = xy_to_grid(lParam)
+        if mx>=1 and mx<=9
+        and my>=1 and my<=9 then
+            idx = (my-1)*9+mx
+            board[idx] = '-'
+            repaintWindow(main)
+        end if
+    elsif msg=WM_GETMINMAXINFO then
+        -- below this, becomes completely illegible
+        poke4(lParam+MINMAXINFO_ptMinTrackSize,{116,139})
     end if
     return 0
 end function
-setHandler(main,routine_id("mainHandler"))
 
-WinMain(main, SW_NORMAL)
+if GUI then
+    newGame()
+    setHandler(main,routine_id("mainHandler"))
+    WinMain(main, SW_NORMAL)
+else
+    test()
+    {} = wait_key()
+end if
+
 

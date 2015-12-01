@@ -1039,7 +1039,9 @@ integer start, stop
 
     start = N[EXPONENT]+2
     stop = length(N[DIGITS])
-    if stop>start then
+--PL 19/11/15
+--  if stop>start then
+    if stop>=start then
         N[DIGITS] = remove(N[DIGITS],start,stop)
     end if
 

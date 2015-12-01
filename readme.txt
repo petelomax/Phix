@@ -68,6 +68,21 @@ Version 0.6.7
             also discarded, so the caller (sprintf2 in pprntfN.e) did not 
             know to exp += 1. It now keeps the trailing '!', which sprintf2 
             was already getting rid of properly anyway.
+26/11/2015  BUGFIX: code such as while <condition> do integer c=0 was using 
+            onDeclaration semantics and not resetting c on every iteration.
+            New parameter AllowOnDeclaration added to distinguish calls from
+            block() and elsewhere. (Applies to both Locals and TopDecls.)
+26/11/2015  Added routine x(string name, rid=routine_id(name)) support, for
+            IUP. Very basic, with strict limitations: the routine_id MUST be
+            the first defaulted parameter, and it MUST refer to the previous 
+            parameter. Calls MUST specify a literal string for the name and
+            it MUST be resolved at compile-time. Also note that it is not a
+            proper defaulted parameter, but substituted for a real routine
+            id by the front end. Further improvements may be possible, and
+            necessary, when similar things refuse to compile. At some point
+            a complete overhaul/rewrite of parameter defaulting, to allow
+            general expressions, is likely to be required anyway. See the
+            routine getOneDefault in pmain.e for the full set of horrors.
 
 
 Version 0.6.6

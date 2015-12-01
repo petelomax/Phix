@@ -208,7 +208,9 @@ global constant S_used = #000001,   -- bit for not used warnings
 -- optional_params:
 --              K_oparm = #20000000,    -- this parameter is optional
 --              K_omask = #1FFFFFFF     -- mask to remove K_optp bit
-                K_dlft = #040000    -- defaulted param (must be a Tvar with K_used (=isParam) set)
+                K_dlft = #040000,   -- defaulted param (must be a Tvar with K_used (=isParam) set)
+--DEV (24/11/15)
+                K_drid = #080000    -- defaulted routine_id (must be resolved at compile-time)
 
 -- symtab[i][S_Efct] values:
 global constant E_none = 0,
