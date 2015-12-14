@@ -1359,10 +1359,23 @@ integer fpno = symtab[routineNo][S_FPno]
 end function
 r_getBuiltinName = routine_id("getBuiltinName") -- (for ptok.e)
 
+sequence aliases, alittxs
 procedure Alias(sequence name, integer symidx)
     tt_string(name,-2)
     tt[ttidx+EQ] = symidx
+    aliases = append(aliases,symidx)
+    alittxs = append(alittxs,ttidx)
 end procedure
+
+--!/*
+global procedure UnAlias(integer symidx)
+-- reverse the effect of any Alias(), before we symtab[symidx] := 0
+integer k = find(symidx,aliases)
+    if k!=0 then
+        tt[alittxs[k]+EQ] = 0
+    end if
+end procedure
+--!*/
 
 --      k = addSymEntry(ttidx,0,S_Nspc,prevfile,0,0)
 procedure defaultNamespace(sequence name)
@@ -1393,6 +1406,8 @@ global procedure syminit()
 --object void
 --?newEmit
     symtab = repeat(0,2000)
+    aliases = {}
+    alittxs = {}
 
     if dumppsym then
         fnpsym = open("psym.txt","w")
@@ -1424,7 +1439,6 @@ global procedure syminit()
     --
     symlimit = 0                                                -- #00 / 0b0000   dummy type: unknown
     initialSymEntry("integer",  S_Type,"TI",opInt,  E_none)     -- #01 / 0b0001 integer
---Alias("INTEGER",symlimit)
     initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #02 / 0b0010   dummy type: flt (atom but not integer)
     initialSymEntry("atom",     S_Type,"TN",opAtom, E_none)     -- #03 / 0b0011 atom (ie flt|int)
     initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #04 / 0b0100   dummy type: dseq (sequence but not string)
@@ -1620,9 +1634,11 @@ global procedure syminit()
 
     -- from misc.e:
 --  initialConstant("DOS32", 1)                             -- ex.exe (not supported!)
-    initialConstant("WIN32", 2)     T_win32 = symlimit      -- exw.exe
+    initialConstant("WINDOWS", 2)   T_win32 = symlimit      -- exw.exe
+    Alias("WIN32",symlimit)
     initialConstant("LINUX", 3)     T_linux = symlimit      -- exu      ("")
 --  initialConstant("FREEBSD", 3)                           -- exu      ("")
+    initialConstant("OSX", 5)       -- ??
 --DEV 64 bit? fldpi? E?
 --/* (untried)  DOH: [32] is WRONG! ...  It would be X64... and x8/x10/something else, but NOT atom...
 atom pi
@@ -1804,6 +1820,9 @@ atom pi
     initialConstant("WAIT_OBJECT_0",    #00000000)
     initialConstant("WAIT_FAILED",      #FFFFFFFF)
     initialConstant("STILL_ACTIVE",     259)
+
+    -- for canonical_path (compatibility only)
+    initialConstant("CORRECT",2)
 
 --if not newEmit then
 --
@@ -2100,10 +2119,12 @@ if newEmit then
     AutoGlabel(opProfout,   "%opProfout",   "VM\\pProfile.e")
     AutoGlabel(opLnp,       "%opLnp",       "VM\\pProfile.e")
     AutoGlabel(opLnpt,      "%opLnpt",      "VM\\pProfile.e")
-    AutoGlabel(opOpenDLL,   "%opOpenDLL",   "VM\\pcfuncN.e")
-    AutoGlabel(opDcfunc,    "%opDcfunc",    "VM\\pcfuncN.e")
-    AutoGlabel(opDcvar,     "%opDcvar",     "VM\\pcfuncN.e")
-    AutoGlabel(opCallback,  "%opCallback",  "VM\\pcfuncN.e")
+--  AutoGlabel(opOpenDLL,   "%opOpenDLL",   "VM\\pcfuncN.e")        -- NO!!
+--  AutoGlabel(opDcfunc,    "%opDcfunc",    "VM\\pcfuncN.e")
+--  AutoGlabel(opDcvar,     "%opDcvar",     "VM\\pcfuncN.e")
+--  AutoGlabel(opCallback,  "%opCallback",  "VM\\pcfuncN.e")
+    AutoGlabel(opCallFunc,  "%opCallFunc",  "VM\\pcallfunc.e")
+    AutoGlabel(opCallProc,  "%opCallProc",  "VM\\pcallfunc.e")
 
 --DEV (maybe)
 --  AutoGlabel(opPuts1,     "%puts1",       "VM\\puts1.e",  vm_puts1)
@@ -2130,8 +2151,8 @@ if newEmit then
     AutoAsm("lock_file",        S_Func,"FIIP",  "VM\\pfileioN.e",   opLock,     "%opLock",      E_other,T_integer)
     AutoAsm("text_rows",        S_Func,"FI",    "VM\\pfileioN.e",   opTextRows, "%opTextRows",  E_other,T_integer)
     AutoAsm("length",           S_Func,"FP",    "VM\\pLen.e",       opLen,      "%opLen",       E_none, T_integer)  T_length = symlimit
-    AutoAsm("define_c_funcN",   S_Func,"FNSPN", "VM\\pcfuncN.e",    opDcfunc,   "%opDcfunc",    E_other,T_integer)
-    AutoAsm("define_c_procN",   S_Func,"FNSP",  "VM\\pcfuncN.e",    opDcfunc,   "%opDcfunc",    E_other,T_integer)  T_dcproc = symlimit
+--  AutoAsm("define_c_funcN",   S_Func,"FNSPN", "VM\\pcfuncN.e",    opDcfunc,   "%opDcfunc",    E_other,T_integer)
+--  AutoAsm("define_c_procN",   S_Func,"FNSP",  "VM\\pcfuncN.e",    opDcfunc,   "%opDcfunc",    E_other,T_integer)  T_dcproc = symlimit
 
     -- the following functions return an atom:
 
@@ -2155,9 +2176,9 @@ if newEmit then
     AutoAsm("time",             S_Func,"F",     "VM\\pTime.e",      opTime,     "%opTime",      E_none, T_atom)
     AutoAsm("rand",             S_Func,"FI",    "VM\\pRand.e",      opRand,     "%opRand",      E_none, T_atom)
     AutoAsm("where",            S_Func,"FI",    "VM\\pfileioN.e",   opWhere,    "%opWhere",     E_none, T_atom)
-    AutoAsm("open_dllN",        S_Func,"FP",    "VM\\pcfuncN.e",    opOpenDLL,  "%opOpenDLL",   E_other,T_atom)
-    AutoAsm("define_c_varN",    S_Func,"FNP",   "VM\\pcfuncN.e",    opDcvar,    "%opDcvar",     E_other,T_atom)
-    AutoAsm("call_backN",       S_Func,"FO",    "VM\\pcfuncN.e",    opCallback, "%opCallback",  E_other,T_atom)
+--  AutoAsm("open_dllN",        S_Func,"FP",    "VM\\pcfuncN.e",    opOpenDLL,  "%opOpenDLL",   E_other,T_atom)
+--  AutoAsm("define_c_varN",    S_Func,"FNP",   "VM\\pcfuncN.e",    opDcvar,    "%opDcvar",     E_other,T_atom)
+--  AutoAsm("call_backN",       S_Func,"FO",    "VM\\pcfuncN.e",    opCallback, "%opCallback",  E_other,T_atom)
 
     -- the following functions return a sequence (or string):
 
@@ -2169,6 +2190,8 @@ if newEmit then
 
     -- the following functions return an object:
 
+--  AutoAsm("call_func",        S_Func,"FIP",   "VM\\pcallfunc.e",  opCallFunc, "%opCallFunc",  E_other,T_object)
+    AutoAsm("call_func",        S_Func,"FIP",   "VM\\pcallfunc.e",  opCallFunc, "%opCallFunc",  E_all,  T_object)
     AutoAsm("delete_routine",   S_Func,"FOI",   "VM\\pDeleteN.e",   opDelRtn,   "%opDelRtn",    E_other,T_object)
     AutoAsm("gets",             S_Func,"FI",    "VM\\pfileioN.e",   opGets,     "%opGets",      E_other,T_object)
     AutoAsm("peek",             S_Func,"FO",    "VM\\pMem.e",       opPeek,     "%opPeekNx",    E_none, T_object)
@@ -2190,10 +2213,13 @@ if newEmit then
 --  AutoAsm("abort",            S_Proc,"PI",    "VM\\pAbort.e",     opAbort,    "%opAbort",     E_other,0)      T_abort = symlimit
     AutoAsm("abort",            S_Proc,"PI",    "VM\\pStack.e",     opAbort,    "%opAbort",     E_other,0)      T_abort = symlimit
     AutoAsm("bk_color",         S_Proc,"PI",    "VM\\pfileioN.e",   opBkClr,    "%opBkClr",     E_other,0)
+--  AutoAsm("call_proc",        S_Proc,"PIP",   "VM\\pcallfunc.e",  opCallProc, "%opCallProc",  E_other,0)
+    AutoAsm("call_proc",        S_Proc,"PIP",   "VM\\pcallfunc.e",  opCallProc, "%opCallProc",  E_all,  0)
     AutoAsm("clear_screen",     S_Proc,"P",     "VM\\pfileioN.e",   opClrScrn,  "%opClrScrn",   E_other,0)
     AutoAsm("close",            S_Proc,"PI",    "VM\\pfileioN.e",   opClose,    "%opClose",     E_other,0)
     AutoAsm("crash_message",    S_Proc,"PO",    "VM\\pDiagN.e",     opCrashMsg, "%pCrashMsg",   E_other,0)
-    AutoAsm("delete",           S_Proc,"PO",    "VM\\pDeleteN.e",   opDelete,   "%opDelete",    E_other,0)
+--  AutoAsm("delete",           S_Proc,"PO",    "VM\\pDeleteN.e",   opDelete,   "%opDelete",    E_other,0)
+    AutoAsm("delete",           S_Proc,"PO",    "VM\\pDeleteN.e",   opDelete,   "%opDelete",    E_all,  0)
     AutoAsm("delete_cs",        S_Proc,"PI",    "VM\\pHeap.e",      opDeleteCS, "%pDeleteCS",   E_other,0)
     AutoAsm("enter_cs",         S_Proc,"PI",    "VM\\pHeap.e",      opEnterCS,  "%pEnterCS",    E_other,0)      T_EnterCS = symlimit
     symtab[symlimit][S_ParmN] = 0
@@ -2389,7 +2415,9 @@ end if
 --else
     initialAutoEntry("get_proper_path", S_Func,"FPO",   "pgetpath.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("canonical_path",  S_Func,"FS",    "pgetpath.e",0,E_none)
+    initialAutoEntry("get_proper_dir",  S_Func,"FS",    "pgetpath.e",0,E_none)
+    initialAutoEntry("canonical_path",  S_Func,"FSII",  "pgetpath.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
 --end if
     initialAutoEntry("prompt_string",   S_Func,"FS",    "get.e",0,E_other)
 --DEV document
@@ -2506,7 +2534,9 @@ end if
     IAEType = T_object
 
 if newEmit then
-    initialAutoEntry("call_func",       S_Func,"FIP",   "VM\\pcfuncN.e",0,E_all)
+--  initialAutoEntry("call_func",       S_Func,"FIP",   "VM\\pcfuncN.e",0,E_all)
+--  initialAutoEntry("call_func",       S_Func,"FIP",   "VM\\pcallfunc.e",0,E_all)
+--  initialAutoEntry("call_funcN",      S_Func,"FIP",   "VM\\pcallfunc.e",0,E_all)
 else
     initialAutoEntry("call_func",       S_Func,"FIP",   "pcfunc.e",0,E_all)
 end if
@@ -2647,7 +2677,9 @@ end if
 if newEmit then
     initialAutoEntry("c_proc",              S_Proc,"PIP",   "VM\\pcfuncN.e",0,E_all)
     initialAutoEntry("call",                S_Proc,"PN",    "VM\\pcfuncN.e",0,E_all)
-    initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcfuncN.e",0,E_all)
+--  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcfuncN.e",0,E_all)
+--  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)
+--  initialAutoEntry("call_procN",          S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)
 --DEV document
     initialAutoEntry("crash",               S_Proc,"PPO",   "pCrashN.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1

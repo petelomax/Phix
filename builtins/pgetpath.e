@@ -207,9 +207,23 @@ sequence res
         return res
 end function
 
+global function get_proper_dir(string filepath)
+    filepath = get_proper_path(filepath)
+    for i=length(filepath) to 1 by -1 do
+        if find(filepath[i],"\\/") then
+            filepath = filepath[1..i]
+            exit
+        end if
+    end for
+    return filepath
+end function
+
 -- (sequence filepath should be fine, but needs testing and I'm not convinced that
 --  get_proper_path deals well with dword_sequences/errors on nested subsequences)
-global function canonical_path(string filepath)
-    return get_proper_path(filepath)
+global function canonical_path(string path_in, integer is_directory = 0, integer case_flags = 2)--CORRECT)
+    if is_directory then end if -- suppress warnings
+--    if case_flags!=CORRECT then ?9/0 end if
+    if case_flags!=2 then ?9/0 end if
+    return get_proper_path(path_in)
 end function
 

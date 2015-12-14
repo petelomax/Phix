@@ -1823,7 +1823,7 @@ end procedure
 sequence forwardingtable,
          forwardretarget
 
---with trace
+with trace
 global procedure unused_cleanup(integer asmoptions)
 --
 -- check for undefined forward (implicit) references,
@@ -2846,6 +2846,7 @@ object ssgi
 --if src=408 then trace(1) end if
     if src<=0 then ?9/0 end if  -- sanity check
     ss = symtab[src]
+--  TIP: see opJif, 7/12/15 as one possible cause
 --  if atom(ss) then ?9/0 end if
     ssNTyp1 = ss[S_NTyp]
     state1 = ss[S_State]
@@ -7166,6 +7167,14 @@ end if
                     schend()
                 end if
                 if opcode=opRetf then
+                    -- 7/12/15: (mt program)
+--                  if lastline=-1 then
+                    if lastline=-1 and currRtn=T_maintls then
+--?symtab[currRtn][S_1stl]
+--                      emitline = -1
+    lastline = 0
+    emitline = 1
+                    end if
                     emitHex5jmpG(opRetf)
                     pc += 1
                     --
@@ -8958,6 +8967,11 @@ end if  -- NOLT
             else
                 -- Jif|Jnot,mergeSet,tgt,link,src,isInit,lastparam
                 src = s5[pc+4]
+--7/12/15:
+                if atom(symtab[src]) then
+                    src = forwardretarget[find(src+1,forwardingtable)]-1
+                    s5[pc+4] = src
+                end if
                 isInit = s5[pc+5]   -- copy of src's [S_Init]
                 jinit(pc+1)
                 getSrc()
@@ -14731,11 +14745,12 @@ if not newEmit then ?9/0 end if
             --  mov esi,[o]         -- (opUnassigned)
             --  mov eax,[rid]       -- (opUnassigned)
             --  call :%opDelRtn     -- [edi]:=delete_routine(esi,eax)
+--DEV see call_func? (storeDest)
             if not isGscan then
                 dest = s5[pc+1]
                 src = s5[pc+2]
                 src2 = s5[pc+3]
-                getSrc2()
+--              getSrc2()
                 leamov(edi,dest)                                -- lea edi,[dest]
                 loadToReg(esi,src)                              -- mov eax,[o]
                 loadToReg(eax,src2)                             -- mov eax,[rid]
@@ -14758,6 +14773,54 @@ if not newEmit then ?9/0 end if
             end if
             pc += 4
 
+        elsif opcode=opDelete then
+            -- calling convention
+            --  mov eax,[o]     -- (opUnassigned)
+            --  call :%opDelete     -- delete(eax)
+            src = s5[pc+1]
+            loadToReg(eax,src)                                  -- mov eax,[o]
+            emitHex5callG(opcode)                               -- call opDelete
+            reginfo = 0
+            pc += 2
+        elsif opcode=opCallFunc then
+            -- calling convention
+            --  lea edi,[res]       -- result location
+            --  mov eax,[rid]       -- (opUnassigned)
+            --  mov esi,[args]      -- (opUnassigned)
+            --  call :%opCallFunc   -- [edi]:=call_func(eax,esi)
+            dest = s5[pc+1]
+            getDest()
+            slroot = T_object
+            sltype = T_object
+            setyp = T_object
+            slen = -2
+            storeDest()
+            if not isGscan then
+                src = s5[pc+2]
+                src2 = s5[pc+3]
+                leamov(edi,dest)                                -- lea edi,[dest]
+--DEV imm32?
+                loadToReg(eax,src)                              -- mov eax,[rid]
+                loadToReg(esi,src2)                             -- mov esi,[args]
+                emitHex5callG(opcode)                           -- call opCallFunc
+                reginfo = 0
+            end if
+            pc += 4
+        elsif opcode=opCallProc then
+            -- calling convention
+            --  mov eax,[rid]       -- (opUnassigned)
+            --  mov esi,[args]      -- (opUnassigned)
+            --  call :%opCallProc   -- call_proc(eax,esi)
+            if not isGscan then
+                src = s5[pc+1]
+                src2 = s5[pc+2]
+--DEV imm32?
+                loadToReg(eax,src)                              -- mov eax,[rid]
+                loadToReg(esi,src2)                             -- mov esi,[args]
+                emitHex5callG(opcode)                           -- call opCallProc
+                reginfo = 0
+            end if
+            pc += 3
         else
             if opcode>=1 and opcode<=length(opNames) then
                 opName = opNames[opcode]

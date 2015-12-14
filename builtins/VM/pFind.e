@@ -6,7 +6,7 @@
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
 --
 without trace
-without debug
+--without debug
 
 global function find(object x, sequence s, integer start=1)
     for i=start to length(s) do

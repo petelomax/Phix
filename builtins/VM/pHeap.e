@@ -819,7 +819,7 @@
 --include builtins\VM\pFPU.e        -- (:%down53/64, :%near53/64 in pAlloc/Free)
 --include builtins\VM\pFEH.e
 --DEV
---include builtins\VM\pDeleteN.e
+include builtins\VM\pDeleteN.e
 
 integer pGtcb = 0       -- the global control block (dwThreadId=0, stored /4)
                         -- (suprisingly, these 3=0 are all the initialisation we need!)
@@ -834,7 +834,9 @@ integer stdcs = 0       -- for very short one-off inits in \builtins (opEnter/Le
 --constant psssob = " ("
 --constant pssccr = ")\n"
 
+--DEV:
 #ilASM{ jmp :!opCallOnceYeNot
+--#ilASM{ jmp :fin
 
 --/*
 procedure ::pGetMem(::)

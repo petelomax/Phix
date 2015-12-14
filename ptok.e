@@ -325,6 +325,9 @@ without trace
 --with trace
 include ppp.e
 
+integer icount = 0
+
+--with trace
 global procedure includeFile(string file, integer autoInclude, integer emitcol)
 integer pathno, k, km1, kp1, kp2, kp3
 object path
@@ -342,6 +345,15 @@ object version
 
     fn = -1
 --puts(1,"includeFile started\n")
+--?file
+if file="VM\\pcallfunc.e" then
+    icount += 1
+    if icount>2 then
+        ?9/0
+    end if
+else
+    icount = 0
+end if
     while 1 do
         k = find('/',file)
         if not k then exit end if
@@ -1162,6 +1174,9 @@ string charset, baseset
     charset['0'..'9'] = DIGIT
     charset[':'..'?'] = SYMBOL  -- :;<=>?
     charset['A'..'Z'] = LETTER
+--  charset['”'] = LETTER   -- for rosettacode/unicode
+    charset[#94] = LETTER   -- for rosettacode/unicode (as ptok.e is not stored in utf8)
+    charset[#CE] = LETTER   -- for rosettacode/unicode
 --  charset['_'] = ILLEGAL  -- Specifically checked for after 1st character of LETTER
 --  charset['_'] = USCORE
 --12/11/15:
@@ -1666,7 +1681,7 @@ end procedure
 
 integer preprocactive = 0
 
-with trace
+without trace
 global procedure getToken()
 --integer savecol
 --integer signed, toklen

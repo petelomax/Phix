@@ -14,7 +14,7 @@
          </td>
          <td>
           <font face = "Arial, Helvetica">
-            s = canonical_path(string filename)
+            s = canonical_path(string path_in, integer is_directory = 0, integer case_flags = CORRECT)
           </font>
          </td>
         </tr>
@@ -31,25 +31,14 @@
          </td>
          <td>
             In Phix this is just a simple wrapper for <a href="get_proper_path.htm">get_proper_path</a>,
-            which is defined in builtins\pgetpath.e (as is canonical_path), and there is only the one, 
-            single, non-optional, parameter.
+            which is defined in builtins\pgetpath.e (as is canonical_path). The two optional parameters 
+            are only present for compatibility with OpenEuphoria, see technicalia for details, and in
+            almost all cases should simply be omitted.
             <br>
             <br>
-            The OpenEuphoria version has two additional optional parameters, is_directory and case_flags, 
-            which are rarely used, or at least EuGTK and tinEWG only ever use the one parameter form. 
-            You may need extra calls to upper() or lower(), that is to emulate OE behaviour, and in the 
-            Phix version whether it is a directory or not is primarily determined from the thing on the 
-            disk, and/or whether it ends with a slash (forward or back) character.
-            <br>
-            <br>
-            The canonical_path(file,,CORRECT) form, which is equivalent to canonical_path(file,0,CORRECT), 
-            can (afaik) simply be replaced with canonical_path(file).
-            <br>
-            <br>
-            The latest OpenEuphoria version appears to have extensive additions for Windows Vista, and
-            other unix/case-insensitive filesystem/enhanced dir() features that I would stand no chance 
-            of adequately testing, plus the warning "Does not (yet) handle UNC paths or unix links" in
-            the OE documentation persuades me against investing any significant effort here, just yet.
+            Typically canonical_path() should only be required where you are going to compare/sort the
+            resulting full paths. In theory a statement such as fn = open(canonical_path(path)) should
+            work exactly the same and offer no benefits over the simpler fn = open(path).
          </td>
         </tr>
         <tr>
@@ -62,7 +51,47 @@
           <a href="lower.htm">lower</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The canonical_path(file,,CORRECT) form, which is equivalent to canonical_path(file,0,CORRECT), 
+            can (afaik) simply be replaced with canonical_path(file).
+            <br>
+            <br>
+            The is_directory parameter is ignored. The Phix implementation determines whether path_in is
+            a directory or file by looking on the disk and does not need to be told.
+            <br>
+            <br>
+            The Phix version only accepts CORRECT (defined as 2 in psym.e) as a valid setting for case_flags. 
+            The OpenEuphoria version allows other flags: AS_IS, TO_LOWER, and TO_SHORT, none of which are
+            defined or supported by Phix. AS_IS makes little to no sense: if you are going to preserve the
+            wrong case of src when something more accurate is on offer, my warped logic suggests you would
+            want res = randomise_case(current_dir())&src to occur when src is not a full path... Likewise,
+            TO_LOWER is semi-pointless: either res = lower(canonical_path(src)), or just res = lower(src),
+            or the TO_LOWER+CORRECT form (in which existing parts of the path are given correct case and 
+            the rest lower) is just simply res = canonical_path(lower(src)). Finally, TO_SHORT is just 
+            something I actively want to avoid: while technically they may still exist 8,3 filenames 
+            should <i>long</i> be forgotten about by now.
+            <br>
+            <br>
+            The latest OpenEuphoria version appears to have extensive additions for Windows Vista (eg lower
+            case drive letters, since rescinded), and other unix/case-insensitive filesystem/enhanced dir() 
+            features that I would stand no chance of adequately testing, plus the warning in the OpenEuphoria
+            documentation "Does not (yet) handle UNC paths or unix links" persuades me against investing any 
+            significant effort here, just yet.
+            <br>
+            <br>
+            The OpenEuphoria version replaces a leading tilde ('~') with $HOME on Unix platforms and
+            %HOMEDRIVE%%HOMEPATH% in Windows. Phix does not (yet) support this and were such handling added, 
+            I should hope it would apply equally to open(), dir(), chdir(), etc.
+         </td>
+        </tr>
        </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
       </div>
      </stripped>
     </get>

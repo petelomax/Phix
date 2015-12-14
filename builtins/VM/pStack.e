@@ -99,7 +99,9 @@ constant oom = "Your program has run out of memory, one moment please\n"
 --DEV opCallOnceYeNot
 --#ilASM{ jmp :%opRetf
 --#ilASM{ jmp :fin
+--DEV
 #ilASM{ jmp :!opCallOnceYeNot
+--#ilASM{ jmp :fin
 
 
 --
@@ -1058,9 +1060,11 @@ end procedure -- (for Edita/CtrlQ)
         call :%opFrame      -- leaves ecx=0, ?esi=addr first (was in eax)
         pop eax             -- value to check
 --(untried)
---      mov ecx,[esp+8]     -- real return addr
-        mov dword[ebp+16],:opTchkRetAddr  -- return address
---      mov dword[ebp+12],ecx
+        mov edx,:!opTchkRetAddr  -- return address
+        mov ecx,[esp+8]     -- real return addr
+--      mov dword[ebp+16],:!opTchkRetAddr  -- return address
+        mov dword[ebp+16],edx
+        mov dword[ebp+12],ecx
         cmp eax,h4
         jl @f
           add dword[ebx+eax*4-8],1  -- incref
@@ -1070,7 +1074,7 @@ end procedure -- (for Edita/CtrlQ)
 
 --DEV if era is opTchkRetAddr, then replace it with the one on the stack... (very messy if there be stuff on the stack...)
 --      (better: stash it in [ebp+12]/[rbp+24] before the ret above)
-      ::opTchkRetAddr
+      :!opTchkRetAddr
         pop ecx             -- var no
         cmp eax,0
         jne @f
@@ -1091,11 +1095,15 @@ end procedure -- (for Edita/CtrlQ)
         mov rsi,[rsp+24]    -- return address (==called from address)
         call :%opFrame      -- leaves ecx=0, ?esi=addr first (was in eax)
         pop rax             -- value to check
+        mov rcx,[rsp+16]    -- real return addr
 --DEV fudge:
 --      mov qword[rbp+32],:opTchkRetAddr  -- return address
         mov [rbp+32],rbx
+        mov rdx,:!opTchkRetAddr  -- return address
         mov r15,h4
-        mov dword[rbp+32],:opTchkRetAddr  -- return address
+--      mov dword[rbp+32],:!opTchkRetAddr  -- return address
+        mov dword[rbp+32],rdx
+        mov qword[rbp+24],rcx
 --      cmp rax,h4
         cmp rax,r15
         jl @f
@@ -1104,7 +1112,7 @@ end procedure -- (for Edita/CtrlQ)
         mov [rbp],rax       -- [addr first] := value
         ret                 -- execute typecheck code!
 
-      ::opTchkRetAddr
+      :!opTchkRetAddr
         pop rcx             -- var no
         cmp rax,0
         jne @f
@@ -1531,6 +1539,7 @@ mov esp,[resp]
 jmp :%opIaborted
 --*/
 
+--  ::fin
 }
 
 

@@ -1482,3 +1482,35 @@ it is entirely up to the programmer to use that appropriately.
 --map(lambda x: 2*x , filter( lambda x:x%2==0, range(9) ) )
 map(lambda((x) return 2*x), filter(lambda((x):return remainder(x,2)=0), tagset0(8)))
 
+
+Compiler gotchas
+================
+After modifying the compiler, then if it builds cleanly and p -test runs fine, you
+should be good to go. The following list some mods/areas that have proved tricky.
+    1) Moving builtins between files. Specific example: moving call_func/proc out
+        of pcfuncN.e into pcallfunc.e. At all times you need to keep something
+        working, so the solution was to create call_funcN and call_procN in the
+        new file, leaving the old one in place. Once those worked, replace all
+        such calls in the compiler sources and rebuild. Then remove from pcfuncN
+        and rebuild. Then add call_func and call_proc to pcallfunc and rebuild.
+        Then replace all call_func/procN with call_func/proc and rebuild. Lastly
+        remove call_func/procN and rebuild. Six rebuilds, but at least each one
+        only takes around ten seconds (after a few minutes editing).
+    2) Messing up the side effects. The E_all/E_other/E_none settings in psym.e/
+        syminit() can cripple things if messed up. When I moved call_func as 
+        above, I left side effects as E_other not E_all, which led to loops of
+        r_ReconstructSequence in pEmit2.e assuming rescan was left 0, which was
+        quite difficult to track down.
+    3) Adding entries to the optable. Generally this is very simple, but does
+        require at least two rebuilds: one to create the larger optable with the
+        correct (final) global label in place, /before any attempts to use it/.
+    4) Localtypes (pltype.e). Hopefully all done and dusted now, but it can be
+        very tricky to debug, because of #edgecases * #varsbeingtracked. As in
+        the comments, you will need to reproduce any problem with the absolute
+        minimal possible program so you only have to spend a few hours studying
+        ltdiag.txt, rather than several months.
+    5) Having AutoAsm("open",.."%opOpen") in psyme.e and "global function open" 
+        in pfileioN.e led to some very difficult to diagnose problems. Renaming 
+        the routine in pfileioN with (local) "function fopen" solved the issue. 
+        Make of that what you will. (Phix has big issues with overrides.)
+

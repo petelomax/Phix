@@ -635,8 +635,8 @@ global integer T_sqfloor_div    T_sqfloor_div = 0   -- ""
 global integer T_routine        T_routine = 0
 global integer T_print          T_print = 0
 --DEV no longer needed?
-global integer T_call_func      T_call_func = 0
-global integer T_dcproc         T_dcproc = 0        -- map define_c_proc(l,n,a) to define_c_func(l,n,a,0)
+--global integer T_call_func        T_call_func = 0
+--global integer T_dcproc       T_dcproc = 0        -- map define_c_proc(l,n,a) to define_c_func(l,n,a,0)
 global integer T_command_line   T_command_line = 0  -- (for parameter defaulting)
 global integer Z_command_line   Z_command_line = 0  -- (1 iff needs linking for parameter defaulting)
 global integer T_platform       T_platform = 0
@@ -664,14 +664,15 @@ global integer LIDX
 --with trace
 ------with type_check -- ineffective, need to kill the without in p.exw
 ----DEV not good on p p t8...
---constant iNNN=24 -- item to monitor
+--constant iNNN=334  -- item to monitor
 --object sNNN sNNN=0
 --type symt(sequence s)
 --  if length(s)>=iNNN then
 --      if not equal(s[iNNN],sNNN) then
-----?1
+--?1
 --          trace(1)
 --          sNNN = s[iNNN]
+----if sNNN=0 then ?9/0 end if
 --      end if
 --  end if
 --  return 1

@@ -83,6 +83,28 @@ Version 0.6.7
             a complete overhaul/rewrite of parameter defaulting, to allow
             general expressions, is likely to be required anyway. See the
             routine getOneDefault in pmain.e for the full set of horrors.
+07/12/2015  BUGFIX: Finally fixed the "if save_modified_tabs() then" in 
+            wee11. The problem was that save_modified_tabs() was assumed 
+            to be a forward local routine, but was actually being mapped
+            to the global routine in pilx86.e/unused_cleanup(), however
+            opJif was not applying forwardretarget to relocate the result
+            of the function call. I expect there are several similar bugs
+            yet to be found. The actual symptom was e04atssaa in GetSrc(),
+            I added a quick note which will hopefully assist in future.
+07/12/2015  BUGFIX: ?9/0 in lineinfo() (major guff) when compiling an
+            empty program. Solved fairly easily by adding
+                if lastline=-1 then
+--                  emitline = -1
+                    lastline = 0
+                    emitline = 1
+                end if
+            to opRetf handling (in pilx86.e). Changed as shown above to 
+            handle the empty program listing (under -d!) a bit better.
+12/12/2015  Finally made '!' in pTrace.e abort properly (I needed to pop a
+            couple of stack entries, save return addresses in both opTchk
+            and opLnt, and replace opTchkRetAddr with called from in pDiag).
+12/12/2015  Finally vanquished that "oops2 in ReconstructIds" message when
+            producing some listing files (esp "-d!"). Also added UnAlias.
 
 
 Version 0.6.6

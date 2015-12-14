@@ -235,7 +235,9 @@
 --  If necessary, it may be possible to use call_backs to the main process 
 --  to set delete_routines and/or perform file i/o, but such is untested.
 --
-include pcfuncN.e
+--include pcfuncN.e
+--DEV?
+include pcallfunc.e
 
 --integer freelist = 0
 --sequence delete_sets      -- {{rid,rid,rid,...}}
@@ -506,7 +508,9 @@ procedure :%opDelRtn(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
 --!/*
+--DEV:
 #ilASM{ jmp :!opCallOnceYeNot
+--#ilASM{ jmp :fin
 
     :%opDelRtn
 --------------
@@ -537,10 +541,15 @@ end procedure -- (for Edita/CtrlQ)
                 ret
           @@:
                 mov ecx,[ebx+esi*4-4]
+                cmp eax,-1
+                jne @f
+                    -- :e??iri  (invalid routine id)
+                    int3
+              @@:
                 or [ebx+esi*4-4],eax
                 and ecx,0x00FFFFFF
                 jz @f
---                      :e??dras
+--                      :e??dras    -- (delete routine already set)
                     int3
               @@:
 --              or ecx,eax  -- (combine rid and type byte)
@@ -568,6 +577,11 @@ end procedure -- (for Edita/CtrlQ)
                 ret
           @@:
                 mov rcx,[rbx+rdx*4-8]
+                cmp rax,-1
+                jne @f
+                    -- :e??iri  (invalid routine id)
+                    int3
+              @@:
                 or [rbx+rdx*4-8],rax
                 shl rcx,8
 --              or rcx,rsi  -- (combine rid and type byte)
@@ -635,6 +649,7 @@ end procedure -- (for Edita/CtrlQ)
         []
           ::delret
             ret
+--    ::fin
     }
 --!*/
 

@@ -372,6 +372,7 @@ global constant
 --  op64toA = 120,      -- a = float64_to_atom(b)
     opCallFunc = 119,   -- o = call_func(rid,params)
     opCallProc = 120,   -- call_proc(rid,params)
+--DEV?
     opOpenDLL = 121,    -- a = open_dll(s)      -- (:%opOpenDLL in pcfuncN.e)
     opDcfunc = 122,     -- i = define_c_func(l,n,a,r) -- (:%opDcfunc "")
     opDcvar = 123,      -- i = define_c_var(l,n)      -- (:%opDcvar "")
@@ -751,8 +752,9 @@ opProfout = 171,        -- profile_dump()
 --  opName("op32toA",op32toA,4)
 --  opName("op64toA",op64toA,4)
 --  opUsed += 2 -- spare
-    opName("opCallFunc",opCallFunc,4)
-    opName("opCallProc",opCallProc,3)
+    opName("opCallFunc",opCallFunc,4)   -- opCallFunc,res,rid,params
+    opName("opCallProc",opCallProc,3)   -- opCallProc,rid,params
+--DEV?
     opName("opOpenDLL",opOpenDLL,3)
     opName("opDcfunc",opDcfunc,6)       -- opDcfunc,res,lib,name,args,rtyp
     opName("opDcvar",opDcvar,4)         -- opDcvar,res,lib,name

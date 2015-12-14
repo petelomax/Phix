@@ -2513,6 +2513,7 @@ end if
 --end procedure
 
 function DumpString(sequence name, integer node)
+-- (bind only)
 integer slink, refcount
 sequence si
 integer x_addr
@@ -2569,6 +2570,7 @@ constant r_DumpString = routine_id("DumpString")
 
 --with trace
 function DumpAtom(atom v, integer node)
+-- (bind only)
 integer slink, refcount
 --, a
 --, vchk
@@ -2903,10 +2905,10 @@ integer skt     -- verify sk[S_vtype], check for rescan
                     end if
                     k = tt[tidx+EQ]
                     sk = symtab[k]
-if DEBUG then
-                    if sk[S_NTyp]!=S_Const then ?9/0 end if
-                    if sk[S_vtype]!=skt then ?9/0 end if
-end if
+                    if DEBUG then
+                        if sk[S_NTyp]!=S_Const then ?9/0 end if
+                        if sk[S_vtype]!=skt then ?9/0 end if
+                    end if
                     if skt = T_Dsq then
                         state = sk[S_State]
                         if not and_bits(state,K_sqr) then
@@ -2922,12 +2924,10 @@ end if
                     tidx = si-0.5
                     k = tt[tidx+EQ]
                     sk = symtab[k]
-if DEBUG then
-                    if sk[S_NTyp]!=S_Const then ?9/0 end if
---                  if sk[S_vtype]!=T_atom then ?9/0 end if
---                  if sk[S_vtype]!=T_N then ?9/0 end if
-                    if not find(sk[S_vtype],{T_N,T_atom}) then ?9/0 end if
-end if
+                    if DEBUG then
+                        if sk[S_NTyp]!=S_Const then ?9/0 end if
+                        if not find(sk[S_vtype],{T_N,T_atom}) then ?9/0 end if
+                    end if
                     s[i] = sk[S_value]
                 end if
             end if
@@ -2945,7 +2945,7 @@ end if
             slink = si[S_Clink]
 --printf(1,"ReconstructSequence: S_Clink=%d\n",{slink})
         end while
-else
+--else
 --printf(1,"ReconstructSequence: K_sqr already set\n",{})
     end if
     return 1
@@ -2953,63 +2953,36 @@ end function
 constant r_ReconstructSequence = routine_id("ReconstructSequence")
 
 
--- pathset is plain {string,string,string}
--- fileset is nested {{n,str[,str,str,..]}}.
 procedure dumpPathSet(sequence s)
 -- dump pathset, aka symtab[T_pathset], which is {string,string,string,....}
 --   or fileset[i], which is {n,string[,string,string,...]}
 object si
 integer x_addr
 integer l, l20
---  x_addr = length(data_section)
+
     l = length(s)
---  if X64 then
---      l20 = l*8+40
---  else
---      l20 = l*4+20
---  end if
-    l20 = (l+5)*dsize
---  d_addr += l20
+    l20 = (l+5)*dsize               -- (l*4+20 or l*8+40, ie elements+seq header)
     appenddsDword(0)                -- slack
     appenddsDword(l20)              -- maxlen (in bytes)
     appenddsDword(l)                -- length
     appenddsDword(1)                -- refcount
---if not isString(data_section) then ?9/0 end if
     appenddsType(#80)
---if not isString(data_section) then ?9/0 end if
---DEV/SUG:
     x_addr = length(data_section)
     for i=1 to l do
         appenddsDword(0)
     end for
---  dsidx = x_addr+21
---  if X64 then
---      x_addr += 40
---  else
---      x_addr += 20
---  end if
---DEV/SUG: (or better yet, above one) [apply to next routine...]
---  x_addr += 5*dsize
     for i=1 to l do
         si = s[i]
         if string(si) then
             dumpString(si,1)
---          s[i] = s_addr
             dsidx = x_addr+(i-1)*dsize+1
             relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
---          relocations[DATA][DATA] = append(relocations[DATA][DATA],x_addr)
-            setds(s_addr,1) -- DEV not x_addr? (spotted in passing) [or is that deliberate, from dumpString?, yeah, I think so..]
+            setds(s_addr,1)
         else
---DEV M64
---          dsidx += 4
---          dsidx = x_addr+1
             dsidx = x_addr+(i-1)*dsize+1
             setds(si)
         end if
---      x_addr += dsize
     end for
---  if X64 then ?9/0 end if
---  s_addr = x_addr+#80000014
     s_addr = x_addr
 end procedure
 
@@ -3017,76 +2990,35 @@ procedure dumpFileSet(sequence s)
 -- dump fileset, aka symtab[T_fileset], which is {{n,string}}, except for
 --  the first, which may be {n,string[,string,string,..]}.
 integer x_addr
-integer l, l20
---object si
---if newEmit then
---  x_addr = length(data_section)
-    l = length(s)
---  if X64 then
---      l20 = l*8+40
---  else
---      l20 = l*4+20
---  end if
-    l20 = (l+5)*dsize
---  d_addr += l20
+integer l = length(s),
+        ml = (l+5)*dsize            -- (l*4+20 or l*8+40, ie elements+seq header)
     appenddsDword(0)                -- slack
-    appenddsDword(l20)              -- maxlen (in bytes)
+    appenddsDword(ml)               -- maxlen (in bytes)
     appenddsDword(l)                -- length
     appenddsDword(1)                -- refcount
---if not isString(data_section) then ?9/0 end if
     appenddsType(#80)
---if not isString(data_section) then ?9/0 end if
     x_addr = length(data_section)
     for i=1 to l do
         appenddsDword(0)
     end for
---  dsidx = x_addr+21
---  if X64 then
---      x_addr += 40
---  else
---      x_addr += 20
---  end if
     for i=1 to l do
         dumpPathSet(s[i])
---      if X64 then
---          dsidx = x_addr+1+(i-1)*8
---      else
---          dsidx = x_addr+1+(i-1)*4
---      end if
         dsidx = x_addr+1+(i-1)*dsize
         relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
         setds(s_addr,1)
     end for
---  if X64 then ?9/0 end if
---  s_addr = x_addr+#80000014
     s_addr = x_addr
---else
---  for i=1 to length(s) do
---      dumpPathSet(s[i])
---      s[i] = s_addr
---  end for
---  flatdump(s,1)
---end if
 end procedure
 
 sequence Signatures
 sequence SigLinks
 
 function CollectSignatures(sequence s, integer node)
-integer slink, k
---, refcount
---  refcount = 0
-    slink = tt[node+EQ]
---  Signatures = append(Signatures,s)
---  SigLinks = append(SigLinks,slink)
---  SigLinks = append(SigLinks,0)
---  k = length(SigLinks)
-    k = 0
---  tt[node+EQ] = k -- no help(?)
+integer slink = tt[node+EQ],
+        k = 0
     while slink do
         -- Signal the symtab entry is "in use"; this info is 
         --  converted into a backpatch chain in DumpSymTab().
---      flatsym2[slink][S_sig] = k
         if slink>T_object then
             if k=0 then
                 Signatures = append(Signatures,s)
@@ -4306,6 +4238,23 @@ if bind or listing then
 --  ?getname(sv[S_Name],-2)
 --   ?9/0
 --end if
+--DEV (added 12/12/15, factor this out...)
+                node = sv[S_Name]
+                slink = tt[node+EQ]
+                if slink=v then
+                    tt[node+EQ] = sv[S_Nlink]
+                else
+                    if nTyp=S_Rsvd then ?9/0 end if     -- sanity check (added 07/01/2012)
+                    while slink do
+                        snext = symtab[slink][S_Nlink]
+                        if snext=v then
+                            symtab[slink][S_Nlink] = sv[S_Nlink]
+                            exit
+                        end if
+                        slink = snext
+                    end while
+                end if
+                UnAlias(v)
                 symtab[v] = 0                   -- delete unused routine...
 --end if
 --23/4/15:
@@ -4628,6 +4577,7 @@ if 01 then -- moved above 17/3/15:
             rescan = 0
 --puts(1,"ReconstructSequence scan started\n")
             tt_traverseQ(r_ReconstructSequence)             -- sequence constants
+--?rescan
             if not rescan then exit end if
         end while
 end if

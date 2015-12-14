@@ -1,5 +1,5 @@
 --
--- pdiagN.e
+-- pDiagN.e
 -- =======
 --
 -- code responsible for writing the ex.err file
@@ -1897,8 +1897,9 @@ integer lineno,         -- linenumber as calculated from return addr/offset & li
         fpno,           -- copy of si[S_FPno]
         sNTyp           -- copy of sr[S_NTyp]
 integer c               -- scratch var
-atom    returnoffset    -- era as offset into code block, used in lineno calc
-
+atom    returnoffset,   -- era as offset into code block, used in lineno calc
+        TchkRetAddr     -- value of !opTchkRetAddr in pStack.e
+        
 sequence msg,           -- error message, from msgs[msg_id] plus any params
          wmsg,          -- work var, used for building msg
 --       s8,            -- copy of symtab[T_callstk], see below
@@ -2018,8 +2019,25 @@ atom gvarptr
 --  crashfile = 0
     #ilASM{
         [32]
+--11/12/15:
+            mov eax,:!opTchkRetAddr
+            lea edi,[TchkRetAddr]
+            push ebx
+            push eax
+--          push ebx
+--          mov dword[esp],:!opTchkRetAddr
+            fild qword[esp]
+            add esp,8
+            call :%pStoreFlt
             lea edi,[symtab]
         [64]
+            mov rax,:!opTchkRetAddr
+            lea rdi,[TchkRetAddr]
+            push rax
+--          mov qword[rsp],:!opTchkRetAddr
+            fild qword[rsp]
+            add rsp,8
+            call :%pStoreFlt
             lea rdi,[symtab]
         []
             call :%opGetST  -- [e/rdi]:=symtab (see pStack.e)
@@ -2830,7 +2848,12 @@ else
 end if
         while 1 do
             or_ebp = floor(prev_ebp/4)
-            or_era = ret_addr-1
+--11/12/15:
+            if ret_addr=TchkRetAddr then
+                or_era = from_addr-1
+            else
+                or_era = ret_addr-1
+            end if
             if or_ebp=0 then exit end if
             if machine_bits()=32 then
                 {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
@@ -3538,6 +3561,8 @@ end procedure -- (for Edita/CtrlQ)
               []
                 jmp :e94vhnbaavedx
           @@:
+            cmp edx,:!opSubse1e04or92
+            je :e94_or_e04
             cmp edx,:!opSubse1ipRe92a
             je :e94vhnbaavedx
             cmp edx,:!Jccp2NotInt

@@ -1204,6 +1204,9 @@ end if
 --          end if
         end if
         RHStype = STyp  -- for Assignment()
+--if scode=opCallFunc then
+--  ?RHStype    -- 15
+--end if
         t = -1
         if popFactor then
 --18/1/2013:
@@ -1319,6 +1322,7 @@ end if
 
             end if
         elsif scode=opFloor 
+--DEV??
            or scode=opOpenDLL
            or scode=opGetc then
             if emitON then
@@ -1466,6 +1470,7 @@ end if
            or scode=opRepeat
            or scode=opRepCh
            or scode=opOpen
+           or scode=opCallFunc
            or scode=opSeek then
 
             if emitON then
@@ -2866,6 +2871,8 @@ if and_bits(symtabN[S_State],K_rtn) then
 else
                 t = opstype[opsidx]
                 etype = or_bits(etype,t)
+--DEV/SUG if not compiling (with matching changes to pemit2.e)
+--                  v = symtabN[S_value]
                 if t=T_string then
 --                  v = {-symtabN[S_Name]}  -- aka {-ttidx}
                     v = {-symtabN[S_Init]}  -- aka {-ttidx}
@@ -3079,7 +3086,7 @@ sequence paramNames = {},   -- ttidx values
          paramTypes = {},   -- eg/ie T_integer..T_object, or udts
          paramLines = {},
          paramCols  = {},
-         paramDflts = {}    -- 0=no default, else 
+         paramDflts = {},   -- 0=no default, else 
                             -- (-ve integer): -ve index to paramNames, eg in
                             --      f(object a,b=a), paramDflts[2]=-1, else
                             -- 2=divide by zero, else
@@ -3103,6 +3110,7 @@ sequence paramNames = {},   -- ttidx values
                             -- (if other routines need to be supported, then
                             --  -ve would best become an index to a separate
                             --  "function call table", rather than mess up s5.)
+         paramUsed = {}     -- in rtn(x, y=x) etc, ensure we mark x with S_used.
 
 -- verify the compiler is setting these as "sequence of integer":
 --/**/  #isginfo{paramNames,0b0100,MIN,MAX,integer,-2}
@@ -3110,6 +3118,7 @@ sequence paramNames = {},   -- ttidx values
 --/**/  #isginfo{paramLines,0b0100,MIN,MAX,integer,-2}
 --/**/  #isginfo{paramCols,0b0100,MIN,MAX,integer,-2}
 --/**/  #isginfo{paramDflts,0b0100,MIN,MAX,object,-2}
+--/**/  #isginfo{paramUsed,0b0100,MIN,MAX,integer,-2}
 
 integer nParams
         nParams = -1
@@ -3173,6 +3182,7 @@ object Default
         if k and k<nParams then
             -- eg (object a,b=a)
 --          paramDflts[nParams] = -k
+            paramUsed[k] = 1
             Default = -k
             getToken()
         else
@@ -3196,6 +3206,7 @@ object Default
                         if k and k<nParams then
                             -- eg (sequence a,b=length(a))
 --                          paramDflts[nParams] = {T_length,-k}
+                            paramUsed[k] = 1
                             Default = {T_length,-k}
                         else
                             N = InTable(InAny)
@@ -3256,6 +3267,7 @@ object Default
                             or paramDflts[k]!=0 then
                                 Aborp("unsupported")
                             end if
+                            paramUsed[k] = 1
                             -- (must be resolved at compile-time)
 --                          Default = {T_routine,-k?}
                             Default = {T_routine}
@@ -3523,12 +3535,14 @@ integer SNtyp
                 paramLines = append(paramLines,tokline)
                 paramCols  = append(paramCols, tokcol)
                 paramDflts = append(paramDflts,0)
+                paramUsed  = append(paramUsed,0)
             else
                 paramNames[nParams] = ttidx
                 paramTypes[nParams] = Typ
                 paramLines[nParams] = tokline
                 paramCols [nParams] = tokcol
                 paramDflts[nParams] = 0
+                paramUsed [nParams] = 0
             end if
             getToken()
 -- added 6/4/2012: (may confuse default with named parameter a bit, but it is optional)
@@ -3998,7 +4012,6 @@ end if
         end if
     elsif wasRoutineNo=T_EnterCS 
        or wasRoutineNo=T_LeaveCS then -- opEnterCS or opLeaveCS
---?{sigidx,siglen,minsiglen,actsig}
         if sigidx=1 then
             PushFactor(T_const0,1,T_integer)    -- default cs to 0
             actsig &= T_integer
@@ -4006,17 +4019,6 @@ end if
             siglen = 1
             minsiglen = 1
         end if
---?{sigidx,siglen,minsiglen,actsig}
-    elsif wasRoutineNo=T_dcproc then    -- opDcfunc (define_c_proc->define_c_func)
---?{sigidx,siglen,minsiglen,actsig}
---      if sigidx=1 then
-            PushFactor(T_const0,1,T_integer)    -- return_type of 0
-            actsig &= T_integer
-            sigidx += 1
-            siglen += 1
---          minsiglen = 1
---      end if
---?{sigidx,siglen,minsiglen,actsig}
     end if
 -- 26/11/15 (routine x(string name, rid=routine_id(name)) support)
 --?{length(actsig),minsiglen}
@@ -4040,6 +4042,8 @@ end if
                 actsig &= T_integer
                 sigidx += 1
                 siglen += 1
+            else
+                Aborp("error resolving routine_id")
             end if
             Q_Routine = 0
         end if
@@ -4393,7 +4397,7 @@ end if
 --              actsig &= T_integer
 --              sigidx += 1
             elsif wasRoutineNo=T_get_text
-            and sigidx=2 then
+              and sigidx=2 then
                 k = addUnnamedConstant(-2,T_integer)
                 PushFactor(k,1,T_integer)           -- default option to -2
                 actsig &= T_integer
@@ -4630,20 +4634,24 @@ object dbg -- DEV (temp)
                         apnds5(opcode)
 --                  end if
                 elsif opsidx=1 then
+                    -- added 1/12/15 (as a way of saying what this does [I got confused by opDelete])
                     if DEBUG then
---                      if opcode!=opTrace
---                      and opcode!=opFree
---                      and opcode!=opClose
---                      and opcode!=opFlush
---                      and opcode!=opSleep
---                      and opcode!=opBkClr
---                      and opcode!=opTxtClr
---                      and opcode!=opEnterCS
---                      and opcode!=opLeaveCS
---                      and opcode!=opDeleteCS
---                      and opcode!=opAbort then
---                          ?9/0
---                      end if
+                        if opcode!=opTrace
+                        and opcode!=opFree
+                        and opcode!=opClose
+                        and opcode!=opFlush
+                        and opcode!=opSleep
+                        and opcode!=opBkClr
+                        and opcode!=opTxtClr
+                        and opcode!=opSetRand
+                        and opcode!=opDelete
+                        and opcode!=opEnterCS
+                        and opcode!=opLeaveCS
+                        and opcode!=opDeleteCS
+                        and opcode!=opCrashMsg
+                        and opcode!=opAbort then
+                            ?9/0
+                        end if
                     end if
 --DEV I think we need similar (not bind) handling for opProfile! (also, unsure about that 6/12/09 change... elsif??)
 if opcode=opProfile and not bind then
@@ -4708,7 +4716,7 @@ end if
                         and opcode!=opPoke4
                         and opcode!=opPoke8
                         and opcode!=opPosition
---                      and opcode!=opCallProc
+                        and opcode!=opCallProc
                         and opcode!=opUnLock then
                             tidx = symtab[routineNo][S_Name]
                             ?{routineNo,getBuiltinName(routineNo),getname(tidx,-2)}
@@ -5541,9 +5549,15 @@ end if
             routineNo = 0
             opsidx -= 1
         end if
+        if paramUsed[i] then
+            Ktype += S_used
+        end if
         pN = addSymEntryAt(ttidx,0,S_TVar,pTi,0,Ktype,pCol)
         if and_bits(Ktype,K_drid) then
             Ktype -= K_drid
+        end if
+        if and_bits(Ktype,S_used) then
+            Ktype -= S_used
         end if
 --      paramNames[i] = pN
         --
@@ -8821,7 +8835,6 @@ integer thispt
     MatchString(T_do)
     emitON = emitBlock
 
---  call_proc(rBlock,{})
     Block()
 
     -- patch any continue statements at s5len, ie before end while
@@ -9200,7 +9213,6 @@ integer cnTyp
 --if tracefor then trace(1) end if
 --trace(1)
 
---  call_proc(rBlock,{})
     Block()
 
     emitline = line
@@ -9637,7 +9649,6 @@ integer link
         end if
         if toktype!=LETTER or not find(ttidx,{T_end,T_else,T_default,T_break}) then
 
---          call_proc(rBlock,{})
             Block()
 
             clearIchain(-1)
@@ -9775,6 +9786,7 @@ integer C_cr
 sequence puts1
          puts1 = {opPuts,T_const1,-1}   -- (-1 is replaced before use)
 
+--with trace
 procedure DoQu()
 --
 -- The '?' shorthand.
@@ -10929,6 +10941,10 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
     end if
     prevfile = fileno
 --puts(1,"do we get this far?\n")
+--?name
+--if name="builtins\\VM\\pfindN.e" then 
+--  trace(1)
+--end if
     includeFile(name,0,emitcol)
 --puts(1,"but not this far?\n")
     if k then

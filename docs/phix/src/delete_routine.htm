@@ -62,8 +62,14 @@
             This is also inconsistent with OpenEuphoria.
           <br>
           <br>
-            Should an integer be passed as the first parameter, it is promoted to atom. Note this may affect some comparison operations, as internally
-            the run-time (eg builtins\VM\pJcc.e) assumes that integers and floats are never equal.
+            Should an integer be passed as the first parameter, it is promoted to atom. This is required for memory allocations, as some may fall
+            below the magic #3FFFFFFF boundary. Note this may affect some comparison operations, as internally the run-time (eg builtins\VM\pJcc.e) 
+            assumes that integers and floats are never equal.
+          <br>
+          <br>
+            It is legal to invoke delete_routine(<i>&lt;object&gt;</i>,0). This has the effect of removing any association without invoking it. It
+            has the further effect of resetting the pHeap link, see technicalia. The routine_id is validated to ensure it is not -1, but only when 
+            the first parameter is non-integer.
           <br>
           <br>
             Some memory allocation routines offer default delete_routines as part of automatic memory management.
@@ -146,6 +152,7 @@ procedure</font><font color="#000000"> add</font><font color="#0000FF">(</font><
           </a>
          </td>
          <td>
+          
           This mechanism is not guaranteed to play nice with automatic memeory leak checking. In the above example, the list items also hold chain links,
           but if separate tables were used it might be the case that shutdown would destroy the link table before invoking unlink on some item in another
           table. It may prove necessary for automatic memory leak checking to trigger errors when any outstanding delete_routine calls are detected.

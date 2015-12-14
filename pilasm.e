@@ -114,7 +114,7 @@
 --  there are no further tools, Intel syntax is FAR easier, both
 --  to read AND write than AT&T, and if you disagree then pffft!
 --
-
+without trace
 
 -- #ilasm label tables:
 

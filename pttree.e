@@ -54,6 +54,8 @@ global string identset
     identset['A'..'Z'] = 1
     identset['_'] = 1
     identset['a'..'z'] = 1
+    identset[#94] = 1   -- for rosettacode/unicode (as ptok.e is not stored in utf8)
+    identset[#CE] = 1   -- for rosettacode/unicode
 
 global string thisline -- copy of text[line]
     thisline = ""
@@ -241,12 +243,10 @@ sequence todo
 --31/1/15:
 --      if ch>0 then    kidx += 1
         if ch>=0 then   kidx += 1
---          if charmatch() then
             if (term!=-2 or ch>0) and charmatch() then
                 nxt = tt[node+EQ]   if nxt then r = traverse(nxt) end if    -- recurse(EQ)
             end if      kidx -= 1
         elsif ch=term and kidx>=lp then
---      elsif kidx>=lp then
             -- a leaf node with key not shorter than partial:
             r = call_func(rtn_id,{key[1..kidx],node})
         end if
@@ -339,6 +339,29 @@ integer k
         end if
     end for
 end procedure
+
+--DEV untried, there may be several places (in pEmit2.e) that have/need this:
+--/*
+global procedure unlink(integer ttidx, integer symidx)
+sequence sv = symtab[symidx]
+integer node = sv[S_Name],
+        slink = tt[node+EQ],
+        snxt
+    if sv[S_NTyp]=S_Rsvd then ?9/0 end if   -- sanity check
+    if slink=symidx then
+        tt[node+EQ] = sv[S_Nlink]
+    else
+        while slink do
+            snext = symtab[slink][S_Nlink]
+            if snext=symidx then
+                symtab[slink][S_Nlink] = sv[S_Nlink]
+                exit
+            end if
+            slink = snext
+        end while
+    end if
+end procedure
+--*/
 
 --
 -- Routines for constant literal handling:

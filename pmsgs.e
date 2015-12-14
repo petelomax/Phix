@@ -64,7 +64,6 @@ global procedure Message(sequence msg)
 --if not batchmode then
     if r_proemh=-1 then
         puts(1,msg)
---      if getc(0) then end if
         if wait_key() then end if
     else
         if call_func(r_proemh,{"Warning",msg,MB_OK}) then end if
@@ -368,7 +367,7 @@ global integer no_oops          -- (should only be set for fatal calls)
                no_oops = 0      -- (currently only used when backpatching fwd calls,
                                 --  we should really be saving line numbers for that)
 
---with trace
+with trace
 global procedure Abort(sequence msg)
 -- error with source line
 sequence errline, txtline, fni

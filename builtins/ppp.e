@@ -525,6 +525,7 @@ with warning
 procedure fatal(sequence msg)
     puts(1,"ppp.e: fatal: "&msg&"\nPress d for diagnostics...")
     if find(getc(0),"dD") then ?9/0 end if
+--  if find(getc(0),"dD") then crash("?9/0") end if
     abort(1)
 end procedure
 

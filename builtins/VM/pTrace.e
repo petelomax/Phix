@@ -1229,7 +1229,36 @@ end procedure
 
 
 procedure abort_trace()
-    ?9/0
+--DEV... see FatalN, do we need to restore ebp4/[ds+8]?
+--  ?9/0
+--  e12pa
+    #ilASM{
+        [32]
+            mov ecx,2
+            mov al,12           -- e12pa
+          @@:
+--          mov edx,[ebp+16]    -- era
+            mov edx,[ebp+12]    -- called from address (as set in opLnt below)
+            mov ebp,[ebp+20]    -- (nb no local vars after this!)
+            sub ecx,1
+            jg @b
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+        [64]
+            mov rcx,2
+            mov al,12           -- e12pa
+          @@:
+--          mov rdx,[rbp+32]    -- era
+            mov rdx,[rbp+24]    -- called from address (as set in opLnt below)
+            mov rbp,[rbp+40]    -- (nb no local vars after this!)
+            sub rcx,1
+            jg @b
+            sub rdx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+        []
+          }
 end procedure
 --DEV integer?
 --atom cbrDbg, cbrClrDbg, wascbrClrDbg
@@ -1672,8 +1701,10 @@ end procedure -- (for Edita/CtrlQ)
                 mov edx,routine_id(show_trace)  -- mov edx,imm32 (sets K_ridt)
                 mov ecx,$_Ltot                  -- mov ecx,imm32 (=symtab[show_trace][S_Ltot])
                 call :%opFrame
+                mov edx,[esp+4]
                 pop dword[ebp]                  --[1] lineno
                 mov dword[ebp+16],:dbgret
+                mov dword[ebp+12],edx           -- called from address
                 jmp $_il                        -- jmp code:show_trace
               ::dbgret  
 
@@ -1701,8 +1732,10 @@ end procedure -- (for Edita/CtrlQ)
                 mov rdx,routine_id(show_trace)  -- mov rdx,imm32 (sets K_ridt)
                 mov rcx,$_Ltot                  -- mov rcx,imm32 (=symtab[show_trace][S_Ltot])
                 call :%opFrame
+                mov rdx,[rsp+8]
                 pop qword[rbp]                  --[1] lineno
                 mov qword[rbp+32],:dbgret
+                mov qword[ebp+24],rdx           -- called from address
                 jmp $_il                        -- jmp code:show_trace
               ::dbgret  
           ::justret

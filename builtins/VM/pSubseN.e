@@ -287,6 +287,7 @@ end procedure -- (for Edita/CtrlQ)
         sub edi,1
 --DEV
 --    :!opSubse1Re92a:          -- exception here mapped to e94vhnbaavedxesifeh
+      :!opSubse1e04or92
         mov edx,[ebx+esi*4-12]  -- length
         mov ah,byte[ebx+esi*4-1]
         shl esi,2
