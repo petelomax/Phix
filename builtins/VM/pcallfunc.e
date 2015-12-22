@@ -43,7 +43,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
 -- do so with call fatalN(4..). There are no fatalN(1..) calls since
 -- this is local and that would report an error in pcfuncN.e itself,
 -- which is the very thing the level parameter is supposed to avoid!
-printf(1,"fatalN(%d,%d)\n",{level,errcode})
+--printf(1,"fatalN(%d,%d)\n",{level,errcode})
     #ilASM{
         -- calling convention
         --  lea ecx,[level]     -- no of frames to pop to obtain an era (>=2)
@@ -363,7 +363,7 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,[rsp+24]
             pop qword[rbp]                      --[3] rid
             pop qword[rbp-8]                    --[2] args
-            mov qword[rbp-16],ebx               -- isProc:=0
+            mov qword[rbp-16],rbx               -- isProc:=0
             mov qword[rbp+32],:callfuncret      -- return address
             mov qword[ebp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:call_common

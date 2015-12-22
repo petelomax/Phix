@@ -93,6 +93,7 @@ constant vm_names = {
 --                                  "%pCrash1",
                                     "%pCrashFile",
                                     "!SetBatchMode",
+                                    "!fatalN",
                                     "!iDiag",
                                     "!fehDiag"}},
                     -- NB the next seven entries (opTrace..opLnpt) are often all zero in .exe other than 

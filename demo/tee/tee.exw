@@ -1,0 +1,1996 @@
+--****
+-- == Euphoria Editor
+--
+-- by Gregory Haberek
+-- <ghaberek@gmail.com>
+--
+-- === Version 0.1b
+-- 25 October 2015
+-- * Added icons to menu options
+-- * Added icons to tab to show status
+-- * Added bind utility dialog to Run menu
+-- * Added save-as and close buttons to toolbar
+-- * Added right-click menu to tab interface
+-- * Added zoom functions to menu and toolbar
+-- * Changed to improved icon set from Fatcow
+-- * Fixed missing eu.cfg in bin directory
+-- * Fixed text styles missing after save
+-- * Fixed F5 launching behavior
+--
+-- === Version 0.1a
+-- 18 October 2015
+-- * Initial release
+--
+--/**/global constant SLASH = iff(platform()=WINDOWS?'\\':'/')
+--/**/constant lib = open_dll("kernel32")
+--/**/constant xGetFileAttributes = define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT) -- N.B DWORD return fails this.
+--/**/function file_exists(string name)
+--/**/  return c_func(xGetFileAttributes, {name})>0
+--/**/end function
+--/**/include builtins/write_file.e
+--/**/include builtins/read_file.e
+function get_file_name(sequence path)
+    for i=length(path) to 1 by -1 do
+        if path[i]='\\' then
+            path = path[i+1..$]
+            exit
+        end if
+    end for
+    return path
+end function
+
+function get_file_base(sequence path)
+    path = get_file_name(path)
+    for i=length(path) to 1 by -1 do
+        if path[i]='.' then
+            path = path[1..i-1]
+            exit
+        end if
+    end for
+    return path
+end function
+
+function get_file_path(sequence path)
+    for i=length(path) to 1 by -1 do
+        if path[i]='\\' then
+            path = path[1..i]
+            exit
+        end if
+    end for
+    return path
+end function
+--/**/include builtins\scanf.e
+--/**/global function to_integer(string s) return to_number(s) end function
+--/**/forward function add_tab(sequence title = "Untitled", sequence text = "")
+--/**/forward procedure apply_lexer(atom sci, sequence path = "")
+--/**/forward function get_image(sequence image)
+--/**/forward function confirm_close(sequence name)
+--/**/forward function popup_menu()
+--/**/forward procedure toggle_item(sequence handle, object v)
+--/**/forward function get_cursor_pos()
+--/**/forward function wildcard_any(sequence list, sequence text)
+
+
+include std/machine.e
+include iup.e
+--include iup/iupim.e
+--include iup/iup_config.e
+--include iup/iup_scintilla.e
+--include std/error.e
+--include std/filesys.e
+--include std/io.e
+--include std/os.e
+--include actions.e
+
+--include iup/iup.e
+--include iup/iupim.e
+--include iup/iup_scintilla.e
+--include std/convert.e
+--include std/filesys.e
+--include std/sequence.e
+--include std/wildcard.e
+--include euphoria/keywords.e
+--****
+-- == Keyword Data
+--
+-- Keywords and routines built in to Euphoria.
+--
+-- <<LEVELTOC level=2 depth=4>>
+--
+
+--namespace keywords
+
+--****
+-- === Constants
+--
+
+--**
+-- Sequence of Euphoria keywords
+
+constant keywords = {
+                            "and",
+                            "as",
+                            "break",
+                            "by",
+                            "case",
+                            "constant",
+                            "continue",
+                            "deprecate",
+                            "do",
+                            "else",
+                            "elsedef",
+                            "elsif",
+                            "elsifdef",
+                            "end",
+                            "entry",
+                            "enum",
+                            "exit",
+                            "export",
+                            "fallthru",
+                            "for",
+                            "function",
+                            "global",
+                            "goto",
+                            "if",
+                            "ifdef",
+                            "include",
+                            "label",
+                            "loop",
+                            "namespace",
+                            "not",
+                            "or",
+                            "override",
+                            "procedure",
+                            "public",
+                            "retry",
+                            "return",
+                            "routine",
+                            "switch",
+                            "then",
+                            "to",
+                            "type",
+                            "until",
+                            "while",
+                            "with",
+                            "without",
+                            "xor"
+                           }
+
+--**
+-- Sequence of Euphoria's built-in function names
+
+constant builtins = {
+                            "?",
+                            "abort",
+                            "and_bits",
+                            "append",
+                            "arctan",
+                            "atom",
+                            "c_func",
+                            "c_proc",
+                            "call",
+                            "call_func",
+                            "call_proc",
+                            "clear_screen",
+                            "close",
+                            "command_line",
+                            "compare",
+                            "cos",
+                            "date",
+                            "delete",
+                            "delete_routine",
+                            "equal",
+                            "find",
+                            "floor",
+                            "get_key",
+                            "getc",
+                            "getenv",
+                            "gets",
+                            "hash",
+                            "head",
+                            "include_paths",
+                            "insert",
+                            "integer",
+                            "length",
+                            "log",
+                            "machine_func",
+                            "machine_proc",
+                            "match",
+                            "mem_copy",
+                            "mem_set",
+                            "not_bits",
+                            "object",
+                            "open",
+                            "option_switches",
+                            "or_bits",
+                            "peek",
+                            "peek2s",
+                            "peek2u",
+                            "peek4s",
+                            "peek4u",
+                            "peek8s",
+                            "peek8u",
+                            "peek_longs",
+                            "peek_longu",
+                            "peek_pointer",
+                            "peeks",
+                            "peek_string",
+                            "pixel",
+                            "platform",
+                            "poke",
+                            "poke2",
+                            "poke4",
+                            "poke8",
+                            "poke_long",
+                            "poke_pointer",
+                            "position",
+                            "power",
+                            "prepend",
+                            "print",
+                            "printf",
+                            "puts",
+                            "rand",
+                            "remainder",
+                            "remove",
+                            "repeat",
+                            "replace",
+                            "routine_id",
+                            "sequence",
+                            "sin",
+                            "sizeof",
+                            "splice",
+                            "sprintf",
+                            "sqrt",
+                            "system",
+                            "system_exec",
+                            "tail",
+                            "tan",
+                            "task_clock_start",
+                            "task_clock_stop",
+                            "task_create",
+                            "task_list",
+                            "task_schedule",
+                            "task_self",
+                            "task_status",
+                            "task_suspend",
+                            "task_yield",
+                            "time",
+                            "trace",
+                            "xor_bits"
+                           }
+--include events.e
+--include events.e
+
+--include iup/iup.e
+--include iup/iup_scintilla.e
+--include std/cmdline.e
+--include std/console.e
+--include std/filesys.e
+--include std/io.e
+--include std/machine.e
+--include std/pipeio.e
+--include std/sequence.e
+--include actions.e
+--include controls.e
+
+integer m_skip = 0
+
+--**
+-- N.B. THIS IS A BUG WORK-AROUND!
+--
+-- Keypress events (e.g. Ctrl+N) are somtimes triggered twice.
+-- We use a timer to prevent our hotkey-enabled callbacks from
+-- being called too many times within a small timeframe (50ms).
+--
+function skip_next_event()
+
+integer old_skip = m_skip
+
+ifdef LINUX then
+    m_skip = not m_skip
+end ifdef
+
+    return old_skip
+end function
+
+--**
+-- Create a new empty document.
+--
+
+function new_cb(atom self)
+--      IupAlarm( "Action", "New", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom sci = add_tab("Untitled")
+    IupSetAttribute(sci, "PATH", "")
+    apply_lexer(sci)
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetChildPos(tabs, sci)
+    IupSetAttributeId(tabs, "TABIMAGE", pos, get_image("IUP_FileNew"))
+
+    atom field1 = IupGetHandle("field1")
+    IupSetAttribute(field1, "TITLE", "")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Open an existing document.
+--
+function open_cb(atom self)
+--      IupAlarm( "Action", "Open", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom dlg = IupFileDlg()
+    IupSetAttribute(dlg, "DIALOGTYPE", "OPEN")
+    IupSetAttribute(dlg, "TITLE", "Open")
+    IupSetAttribute(dlg, "FILTER", "*.*")
+    IupSetAttribute(dlg, "FILTERINFO", "All files (*.*)")
+
+    {} = IupPopup(dlg, IUP_CURRENT, IUP_CURRENT)
+    if IupGetInt(dlg, "STATUS")=IUP_INVALID then
+        return IUP_IGNORE
+    end if
+
+    sequence path = IupGetAttribute(dlg, "VALUE")
+    sequence name = get_file_name(path)
+    sequence text = read_file(path)
+
+    atom tabs = IupGetHandle("tabs")
+    atom count = IupGetChildCount(tabs)
+    if count=1 then
+
+        sequence title = IupGetAttributeId(tabs, "TABTITLE", 0)
+        if equal(title, "Untitled") then
+            -- remove the empty unmodified tab
+            atom sci = IupGetChild(tabs, 0)
+            IupDetach(sci)
+        end if
+
+    end if
+
+    atom sci = add_tab(name, text)
+    IupSetAttribute(sci, "PATH", path)
+    apply_lexer(sci, path)
+
+    atom pos = IupGetChildPos(tabs, sci)
+    IupSetAttributeId(tabs, "TABIMAGE", pos, get_image("IUP_FileSave"))
+
+    atom field1 = IupGetHandle("field1")
+    IupSetAttribute(field1, "TITLE", path)
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Save the currently selected document.
+--
+function save_cb(atom self)
+--      IupAlarm( "Action", "Save", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetAttributeHandle(tabs, "VALUE")
+    sequence modified = IupGetAttribute(sci, "SAVEDSTATE")
+    if equal(modified, "NO") then
+        -- nothing to save
+        return IUP_IGNORE
+    end if
+
+    sequence path = IupGetAttribute(sci, "PATH")
+    if length(path)=0 then
+        -- file has not been named yet
+
+        atom dlg = IupFileDlg()
+        IupSetAttribute(dlg, "DIALOGTYPE", "SAVE")
+        IupSetAttribute(dlg, "TITLE", "Save")
+        IupSetAttribute(dlg, "FILTER", "*.*")
+        IupSetAttribute(dlg, "FILTERINFO", "All files (*.*)")
+
+        {} = IupPopup(dlg, IUP_CURRENT, IUP_CURRENT)
+        if IupGetInt(dlg, "STATUS")=IUP_INVALID then
+            -- user cancelled
+            return IUP_IGNORE
+        end if
+
+        path = IupGetAttribute(dlg, "VALUE")
+        IupSetAttribute(sci, "PATH", path)
+        IupSetAttributeId(tabs, "TABIMAGE", pos, get_image("IUP_FileSave"))
+        apply_lexer(sci)
+
+    end if
+
+    sequence text = IupGetAttribute(sci, "VALUE")
+    {} = write_file(path, text)
+
+    sequence name = get_file_name(path)
+    IupSetAttributeId(tabs, "TABTITLE", pos, name)
+    IupSetAttribute(sci, "SAVEDSTATE")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Save the document with a new name.
+--
+function saveas_cb(atom self)
+--      IupAlarm( "Action", "Save As", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom dlg = IupFileDlg()
+    IupSetAttribute(dlg, "DIALOGTYPE", "SAVE")
+    IupSetAttribute(dlg, "TITLE", "Save As")
+    IupSetAttribute(dlg, "FILTER", "*.*")
+    IupSetAttribute(dlg, "FILTERINFO", "All files (*.*)")
+
+    {} = IupPopup(dlg, IUP_CURRENT, IUP_CURRENT)
+    if IupGetInt(dlg, "STATUS")=IUP_INVALID then
+        -- user cancelled
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetAttributeHandle(tabs, "VALUE")
+
+    sequence path = IupGetAttribute(dlg, "VALUE")
+    IupSetAttribute(sci, "PATH", path)
+    IupSetAttributeId(tabs, "TABIMAGE", pos, get_image("IUP_FileSave"))
+    apply_lexer(sci)
+
+    sequence text = IupGetAttribute(sci, "VALUE")
+    {} = write_file(path, text)
+
+    sequence name = get_file_name(path)
+    IupSetAttributeId(tabs, "TABTITLE", pos, name)
+    IupSetAttribute(sci, "SAVEDSTATE")
+    IupRefresh(tabs)
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Close the currently selected document.
+--
+function close_cb(atom self)
+--      IupAlarm( "Action", "Close", "OK" )
+
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetAttributeHandle(tabs, "VALUE")
+    atom modified = IupGetInt(sci, "SAVEDSTATE")
+
+    if modified then
+        -- ask the user to save
+
+        sequence name = "Untitled"
+        sequence path = IupGetAttribute(sci, "PATH")
+
+        if length(path) then
+            name = get_file_name(path)
+        end if
+
+        atom response = confirm_close(name)
+
+        if response=1 then
+            -- user wants to save
+
+            {} = save_cb(self)
+            modified = IupGetInt(sci, "SAVEDSTATE")
+            if modified then
+                -- user cancelled save
+                return IUP_IGNORE
+            end if
+
+        elsif response=3 then
+            -- user cancelled prompt
+            return IUP_IGNORE
+
+        end if
+
+    end if
+
+    -- remove the tab
+    IupDestroy(sci)
+    IupRefreshChildren(tabs)
+
+    atom count = IupGetChildCount(tabs)
+    if count!=0 then
+        -- update the tab selection
+
+        while pos>=count do
+            -- pos is out of bounds
+            pos -= 1
+        end while
+
+        sci = IupGetChild(tabs, pos)
+        IupSetAttributeHandle(tabs, "VALUE", sci)
+
+        IupRefresh(tabs)
+        {} = IupSetFocus(sci)
+
+    end if
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Exit the application.
+--
+function exit_cb(atom self)
+--      IupAlarm( "Action", "Exit", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    -- tell the application to close
+    return IUP_CLOSE
+end function
+
+--**
+-- Undo the last bufferred action.
+--
+function undo_cb(atom self)
+--      IupAlarm( "Action", "Undo", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetAttributeHandle(tabs, "VALUE")
+    if IupGetInt(sci, "UNDO") then
+        IupSetAttribute(sci, "UNDO", "YES")
+    end if
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Redo the last buffered action.
+--
+function redo_cb(atom self)
+--      IupAlarm( "Action", "Redo", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetAttributeHandle(tabs, "VALUE")
+    if IupGetInt(sci, "REDO") then
+        IupSetAttribute(sci, "REDO", "YES")
+    end if
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Cut the currently selected text.
+--
+function cut_cb(atom self)
+--      IupAlarm( "Action", "Cut", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    IupSetAttribute(sci, "CLIPBOARD", "CUT")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Copy the currently selected text.
+--
+function copy_cb(atom self)
+--      IupAlarm( "Action", "Copy", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    IupSetAttribute(sci, "CLIPBOARD", "COPY")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Paste the contents of the clipboard.
+--
+function paste_cb(atom self)
+--      IupAlarm( "Action", "Paste", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    IupSetAttribute(sci, "CLIPBOARD", "PASTE")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Delete the currently selected text.
+--
+function delete_cb(atom self)
+--      IupAlarm( "Action", "Delete", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    IupSetAttribute(sci, "CLIPBOARD", "CLEAR")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Select all text in the current document.
+--
+function selectall_cb(atom self)
+--      IupAlarm( "Action", "Select All", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    atom count = IupGetInt(sci, "COUNT")
+    sequence selection = sprintf("%d:%d", {0,count})
+    IupSetAttribute(sci, "SELECTIONPOS", selection)
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Increase the zoom in the current document.
+--
+function zoomin_cb(atom self)
+--      IupAlarm( "Action", "Zoom In", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    IupSetAttribute(sci, "ZOOMIN", "YES")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Decrease the zoom in the current document.
+--
+function zoomout_cb(atom self)
+--      IupAlarm( "Action", "Zoom Out", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    IupSetAttribute(sci, "ZOOMOUT", "YES")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Reset the zoom in the current document.
+--
+function zoomreset_cb(atom self)
+--      IupAlarm( "Action", "Reset Zoom", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    IupSetAttribute(sci, "ZOOM", "0")
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Run the file in the current tab.
+--
+function run_cb(atom self)
+--      IupAlarm( "Action", "Run", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    sequence path = IupGetAttribute(sci, "PATH")
+    sequence name = get_file_name(path)
+
+ifdef WINDOWS then
+    sequence comspec = getenv("ComSpec")
+--              sequence eui = locate_file( "euiw.exe" )
+--              sequence cmd = build_commandline({ comspec, "/C", eui, name })
+elsedef
+    sequence xterm = "/usr/bin/x-terminal-emulator"
+--              sequence eui = locate_file( "eui" )
+--              sequence cmd = build_commandline({ xterm, "-e", eui, name })
+end ifdef
+
+    {} = chdir(get_file_path(path))
+    ?9/0
+    --      pipeio:exec( cmd, pipeio:create() )
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Run the bind utility.
+--
+function bind_cb(atom self)
+--      IupAlarm( "Action", "Bind", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    sequence path = IupGetAttribute(sci, "PATH")
+
+ifdef WINDOWS then
+    sequence eubind = "eubind.exe"
+--              sequence backend = locate_file( "eub.exe" )
+    sequence backend = {9/0}
+elsedef
+    sequence eubind = "eubind"
+--              sequence backend = locate_file( "eub" )
+    sequence backend = {9/0}
+end ifdef
+
+    -- build the input and output files from the original path
+    sequence input  = get_file_path(path) & SLASH & get_file_name(path)
+    sequence output = get_file_path(path) & SLASH & get_file_base(path)
+ifdef WINDOWS then output &= ".exe" end ifdef
+
+    -- an empty string to pad memory
+    sequence empty = repeat(0, 255)
+
+    sequence fields = {
+                       "Bind     %t",
+                       "Input:   %f[OPEN|*.e;*.ew;*.ex;*.exw|CURRENT|NO|NO]",
+                       "Output:  %f[SAVE|*.exe|CURRENT|NO|YES]",
+                       "Backend: %f[OPEN|*.exe|CURRENT|NO|NO]",
+                       "Options  %t",
+                       "Icon:    %f[OPEN|*.ico|CURRENT|NO|NO]",
+                       "         %b[Include debug symbols,Include debug symbols]",
+                       "         %b[Create console application,Create console application]"
+                      }
+
+    sequence params = {
+                       allocate_string(empty, 1), -- Input
+                       allocate_string(empty, 1), -- Output
+                       allocate_string(empty, 1), -- Backend
+                       allocate_string(empty, 1), -- Icon
+                       allocate_data(4, 1),       -- Include debug symbols
+                       allocate_data(4, 1)        -- Use current console
+                      }
+
+    poke(params[1], input)
+    poke(params[2], output)
+    poke(params[3], backend)
+    poke4(params[5], 0) -- debug = 0
+    poke4(params[6], 0) -- console = 0
+
+    atom result = IupGetParam("Bind", NULL, NULL, join(fields, "\n"), length(fields), 0, params)
+
+    if result=0 then
+        -- user cancelled
+        return IUP_IGNORE
+    end if
+
+    atom debug, console
+    sequence icon
+    input   = peek_string(params[1])
+    output  = peek_string(params[2])
+    backend = peek_string(params[3])
+    icon    = peek_string(params[4])
+    debug   = peek4u(params[5])
+    console = peek4u(params[6])
+
+    -- build the command line
+    sequence cmd = {eubind, "-batch"}
+    if console!=0    then cmd &= {"-con"}        end if
+    if length(backend) then cmd &= {"-eub", backend} end if
+    if debug!=0      then cmd &= {"-full_debug"}     end if
+    if length(icon)  then cmd &= {"-icon", icon}     end if
+    if length(output)  then cmd &= {"-out", output}  end if
+    cmd &= {get_file_name(input)}
+--      cmd = build_commandline( cmd )
+
+    {} = chdir(get_file_path(input))
+    ?9/0
+    --      pipeio:exec( cmd, pipeio:create() )
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Show the "About" dialog.
+--
+function about_cb(atom self)
+--      IupAlarm( "Action", "About", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom dialog = IupGetHandle("dialog")
+    sequence title   = IupGetAttribute(dialog, "TITLE")
+    sequence version = IupGetAttribute(dialog, "VERSION")
+    sequence release = IupGetAttribute(dialog, "RELEASE")
+    sequence author  = IupGetAttribute(dialog, "AUTHOR")
+    sequence email   = IupGetAttribute(dialog, "EMAIL")
+    sequence website = IupGetAttribute(dialog, "WEBSITE")
+
+    sequence message = sprintf(
+                "%s\n" &    -- title
+                "- %s\n" &  -- version
+                "- %s\n" &  -- release
+                "\n" &
+                "by %s\n" & -- author
+                "- %s\n" &  -- email
+                "\n" &
+                "%s",       -- website
+                {title,version,release,
+                 author, email,website}
+               )
+
+    atom result = IupAlarm(title, message, "Website", "Close")
+    if result=1 then
+        -- user clicked website button
+        {} = IupHelp(website)
+    end if
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Ask the user to save while closing.
+--
+function closing_cb(atom self)
+--      IupAlarm( "Action", "Closing", "OK" )
+
+atom tabs = IupGetHandle("tabs")
+
+atom count = IupGetChildCount(tabs)
+    for pos=0 to count-1 do
+
+        atom sci = IupGetChild(tabs, pos)
+        atom modified = IupGetInt(sci, "SAVEDSTATE")
+
+        if modified then
+            -- ask the user to save
+
+            sequence name = "Untitled"
+            sequence path = IupGetAttribute(sci, "PATH")
+
+            if length(path) then
+                name = get_file_name(path)
+            end if
+
+            atom response = confirm_close(name)
+
+            if response=1 then
+                -- user wants to save
+
+                atom result = save_cb(self)
+                if result!=IUP_IGNORE then
+                    return IUP_IGNORE
+                end if
+
+            elsif response=3 then
+                -- user cancelled
+                return IUP_IGNORE
+
+            end if
+
+        end if
+
+    end for
+
+    -- allow he window to close
+    return IUP_DEFAULT
+end function
+
+--**
+-- Show layout dialog (Debugging).
+--
+function layout_cb(atom self)
+--      IupAlarm( "Action", "Layout", "OK" )
+
+atom dialog = IupGetHandle("dialog")
+atom layout = IupLayoutDialog(dialog)
+    if self then end if
+    IupSetAttribute(layout, "SIZE", "500x300")
+    {} = IupShowXY(layout, IUP_CURRENT, IUP_CURRENT)
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Select the previous tab when Ctrl+PgUp is pressed.
+--
+function pgup_cb(atom self)
+--      IupAlarm( "Action", "Page up", "OK" )
+
+atom tabs = IupGetHandle("tabs")
+atom count = IupGetChildCount(tabs)
+    if self then end if
+    if count=0 then
+        -- no tabs
+        return IUP_DEFAULT
+    end if
+
+    atom pos = IupGetInt(tabs, "VALUEPOS")-1
+    if pos<0 then pos = count-1 end if
+    IupSetInt(tabs, "VALUEPOS", pos)
+
+    atom sci = IupGetChild(tabs, pos)
+    {} = IupSetFocus(sci)
+
+    sequence path = IupGetAttribute(sci, "PATH")
+
+    atom field1 = IupGetHandle("field1")
+    IupSetAttribute(field1, "TITLE", path)
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Select the next tab when Ctrl+PgDn is pressed.
+--
+function pgdn_cb(atom self)
+--      IupAlarm( "Action", "Page down", "OK" )
+atom tabs = IupGetHandle("tabs")
+atom count = IupGetChildCount(tabs)
+    if self then end if
+    if count=0 then
+        -- no tabs
+        return IUP_DEFAULT
+    end if
+
+    atom pos = IupGetInt(tabs, "VALUEPOS")+1
+    if pos>count-1 then pos = 0 end if
+    IupSetInt(tabs, "VALUEPOS", pos)
+
+    atom sci = IupGetChild(tabs, pos)
+    {} = IupSetFocus(sci)
+
+    sequence path = IupGetAttribute(sci, "PATH")
+
+    atom field1 = IupGetHandle("field1")
+    IupSetAttribute(field1, "TITLE", path)
+
+    return IUP_IGNORE
+end function
+
+--**
+-- Show popup menu when tab is right clicked.
+--
+function rightclick_cb(atom self, atom pos)
+--      IupAlarm( "Action", "Right click", "OK" )
+
+atom sci = IupGetChild(self, pos)
+    IupSetAttribute(self, "VALUE", pos)
+
+    atom popup = popup_menu()
+    toggle_item("popup_save", IupGetAttribute(sci, "SAVEDSTATE"))
+
+    sequence curpos = get_cursor_pos()
+    {} = IupPopup(popup, curpos[1], curpos[2])
+
+    IupDestroy(popup)
+
+    return IUP_DEFAULT
+end function
+
+--**
+-- Set focus to the control when the tab changes.
+--
+function tabchange_cb(atom self, atom new_tab, atom old_tab)
+    if self or old_tab then end if
+    {} = IupSetFocus(new_tab)
+    sequence path = IupGetAttribute(new_tab, "PATH")
+
+    atom field1 = IupGetHandle("field1")
+    IupSetAttribute(field1, "TITLE", path)
+
+    return IUP_DEFAULT
+end function
+
+--**
+-- Remove the control when the tab is closed.
+--
+function tabclose_cb(atom self, atom pos)
+--      IupAlarm( "Action", "Tab close", "OK" )
+
+atom tabs = IupGetHandle("tabs")
+    IupSetInt(tabs, "VALUE", pos)
+
+    atom sci = IupGetAttributeHandle(tabs, "VALUE")
+    atom modified = IupGetInt(sci, "SAVEDSTATE")
+
+    if modified then
+        -- ask the user to save
+
+        sequence name = "Untitled"
+        sequence path = IupGetAttribute(sci, "PATH")
+
+        if length(path) then
+            name = get_file_name(path)
+        end if
+
+        atom response = confirm_close(name)
+
+        if response=1 then
+            -- user wants to save
+
+            {} = save_cb(self)
+            modified = IupGetInt(sci, "SAVEDSTATE")
+            if modified then
+                -- user cancelled save
+                return IUP_IGNORE
+            end if
+
+        elsif response=3 then
+            -- user cancelled prompt
+            return IUP_IGNORE
+
+        end if
+
+    end if
+
+    -- let the tab close
+    return IUP_CONTINUE
+end function
+
+--**
+-- Toggle folding when the margin is clicked.
+--
+function marginclick_cb(atom self, atom margin, atom line, atom status)
+    if status then end if
+    if margin=1 then
+        -- fold margin
+        IupSetAttribute(self, "FOLDTOGGLE", sprintf("%d",line))
+    end if
+
+    return IUP_DEFAULT
+end function
+
+--**
+-- Update the saved status on the tab.
+--
+function savepoint_cb(atom self, atom status)
+--      IupAlarm( "Action", "Save point", "OK" )
+
+sequence name = "Untitled"
+sequence path = IupGetAttribute(self, "PATH")
+
+    if length(path) then
+        name = get_file_name(path)
+    end if
+
+    if not status then name &= "*" end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetChildPos(tabs, self)
+    IupSetAttributeId(tabs, "TABTITLE", pos, name)
+    IupRefresh(tabs)
+
+    return IUP_DEFAULT
+end function
+
+--**
+-- Reset the skip_next_event() flag.
+--
+-- Update the menu and toolbar status.
+--
+function timer_cb(atom self)
+--      IupAlarm( "Action", "Timer", "OK" )
+    if self then end if
+ifdef LINUX then
+    m_skip = 0
+end ifdef
+
+    atom tabs = IupGetHandle("tabs")
+    atom sci = IupGetAttributeHandle(tabs, "VALUE")
+
+    -- File menu
+    toggle_item("file_save", IupGetAttribute(sci, "SAVEDSTATE"))
+    toggle_item("file_saveas", (sci!=NULL))
+    toggle_item("file_close",   (sci!=NULL))
+
+    -- Edit menu
+    toggle_item("edit_undo",       IupGetAttribute(sci, "UNDO"))
+    toggle_item("edit_redo",       IupGetAttribute(sci, "REDO"))
+    -- --------
+    toggle_item("edit_cut",    IupGetAttribute(sci, "SELECTEDTEXT"))
+    toggle_item("edit_copy",       IupGetAttribute(sci, "SELECTEDTEXT"))
+    toggle_item("edit_paste",      IupGetAttribute(sci, "CLIPBOARD"))
+    toggle_item("edit_delete",    IupGetAttribute(sci, "SELECTEDTEXT"))
+    -- --------
+    toggle_item("edit_selectall", IupGetAttribute(sci, "COUNT"))
+
+    -- Run menu
+    toggle_item("run_run",  IupGetAttribute(sci, "PATH"))
+    toggle_item("run_bind", IupGetAttribute(sci, "PATH"))
+
+    -- Toolbar
+    toggle_item("tool_save",    IupGetAttribute(sci, "SAVEDSTATE"))
+    toggle_item("tool_saveas", (sci!=NULL))
+    toggle_item("tool_close",   (sci!=NULL))
+    -- --------
+    toggle_item("tool_cut", IupGetAttribute(sci, "SELECTEDTEXT"))
+    toggle_item("tool_copy",    IupGetAttribute(sci, "SELECTEDTEXT"))
+    toggle_item("tool_paste",   IupGetAttribute(sci, "CLIPBOARD"))
+    toggle_item("tool_undo",    IupGetAttribute(sci, "UNDO"))
+    toggle_item("tool_redo",    IupGetAttribute(sci, "REDO"))
+    -- --------
+    toggle_item("tool_zoomin",  (sci!=NULL))
+    toggle_item("tool_zoomout", (sci!=NULL))
+    -- --------
+    toggle_item("tool_run", IupGetAttribute(sci, "PATH"))
+    toggle_item("tool_bind",    IupGetAttribute(sci, "PATH"))
+
+    return IUP_DEFAULT
+end function
+
+ifdef WINDOWS then
+constant DEFAULT_FONT = "Consolas"
+elsedef
+constant DEFAULT_FONT = "Monospace"
+end ifdef
+
+constant KEYWORDS0 = allocate_string(join(keywords, " "), 1)
+constant KEYWORDS1 = allocate_string(join(builtins, " "), 1)
+
+--**
+-- Add a new tab.
+--
+function add_tab(sequence title = "Untitled", sequence text = "")
+
+atom sci = IupScintilla()
+    {} = IupSetAttributes(sci, "TABSIZE=4, EXPAND=YES, VISIBLE=YES")
+    IupSetAttribute(sci, "TABTITLE", title)
+    IupSetAttribute(sci, "TABIMAGE", get_image("IUP_FileNew"))
+
+    atom tabs = IupGetHandle("tabs")
+    {} = IupAppend(tabs, sci)
+    {} = IupMap(sci)
+    IupSetAttributeHandle(tabs, "VALUE", sci)
+    {} = IupSetFocus(sci)
+    IupRefresh(tabs)
+
+    IupSetAttribute(sci, "INSERT0", text)
+    IupSetAttribute(sci, "UNDO", NULL)
+    IupSetAttribute(sci, "SAVEDSTATE", NULL)
+    {} = IupSetCallback(sci, "MARGINCLICK_CB", Icallback("marginclick_cb"))
+    {} = IupSetCallback(sci, "SAVEPOINT_CB", Icallback("savepoint_cb"))
+
+    {} = IupSetCallback(sci, "K_cS", Icallback("save_cb"))
+
+    return sci
+end function
+
+--**
+-- Apply Scintilla lexer configuration based on extension.
+--
+procedure apply_lexer(atom sci, sequence path = "")
+
+ifdef WINDOWS then
+    IupSetAttribute(sci, "LOADLEXERLIBRARY", "LexerEuphoria.dll")
+elsifdef LINUX then
+    IupSetAttribute(sci, "LOADLEXERLIBRARY", "LexerEuphoria.so")
+end ifdef
+
+    IupSetAttribute(sci, "CLEARDOCUMENTSTYLE", "YES")
+    IupSetAttribute(sci, "STYLEFONT32", DEFAULT_FONT)
+    IupSetAttribute(sci, "STYLEFONTSIZE32", "10")
+    IupSetAttribute(sci, "STYLECLEARALL", "")
+
+    sequence list = {"*.e", "*.ew", "*.ex", "*.exw"}
+    if length(path)=0 or wildcard_any(list, path) then
+
+        IupSetAttribute(sci, "LEXERLANGUAGE", "euphoria")
+
+        -- apply Euphoria keyword style
+        IupSetAttribute(sci, "KEYWORDS0", KEYWORDS0)
+        IupSetAttribute(sci, "STYLEFGCOLOR5", "0 0 255") -- blue
+
+        -- apply Euphoria builtin style
+        IupSetAttribute(sci, "KEYWORDS1", KEYWORDS1)
+        IupSetAttribute(sci, "STYLEFGCOLOR13", "255 0 255") -- magenta
+
+        -- apply Euphoria comment style
+        IupSetAttribute(sci, "STYLEFGCOLOR1", "255 0 0") -- red (comment block)
+        IupSetAttribute(sci, "STYLEFGCOLOR2", "255 0 0") -- red (comment line)
+        IupSetAttribute(sci, "STYLEFGCOLOR3", "255 0 0") -- red (comment doc)
+
+        -- apply Euphoria string style
+        IupSetAttribute(sci, "STYLEFGCOLOR6",   "0 128 0") -- green (double quote)
+        IupSetAttribute(sci, "STYLEFGCOLOR7",   "0 128 0") -- green (single quote)
+        IupSetAttribute(sci, "STYLEFGCOLOR8",   "0 128 0") -- green (triple quote)
+        IupSetAttribute(sci, "STYLEFGCOLOR22", "0 128 0") -- green (backquote)
+        IupSetAttribute(sci, "STYLEFGCOLOR27", "0 128 0") -- green (binary string)
+        IupSetAttribute(sci, "STYLEFGCOLOR28", "0 128 0") -- green (hex string)
+
+        -- apply Euphoria number style
+        IupSetAttribute(sci, "STYLEFGCOLOR4",   "0 0 255")  -- blue (normal number)
+        IupSetAttribute(sci, "STYLEFGCOLOR23", "128 128 128") -- gray (binary number)
+        IupSetAttribute(sci, "STYLEFGCOLOR24", "128 128 128") -- gray (octal number)
+        IupSetAttribute(sci, "STYLEFGCOLOR25", "128 128 128") -- gray (decimal number)
+        IupSetAttribute(sci, "STYLEFGCOLOR26", "128 128 128") -- gray (hex number)
+
+        -- apply folding to the document
+        IupSetAttribute(sci, "PROPERTY", "fold=1")
+        IupSetAttribute(sci, "PROPERTY", "fold.compact=0")
+        IupSetAttribute(sci, "PROPERTY", "fold.comment=1")
+        IupSetAttribute(sci, "MARGINWIDTH1", "20")
+        IupSetAttribute(sci, "MARGINTYPE1",  "SYMBOL")
+        IupSetAttribute(sci, "MARGINMASKFOLDERS1", "YES")
+        IupSetAttribute(sci, "MARKERHIGHLIGHT", "YES")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDER=BOXPLUS")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPEN=BOXMINUS")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEREND=BOXPLUSCONNECTED")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERMIDTAIL=TCORNER")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPENMID=BOXMINUSCONNECTED")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERSUB=VLINE")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERTAIL=LCORNER")
+        IupSetAttribute(sci, "MARGINSENSITIVE1", "YES")
+
+        for id=25 to 32 do
+            IupSetAttributeId(sci, "MARKERFGCOLOR", id, "128 128 128")
+            IupSetAttributeId(sci, "MARKERBGCOLOR", id, "255 255 255")
+        end for
+
+        -- apply the style to the document
+        IupSetAttribute(sci, "MARGINWIDTH0", "50")
+        IupSetAttribute(sci, "STARTSTYLING", "1")
+        IupSetAttribute(sci, "STYLING32", "0")
+        IupSetAttribute(sci, "INDENTATIONGUIDES", "REAL")
+        IupSetAttribute(sci, "WHITESPACEFGCOLOR", "192 192 192")
+        IupSetAttribute(sci, "WHITESPACEVIEW", "VISIBLEALWAYS")
+
+    end if
+
+end procedure
+
+--**
+-- Confirm the user wants to close.
+--
+function confirm_close(sequence name)
+
+sequence message = sprintf("Save changes to '%s'?", {name})
+
+atom dlg = IupMessageDlg()
+    IupSetAttribute(dlg, "TITLE", "Close")
+    IupSetAttribute(dlg, "VALUE", message)
+    IupSetAttribute(dlg, "BUTTONS", "YESNOCANCEL")
+    IupSetAttribute(dlg, "DIALOGTYPE", "QUESTION")
+
+    {} = IupPopup(dlg, IUP_CURRENT, IUP_CURRENT)
+    atom response = IupGetInt(dlg, "BUTTONRESPONSE")
+
+    IupDetach(dlg)
+
+    return response
+end function
+
+--**
+-- Load our own custom image from disk.
+--
+function get_image(sequence image)
+
+    if length(image)=0 then
+        return NULL
+    end if
+
+    -- replace IUP prefix
+    if equal(image[1..4], "IUP_") then
+        image = "PNG_" & image[5..$]
+    end if
+
+    -- check if the icon is already loaded
+    atom handle = IupGetHandle(image)
+    if handle!=NULL then
+        return image
+    end if
+
+    -- build the image path
+    sequence path = join({"icons",image[5..$]&".png"}, SLASH)
+    if not file_exists(path) then
+        path = ".." & SLASH & path
+    end if
+
+ifdef WINDOWS then
+
+    -- use IM library to load image
+    handle =  IupLoadImage(path)
+    if handle=NULL then return NULL end if
+
+    -- store the image handle
+    {} = IupSetHandle(image, handle)
+    return image
+
+elsedef
+
+    -- natively supports PNG images
+    return path
+
+end ifdef
+
+end function
+
+--**
+-- Match any of a list of wildcards.
+--
+function wildcard_any(sequence list, sequence text)
+
+    for i=1 to length(list) do
+        if is_match(list[i], text) then
+            return 1
+        end if
+    end for
+
+    return 0
+end function
+
+--**
+-- Get the global cursor position.
+--
+function get_cursor_pos()
+
+sequence pos = IupGetGlobal("CURSORPOS")
+    pos = split(pos, "x")
+
+    atom x = to_integer(pos[1])
+    atom y = to_integer(pos[2])
+
+    return {x,y}
+end function
+
+--**
+-- Toggle item state based on an attribute value.
+--
+procedure toggle_item(sequence handle, object v)
+
+    if sequence(v) then
+        v = length(v)>0
+                and equal(v, "NO")=0
+                and equal(v,  "0")=0
+    end if
+
+    atom item = IupGetHandle(handle)
+    atom state = IupGetInt(item, "ACTIVE")
+
+    if state!=v  then
+        IupSetInt(item, "ACTIVE", v)
+    end if
+
+end procedure
+
+--**
+-- Register hotkey commands.
+--
+procedure register_hotkeys()
+
+atom dialog = IupGetHandle("dialog")
+
+-- File menu shortcuts
+    {} = IupSetCallback(dialog, "K_cN",  Icallback("new_cb"))                   -- Ctrl-N
+    {} = IupSetCallback(dialog, "K_cO",  Icallback("open_cb"))              -- Ctrl-O
+    {} = IupSetCallback(dialog, "K_cS",  Icallback("save_cb"))              -- Ctrl-S
+    {} = IupSetCallback(dialog, "K_cW",  Icallback("close_cb"))             -- Ctrl-W
+
+    -- Edit menu shortcuts (handled by Scintilla control)
+--      {} = IupSetCallback( dialog, "K_cZ",  Icallback("undo_cb") )                -- Ctrl-Z
+--      {} = IupSetCallback( dialog, "K_cY",  Icallback("redo_cb") )                -- Ctrl-Y
+--      {} = IupSetCallback( dialog, "K_cX",  Icallback("cut_cb") )                 -- Ctrl-X
+--      {} = IupSetCallback( dialog, "K_cC",  Icallback("copy_cb") )                -- Ctrl-C
+--      {} = IupSetCallback( dialog, "K_cV",  Icallback("paste_cb") )               -- Ctrl+V
+--      {} = IupSetCallback( dialog, "K_cA",  Icallback("selectall_cb") )   -- Ctrl+A
+
+    -- View menu shortcuts
+    {} = IupSetCallback(dialog, "K_cEqual", Icallback("zoomin_cb")) -- Ctrl++
+    {} = IupSetCallback(dialog, "K_cMinus", Icallback("zoomout_cb")) -- Ctrl+-
+    {} = IupSetCallback(dialog, "K_c0",     Icallback("zoomreset_cb")) -- Ctrl+0
+
+    -- Run menu shortcuts
+    {} = IupSetCallback(dialog, "K_F5",  Icallback("run_cb"))               -- F5
+    {} = IupSetCallback(dialog, "K_F7",  Icallback("bind_cb"))              -- F7
+
+    -- Help menu shortcuts
+    {} = IupSetCallback(dialog, "K_F12", Icallback("about_cb"))             -- F12
+
+ifdef WINDOWS then
+    -- Tab interface shortcuts
+    {} = IupSetCallback(dialog, "K_cPGUP", Icallback("pgup_cb"))                -- Ctrl+PgUp
+    {} = IupSetCallback(dialog, "K_cPGDN", Icallback("pgdn_cb"))                -- Ctrl+PgDn
+end ifdef
+
+end procedure
+
+--include controls.e
+
+--include iup/iup.e
+--include iup/iup_scintilla.e
+--include actions.e
+--include events.e
+
+--**
+-- Create a menu item.
+--
+function menu_item(sequence handle, sequence text, sequence image, atom action_cb, atom active = 1)
+
+atom item = IupItem(text, NULL)
+    IupSetAttribute(item, "IMAGE", get_image(image))
+    IupSetInt(item, "ACTIVE", active)
+    {} = IupSetCallback(item, "ACTION", action_cb)
+    {} = IupSetHandle(handle, item)
+
+    return item
+end function
+
+--**
+-- Create a menu separator
+--
+function menu_separator()
+    return IupSeparator()
+end function
+
+--**
+-- Create a toolbar item.
+--
+function toolbar_item(sequence handle, sequence tip, sequence image, atom action_cb, atom active = 1)
+
+atom item = IupButton()
+    {} = IupSetAttributes(item, "CANFOCUS=NO, FLAT=YES")
+    IupSetAttribute(item, "IMAGE", get_image(image))
+    IupSetAttribute(item, "TIP", tip)
+    IupSetInt(item, "ACTIVE", active)
+    {} = IupSetCallback(item, "ACTION", action_cb)
+    {} = IupSetHandle(handle, item)
+
+    return item
+end function
+
+--**
+-- Create a toolbar separator.
+--
+function toolbar_separator()
+    return IupSetAttributes(IupLabel(NULL), "SEPARATOR=VERTICAL")
+end function
+
+--**
+-- Create the popup menu.
+--
+function popup_menu()
+
+atom menu = IupMenu({
+                     menu_item("popup_new",    "&New\t\tCtrl+N",   "IUP_FileNew",     Icallback("new_cb"),    1),
+                     menu_item("popup_open",   "&Open...\tCtrl+O", "IUP_FileOpen",    Icallback("open_cb"),   1),
+                     menu_item("popup_save",   "&Save\t\tCtrl+S",  "IUP_FileSave",    Icallback("save_cb"),   0),
+                     menu_item("popup_saveas", "Save &As..",       "IUP_FileSaveAs",  Icallback("saveas_cb"), 1),
+                     menu_item("popup_close",  "C&lose\t\tCtrl+W", "IUP_FileClose",   Icallback("close_cb"),  1)
+                    })
+    {} = IupSetHandle("popup_menu", menu)
+
+    return menu
+end function
+
+--**
+-- Create the File menu.
+--
+function file_menu()
+
+atom menu = IupMenu({
+                     menu_item("file_new",    "&New\t\tCtrl+N",   "IUP_FileNew",     Icallback("new_cb"),    1),
+                     menu_item("file_open",   "&Open...\tCtrl+O", "IUP_FileOpen",    Icallback("open_cb"),   1),
+                     menu_item("file_save",   "&Save\t\tCtrl+S",  "IUP_FileSave",    Icallback("save_cb"),   0),
+                     menu_item("file_saveas", "Save &As..",       "IUP_FileSaveAs",  Icallback("saveas_cb"), 0),
+                     menu_item("file_close",  "C&lose\t\tCtrl+W", "IUP_FileClose",   Icallback("close_cb"),  0),
+                     menu_separator(),
+                     menu_item("file_exit",   "E&xit\t\tAlt+F4",  "IUP_FileExit", Icallback("exit_cb"), 1)
+                    })
+    {} = IupSetHandle("file_menu", menu)
+
+    return menu
+end function
+
+--**
+-- Create the Edit menu.
+--
+function edit_menu()
+
+atom menu = IupMenu({
+                     menu_item("edit_undo", "&Undo\t\tCtrl+Z", "IUP_EditUndo", Icallback("undo_cb"), 0),
+                     menu_item("edit_redo", "&Redo\t\tCtrl+Y", "IUP_EditRedo", Icallback("redo_cb"), 0),
+                     menu_separator(),
+                     menu_item("edit_cut",    "Cu&t\t\tCtrl+X",   "IUP_EditCut",    Icallback("cut_cb"),    0),
+                     menu_item("edit_copy",   "&Copy\t\tCtrl+C",  "IUP_EditCopy",   Icallback("copy_cb"),   0),
+                     menu_item("edit_paste",  "&Paste\t\tCtrl+V", "IUP_EditPaste",  Icallback("paste_cb"),  0),
+                     menu_item("edit_delete", "&Delete\t\tDel",   "IUP_EditDelete", Icallback("delete_cb"), 0),
+                     menu_separator(),
+                     menu_item("edit_selectall", "Select &All\tCtrl+A", "IUP_EditSelectAll", Icallback("selectall_cb"), 0)
+                    })
+    {} = IupSetHandle("edit_menu", menu)
+
+    return menu
+end function
+
+--**
+-- Create the View menu.
+--
+function view_menu()
+
+atom menu = IupMenu({
+                     menu_item("view_zoomin",  "Zoom &In\tCtrl++",    "IUP_ZoomIn",    Icallback("zoomin_cb")),
+                     menu_item("view_zoomout", "Zoom &Out\tCtrl+-",   "IUP_ZoomOut",   Icallback("zoomout_cb")),
+                     menu_item("view_zoom100", "&Reset Zoom\tCtrl+0", "IUP_ZoomReset", Icallback("zoomreset_cb"))
+                    })
+    {} = IupSetHandle("view_menu", menu)
+
+    return menu
+end function
+
+--**
+-- Create the Run menu.
+--
+function run_menu()
+
+atom menu = IupMenu({
+                     menu_item("run_run",  "&Run\tF5",     "IUP_ActionRun",  Icallback("run_cb")),
+                     menu_item("run_bind", "&Bind...\tF7", "IUP_ActionBind", Icallback("bind_cb"))
+                    })
+    {} = IupSetHandle("run_menu", menu)
+
+    return menu
+end function
+
+--**
+-- Create the Help menu.
+--
+function help_menu()
+
+atom menu = IupMenu({
+                     menu_item("help_layout", "Dialog Layout",  "IUP_DialogLayout", Icallback("layout_cb")),
+                     menu_separator(),
+                     menu_item("help_about",  "&About...\tF12", "IUP_MessageInfo", Icallback("about_cb"))
+                    })
+    {} = IupSetHandle("help_menu", menu)
+
+    return menu
+end function
+
+--**
+-- Create the main menu.
+--
+function main_menu()
+
+atom menu = IupMenu({
+                     IupSubmenu("&File", file_menu()),
+                     IupSubmenu("&Edit", edit_menu()),
+                     IupSubmenu("&View", view_menu()),
+                     IupSubmenu("&Run",  run_menu()),
+                     IupSubmenu("&Help", help_menu())
+                    })
+    {} = IupSetHandle("menu", menu)
+
+    return menu
+end function
+
+--**
+-- Create the main toolbar.
+--
+function main_toolbar()
+
+atom toolbar = IupHbox({
+                        toolbar_item("tool_new",     "New (Ctrl+N)",     "IUP_FileNew",    Icallback("new_cb"),    1),
+                        toolbar_item("tool_open",    "Open (Ctrl+O)",    "IUP_FileOpen",   Icallback("open_cb"),   1),
+                        toolbar_item("tool_save",    "Save (Ctrl+S)",    "IUP_FileSave",   Icallback("save_cb"),   0),
+                        toolbar_item("tool_saveas", "Save As",       "IUP_FileSaveAs", Icallback("saveas_cb"), 1),
+                        toolbar_item("tool_close",  "Close (Ctrl+W)",    "IUP_FileClose",  Icallback("close_cb"),  0),
+                        toolbar_separator(),
+                        toolbar_item("tool_cut",    "Cut (Ctrl+X)",   "IUP_EditCut",   Icallback("cut_cb"),   0),
+                        toolbar_item("tool_copy",   "Copy (Ctrl+C)",  "IUP_EditCopy",  Icallback("copy_cb"),  0),
+                        toolbar_item("tool_paste", "Paste (Ctrl+V)", "IUP_EditPaste", Icallback("paste_cb"), 0),
+                        toolbar_item("tool_undo",   "Undo (Ctrl+Z)",  "IUP_EditUndo",  Icallback("undo_cb"),  0),
+                        toolbar_item("tool_redo",   "Redo (Ctrl+Y)",  "IUP_EditRedo",  Icallback("redo_cb"),  0),
+                        toolbar_separator(),
+                        toolbar_item("tool_zoomin",  "Zoom In (Ctrl++)",  "IUP_ZoomIn",  Icallback("zoomin_cb"),  1),
+                        toolbar_item("tool_zoomout", "Zoom Out (Ctrl+-)", "IUP_ZoomOut", Icallback("zoomout_cb"), 1),
+                        toolbar_separator(),
+                        toolbar_item("tool_run",  "Run (F5)",   "IUP_ActionRun",  Icallback("run_cb"),  0),
+                        toolbar_item("tool_bind", "Bind (F7)", "IUP_ActionBind", Icallback("bind_cb"), 0),
+                        toolbar_separator(),
+                        toolbar_item("tool_about", "About (F12)", "IUP_MessageInfo", Icallback("about_cb"))
+                       })
+    {} = IupSetAttributes(toolbar, "GAP=2, MARGIN=2x2")
+    {} = IupSetHandle("toolbar", toolbar)
+
+    return toolbar
+end function
+
+--**
+-- Create the main status bar.
+--
+function main_statusbar()
+
+atom field1 = IupLabel()
+    IupSetAttribute(field1, "MINSIZE", "0x23")
+    IupSetAttribute(field1, "NAME", "STATUSBAR")
+    IupSetAttribute(field1, "EXPAND", "HORIZONTAL")
+    IupSetAttribute(field1, "PADDING", "2x4")
+    {} = IupSetHandle("field1", field1)
+
+    atom field2 = IupLabel()
+    IupSetAttribute(field2, "MINSIZE", "100x23")
+    IupSetAttribute(field2, "NAME", "STATUSBAR")
+--      IupSetAttribute( field2, "EXPAND", "HORIZONTAL" )
+    IupSetAttribute(field2, "PADDING", "2x4")
+    {} = IupSetHandle("field2", field2)
+
+    atom status = IupHbox({field1, field2})
+    {} = IupSetHandle("status", status)
+
+    return status
+end function
+
+--**
+-- Create the main tabs interface.
+--
+function main_tabs()
+
+atom tabs = IupTabs()
+    IupSetAttribute(tabs, "SHOWCLOSE", "YES")
+    {} = IupSetCallback(tabs, "RIGHTCLICK_CB", Icallback("rightclick_cb"))
+    {} = IupSetCallback(tabs, "TABCHANGE_CB",  Icallback("tabchange_cb"))
+    {} = IupSetCallback(tabs, "TABCLOSE_CB",   Icallback("tabclose_cb"))
+    {} = IupSetHandle("tabs", tabs)
+
+    return tabs
+end function
+
+--**
+-- Create the main dialog.
+--
+function main_dialog()
+
+atom menu = main_menu()
+atom vbox = IupVbox({
+                     main_toolbar(),
+                     main_tabs(),
+                     main_statusbar()
+                    })
+
+atom dialog = IupDialog(vbox)
+    IupSetAttribute(dialog, "SIZE", "600x400")
+    IupSetAttribute(dialog, "MENU", "menu")
+    {} = IupSetCallback(dialog, "CLOSE_CB", Icallback("closing_cb"))
+    {} = IupSetHandle("dialog", dialog)
+
+    atom timer = IupTimer()
+    IupSetAttribute(timer, "TIME", "100")
+    IupSetAttribute(timer, "RUN", "YES")
+    {} = IupSetCallback(timer, "ACTION_CB", Icallback("timer_cb"))
+    {} = IupSetHandle("timer", timer)
+
+    return dialog
+end function
+
+--include formspree.e
+--
+-- Formspree API
+-- https://formspree.io/
+--
+
+--namespace formspree
+
+--include std/console.e
+--include std/filesys.e
+--include std/io.e
+--include std/net/http.e
+--include std/net/url.e
+--include std/search.e
+
+--constant FORMSPREE_URL = "http://formspree.io/"
+
+--/*
+function submit(sequence addr, sequence name, sequence body, sequence referer,
+                sequence subject = "", sequence replyto = "", sequence next = "", sequence cc = "")
+
+sequence fields = {{"name", name}, {"body", body}}
+sequence header = {{"Referer", referer}}
+
+    if length(subject) then fields = append(fields, {"_subject",subject}) end if
+    if length(replyto) then fields = append(fields, {"_replyto",replyto}) end if
+    if length(next) then fields = append(fields, {"_next",   next}) end if
+    if length(cc) then fields = append(fields, {"_cc",   cc}) end if
+
+--      sequence url = sprintf( "%s/%s", {FORMSPREE_URL,url:encode(addr)} )
+    sequence url = sprintf("%s/%s", {FORMSPREE_URL,9/0})
+    if addr then end if
+    return 9/0 --http_post( url, fields, header )
+end function
+--*/
+
+--/*
+function test(sequence addr, sequence name, sequence body, sequence referer)
+
+sequence fields = {{"name", name}, {"body", body}}
+sequence header = {{"Referer", referer}}
+
+--      sequence url = sprintf( "%s%s", {FORMSPREE_URL,url:encode(addr)} )
+sequence url = sprintf("%s%s", {FORMSPREE_URL,9/0})
+    if addr then end if
+    return 9/0 --http_post( url, fields, header )
+end function
+--*/
+
+constant APP_NAME    = "euphoria_editor"
+constant APP_TITLE   = "Euphoria Editor"
+constant APP_VERSION = "Version 0.1b"
+constant APP_RELEASE = "25 October 2015"
+constant APP_AUTHOR  = "Gregory Haberek"
+constant APP_EMAIL   = "ghaberek@gmail.com"
+constant APP_WEBSITE = "http://bitbucket.org/ghaberek/editor"
+
+constant CRASH_MESSAGE =
+    APP_TITLE & " has encountered a problem and needs to close. We are sorry for the inconvenience.\n\n" &
+"If you were in the middle of something, the information you were working on might be lost.\n\n"
+
+constant REPORT_ERROR =
+    "We have created an error report that you can send to us. We will treat this report as confidential and anonymous."
+
+--**
+-- Crash handler routine.
+--
+function crash_handler(integer status)
+
+sequence cmd = command_line()
+
+atom result = IupAlarm(
+        get_file_name(cmd[2]),
+        CRASH_MESSAGE & REPORT_ERROR,
+        "Send Error Report",
+        "Don't Send Report"
+       )
+    if status then end if
+    if result=1 then
+
+        sequence ex_err = read_file("ex.err")
+
+        ?9/0
+--      formspree:submit(
+--          APP_EMAIL,      -- addr
+--          APP_NAME,       -- name
+--          ex_err,         -- body
+--          APP_WEBSITE,    -- referer
+--          APP_TITLE       -- _subject
+--         )
+
+    end if
+
+    return 1
+end function
+
+--**
+-- The main application loop.
+--
+procedure main(sequence cmd = command_line())
+
+ifdef LINUX then
+    setenv("UBUNTU_MENUPROXY", "0", 1)
+end ifdef
+
+    object startup_dir = getenv("STARTUP_DIR")
+    if atom(startup_dir) then
+        startup_dir = current_dir()
+    end if
+
+    {} = chdir(startup_dir)
+    sequence startup_files = {}
+
+    integer n = 3
+    while n<=length(cmd) do
+
+        sequence path = canonical_path(cmd[n])
+        if file_exists(path) then
+            startup_files = append(startup_files, path)
+            cmd = remove(cmd, n)
+        else
+            n += 1
+        end if
+
+    end while
+
+    {} = IupOpen(0, {})
+    IupImageLibOpen()
+    IupScintillaOpen()
+
+    atom config = IupConfig()
+    IupSetAttribute(config, "APP_NAME", APP_NAME)
+    {} = IupConfigLoad(config)
+    {} = IupSetHandle("config", config)
+
+    atom dialog = main_dialog()
+    IupSetAttribute(dialog, "TITLE",    APP_TITLE)
+    IupSetAttribute(dialog, "VERSION", APP_VERSION)
+    IupSetAttribute(dialog, "RELEASE", APP_RELEASE)
+    IupSetAttribute(dialog, "AUTHOR",   APP_AUTHOR)
+    IupSetAttribute(dialog, "EMAIL",    APP_EMAIL)
+    IupSetAttribute(dialog, "WEBSITE", APP_WEBSITE)
+    register_hotkeys()
+
+    {} = IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
+
+    crash_message(CRASH_MESSAGE)
+--  crash_routine(routine_id("crash_handler"))
+    {} = routine_id("crash_handler")
+
+    if length(startup_files)=0 then
+
+        -- create an empty default tab
+        atom sci = add_tab()
+        apply_lexer(sci)
+
+    else
+
+        atom tabs = IupGetHandle("tabs")
+
+        for i=1 to length(startup_files) do
+
+            sequence path = startup_files[i]
+            sequence name = get_file_name(path)
+            sequence text = read_file(path)
+
+            atom sci = add_tab(name, text)
+            IupSetAttribute(sci, "PATH", path)
+            apply_lexer(sci, path)
+
+            atom pos = IupGetChildPos(tabs, sci)
+            IupSetAttributeId(tabs, "TABIMAGE", pos, get_image("IUP_FileSave"))
+
+        end for
+
+        atom field1 = IupGetHandle("field1")
+        IupSetAttribute(field1, "TITLE", startup_files[$])
+
+    end if
+
+    {} = IupMainLoop()
+
+    IupClose()
+
+end procedure
+
+main()
+

@@ -377,6 +377,7 @@ end function
 --*/
 
 --DEV this should be made a builtin:
+--/* now in pAlloc.e
 global function allocate_string(sequence s)
 --global function allocate_string(sequence s, boolean cleanup = 0)
 -- create a C-style null-terminated string in memory
@@ -392,6 +393,7 @@ atom mem
     end if
     return mem
 end function
+--*/
 
 -- variables and routines used in safe.e
 without warning

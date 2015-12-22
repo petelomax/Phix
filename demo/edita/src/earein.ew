@@ -1,4 +1,5 @@
 --DEV switch ... if ?? then break end if
+--with trace
 --
 -- earein.ew    -- Source code beautifier / re-indent
 -- =========
@@ -145,7 +146,7 @@ include builtins\misc.e
 
 --DEV these should be in Edita.ini:
 integer isAlignIfdef        --  0 = ifdef indented as part of the code,
-        isAlignIfdef = 1    --  1 = ifdef indented independently of the code.
+        isAlignIfdef = -1   --  1 = ifdef indented independently of the code.
                             -- -1 = ifdef indentation left as-is.
 integer isStripSpaces       -- 1 makes eg "a=length ( x [ 3 ] )" => "a = length(x[3])"
         isStripSpaces = 1
@@ -169,8 +170,8 @@ integer parser_tokno    -- token no in line as parser sees things (main)
 
 integer r_CompleteIndents
 
-integer newRoutineBlock,
-        undoExtraNest,
+integer --newRoutineBlock,
+--      undoExtraNest,
         indentandor
 
 --
@@ -190,7 +191,7 @@ integer insertspaces
 
 integer adjust_count
 
-integer nTabs, 
+integer nTabs,
         nSpaces
 
 -- (There is no particular need for these to be kept in step with ptok.e,
@@ -337,7 +338,7 @@ sequence oneline
     ?9/0 --(there is no exit, only returns in the above loop(s))
 end procedure
 
-constant TABWORK=1
+constant TABWORK = 1
 
 procedure Delete(sequence oneline, integer currline, integer first, integer last, integer ctrl)
 -- Delete specified characters from the specified line (common code)
@@ -451,8 +452,8 @@ integer onelen, k, l
                     -- This line is a comment (-- just found), check for
                     -- --/* (block comment) and --# directives
                     if col+2<onelen
-                      and oneline[col+2]='/'
-                      and oneline[col+3]='*' then
+                    and oneline[col+2]='/'
+                    and oneline[col+3]='*' then
                         col += 3
                         SkipBlockComment()
                     else
@@ -474,10 +475,10 @@ integer onelen, k, l
                                 wtoken = ""
                                 if k and find(oneline[k]," \t") then
                                     while k<length(oneline) do
-                                        k+=1
+                                        k += 1
                                         if not find(oneline[k]," \t") then
                                             l = k+1
-                                            while l<= length(oneline) do
+                                            while l<=length(oneline) do
                                                 if find(oneline[l]," \t") then exit end if
                                                 l += 1
                                             end while
@@ -589,10 +590,10 @@ sequence oneline
                 if charClass[Ch]!=DIGIT then
                     if Ch!='_' then exit end if
                 end if
-            end while           
+            end while
         end if
     end if
-    if find(Ch,"eE") 
+    if find(Ch,"eE")
     and col<lenTC then
         toktype = FLOAT
         Ch = oneline[col+1]
@@ -613,7 +614,7 @@ sequence oneline
 end procedure
 
 integer mapEndToMinusOne
-        mapEndToMinusOne=0
+        mapEndToMinusOne = 0
 
 constant bases = {8,16,2,10}    -- NB: oxbd order
 integer base
@@ -633,7 +634,7 @@ sequence oneline
             if Ch<'0' or Ch>'9' then
                 if Ch!='_' then exit end if
             else
-                base = (base*10) + (Ch-'0')
+                base = (base*10)+(Ch-'0')
             end if
         end while
         if base<2 or base>16 then
@@ -810,7 +811,7 @@ sequence oneline
         end if
         stripleading = 0
     end if
-    if Ch = -1 then return end if
+    if Ch=-1 then return end if
     if striptrailing then
 --DEV maybe this should still be (and still run back from col):
 --      if CurrLine=tokline and isStripSpaces and reformat then
@@ -818,47 +819,47 @@ sequence oneline
             oneline = filetext[currfile][tokline]
             --  oneline:        .....token...Ch(@[col])
             --                           ^striptrailing operates at tokend
---          stripspaces(col)
-if 1 then
-            k = tokend
-            while k<length(oneline) do
-                tmpch = oneline[k+1]
-                if not find(tmpch," \t") then
-                    -- added 29/05/2011, to stop " a - -- comment\n b" 
-                    -- getting wrongly mangled to " a--- comment\n b":
-                    if find(tmpch,"-") then
-                        k -= 1
+            --          stripspaces(col)
+            if 1 then
+                k = tokend
+                while k<length(oneline) do
+                    tmpch = oneline[k+1]
+                    if not find(tmpch," \t") then
+                        -- added 29/05/2011, to stop " a - -- comment\n b" 
+                        -- getting wrongly mangled to " a--- comment\n b":
+                        if find(tmpch,"-") then
+                            k -= 1
+                        end if
+                        exit
                     end if
-                    exit
+                    k += 1
+                end while
+                if k>tokend then
+                    -- kill oneline[tokend+1..k]
+                    Delete(oneline,tokline,tokend+1,k,0)
+                    k = (k-tokend)
+                    tokstart -= k
+                    tokend -= k
+                    if CurrLine=tokline then
+                        oneline = filetext[currfile][CurrLine]
+                        col -= k
+                        if Ch!=oneline[col] then ?9/0 end if
+                    end if
                 end if
-                k += 1
-            end while
-            if k>tokend then
-                -- kill oneline[tokend+1..k]
-                Delete(oneline,tokline,tokend+1,k,0)
-                k = (k-tokend)
-                tokstart -= k
-                tokend -= k
-                if CurrLine=tokline then
+            else -- old code
+                k = col
+                while k>1 and find(oneline[k-1]," \t") do
+                    k -= 1
+                end while
+                if k<col and k>1 then
+                    -- kill oneline[k..col-1]
+                    Delete(oneline,tokline,k,col-1,0)
                     oneline = filetext[currfile][CurrLine]
-                    col -= k
+--              col = k
+                    col -= (col-k)
                     if Ch!=oneline[col] then ?9/0 end if
                 end if
             end if
-else -- old code
-            k = col
-            while k>1 and find(oneline[k-1]," \t") do
-                k -= 1
-            end while
-            if k<col and k>1 then
-                -- kill oneline[k..col-1]
-                Delete(oneline,tokline,k,col-1,0)
-                oneline = filetext[currfile][CurrLine]
---              col = k
-                col -= (col-k)
-                if Ch!=oneline[col] then ?9/0 end if
-            end if
-end if
         end if
         striptrailing = 0
     end if
@@ -1036,7 +1037,7 @@ end if
             if col>lenTC then exit end if
             nxtCh = oneline[col]
             if nxtCh<'0' then exit end if
-            if nxtCh>'9' then 
+            if nxtCh>'9' then
                 if nxtCh<'A' then exit end if
                 if nxtCh>'F' and nxtCh!='_' then
                     if nxtCh<'a' then exit end if
@@ -1059,7 +1060,7 @@ end if
                 base = find(Ch,"toxbd(")
                 if base then
                     if base>1 then base -= 1 end if
-                    col += 1 
+                    col += 1
                     loadBase()
                     return
                 end if
@@ -1085,7 +1086,7 @@ end if
             col += 1
             nextCh()
             return
-        elsif Ch='%' 
+        elsif Ch='%'
           and mapEndToMinusOne=-3 then  -- from preprocess()
             -- (preprocess() scans the whole file, which may contain #ilasm
             --  constructs. Allows preprocess() to quietly skip eg %isVar)
@@ -1109,20 +1110,20 @@ object onetoken
 sequence flags
 
     ifdefcheck[nPreprocess] = ifdefcheck[nPreprocess]-1 -- (avoid that Eu 2.4 bug)
-                    if nPreprocess=2 then           -- ifdef/fedfi
-                        ifdefstackidx += 1
-                        if length(ifdefnests)<ifdefstackidx then
-                            ifdefnests &= nest
-                            ifdefnestz &= nest
-                            ifdefstate &= 0
-                            ifdefflags = append(ifdefflags,{})
-                        else
-                            ifdefnests[ifdefstackidx] = nest
-                            ifdefnestz[ifdefstackidx] = nest
-                            ifdefstate[ifdefstackidx] = 0
-                            ifdefflags[ifdefstackidx] = {}
-                        end if
-                    end if
+    if nPreprocess=2 then           -- ifdef/fedfi
+        ifdefstackidx += 1
+        if length(ifdefnests)<ifdefstackidx then
+            ifdefnests &= nest
+            ifdefnestz &= nest
+            ifdefstate &= 0
+            ifdefflags = append(ifdefflags,{})
+        else
+            ifdefnests[ifdefstackidx] = nest
+            ifdefnestz[ifdefstackidx] = nest
+            ifdefstate[ifdefstackidx] = 0
+            ifdefflags[ifdefstackidx] = {}
+        end if
+    end if
 --DEV create a "stack" of ifdefs and ensure indent levels etc are changed by the same
 --      amount for each branch... and that be 0 for no elsifdef, though we might want
 --      to keep quiet for (WIN32|WINDOWS)/(LINUX|UNIX), WIN32_GUI/WIN32_CONSOLE, and
@@ -1144,126 +1145,128 @@ sequence flags
 --      We won't actually bother to ensure one has "not"|!,
 --      and as soon as any and|or|parenthesis get involved,
 --      pretty much cease all efforts to avoid the warning.
-                    wastokline = tokline
-                    state = ifdefstate[ifdefstackidx]
-                    if nPreprocess<=Delsif then         -- ifdef/fedfi/elsfedfi (ifdef/elsifdef)
+    wastokline = tokline
+    state = ifdefstate[ifdefstackidx]
+    if nPreprocess<=Delsif then         -- ifdef/fedfi/elsfedfi (ifdef/elsifdef)
 --                      wastokstart = tokstart
-                        tokstart = tokend-4
-                        pp_replace("ifdef")
-                        getToken()
-                        if toktype='!'
-                        or (toktype=LETTER and equal(token,"not")) then
-                            getToken()
-                        end if
-                        if find(token,{"WIN32","LINUX","UNIX"}) then
-                            token = "WINDOWS"
-                        elsif equal(token,"WIN32_CONSOLE") then
-                            token = "WIN32_GUI"
-                        end if
-                        onetoken = token
-                        getToken()
-                        if state=0 then
-                            state = 1
-                        elsif and_bits(state,3)=1 then
-                            ifdefnestz[ifdefstackidx] = nest
-                            state += 1
-                        else
-                            if ifdefnestz[ifdefstackidx]!=nest
-                            and not and_bits(state,#80) then
+        tokstart = tokend-4
+        pp_replace("ifdef")
+        getToken()
+        if toktype='!'
+        or (toktype=LETTER and equal(token,"not")) then
+            getToken()
+        end if
+        if find(token,{"WIN32","LINUX","UNIX"}) then
+            token = "WINDOWS"
+        elsif equal(token,"WIN32_CONSOLE") then
+            token = "WIN32_GUI"
+        end if
+        onetoken = token
+        getToken()
+        if state=0 then
+            state = 1
+        elsif and_bits(state,3)=1 then
+            ifdefnestz[ifdefstackidx] = nest
+            state += 1
+        else
+            if ifdefnestz[ifdefstackidx]!=nest
+            and not and_bits(state,#80) then
 -- 13/3/11. Removed because of the "return 0 end ifdef" issue.
 --                              Warning("imbalanced nesting",{})
-                                state = or_bits(state,#80)
-                            end if
-                        end if
-                        if isAlignIfdef=1 then
-                            nest = ifdefnests[ifdefstackidx]
-                        end if
-                        if equal(token,"neht") then
-                            -- good, this is a simple case
-                            state = or_bits(state,#08)
-                        else
-                            while Ch!=-1 do
-                                getToken()
-                                if equal(token,"neht") then exit end if
-                            end while
-                            onetoken = 0
-                            state = and_bits(state,#F7)
-                        end if
-                        ifdefflags[ifdefstackidx] = append(ifdefflags[ifdefstackidx],onetoken)
-                        ifdefstate[ifdefstackidx] = state
-                        ifdefcheck[Dthen] = ifdefcheck[Dthen]-1 -- (avoid that Eu 2.4 bug)
-                        pp_replace("then")
-                    else
-                        if nPreprocess=Delse then       -- fedesle  (elsedef)
-                            pp_replace("elsedef")
-                            ifdefstate[ifdefstackidx] = or_bits(state,#10)
-                            if isAlignIfdef=1 then
-                                nest = ifdefnests[ifdefstackidx]
-                            end if
-                        elsif nPreprocess=Dend then     -- dne
+                state = or_bits(state,#80)
+            end if
+        end if
+        if isAlignIfdef=1 then
+            nest = ifdefnests[ifdefstackidx]
+        end if
+        if equal(token,"neht") then
+            -- good, this is a simple case
+            state = or_bits(state,#08)
+        else
+            while Ch!=-1 do
+                getToken()
+                if equal(token,"neht") then exit end if
+            end while
+            onetoken = 0
+            state = and_bits(state,#F7)
+        end if
+        ifdefflags[ifdefstackidx] = append(ifdefflags[ifdefstackidx],onetoken)
+        ifdefstate[ifdefstackidx] = state
+        ifdefcheck[Dthen] = ifdefcheck[Dthen]-1 -- (avoid that Eu 2.4 bug)
+        pp_replace("then")
+    else
+        if nPreprocess=Delse then       -- fedesle  (elsedef)
+            pp_replace("elsedef")
+            ifdefstate[ifdefstackidx] = or_bits(state,#10)
+            if isAlignIfdef=1 then
+                nest = ifdefnests[ifdefstackidx]
+            end if
+        elsif nPreprocess=Dend then     -- dne
 --trace(1)
-                            pp_replace("end")
-                            getToken()
-                            pp_replace("ifdef")
-                            mywasAlignIfdef = isAlignIfdef -- (save before getToken/SkipSpacesAndComments)
+            pp_replace("end")
+            getToken()
+            pp_replace("ifdef")
+            mywasAlignIfdef = isAlignIfdef -- (save before getToken/SkipSpacesAndComments)
 --                          if ifdefnestz[ifdefstackidx]!=ifdefnests[ifdefstackidx]
-                            if isAlignIfdef=1
-                            and not and_bits(state,#90) -- no elsedef/already warned
+            if isAlignIfdef=1
+            and not and_bits(state,#90) -- no elsedef/already warned
 --                          and nest!=ifdefnestz[ifdefstackidx] then
 -- 03/04/2011:
 --                          and nest-undoExtraNest!=ifdefnestz[ifdefstackidx] then
-                            and nest-undoExtraNest!=ifdefnestz[ifdefstackidx]
-                            and nestAtStatementStart-undoExtraNest!=ifdefnestz[ifdefstackidx] then
-                                flags = ifdefflags[ifdefstackidx]
+--          and nest-undoExtraNest!=ifdefnestz[ifdefstackidx]
+            and nest!=ifdefnestz[ifdefstackidx]
+--          and nestAtStatementStart-undoExtraNest!=ifdefnestz[ifdefstackidx] then
+            and nestAtStatementStart!=ifdefnestz[ifdefstackidx] then
+                flags = ifdefflags[ifdefstackidx]
 --                              k = length(flags)
 --if k=1 then trace(1) end if
 --DEV DEV DEV!!
 --                              if k>1 then
 --                              if isAlignIfdef=1 then
-                                    k = length(flags)
+                k = length(flags)
 
-                                    onetoken = flags[k]
-                                    if atom(onetoken) or find(onetoken,flags)=k then
+                onetoken = flags[k]
+                if atom(onetoken) or find(onetoken,flags)=k then
 --trace(1)
 -- 21/8/11. Removed because of the "return 0 end ifdef" issue.
 --                                      Warning("imbalanced nesting",{})
-                                    end if
+                end if
 --                              end if
-                            end if
+            end if
 --?{CurrLine,nest,ifdefnests,ifdefnestz}
 --trace(1)
 --                          nest = ifdefnestz[ifdefstackidx]
-                        else
-                            ?9/0
-                        end if
-                    end if
-                    if nPreprocess=2 then       -- ifdef/fedfi
-                        if isAlignIfdef=0 then
-                            nest += isTabWidth
-                        end if
-                    end if
-                    for line=wastokline to tokline do
-                        IndentIfdef(line)
-                    end for
+        else
+            ?9/0
+        end if
+    end if
+    if nPreprocess=2 then       -- ifdef/fedfi
+        if isAlignIfdef=0 then
+            nest += isTabWidth
+        end if
+    end if
+    for line=wastokline to tokline do
+        IndentIfdef(line)
+    end for
 --                  if nPreprocess=2 then       -- ifdef/fedfi
 --                      if isAlignIfdef=0 then
 --                          nest += isTabWidth
 --                      end if
 --                  els
-                    if nPreprocess=Dend then -- dne fedfi
-                        ifdefstackidx -= 1
+    if nPreprocess=Dend then -- dne fedfi
+        ifdefstackidx -= 1
 --                      if isAlignIfdef=0 then
-                        if mywasAlignIfdef=0 then
-                            if nest then
-                                nest -= isTabWidth
-                            else
-                                Warning("makes nest<0",{})
-                            end if
-                        end if
-                    end if
-                    nPreprocess = 0
-                    getToken()
-                    nextCh()
+        if mywasAlignIfdef=0 then
+            if nest then
+                nest -= isTabWidth
+            else
+                Warning("makes nest<0",{})
+            end if
+        end if
+    end if
+    nPreprocess = 0
+    getToken()
+    nextCh()
 end procedure
 r_completeifdef = routine_id("completeifdef")
 
@@ -1352,7 +1355,7 @@ integer wastokline, wastokstart, wastokend
                                    "SUNOS","OPENBSD","OSX","UNIX",
                                    "WIN32_GUI","WIN32_CONSOLE",
                                    "SAFE","DATA_EXECUTE","UCSTYPE_DEBUG",
-                                   "CRASH"}) then
+                                   "CRASH","EU4_1"}) then
                     if not find(token,withdefs) then
 --                      errtext &= "idfef "&token&xl(" unrecognised, and no \"--#withdef\" for it")
 --trace(1)
@@ -1609,10 +1612,10 @@ integer lws,        -- length(wsmatch)
             ch = wsmatch[sidx]
             if ch=' ' then
                 six += 1
-            elsif ch = '\t' then
+            elsif ch='\t' then
                 six += isTabWidth-remainder(six-1,isTabWidth)
             else
-                exit                
+                exit
             end if
             if six>6 then exit end if
             sidx += 1
@@ -1697,7 +1700,8 @@ end function
 procedure Indent(integer i)
 -- check that line tokline begins with correct whitespace
 sequence line
-integer w, ch, wasNewRoutineBlock
+integer w, ch
+--, wasNewRoutineBlock
 
     if not reformat then return end if --#without reformat in force.
     line = filetext[currfile][tokline]
@@ -1711,8 +1715,8 @@ integer w, ch, wasNewRoutineBlock
     or match("trace(0)",line)=1 then
         return
     end if
-    wasNewRoutineBlock = newRoutineBlock
-    newRoutineBlock = 0
+--  wasNewRoutineBlock = newRoutineBlock
+--  newRoutineBlock = 0
     w = 0
     for j=1 to length(line) do
         ch = line[j]
@@ -1770,6 +1774,8 @@ integer w, ch, wasNewRoutineBlock
                         indentline()
                         return
                     else            -- pure un_indent?
+--15/12/15:
+--/*
                         if wasNewRoutineBlock then
                             -- first statement for this routine:
                             -- allow either:
@@ -1790,6 +1796,7 @@ integer w, ch, wasNewRoutineBlock
                                 return
                             end if
                         end if
+--*/
                         if unindentline(w,line) then return end if
                     end if
                 end if
@@ -1817,7 +1824,7 @@ end procedure
 
 integer rExpression
 
-procedure DoSequence()
+procedure DoSequence(integer vch)
 -- token=="{" on entry
 integer wasNest -- see eg Expression()
 integer wasMapEndToMinusOne
@@ -1877,6 +1884,10 @@ end if
         end if
     end if
     stripleading = 1
+    if vch!=0 then
+--      charClass['@'] = SYMBOL
+        charClass[vch] = SYMBOL
+    end if
     Match("}")
 end procedure
 
@@ -1975,13 +1986,14 @@ integer wasindentandor
         end if
         if Ch='(' then  -- a function, we presume
             Params(find(token,{"iff","iif"}))
+--17/12/15: (rescinded)
         else            -- a variable, we presume
             DoSubScripts()
         end if
     elsif find(toktype,{DIGIT,FLOAT,HEXDEC,DQUOTE,SQUOTE}) then
         getToken()
     elsif toktype=SYMBOL and equal(token,"{") then
-        DoSequence()
+        DoSequence(0)
     elsif toktype=SYMBOL and equal(token,"(") then
         wasinexpression = inexpression
         inexpression = 1
@@ -1993,7 +2005,12 @@ integer wasindentandor
         getToken()
         call_proc(rExpression,{})
 --      stripleading = 1
+--?tokline
+--if tokline=50 then ?1 trace(1) end if
+--17/12/15: (rescinded, could not get this to work...)
         Match(")")
+--      Check(")")
+--      DoSubScripts()
         nest = wasNest
         inexpression = wasinexpression
         if not inexpression then
@@ -2004,6 +2021,13 @@ integer wasindentandor
     else
         Abort(xl("unrecognised"))
     end if
+--17/12/15: (never worked, there's a getToken at the end of DoSubScripts)
+--  if toktype=SYMBOL and equal(token,"[") then
+--  if Ch='[' then
+--  if toktype=SYMBOL and Ch='[' then
+--trace(1)
+--      DoSubScripts()
+--  end if
     indentandor = wasindentandor
 end procedure
 
@@ -2163,6 +2187,12 @@ integer wasNest
         if find(token,{"fallthru","fallthrough","break"}) then
             getToken()
         end if
+
+        -- (added 18/12/2015:)
+        if token=";" then
+            getToken()
+        end if
+
         if equal(token,"end") then exit end if
     end while
     nest -= isTabWidth
@@ -2287,15 +2317,19 @@ end procedure
 
 procedure MultiAssignment()
     if parser_tokno=1 then Indent(isTabWidth) end if -- added 13/2/14
-    charClass['@'] = SYMBOL
-    DoSequence()
+--  charClass['@'] = SYMBOL
+    DoSequence('@')
     if not find(token,{"=",":=","@="}) then
         Abort(xl("assignment operator expected"))
         return
     end if
     charClass['@'] = ILLEGAL
     getToken()
-    Expression()    
+    Expression()
+    -- (added 18/12/2015:)
+    if token=";" then
+        getToken()
+    end if
 end procedure
 
 --NB keep Statement() in step with this
@@ -2366,18 +2400,22 @@ sequence sType, tType
                 getToken()
             end if
         end while
+        -- (added 18/12/2015:)
+        if token=";" then
+            getToken()
+        end if
     end while
     also = {}
-    newRoutineBlock = 1     -- allows 1 or 2 tab indent
+--  newRoutineBlock = 1     -- allows 1 or 2 tab indent
     returnexpr = (rType>1)
 --trace(1)
     call_proc(rBlock,{})
     returnexpr = -1
-    if undoExtraNest then
-        undoExtraNest = 0
-        nest -= isTabWidth
-    end if
-    newRoutineBlock = 0
+--  if undoExtraNest then
+--      undoExtraNest = 0
+--      nest -= isTabWidth
+--  end if
+--  newRoutineBlock = 0
     also = {}
 --  also = {0,4}
     if parser_tokno=1 then Indent(0) end if
@@ -2458,6 +2496,12 @@ procedure Block()
                         getToken()
                     end if
                 end while
+
+                -- (added 18/12/2015:)
+                if token=";" then
+                    getToken()
+                end if
+
                 nest -= isTabWidth
             end while
 -- /13/2/14 ends
@@ -2496,15 +2540,20 @@ integer wasMapEndToMinusOne
             exit
         end if
     end while
+-- (added 19/12/2015:)
+    if token=";" then
+        getToken()
+    end if
 end procedure
 
 procedure DoConstant()
 integer wasMapEndToMinusOne
     getToken()  -- discard "constant".
+--if tokline=29 then trace(1) end if
     while Ch!=-1 do
         if parser_tokno=1 then Indent(0) end if
         if toktype=LETTER
-        and find(token,vartypes) 
+        and find(token,vartypes)
         and (charClass[Ch]=LETTER or Ch='{') then
             -- cope with typed constant definitions, eg:
             --  constant string s = "string",
@@ -2512,7 +2561,7 @@ integer wasMapEndToMinusOne
             getToken()
         end if
         if toktype=SYMBOL and equal(token,"{") then
---          DoSequence()
+--          DoSequence(0)
             MultiAssignment()
         else
             getToken()          -- constant name
@@ -2532,6 +2581,10 @@ integer wasMapEndToMinusOne
         end if
         getToken()
     end while
+    -- (added 18/12/2015:)
+    if token=";" then
+        getToken()
+    end if
 end procedure
 
 --
@@ -2548,8 +2601,8 @@ integer wasmapEndToMinusOne, wascursorY
     CurrLine = 1
     lexer_tokno = 1
     col = 1
-    undoExtraNest = 0
-    newRoutineBlock = 0
+--  undoExtraNest = 0
+--  newRoutineBlock = 0
     inexpression = 0
     indentandor = 0
     adjust_count = 0

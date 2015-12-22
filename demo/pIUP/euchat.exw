@@ -1,0 +1,306 @@
+--****
+-- IRC Program for irc://irc.freenode.net#euphoria
+--
+
+--/**/
+--/**/  puts(1,"sorry, thsi does not work on Phix\n")
+--/**/  puts(1,"(no sockets or regular expressions)\n")
+--/**/  {} = wait_key()
+--/**/  abort(1)
+--/**/
+
+--include std/io.e
+--include std/regex.e as re
+--include std/search.e
+--include std/sequence.e
+--include std/text.e
+--include std/utils.e
+
+-- network includes
+--include std/socket.e as sock
+--include std/net/dns.e
+
+-- iup includes
+include iup.e
+
+{} = IupOpen()
+
+Ihandle hTimer, hText, hTextFormat, hEntry, hSend, hMainBox, hDialog
+
+sequence vals = IupGetParam("EuChat Login", -2, 0,
+    "Mandatory %t\n" &
+    "Nickname: %s\n" &
+    "Optional %t\n" &
+    "Full Name: %s\n" &
+    "Preset %t\n" &
+    "Server %s\n" &
+    "Port %i\n" &
+    "Channel %s\n" &
+    "Debug %b\n",
+    { "", "EuChat User", "irc.freenode.net", 6667, "#euphoria", 0 })
+
+if vals[$] = 0 then
+    IupClose()
+    
+    abort(0)
+end if
+
+sequence nickname   = vals[1]
+sequence fullname   = vals[2]
+sequence servername = vals[3]
+integer  port       = vals[4]
+sequence channel    = vals[5]
+integer  debug_mode = vals[6]
+integer  debug_fh   = -1
+
+sock:socket soc
+
+--===========================================================================
+--
+-- Setup a IRC message regular expressions
+--
+--===========================================================================
+
+constant re_notice = re:new(`^:([^\s]+)\sNOTICE\s.+:(.*)$`)
+constant re_other  = re:new(`^:([^\s]+)[^:]+:(.*)$`)
+constant re_normal = re:new(`^:([^!]+)!~?([^\s]+)\s([^\s]+)\s([^:]+\s)?:?(.*)$`)
+
+--===========================================================================
+--
+-- A few helper methods
+--
+--===========================================================================
+
+-- Write a message to our debug log, only if requested
+procedure dmsg(sequence msg, object params = {})
+    if debug_mode then
+        printf(debug_fh, msg & "\n", params)
+        flush(debug_fh)
+    end if
+end procedure
+
+-- Send a message to the server
+function send_message(sock:socket s, sequence msg, object data = {})
+    dmsg("[SEND]: " & msg, data)
+    return sock:send(s, sprintf(msg & "\n", data))
+end function
+
+procedure add_format(Ihandle ih, sequence start_pos, sequence end_pos, 
+            sequence attributes, sequence data = {})
+    Ihandle format_tag = iup:user()
+    IupSetAttributes(format_tag, attributes, data)
+    IupStoreAttribute(format_tag, "SELECTION", "%s:%s", { start_pos, end_pos })
+    IupSetAttribute(ih, "ADDFORMATTAG_HANDLE", format_tag)
+end procedure
+
+-- Callback for the send button
+function OnSendMessage(Ihandle ih)
+    object o = IupGetAttribute(hEntry, IUP_VALUE)
+
+    if sequence(o) and length(o) then
+        if equal(lower(o), "/quit") then
+            send_message(soc, "QUIT :Has decided not to chat any longer.")
+            IupClose()
+            sock_close(soc)
+            abort(0)
+        end if
+        
+        sequence ePos, sPos = IupGetAttribute(hText, iup:CARET)
+        IupStoreAttribute(hText, iup:APPEND, sprintf("\n<%s> %s", { nickname, o}))
+        ePos = IupGetAttribute(hText, iup:CARET)
+        
+        add_format(hText, sPos, ePos, `BGCOLOR="255 228 228"`)
+        add_format(hText, ePos, ePos, `BGCOLOR="255 255 255"`)
+        
+        send_message(soc, "PRIVMSG %s :%s", { channel, o })
+        
+        --IupStoreAttribute(hText, iup:CARET, "999999,1")
+        IupStoreAttribute(hText, iup:SCROLLTOPOS, "999999999")
+    end if
+    
+    IupStoreAttribute(hEntry, IUP_VALUE, "")
+    
+    
+    
+    return IUP_CONTINUE
+end function
+
+-- Display a message received from the server
+procedure display_server_message(sequence msg)
+    sequence msgs = stdseq:split(msg, "\n")
+    for i = 1 to length(msgs) do
+        sequence m = trim(msgs[i])
+        if length(m) = 0 then
+            continue
+        end if
+
+        dmsg("[RCVD]: " & m)
+
+        object matches
+        matches = re:matches(re_normal, m)
+        if not equal(matches, re:ERROR_NOMATCH) then
+            sequence txt = ""
+            switch matches[4] do
+                case "PRIVMSG" then
+                    if match("ACTION", matches[6]) and length(matches[6]) > 9 then
+                        txt = sprintf("%s %s", { matches[2], matches[6][9..$-1] })
+                    else
+                        txt = sprintf("<%s> %s", { matches[2], matches[6] })
+                    end if
+                case "QUIT" then
+                    txt = sprintf("** %s ** has quit", { matches[2] })
+                case "JOIN" then
+                    txt = sprintf("** %s ** has joined %s", { matches[2], matches[6] })
+                case "PART" then
+                    txt = sprintf("** %s ** has left %s", { matches[2], matches[6] })
+                case "NICK" then
+                    txt = sprintf("%s is now known as %s", { matches[2], matches[6] })
+                case else
+                    txt = sprintf("<%s> [%s] %s", { matches[2], matches[4], matches[6] })
+            end switch
+
+            if length(txt) then
+                integer highlight_type = 0
+                sequence sPos = IupGetAttribute(hText, iup:CARET)
+                
+                if match(nickname, txt) then
+                    highlight_type = 1
+                end if
+                
+                IupStoreAttribute(hText, "APPEND", "\n" & txt)
+                
+                sequence ePos = IupGetAttribute(hText, iup:CARET)
+                
+                switch highlight_type do
+                case 1 then
+                    add_format(hText, sPos, ePos, `BGCOLOR="228 255 228"`)
+                    add_format(hText, ePos, ePos, `BGCOLOR="255 255 255"`)
+                end switch
+                
+                --IupStoreAttribute(hText, iup:CARET, "999999,1")
+                IupStoreAttribute(hText, iup:SCROLLTOPOS, "999999999")
+            end if
+
+            continue
+        end if
+
+        matches = re:matches(re_notice, m)
+        if equal(matches, re:ERROR_NOMATCH) then
+            matches = re:matches(re_other, m)
+        end if
+
+        if not equal(matches, re:ERROR_NOMATCH) then
+            IupStoreAttribute(hText, "APPEND", "\n[NOTICE]: " & matches[3])
+            continue
+        end if
+    end for
+end procedure
+
+--===========================================================================
+--
+-- Main program body
+--
+--===========================================================================
+
+-- open a debug log, if requested
+if debug_mode then
+    debug_fh = open("debug.log", "w")
+end if
+
+function CheckServer(Ihandle ih)
+    -- Check if info is waiting from the server, wait up to 75ms
+    object has_data = sock:select(soc, {}, {}, 0, 75)
+    if (length(has_data[1]) > 2) and equal(has_data[1][2],1) then
+        object data = sock:receive(soc, 0)
+        if atom(data) then
+            if data = 0 then
+                -- zero bytes received, we the 'data' waiting was
+                -- a disconnect.
+                return IUP_CONTINUE
+            else
+                IupMessage("Error", "ERROR receiving from IRC server")
+                IupClose()
+                
+                abort(1)
+            end if
+        end if
+        if begins("PING ", data) then
+            send_message(soc, "PONG %s", { data[6..$] })
+        else
+            display_server_message(data)
+        end if
+    end if
+
+    return IUP_CONTINUE
+end function
+
+function OnEntryKey(Ihandle ih, integer key)
+    if key = 10 or key = 13 then
+        OnSendMessage(ih)
+        return IUP_IGNORE
+    end if
+
+    return IUP_CONTINUE
+end function
+
+hText = IupText()
+IupSetAttributes(hText, "READONLY=YES,CANFOCUS=NO,MULTILINE=YES,APPENDNEWLINE=NO,FORMATTING=YES,AUTOHIDE=YES,WORDWRAP=YES,SIZE=250x100,SCROLLBAR=VERTICAL,EXPAND=YES")
+
+hEntry = IupText()
+IupSetAttributes(hEntry, "EXPAND=HORIZONTAL")
+IupSetCallback(hEntry, "K_ANY", routine_id("OnEntryKey"))
+
+hSend = IupButton("  Send  ",{}, routine_id("OnSendMessage"))
+
+hMainBox = IupVboxv({
+        hText,
+        IupHboxv({ hEntry, hSend })
+    }, "GAP=5,MARGIN=5x5")
+
+hDialog = IupDialog(hMainBox)
+IupStoreAttribute(hDialog, "TITLE", "EuIRC")
+{} = IupShow(hDialog)
+
+-- Look up host information
+object addrinfo = host_by_name(servername)
+if atom(addrinfo) or length(addrinfo) < 3 or length(addrinfo[3]) = 0 then
+    IupMessage("Error", "Couldn't find DNS entry for irc.freenode.net")
+    IupClose()
+    
+    abort(1)
+end if
+
+-- Create our socket and connect to the server
+soc = sock:create(sock:AF_INET, sock:SOCK_STREAM, 0)
+if sock:connect(soc, addrinfo[3][1], port) != sock:OK then
+    IupMessage("Error", sprintf("Couldn't connect to %s:%d\n", { servername, port }))
+    IupClose()
+    
+    abort(1)
+end if
+
+-- Wait on and retrieve the initial data so we know we actually connected
+-- and that the connection is functioning.
+object initial = sock:receive(soc, 0)
+if sequence(initial) then
+    display_server_message(initial)
+
+    -- Send our login information, set our nick and join the channel
+    send_message(soc, "USER guest local_eu local_eu :%s", { fullname })
+    send_message(soc, "NICK %s", { nickname })
+    send_message(soc, "JOIN %s", { channel })
+else
+    IupMessage("Error", sprintf("Communication error with %s\n", { servername }))
+    IupClose()
+    
+    abort(1)
+end if
+
+hTimer = IupTimer()
+IupSetAttributes(hTimer, "TIME=100,RUN=YES")
+IupSetCallback(hTimer, "ACTION_CB", routine_id("CheckServer"))
+IupMainLoop()
+
+IupClose()
+
+sock_close(soc)

@@ -2228,10 +2228,17 @@ end if
 --                          if Z64=1 then
 --                              if p1size!=8 then Aborp("invalid operand size") end if
 --                              s5 &= #48
---?9/0 --(as above, test me)
+----?9/0 --(as above, test me)
 --                          else
-                                if p1size!=4 then Aborp("invalid operand size") end if
+--                              if p1size!=4 then Aborp("invalid operand size") end if
 --                          end if
+                            if p1size!=4 then
+                                if Z64=1 and p1size=8 then
+--                                  s5 &= #48
+                                else
+                                    Aborp("invalid operand size")
+                                end if
+                            end if
                             if op=T_mov then
                                 if p1size=8 then    -- (may need to be Z64=1)
                                     s5 &= 0o307

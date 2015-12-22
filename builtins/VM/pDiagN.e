@@ -3226,6 +3226,36 @@ end procedure -- (for Edita/CtrlQ)
             jmp rax
         []
 
+--DEV/SUG (in the optable). Do we want called from or era or both?: callfunc:cf, cfunc:era(?), fileio:cf, palloc:cf
+      :!fatalN
+        -- calling convention
+        --  mov ecx,imm32       -- no of frames to pop to obtain an era (>=1)
+        --  mov al,imm          -- error code [1..length(msgs)-1, currently 122]
+        --  mov edi,ep1         -- [optional] (opUnassigned)
+        --  mov esi,ep2         -- [optional] (opUnassigned)
+        --  jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
+        [32]
+          @@:
+--          mov edx,[ebp+16]    -- era
+            mov edx,[ebp+12]    -- called from address
+            mov ebp,[ebp+20]    -- (nb no local vars after this!)
+            sub ecx,1
+            jg @b
+            sub edx,1
+--          jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          int3
+        [64]
+          @@:
+--          mov rdx,[rbp+32]    -- era
+            mov rdx,[rbp+24]    -- called from address
+            mov rbp,[rbp+40]    -- (nb no local vars after this!)
+            sub rcx,1
+            jg @b
+            sub rdx,1
+--          jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          int3
+        []
+
 --/*
 procedure :!iDiag(:%)
 end procedure -- (for Edita/CtrlQ)

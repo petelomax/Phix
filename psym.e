@@ -2156,7 +2156,7 @@ if newEmit then
 
     -- the following functions return an atom:
 
-    AutoAsm("allocate",         S_Func,"FI",    "VM\\pHeap.e",      opAlloc,    "%pAlloc",      E_none, T_atom)
+--  AutoAsm("allocate",         S_Func,"FI",    "VM\\pHeap.e",      opAlloc,    "%pAlloc",      E_none, T_atom)
 --DEV... (not documented either)
 --  AutoAsm("allocate_data",    S_Func,"FI",    "VM\\pHeap.e",      opAlloc,    "%pAlloc",      E_none, T_atom)
     AutoAsm("remainder",        S_Func,"FNN",   "VM\\pRmdr.e",      opRmdr,     "%opRmdr",      E_none, T_atom)
@@ -2225,7 +2225,7 @@ if newEmit then
     symtab[symlimit][S_ParmN] = 0
     AutoAsm("flush",            S_Func,"PI",    "VM\\pfileioN.e",   opFlush,    "%opFlush",     E_other,0)
     AutoAsm("free_console",     S_Func,"P",     "VM\\pfileioN.e",   opFreeCons, "%opFreeCons",  E_other,0)
-    AutoAsm("free",             S_Proc,"PN",    "VM\\pHeap.e",      opFree,     "%pFree",       E_other,0)
+--  AutoAsm("free",             S_Proc,"PN",    "VM\\pHeap.e",      opFree,     "%pFree",       E_other,0)
     AutoAsm("leave_cs",         S_Proc,"PI",    "VM\\pHeap.e",      opLeaveCS,  "%pLeaveCS",    E_other,0)      T_LeaveCS = symlimit
     symtab[symlimit][S_ParmN] = 0
     AutoAsm("mem_copy",         S_Proc,"PNNI",  "VM\\pMem.e",       opMemCopy,  "%opMemCopy",   E_other,0)
@@ -2302,7 +2302,7 @@ if newEmit then --DEV (temp) (T_find/T_match will be rqd once the asm conversion
     symtab[symlimit][S_ParmN] = 2
 --  Alias("find_from", T_find)  (--DEV)
 --  Alias("find_from", symlimit)    -- killed 3/8/15
-    initialAutoEntry("match",           S_Func,"FOPI",  "VM\\pMatch.e",0,E_none)    --T_match = symlimit
+    initialAutoEntry("match",           S_Func,"FOPII", "VM\\pMatch.e",0,E_none)    --T_match = symlimit
     symtab[symlimit][S_ParmN] = 2
 --  Alias("match_from", T_match) (--DEV)
 --  Alias("match_from", symlimit)   -- killed 3/8/15
@@ -2346,11 +2346,15 @@ end if
 --if newEmit then
 ----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pHeap.e",0,E_none)
 ----DEV
+    initialAutoEntry("allocate",        S_Func,"FNI",   "pAlloc.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
 ----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
 ----    initialAutoEntry("allocate_data",   S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
 --end if
     initialAutoEntry("allocate_data",   S_Func,"FII",   "allocate_data.e",0,E_none)
-    initialAutoEntry("allocate_string", S_Func,"FP",    "machine.e",0,E_none)
+--  initialAutoEntry("allocate_string", S_Func,"FP",    "machine.e",0,E_none)
+    initialAutoEntry("allocate_string", S_Func,"FPI",   "pAlloc.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("arccos",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("arcsin",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("bytes_to_int",    S_Func,"FP",    "machine.e",0,E_none)       --DEV should really be renamed
@@ -2712,7 +2716,7 @@ end if
     initialAutoEntry("display_text_image",  S_Proc,"PPP",   "pscreen.e",0,E_other)
 if newEmit then
     initialAutoEntry("exit_thread",         S_Proc,"PI",    "VM\\pThreadN.e",0,E_other)
---  initialAutoEntry("free",                S_Proc,"PN",    "VM\\pAlloc.e",0,E_other)
+    initialAutoEntry("free",                S_Proc,"PN",    "pAlloc.e",0,E_other)
 --  initialAutoEntry("poke2N",              S_Proc,"PNO",   "VM\\ppoke2N.e",0,E_other)
 else
     initialAutoEntry("poke2",               S_Proc,"PNO",   "ppoke2.e",0,E_other)

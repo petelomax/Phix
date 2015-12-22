@@ -645,8 +645,9 @@
 --      64-bit Phix has (or more accurately is expected to have) such ludicrously high limits they are hardly 
 --      worth mentioning. Oh go on then, around 5.5EB, by which I mean 5 million TB, which in 2014 is over a 
 --      /billion/ quids worth of RAM (based on a 256GB SSD for £75), and presumably a leccy bill that would 
---      put the LHC to shame. I recently (May 2014) read that x86-64 is limited to 256TB, and Windows 7, 
---      according to wikipedia, is limited to 192GB.
+--      put the LHC to shame. Another potential practical issue is the sheer weight of all that RAM (plus 
+--      substrate) might tear a hole in the earth's crust, unless spread out a bit. I recently (May 2014) 
+--      read that x86-64 is limited to 256TB, and Windows 7, according to wikipedia, is limited to 192GB. 
 --
 -- The 64-bit version of the above table is:
 --  idx      superblock size            block size  details     string          sequence
@@ -3806,8 +3807,10 @@ end procedure -- (for Edita/CtrlQ)
     [64]
             mov rdi,[rsi+rcx]
             xor rax,rax                 -- for use as base (lessens AGI to boot!)
+            lea r14,[rbx-1]             -- #FFFFFFFFFFFFFFFF, instead of...
 --          cmp rdi,h4  
             mov r15,h4
+            shr r14,8                   -- #00FFFFFFFFFFFFFF (which, being 56 bits, we struggle to handle on 32-bits) [DEV]
             cmp rdi,r15
             jl :dseqelementloop
             sub qword[rax+rdi*4-16],1   -- decrement refcount
@@ -3815,7 +3818,8 @@ end procedure -- (for Edita/CtrlQ)
             jnz :dseqelementloop
 --          test dword[eax-4],0x00FFFFFF
 --[DEV check the listing:]
-            test qword[rax-8],-256  -- delete_routine in low 7 bytes of type 
+-->         test qword[rax-8],-256  -- delete_routine in low 7 bytes of type 
+            test qword[rax-8],r14       -- delete_routine in low 7 bytes of type?
     []
             jz :nodeleteroutine
     [32]
@@ -3843,7 +3847,7 @@ end procedure -- (for Edita/CtrlQ)
                 push rdx
                 push rsi
                 --rsi?
-                mov qword[rdx-16],1     -- puts a refcount of 1 back
+                mov qword[rax-16],1     -- puts a refcount of 1 back
 --              mov qword[rax-16],2     -- puts a refcount of 1 back
 --              mov rcx,[pDelRtn]
                 add rax,1               -- reconstruct the ref
@@ -4031,6 +4035,7 @@ end procedure -- (for Edita/CtrlQ)
     [32]
         -- size in ecx, result addr in edi
         xor ebx,ebx -- (save some grief)
+--/* now the responsibility of builtins/pAlloc.e:
         cmp ecx,h4  --DEV :%pLoadMint?
         jl @f
             cmp byte[ebx+ecx*4-1],0x12
@@ -4054,8 +4059,14 @@ end procedure -- (for Edita/CtrlQ)
             jmp :!iDiag
             int3
       @@:
+--*/
+        -- calling convention
+        -- mov ecx,[size]   -- (checked to be integer>=0)
+        -- lea edi,[res]
+        -- mov edx,[ebp+12] -- era/called from address
+        -- call :%pAlloc
         add ecx,4           -- for nSize
-        mov edx,[esp]       -- era
+--      mov edx,[esp]       -- era[DEV]
         push edi
         call :%pGetPool     -- (trashes all registers)
         -- result is edx bytes at eax, but we use first 4 bytes to save the size, for free().
@@ -4073,6 +4084,7 @@ end procedure -- (for Edita/CtrlQ)
     [64]
         -- size in rcx, result addr in rdi
         xor rbx,rbx -- (save some grief)
+--/* now the responsibility of builtins/pAlloc.e:
         mov r15,h4
         push rdi
         cmp rcx,r15
@@ -4096,8 +4108,10 @@ end procedure -- (for Edita/CtrlQ)
             jmp :!iDiag
             int3
       @@:
+--*/
         add rcx,8           -- for nSize
-        mov rdx,[rsp+8]     -- era
+--      mov rdx,[rsp+8]     -- era
+        push rdi
         call :%pGetPool
         -- result is rdx bytes at rax, but we use first 8 bytes to save the size, for free().
         test rax,rax
@@ -4119,7 +4133,7 @@ end procedure -- (for Edita/CtrlQ)
     :%pFree
 ------------
     [32]
-        -- addr in eax
+        -- addr in eax, era in edx
         xor ebx,ebx -- (save some grief)
         cmp eax,h4  --DEV :%pLoadMint
         jl @f
@@ -4136,9 +4150,9 @@ end procedure -- (for Edita/CtrlQ)
       :%pFree_e107ifma      -- exception here mapped to e107ifma
         mov ecx,[eax-4]     -- retrieve size
         sub eax,4
-        mov edx,[esp]       -- era
+--      mov edx,[esp]       -- era
     [64]
-        -- addr in rax
+        -- addr in rax, era in rdx
         mov r15,h4
         xor rbx,rbx -- (save some grief)
         cmp rax,r15
@@ -4151,10 +4165,11 @@ end procedure -- (for Edita/CtrlQ)
             fistp qword[rsp]
             call :%near64
             pop rax
+      @@:
       :%pFree_e107ifma      -- exception here mapped to e107ifma
         mov rcx,[rax-8]     -- retrieve size
         sub rax,8
-        mov rdx,[rsp]       -- era
+--      mov rdx,[rsp]       -- era
     []
         call :%pFreePool
         ret

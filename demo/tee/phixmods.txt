@@ -1,0 +1,75 @@
+-- Steps getting tee to run on Phix:
+copy editor.exe to tee.exw
+    remove include std/*4
+copy include/iup to iup[??], ditto bin and icons
+edit iup.e:
+    search for "= NULL" and kill any with later non-defaulted parameters
+    also IupListDialog needs a "= {}" removed.
+    replace all "value" with "v" (for syntax colouring reasons)
+    ditto iup_config.e
+edit tee.exw:
+    inline keywords.e/events.e/actions.e/controls.e/formspree.e, removing all sub-includes and namespaces
+    kill "stdseq:" and "io:" and "wildcard:"
+    insert "{} = " on IupSetAttributes, IupAppend, IupMap, IupSetFocus, IupSetCallback, IupPopup, write_file, save_cb, 
+                      IupHelp, IupShowXY, IupSetHandle, IupOpen, IupConfigLoad, IupMainLoop
+    insert:
+--/**/global constant SLASH = iff(platform()=WINDOWS?'\\':'/')
+--/**/constant lib = open_dll("kernel32")
+--/**/constant xGetFileAttributes = define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT) -- N.B DWORD return fails this.
+--/**/function file_exists(string name)
+--/**/  return c_func(xGetFileAttributes, {name})>0
+--/**/end function
+--/**/include builtins/write_file.e
+--/**/include builtins/read_file.e
+function get_file_name(sequence path)
+    for i=length(path) to 1 by -1 do
+        if find(path[i],"\\/") then
+            path = path[i+1..$]
+            exit
+        end if
+    end for
+    return path
+end function
+
+function get_file_base(sequence path)
+    path = get_file_name(path)
+    for i=length(path) to 1 by -1 do
+        if path[i]='.' then
+            path = path[1..i-1]
+            exit
+        end if
+    end for
+    return path
+end function
+
+function get_file_path(sequence path)
+    for i=length(path) to 1 by -1 do
+        if path[i]='\\' then
+            path = path[1..i]
+            exit
+        end if
+    end for
+    return path
+end function
+--/**/include builtins\scanf.e
+--/**/global function to_integer(string s) return to_number(s) end function
+
+and
+include iup/iupim.e
+after the existing incluce iup/iup.e
+    
+    and replace all [filesys:]filename with get_file_name
+          ditto all [filesys:]pathname with get_file_path
+          ditto all [filesys:]filebase with get_file_base
+    replace all "pipeio:" with ?9/0 [DEV], ditto "url:", "formspree:", and http_post
+    ditto locate_file, build_commandline
+    replace peek_pointer with peek4u
+    comment out the call to crash_routine [DEV..]
+    remove underscores on public function submit params
+    add "if self then end if" to most of the xxx_cb routines
+    delete all "public"
+    replace parameter _type in function IupVal with xtype, ditto IupListDialog
+    remove --public include std/dll.e, std/machine.e from iup.e
+    inline iupkey.e/iupdef.e, and add iupim.e, iup_config.e (less duplicated iup.dll), iup_scintilla.e at the end of iup.e
+    move iup.e to .. and replace the include at the start of tee.exw
+    find all open_dll and plant eg "if iup=0 then ?9/0 end if" after them, and add "bin\\" at the same time.

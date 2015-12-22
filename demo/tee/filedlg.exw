@@ -1,0 +1,50 @@
+-- IupFileDlg Example in C 
+-- Shows a typical file-saving dialog.
+
+include iup.e
+--include iup/iup_config.e
+
+type Ihandle( object x )
+    return 1
+end type
+
+function main( object argc, object argv )
+
+  Ihandle  filedlg  
+  {} = IupOpen( argc, argv ) 
+  IupSetLanguage("ENGLISH") 
+  
+  filedlg = IupFileDlg()  
+ 
+  {} = IupSetAttributes(filedlg, "DIALOGTYPE = SAVE, TITLE = \"File Save\"") 
+  {} = IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"") 
+
+  {} = IupPopup(filedlg, IUP_CENTER, IUP_CENTER)  
+
+  switch (IupGetInt(filedlg, "STATUS")) do
+  
+    case 1 then 
+      IupMessage("New file",IupGetAttribute(filedlg, "VALUE"))  
+      break  
+
+    case 0 then
+      IupMessage("File already exists",IupGetAttribute(filedlg, "VALUE")) 
+      break  
+
+    case -1 then
+      IupMessage("IupFileDlg","Operation Canceled") 
+      return 1 
+      break  
+  end switch
+
+  IupDestroy(filedlg) 
+  IupClose()  
+  return EXIT_SUCCESS 
+
+end function
+
+sequence cmd = command_line()
+sequence argv = cmd[3..$]
+integer argc = length( argv )
+
+{} = main( argc, argv )

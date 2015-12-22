@@ -378,6 +378,21 @@ integer msign, base, tokvalid
     return {}
 end function
 
+--DEV doc..
+global function to_number(string s)
+sequence r
+atom N
+integer sidx
+    r = get_number(s,1)
+    if length(r) then
+        {N,sidx} = r
+        if sidx>length(s) then
+            return N
+        end if
+    end if
+    return {}   -- failure?
+end function
+
 
 function scanff(sequence res, string s, integer sidx, sequence fmts, integer fidx)
 object ffi, try

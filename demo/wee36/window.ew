@@ -1,0 +1,2374 @@
+-- window.ew
+
+--/*
+include std/error.e
+include std/machine.e
+include std/dll.e
+--*/
+
+global function or_all(sequence s)
+-- or together all elements of a sequence
+    atom result
+    
+    result = 0
+    for i = 1 to length(s) do
+        result = or_bits(result, s[i])
+    end for
+    return result
+end function
+
+global function HIWORD(atom x)
+    return floor(x / 65536) + 65536*(x < 0)
+end function
+
+global function LOWORD(atom x)
+    return and_bits(x, #FFFF)
+end function
+
+-- bytes must be a power of 2
+function align(atom ptr, integer bytes)
+    integer result
+    result = and_bits(ptr, bytes - 1)
+    if result then
+        ptr += bytes - result
+    end if
+    return ptr
+end function
+
+-- strings ------------------------------------------------------------------
+sequence strings
+strings = {}
+
+-- allocate string that can be garbage collected later
+global function alloc_string(object str)
+    atom ptr
+    if atom(str) then
+        return str
+    end if
+    ptr = allocate(length(str)+1)
+    strings = append(strings, ptr)
+    poke(ptr, str)
+    poke(ptr + length(str), 0)
+    return ptr
+end function
+
+-- garbage collect strings
+global procedure free_strings()
+    for i = 1 to length(strings) do
+        free(strings[i])
+    end for
+    strings = {}
+end procedure
+
+--/*
+global function peek_string(atom a)
+    integer i
+    sequence s
+    s = ""
+    if a then
+        i = peek(a)
+        while i do
+            s = append(s, i)
+            a = a + 1
+            i = peek(a)
+        end while
+    end if
+    return s
+end function
+--*/
+
+procedure pokeWideCharString(atom ptr, sequence str)
+    for i = 1 to length(str) by 2 do
+        if i < length(str) then
+            poke4(ptr, str[i] + str[i+1]*#10000)
+        else
+            poke4(ptr, str[i])
+            return
+        end if
+        ptr += 4
+    end for
+    poke(ptr, {0, 0})
+end procedure
+
+global function allocWideCharString(sequence s)
+    atom ptr
+    ptr = allocate(length(s) * 2 + 2)
+    strings = append(strings, ptr)
+    pokeWideCharString(ptr, s)
+    return ptr
+end function
+
+global function peekWideCharString(atom ptr)
+    sequence result
+    integer ch
+    if ptr = 0 then
+        return 0
+    end if
+    result = ""
+    ch = peek2u(ptr)
+    while ch do
+        result &= ch
+        ptr += 2
+        ch = peek2u(ptr)
+    end while
+    return result
+end function
+
+
+-- structs ------------------------------------------------------------------
+
+-- pack/unpack pattern characters
+-- "d" dword  4 bytes
+-- "w" word   2 bytes
+-- "b" byte   1 byte
+-- "i" int    4 bytes
+-- "c" char   1 byte
+-- "q" qword/int64  8 bytes
+-- "p" pointer 4 or 8 bytes
+-- "s" string pointer  4 or 8 bytes (alloc_string'd)
+-- "m" multibyte string pointer
+-- "z" dword  4 bytes, size of struct, must be first in pattern
+-- "$" aligns the total struct size to the size of the largest member
+
+-- When converting Windows struct member types, this may be useful:
+-- https://msdn.microsoft.com/en-us/library/windows/desktop/aa383751(v=vs.85).aspx
+
+function sizeof(sequence pattern)
+    integer size, x, max_align
+    size = 0
+    max_align = 1
+    for i = 1 to length(pattern) do
+        x = pattern[i]
+        if x = 'b' or x = 'c' then
+            x = 1
+        elsif x = 'w' then
+            x = 2
+        elsif x = 'd' or x = 'i' or x = 'z' then
+            x = 4
+        elsif x = 'q' then
+            x = 8
+        elsif x = 'p' or x = 's' or x = 'm' then
+--/**/      x = iff(machine_bits()=64?8:4)      --/*
+            ifdef BITS64 then
+                x = 8
+            elsedef
+                x = 4
+            end ifdef                           --*/
+        elsif x = '$' then
+            size = align(size, max_align)
+            exit
+        else
+            printf(1, "unknown pack char %s\n", {{x}})
+            x = 0
+        end if
+        size = align(size, x) + x
+        if x > max_align then
+            max_align = x
+        end if
+    end for
+    return size
+end function
+
+global procedure pack(atom ptr, sequence pattern, sequence data)
+    object tmp
+    integer x
+
+    for i = 1 to length(pattern) do
+        x = pattern[i]
+        tmp = data[i]
+        if x = 's' then
+            tmp = alloc_string(tmp)
+        elsif x = 'm' then
+            tmp = allocWideCharString(tmp)
+        elsif sequence(tmp) then
+            tmp = or_all(tmp)
+        end if
+        if x = 'b' or x = 'c' then
+            poke(ptr, tmp)
+            ptr += 1
+        elsif x = 'w' then
+            ptr = align(ptr, 2)
+            poke2(ptr, tmp)
+            ptr += 2
+        elsif x = 'd' or x = 'i' or x = 'z' then
+            ptr = align(ptr, 4)
+            poke4(ptr, tmp)
+            ptr += 4
+        elsif x = 'q' then
+--/**/      if machine_bits()=64 then
+--/**/          ptr = align(ptr, 8)
+--/**/          poke8(ptr, tmp)
+--/**/      else
+--/**/          poke4(ptr, and_bits(tmp, #FFFFFFFF))
+--/**/          poke4(ptr + 4, floor(tmp/#100000000))
+--/**/      end if
+--/*
+            ifdef BITS64 then
+                ptr = align(ptr, 8)
+                poke8(ptr, tmp)
+            elsedef
+                poke4(ptr, and_bits(tmp, #FFFFFFFF))
+                poke4(ptr + 4, floor(tmp/#100000000))
+            end ifdef
+--*/
+            ptr += 8
+        elsif x = 'p' or x = 's' or x = 'm' then
+--/**/      if machine_bits()=64 then
+--/**/          ptr = align(ptr, 8)
+--/**/          poke8(ptr, tmp)
+--/**/          ptr += 8
+--/**/      else
+--/**/          ptr = align(ptr, 4)
+--/**/          poke4(ptr, tmp)
+--/**/          ptr += 4
+--/**/      end if
+--/*
+            ifdef BITS64 then
+                ptr = align(ptr, 8)
+                poke8(ptr, tmp)
+                ptr += 8
+            elsedef
+                ptr = align(ptr, 4)
+                poke4(ptr, tmp)
+                ptr += 4
+            end ifdef
+--*/
+        elsif x = '$' then
+        else
+            printf(1, "unknown pack char %s\n", {{x}})
+        end if
+    end for
+end procedure
+
+global function allocate_pack(sequence pattern, sequence data)
+    atom ptr
+    integer size
+    size = sizeof(pattern)
+    if pattern[1] = 'z' then
+        data = prepend(data, size)
+    end if
+    if pattern[$] = '$' then
+        data = append(data, 0)
+    end if
+    ptr = allocate(size)
+    --printf(1, "ptr=%x pattern=%s size=%d\n", {ptr, pattern, size})
+    pack(ptr, pattern, data)
+    return ptr
+end function
+
+global function unpack(atom ptr, sequence pattern)
+    sequence data
+    object tmp
+    integer x
+    data = repeat(0, length(pattern))
+    for i = 1 to length(pattern) do
+        x = pattern[i]
+        if x = 'b' then
+            data[i] = peek(ptr)
+            ptr += 1
+        elsif x = 'c' then
+            tmp = peek(ptr)
+            ptr += 1
+            data[i] = tmp - 2*and_bits(tmp, #80)
+        elsif x = 'w' then
+            ptr = align(ptr, 2)
+            data[i] = peek2u(ptr)
+            ptr += 2
+        elsif x = 'd' or x = 'z' then
+            ptr = align(ptr, 4)
+            data[i] = peek4u(ptr)
+            ptr += 4
+        elsif x = 'i' then
+            ptr = align(ptr, 4)
+            data[i] = peek4s(ptr)
+            ptr += 4
+        elsif x = 'p' or x = 's' or x = 'm' then
+--/**/      if machine_bits()=64 then
+--/**/          ptr = align(ptr, 8)
+--/**/          tmp = peek8u(ptr)
+--/**/          ptr += 8
+--/**/      else
+--/**/          ptr = align(ptr, 4)
+--/**/          tmp = peek4u(ptr)
+--/**/          ptr += 4
+--/**/      end if
+--/*
+            ifdef BITS64 then
+                ptr = align(ptr, 8)
+                tmp = peek8u(ptr)
+                ptr += 8
+            elsedef
+                ptr = align(ptr, 4)
+                tmp = peek4u(ptr)
+                ptr += 4
+            end ifdef
+--*/
+            if x = 's' then
+                tmp = peek_string(tmp)
+            elsif x = 'm' then
+                tmp = peekWideCharString(tmp)
+            end if
+            data[i] = tmp
+        elsif x = '$' then
+        else
+            printf(1, "unknown pack char %s\n", {{x}})
+        end if
+    end for
+    return data
+end function
+
+-- dll wrapping -------------------------------------------------------
+
+procedure not_found(sequence name)
+    crash("Couldn't find " & name)
+end procedure
+
+function link_c_func(atom dll, sequence name, sequence args, atom result)
+-- dynamically link a C routine as a Euphoria function
+    integer handle
+
+    handle = define_c_func(dll, name, args, result)
+    if handle = -1 then
+        not_found(name)
+    end if
+    return handle
+end function
+
+function link_c_proc(atom dll, sequence name, sequence args)
+-- dynamically link a C routine as a Euphoria function
+    integer handle
+
+    handle = define_c_proc(dll, name, args)
+    if handle = -1 then
+        not_found(name)
+    end if
+    return handle
+end function
+
+function get_dll(sequence name)
+    atom handle
+    handle = open_dll(name)
+    if handle = NULL then
+        not_found(name)
+    end if
+    return handle
+end function 
+
+constant
+    user32 = get_dll("user32.dll"),
+    gdi32 = get_dll("gdi32.dll"),
+    winmm = get_dll("winmm.dll"),
+    kernel32 = get_dll("kernel32.dll"),
+    shell32 = get_dll("shell32.dll")
+    
+-- get handles to some dll routines
+
+global constant
+    LoadIcon = link_c_func(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT),
+    LoadCursor = link_c_func(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT),
+    GetStockObject = link_c_func(gdi32, "GetStockObject", {C_INT}, C_INT),
+    DeleteObject = link_c_func(gdi32, "DeleteObject", {C_INT}, C_INT),
+    CreateFontIndirect = link_c_func(gdi32, "CreateFontIndirectA", {C_POINTER}, C_INT),
+    CreateBitmap = link_c_func(gdi32, "CreateBitmap", {C_INT, C_INT, C_UINT, C_UINT, C_POINTER}, C_INT),
+    CreateIcon = link_c_func(user32, "CreateIcon", {C_POINTER, C_INT, C_INT, C_UINT, C_UINT, C_POINTER, C_POINTER}, C_INT),
+    CreateIconIndirect = link_c_func(user32, "CreateIconIndirect", {C_POINTER}, C_INT),
+    RegisterClassEx = link_c_func(user32, "RegisterClassExA", {C_POINTER}, C_USHORT),
+    CreateWindowEx = link_c_func(user32, "CreateWindowExA", 
+     {C_UINT,C_POINTER,C_POINTER,C_UINT,C_INT,C_INT,C_INT,C_INT,C_UINT,C_UINT,C_UINT,C_POINTER},
+      C_UINT),
+    CloseWindow = link_c_proc(user32, "CloseWindow", {C_POINTER}),
+    DestroyWindow = link_c_func(user32, "DestroyWindow", {C_POINTER}, C_INT),
+    MoveWindow = link_c_proc(user32, "MoveWindow", {C_POINTER, C_INT, C_INT, C_INT, C_LONG, C_INT}),
+    ShowWindow = link_c_proc(user32, "ShowWindow", {C_POINTER, C_INT}),
+    UpdateWindow = link_c_proc(user32, "UpdateWindow", {C_POINTER}),
+    RegisterWindowMessage = link_c_func(user32, "RegisterWindowMessageA", {C_POINTER}, C_LONG),
+    PlaySound = link_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT}),
+    BeginPaint = link_c_func(user32, "BeginPaint", {C_INT, C_POINTER}, C_INT),
+    GetClientRect = link_c_proc(user32, "GetClientRect", {C_INT, C_POINTER}),
+    GetWindowRect = link_c_proc(user32, "GetWindowRect", {C_INT, C_POINTER}),
+    InvalidateRect = link_c_proc(user32, "InvalidateRect", {C_INT, C_POINTER, C_INT}),
+    DrawText = link_c_proc(user32, "DrawTextA", 
+                           {C_INT, C_INT, C_INT, C_INT, C_INT}),
+    EndPaint = link_c_proc(user32, "EndPaint", {C_INT, C_INT}),
+    PostQuitMessage = link_c_proc(user32, "PostQuitMessage", {C_POINTER}),
+    DefWindowProc = link_c_func(user32, "DefWindowProcA", 
+                                {C_POINTER, C_INT, C_POINTER, C_POINTER}, C_INT),
+
+    SetFocus = link_c_func(user32, "SetFocus", {C_LONG}, C_LONG),
+    GetFocus = link_c_func(user32, "GetFocus", {}, C_LONG),
+    GetActiveWindow = link_c_func(user32, "GetActiveWindow", {}, C_LONG),
+    EnableWindow = link_c_func(user32, "EnableWindow", {C_LONG, C_LONG}, C_LONG),
+    IsWindowEnabled = link_c_func(user32, "IsWindowEnabled", {C_LONG}, C_LONG),
+    GetScrollPos = link_c_func(user32, "GetScrollPos", {C_INT, C_INT}, C_INT),
+    SetScrollPos = link_c_func(user32, "SetScrollPos", {C_INT, C_INT, C_INT, C_INT}, C_INT),
+    GetKeyState = link_c_func(user32, "GetKeyState", {C_INT}, C_INT),
+    GetCursorPos = link_c_func(user32, "GetCursorPos", {C_POINTER}, C_INT),
+    ScreenToClient = link_c_func(user32, "ScreenToClient", {C_LONG, C_POINTER}, C_INT),
+
+    LoadLibrary = link_c_func(kernel32, "LoadLibraryA", {C_POINTER}, C_LONG),
+    GetModuleHandle = link_c_func(kernel32, "GetModuleHandleA", {C_POINTER}, C_INT),
+    GetLastError = link_c_func(kernel32, "GetLastError", {}, C_UINT),
+    ShellExecute = link_c_func(shell32, "ShellExecuteA", {C_INT,C_INT,C_INT,C_INT,C_INT,C_INT}, C_INT),
+    SHGetFolderPath = link_c_func(shell32, "SHGetFolderPathA", {C_INT, C_INT, C_INT, C_LONG, C_POINTER}, C_INT),
+    DragAcceptFiles = link_c_proc(shell32, "DragAcceptFiles", {C_INT, C_INT}),
+    DragFinish = link_c_proc(shell32, "DragFinish", {C_POINTER}),
+    DragQueryFile = link_c_func(shell32, "DragQueryFile", {C_POINTER, C_UINT, C_POINTER, C_UINT}, C_UINT),
+    DragQueryPoint = link_c_func(shell32, "DragQueryPoint", {C_POINTER, C_POINTER}, C_INT)
+
+global constant
+    CW_USEDEFAULT = #80000000,
+    MAX_PATH = #104,
+    CSIDL_LOCAL_APPDATA = 28,
+    CSIDL_FLAG_CREATE = #8000
+
+-- Class styles
+global constant
+        CS_VREDRAW = #1,
+        CS_HREDRAW = #2,
+        CS_KEYCVTWINDOW = #4,
+        CS_DBLCLKS = #8,
+        CS_OWNDC = #20,
+        CS_CLASSDC = #40,
+        CS_PARENTDC = #80,
+        CS_NOKEYCVT = #100,
+        CS_NOCLOSE = #200,
+        CS_SAVEBITS = #800,
+        CS_BYTEALIGNCLIENT = #1000,
+        CS_BYTEALIGNWINDOW = #2000,
+        CS_PUBLICCLASS = #4000
+
+-- ShowWindow() Commands
+global constant
+    SW_HIDE = 0,
+    SW_SHOWNORMAL = 1,
+    SW_NORMAL = 1,
+    SW_SHOWMINIMIZED = 2,
+    SW_SHOWMAXIMIZED = 3,
+    SW_MAXIMIZE = 3,
+    SW_SHOWNOACTIVATE = 4,
+    SW_SHOW = 5,
+    SW_MINIMIZE = 6,
+    SW_SHOWMINNOACTIVE = 7,
+    SW_SHOWNA = 8,
+    SW_RESTORE = 9,
+    SW_SHOWDEFAULT = 10,
+    SW_MAX = 10
+
+-- Window Messages
+global constant
+    WM_NULL = #0,
+    WM_CREATE = #1,
+    WM_DESTROY = #2,
+    WM_MOVE = #3,
+    WM_SIZE = #5,
+
+    WM_ACTIVATE = #6,
+--
+--  WM_ACTIVATE state values
+
+    WA_INACTIVE = 0,
+    WA_ACTIVE = 1,
+    WA_CLICKACTIVE = 2,
+
+    WM_SETFOCUS = #7,
+    WM_KILLFOCUS = #8,
+    WM_ENABLE = #A,
+    WM_SETREDRAW = #B,
+    WM_SETTEXT = #C,
+    WM_GETTEXT = #D,
+    WM_GETTEXTLENGTH = #E,
+    WM_PAINT = #F,
+    WM_CLOSE = #10,
+    WM_QUERYENDSESSION = #11,
+    WM_QUIT = #12,
+    WM_QUERYOPEN = #13,
+    WM_ERASEBKGND = #14,
+    WM_SYSCOLORCHANGE = #15,
+    WM_ENDSESSION = #16,
+    WM_SHOWWINDOW = #18,
+    WM_WININICHANGE = #1A,
+    WM_DEVMODECHANGE = #1B,
+    WM_ACTIVATEAPP = #1C,
+    WM_FONTCHANGE = #1D,
+    WM_TIMECHANGE = #1E,
+    WM_CANCELMODE = #1F,
+    WM_SETCURSOR = #20,
+    WM_MOUSEACTIVATE = #21,
+    WM_CHILDACTIVATE = #22,
+    WM_QUEUESYNC = #23,
+
+    WM_GETMINMAXINFO = #24
+-- Type MINMAXINFO
+global constant
+    MINMAXINFO_ptReserved = 8,
+    MINMAXINFO_ptMaxSize = 16,
+    MINMAXINFO_ptMaxPosition = 24,
+    MINMAXINFO_ptMinTrackSize = 32,
+    MINMAXINFO_ptMaxTrackSize = 40
+
+global constant
+    WM_PAINTICON = #26,
+    WM_ICONERASEBKGND = #27,
+    WM_NEXTDLGCTL = #28,
+    WM_SPOOLERSTATUS = #2A,
+    WM_DRAWITEM = #2B,
+    WM_MEASUREITEM = #2C,
+    WM_DELETEITEM = #2D,
+    WM_VKEYTOITEM = #2E,
+    WM_CHARTOITEM = #2F,
+    WM_SETFONT = #30,
+    WM_GETFONT = #31,
+    WM_SETHOTKEY = #32,
+    WM_GETHOTKEY = #33,
+    WM_QUERYDRAGICON = #37,
+    WM_COMPAREITEM = #39,
+    WM_COMPACTING = #41,
+
+    WM_WINDOWPOSCHANGING = #46,
+    WM_WINDOWPOSCHANGED = #47,
+
+    WM_POWER = #48,
+--
+--  wParam for WM_POWER window message and DRV_POWER driver notification
+
+    PWR_OK = 1,
+    PWR_FAIL = (-1),
+    PWR_SUSPENDREQUEST = 1,
+    PWR_SUSPENDRESUME = 2,
+    PWR_CRITICALRESUME = 3,
+
+    WM_COPYDATA = #4A,
+    WM_CANCELJOURNAL = #4B,
+
+-- Type COPYDATASTRUCT
+    COPYDATASTRUCT_dwData = 4,
+    COPYDATASTRUCT_cbData = 8,
+    COPYDATASTRUCT_lpData = 12,
+
+    WM_NOTIFY = #4E,
+
+    WM_SETICON = #80, ICON_BIG = 1, ICON_SMALL = 0,
+    WM_NCCREATE = #81,
+    WM_NCDESTROY = #82,
+    WM_NCCALCSIZE = #83,
+    WM_NCHITTEST = #84,
+    WM_NCPAINT = #85,
+    WM_NCACTIVATE = #86,
+    WM_GETDLGCODE = #87,
+    WM_NCMOUSEMOVE = #A0,
+    WM_NCLBUTTONDOWN = #A1,
+    WM_NCLBUTTONUP = #A2,
+    WM_NCLBUTTONDBLCLK = #A3,
+    WM_NCRBUTTONDOWN = #A4,
+    WM_NCRBUTTONUP = #A5,
+    WM_NCRBUTTONDBLCLK = #A6,
+    WM_NCMBUTTONDOWN = #A7,
+    WM_NCMBUTTONUP = #A8,
+    WM_NCMBUTTONDBLCLK = #A9,
+
+    WM_KEYFIRST = #100,
+    WM_KEYDOWN = #100,
+    WM_KEYUP = #101,
+    WM_CHAR = #102,
+    WM_DEADCHAR = #103,
+    WM_SYSKEYDOWN = #104,
+    WM_SYSKEYUP = #105,
+    WM_SYSCHAR = #106,
+    WM_SYSDEADCHAR = #107,
+    WM_KEYLAST = #108,
+    WM_INITDIALOG = #110,
+    WM_COMMAND = #111,
+    WM_SYSCOMMAND = #112,
+    WM_TIMER = #113,
+    WM_HSCROLL = #114,
+    WM_VSCROLL = #115,
+    WM_INITMENU = #116,
+    WM_INITMENUPOPUP = #117,
+    WM_MENUSELECT = #11F,
+    WM_MENUCHAR = #120,
+    WM_ENTERIDLE = #121,
+
+    WM_CTLCOLORMSGBOX = #132,
+    WM_CTLCOLOREDIT = #133,
+    WM_CTLCOLORLISTBOX = #134,
+    WM_CTLCOLORBTN = #135,
+    WM_CTLCOLORDLG = #136,
+    WM_CTLCOLORSCROLLBAR = #137,
+    WM_CTLCOLORSTATIC = #138,
+
+    WM_MOUSEFIRST = #200,
+    WM_MOUSEMOVE = #200,
+    WM_LBUTTONDOWN = #201,
+    WM_LBUTTONUP = #202,
+    WM_LBUTTONDBLCLK = #203,
+    WM_RBUTTONDOWN = #204,
+    WM_RBUTTONUP = #205,
+    WM_RBUTTONDBLCLK = #206,
+    WM_MBUTTONDOWN = #207,
+    WM_MBUTTONUP = #208,
+    WM_MBUTTONDBLCLK = #209,
+    WM_MOUSELAST = #209,
+    WM_MOUSEWHEEL = #20A,
+    WM_MOUSEHWHEEL = #20E,
+
+    WM_PARENTNOTIFY = #210,
+    WM_ENTERMENULOOP = #211,
+    WM_EXITMENULOOP = #212,
+    WM_MDICREATE = #220,
+    WM_MDIDESTROY = #221,
+    WM_MDIACTIVATE = #222,
+    WM_MDIRESTORE = #223,
+    WM_MDINEXT = #224,
+    WM_MDIMAXIMIZE = #225,
+    WM_MDITILE = #226,
+    WM_MDICASCADE = #227,
+    WM_MDIICONARRANGE = #228,
+    WM_MDIGETACTIVE = #229,
+    WM_MDISETMENU = #230,
+    WM_DROPFILES = #233,
+    WM_MDIREFRESHMENU = #234,
+
+    WM_CUT = #300,
+    WM_COPY = #301,
+    WM_PASTE = #302,
+    WM_CLEAR = #303,
+    WM_UNDO = #304,
+    WM_RENDERFORMAT = #305,
+    WM_RENDERALLFORMATS = #306,
+    WM_DESTROYCLIPBOARD = #307,
+    WM_DRAWCLIPBOARD = #308,
+    WM_PAINTCLIPBOARD = #309,
+    WM_VSCROLLCLIPBOARD = #30A,
+    WM_SIZECLIPBOARD = #30B,
+    WM_ASKCBFORMATNAME = #30C,
+    WM_CHANGECBCHAIN = #30D,
+    WM_HSCROLLCLIPBOARD = #30E,
+    WM_QUERYNEWPALETTE = #30F,
+    WM_PALETTEISCHANGING = #310,
+    WM_PALETTECHANGED = #311,
+    WM_HOTKEY = #312,
+
+    WM_THEMECHANGED = #31A,
+
+    WM_PENWINFIRST = #380,
+    WM_PENWINLAST = #38F,
+
+-- NOTE: All Message Numbers below 0x0400 are RESERVED.
+
+-- Private Window Messages Start Here:
+    WM_USER = #400
+
+
+global constant
+        SND_FILENAME = #00020000,
+        SND_ASYNC    = #00000001
+         
+global constant
+        DT_SINGLELINE = #0020,
+        DT_CENTER     = #0001,
+        DT_VCENTER    = #0004
+         
+
+
+-- Window Styles
+global constant
+        WS_OVERLAPPED   = #00000000,
+        WS_POPUP        = #80000000,
+        WS_CHILD        = #40000000,
+        WS_MINIMIZE     = #20000000,
+        WS_VISIBLE      = #10000000,
+        WS_DISABLED     =  #8000000,
+        WS_CLIPSIBLINGS =  #4000000,
+        WS_CLIPCHILDREN =  #2000000,
+        WS_MAXIMIZE     =  #1000000,
+        WS_CAPTION      =   #C00000,  --  WS_BORDER Or WS_DLGFRAME
+        WS_BORDER       =   #800000,
+        WS_DLGFRAME     =   #400000,
+        WS_VSCROLL      =   #200000,
+        WS_HSCROLL      =   #100000,
+        WS_SYSMENU      =    #80000,
+        WS_THICKFRAME   =    #40000,
+        WS_GROUP        =    #20000,
+        WS_TABSTOP      =    #10000,
+
+        WS_MINIMIZEBOX = #20000,
+        WS_MAXIMIZEBOX = #10000,
+
+        WS_TILED = WS_OVERLAPPED,
+        WS_ICONIC = WS_MINIMIZE,
+        WS_SIZEBOX = WS_THICKFRAME,
+        WS_OVERLAPPEDWINDOW = or_all({WS_OVERLAPPED, WS_CAPTION, WS_SYSMENU,
+                                      WS_THICKFRAME, WS_MINIMIZEBOX,
+                                      WS_MAXIMIZEBOX}),
+        WS_TILEDWINDOW = WS_OVERLAPPEDWINDOW
+
+--   Common Window Styles
+global constant
+        WS_POPUPWINDOW = or_all({WS_POPUP, WS_BORDER, WS_SYSMENU}),
+        WS_CHILDWINDOW = (WS_CHILD)
+
+-- Extended Window Styles
+global constant
+    WS_EX_DLGMODALFRAME = #1,
+    WS_EX_NOPARENTNOTIFY = #4,
+    WS_EX_TOPMOST = #8,
+    WS_EX_ACCEPTFILES = #10,
+    WS_EX_TRANSPARENT = #20,
+    WS_EX_MDICHILD = #40,
+    WS_EX_TOOLWINDOW = #80,
+    WS_EX_WINDOWEDGE = #100,
+    WS_EX_PALETTEWINDOW = #188,
+    WS_EX_CLIENTEDGE = #200,
+    WS_EX_OVERLAPPEDWINDOW = #300,
+    WS_EX_CONTEXTHELP = #400,
+    WS_EX_RIGHT = #1000,
+    WS_EX_LEFTSCROLLBAR = #4000,
+    WS_EX_CONTROLPARENT = #10000,
+    WS_EX_APPWINDOW = #40000
+
+
+
+-- Standard Cursor IDs
+global constant
+        IDC_ARROW = 32512,
+        IDC_IBEAM = 32513,
+        IDC_WAIT = 32514,
+        IDC_CROSS = 32515,
+        IDC_UPARROW = 32516,
+        IDC_SIZE = 32640,
+        IDC_ICON = 32641,
+        IDC_SIZENWSE = 32642,
+        IDC_SIZENESW = 32643,
+        IDC_SIZEWE = 32644,
+        IDC_SIZENS = 32645,
+        IDC_SIZEALL = 32646,
+        IDC_NO = 32648,
+        IDC_APPSTARTING = 32650
+
+-- Standard Icon IDs
+global constant
+        IDI_APPLICATION = 32512,
+        IDI_HAND = 32513,
+        IDI_QUESTION = 32514,
+        IDI_EXCLAMATION = 32515,
+        IDI_ASTERISK = 32516
+
+
+-- Stock Logical Objects
+global constant
+    WHITE_BRUSH = 0,
+    LTGRAY_BRUSH = 1,
+    GRAY_BRUSH = 2,
+    DKGRAY_BRUSH = 3,
+    BLACK_BRUSH = 4,
+    NULL_BRUSH = 5,
+    HOLLOW_BRUSH = NULL_BRUSH,
+    WHITE_PEN = 6,
+    BLACK_PEN = 7,
+    NULL_PEN = 8,
+    OEM_FIXED_FONT = 10,
+    ANSI_FIXED_FONT = 11,
+    ANSI_VAR_FONT = 12,
+    SYSTEM_FONT = 13,
+    DEVICE_DEFAULT_FONT = 14,
+    DEFAULT_PALETTE = 15,
+    SYSTEM_FIXED_FONT = 16,
+    STOCK_LAST = 16
+
+
+global constant
+-- Dialog Box Command IDs
+    IDOK = 1,
+    IDCANCEL = 2,
+    IDABORT = 3,
+    IDRETRY = 4,
+    IDIGNORE = 5,
+    IDYES = 6,
+    IDNO = 7,
+
+-- Control Manager Structures and Definitions
+
+-- Edit Control Styles
+    ES_LEFT = #0,
+    ES_CENTER = #1,
+    ES_RIGHT = #2,
+    ES_MULTILINE = #4,
+    ES_UPPERCASE = #8,
+    ES_LOWERCASE = #10,
+    ES_PASSWORD = #20,
+    ES_AUTOVSCROLL = #40,
+    ES_AUTOHSCROLL = #80,
+    ES_NOHIDESEL = #100,
+    ES_OEMCONVERT = #400,
+    ES_READONLY = #800,
+    ES_WANTRETURN = #1000,
+    ES_NUMBER = #2000,
+
+-- Edit Control Notification Codes
+    EN_SETFOCUS = #100,
+    EN_KILLFOCUS = #200,
+    EN_CHANGE = #300,
+    EN_UPDATE = #400,
+    EN_ERRSPACE = #500,
+    EN_MAXTEXT = #501,
+    EN_HSCROLL = #601,
+    EN_VSCROLL = #602,
+
+-- Edit Control Messages
+    EM_GETSEL = #B0,
+    EM_SETSEL = #B1,
+    EM_GETRECT = #B2,
+    EM_SETRECT = #B3,
+    EM_SETRECTNP = #B4,
+    EM_SCROLL = #B5,
+    EM_LINESCROLL = #B6,
+    EM_SCROLLCARET = #B7,
+    EM_GETMODIFY = #B8,
+    EM_SETMODIFY = #B9,
+    EM_GETLINECOUNT = #BA,
+    EM_LINEINDEX = #BB,
+    EM_SETHANDLE = #BC,
+    EM_GETHANDLE = #BD,
+    EM_GETTHUMB = #BE,
+    EM_LINELENGTH = #C1,
+    EM_REPLACESEL = #C2,
+    EM_GETLINE = #C4,
+    EM_LIMITTEXT = #C5,
+    EM_CANUNDO = #C6,
+    EM_UNDO = #C7,
+    EM_FMTLINES = #C8,
+    EM_LINEFROMCHAR = #C9,
+    EM_SETTABSTOPS = #CB,
+    EM_SETPASSWORDCHAR = #CC,
+    EM_EMPTYUNDOBUFFER = #CD,
+    EM_GETFIRSTVISIBLELINE = #CE,
+    EM_SETREADONLY = #CF,
+    EM_SETWORDBREAKPROC = #D0,
+    EM_GETWORDBREAKPROC = #D1,
+    EM_GETPASSWORDCHAR = #D2,
+
+    EM_GETLIMITTEXT = #D5,
+    EM_SETLIMITTEXT = #C5,
+
+    EM_CANPASTE = 1074,
+    EM_DISPLAYBAND = 1075,
+    EM_EXGETSEL = 1076,
+    EM_EXLIMITTEXT = 1077,
+    EM_EXLINEFROMCHAR = 1078,
+    EM_EXSETSEL = 1079,
+    EM_FINDTEXT = 1080,
+    EM_FORMATRANGE = 1081,
+    EM_GETCHARFORMAT = 1082,
+    EM_GETEVENTMASK = 1083,
+    EM_GETOLEINTERFACE = 1084,
+    EM_GETPARAFORMAT = 1085,
+    EM_GETSELTEXT = 1086,
+    EM_HIDESELECTION = 1087,
+    EM_PASTESPECIAL = 1088,
+    EM_REQUESTRESIZE = 1089,
+    EM_SELECTIONTYPE = 1090,
+    EM_SETBKGNDCOLOR = 1091,
+    EM_SETCHARFORMAT = 1092,
+    EM_SETEVENTMASK = 1093,
+    EM_SETOLECALLBACK = 1094,
+    EM_SETPARAFORMAT = 1095,
+    EM_SETTARGETDEVICE = 1096,
+    EM_STREAMIN = 1097,
+    EM_STREAMOUT = 1098,
+    EM_GETTEXTRANGE = 1099,
+    EM_FINDWORDBREAK = 1100,
+    EM_SETOPTIONS = 1101,
+    EM_GETOPTIONS = 1102,
+    EM_SETWORDBREAKPROCEX = 1105,
+    EM_FINDTEXTEX = 1103,
+    EM_GETWORDBREAKPROCEX = 1104,
+    EM_SETPUNCTUATION = 1124,
+    EM_GETPUNCTUATION = 1125,
+    EM_SETWORDWRAPMODE = 1126,
+    EM_GETWORDWRAPMODE = 1127,
+    EM_SETIMECOLOR = 1128,
+    EM_GETIMECOLOR = 1129,
+    EM_SETIMEOPTIONS = 1130,
+    EM_GETIMEOPTIONS = 1131,
+    
+-- RichEdit Control
+    CFM_BOLD = 1,
+    CFM_ITALIC = 2,
+    CFM_UNDERLINE = 4,
+    CFM_STRIKEOUT = 8,
+    CFM_PROTECTED = 16,
+    CFM_LINK = 32,
+    CFM_SIZE = #80000000,
+    CFM_COLOR = #40000000,
+    CFM_FACE = #20000000,
+    CFM_OFFSET = #10000000,
+    CFM_CHARSET = #08000000,
+    CFM_SUBSCRIPT = #00030000,
+    CFM_SUPERSCRIPT = #00030000,
+    CFE_BOLD = 1,
+    CFE_ITALIC = 2,
+    CFE_UNDERLINE = 4,
+    CFE_STRIKEOUT = 8,
+    CFE_PROTECTED = 16,
+    CFE_AUTOCOLOR = #40000000,
+    CFE_SUBSCRIPT = #00010000,
+    CFE_SUPERSCRIPT = #00020000,
+    CFM_EFFECTS = or_all({CFM_BOLD, CFM_ITALIC, CFM_UNDERLINE, CFM_COLOR, CFM_STRIKEOUT, CFE_PROTECTED, CFM_LINK}),
+    IMF_FORCENONE = 1,
+    IMF_FORCEENABLE = 2,
+    IMF_FORCEDISABLE = 4,
+    IMF_CLOSESTATUSWINDOW = 8,
+    IMF_VERTICAL = 32,
+    IMF_FORCEACTIVE = 64,
+    IMF_FORCEINACTIVE = 128,
+    IMF_FORCEREMEMBER = 256,
+    SEL_EMPTY = 0,
+    SEL_TEXT = 1,
+    SEL_OBJECT = 2,
+    SEL_MULTICHAR = 4,
+    SEL_MULTIOBJECT = 8,
+    MAX_TAB_STOPS = 32,
+    PFM_ALIGNMENT = 8,
+    PFM_NUMBERING = 32,
+    PFM_OFFSET = 4,
+    PFM_OFFSETINDENT = #80000000,
+    PFM_RIGHTINDENT = 2,
+    PFM_STARTINDENT = 1,
+    PFM_TABSTOPS = 16,
+    PFN_BULLET = 1,
+    PFA_LEFT = 1,
+    PFA_RIGHT = 2,
+    PFA_CENTER = 3,
+    SF_TEXT = 1,
+    SF_RTF = 2,
+    SF_RTFNOOBJS = 3,
+    SF_TEXTIZED = 4,
+    SF_UNICODE = 16,
+    SF_USECODEPAGE = 32,
+    SF_NCRFORNONASCII = 64,
+    SF_RTFVAL = #0700,
+    SFF_PWD = #0800,
+    SFF_KEEPDOCINFO = #1000,
+    SFF_PERSISTVIEWSCALE = #2000,
+    SFF_PLAINRTF = #4000,
+    SFF_SELECTION = #8000,
+    WB_CLASSIFY = 3,
+    WB_MOVEWORDLEFT = 4,
+    WB_MOVEWORDRIGHT = 5,
+    WB_LEFTBREAK = 6,
+    WB_RIGHTBREAK = 7,
+    WB_MOVEWORDPREV = 4,
+    WB_MOVEWORDNEXT = 5,
+    WB_PREVBREAK = 6,
+    WB_NEXTBREAK = 7,
+    WBF_WORDWRAP = 16,
+    WBF_WORDBREAK = 32,
+    WBF_OVERFLOW = 64,
+    WBF_LEVEL1 = 128,
+    WBF_LEVEL2 = 256,
+    WBF_CUSTOM = 512,
+    ES_DISABLENOSCROLL = 8192,
+    ES_EX_NOCALLOLEINIT = 16777216,
+    ES_NOIME = 524288,
+    ES_SAVESEL = 32768,
+    ES_SELFIME = 262144,
+    ES_SUNKEN = 16384,
+    ES_VERTICAL = 4194304,
+    ES_SELECTIONBAR = 16777216,
+--    EM_CANPASTE = (WM_USER+50),
+--    EM_DISPLAYBAND = (WM_USER+51),
+--    EM_EXGETSEL = (WM_USER+52),
+--    EM_EXLIMITTEXT = (WM_USER+53),
+--    EM_EXLINEFROMCHAR = (WM_USER+54),
+--    EM_EXSETSEL = (WM_USER+55),
+--    EM_FINDTEXT = (WM_USER+56),
+--    EM_FORMATRANGE = (WM_USER+57),
+--    EM_GETCHARFORMAT = (WM_USER+58),
+--    EM_GETEVENTMASK = (WM_USER+59),
+--    EM_GETOLEINTERFACE = (WM_USER+60),
+--    EM_GETPARAFORMAT = (WM_USER+61),
+--    EM_GETSELTEXT = (WM_USER+62),
+--    EM_HIDESELECTION = (WM_USER+63),
+--    EM_PASTESPECIAL = (WM_USER+64),
+--    EM_REQUESTRESIZE = (WM_USER+65),
+--    EM_SELECTIONTYPE = (WM_USER+66),
+--    EM_SETBKGNDCOLOR = (WM_USER+67),
+--    EM_SETCHARFORMAT = (WM_USER+68),
+--    EM_SETEVENTMASK = (WM_USER+69),
+--    EM_SETOLECALLBACK = (WM_USER+70),
+--    EM_SETPARAFORMAT = (WM_USER+71),
+--    EM_SETTARGETDEVICE = (WM_USER+72),
+--    EM_STREAMIN = (WM_USER+73),
+--    EM_STREAMOUT = (WM_USER+74),
+--    EM_GETTEXTRANGE = (WM_USER+75),
+--    EM_FINDWORDBREAK = (WM_USER+76),
+--    EM_SETOPTIONS = (WM_USER+77),
+--    EM_GETOPTIONS = (WM_USER+78),
+--    EM_FINDTEXTEX = (WM_USER+79),
+--    EM_GETWORDBREAKPROCEX = (WM_USER+80),
+--    EM_SETWORDBREAKPROCEX = (WM_USER+81),
+-- RichEdit 2.0 messages
+    EM_SETUNDOLIMIT = (WM_USER+82),
+    EM_REDO = (WM_USER+84),
+    EM_CANREDO = (WM_USER+85),
+    EM_GETUNDONAME = (WM_USER+86),
+    EM_GETREDONAME = (WM_USER+87),
+    EM_STOPGROUPTYPING = (WM_USER+88),
+    EM_SETTEXTMODE = (WM_USER+89),
+    EM_GETTEXTMODE = (WM_USER+90),
+    EM_GETTEXTLENGTHEX = (WM_USER+95),
+    EM_SETLANGOPTIONS = (WM_USER+120),
+    EM_GETLANGOPTIONS = (WM_USER+121),
+    EM_GETIMECOMPMODE = (WM_USER+122),
+    EM_SETTYPOGRAPHYOPTIONS = (WM_USER+202),
+    EM_GETTYPOGRAPHYOPTIONS = (WM_USER+203),
+    EM_SETFONTSIZE = (WM_USER+223),
+    EM_GETZOOM = (WM_USER+224),
+    EM_SETZOOM = (WM_USER+225),
+
+    TM_PLAINTEXT = 1,
+    TM_RICHTEXT = 2,
+    TM_SINGLELEVELUNDO = 4,
+    TM_MULTILEVELUNDO = 8,
+    TM_SINGLECODEPAGE = 16,
+    TM_MULTICODEPAGE = 32,
+
+    EN_CORRECTTEXT = 1797,
+    EN_DROPFILES = 1795,
+    EN_IMECHANGE = 1799,
+    EN_MSGFILTER = 1792,
+    EN_OLEOPFAILED = 1801,
+    EN_PROTECTED = 1796,
+    EN_REQUESTRESIZE = 1793,
+    EN_SAVECLIPBOARD = 1800,
+    EN_SELCHANGE = 1794,
+    EN_STOPNOUNDO = 1798,
+    ENM_NONE = 0,
+    ENM_CHANGE = 1,
+    ENM_CORRECTTEXT = 4194304,
+    ENM_DROPFILES = 1048576,
+    ENM_KEYEVENTS = 65536,
+    ENM_MOUSEEVENTS = 131072,
+    ENM_PROTECTED = 2097152,
+    ENM_REQUESTRESIZE = 262144,
+    ENM_SCROLL = 4,
+    ENM_SELCHANGE = 524288,
+    ENM_UPDATE = 2,
+    ECO_AUTOWORDSELECTION = 1,
+    ECO_AUTOVSCROLL = 64,
+    ECO_AUTOHSCROLL = 128,
+    ECO_NOHIDESEL = 256,
+    ECO_READONLY = 2048,
+    ECO_WANTRETURN = 4096,
+    ECO_SAVESEL = #8000,
+    ECO_SELECTIONBAR = #1000000,
+    ECO_VERTICAL = #400000,
+    ECOOP_SET = 1,
+    ECOOP_OR = 2,
+    ECOOP_AND = 3,
+    ECOOP_XOR = 4,
+    SCF_DEFAULT = 0,
+    SCF_SELECTION = 1,
+    SCF_WORD = 2,
+    SCF_ALL = 4,
+    SCF_USEUIRULES = 8,
+    yHeightCharPtsMost = 1638,
+    lDefaultTab = 720,
+
+-- EDITWORDBREAKPROC code values
+    WB_LEFT = 0,
+    WB_RIGHT = 1,
+    WB_ISDELIMITER = 2,
+
+-- Button Control Styles
+    BS_PUSHBUTTON = #0,
+    BS_DEFPUSHBUTTON = #1,
+    BS_CHECKBOX = #2,
+    BS_AUTOCHECKBOX = #3,
+    BS_RADIOBUTTON = #4,
+    BS_3STATE = #5,
+    BS_AUTO3STATE = #6,
+    BS_GROUPBOX = #7,
+    BS_USERBUTTON = #8,
+    BS_AUTORADIOBUTTON = #9,
+    BS_OWNERDRAW = #B,
+    BS_LEFTTEXT = #20,
+
+-- User Button Notification Codes
+    BN_CLICKED = 0,
+    BN_PAINT = 1,
+    BN_HILITE = 2,
+    BN_UNHILITE = 3,
+    BN_DISABLE = 4,
+    BN_DOUBLECLICKED = 5,
+
+-- Button Control Messages
+    BM_GETCHECK = #F0,
+    BM_SETCHECK = #F1,
+    BM_GETSTATE = #F2,
+    BM_SETSTATE = #F3,
+    BM_SETSTYLE = #F4,
+    BST_CHECKED = 1,
+    BST_INDETERMINATE = 2,
+    BST_UNCHECKED = 0,
+
+-- Tab Control stuff
+    TCS_FORCEICONLEFT = 16,
+    TCS_FORCELABELLEFT = 32,
+    TCS_TABS = 0,
+    TCS_BUTTONS = 256,
+    TCS_SINGLELINE = 0,
+    TCS_MULTILINE = 512,
+    TCS_RIGHTJUSTIFY = 0,
+    TCS_FIXEDWIDTH = 1024,
+    TCS_RAGGEDRIGHT = 2048,
+    TCS_FOCUSONBUTTONDOWN = #1000,
+    TCS_OWNERDRAWFIXED = #2000,
+    TCS_TOOLTIPS = #4000,
+    TCS_FOCUSNEVER = #8000,
+    TCS_BOTTOM = 2,
+    TCS_RIGHT = 2,
+    TCS_VERTICAL = 128,
+    TCS_SCROLLOPPOSITE = #0001,
+    TCS_HOTTRACK = #0040,
+    TCS_MULTISELECT = #0004,
+    TCS_FLATBUTTONS = #0008,
+    TCS_EX_FLATSEPARATORS = #00000001,
+    TCS_EX_REGISTERDROP = #00000002,
+    TCIF_TEXT = 1,
+    TCIF_IMAGE = 2,
+    TCIF_RTLREADING = 4,
+    TCIF_PARAM = 8,
+    TCIF_STATE = 16,
+    TCIS_BUTTONPRESSED = 1,
+    TCIS_HIGHLIGHTED = 2,
+    TCM_FIRST = #1300,
+    TCM_GETIMAGELIST = (TCM_FIRST+2),
+    TCM_SETIMAGELIST = (TCM_FIRST+3),
+    TCM_GETITEMCOUNT = (TCM_FIRST+4),
+    TCM_GETITEMA = (TCM_FIRST+5),
+    TCM_GETITEMW = (TCM_FIRST+60),
+    TCM_SETITEMA = (TCM_FIRST+6),
+    TCM_SETITEMW = (TCM_FIRST+61),
+    TCM_INSERTITEMA = (TCM_FIRST+7),
+    TCM_INSERTITEMW = (TCM_FIRST+62),
+    TCM_DELETEITEM = (TCM_FIRST+8),
+    TCM_DELETEALLITEMS = (TCM_FIRST+9),
+    TCM_GETITEMRECT = (TCM_FIRST+10),
+    TCM_GETCURSEL = (TCM_FIRST+11),
+    TCM_SETCURSEL = (TCM_FIRST+12),
+    TCM_HITTEST = (TCM_FIRST+13),
+    TCM_SETITEMEXTRA = (TCM_FIRST+14),
+
+    TCM_ADJUSTRECT = (TCM_FIRST+40),
+    TCM_SETITEMSIZE = (TCM_FIRST+41),
+    TCM_REMOVEIMAGE = (TCM_FIRST+42),
+    TCM_SETPADDING = (TCM_FIRST+43),
+    TCM_GETROWCOUNT = (TCM_FIRST+44),
+    TCM_GETTOOLTIPS = (TCM_FIRST+45),
+    TCM_SETTOOLTIPS = (TCM_FIRST+46),
+    TCM_GETCURFOCUS = (TCM_FIRST+47),
+    TCM_SETCURFOCUS = (TCM_FIRST+48),
+    TCM_SETMINTABWIDTH = (TCM_FIRST + 49),
+    TCM_DESELECTALL = (TCM_FIRST + 50),
+    TCM_HIGHLIGHTITEM = (TCM_FIRST + 51),
+    TCM_SETEXTENDEDSTYLE = (TCM_FIRST + 52),
+    TCM_GETEXTENDEDSTYLE = (TCM_FIRST + 53),
+    --TCM_SETUNICODEFORMAT = CCM_SETUNICODEFORMAT,
+    --TCM_GETUNICODEFORMAT = CCM_GETUNICODEFORMAT,
+    TCN_FIRST = -550,
+    TCN_LAST = -580,
+    TCN_KEYDOWN = TCN_FIRST,
+    TCN_SELCHANGE = (TCN_FIRST-1),
+    TCN_SELCHANGING = (TCN_FIRST-2),
+
+    NM_FIRST = 0,
+    NM_LAST = NM_FIRST - 99,
+    NM_OUTOFMEMORY = NM_FIRST - 1,
+    NM_CLICK = NM_FIRST - 2,
+    NM_DBLCLK = NM_FIRST - 3,
+    NM_RETURN = NM_FIRST - 4,
+    NM_RCLICK = NM_FIRST - 5,
+    NM_RDBLCLK = NM_FIRST - 6,
+    NM_SETFOCUS = NM_FIRST - 7,
+    NM_KILLFOCUS = NM_FIRST - 8,
+    NM_CUSTOMDRAW = NM_FIRST - 12,
+    NM_HOVER = NM_FIRST - 13,
+    NM_NCHITTEST = NM_FIRST - 14,
+    NM_KEYDOWN = NM_FIRST - 15,
+    NM_RELEASEDCAPTURE = NM_FIRST - 16,
+    NM_SETCURSOR = NM_FIRST - 17,
+    NM_CHAR = NM_FIRST - 18,
+    NM_TOOLTIPSCREATED = NM_FIRST - 19,
+    NM_LDOWN = NM_FIRST - 20,
+    NM_RDOWN = NM_FIRST - 21,
+    NM_THEMECHANGED = NM_FIRST - 22,
+    NM_FONTCHANGED = NM_FIRST - 23,
+    NM_CUSTOMTEXT = NM_FIRST - 24,
+    NM_TVSTATEIMAGECHANGING = NM_FIRST - 24,
+    
+-- tooltip stuff
+    TTN_FIRST = -520,
+    TTN_GETDISPINFO = TTN_FIRST - 0,
+    TTN_SHOW = TTN_FIRST-1,
+    TTN_POP = TTN_FIRST-2,
+    TTN_LINKCLICK = TTN_FIRST-3,
+    TTN_NEEDTEXT = TTN_GETDISPINFO,
+    
+    TTS_ALWAYSTIP = #01,
+    TTS_NOPREFIX = #02,
+    TTS_NOANIMATE = #10,
+    TTS_NOFADE = #20,
+    TTS_BALLOON = #40,
+    TTS_CLOSE = #80,
+    TTS_USEVISUALSTYLE = #100,
+    TTF_IDISHWND = #0001,
+    TTF_CENTERTIP = #0002,
+    TTF_RTLREADING = #0004,
+    TTF_SUBCLASS = #0010,
+    TTF_TRACK = #0020,
+    TTF_ABSOLUTE = #0080,
+    TTF_TRANSPARENT = #0100,
+    TTF_PARSELINKS = #1000,
+    TTF_DI_SETITEM = #8000,
+    
+    TTM_ACTIVATE = WM_USER + 1,
+    TTM_SETDELAYTIME = WM_USER + 3,
+    TTM_ADDTOOL = WM_USER + 4,
+    TTM_DELTOOL = WM_USER + 5,
+    TTM_NEWTOOLRECT = WM_USER + 6,
+    TTM_RELAYEVENT = WM_USER + 7,
+    TTM_GETTOOLINFO = WM_USER + 8,
+    TTM_SETTOOLINFO = WM_USER + 9,
+    TTM_HITTEST = WM_USER + 10,
+    TTM_GETTEXT = WM_USER + 11,
+    TTM_UPDATETIPTEXT = WM_USER + 12,
+    TTM_GETTOOLCOUNT = WM_USER + 13,
+    TTM_ENUMTOOLS = WM_USER + 14,
+    TTM_GETCURRENTTOOL = WM_USER + 15,
+    TTM_WINDOWFROMPOINT = WM_USER + 16,
+    TTM_TRACKACTIVATE = WM_USER + 17,
+    TTM_TRACKPOSITION = WM_USER + 18,
+    TTM_SETTIPBKCOLOR = WM_USER + 19,
+    TTM_SETTIPTEXTCOLOR = WM_USER + 20,
+    TTM_GETDELAYTIME = WM_USER + 21,
+    TTM_GETTIPBKCOLOR = WM_USER + 22,
+    TTM_GETTIPTEXTCOLOR = WM_USER + 23,
+    TTM_SETMAXTIPWIDTH = WM_USER + 24,
+    TTM_GETMAXTIPWIDTH = WM_USER + 25,
+    TTM_SETMARGIN = WM_USER + 26,
+    TTM_GETMARGIN = WM_USER + 27,
+    TTM_POP = WM_USER + 29,
+    TTM_GETBUBBLESIZE = WM_USER + 30,
+    TTM_ADJUSTRECT = WM_USER + 31,
+    TTM_SETTITLE = WM_USER + 30,
+    LPSTR_TEXTCALLBACK = -1
+
+-- dialog specific stuff
+global constant
+    EndDialog = link_c_func(user32, "EndDialog", {C_LONG, C_LONG}, C_LONG),
+    GetDlgItem = link_c_func(user32, "GetDlgItem", {C_LONG, C_LONG}, C_LONG),
+    SetDlgItemInt = link_c_func(user32, "SetDlgItemInt", {C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    GetDlgItemInt = link_c_func(user32, "GetDlgItemInt", {C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    SetDlgItemText = link_c_func(user32, "SetDlgItemTextA", {C_LONG, C_LONG, C_POINTER}, C_LONG),
+    GetDlgItemText = link_c_func(user32, "GetDlgItemTextA", {C_LONG, C_LONG, C_POINTER, C_LONG}, C_LONG),
+--    CheckDlgButton = link_c_func(user32, "CheckDLGButtonA", {C_LONG, C_LONG, C_LONG}, C_LONG),
+--    CheckRadioButton = link_c_func(user32, "CheckRadioButtonA", {C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    IsDlgButtonChecked = link_c_func(user32, "IsDlgButtonChecked", {C_LONG, C_LONG}, C_LONG),
+    SendDlgItemMessage = link_c_func(user32, "SendDlgItemMessageA", {C_LONG, C_LONG, C_LONG, C_INT, C_LONG}, C_LONG),
+    GetNextDlgGroupItem = link_c_func(user32, "GetNextDlgGroupItem", {C_LONG, C_LONG, C_LONG}, C_LONG),
+    GetNextDlgTabItem = link_c_func(user32, "GetNextDlgTabItem", {C_LONG, C_LONG, C_LONG}, C_LONG),
+    GetDlgCtrlID = link_c_func(user32, "GetDlgCtrlID", {C_LONG}, C_LONG),
+    GetDialogBaseUnits = link_c_func(user32, "GetDialogBaseUnits", {}, C_LONG),
+    DefDlgProc = link_c_func(user32, "DefDlgProcA", {C_LONG, C_LONG, C_INT, C_LONG}, C_LONG),
+    CreateDialogIndirectParam_ = link_c_func(user32, "CreateDialogIndirectParamW", {C_LONG, C_POINTER, C_LONG, C_POINTER, C_LONG}, C_LONG),
+    DialogBoxIndirectParam_ = link_c_func(user32, "DialogBoxIndirectParamW", {C_LONG, C_POINTER, C_LONG, C_POINTER, C_LONG}, C_LONG)
+
+
+global constant
+-- Static Control Constants
+    SS_LEFT = #0,
+    SS_CENTER = #1,
+    SS_RIGHT = #2,
+    SS_ICON = #3,
+    SS_BLACKRECT = #4,
+    SS_GRAYRECT = #5,
+    SS_WHITERECT = #6,
+    SS_BLACKFRAME = #7,
+    SS_GRAYFRAME = #8,
+    SS_WHITEFRAME = #9,
+    SS_USERITEM = #A,
+    SS_SIMPLE = #B,
+    SS_LEFTNOWORDWRAP = #C,
+    SS_NOPREFIX = #80,           --  Don't do "" character translation
+
+-- Static Control Mesages
+    STM_SETICON = #170,
+    STM_GETICON = #171,
+    STM_MSGMAX = #172,
+
+    WC_DIALOG = 8002,
+
+--  Get/SetWindowWord/Long offsets for use with WC_DIALOG windows
+    DWL_MSGRESULT = 0,
+    DWL_DLGPROC = 4,
+    DWL_USER = 8,
+
+-- Dialog Manager Routines
+    IsDialogMessage = link_c_func(user32, "IsDialogMessageA", {C_POINTER, C_POINTER}, C_LONG),
+    MapDialogRect = link_c_func(user32, "MapDialogRect", {C_LONG, C_POINTER}, C_LONG),
+    DlgDirList = link_c_func(user32, "DlgDirListA", {C_LONG, C_POINTER, C_LONG, C_LONG, C_LONG}, C_LONG),
+
+-- DlgDirList, DlgDirListComboBox flags values
+    DDL_READWRITE = #0,
+    DDL_READONLY = #1,
+    DDL_HIDDEN = #2,
+    DDL_SYSTEM = #4,
+    DDL_DIRECTORY = #10,
+    DDL_ARCHIVE = #20,
+
+    DDL_POSTMSGS = #2000,
+    DDL_DRIVES = #4000,
+    DDL_EXCLUSIVE = #8000,
+
+    DlgDirSelectEx = link_c_func(user32, "DlgDirSelectExA", {C_LONG, C_POINTER, C_LONG, C_LONG}, C_LONG),
+    DlgDirListComboBox = link_c_func(user32, "DlgDirListComboBoxA", {C_LONG, C_POINTER, C_LONG, C_LONG, C_LONG}, C_LONG),
+    DlgDirSelectComboBoxEx = link_c_func(user32, "DlgDirSelectComboBoxExA", {C_LONG, C_POINTER, C_LONG, C_LONG}, C_LONG),
+
+-- Dialog Styles
+    DS_ABSALIGN = #1,
+    DS_SYSMODAL = #2,
+    DS_LOCALEDIT = #20,          --  Edit items get Local storage.
+    DS_SETFONT = #40,            --  User specified font for Dlg controls
+    DS_MODALFRAME = #80,         --  Can be combined with WS_CAPTION
+    DS_NOIDLEMSG = #100,         --  WM_ENTERIDLE message will not be sent
+    DS_SETFOREGROUND = #200,     --  not in win3.1
+
+    DM_GETDEFID = WM_USER + 0,
+    DM_SETDEFID = WM_USER + 1,
+    DC_HASDEFID = #534,      --0x534B
+
+-- Dialog Codes
+    DLGC_WANTARROWS = #1,              --  Control wants arrow keys
+    DLGC_WANTTAB = #2,                 --  Control wants tab keys
+    DLGC_WANTALLKEYS = #4,             --  Control wants all keys
+    DLGC_WANTMESSAGE = #4,             --  Pass message to control
+    DLGC_HASSETSEL = #8,               --  Understands EM_SETSEL message
+    DLGC_DEFPUSHBUTTON = #10,          --  Default pushbutton
+    DLGC_UNDEFPUSHBUTTON = #20,        --  Non-default pushbutton
+    DLGC_RADIOBUTTON = #40,            --  Radio button
+    DLGC_WANTCHARS = #80,              --  Want WM_CHAR messages
+    DLGC_STATIC = #100,                --  Static item: don't include
+    DLGC_BUTTON = #2000,               --  Button item: can be checked
+
+    LB_CTLCODE = 0,
+
+-- Listbox Return Values
+    LB_OKAY = 0,
+    LB_ERR = (-1),
+    LB_ERRSPACE = (-2),
+
+-- The idStaticPath parameter to DlgDirList can have the following values
+-- ORed if the list box should show other details of the files along with
+-- the name of the files;
+-- all other details also will be returned
+
+-- Listbox Notification Codes
+    LBN_ERRSPACE = (-2),
+    LBN_SELCHANGE = 1,
+    LBN_DBLCLK = 2,
+    LBN_SELCANCEL = 3,
+    LBN_SETFOCUS = 4,
+    LBN_KILLFOCUS = 5,
+
+-- Listbox messages
+    LB_ADDSTRING = #180,
+    LB_INSERTSTRING = #181,
+    LB_DELETESTRING = #182,
+    LB_SELITEMRANGEEX = #183,
+    LB_RESETCONTENT = #184,
+    LB_SETSEL = #185,
+    LB_SETCURSEL = #186,
+    LB_GETSEL = #187,
+    LB_GETCURSEL = #188,
+    LB_GETTEXT = #189,
+    LB_GETTEXTLEN = #18A,
+    LB_GETCOUNT = #18B,
+    LB_SELECTSTRING = #18C,
+    LB_DIR = #18D,
+    LB_GETTOPINDEX = #18E,
+    LB_FINDSTRING = #18F,
+    LB_GETSELCOUNT = #190,
+    LB_GETSELITEMS = #191,
+    LB_SETTABSTOPS = #192,
+    LB_GETHORIZONTALEXTENT = #193,
+    LB_SETHORIZONTALEXTENT = #194,
+    LB_SETCOLUMNWIDTH = #195,
+    LB_ADDFILE = #196,
+    LB_SETTOPINDEX = #197,
+    LB_GETITEMRECT = #198,
+    LB_GETITEMDATA = #199,
+    LB_SETITEMDATA = #19A,
+    LB_SELITEMRANGE = #19B,
+    LB_SETANCHORINDEX = #19C,
+    LB_GETANCHORINDEX = #19D,
+    LB_SETCARETINDEX = #19E,
+    LB_GETCARETINDEX = #19F,
+    LB_SETITEMHEIGHT = #1A0,
+    LB_GETITEMHEIGHT = #1A1,
+    LB_FINDSTRINGEXACT = #1A2,
+    LB_SETLOCALE = #1A5,
+    LB_GETLOCALE = #1A6,
+    LB_SETCOUNT = #1A7,
+    LB_MSGMAX = #1A8,
+
+-- Listbox Styles
+    LBS_NOTIFY = #1,
+    LBS_SORT = #2,
+    LBS_NOREDRAW = #4,
+    LBS_MULTIPLESEL = #8,
+    LBS_OWNERDRAWFIXED = #10,
+    LBS_OWNERDRAWVARIABLE = #20,
+    LBS_HASSTRINGS = #40,
+    LBS_USETABSTOPS = #80,
+    LBS_NOINTEGRALHEIGHT = #100,
+    LBS_MULTICOLUMN = #200,
+    LBS_WANTKEYBOARDINPUT = #400,
+    LBS_EXTENDEDSEL = #800,
+    LBS_DISABLENOSCROLL = #1000,
+    LBS_NODATA = #2000,
+    LBS_STANDARD = or_all({LBS_NOTIFY, LBS_SORT, WS_VSCROLL, WS_BORDER}),
+
+-- Combo Box return Values
+    CB_OKAY = 0,
+    CB_ERR = (-1),
+    CB_ERRSPACE = (-2),
+
+-- Combo Box Notification Codes
+    CBN_ERRSPACE = (-1),
+    CBN_SELCHANGE = 1,
+    CBN_DBLCLK = 2,
+    CBN_SETFOCUS = 3,
+    CBN_KILLFOCUS = 4,
+    CBN_EDITCHANGE = 5,
+    CBN_EDITUPDATE = 6,
+    CBN_DROPDOWN = 7,
+    CBN_CLOSEUP = 8,
+    CBN_SELENDOK = 9,
+    CBN_SELENDCANCEL = 10,
+
+-- Combo Box styles
+    CBS_SIMPLE = #1,
+    CBS_DROPDOWN = #2,
+    CBS_DROPDOWNLIST = #3,
+    CBS_OWNERDRAWFIXED = #10,
+    CBS_OWNERDRAWVARIABLE = #20,
+    CBS_AUTOHSCROLL = #40,
+    CBS_OEMCONVERT = #80,
+    CBS_SORT = #100,
+    CBS_HASSTRINGS = #200,
+    CBS_NOINTEGRALHEIGHT = #400,
+    CBS_DISABLENOSCROLL = #800,
+
+-- Combo Box messages
+    CB_GETEDITSEL = #140,
+    CB_LIMITTEXT = #141,
+    CB_SETEDITSEL = #142,
+    CB_ADDSTRING = #143,
+    CB_DELETESTRING = #144,
+    CB_DIR = #145,
+    CB_GETCOUNT = #146,
+    CB_GETCURSEL = #147,
+    CB_GETLBTEXT = #148,
+    CB_GETLBTEXTLEN = #149,
+    CB_INSERTSTRING = #14A,
+    CB_RESETCONTENT = #14B,
+    CB_FINDSTRING = #14C,
+    CB_SELECTSTRING = #14D,
+    CB_SETCURSEL = #14E,
+    CB_SHOWDROPDOWN = #14F,
+    CB_GETITEMDATA = #150,
+    CB_SETITEMDATA = #151,
+    CB_GETDROPPEDCONTROLRECT = #152,
+    CB_SETITEMHEIGHT = #153,
+    CB_GETITEMHEIGHT = #154,
+    CB_SETEXTENDEDUI = #155,
+    CB_GETEXTENDEDUI = #156,
+    CB_GETDROPPEDSTATE = #157,
+    CB_FINDSTRINGEXACT = #158,
+    CB_SETLOCALE = #159,
+    CB_GETLOCALE = #15A,
+    CB_MSGMAX = #15B,
+
+-- Scroll Bar Styles
+    SBS_HORZ = #0,
+    SBS_VERT = #1,
+    SBS_TOPALIGN = #2,
+    SBS_LEFTALIGN = #2,
+    SBS_BOTTOMALIGN = #4,
+    SBS_RIGHTALIGN = #4,
+    SBS_SIZEBOXTOPLEFTALIGN = #2,
+    SBS_SIZEBOXBOTTOMRIGHTALIGN = #4,
+    SBS_SIZEBOX = #8,
+
+--  Scroll bar messages
+    SBM_SETPOS = #E0, -- not in win3.1
+    SBM_GETPOS = #E1, -- not in win3.1
+    SBM_SETRANGE = #E2, -- not in win3.1
+    SBM_SETRANGEREDRAW = #E6, -- not in win3.1
+    SBM_GETRANGE = #E3, -- not in win3.1
+    SBM_ENABLE_ARROWS = #E4, -- not in win3.1
+
+    MDIS_ALLCHILDSTYLES = #1,
+
+-- wParam values for WM_MDITILE and WM_MDICASCADE messages.
+    MDITILE_VERTICAL = #0,
+    MDITILE_HORIZONTAL = #1,
+    MDITILE_SKIPDISABLED = #2,
+
+-- Type MDICREATESTRUCT
+    MDICREATESTRUCT_szClass = 0,
+    MDICREATESTRUCT_szTitle = 4,
+    MDICREATESTRUCT_hOwner = 8,
+    MDICREATESTRUCT_x = 12,
+    MDICREATESTRUCT_y = 16,
+    MDICREATESTRUCT_cx = 20,
+    MDICREATESTRUCT_cy = 24,
+    MDICREATESTRUCT_style = 28,
+    MDICREATESTRUCT_lParam = 32,
+    SIZEOF_MDICREATESTRUCT = 36,
+
+-- Type CLIENTCREATESTRUCT
+    CLIENTCREATESTRUCT_hWindowMenu = 0,
+    CLIENTCREATESTRUCT_idFirstChild = 4,
+    SIZEOF_CLIENTCREATESTRUCT = 8,
+
+    DefFrameProc = link_c_func(user32, "DefFrameProcA", {C_LONG, C_LONG, C_LONG, C_INT, C_LONG}, C_LONG),
+    DefMDIChildProc = link_c_func(user32, "DefMDIChildProcA", {C_LONG, C_LONG, C_INT, C_LONG}, C_LONG),
+
+    TranslateMDISysAccel = link_c_func(user32, "TranslateMDISysAccel", {C_LONG, C_POINTER}, C_LONG),
+
+    ArrangeIconicWindows = link_c_func(user32, "ArrangeIconicWindows", {C_LONG}, C_LONG),
+
+    CreateMDIWindow = link_c_func(user32, "CreateMDIWindowA", {C_POINTER, C_POINTER, C_LONG, C_LONG, C_LONG, C_LONG, C_LONG, C_LONG,
+        C_LONG, C_LONG}, C_LONG)
+
+global constant
+-- Message Function Templates
+    GetMessage = link_c_func(user32, "GetMessageA", {C_POINTER, C_LONG, C_LONG, C_LONG}, C_LONG),
+    TranslateMessage = link_c_func(user32, "TranslateMessage", {C_POINTER}, C_LONG),
+    DispatchMessage = link_c_func(user32, "DispatchMessageA", {C_POINTER}, C_LONG),
+    PeekMessage = link_c_func(user32, "PeekMessageA", {C_POINTER, C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+
+-- PeekMessage() Options
+    PM_NOREMOVE = #0,
+    PM_REMOVE = #1,
+    PM_NOYIELD = #2,
+
+    RegisterHotKey = link_c_func(user32, "RegisterHotKey", {C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    UnregisterHotKey = link_c_func(user32, "UnregisterHotKey", {C_LONG, C_LONG}, C_LONG),
+
+    MOD_ALT = #1,
+    MOD_CONTROL = #2,
+    MOD_SHIFT = #4,
+
+    IDHOT_SNAPWINDOW = (-1),    --  SHIFT-PRINTSCRN
+    IDHOT_SNAPDESKTOP = (-2),    --  PRINTSCRN
+
+    EWX_LOGOFF = 0,
+    EWX_SHUTDOWN = 1,
+    EWX_REBOOT = 2,
+    EWX_FORCE = 4,
+
+    READAPI = 0,        --  Flags for _lopen
+    WRITEAPI = 1,
+    READ_WRITE = 2,
+
+--    ExitWindows = link_c_func(user32, "ExitWindows", {C_LONG, C_LONG}, C_LONG),
+    ExitWindowsEx = link_c_func(user32, "ExitWindowsEx", {C_LONG, C_LONG}, C_LONG),
+
+    SwapMouseButton = link_c_func(user32, "SwapMouseButton", {C_INT}, C_INT),
+    GetMessagePos = link_c_func(user32, "GetMessagePos", {}, C_UINT),
+    GetMessageTime = link_c_func(user32, "GetMessageTime", {}, C_LONG),
+    GetMessageExtraInfo = link_c_func(user32, "GetMessageExtraInfo", {}, C_POINTER),
+    SendMessage = link_c_func(user32, "SendMessageA", {C_POINTER, C_UINT, C_POINTER, C_POINTER}, C_LONG),
+    SendMessageTimeout = link_c_func(user32, "SendMessageTimeoutA", {C_LONG, C_LONG, C_INT, C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    SendNotifyMessage = link_c_func(user32, "SendNotifyMessageA", {C_LONG, C_LONG, C_INT, C_LONG}, C_LONG),
+    SendMessageCallback = link_c_func(user32, "SendMessageCallbackA", {C_LONG, C_LONG, C_INT, C_LONG, C_LONG, C_LONG}, C_LONG),
+    PostMessage = link_c_func(user32, "PostMessageA", {C_LONG, C_LONG, C_INT, C_LONG}, C_LONG),
+    PostThreadMessage = link_c_func(user32, "PostThreadMessageA", {C_LONG, C_LONG, C_INT, C_LONG}, C_LONG),
+
+-- Special HWND value for use with PostMessage and SendMessage
+    HWND_BROADCAST = #FFFF
+
+
+global constant
+-- Virtual Keys, Standard Set
+    VK_LBUTTON = #1,
+    VK_RBUTTON = #2,
+    VK_CANCEL = #3,
+    VK_MBUTTON = #4,             --  NOT contiguous with L RBUTTON
+
+    VK_BACK = #8,
+    VK_TAB = #9,
+
+    VK_CLEAR = #C,
+    VK_RETURN = #D,
+
+    VK_SHIFT = #10,
+    VK_CONTROL = #11,
+    VK_MENU = #12,
+    VK_PAUSE = #13,
+    VK_CAPITAL = #14,
+
+    VK_ESCAPE = #1B,
+
+    VK_SPACE = #20,
+    VK_PRIOR = #21,
+    VK_NEXT = #22,
+    VK_END = #23,
+    VK_HOME = #24,
+    VK_LEFT = #25,
+    VK_UP = #26,
+    VK_RIGHT = #27,
+    VK_DOWN = #28,
+    VK_SELECT = #29,
+    VK_PRINT = #2A,
+    VK_EXECUTE = #2B,
+    VK_SNAPSHOT = #2C,
+    VK_INSERT = #2D,
+    VK_DELETE = #2E,
+    VK_HELP = #2F,
+
+-- VK_A thru VK_Z are the same as their ASCII equivalents: 'A' thru 'Z'
+-- VK_0 thru VK_9 are the same as their ASCII equivalents: '0' thru '9'
+
+    VK_NUMPAD0 = #60,
+    VK_NUMPAD1 = #61,
+    VK_NUMPAD2 = #62,
+    VK_NUMPAD3 = #63,
+    VK_NUMPAD4 = #64,
+    VK_NUMPAD5 = #65,
+    VK_NUMPAD6 = #66,
+    VK_NUMPAD7 = #67,
+    VK_NUMPAD8 = #68,
+    VK_NUMPAD9 = #69,
+    VK_MULTIPLY = #6A,
+    VK_ADD = #6B,
+    VK_SEPARATOR = #6C,
+    VK_SUBTRACT = #6D,
+    VK_DECIMAL = #6E,
+    VK_DIVIDE = #6F,
+    VK_F1 = #70,
+    VK_F2 = #71,
+    VK_F3 = #72,
+    VK_F4 = #73,
+    VK_F5 = #74,
+    VK_F6 = #75,
+    VK_F7 = #76,
+    VK_F8 = #77,
+    VK_F9 = #78,
+    VK_F10 = #79,
+    VK_F11 = #7A,
+    VK_F12 = #7B,
+    VK_F13 = #7C,
+    VK_F14 = #7D,
+    VK_F15 = #7E,
+    VK_F16 = #7F,
+    VK_F17 = #80,
+    VK_F18 = #81,
+    VK_F19 = #82,
+    VK_F20 = #83,
+    VK_F21 = #84,
+    VK_F22 = #85,
+    VK_F23 = #86,
+    VK_F24 = #87,
+
+    VK_NUMLOCK = #90,
+    VK_SCROLL = #91,
+
+--
+--   VK_L VK_R - left and right Alt, Ctrl and Shift virtual keys.
+--   Used only as parameters to GetAsyncKeyState() and GetKeyState().
+--   No other API or message will distinguish left and right keys in this way.
+--  /
+    VK_LSHIFT = #A0,
+    VK_RSHIFT = #A1,
+    VK_LCONTROL = #A2,
+    VK_RCONTROL = #A3,
+    VK_LMENU = #A4,
+    VK_RMENU = #A5,
+
+    VK_ATTN = #F6,
+    VK_CRSEL = #F7,
+    VK_EXSEL = #F8,
+    VK_EREOF = #F9,
+    VK_PLAY = #FA,
+    VK_ZOOM = #FB,
+    VK_NONAME = #FC,
+    VK_PA1 = #FD,
+    VK_OEM_CLEAR = #FE
+
+
+
+-- menu-specific commands
+global constant
+    LoadMenu = link_c_func(user32, "LoadMenuA", {C_LONG, C_POINTER}, C_LONG),
+    LoadMenuIndirect = link_c_func(user32, "LoadMenuIndirectA", {C_LONG}, C_LONG),
+    GetMenu = link_c_func(user32, "GetMenu", {C_LONG}, C_LONG),
+    SetMenu = link_c_func(user32, "SetMenu", {C_LONG, C_LONG}, C_LONG),
+    HiliteMenuItem = link_c_func(user32, "HiliteMenuItem", {C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    GetMenuString = link_c_func(user32, "GetMenuStringA", {C_LONG, C_LONG, C_POINTER, C_LONG, C_LONG}, C_LONG),
+    GetMenuState = link_c_func(user32, "GetMenuState", {C_LONG, C_LONG, C_LONG}, C_LONG),
+    DrawMenuBar = link_c_func(user32, "DrawMenuBar", {C_LONG}, C_LONG),
+    GetSystemMenu = link_c_func(user32, "GetSystemMenu", {C_LONG, C_LONG}, C_LONG),
+    CreateMenu = link_c_func(user32, "CreateMenu", {}, C_LONG),
+    CreatePopupMenu = link_c_func(user32, "CreatePopupMenu", {}, C_LONG),
+    DestroyMenu = link_c_func(user32, "DestroyMenu", {C_LONG}, C_LONG),
+    CheckMenuItem = link_c_func(user32, "CheckMenuItem", {C_LONG, C_LONG, C_LONG}, C_LONG),
+    CheckMenuRadioItem = link_c_func(user32, "CheckMenuRadioItem", {C_LONG, C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    EnableMenuItem = link_c_func(user32, "EnableMenuItem", {C_LONG, C_LONG, C_LONG}, C_LONG),
+    GetSubMenu = link_c_func(user32, "GetSubMenu", {C_LONG, C_LONG}, C_LONG),
+    GetMenuItemID = link_c_func(user32, "GetMenuItemID", {C_LONG, C_LONG}, C_LONG),
+    GetMenuItemCount = link_c_func(user32, "GetMenuItemCount", {C_LONG}, C_LONG),
+
+    InsertMenu = link_c_func(user32, "InsertMenuA", {C_LONG, C_LONG, C_LONG, C_LONG, C_POINTER}, C_LONG),
+    AppendMenu = link_c_func(user32, "AppendMenuA", {C_LONG, C_LONG, C_LONG, C_POINTER}, C_LONG),
+    ModifyMenu = link_c_func(user32, "ModifyMenuA", {C_LONG, C_LONG, C_LONG, C_LONG, C_POINTER}, C_LONG),
+    RemoveMenu = link_c_func(user32, "RemoveMenu", {C_LONG, C_LONG, C_LONG}, C_LONG),
+    DeleteMenu = link_c_func(user32, "DeleteMenu", {C_LONG, C_LONG, C_LONG}, C_LONG),
+    SetMenuItemBitmaps = link_c_func(user32, "SetMenuItemBitmaps", {C_LONG, C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    GetMenuCheckMarkDimensions = link_c_func(user32, "GetMenuCheckMarkDimensions", {}, C_LONG),
+    TrackPopupMenu = link_c_func(user32, "TrackPopupMenu", {C_LONG, C_LONG, C_LONG, C_LONG, C_LONG, C_LONG, C_POINTER}, C_LONG),
+
+-- Menu flags for Add/Check/EnableMenuItem()
+    MF_INSERT = #0,
+    MF_CHANGE = #80,
+    MF_APPEND = #100,
+    MF_DELETE = #200,
+    MF_REMOVE = #1000,
+
+    MF_BYCOMMAND = #0,
+    MF_BYPOSITION = #400,
+
+    MF_SEPARATOR = #800,
+
+    MF_ENABLED = #0,
+    MF_GRAYED = #1,
+    MF_DISABLED = #2,
+
+    MF_UNCHECKED = #0,
+    MF_CHECKED = #8,
+    MF_USECHECKBITMAPS = #200,
+
+    MF_STRING = #0,
+    MF_BITMAP = #4,
+    MF_OWNERDRAW = #100,
+
+    MF_POPUP = #10,
+    MF_MENUBARBREAK = #20,
+    MF_MENUBREAK = #40,
+
+    MF_UNHILITE = #0,
+    MF_HILITE = #80,
+
+    MF_SYSMENU = #2000,
+    MF_HELP = #4000,
+    MF_MOUSESELECT = #8000,
+
+-- Flags for TrackPopupMenu
+    TPM_LEFTBUTTON = #0,
+    TPM_RIGHTBUTTON = #2,
+    TPM_LEFTALIGN = #0,
+    TPM_CENTERALIGN = #4,
+    TPM_RIGHTALIGN = #8
+
+
+-- message box stuff
+global constant
+    MessageBox = link_c_func(user32, "MessageBoxA", {C_LONG, C_POINTER, C_POINTER, C_LONG}, C_LONG),
+    MessageBoxEx = link_c_func(user32, "MessageBoxExA", {C_LONG, C_POINTER, C_POINTER, C_LONG, C_LONG}, C_LONG),
+
+-- MessageBox() Flags
+    MB_OK = #0,
+    MB_OKCANCEL = #1,
+    MB_ABORTRETRYIGNORE = #2,
+    MB_YESNOCANCEL = #3,
+    MB_YESNO = #4,
+    MB_RETRYCANCEL = #5,
+
+    MB_ICONHAND = #10,
+    MB_ICONQUESTION = #20,
+    MB_ICONEXCLAMATION = #30,
+    MB_ICONASTERISK = #40,
+
+    MB_ICONINFORMATION = MB_ICONASTERISK,
+    MB_ICONSTOP = MB_ICONHAND,
+
+    MB_DEFBUTTON1 = #0,
+    MB_DEFBUTTON2 = #100,
+    MB_DEFBUTTON3 = #200,
+
+    MB_APPLMODAL = #0,
+    MB_SYSTEMMODAL = #1000,
+    MB_TASKMODAL = #2000,
+
+    MB_NOFOCUS = #8000,
+    MB_SETFOREGROUND = #10000,
+    MB_DEFAULT_DESKTOP_ONLY = #20000,
+
+    MB_TYPEMASK = #F,
+    MB_ICONMASK = #F0,
+    MB_DEFMASK = #F00,
+    MB_MODEMASK = #3000,
+    MB_MISCMASK = #C000
+
+-- Status Box flags
+global constant
+    SB_GETBORDERS = 1031,
+    SB_GETPARTS = 1030,
+    SB_GETRECT = 1034,
+    SB_GETTEXTW = 1037,
+    SB_GETTEXTLENGTHW = 1036,
+    SB_SETTEXTW = 1035,
+    SB_GETTEXTA = 1026,
+    SB_GETTEXTLENGTHA = 1027,
+    SB_SETTEXTA = 1025,
+    SB_SETMINHEIGHT = 1032,
+    SB_SETPARTS = 1028,
+    SB_SIMPLE = 1033,
+
+-- Scroll Bar constants
+    SB_HORZ = 0,
+    SB_VERT = 0
+
+global constant SIZE_OF_MESSAGE = sizeof("pdppddd")
+
+
+--constant SIZE_OF_WNDCLASS = 48
+global function RegisterClass(sequence info)
+-- info = {style, lpfnWndProc, cbClsExtra, cbWndExtra, hInstance,
+--   hIcon, hCursor, hbrBackground, lpszMenuName, lpszClassName, hIconSm}
+    atom WndClass, result
+    
+    WndClass = allocate_pack("zdpiippppssp", info)
+    result = c_func(RegisterClassEx, {WndClass})
+    if result = 0 then
+        printf(1, "%x\n", {c_func(GetLastError, {})})
+    end if
+    free_strings()
+    free(WndClass)
+    return result
+end function
+
+global function CreateWindow(sequence info)
+-- info = {dwExStyle, lpClassName, lpWindowName, dwStyle, x, y, nWidth, nHeight,
+--   hWndParent, hMenu, hInstance, lpParam}
+    atom result
+    if sequence(info[2]) then
+        info[2] = alloc_string(info[2])  -- lpClassName
+    end if
+    if sequence(info[3]) then
+        info[3] = alloc_string(info[3])  -- lpWindowName
+    end if
+    if sequence(info[4]) then
+        info[4] = or_all(info[4])  -- style
+    end if
+
+    result = c_func(CreateWindowEx, info)
+    if result = 0 then
+        printf(1, "%x\n", {c_func(GetLastError, {})})
+    end if
+    free_strings()
+    return result
+end function
+
+
+
+function allocDialogTemplate(sequence info)
+--  atom data, ptr, style, exstyle, cdit, id, x, y, cx, cy, class, result
+    atom data, ptr, style, exstyle, cdit, id, x, y, cx, cy, class
+    sequence text
+
+    data = allocate(1024)
+    ptr = data
+
+    cdit = length(info)-1
+
+    for i = 1 to length(info) do
+        if sequence(info[i][1]) then
+            style = or_all(info[i][1])
+        else
+            style = info[i][1]
+        end if
+        if sequence(info[i][2]) then
+            exstyle = or_all(info[i][2])
+        else
+            exstyle = info[i][2]
+        end if
+        x = info[i][3]
+        y = info[i][4]
+        cx = info[i][5]
+        cy = info[i][6]
+        id = info[i][7] -- menu or id
+        class = info[i][8] -- window or dialog class
+        text = info[i][9]
+
+        -- struct DLGITEMTEMPLATE or DLGITEMTEMPLATE
+        poke4(ptr, {
+            style,          -- DWORD style;
+            exstyle         -- DWORD dwExtendedStyle;
+        })
+        ptr += 8
+
+        if i = 1 then
+            poke(ptr, {cdit, 0}) -- WORD cdit;
+            ptr += 2
+        end if
+
+        poke4(ptr, {
+            x + y * #10000, -- short x; short y;
+            cx+cy * #10000, -- short cx; short cy;
+            id              -- WORD id; or menu
+        })
+        ptr += 10
+
+        if i = 1 then
+            -- window class
+            poke4(ptr, class)
+            ptr += 2
+        else 
+            -- ordinal class
+            poke4(ptr, #FFFF + class * #10000)
+            ptr += 4
+        end if
+
+        pokeWideCharString(ptr, text)
+        ptr += 2 * length(text) + 2
+
+        if i != 1 then
+            -- no creation data
+            poke(ptr, {0,0})
+            ptr += 2
+        end if
+        ptr = align(ptr, 4)
+
+    end for
+    return data
+end function
+
+
+global function DialogBoxIndirectParam(atom instance, object info, atom hWndParent, atom dialogFunc, atom param)
+    atom data, result
+
+    if atom(info) then
+        return c_func(DialogBoxIndirectParam_, {instance, info, hWndParent, dialogFunc, param})
+    end if
+
+    data = allocDialogTemplate(info)
+    result = c_func(DialogBoxIndirectParam_, {instance, data, hWndParent, dialogFunc, param})
+    free(data)
+    return result
+end function
+
+global function CreateDialogIndirectParam(atom instance, object info, atom hWndParent, atom dialogFunc, atom param)
+    atom data, result
+
+    if atom(info) then
+        return c_func(CreateDialogIndirectParam_, {instance, info, hWndParent, dialogFunc, param})
+    end if
+
+    data = allocDialogTemplate(info)
+    result = c_func(CreateDialogIndirectParam_, {instance, data, hWndParent, dialogFunc, param})
+    free(data)
+    return result
+end function
+
+
+
+-- open/save filename common dialogs
+global constant
+    comdlg32 = get_dll("comdlg32.dll"),
+    GetOpenFileName_ = link_c_func(comdlg32, "GetOpenFileNameA", {C_POINTER}, C_LONG),
+    GetSaveFileName_ = link_c_func(comdlg32, "GetSaveFileNameA", {C_POINTER}, C_LONG),
+    GetFileTitle_ = link_c_func(comdlg32, "GetFileTitleA", {C_POINTER, C_POINTER, C_INT}, C_INT),
+
+    OFN_READONLY = #1,
+    OFN_OVERWRITEPROMPT = #2,
+    OFN_HIDEREADONLY = #4,
+    OFN_NOCHANGEDIR = #8,
+    OFN_SHOWHELP = #10,
+    OFN_ENABLEHOOK = #20,
+    OFN_ENABLETEMPLATE = #40,
+    OFN_ENABLETEMPLATEHANDLE = #80,
+    OFN_NOVALIDATE = #100,
+    OFN_ALLOWMULTISELECT = #200,
+    OFN_EXTENSIONDIFFERENT = #400,
+    OFN_PATHMUSTEXIST = #800,
+    OFN_FILEMUSTEXIST = #1000,
+    OFN_CREATEPROMPT = #2000,
+    OFN_SHAREAWARE = #4000,
+    OFN_NOREADONLYRETURN = #8000,
+    OFN_NOTESTFILECREATE = #10000,
+    OFN_NONETWORKBUTTON = #20000,
+    OFN_NOLONGNAMES = #40000,                      --  force no long names for 4.x modules
+    OFN_EXPLORER = #80000,                         --  new look commdlg
+    OFN_NODEREFERENCELINKS = #100000,
+    OFN_LONGNAMES = #200000,                       --  force long names for 3.x modules
+
+    OFN_SHAREFALLTHROUGH = 2,
+    OFN_SHARENOWARN = 1,
+    OFN_SHAREWARN = 0
+
+function peek_multi_strings(atom ptr)
+    sequence path, name, result
+    path = peek_string(ptr)
+    ptr += length(path) + 1
+    result = {}
+    name = peek_string(ptr)
+    if length(name) = 0 then
+        return path
+    end if
+    while length(name) do
+        result = append(result, path & '\\' & name)
+        ptr += length(name) + 1
+        name = peek_string(ptr)
+    end while
+    return result
+end function
+
+
+function GetFileNameDialog(atom func, sequence info)
+-- info = {hwndOwner, hInstance, lpstrFilter, nFilterIndex, lpstrFile, 
+--   lpstrInitialDir, lpstrTitle, Flags, lpstrDefExt}
+-- returns: {nFilterIndex, FileName, Flags, nFileOffset, nFileExtension}
+    atom struc
+    object result
+    integer maxsize
+    maxsize = 260
+    if and_bits(info[8], OFN_ALLOWMULTISELECT) then
+        maxsize = 4096
+    end if
+    if compare(info[5], 0) then 
+        info[5] = repeat(0, maxsize)
+    elsif length(info[5]) < maxsize then
+        info[5] = info[5] & repeat(0, maxsize - length(info[5]))
+    end if
+
+    struc = allocate_pack("zppspddsdppssdwwsppp", {
+        info[1],         -- hwndOwner
+        info[2],         -- hInstance
+        info[3],         -- lpstrFilter
+        0,               -- lpstrCustomFilter
+        0,               -- nMaxCustFilter
+        info[4],         -- nFilterIndex
+        info[5],         -- lpstrFile
+        length(info[5]), -- nMaxFile
+        0,               -- lpstrFileTitle
+        0,               -- nMaxFileTitle
+        info[6],         -- lpstrInitialDir
+        info[7],         -- lpstrTitle
+        info[8],         -- Flags
+        0,               -- nFileOffset
+        0,               -- nFileExtension
+        info[9],         -- lpstrDefExt
+        0,               -- lCustData
+        0,               -- lpfnHook
+        0})              -- lpTemplateName
+    
+    if c_func(func, {struc}) then
+        result = unpack(struc, "zppppddpdppppdwwpppp")
+        if and_bits(info[8], OFN_ALLOWMULTISELECT) then
+            result[8] = peek_multi_strings(result[8])
+        else
+            result[8] = peek_string(result[8])
+        end if
+        result = {
+            result[7], -- nFilterIndex
+            result[8], -- lpstrFile
+            result[14], -- Flags
+            result[15], -- nFileOffset
+            result[16]} -- nFileExtension
+    else
+        result = {}
+    end if
+    free(struc)
+    free_strings()
+    return result
+end function
+
+global function GetOpenFileName(sequence info)
+-- info = {hwndOwner, hInstance, lpstrFilter, nFilterIndex, lpstrFile, 
+--   lpstrInitialDir, lpstrTitle, Flags, lpstrDefExt}
+-- returns: {nFilterIndex, FileName, Flags, nFileOffset, nFileExtension}
+    return GetFileNameDialog(GetOpenFileName_, info)
+end function
+
+global function GetSaveFileName(sequence info)
+-- info = {hwndOwner, hInstance, lpstrFilter, nFilterIndex, lpstrFile, 
+--   lpstrInitialDir, lpstrTitle, Flags, lpstrDefExt}
+-- returns: {nFilterIndex, FileName, Flags, nFileOffset, nFileExtension}
+    return GetFileNameDialog(GetSaveFileName_, info)
+end function
+
+
+global constant
+    FILEOKSTRING = "commdlg_FileNameOK",
+    COLOROKSTRING = "commdlg_ColorOK",
+    SETRGBSTRING = "commdlg_SetRGBColor",
+    HELPMSGSTRING = "commdlg_help",
+    FINDMSGSTRING = "commdlg_FindReplace"
+
+-- find/replace common dialogs
+global constant
+    FR_DOWN = #1,
+    FR_WHOLEWORD = #2,
+    FR_MATCHCASE = #4,
+    FR_FINDNEXT = #8,
+    FR_REPLACE = #10,
+    FR_REPLACEALL = #20,
+    FR_DIALOGTERM = #40,
+    FR_SHOWHELP = #80,
+    FR_ENABLEHOOK = #100,
+    FR_ENABLETEMPLATE = #200,
+    FR_NOUPDOWN = #400,
+    FR_NOMATCHCASE = #800,
+    FR_NOWHOLEWORD = #1000,
+    FR_ENABLETEMPLATEHANDLE = #2000,
+    FR_HIDEUPDOWN = #4000,
+    FR_HIDEMATCHCASE = #8000,
+    FR_HIDEWHOLEWORD = #10000,
+
+    FindText_ = link_c_func(comdlg32, "FindTextA", {C_POINTER}, C_LONG),
+    ReplaceText_ = link_c_func(comdlg32, "ReplaceTextA", {C_POINTER}, C_LONG)
+
+constant 
+    struct_FINDREPLACE = "zppdsswwppp",
+    SIZE_OF_FINDREPLACE = sizeof(struct_FINDREPLACE),
+    Flags_offset = sizeof(struct_FINDREPLACE[1..3]),
+    FindWhat_offset = sizeof(struct_FINDREPLACE[1..4]), 
+    ReplaceWith_offset = sizeof(struct_FINDREPLACE[1..5])
+    -- 0  DWORD        lStructSize;
+    -- 4  HWND         hwndOwner;
+    -- 8  HINSTANCE    hInstance;
+    -- 12 DWORD        Flags;
+    -- 16 LPTSTR       lpstrFindWhat;
+    -- 20 LPTSTR       lpstrReplaceWith;
+    -- 24 WORD         wFindWhatLen;
+    -- 26 WORD         wReplaceWithLen;
+    -- 28 LPARAM       lCustData;
+    -- 32 LPFRHOOKPROC lpfnHook;
+    -- 36 LPCTSTR      lpTemplateName;
+
+global function GetFindFlags(atom struc)
+    return peek4u(struc + Flags_offset)
+end function
+
+global function GetFindWhat(atom struc)
+    sequence tmp
+    tmp = unpack(struc + FindWhat_offset, "s")
+    return tmp[1]
+end function
+
+global function GetReplaceWith(atom struc)
+    sequence tmp
+    tmp = unpack(struc + ReplaceWith_offset, "s")
+    return tmp[1]
+end function
+
+atom find_struc, hwnd_find
+find_struc = 0
+hwnd_find = 0
+
+function FindReplaceText(atom func, atom hwndOwner, atom hInstance, atom Flags, sequence FindWhat, sequence ReplaceWith)
+-- returns: hwndFindDialog
+    atom junk
+    integer Len
+    Len = 256
+--/**/ if hInstance then end if -- suppress warnings
+    if length(FindWhat) >= Len then FindWhat = FindWhat[1..Len-1] end if
+    if length(ReplaceWith) >= Len then ReplaceWith = ReplaceWith[1..Len-1] end if
+    if find_struc then
+        if hwnd_find then
+            junk = c_func(DestroyWindow, {hwnd_find})
+        end if
+    else
+        find_struc = allocate(SIZE_OF_FINDREPLACE + Len + Len)
+        pack(find_struc, struct_FINDREPLACE, {
+            SIZE_OF_FINDREPLACE,
+            hwndOwner,
+            0, -- hInstance
+            Flags,
+            find_struc + SIZE_OF_FINDREPLACE, -- lpstrFindWhat
+            find_struc + SIZE_OF_FINDREPLACE + Len, --lpstrReplaceWith
+            Len, -- wFindWhatLen
+            Len, -- wReplaceWithLen
+            NULL, -- lCustData
+            NULL, -- lpfnHook
+            NULL -- lpTemplateName
+            })
+    end if
+    pack(find_struc, "zppd", {
+        SIZE_OF_FINDREPLACE,
+        hwndOwner,
+        0,
+        Flags})
+    poke(find_struc + SIZE_OF_FINDREPLACE, FindWhat & 0)
+    poke(find_struc + SIZE_OF_FINDREPLACE + Len, ReplaceWith & 0)
+    
+    hwnd_find = c_func(func, {find_struc})
+    if hwnd_find = 0 then
+        free(find_struc)
+        find_struc = 0
+    end if
+    return hwnd_find
+end function
+
+global function FindText(atom hwndOwner, atom hInstance, atom Flags, sequence FindWhat)
+-- returns: hwndFindDialog
+    return FindReplaceText(FindText_, hwndOwner, hInstance, Flags, FindWhat, "")
+end function
+
+global function ReplaceText(atom hwndOwner, atom hInstance, atom Flags, sequence FindWhat, sequence ReplaceWith)
+-- returns: hwndFindDialog
+    return FindReplaceText(ReplaceText_, hwndOwner, hInstance, Flags, FindWhat, ReplaceWith)
+end function
+
+
+-- choose font common dialog
+global constant
+    ChooseFont_ = link_c_func(comdlg32, "ChooseFontA", {C_POINTER}, C_INT),
+    CF_SCREENFONTS = 1,
+    CF_PRINTERFONTS = 2,
+    CF_BOTH = 3,
+    CF_SHOWHELP = 4,
+    CF_ENABLEHOOK = 8,
+    CF_ENABLETEMPLATE = 16,
+    CF_ENABLETEMPLATEHANDLE = 32,
+    CF_INITTOLOGFONTSTRUCT = 64,
+    CF_USESTYLE = 128,
+    CF_EFFECTS = 256,
+    CF_APPLY = 512,
+    CF_ANSIONLY = 1024,
+    CF_SCRIPTSONLY = CF_ANSIONLY,
+    CF_NOVECTORFONTS = 2048,
+    CF_NOOEMFONTS = 2048,
+    CF_NOSIMULATIONS = 4096,
+    CF_LIMITSIZE = 8192,
+    CF_FIXEDPITCHONLY = 16384,
+    CF_WYSIWYG = 32768,
+    CF_FORCEFONTEXIST = 65536,
+    CF_SCALABLEONLY = 131072,
+    CF_TTONLY = 262144,
+    CF_NOFACESEL = 524288,
+    CF_NOSTYLESEL = 1048576,
+    CF_NOSIZESEL = 2097152,
+    CF_SELECTSCRIPT = 4194304,
+    CF_NOSCRIPTSEL = 8388608,
+    CF_NOVERTFONTS = #1000000,
+    SIMULATED_FONTTYPE = #8000,
+    PRINTER_FONTTYPE = #4000,
+    SCREEN_FONTTYPE = #2000,
+    BOLD_FONTTYPE = #100,
+    ITALIC_FONTTYPE = #0200,
+    REGULAR_FONTTYPE = #0400,
+    WM_CHOOSEFONT_GETLOGFONT = (WM_USER+1),
+    WM_CHOOSEFONT_SETLOGFONT = (WM_USER+101),
+    WM_CHOOSEFONT_SETFLAGS = (WM_USER+102)
+
+global function ChooseFont(atom hwndOwner, sequence font_name, integer font_height)
+--  atom cf, lf, size, lf_facesize, lf_size, hedit
+    atom cf, lf, lf_facesize, lf_size
+    sequence result
+
+    lf_facesize = 32
+    lf_size = 4*5 + 8 + lf_facesize
+    lf = allocate(lf_size)
+    poke4(lf, {-floor((font_height*96+36)/72),0,0,0,0,0,0})
+    poke(lf+lf_size-lf_facesize, font_name&0)
+
+    cf = allocate_pack("zpppiddpppppwii$", {
+        hwndOwner, -- hwndOwner;
+        NULL, -- hDC;
+        lf, -- lpLogFont;
+        0, -- iPointSize
+        CF_INITTOLOGFONTSTRUCT, -- Flags
+        0, -- rgbColors
+        NULL, -- lCustData
+        NULL, -- lpfnHook
+        NULL, -- lpTemplateName
+        NULL, -- hInstance
+        NULL, -- lpszStyle
+        0, -- nFontType
+        0, -- nSizeMin
+        0  -- nSizeMax
+        })
+    result = {}
+    if c_func(ChooseFont_, {cf}) then
+        font_name = peek_string(lf+lf_size-lf_facesize)
+        font_height = floor(peek4u(cf + sizeof("zppp")) / 10)
+        --? font_height
+        --printf(1, "height=%d %d width=%d weight=%d facename=%s pointsize=%d\n", {
+        --    peek4s(lf),
+        --   -floor((font_height*96+36)/72),
+        --    peek4u(lf+4),
+        --    peek4u(lf+16),
+        --    font_name,
+        --    peek4u(cf+16)})
+        result = {font_name, font_height}
+    end if
+    free(cf)
+    free(lf)
+    return result
+end function
+
+
+-- choose color common dialog
+global constant
+    ChooseColor_ = link_c_func(comdlg32, "ChooseColorA", {C_POINTER}, C_INT),
+    CC_ANYCOLOR = #100,
+    CC_ENABLEHOOK = #10,
+    CC_ENABLETEMPLATE = #20,
+    CC_ENABLETEMPLATEHANDLE = #40,
+    CC_FULLOPEN = #2,
+    CC_PREVENTFULLOPEN = #4,
+    CC_RGBINIT = #1,
+    CC_SHOWHELP = #8,
+    CC_SOLIDCOLOR = #80
+
+sequence cur_palette
+cur_palette = repeat(0, 16)
+
+global function ChooseColor(atom hwnd, integer rgb)
+    atom struc, pal
+    sequence result
+    pal = allocate(4*length(cur_palette))
+    poke4(pal, cur_palette)
+    struc = allocate_pack("zppdpdppp", {
+        hwnd, -- hwndOwner
+        0, -- hInstance
+        rgb, -- rgbResult
+        pal, -- lpCustColors
+        CC_RGBINIT+CC_FULLOPEN, -- Flags
+        0, -- lpCustData
+        0, -- lpfnHook
+        0 -- lpTemplateName
+        })
+    if c_func(ChooseColor_, {struc}) != 0 then
+        result = unpack(struc, "zppdpdppp")
+        rgb = result[4]
+    end if
+    cur_palette = peek4u({pal, length(cur_palette)})
+    free(struc)
+    free(pal)
+    return rgb
+end function
+
+
+
+----------------------------------------------------------------------------
+global constant 
+    SPI_GETNONCLIENTMETRICS = #29,
+    SystemParametersInfo = link_c_func(user32, "SystemParametersInfoA", 
+        {C_INT, C_INT, C_POINTER, C_INT}, C_INT)
+

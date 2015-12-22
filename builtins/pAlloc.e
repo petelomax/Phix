@@ -2,98 +2,77 @@
 -- pAlloc.e
 -- ========
 --
---  NB: There are untested pure-inline versions of these routines in pHeap.e, see :%pAlloc and :%pFree [DEV]
---      (allocate_data() etc might be an issue)
+--  Phix implementation of allocate() and free(). 
+--  The low-level routines %pAlloc and %pFree in pHeap.e are responsible for allocating and freeing memory,
+--  whereas these hll routines (not part of the VM) are responsible for dealing with delete_routine needs.
 --
+
 include builtins\VM\pHeap.e
 
---DEV having these be hll likely messes up putting pHeap.e into the opcode table.. (inline versions have now been written above) [or just split these off into pAlloc.e...]
-
 global procedure free(atom addr)
-integer iaddr -- addr/4, to simplify handling
-    if and_bits(addr,#03) then ?9/0 end if  --DEV ima (invalid memory address)
---DEV test these (carry on allocating until we get something above #7FFFFFFF) and pick one!
---    (I expect the first will be fine, but we should test, and if we do get sign issues, one of the others should cope)
---    (or use cmp h4 etc, as per eg builtins\VM\_readme.txt)
-    iaddr = floor(addr/4) -- [same for 32 and 64 bit]
---  addr = and_bits(floor(addr/4),#3FFFFFFF)
---  addr = floor(and_bits(addr,#3FFFFFFF)/4)
     #ilASM{
         [32]
-            mov eax,[iaddr]
-            mov edx,[ebp+16]
-            shl eax,2
-            sub eax,4
-            mov ecx,[eax]   -- retrieve size
+            mov eax,[addr]
+--          mov edx,[ebp+16]
+            mov edx,[ebp+12]
         [64]
-            mov rax,[iaddr]
-            mov rdx,[rbp+32]
-            shl rax,2
-            sub rax,8
-            mov rcx,[rax]   -- retrieve size
+            mov rax,[addr]
+            mov rdx,[rbp+24]
         []
-            call :%pFreePool
+            call :%pFree
           }
 end procedure
 constant r_free = routine_id("free")
-    
-global function allocate(integer size, integer cleanup = 0)
-integer r4  -- addr/4 (to ensure it is an integer)
---atom res
+
+global function allocate(atom size, integer cleanup = 0)
+atom res
+    if size<0 or size!=floor(size) then
+        #ilASM{
+--              --DEV this should be ok on 64-bit??
+--          [32]
+                mov ecx,1           -- no of frames to pop to obtain an era (>=2)
+                mov al,37           -- e37atambpi (argument to allocate must be positive integer)
+                jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
+--          [64]
+--          []
+              }
+    end if
     #ilASM{
         [32]
             mov ecx,[size]
-            mov edx,[ebp+16]
-            add ecx,4   -- for pRoot (I think I mean nSize)
-            call :%pGetPool
-            -- result is edx bytes at eax, but we use first 4 bytes to save the size, for free().
-            test eax,eax
-            jz @f
-                mov [eax],edx -- so this is 16 when returning 12 bytes of useable space (at eax+4).
-                add eax,4   -- for nSize (see also "Minor point" above)
--- it might be wiser to use StoreFlt: (untested)
---      @@:
---          push ebx
---          push eax
---          fild qword[esp]
---          add esp,8
---          lea edi,[res]
---          call :%pStoreFlt        -- [edi]:=st0
-                shr eax,2
-         @@:
-            mov [r4],eax
+            lea edi,[res]
+--          mov edx,[ebp+16]        -- return address
+            mov edx,[ebp+12]        -- called from
         [64]
             mov rcx,[size]
-            mov rdx,[rbp+32]
-            add rcx,8   -- for pRoot (I think I mean nSize)
-            call :%pGetPool
-            -- result is rdx bytes at rax, but we use first 8 bytes to save the size, for free().
-            test rax,rax
-            jz @f
-                mov [rax],rdx -- so this is 28 when returning 20 bytes of useable space (at rax+8).
-                add rax,8   -- for nSize (see also "Minor point" above)
--- it might be wiser to use StoreFlt: (untested)
---      @@:
---          push rbx
---          push rax
---          fild tbyte[rsp]
---          add rsp,16
---          lea rdi,[res]
---          call :%pStoreFlt        -- [edi]:=st0
-                shr rax,2
-         @@:
-            mov [r4],rax
+            lea rdi,[res]
+            mov rdx,[rbp+24]        -- called from
         []
+            call :%pAlloc
           }
-    if cleanup and r4!=0 then
-        return delete_routine(r4*4,r_free)
+    if cleanup and res!=0 then
+        res = delete_routine(res,r_free)
     end if
-    return r4*4
---  return res
+    return res
 end function
 
 global function allocate_data(integer size, integer cleanup = 0)
     return allocate(size,cleanup)
 end function
 
+global function allocate_string(sequence s, integer cleanup = 0)
+-- create a C-style null-terminated string in memory
+atom mem
+
+    mem = allocate(length(s)+1) -- Thanks to Igor
+    if mem then
+        poke(mem, s)
+        poke(mem+length(s), 0)  -- Thanks to Aku
+        if cleanup then
+--          mem = delete_routine(mem, FREE_RID)
+            mem = delete_routine(mem, r_free)
+        end if
+    end if
+    return mem
+end function
 

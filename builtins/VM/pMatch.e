@@ -6,7 +6,7 @@
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
 --
 
-global function match(object s1, sequence s2, integer start=1)
+global function match(object s1, sequence s2, integer start=1, integer case_insensitive=0)
 --
 -- Try to match s1 against some slice of s2.
 -- If successful, return the element number of s2 where the (first) matching slice begins,
@@ -46,9 +46,11 @@ object s1i, s2i
         if res+ls1-1>ls2 then return 0 end if
         for i=1 to ls1 do
             s1i = s1[i]
+            if case_insensitive then s1i = lower(s1i) end if
             s2idx = i+res-1
 --          if s2idx>ls2 then return 0 end if -- see above
             s2i = s2[s2idx]
+            if case_insensitive then s2i = lower(s2i) end if
 --          if not quick_equal(sli,s2i) then    -- asm variant
             if not equal(s1i,s2i) then
 --              if integer(sli) and not integer(s2i) then -- maybe?
@@ -67,7 +69,9 @@ object s1i, s2i
 --                      s2idx += 1
 --                      if s2idx>ls2 then return 0 end if
                         if j>ls2 then return 0 end if
-                        if equal(s1i,s2[j]) then exit end if
+                        s2i = s2[j]
+                        if case_insensitive then s2i = lower(s2i) end if
+                        if equal(s1i,s2i) then exit end if
                     end for
                     exit
                 elsif integer(s2i) then
@@ -81,7 +85,9 @@ object s1i, s2i
                     for j=i-1 to 0 by -1 do
                         res += 1
                         if j=0 then exit end if
-                        if equal(s2i,s1[j]) then exit end if
+                        s1i = s1[j]
+                        if case_insensitive then s1i = lower(s1i) end if
+                        if equal(s2i,s1i) then exit end if
                     end for
                     exit
 --              elsif not equal(s1i,s2i) then   -- deep_equal() here in asm

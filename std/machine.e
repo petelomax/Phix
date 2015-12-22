@@ -845,6 +845,7 @@ end function
 -- See Also:
 -- [[:allocate_string]]
 --
+--/*
 public function allocate_wstring(sequence s, boolean cleanup = 0)
 atom mem
 
@@ -859,6 +860,7 @@ atom mem
 
     return mem
 end function
+--*/
 
 --**
 -- Return a unicode (utf16) string that are stored at machine address a.

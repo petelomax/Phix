@@ -1,0 +1,196 @@
+-- IupSeparator: Example in C 
+--   Creates a dialog with a menu and some items. A IupSeparator was used to separate the menu items.
+
+-- IUP libraries include  
+
+include iup.e
+
+type Ihandle(object x)
+    if object(x) then end if
+    return 1
+end type
+
+--*****************************************************************************
+-- Function:                                                                 --
+-- Show message                                                              --
+--                                                                           --
+-- Description:                                                              --
+-- Shows a message saying that the this item performs no operation           --
+--                                                                           --
+-- Value returned:                                                           --
+-- IUP_DEFAULT                                                               --
+--**************************************************************************** 
+function show_message(object void)
+    if object(void) then end if
+    IupMessage("Warning", "This item performs no operation\nIt is here only to compose")
+    return 1
+end function
+
+--*****************************************************************************
+-- Function:                                                                 --
+-- Item new callback                                                         --
+--                                                                           --
+-- Description:                                                              --
+-- Shows a message saying that the this item performs no operation           --
+--                                                                           --
+-- Value returned:                                                           --
+-- IUP_DEFAULT                                                               --
+--**************************************************************************** 
+function item_new_cb(object void)
+    if object(void) then end if
+    {} = show_message("hello euphoria")
+    return IUP_DEFAULT
+end function
+
+--*****************************************************************************
+-- Function:                                                                 --
+-- Item open callback                                                        --
+--                                                                           --
+-- Description:                                                              --
+-- Shows a message saying that the this item performs no operation           --
+--                                                                           --
+-- Value returned:                                                           --
+-- IUP_DEFAULT                                                               --
+--**************************************************************************** 
+function item_open_cb(object void)
+    if object(void) then end if
+    {} = show_message("hello euphoria")
+    return IUP_DEFAULT
+end function
+
+--*****************************************************************************
+-- Function:                                                                 --
+-- Item close callback                                                       --
+--                                                                           --
+-- Description:                                                              --
+-- Shows a message saying that the this item performs no operation           --
+--                                                                           --
+-- Value returned:                                                           --
+-- IUP_DEFAULT                                                               --
+--**************************************************************************** 
+function item_close_cb(object void)
+    if object(void) then end if
+    {} = show_message("hello euphoria")
+    return IUP_DEFAULT
+end function
+
+--*****************************************************************************
+-- Function:                                                                 --
+-- Item page setup callback                                                  --
+--                                                                           --
+-- Description:                                                              --
+-- Shows a message saying that the this item performs no operation           --
+--                                                                           --
+-- Value returned:                                                           --
+-- IUP_DEFAULT                                                               --
+--**************************************************************************** 
+function item_pagesetup_cb(object void)
+    if object(void) then end if
+    {} = show_message("hello euphoria")
+    return IUP_DEFAULT
+end function
+
+--*****************************************************************************
+-- Function:                                                                 --
+-- Item print callback                                                       --
+--                                                                           --
+-- Description:                                                              --
+-- Shows a message saying that the this item performs no operation           --
+--                                                                           --
+-- Value returned:                                                           --
+-- IUP_DEFAULT                                                               --
+--**************************************************************************** 
+function item_print_cb(object void)
+    if object(void) then end if
+    {} = show_message("hello euphoria")
+    return IUP_DEFAULT
+end function
+
+--*****************************************************************************
+-- Function:                                                                 --
+-- Item exit callback                                                        --
+--                                                                           --
+-- Description:                                                              --
+-- Exits the program                                                         --
+--                                                                           --
+-- Value returned:                                                           --
+-- IUP_DEFAULT                                                               --
+--**************************************************************************** 
+function item_exit_cb(object void)
+    if object(void) then end if
+    return IUP_CLOSE
+end function
+
+-- Main program  
+function main(object argc, object argv)
+--IUP identifiers  
+Ihandle dlg
+Ihandle text
+Ihandle menu, menu_file
+Ihandle submenu_file
+Ihandle item_new, item_open, item_close, item_pagesetup, item_print, item_exit
+
+    -- Initializes IUP  
+    {} = IupOpen(argc, argv)
+
+    -- Program begin    
+
+    -- Creates a text  
+    text = IupText(NULL)
+
+    -- Sets value of the text and turns on expand   
+    {} = IupSetAttributes(text, "VALUE = \"This text is here only to compose\", EXPAND = HORIZONTAL")
+
+    -- Creates six items    
+    item_new = IupItem("New", NULL)
+    item_open = IupItem("Open", NULL)
+    item_close = IupItem("Close", NULL)
+    item_pagesetup = IupItem("Page Setup", NULL)
+    item_print = IupItem("Page Setup", NULL)
+    item_exit = IupItem("Exit", NULL)
+
+    -- Registers callbacks  
+    {} = IupSetCallback(item_new, "ACTION", Icallback("item_new_cb"))
+    {} = IupSetCallback(item_open, "ACTION", Icallback("item_open_cb"))
+    {} = IupSetCallback(item_close, "ACTION", Icallback("item_close_cb"))
+    {} = IupSetCallback(item_pagesetup, "ACTION", Icallback("item_pagesetup_cb"))
+    {} = IupSetCallback(item_print, "ACTION", Icallback("item_print_cb"))
+    {} = IupSetCallback(item_exit, "ACTION", Icallback("item_exit_cb"))
+
+    -- Creates file menu    
+    menu_file = IupMenu({item_new, item_open, item_close, IupSeparator(), item_pagesetup, item_print, IupSeparator(), item_exit, NULL})
+
+    -- Creates file submenu  
+    submenu_file = IupSubmenu("File", menu_file)
+
+    -- Creates main menu with file menu  
+    menu = IupMenu({submenu_file, NULL})
+
+    -- Associates handle "menu" with menu  
+    {} = IupSetHandle("menu", menu)
+
+    -- Creates dialog with a text  
+    dlg = IupDialog(text)
+
+    -- Sets title and size of the dialog and associates a menu to it    
+    {} = IupSetAttributes(dlg, "TITLE=\"IupSeparator Example\", SIZE = QUARTERxEIGHTH, MENU = menu")
+
+    -- Shows dialog in the center of the screen  
+    {} = IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
+
+    -- Initializes IUP main loop    
+    {} = IupMainLoop()
+
+    -- Finishes IUP  
+    IupClose()
+
+    -- Program finished successfully    
+    return EXIT_SUCCESS
+
+end function
+
+sequence cmd = command_line()
+sequence argv = cmd[3..$]
+integer argc = length(argv)
+
+{} = main(argc, argv)

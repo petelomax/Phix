@@ -3034,7 +3034,8 @@ end function
 constant r_CollectSignatures = routine_id("CollectSignatures")
 
 procedure DumpSignatures()
-integer refcount, slink
+integer refcount, slink, k
+--, flag
     for i=1 to length(Signatures) do
         refcount = 0
 --      if X64 then ?9/0 end if
@@ -3044,8 +3045,30 @@ integer refcount, slink
         else
             s_addr = length(data_section)+#14
         end if
+--20/12/15:
+--      flag = 0
+        for j=2 to length(Signatures[i]) do
+--          k = Signatures[i][j]    if k!=0 then Signatures[i][j] = symtabmap[k] flag = 1 end if
+--          k = Signatures[i][j]    if k!=0 then Signatures[i][j] = symtabmap[k] end if
+            k = Signatures[i][j]    if k>T_object then Signatures[i][j] = symtabmap[k] end if
+--
+--              v = symtabmap[v]
+--              si[S_value] = v
+--erm...
+--              if listing then
+--                  symtab[i][S_value] = v
+--              end if
+--
+--              k = si[S_vtype]     if k>T_object then si[S_vtype] = symtabmap[k] end if
+--
+--                      k = si[S_vtype]     if k>T_object then si[S_vtype] = symtabmap[k] end if
+--
+        end for
         slink = SigLinks[i]
         while slink do
+--if flag then
+----    ?slink  -- no good...
+--end if
 --?9/0 -- need to backpatch here!
 --          flatsym2[slink][S_sig] = s_addr
 --          slink = flatsym2[slink][S_Nlink]
@@ -3715,6 +3738,8 @@ end if
 
     unused_cleanup(0)
 
+--puts(1,"finalfixups2 line 3718\n")
+
     if listing then
 --?9/0 --(CSvaddr not set, for one)
         craddr={}
@@ -3752,6 +3777,8 @@ end if
 
 --pp(filepaths)
 --pp(filenames)
+
+--puts(1,"finalfixups2 line 3756\n")
 
     --
     -- finalise gvar nos and do initial linkup of udts and toplevelsubs:
@@ -3796,6 +3823,8 @@ end if
 --printf(1,"pemit.e line 2088: linking symtab[%d] on vi chain\n",v)
                 sv = 0
                 symtab[v][S_Slink] = vi
+--20/12/15:
+                symtab[v][S_State] = or_bits(symtab[v][S_State],K_used)
                 vi = v
             elsif nTyp>S_Type then
                 symtab[v][S_Slink] = -9     -- (not on symtab[T_maintls][S_Slink] chain)
@@ -3836,6 +3865,8 @@ end if
         end if
     end for
 
+--puts(1,"finalfixups2 line 3839\n")
+
     if some_unresolved_rtnids then
         for i=T_Bin+1 to symlimit do
             si = symtab[i]
@@ -3869,6 +3900,8 @@ end if
         end for
     end if
 
+--puts(1,"finalfixups2 line 3872\n")
+
 --  dbg = symtab[601]
 --DEV if not bind and addRoutineId was never called then return
 
@@ -3889,7 +3922,10 @@ end if
                 k = si[S_value]     -- the routine number
                 si = symtab[k]
                 u = si[S_State]
-                if not and_bits(u,K_used) then
+--20/12/15:
+--              if not and_bits(u,K_used) then
+                if not and_bits(u,K_used) 
+                and si[S_NTyp]>S_Type then
 --DEV new routine, AddToSlink(i,K_used), also marks all params etc as "in use"...?
 --                  si = 0
 --                  AddToSlink(i,K_used)
@@ -3904,6 +3940,8 @@ end if
         end if
     end for
     si = 0  -- kill refcount
+
+--puts(1,"finalfixups2 line 3908\n")
 
     -- finalise code segments
 --  DSvsize = vmax*4
@@ -4084,6 +4122,8 @@ end if
 
 else -- not bind, or dumpil
 
+--puts(1,"finalfixups2 line 4097\n")
+
     if showfileprogress then
         rescancount = -1
     end if
@@ -4094,8 +4134,12 @@ else -- not bind, or dumpil
         relink()
         tt_traverse(r_ReconstructIds,"",-2)             -- identifiers
     end if
+
+--puts(1,"finalfixups2 line 4110\n")
+
     vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
     while vi do
+--?vi
         s5thunk(symtab[vi][S_il])   -- set s5
         gvar_scan_nobind(vi)
         vi = symtab[vi][S_Slink]
@@ -4120,6 +4164,8 @@ else -- not bind, or dumpil
     end if
 
 end if -- bind/dumpil
+
+--puts(1,"finalfixups2 line 4124\n")
 
 --  gopshow() -- (see pgscan.e)
 --  abort(0)
@@ -4193,7 +4239,7 @@ end if -- bind/dumpil
         t0 = time()
     end if
 
---puts(1,"finalfixups2 line 4127\n")
+--puts(1,"finalfixups2 line 4196\n")
 
 --DEV (**17/3/15**) While this fixes the -d issue, it may/will probably still go wrong for trace/debug...[?]
 --  ***DOH!!!*** why are we killing entries in the symtab if we're not binding?!!!
@@ -4350,7 +4396,7 @@ end if
         end if
     end for
 
---puts(1,"finalfixups2 line 4259\n")
+--puts(1,"finalfixups2 line 4353\n")
 --if Z_ridN!=0 then -- still OK?...
 --  ?symtab[Z_ridN]
 --end if
@@ -4584,7 +4630,7 @@ end if
 
     end if -- bind/interpret
 
---puts(1,"finalfixups2 line 4255\n")
+--puts(1,"finalfixups2 line 4587\n")
 
 --5/10/14: (no longer certain what the 24/8 mods were, I suspect they were to
 --          ensure the following section in an ELF file was dword-aligned, in
@@ -4628,7 +4674,7 @@ end if
         t0 = time()
     end if
 
---puts(1,"finalfixups2 line 4526\n")
+--puts(1,"finalfixups2 line 4631\n")
 
     --
     -- Code done, now the threadstack and global data, and the symtab.
@@ -4804,7 +4850,7 @@ end if
     end if
     symtab[ridlink][S_Slink] = 0
 
---puts(1,"finalfixups2 line 4974\n")
+--puts(1,"finalfixups2 line 4807\n")
 
     if bind then
 --if newEmit then
@@ -4853,7 +4899,7 @@ end if
         else
             if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
         end if
---puts(1,"finalfixups2 line 5046\n")
+----puts(1,"finalfixups2 line 5046\n")
         tt_traverse(r_DumpString,"",-1)             -- literal strings
         if X64 then
             if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
@@ -5046,6 +5092,10 @@ if bind and mapsymtab then
                         k = si[S_Nlink]     if k!=0 then si[S_Nlink] = symtabmap[k] end if
                         if siNTyp>=S_Type then
                             k = si[S_Parm1] if k!=0 then si[S_Parm1] = symtabmap[k] end if
+--20/12/15:
+                            for l=2 to length(si[S_sig]) do
+                                k = si[S_sig][l]    if k!=0 then si[S_sig][l] = symtabmap[k] end if
+                            end for
                         end if
                     end if
                     symtab[symidx] = si

@@ -994,7 +994,7 @@ pop eax
                     sub esp,8
                     cmp byte[ebx+eax*4-1],0x12          -- (ebx==0)
                     je @f
-                        call :%e02atdb0                 -- (DEV better: call back returned non-atom?)
+                        call :%e02atdb0                 -- (DEV better: call back returned non-atom?)[YES, 17/12/15: plus error of line -1]****
                   @@:
                     fld qword[ebx+eax*4]
                     fistp qword[esp]

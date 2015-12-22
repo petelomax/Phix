@@ -9660,6 +9660,10 @@ integer link
         ctrltyp = s5[switchtop-1]
         if ttidx=T_break then
             MatchString(T_break)
+            -- added 18/12/15:
+            if toktype=';' then
+                getToken()
+            end if
 --          if ttidx=T_end then exit end if
             ctrltyp = 0 -- (clear FALLTHRU bit)
 -- added 14/2/11:

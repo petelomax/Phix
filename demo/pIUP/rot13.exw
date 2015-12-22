@@ -1,0 +1,154 @@
+--
+-- Copyright (C) 2008-2010 by Jeremy Cowgar <jeremy@cowgar.com>
+--
+-- This file is part of EuIup.
+--
+-- EuIup is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU Lesser General Public License as
+-- published by the Free Software Foundation, either version 3 of
+-- the License, or (at your option) any later version.
+--
+-- EuIup is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU Lesser General Public
+-- License along with EuIup.  If not, see <http://www.gnu.org/licenses/>.
+--
+
+--include std/io.e
+
+include iup.e
+
+--
+-- Apply the rot13 alogrithm to the given string
+--
+
+function rot13(sequence str)
+    integer ch
+
+    for i = 1 to length(str) do
+        ch = str[i]
+        if ch >= 97 and ch <= 122 then
+            str[i] = remainder(ch - 84, 26) + 97
+        elsif ch >= 65 and ch <= 90 then
+            str[i] = remainder(ch - 52, 26) + 65
+        end if
+    end for
+
+    return str
+end function
+
+--
+-- Control Handles
+--
+
+Ihandle hDialog, hText
+
+--
+-- Callback for when the "Load" button is pressed
+--
+
+function OnLoad(atom pHandle)
+sequence data
+--object line
+--integer fn
+Ihandle hDlg
+    if pHandle then end if
+    hDlg = IupFileDlg()
+    IupSetAttributes(hDlg, "ALLOWNEW=NO,DIALOGTYPE=Open,TITLE=Open")
+    IupSetAttributeHandle(hDlg, "PARENTDIALOG", hDialog)
+    {} = IupPopup(hDlg, IUP_CENTER, IUP_CENTER)
+    if IupGetInt(hDlg, "STATUS") = -1 then
+        return IUP_IGNORE
+    end if
+
+    data = read_file(IupGetAttribute(hDlg, IUP_VALUE))
+
+    IupStoreAttribute(hText, IUP_VALUE, data)
+    IupDestroy(hDlg)
+
+    return IUP_IGNORE
+end function
+
+--
+-- Callback for when the "Rotate" button is pressed
+--
+
+function OnRotate(atom pHandle)
+    if pHandle then end if
+    IupStoreAttribute(hText, IUP_VALUE, rot13(IupGetAttribute(hText, IUP_VALUE)))
+    return IUP_DEFAULT
+end function
+
+--
+-- Callback for when the "Quit" button is pressed
+--
+
+function OnQuit(Ihandle ih)
+    if ih then end if
+    return IUP_CLOSE
+end function
+
+function OnAboutEuphoria(Ihandle ih)
+    if ih then end if
+    {} = IupHelp("http://openeuphoria.org")
+    return IUP_DEFAULT
+end function
+
+function OnAboutIup(Ihandle ih)
+    if ih then end if
+    {} = IupHelp("http://www.tecgraf.puc-rio.br/iup/")
+    return IUP_DEFAULT
+end function
+
+function OnAboutRot13(Ihandle ih)
+    if ih then end if
+    IupMessage("About", "A simple example showing off Iup for Euphoria")
+    return IUP_DEFAULT
+end function
+
+{} = IupOpen()
+
+-- Create menu
+
+Ihandle hMenu = IupMenuv({
+    IupSubmenu("File",
+        IupMenuv({
+            IupItem("Load File",{}, routine_id("OnLoad")),
+            IupItem("Rotate",{}, routine_id("OnRotate")),
+            IupItem("Quit",{}, routine_id("OnQuit"))
+        })
+    ),
+    IupSubmenu("Help",
+        IupMenuv({
+            IupItem("About Euphoria",{}, routine_id("OnAboutEuphoria")),
+            IupItem("About Iup",{}, routine_id("OnAboutIup")),
+            IupItem("About Rot13",{}, routine_id("OnAboutRot13"))
+        })
+    )
+})
+
+-- Create dialog
+
+hText = IupText()
+IupSetAttributes(hText, "MULTILINE=YES,EXPAND=YES,WORDWRAP=YES,SIZE=250x100,SCROLLBAR=YES")
+
+Ihandle hMainBox = IupVboxv({
+    IupLabel("Text to be rotated:"),
+    hText,
+    IupHboxv({
+        IupButton("Load File",{}, routine_id("OnLoad")),
+        IupButton("Rotate",{}, routine_id("OnRotate")),
+        IupButton("Quit",{}, routine_id("OnQuit"))
+    })
+}, "GAP=5,MARGIN=5x5")
+
+hDialog = IupDialog(hMainBox)
+IupStoreAttribute(hDialog, "TITLE", "Rot 13")
+IupSetAttributeHandle(hDialog, IUP_MENU, hMenu)
+{} = IupShow(hDialog)
+
+IupMainLoop()
+IupClose()

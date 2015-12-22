@@ -7578,6 +7578,7 @@ end if
                 if vroot=T_integer then     -- result is integer
                     getSrc()    --DEV already done above??
                     getSrc2()
+--DEV K_rtn??
                     if tmpd then
                         if tmpd!=src2 then ?9/0 end if
                         if tmpr<0 then
@@ -7853,8 +7854,13 @@ end if
 --                  if slroot2=T_integer and smin2=smax2 then
 --                      emitHex5w(mov_edi_imm32,smin2)              -- mov edi,imm32
                         symk = symtab[src2]
-                        if symk[S_NTyp]=S_Const and symk[S_vtype]=T_integer and symk[S_Init] then
-                            if and_bits(symk[S_State],K_rtn) then ?9/0 end if
+--20/12/15:
+--                      if symk[S_NTyp]=S_Const and symk[S_vtype]=T_integer and symk[S_Init] then
+--                          if and_bits(symk[S_State],K_rtn) then ?9/0 end if
+                        if symk[S_NTyp]=S_Const 
+                        and symk[S_vtype]=T_integer 
+                        and and_bits(symk[S_State],K_rtn)=0
+                        and symk[S_Init] then
                             k = symk[S_value]
                             movRegImm32(edi,k)                      -- mov edi,k
                         else

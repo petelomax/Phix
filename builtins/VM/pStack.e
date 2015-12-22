@@ -1098,11 +1098,11 @@ end procedure -- (for Edita/CtrlQ)
         mov rcx,[rsp+16]    -- real return addr
 --DEV fudge:
 --      mov qword[rbp+32],:opTchkRetAddr  -- return address
-        mov [rbp+32],rbx
+--      mov [rbp+32],rbx
         mov rdx,:!opTchkRetAddr  -- return address
         mov r15,h4
---      mov dword[rbp+32],:!opTchkRetAddr  -- return address
-        mov dword[rbp+32],rdx
+--      mov qword[rbp+32],:!opTchkRetAddr  -- return address
+        mov qword[rbp+32],rdx
         mov qword[rbp+24],rcx
 --      cmp rax,h4
         cmp rax,r15
