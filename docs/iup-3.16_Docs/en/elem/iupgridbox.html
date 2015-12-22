@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Strict//EN">
+<html>
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<title>IupGridBox</title>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<style type="text/css">
+.style1 {
+        font-size: large;
+}
+</style>
+</head>
+<body>
+<div id="navigation">
+  <ul>
+    <li><a href="#Creation">Creation</a></li>
+    <li><a href="#Attributes">Attributes</a></li>
+    <li><a href="#Callbacks">Callbacks</a></li>
+    <li><a href="#Notes">Notes</a></li>
+    <li><a href="#Examples">Examples</a></li>
+    <li><a href="#SeeAlso">See Also</a></li>
+  </ul>
+</div>
+
+<h2>IupGridBox<span class="style1"> (since 3.8)</span></h2>
+
+  <p>
+  Creates a void
+  container for composing elements in a regular grid. It is a box that arranges the elements it contains 
+        from top 
+        to bottom and from left to right, but can distribute the elements in lines 
+  or in columns.</p>
+<p>
+  The child elements are added to the control just like a vbox and hbox, 
+  sequentially. Then they are distributed accordingly the attributes ORIENTATION 
+  and NUMDIV. When ORIENTATION=HORIZONTAL children are distributed from left to 
+  right on the first line until NUMDIV, then on the second line, and so on. When 
+  ORIENTATION=VERTICAL children are distributed from top to bottom on the first 
+  column until NUMDIV, then on the second column, and so on. The number of 
+  lines and the number of columns can be easily obtained from the combination of 
+  these attributes:</p>
+<pre>
+  if (orientation==IGBOX_HORIZONTAL)
+    num_lin = child_count / num_div
+    num_col = num_div
+  else
+    num_lin = num_div
+    num_col = child_count / num_div
+</pre>
+<p>Notice that the total number of spaces can be larger than the number of 
+actual children, the last line or column can be incomplete.</p>
+<p>The column sizes will be based only on the width of the children of the 
+reference line, usually line 0. The line sizes will be based only on the height 
+of the children of the reference column, usually column 0.</p>
+<p>It does not have a native representation.</p>
+
+<h3><a name="Creation">Creation</a></h3>
+<pre>Ihandle* IupGridBox(Ihandle *<strong>child</strong>, ...); [in C]
+Ihandle* IupGridBoxv(Ihandle **<strong>children</strong>); [in C]
+iup.gridbox{<strong>child</strong>, ...: ihandle} -&gt; (<strong>ih</strong>: ihandle) [in Lua]
+gridbox(<strong>child</strong>, ...) [in LED]</pre>
+  <p><strong>child</strong>, ... :
+  List of the identifiers that will be placed 
+  in the box. NULL must be used to define the end of the list in C. It can be empty 
+  in C or Lua, not in LED.</p>
+  <p>
+  <u>Returns:</u> the identifier of the 
+  created element, or NULL if an error occurs.</p>
+
+<h3><a name="Attributes">Attributes</a></h3>
+
+
+<p><b>ALIGNMENTLIN</b> (<font SIZE="3">non inheritable</font>):
+  Vertically aligns the elements within each line. Possible 
+  values: &quot;ATOP&quot;, &quot;ACENTER&quot;, &quot;ABOTTOM&quot;. Default: &quot;ATOP&quot;. 
+The alignment of a single line can also be set using <b>&quot;ALIGNMENTLIN</b><em>L</em><strong>&quot;</strong>, 
+where &quot;L&quot; is the line index, starting at 0 from top to bottom.</p>
+
+
+<p><b>ALIGNMENTCOL</b> (<font SIZE="3">non inheritable</font>):
+  Horizontally aligns the elements within each column. Possible 
+  values: &quot;ALEFT&quot;, &quot;ACENTER&quot;, &quot;ARIGHT&quot;. Default: &quot;ALEFT&quot;. 
+The alignment of a single column can also be set using <b>&quot;ALIGNMENTCOL</b><em>C</em><strong>&quot;</strong>, 
+where &quot;C&quot; is the column index, starting at 0 from left to right.</p>
+
+  <p><a href="../attrib/iup_expand.html">EXPAND</a> (<font SIZE="3">non inheritable*</font>):
+  The default value is &quot;YES&quot;. See the documentation of the attribute 
+        for EXPAND inheritance.</p>
+<p><strong>EXPANDCHILDREN</strong> (<font SIZE="3">non inheritable</font>): 
+forces all children to expand in the given direction and to fully occupy its 
+space available inside the box. Can be YES (both directions),
+  HORIZONTAL, VERTICAL or NO. Default: &quot;NO&quot;. This has the same 
+effect as setting EXPAND on each child.</p>
+<p><strong>FITTOCHILDREN</strong> (write-only): Set the RASTERSIZE attribute of 
+the reference element in the given column or line, so that it will fit the 
+largest element in the column or the highest element in the line. The number of 
+the column or line must be preceded by a character identifying its type, &quot;C&quot; for 
+columns and &quot;L&quot; for lines. For example &quot;C5&quot;=column 5 or &quot;L3&quot;=line 3. Can only be 
+set after the layout of the dialog has been calculated at least 1 time. If FITMAXWIDTHn or FITMAXHEIGHTn 
+are set for the column or line they are used as maximum limit for the size. (Since 3.10)</p>
+
+  <p><b>GAPLIN, CGAPLIN</b>: Defines a vertical space in pixels between lines,
+        <strong>CGAPLIN</strong> is in the same units of the <strong>SIZE</strong> 
+        attribute for the height. Default: &quot;0&quot;.</p>
+
+  <p><b>GAPCOL, CGAPCOL</b>: Defines a horizontal space in pixels between 
+  columns,
+        <strong>CGAPCOL</strong> is in the same units of the <strong>SIZE</strong> 
+        attribute for the height. Default: &quot;0&quot;.</p>
+<p><b>NGAPLIN, NCGAPLIN, NGAPCOL, NCGAPCOL</b> (<font SIZE="3">non inheritable</font>): Same as <strong>
+*GAP*</strong> but are non inheritable.</p>
+<p><strong>HOMOGENEOUSLIN</strong> (<font SIZE="3">non inheritable</font>): 
+forces all lines to have the same vertical space, or height. The line height will be&nbsp; based 
+on the highest child of the reference column (See <strong>SIZECOL</strong>). Default: &quot;NO&quot;. Notice that this does not changes the 
+children size, only the available space for each one of them to expand.</p>
+<p><strong>HOMOGENEOUSCOL</strong> (<font SIZE="3">non inheritable</font>): 
+forces all columns to have the same horizontal space, or width. The column width will be&nbsp; based 
+on the largest child of the reference line (See <strong>SIZELIN</strong>). Default: &quot;NO&quot;. Notice that this does not changes the 
+children size, only the available space for each one of them to expand.</p>
+  <p><b>MARGIN, CMARGIN</b>:
+  Defines a margin in pixels, <b>CMARGIN </b>is in the same units of the <strong>
+        SIZE</strong> attribute. Its value 
+  has the format &quot;<i>width</i>x<i>height</i>&quot;,
+  where <i>
+  width</i> 
+  and <i>height</i> 
+  are integer values corresponding to the horizontal and vertical margins, 
+  respectively. Default: &quot;0x0&quot; (no margin).</p>
+<p><b>NMARGIN, NCMARGIN</b> (<font SIZE="3">non inheritable</font>): Same as
+<strong>MARGIN</strong> but are non inheritable.</p>
+<p><strong>NUMDIV</strong>: controls the number of divisions along the 
+distribution according to ORIENTATION. When ORIENTATION=HORIZONTAL, NUMDIV is 
+the number of columns, when ORIENTATION=VERTICAL, NUMDIV is the number of lines. 
+When value is AUTO, its actual value will be calculated to fit the maximum 
+number of elements in the orientation direction. Default: AUTO.</p>
+<p><strong>NUMCOL</strong> (read-only): returns the number of columns.</p>
+<p><strong>NUMLIN</strong> (read-only): returns the number of lines.</p>
+<p><strong>NORMALIZESIZE</strong> (<font SIZE="3">non inheritable</font>): 
+normalizes all children natural size to be the biggest natural size among the 
+reference line and/or the reference column. 
+All natural width will be set to the biggest width, and all natural height will 
+be set to the biggest height according to is value. Can be NO, HORIZONTAL (width 
+only), 
+VERTICAL (height only) or BOTH. Default: &quot;NO&quot;. Same as using
+<a href="iupnormalizer.html">IupNormalizer</a>. Notice that this is different 
+from the <strong>HOMOGENEOUS*</strong> attributes in the sense that the children 
+will have their sizes changed.</p>
+<p><strong>ORIENTATION</strong> (<font SIZE="3">non inheritable</font>): 
+controls the distribution of the children in lines or in columns. Can be: 
+HORIZONTAL or VERTICAL. Default: HORIZONTAL. </p>
+<p><strong>SIZECOL</strong> (<font SIZE="3">non inheritable</font>): index of 
+the column that will be used as reference when calculating the height of the 
+lines. Default: 0.</p>
+
+
+<p><strong>SIZELIN</strong> (<font SIZE="3">non inheritable</font>): index of 
+the line that will be used as reference when calculating the width of the 
+columns. Default: 0.</p>
+
+
+  <p><b>WID</b> (read-only): returns -1 if mapped.</p>
+
+  <blockquote>
+    <hr>
+</blockquote>
+
+  <p>
+  <a href="../attrib/iup_size.html">SIZE</a>,
+<a href="../attrib/iup_rastersize.html">RASTERSIZE</a>,
+<a href="../attrib/iup_font.html">FONT</a>,
+    <a href="../attrib/iup_clientsize.html">CLIENTSIZE</a>, 
+        <a href="../attrib/iup_clientoffset.html">CLIENTOFFSET</a>, 
+        <a href="../attrib/iup_position.html">POSITION</a>, 
+<a href="../attrib/iup_minsize.html">
+MINSIZE</a>, <a href="../attrib/iup_maxsize.html">
+MAXSIZE</a>: 
+also accepted.</p>
+
+<h3>Attributes (at Children)</h3>
+
+  <p><a href="../attrib/iup_floating.html">FLOATING</a> (<font SIZE="3">non inheritable</font>)
+        <strong>(at children only)</strong>: If a child has FLOATING=YES then its 
+  size and position will be ignored by the layout processing. Default: &quot;NO&quot;.</p>
+
+<h3><a name="Notes">Notes</a></h3>
+
+<p>The box can be created with no elements and be dynamic filled using
+  <a href="../func/iupappend.html">IupAppend</a> or
+<a href="../func/iupinsert.html">IupInsert</a>.</p>
+<p>The box will NOT expand its children, it will allow its children to expand 
+according to the space left in the box parent. So for the expansion to occur, 
+the children must be expandable with EXPAND!=NO, and there must be room in the 
+box parent.</p>
+
+<h3><a name="Examples">Examples</a></h3>
+
+<div align="center">
+  <center>
+  <table border="0" cellpadding="6" cellspacing="0" style="border-collapse: collapse" bordercolor="#111111">
+    <tr>
+      <td valign="top"><br><img src="images/iupgridbox.png"></td>
+      <td valign="top">NORMALIZE=BOTH<br>
+<img src="images/iupgridbox_normalize.png"></td>
+      <td valign="top">EXPANDCHILDREN=YES<br>
+<img src="images/iupgridbox_expandchild.png"></td>
+    </tr>
+  </table>
+  </center>
+</div>
+<h3><a name="SeeAlso">See Also</a></h3>
+
+<p><a href="iupvbox.html">IupVbox</a>, <a href="iuphbox.html">IupHbox</a></p>
+
+
+</body>
+
+</html>

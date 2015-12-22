@@ -2005,14 +2005,17 @@ public function IupGetCallback(atom ih, object name = NULL)
     return result
 end function
 
---Icallback IupSetCallback(Ihandle* ih, const char *name, Icallback func);
---public function IupSetCallback(atom ih, object name, atom func)
 public procedure IupSetCallback(atom ih, object name, atom func)
     if sequence(name) then name = allocate_string(name,1) end if
     atom result = c_func(xIupSetCallback, {ih,name,call_back(func)})
 end procedure
---  return result
---end function
+
+--Icallback IupSetCallback(Ihandle* ih, const char *name, Icallback func);
+public function IupSetCallbackf(atom ih, object name, atom func)
+    if sequence(name) then name = allocate_string(name,1) end if
+    atom result = c_func(xIupSetCallback, {ih,name,call_back(func)})
+    return result
+end function
 
 --Icallback IupGetFunction(const char *name);
 public function IupGetFunction(object name = NULL)

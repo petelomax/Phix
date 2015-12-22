@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Strict//EN">
+<html>
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<title>IupDetachBox</title>
+
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<style type="text/css">
+.style1 {
+        font-size: large;
+}
+</style>
+</head>
+<body>
+<div id="navigation">
+  <ul>
+    <li><a href="#Creation">Creation</a></li>
+    <li><a href="#Attributes">Attributes</a></li>
+    <li><a href="#Callbacks">Callbacks</a></li>
+    <li><a href="#Notes">Notes</a></li>
+    <li><a href="#Examples">Examples</a></li>
+    <li><a href="#SeeAlso">See Also</a></li>
+  </ul>
+</div>
+
+<h2>IupDetachBox <span class="style1">(since 3.10)</span></h2>
+<p>Creates a <span id="result_box" class="short_text" lang="en">
+<span class="hps">detachable </span></span>void container.</p>
+<p>Dragging and dropping this element, it creates a new dialog composed by its child or elements 
+arranged in it (for example, a child like IupVbox or IupHbox). During the drag, 
+the ESC key can be pressed to cancel the action.</p>
+
+  <p>
+  It does not have a native representation, but it contains also a <strong>IupCanvas</strong> to implement 
+        the bar handler.</p>
+
+<h3><a name="Creation">Creation</a></h3>
+
+<pre>Ihandle* IupDetachBox(Ihandle*<strong> child</strong>); [in C]
+iup.detachbox{<strong>child</strong>: ihandle} -&gt; (<strong>ih</strong>: ihandle) [in Lua]
+detachbox(<strong>child</strong>) [in LED]</pre>
+  <p><strong>child</strong>: Identifier of an interface element that will 
+  receive the box. It can be NULL (nil in Lua), not optional in LED.</p>
+  <p>
+  <u>Returns:</u> the identifier of the 
+  created element, or NULL if an error occurs.</p>
+
+<h3><a name="Attributes">Attributes</a></h3>
+
+
+<p><strong>BARSIZE</strong> (<font SIZE="3">non inheritable</font>): controls 
+the size of the bar handler. To completely hide the bar set BARSIZE to 0 (since 
+3.16). Default: 10.</p>
+<p><strong>COLOR</strong>: Changes the color of the
+  bar grip affordance. The value should be given in &quot;R G B&quot; color style. 
+Default: &quot;160 160 160&quot;. When SHOWGRIP = NO, this attribute sets the 
+background color of the bar handler.</p>
+
+
+<p><a href="../attrib/iup_expand.html">EXPAND</a> (<font SIZE="3">non inheritable</font>): 
+The default value is &quot;YES&quot;.</p>
+
+
+<p><strong>ORIENTATION</strong> (creation only): Indicates the orientation of the bar handler. 
+The direction of the resize is perpendicular to the orientation. Possible values are &quot;VERTICAL&quot; or &quot;HORIZONTAL&quot;. Default: &quot;VERTICAL&quot;.</p>
+<p><strong>OLDPARENT_HANDLE</strong> (r<font SIZE="3">ead only</font>): returns 
+the previous parent of the detached element. Only valid after the element was 
+detached.</p>
+<p><strong>OLDBROTHER_HANDLE</strong> (r<font SIZE="3">ead only</font>): returns 
+the previous reference child of the detached element. Only valid after the 
+element was detached. See <a href="../func/iupreparent.html">IupReparent</a> for 
+a reference child definition.</p>
+<p><strong>DETACH</strong> (write-only): detach the box by creating a new dialog 
+and placing the detachbox as the child of the new dialog. The DETACHED_CB callback is called, 
+use it to configure the new dialog. The handler is hidden, the USERSIZE of the 
+detachbox is set to the CURRENTSIZE of the child, and the PARENTDIALOG of the 
+new dialog is set to old dialog. To re-parent the child we need to map the 
+dialog before doing it, so to force a dialog resize its size is reset before its 
+is shown, to control the dialog size use the child size. The new dialog is show 
+at the current cursor position, and the USERSIZE of the detachbox is reset. </p>
+<p><strong>RESTORE</strong> (write-only): restore the box to its previous place 
+(parent and brother) and destroys the new dialog. Value can be NULL or can be 
+the name of a new parent when the control will be appended. Use <a href="../func/iupsethandle.html">IupSetHandle</a> or
+        <a href="../func/iupsetattributehandle.html">IupSetAttributeHandle</a> to 
+associate an Ihandle* to a name (since 3.16). The handler is shown (if restored 
+to inside a zbox, the application must update the zbox child visibility 
+manually).</p>
+
+  <p><strong>SHOWGRIP</strong> (<font SIZE="3">non inheritable</font>): Shows the 
+bar grip affordance. Default: YES. When set to NO, the BARSIZE is set to 5 (if 
+  greater than 5). To completely hide the bar set BARSIZE to 0 (since 3.16).</p>
+
+  <p><b>WID</b> (read-only): returns -1 if mapped.</p>
+
+  <blockquote>
+    <hr>
+</blockquote>
+
+  <p>
+<a href="../attrib/iup_font.html">FONT</a>,
+    <a href="../attrib/iup_size.html">SIZE</a>,
+<a href="../attrib/iup_rastersize.html">RASTERSIZE</a>,
+<a href="../attrib/iup_clientsize.html">CLIENTSIZE</a>, 
+        <a href="../attrib/iup_clientoffset.html">CLIENTOFFSET</a>, 
+        <a href="../attrib/iup_position.html">POSITION</a>, 
+<a href="../attrib/iup_minsize.html">
+MINSIZE</a>, <a href="../attrib/iup_maxsize.html">
+MAXSIZE</a>: 
+also accepted.</p>
+
+<h3><a name="Callbacks">Callbacks</a></h3>
+
+<p><strong>DETACHED_CB</strong>: Callback called when the box is detached.</p>
+<pre>int function(Ihandle *<strong>ih</strong>, Ihandle *<strong>new_parent</strong>, int <strong>x</strong>, int <strong>y</strong>); [in C]
+<strong>ih</strong>:detached_cb(<strong>new_parent: </strong>ihandle, <strong>x, y</strong>: number) -&gt; (<strong>ret</strong>: number) [in Lua]</pre>
+<p class="info"><strong>ih</strong>: identifier of the element that activated 
+the event.<br><strong>new_parent</strong>: identifier of the future parent of 
+the box. At this point only the PARENTDIALOG attribute was set.<br>
+<strong>x, y</strong>: dropped position.</p>
+<p class="info"><u>Returns</u>: IUP_IGNORE will be processed, in order to cancel 
+the detach action.</p>
+
+<h3><a name="Notes">Notes</a></h3>
+
+<p>The box can be created with no elements and be dynamic filled using
+  <a href="../func/iupappend.html">IupAppend</a> or
+<a href="../func/iupinsert.html">IupInsert</a>.</p>
+
+<h3><a name="Examples">Examples</a></h3>
+
+<div align="center">
+  <table border="0" cellpadding="6" cellspacing="0" style="border-collapse: collapse" bordercolor="#111111">
+    <tr>
+      <td><img border="0" src="images/iupdbox_vertical.png"><br>IupDetachBox (ORIENTATION = 
+          VERTICAL)<br></td>
+      <td><img border="0" src="images/iupdbox_detached.png"><br>
+          <span id="result_box0" class="short_text" lang="en"><span class="hps">New 
+          dialog</span> <span class="hps">created</span> <span class="hps">after 
+          the detach action</span></span><br></td>
+    </tr>
+  </table>
+</div>
+
+</body>
+
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Strict//EN">
+<html>
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<title>IupConfig</title>
+
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<style type="text/css">
+.style1 {
+	text-decoration: underline;
+}
+.auto-style1 {
+	font-size: large;
+}
+.auto-style2 {
+	background-color: #CEE7FF;
+}
+</style>
+</head>
+<body>
+
+<h2>IupConfig<span class="auto-style1"> (since 3.12)</span></h2>
+<p>A group of functions to load, store and save application configuration 
+variables. For example, the list of Recent Files, the last position and size of a 
+dialog, last used parameters in dialogs, etc.</p>
+<p>To use the functions in C/C++ you must include the &quot;iup_config.h&quot; 
+header. The functions are NOT available in LED. Binding Lua since 3.15.</p>
+<p>Each variable has a key name, a value and a group that it belongs to. The 
+file is based on a simple configuration file like &quot;.ini&quot; or &quot;.cfg&quot;. Each ground 
+can has more than one key, but all keys in the same group must have different 
+names. Group and Key names can NOT have a period &quot;.&quot;. The file syntax is such 
+as:</p>
+<pre>[Group]
+Key=Value
+Key=Value
+...</pre>
+<h3>Guide</h3>
+<p>First create a new configuration database using the <strong>IupConfig</strong> 
+constructor. To destroy it use the <strong>IupDestroy</strong> function. Then 
+when the application is started call <strong>IupConfigLoad</strong> and when the 
+application is about to close, call <strong>IupConfigSave</strong>.</p>
+<p>To retrieve variables use the <strong>IupConfigGetVariable</strong>* 
+functions and after they where changed store them using the <strong>
+IupConfigSetVariable</strong>* functions.</p>
+<h3>
+Creation</h3>
+<pre>Ihandle* IupConfig(void); [in C]
+iup.config{}-&gt; <strong>ih</strong>: ihandle [in Lua]
+
+[not available in LED]</pre>
+<p>Returns a new database where the variables will be stored.</p>
+<h3>File Storage</h3>
+<pre>int <strong>IupConfigLoad</strong>(Ihandle* <strong>ih</strong>); [in C]
+<strong><span class="auto-style2">iup.</span>ConfigLoad</strong>(<b>ih</b>: ihandle) -&gt; (<strong>ret</strong>: number) [in Lua]
+or <strong><span class="auto-style2">ih:</span>Load</strong>() -&gt; (<strong>ret</strong>: number) [in Lua]
+
+int <strong>IupConfigSave</strong>(Ihandle* <strong>ih</strong>); [in C]
+<strong><span class="auto-style2">iup.</span>ConfigSave</strong>(<b>ih</b>: ihandle) -&gt; (<strong>ret</strong>: number) [in Lua]
+<span class="auto-style2">or <strong>ih:</strong></span><strong>Save</strong>() -&gt; (<strong>ret</strong>: number) [in Lua]</pre>
+
+<p><b>ih</b>: Identifier of the configuration database</p>
+<p><span class="style1">Returns:</span> an error code. 0= no error; -1=error 
+opening the file; -2=error accessing the file; -3=error during filename 
+construction</p>
+
+<p>Loads or saves the configuration file. </p>
+<p>The filename (with path) can be set using a regular attribute called 
+APP_FILENAME. </p>
+<p>But the most interesting is to let the filename to be dynamically constructed 
+using the APP_NAME attribute. In this case APP_FILENAME must <strong>not</strong> be defined. The 
+file name creation will depend on the system and on its usage.</p>
+<p>There are two defined usages. First, for a <strong>User Configuration File,</strong> 
+it will be stored on the user Home folder. Second, as an <strong>Application 
+Configuration File,</strong> it will be stored in the same folder of the 
+executable.</p>
+<p>The <strong>User Configuration File </strong>is the most common usage. In 
+UNIX, the filename will be &quot;&lt;HOME&gt;/.&lt;APP_NAME&gt;&quot;, where &quot;&lt;HOME&gt;&quot; is replaced by 
+the &quot;HOME&quot; environment variable contents, and &lt;APP_NAME&gt; replaced by the 
+APP_NAME attribute value. In Windows, the filename will be 
+&quot;&lt;HOMEDRIVE&gt;&lt;HOMEPATH&gt;\&lt;APP_NAME&gt;.cfg&quot;, where HOMEDRIVE and HOMEPATH are also 
+obtained from environment variables.</p>
+<p>The <strong>Application Configuration File</strong> is defined by setting the 
+attribute APP_CONFIG to Yes (default is No). In this case the attribute APP_PATH must also be 
+set. In UNIX, the filename will be &quot;&lt;APP_PATH&gt;.&lt;APP_NAME&gt;&quot;,&nbsp; and in Windows 
+will be &quot;&lt;APP_PATH&gt;&lt;APP_NAME&gt;.cfg&quot;. Notice that the attribute APP_PATH must 
+contains a folder separator &quot;/&quot; at the end.</p>
+<p>After the functions are called the attribute FILENAME is set reflecting the 
+constructed filename.</p>
+<p>So usually at start up, an application will do:</p>
+<pre>Ihandle* config = <strong>IupConfig</strong>();
+<strong>IupSetAttribute</strong>(config, "APP_NAME", "MyAppName");
+<strong>IupConfigLoad</strong>(config);
+</pre>
+<h3>Variables</h3>
+
+<pre>void <strong>IupConfigSetVariableStr</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, const char* <strong>value</strong>);  [in C]
+void <strong>IupConfigSetVariableStrId</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>, const char* <strong>value</strong>);
+void <strong>IupConfigSetVariableInt</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>value</strong>);
+void <strong>IupConfigSetVariableIntId</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>, int <strong>value</strong>);
+void <strong>IupConfigSetVariableDouble</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, double <strong>value</strong>);
+void <strong>IupConfigSetVariableDoubleId</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>, double <strong>value</strong>);
+<strong>iup.ConfigSetVariable</strong>(<strong>ih</strong>: ihandle, <strong>group</strong>, <strong>key: </strong>string, <strong>value</strong>: string or number)  [in Lua]
+or <strong>ih:SetVariable</strong>(<strong>group</strong>, <strong>key: </strong>string, <strong>value</strong>: string or number)  [in Lua]
+<strong>iup.ConfigSetVariable</strong>(<strong>ih</strong>: ihandle, <strong>group</strong>, <strong>key: </strong>string, <strong>id</strong>: number, <strong>value</strong>: string or number)  [in Lua]
+or <strong>ih:SetVariable</strong>(<strong>group</strong>, <strong>key: </strong>string, <strong>id</strong>: number, <strong>value</strong>: string or number)  [in Lua]
+
+const char* <strong>IupConfigGetVariableStr</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>);  [in C]
+const char* <strong>IupConfigGetVariableStrId</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>);
+int    <strong>IupConfigGetVariableInt</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>);
+int    <strong>IupConfigGetVariableIntId</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>);
+double <strong>IupConfigGetVariableDouble</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>);
+double <strong>IupConfigGetVariableDoubleId</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>);
+<strong>iup.ConfigGetVariable</strong>(<strong>ih</strong>: ihandle, <strong>group</strong>, <strong>key: </strong>string) -&gt; (<strong>value</strong>: string) [in Lua]
+or <strong>ih:GetVariable</strong>(<strong>ih</strong>: ihandle, <strong>group</strong>, <strong>key: </strong>string) -&gt; (<strong>value</strong>: string) [in Lua]
+<strong>iup.ConfigGetVariable</strong>(<strong>ih</strong>: ihandle, <strong>group</strong>, <strong>key: </strong>string, <strong>id</strong>: number) -&gt; (<strong>value</strong>: string) [in Lua]
+or <strong>ih:GetVariable</strong>(<strong>ih</strong>: ihandle, <strong>group</strong>, <strong>key: </strong>string, <strong>id</strong>: number) -&gt; (<strong>value</strong>: string) [in Lua]
+
+const char* <strong>IupConfigGetVariableStrDef</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, const char* <strong>def</strong>);  [in C]
+const char* <strong>IupConfigGetVariableStrIdDef</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>, const char* <strong>def</strong>);
+int    <strong>IupConfigGetVariableIntDef</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>def</strong>);
+int    <strong>IupConfigGetVariableIntIdDef</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>, int <strong>def</strong>);
+double <strong>IupConfigGetVariableDoubleDef</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, double <strong>def</strong>);
+double <strong>IupConfigGetVariableDoubleIdDef</strong>(Ihandle* <strong>ih</strong>, const char* <strong>group</strong>, const char* <strong>key</strong>, int <strong>id</strong>, double <strong>def</strong>);
+<strong>iup.ConfigGetVariableDef</strong>(<strong>ih</strong>: ihandle, <strong>group</strong>, <strong>key: </strong>string, <strong>def</strong>: string or number) -&gt; (<strong>value</strong>: string) [in Lua]
+or <strong>ih:GetVariableDef</strong>(<strong>group</strong>, <strong>key: </strong>string, <strong>def</strong>: string or number) -&gt; (<strong>value</strong>: string) [in Lua]
+<strong>iup.ConfigGetVariableDef</strong>(<strong>ih</strong>: ihandle, <strong>group</strong>, <strong>key: </strong>string, <strong>id</strong>: number, <strong>def</strong>: string or number) -&gt; (<strong>value</strong>: string) [in Lua]
+or <strong>ih:GetVariableDef</strong>(<strong>group</strong>, <strong>key: </strong>string, <strong>id</strong>: number, <strong>def</strong>: string or number) -&gt; (<strong>value</strong>: string) [in Lua]
+</pre>
+
+<p><b>ih</b>: Identifier of the configuration database<br><strong>group</strong>: 
+group name of the variable<br>
+
+  <strong>key</strong>: key name of the variable<br>
+<strong>id</strong>: used when the variable has a sequential number<br>
+
+<b>value</b>: value of the variable<br><strong>def</strong>: default value of 
+the variable</p>
+
+<p><span class="style1">Returns:</span> the variable value or NULL (or 0 for 
+integer and double) if 
+  the variable is not set or does not exist. When the variable may not exist you 
+can use the functions with <strong>def</strong> to use a default value. </p>
+
+
+<p>These functions are very similar to the <strong>IupSetAttribute</strong> and
+<strong>IupGetAttribute</strong> functions. Internally the variables are stored 
+as attributes using a &quot;&lt;GROUP&gt;.&lt;KEY&gt;&quot; combination, that's why group and key 
+names can not have periods &quot;.&quot;.</p>
+<h3>Recent File Menu</h3>
+<pre>void <strong>IupConfigRecentInit</strong>(Ihandle* <strong>ih</strong>, Ihandle* <strong>menu</strong>, Icallback <strong>recent_cb</strong>, int <strong>max_recent</strong>);
+<span class="auto-style2"><strong>iup.</strong></span><strong>ConfigRecentInit</strong>(<b>ih, menu</b>: ihandle, <strong>max_recent</strong>: number)  [in Lua]
+<span class="auto-style2">or <strong>ih</strong>:</span><strong>RecentInit</strong>(<b>menu</b>: ihandle, <strong>max_recent</strong>: number)  [in Lua]
+<strong>ih:</strong>recent_cb() -&gt; (<strong>ret</strong>: number) [in Lua]
+
+void <strong>IupConfigRecentUpdate</strong>(Ihandle* <strong>ih</strong>, const char* <strong>filename</strong>);
+<span class="auto-style2"><strong>iup.</strong></span><strong>ConfigRecentUpdate</strong>(<b>ih</b>: ihandle, <strong>filename</strong>: string)  [in Lua]
+<span class="auto-style2">or <strong>ih:</strong></span><strong>RecentUpdate</strong>(<strong>filename</strong>: string)  [in Lua]
+</pre>
+
+<p><b>ih</b>: Identifier of the configuration database<br><strong>menu</strong>: 
+menu where the recent file items will be listed<br>
+
+  <strong>recent_cb</strong>: callback that will be called when a recent file 
+item is selected on the menu<br>
+<strong>max_recent</strong>: the maximum number of recent file items.<br>
+
+<strong>filename</strong>: name of the file that where just saved or open</p>
+<p>These functions store and manage a &quot;Recent Files&quot; menu for the application. 
+Call <strong>IupConfigRecentInit </strong>once to initialize the menu. Then 
+every time a file is open or saved call <strong>IupConfigRecentUpdate</strong> 
+so that the menu list is updated. The last file will be always on the top of the 
+list. </p>
+<p>Inside the RECENT_CB callback the TITLE attribute contains the filename, but 
+the ih handle is not the menu, it is the IupConfig handle. But also inside the 
+callback the IupConfig will inherit attributes from the menu as if it was its 
+parent. (since 3.15)</p>
+<h3>Dialog Position and Size</h3>
+<pre>void <strong>IupConfigDialogShow</strong>(Ihandle* <strong>ih</strong>, Ihandle* <strong>dialog</strong>, const char* <strong>name</strong>);
+<span class="auto-style2"><strong>iup.</strong></span><strong>ConfigDialogShow</strong>(<b>ih, dialog</b>: ihandle, <strong>name</strong>: string)  [in Lua]
+<span class="auto-style2">or <strong>ih:</strong></span><strong>DialogShow</strong>(<b>dialog</b>: ihandle, <strong>name</strong>: string)  [in Lua]
+
+void <strong>IupConfigDialogClosed</strong>(Ihandle* <strong>ih</strong>, Ihandle* <strong>dialog</strong>, const char* <strong>name</strong>);
+<strong><span class="auto-style2">iup.</span>ConfigDialogClosed</strong>(<b>ih, dialog</b>: ihandle, <strong>name</strong>: string)  [in Lua]
+or <strong><span class="auto-style2">ih:</span>DialogClosed</strong>(<b>dialog</b>: ihandle, <strong>name</strong>: string)  [in Lua]</pre>
+
+<p><b>ih</b>: Identifier of the configuration database<br><strong>dialog</strong>: 
+the dialog to manage the size and position<br>
+
+  <strong>name</strong>: a name for this dialog</p>
+<p>These functions store and manage the position and size of a dialog. So when 
+the application is run again the dialog can be show at its last position and 
+last size. Use the function <strong>IupConfigDialogShow</strong> to show the dialog 
+adjusting its size and position. And use the function <strong>IupConfigDialogClosed</strong> 
+to save the last dialog position and size when the dialog is about to be closed, 
+usually inside the dialog CLOSE_CB callback.</p>
+<p> <strong>IupConfigDialogShow</strong> does no adjustments if the dialog is 
+already visible, just call <strong>IupShow</strong>. If the dialog was closed 
+maximized it will be shown maximized. The default size, at the first time ever 
+the dialog is shown, is maximized. The dialog size is set only if RESIZE=Yes. 
+(since 3.16)</p>
+<p>The position is saved in the variables &quot;X&quot; and &quot;Y&quot; of the given group name. 
+The size is saved in the variables &quot;Width&quot; and &quot;Height&quot; of the given group name. </p>
+<p>If your dialog is resizable and you want to avoid the last size usage because 
+you changed the dialog layout, then reset the &quot;Width&quot; and &quot;Height&quot; variables 
+before calling <strong>IupConfigDialogShow</strong>.</p>
+<p>To avoid the dialog size to be maximized, set the variable &quot;Maximized&quot; to 0 
+before calling <strong>IupConfigDialogShow</strong>. (since 3.16)</p>
+<h3>See Also</h3>
+<p> <a href="iupdestroy.html">IupDestroy</a>, <a href="iupsetattribute.html">
+IupSetAttribute</a>, <a href="iupgetattribute.html">IupGetAttribute</a> </p>
+
+</body>
+
+</html>

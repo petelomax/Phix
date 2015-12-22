@@ -1400,7 +1400,7 @@ constant
     xIupStoreAttribute = define_c_proc(hIup, "IupStoreAttribute", {P,P,P}),
     xIupSetAttribute = define_c_proc(hIup, "IupSetAttribute", {P,P,P}),
     xIupSetAttributes = define_c_proc(hIup, "IupSetAttributes", {P,P}),
-    xIupSetInt = define_c_proc(hIup, "IupSetInt", {P,P,I}),
+--  xIupSetInt = define_c_proc(hIup, "IupSetInt", {P,P,I}),
     xIupResetAttribute = define_c_proc(hIup, "IupResetAttribute", {P,P}),
     xIupGetAttribute = define_c_func(hIup, "IupGetAttribute", {P,P},P),
     xIupGetAllAttributes = define_c_func(hIup, "IupGetAllAttributes", {P,P,I},I),
@@ -1534,10 +1534,10 @@ atom pName = allocate_string(name)
 end procedure
 
 --void IupSetInt(Ihandle* ih, const char* name, int v);
-global procedure IupSetInt(atom ih, object name, atom v)
-    if sequence(name) then name = allocate_string(name,1) end if
-    c_proc(xIupSetInt, {ih,name,v})
-end procedure
+--global procedure IupSetInt(atom ih, object name, atom v)
+--  if sequence(name) then name = allocate_string(name,1) end if
+--  c_proc(xIupSetInt, {ih,name,v})
+--end procedure
 
 global function IupGetAttribute(Ihandle ih, sequence name)
 atom pName = allocate_string(name)

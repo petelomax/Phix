@@ -1,0 +1,425 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Strict//EN">
+<html>
+<head>
+	<title>5. Simple Paint</title>
+	<meta http-equiv="Content-Language" content="en-us">
+  <link rel="stylesheet" type="text/css" href="../../style.css">
+  <link rel="stylesheet" type="text/css" href="tutorial.css">
+	<style type="text/css">
+	.auto-style1 {
+		color: #FF0000;
+	}
+	.auto-style2 {
+		border-style: solid;
+		border-width: 1px;
+	}
+	</style>
+	</head>
+<body>
+
+<div id="navigation">
+<ul>
+    <li><a href="tutorial.html">Index</a></li>
+    <li><a href="tutorial4.html">Previous</a></li>
+    <li><a href="tutorial6.html">Next</a></li>
+</ul>
+</div>
+
+<h2>5. Advanced Topics</h2>
+<h3>5.1 <a name="Encapsulation">C++ Encapsulation</a></h3>
+<p>As you recall from chapter 4, our Simple Paint source code now has 2500 
+lines. It is a lot to process, specially if you are looking for bugs, or 
+learning how it works without reading all the previous examples that evolved 
+into the final code. So it is time to use some software engineering techniques 
+to improve quality and maintenance. We can do that in C too, but modern 
+applications are more and more using C++, also because the language provides 
+some tools to easy that task. So the first thing we are going to do is to 
+convert the code from C to C++. </p>
+<p>Actually if you simply save the &quot;simple_paint.c&quot; as &quot;simple_paint.cpp&quot;, and 
+use a C++ compiler it will fully work. But it is not what we meant. We would 
+like to isolate parts of the code to reduce the interference of one part in 
+another. This is called encapsulation in software engeneering. The simplest way 
+to do that in C++ is to use classes for major features in the application. So 
+looking at our code we can see at least 3 groups of functions: the main dialog, 
+the toolbox dialog, and file management.</p>
+<p>So we decided to start with 3 classes: <strong>SimplePaint</strong> (the main 
+dialog), <strong>SimplePaintToolbox</strong> (the toolkbox dialog) and <strong>
+SimplePaintFile</strong> (file management). If you compare the C and the C++ 
+codes they are very similar, except that functions are now class methods. Even 
+IUP callbacks are now methods, but there is a catch here. Class methods can NOT 
+be used as function pointers as the ones used by <strong>IupSetCallback</strong>. 
+It order to be able to do that we must implement a static method, use it as the 
+callback, and from inside that code call a class method. To do that every time 
+for all the callbacks can be very task consuming. So we created a few macros to 
+help implementing callbacks as class methods.</p>
+<p>These macros are available in the &quot;iup_class_cbs.hpp&quot; include file. To use 
+the macros for the callbacks you must call the IUP_CLASS_INITCALLBACK(ih, class) 
+macro once, usually in the class constructor after the IUP dialog was created. 
+This macro will register the IUP element so the class object can be retrieved 
+later transparently for the application. The macros however can be called in any 
+order. So we will use the IUP_CLASS_DECLARECALLBACK_*(class, callback) macros to 
+declare the callbacks as methods. Since we have several different callbacks 
+because of the different parameters, there are several different macros, one for 
+each callback signature found in IUP elements. The static method has the same 
+name of the callback used in the macro with a &quot;CB_&quot; prefix. So you can also 
+directly use its name in <strong>IupSetCallback</strong> if necessary. To 
+actually set the callback of an element simply call IUP_CLASS_SETCALLBACK(ih, 
+name, callback) just like you call <strong>IupSetCallback</strong>. The callback 
+name will be the same you used in IUP_CLASS_DECLARECALLBACK_*(class, callback), 
+in fact it will simply call <strong>IupSetCallback</strong> with the static 
+callback using the &quot;CB_&quot; prefix. So here is a simple class to illustrate this 
+procedure:</p>
+<pre>class SampleClass
+{
+  int sample_count;
+  
+public:
+  SampleClass()
+  {
+    sample_count = 0;
+    
+    Ihandle* button = IupButton("Inc", NULL);
+    // 2) Associate the callback with the button
+    <strong>IUP_CLASS_SETCALLBACK</strong>(button, "ACTION", <span class="auto-style1"><strong>ButtonAction</strong></span>);
+
+    Ihandle* dialog = IupDialog(button);
+    // 1) Register this object as a callback receiver (only once)
+    <strong>IUP_CLASS_INITCALLBACK</strong>(dialog, SampleClass);
+
+    IupShow(dialog);
+  };
+
+protected:
+  // 3) Declare the callback as a member function
+  <strong>IUP_CLASS_DECLARECALLBACK_IFn</strong>(SampleClass, <span class="auto-style1"><strong>ButtonAction</strong></span>);
+};
+
+// 4) Define the callback as a member function
+int SampleClass::<span class="auto-style1"><strong>ButtonAction</strong></span>(Ihandle*)
+{
+  sample_count++;
+  return IUP_DEFAULT;
+}
+</pre>
+<p>Using these macros methods of the same C++ class can be set as callbacks for 
+any element. For clarity we are going to use a single class to process the 
+callbacks of all elements that are children of the same dialog. So we will need 
+2 classes for our 2 dialogs. The third class will handle only the image file 
+management and it will not have callbacks. To be able to isolate the toolbox 
+from the main dialog class we will need some extra methods that will operate 
+over the toolbox dialog. Apart from that all the methods of both dialog classes 
+are directly equivalent of a function in our C source code. We also tried to 
+maintain their position in the source code to simplify the comparison between 
+the two.</p>
+<p>Notice that only a few methods are left public in both classes, that is where 
+the encapsulation occurs. </p>
+
+<p class="example_title">Example Source Code 
+<span class="example_button">[in C++] <a target="example5_1" href="../../examples/tutorial/simple_paint1.cpp">simple_paint1.cpp</a> <a href="../../examples/tutorial/simple_paint1.cpp">
+<img alt="" src="download.png"></a></span> <span class="example_button">[in C] <a target="example5_1" href="../../examples/tutorial/simple_paint.c">simple_paint.c</a> <a href="../../examples/tutorial/simple_paint.c"><img alt="" src="download.png"></a></span></p>
+<iframe src="../../examples/tutorial/simple_paint1.cpp" id="5_1" name="example5_1" marginheight="0" marginwidth="0" style="height: 31em">
+</iframe>
+
+<h3>5.2 C++ <a name="Modularization">Modularization</a></h3>
+<p>In the previous section we purposely left all classes in the same file so you 
+will be able to compare it with the C source code. But now is the time to split 
+the code in several modules, one for each class. So instead of a 2500 
+lines file, we now reduce to 1000 lines for the main file (where the main dialog 
+is) and the rest distributed in the other files.</p>
+
+<p>But we actually were able to create a total of 6 modules! 3 modules for the 
+classes we already described, and 3 new modules. The 3 modules we already expect 
+are: &quot;simple_paint.cpp/h&quot; (<strong>SimplePaint</strong> class), &quot;simple_paint_toolbox.cpp/h&quot; 
+(<strong>SimplePaintToolbox</strong>&nbsp; class) and &quot;simple_paint_file.cpp/h&quot; 
+(<strong>SimplePaintFile</strong> class). </p>
+<p>The first new module is a very simple one, called &quot;simple_paint_main.cpp&quot;. It 
+contains only the &quot;<strong>main</strong>&quot; function necessary for the application 
+starting point. </p>
+<p>The second new module is to store the utility functions that are not related 
+to any specific classes. It is called &quot;simple_paint_util.cpp/h&quot;.</p>
+<p>And the third module is a new class that we identified mixed up with our
+<strong>SimplePaint</strong> class. Inside the main dialog we have a very 
+important control that does the most important interface task that is to show 
+the image and do the direct interaction defined by the toolbox. As you can guess 
+now is the <strong>IupCanvas</strong>. It has several speciall callbacks and as 
+we said is the essential tool for our paint interface. So it is a natural 
+candidate for separate class we called <strong>SimplePaintCanvas</strong>. It 
+will hide the canvas from the main dialog, and encapsulate all its features, 
+mainly interaction and zoom control. It is called &quot;simple_paint_canvas.cpp/h&quot;.</p>
+<p>Now it is not just easier to find the part of the code you want to change, 
+but it helps to reduce the interference in other modules of what you have just 
+changed.</p>
+<p>But notice that our modularization is still not perfect. Inside <strong>SimplePaintCanvas</strong> 
+there are some references to controls that are located in the Statusbar. </p>
+<p>The next stage will be to use Dynamic Dispatch, or in C++, virtual methods 
+and inheritance to implement classes for the interactive tools to make it easier 
+to add new tools.</p>
+<p>Also our classes are instantiated just one time. What about adding support 
+for editing multiple image files simultaneously, but instead of using the old 
+Windows MDI concept to use a <strong>IupTabs</strong> to alternate between the 
+files?</p>
+<p>In Lua the changes would be very similar, using tables to isolate the code of 
+each module.</p>
+<p>So there are plenty of possibilities for improving our object oriented modeling. 
+If you implement some of them, please let us know and share your code so we can 
+add it to the tutorial.</p>
+
+
+<p class="example_title">Example Source Code (Implementation) [C++]
+<span class="example_button">
+<a target="simple_paint2_cpp" href="../../examples/tutorial/simple_paint2_cpp/simple_paint.cpp">simple_paint.cpp</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint.cpp"><img alt="" src="download.png"></a></span> 
+<span class="example_button">
+<a target="simple_paint2_cpp" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_canvas.cpp">simple_paint_canvas.cpp</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_canvas.cpp"><img alt="" src="download.png"></a></span>
+</p>
+<p class="example_title2">
+<span class="example_button">
+<a target="simple_paint2_cpp" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_toolbox.cpp">simple_paint_toolbox.cpp</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_toolbox.cpp"><img alt="" src="download.png"></a></span>
+<span class="example_button">
+<a target="simple_paint2_cpp" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_file.cpp">simple_paint_file.cpp</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_file.cpp"><img alt="" src="download.png"></a></span>
+<span class="example_button">
+<a target="simple_paint2_cpp" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_util.cpp">simple_paint_util.cpp</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_util.cpp"><img alt="" src="download.png"></a></span> 
+</p>
+<p class="example_title2">
+<span class="example_button">
+<a target="simple_paint2_cpp" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_main.cpp">simple_paint_main.cpp</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_main.cpp"><img alt="" src="download.png"></a></span> 
+</p>
+<iframe src="../../examples/tutorial/simple_paint2_cpp/simple_paint.cpp" id="5_2_cpp" name="simple_paint2_cpp" marginheight="0" marginwidth="0" style="height: 31em">
+</iframe>
+
+<p class="example_title">Example Source Code (Declaration)
+[C++] <span class="example_button">
+<a target="simple_paint2_h" href="../../examples/tutorial/simple_paint2_cpp/simple_paint.h">simple_paint.h</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint.h"><img alt="" src="download.png"></a></span> 
+<span class="example_button">
+<a target="simple_paint2_h" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_canvas.h">simple_paint_canvas.h</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_canvas.h"><img alt="" src="download.png"></a></span>
+</p>
+<p class="example_title2">
+<span class="example_button">
+<a target="simple_paint2_h" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_toolbox.h">simple_paint_toolbox.h</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_toolbox.h"><img alt="" src="download.png"></a></span>
+<span class="example_button">
+<a target="simple_paint2_h" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_file.h">simple_paint_file.h</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_file.h"><img alt="" src="download.png"></a></span>
+<span class="example_button">
+<a target="simple_paint2_h" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_util.h">simple_paint_util.h</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_util.h"><img alt="" src="download.png"></a></span> 
+</p>
+<iframe src="../../examples/tutorial/simple_paint2_cpp/simple_paint.h" id="5_2_h" name="simple_paint2_h" marginheight="0" marginwidth="0" style="height: 31em">
+</iframe>
+
+<br>
+
+<h3>5.3 <a name="High_Resolution_Display">High Resolution Display</a> </h3>
+<p>During the 90's the 15&quot; monitors with 1024x768 pixels were the most popular 
+graphic resolution was about 85 DPI. But that was a long time ago. Soon we 
+started to see 19&quot; monitors with 1280x1024 pixels and 92 DPI. Later the most 
+popular are the 20&quot; Full-HD wide screen monitors (16x9 at the same height as 19&quot; 
+standard 4:3 monitor) with 1920x1080 pixels and a resolution of about 96 DPI. 
+Finally we got to the 4K wide screen monitors with 3840x2160 pixels. Even for a 
+24&quot; wide screen monitor, the resolution 3840x2160 pixels is 186 DPI. It is a lot 
+more than 96 DPI. For instance 16x16 pixels icons are very tiny. Here is an 
+example using a browser page as reference:</p>
+
+<p class="example_image"><img alt="" src="example5_3a.png" class="auto-style2"></p>
+
+<p>To support such high resolution the application should be able to compute its 
+layout using a larger font, and to include image sets for button when in high 
+resolution. Usually this not occurs. IUP will automatically take care of the 
+layout (considering that the application used SIZE, CMARGIN and CGAP, instead of 
+RASTERSIZE, MARGIN and GAP), but images are commonly provided in one size only, 
+our <strong>SimplePaint</strong> is no different. To compensate that Microsoft used a strategy in 
+Windows that will do a low level resize of the application, so it can improve 
+its readability in sacrifice of its resolution. So this is how our SimplePaint 
+looks like with the resize strategy:</p>
+
+<p class="example_image"><img alt="" src="example5_3b.png" class="auto-style2"></p>
+
+<p>The <strong>IupCanvas</strong> will report a size that is actually smaller 
+than the size on screen, because the application will be run as if in a Full-HD 
+monitor, not using the available resolution. Notice that even the menu text is 
+blurred. To avoid that we added a few lines 
+to the Manifest file, declaring that we are a <strong>dpiAware</strong> 
+application. So this was how we obtained the previous screen shoot with the 
+small icons. Now that we know how to avoid the Microsoft resize strategy it is time 
+to improve our application readability by our own.</p>
+<p>We used in SimplePaint two sets of images, one from the <strong>IupImageLib</strong> 
+stock images, and one created just for <strong>SimplePaint</strong> which are only 
+16x16 pixels. We actually don't have to worry about the stock images, because 
+since IUP 3.16 they are automatically resized accordingly the screen resolution 
+(to obtain the first screen shot, we also had to disable this feature). But the 
+SimplePaint toolbox images only have 16x16 pixels. The solution would be to add new images 
+with at 32x32 pixels that can be used in place of the 16x16 if the resolution is 
+very high, for instance by checking the global attribute SCREENDPI being greater than 150 
+DPI and selecting 16x16 or 32x32 images. But IUP also provides an automatic resize for images using the same 
+strategy that Microsoft does for the whole application. To do that we set the 
+IMAGEAUTOSCALE global attribute to the &quot;DPI&quot; value. So all the images will be 
+scaled accordingly. The result is the following:</p>
+
+<p class="example_image"><img alt="" src="example5_3c.png" class="auto-style2"></p>
+
+<p>Now we have the best of both worlds, high resolution with normal readability. </p>
+<h3>5.4 <a name="Splash_Screen">Splash Screen</a>, About and System Information</h3>
+<p>Sometimes the application take a long time to start up, maybe it has many 
+things to initialize for instance. One common approach to distract the user 
+while this initialization occurs is to use a Splash screen. It is a dialog shown 
+while the application initializes that usually has a decorative purpose only. So 
+many companies use it to show the application logo and/or the company logo as a 
+marketing strategy. Although we can use a normal dialog to do that, this dialog 
+will have no decorations and no controls inside. We are going to use a single 
+image as contents, and a trick to show it with a transparent background. The 
+trick is the OPACITYIMAGE attribute of the <strong>IupDialog</strong>, it will 
+use the transparency of the image to create a mask for the dialog shape, so the 
+dialog will be shown with a non rectangular area, on top of what's on the 
+background. </p>
+<p>But we would like that to take two moments, first when the logo is shown 
+alone, and a second moment when the logo is shown with our application on the 
+background, while it initializes. To control the timing we use an <strong>
+IupTimer</strong> set initially for 1 second, then hold the execution, and 
+inside the timer callback restart the timer for another second but now letting 
+the application initializes normally. The splash dialog will be automatically 
+destroyed at the end of the second moment.</p>
+<p>The image we chose is the Tecgraf logo with 317x317 pixel. It is a large 
+image to convert it to a C source code and embed into the application executable 
+just for the splash screen. So we are going to load it from its file during run 
+time. We could directly use IM functions to do it, and use CD to draw it, but we 
+don't need much control over the drawing this time, so a simpler way is to use 
+the <strong>IupLoadImage</strong> utility function that loads a file and returns 
+an <strong>IupImage</strong> ready for IUP controls. The problem is that we now 
+have to distribute our application with the logo file, and in run time locate 
+that file for loading. There are many strategies to do that, we decided that our 
+logo will be located in the same folder of the executable or in the parent 
+folder, so we use the <strong>main</strong> function argument &quot;<strong>argv</strong>[0]&quot; 
+that contains the executable file name. From it we extract the path where it is 
+located so we can concatenate with the logo file name. If the file is not found 
+the splash is simply not shown.</p>
+
+<p class="example_title">Example Source Code 
+<span class="example_button">[in C++] <a target="example5_4" href="../../examples/tutorial/simple_paint2_cpp/simple_paint_splash.cpp">simple_paint_splash.cpp</a> <a href="../../examples/tutorial/simple_paint2_cpp/simple_paint_splash.cpp">
+<img alt="" src="download.png"></a></span></p>
+<iframe src="../../examples/tutorial/simple_paint2_cpp/simple_paint_splash.cpp" id="5_4" name="example5_4" marginheight="0" marginwidth="0" style="height: 31em">
+</iframe>
+
+<p class="example_image"><img alt="" src="example5_4a.png"></p>
+
+<p>So now that we have a handsome logo, why not to improve our About dialog too? 
+The About dialog also has an important job to show the application version. 
+Until now we didn't have a version number, but our <strong>SimplePaint</strong> 
+is getting more complex every day, so we must be able to know which version we 
+are running. If we count from the start, in chapter 4 we should have reached 
+version 1.0. In chapter 5 we moved to C++ but didn't actually added new 
+features, so it was version 1.1. So for our splash screen commemorative edition 
+we will simply define it as version 1.2.</p>
+<p>We also added some company information and a contact e-mail. In the 
+screenshot bellow the sharp eye will notice a caret in front of the e-mail text. 
+That's because it is not an <strong>IupLabel</strong>. It is an <strong>IupText</strong> 
+without borders and with the same background of the dialog. We use it instead of 
+a label so the user can select the text and copy to the clipboard to paste it 
+somewhere else. Another option would be to use the <strong>IupLink</strong> 
+element with the text &quot;<a href="mailto:iup@tecgraf.puc-rio.br">mailto:iup@tecgraf.puc-rio.br</a>&quot;, 
+this will invoke the system e-mail application when clicked.</p>
+<p>Finally there is also a button for System Information that shows a 
+pre-defined dialog called <strong>IupGetText</strong> with textual information 
+about the current system that can also be copied to the clipboard for use in 
+error report for instance. Notice that all the system information were obtained 
+from IUP global attributes.</p>
+
+<p class="example_image"><img alt="" src="example5_4b.png"></p>
+
+<p>Here is a sample of the System Information text:</p>
+
+<pre>-------  System Information  -------
+
+IUP 3.15 Copyright (C) 1994-2015 Tecgraf/PUC-Rio.
+
+  System: Win10
+  System Version: 10.0.10240 (x64)
+
+  Screen Size: 3840x2080
+  Screen Depth: 32
+
+IM 3.9.1 Copyright (C) 1994-2015 Tecgraf/PUC-Rio.
+
+CD 5.8.2 Copyright (C) 1994-2015 Tecgraf/PUC-Rio.</pre>
+<h3>5.5 <a name="Dynamic_Libraries">Dynamic Libraries</a> </h3>
+<p>Now it is time to distribute our application. There are many installation 
+creation tools for Windows like
+<a href="https://msdn.microsoft.com/pt-br/library/windows/desktop/dd408114(v=vs.85).aspx" target="_blank">
+Microsoft Windows Installer</a> (Free - defines the MSI package format),
+<a href="http://www.flexerasoftware.com/producer/products/software-installation/installshield-software-installer/" target="_blank">
+Install Shield</a> (Commercial),
+<a href="http://nsis.sourceforge.net/Main_Page" target="_blank">Nullsoft NSIS 
+Installer</a> (Free - own package format),
+<a href="http://www.jrsoftware.org/isinfo.php" target="_blank">Inno Setup</a> 
+(Free - own package format), and
+<a href="http://wixtoolset.org/" target="_blank">WiX toolset</a> (Free - can 
+produce MSI packages). Here is a simple comparison on <strong>StackOverflow</strong>:
+<a href="http://stackoverflow.com/questions/137657/free-install-wizard-software" target="_blank">
+Free Install Wizard Software</a>. In Linux it is very common to distribute only 
+the source code, but this becomes more complex when it involves libraries that 
+are not installed on the system, like IUP, CD and IM. To build distribution 
+packages for Linux search for rpm and deb package formats on the Web.</p>
+<p>But before creating and installer we need to define which files we will 
+distribute. </p>
+<p>When using <strong>static libraries</strong> to link our application, we 
+simplify the deployment because everything is packed in a single file. But in 
+link time we have to know all dependencies of all libraries we are using, and 
+still this does not guaranties that some library will have an external dependecy. 
+Use know we use 3 libraries IUP, CD and IM. The main IM library (<strong>im</strong>) 
+depends on the Zlib library (<strong>zlib1</strong>), and must not forget the IM 
+Image Processing library (<strong>im_processes</strong> ) that contains the 
+functions we use in section 4.6. The CD main library (<strong>cd</strong>) 
+depends on the FreeType library (<strong>freetype6</strong>) which in turn 
+depends also on the Zlib library, finally the CD main library in Windows depends 
+on the GDI (<strong>gdi32</strong>) and in Linux depends on the GDK and Cairo 
+libraries. The main IUP library depends on GTK in Linux and USER (<strong>user32</strong>), 
+Common Dialogs (<strong>comdlg32</strong>) and Common Controls (<strong>comctl32</strong>). 
+To use IUP and CD together we need also the CD_IUP library (<strong>iupcd</strong>). 
+To use IUP and IM together we need the IUP-IM Utilities library (<strong>iupim</strong>). 
+And the IUP Image Library (iupimglib) for the stock images. So our actual link 
+list will include:</p>
+<pre>iupimglib iupcd iup cd freetype6 im_process im zlib
+plus in Windows: comctl32 comdl32 user32
+plus in Linux: gtk-x11-2.0 gdk-x11-2.0 gdk_pixbuf-2.0 pango-1.0 pangox-1.0 gobject-2.0 gmodule-2.0 glib-2.0</pre>
+<p>The executable takes longer to link and all exported functions of all static 
+libraries must not have a single function with the same name. And they all must 
+use the same C Run Time Library when compiled, mixing different run times can 
+have unpredictable results and usually linker errors.</p>
+<p>On the other hand, when using <strong>dynamic libraries</strong> things get 
+more simpler when developing and carefully when distributing. This time we do 
+not have to know all the dependencies, only the direct dependencies used by our 
+own code. So when linking we will specify only the following libraries:</p>
+<pre>iupimglib iupcd iup cd im_process im</pre>
+<p>The executable will link much faster and there will be much less room for 
+conflicts. If you keep the memory allocation and release isolated by each 
+library, meaning what allocated in IUP is released by IUP, what's allocated in 
+CD is released by CD, and so on, then there will be no C Run Time library memory 
+problems, even when using libraries that were linked with different Run Time 
+libraries (standard structures like FILE* are also non interchangeable). But now 
+we have to include all those libraries and their dependencies in the 
+distribution package. The fist time you build the distribution package is 
+problematic because you have to make sure that you get everything you will need 
+in a foreign system. In Windows a very useful application in the
+<a href="http://www.dependencywalker.com/" target="_blank">Dependency Walker</a> 
+(Free). It will list all the DLLs linked to the application and their respective 
+dependencies (don't forget to include the C Run Time DLL too, usually 
+&quot;msvcrXX.dll&quot;). In Linux you can use the &quot;ldd&quot; application and in MacOSX the &quot;otool&quot; 
+application for that purpose, but they are more limited.</p>
+<p>In Windows, when running an application that depends on DLL is quite simple, 
+if you copy the DLLs to the same folder of the application the system will 
+automatically locate the DLLs. There is no need to change the PATH or to copy 
+the DLLs to the Windows/System folder. In Linux, if you do not copy the .so 
+files to the system folder then you need to at least set an environment variable 
+called LD_LIBRARY_PATH (DYLD_LIBRARY_PATH in MacOSX) to include the folder were 
+the dynamic libraries are. For example:</p>
+<pre>export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/tecgraf/simple_paint</pre>
+<p>&nbsp;So we actually moved the problems from one place to another, although 
+it is still more interesting to work with dynamic libraries since they isolate a 
+library code from another, linker is faster, and individual updates to the 
+dynamic libraries are far more simple to deploy. <br></p>
+
+<table cellpadding="0" cellspacing="0" style="width: 100%">
+	<tr>
+		<td align="left" class="tutorial_bottom"><a href="tutorial4.html">Previous</a></td>
+		<td align="center" class="tutorial_bottom"><a href="tutorial.html">Index</a></td>
+		<td align="right" class="tutorial_bottom"><a href="tutorial6.html">Next</a></td>
+	</tr>
+</table>
+
+</body>
+</html>

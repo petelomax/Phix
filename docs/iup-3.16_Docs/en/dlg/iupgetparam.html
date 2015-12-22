@@ -1,0 +1,350 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Strict//EN">
+<html>
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<title>IupGetParam</title>
+
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<style type="text/css">
+.style1 {
+        text-decoration: underline;
+}
+</style>
+</head>
+<body>
+<div id="navigation">
+  <ul>
+    <li><a href="#Creation">Creation</a></li>
+    <li><a href="#Attributes">Attributes</a></li>
+    <li><a href="#Callbacks">Callbacks</a></li>
+    <li><a href="#Notes">Notes</a></li>
+    <li><a href="#Examples">Examples</a></li>
+    <li><a href="#SeeAlso">See Also</a></li>
+  </ul>
+</div>
+
+<h2>IupGetParam</h2>
+<p>Shows a modal dialog for capturing 
+  parameter
+  values using several types of controls.</p>
+<h3><a name="Creation">Creation</a> and Show</h3>
+<dl>
+  <dl>
+        <pre>int IupGetParam(const char* <b>title</b>, Iparamcb <b>action</b>, void* <b>user_data</b>, const char* <b>format</b>,...); [in C]
+iup.GetParam(<b>title</b>: string, <b>action</b>: function, <b>format</b>: string,...) -&gt; (<strong>status</strong>: boolean, ...) [in Lua]</pre>
+        <b>
+        <p>title</b>: dialog title.<br>
+        <b>action:</b> user callback to be called whenever a parameter value was changed, 
+    and when the user pressed the OK button. It can be NULL.<br>
+        <b>user_data</b>: user pointer passed to the user callback.<br>
+        <b>format</b>: <span>string describing all the parameters, see
+        <a href="#Notes">Notes</a>.&nbsp;</span><br>
+    ...: list of variables address with initial values for the parameters.</p>
+        <p><span class="style1">Returns:</span> a <strong>status</strong> code 1 if the button 
+        1 was pressed, 0 if the button 2 was pressed or if an error occurred.</p>
+        <p>The function 
+    will abort if there are errors in the format string as in the number of the expected parameters. 
+        In Lua, the values are returned by the function in the same order they were 
+        passed. The Lua type of each parameter is the equivalent C type (boolean is 
+        integer), except for the <strong>status</strong> code that it is a boolean.</p>
+        </dl>
+</dl>
+<h3><a name="Callbacks">Callbacks</a></h3>
+<dl>
+  <pre>int function(Ihandle* <b>dialog</b>, int <b>param_index, </b>void* <b>user_data</b>); [in C]<br>luafunction(<b>dialog</b>: ihandle<b>, param_index</b>: number) -&gt; (ret: number) [in Lua]</pre>
+  <p><b>dialog</b>: dialog handle<br>
+  <b>param_index</b>: current parameter being 
+    changed. Can have negative values to indicate specific situations: <br>
+&nbsp;&nbsp;&nbsp; IUP_GETPARAM_BUTTON1 (-1) = if the user pressed the button 1;<br>
+&nbsp;&nbsp;&nbsp; IUP_GETPARAM_INIT&nbsp;(-2)&nbsp; = after the dialog is 
+  <b>mapped</b> and just before 
+    it is shown. Not called for <strong>IupParamBox</strong>;<br>
+&nbsp;&nbsp;&nbsp; IUP_GETPARAM_BUTTON2 (-3) = if the user pressed the button 2;<br>
+&nbsp;&nbsp;&nbsp; IUP_GETPARAM_BUTTON3 
+        (-4) = if the user pressed the button 3, if any;<br>&nbsp;&nbsp;&nbsp; 
+  IUP_GETPARAM_CLOSE (-5) = if the user clicked on the dialog close button. Not 
+  called for <strong>IupParamBox</strong>; (since 3.13)<br>
+  <b>user_data</b>: a user pointer that is passed in the function call.</p>
+  <p><span class="style1">Returns:</span> You can reject the change or the 
+  button action by returning 0 in the callback, otherwise you must return 1. By 
+  default button 1 and button2 will close the dialog.</p>
+  <p>Internally the callback is stored as a regular callback with the "PARAM_CB" 
+  name.</p>
+        <p>You should not programmatically change the current parameter value during the callback. On the other hand you can 
+    freely change the value of other parameters.</p>
+  <p>Use the dialog attribute &quot;PARAMn&quot; to get the parameter &quot;Ihandle*&quot;, where &quot;n&quot; is the parameter index in the order they are specified starting at 0, but separators 
+        and button names are 
+    not counted. Notice that this is not the actual control, use the parameter attribute &quot;CONTROL&quot; to get the actual control. For example:</p>
+  <pre>Ihandle* param2 = (Ihandle*)IupGetAttribute(dialog, &quot;PARAM2&quot;);
+int value2 = IupGetInt(param2, IUP_VALUE);
+
+Ihandle* param5 = (Ihandle*)IupGetAttribute(dialog, &quot;PARAM5&quot;);
+Ihandle* ctrl5 = (Ihandle*)IupGetAttribute(param5, &quot;CONTROL&quot;);
+
+if (value2 == 0)
+{
+  IupSetAttribute(param5, IUP_VALUE, &quot;New Value&quot;);
+  IupSetAttribute(ctrl5, IUP_VALUE, &quot;New Value&quot;);
+}</pre>
+  <p>Since parameters are user controls and not real controls, you must update the control value and the parameter 
+    value.</p>
+  <p>Be aware that programmatically changes are not filtered. The valuator, when available, can be retrieved using the 
+    parameter attribute &quot;AUXCONTROL&quot;. The valuator is not automatically updated when the text box is 
+    changed programmatically. The parameter label is also available using the parameter attribute &quot;LABEL&quot;.</p>
+</dl>
+<h3><a name="Attributes">Attributes</a> (inside the callback)</h3>
+<p>For the dialog:</p>
+<p>&quot;PARAMn&quot; - returns an IUP Ihandle* representing the n<sup>th</sup> parameter, indexed 
+    by the declaration order, not counting separators or button names.<br>
+    &quot;BUTTON1&quot; - returns an IUP Ihandle*, the button 1.<br>
+    &quot;BUTTON2&quot; - returns an IUP Ihandle*, the button 2. <br>&quot;BUTTON3&quot; - returns an IUP Ihandle*, the button 
+3.</p>
+<p>For a parameter:</p>
+<p>&quot;LABEL&quot; - returns an IUP Ihandle*, the label associated with the parameter.<br>
+    &quot;CONTROL&quot; - returns an IUP Ihandle*, the real control associated with the parameter.<br>
+    &quot;AUXCONTROL&quot; - returns an IUP Ihandle*,&nbsp; the auxiliary control associated with the 
+    parameter (only for Valuators). <br>
+    &quot;INDEX&quot; - returns an integer value associated with the parameter index. 
+<strong>IupGetInt</strong> can also 
+    be used.<br>
+    &quot;VALUE&quot; - returns the value of the parameter. 
+<strong>IupGetFloat</strong> and <strong>IupGetInt</strong> 
+    can also be used. For the current parameter inside the callback contains the new value 
+that will be applied to the control, to get the old value use the VALUE 
+attribute for the CONTROL returned Ihandle*.</p>
+<p>In Lua, to retrieve a parameter you must use the following function:</p>
+<pre>iup.GetParamParam(<strong>dialog: </strong>ihandle, <b>param_index</b><strong>: </strong>number)-&gt; (<b>param</b>: ihandle) [in Lua]</pre>
+<p><strong>dialog</strong>:
+    Identifier of the 
+    dialog. <br>
+<strong>param_index</strong>: parameter to be retrieved.</p>
+<p>In Lua, to retrieve a parameter control, auxiliary control or button you must use the following function:</p>
+<pre>iup.GetParamHandle(<strong>param: </strong>ihandle, <strong>name</strong>: string)-&gt; (<strong>control</strong>: ihandle) [in Lua] (since 3.16)</pre>
+<p><strong>param</strong>:
+    Identifier of the 
+    parameter. <br><strong>name</strong>: name of the parameter.</p>
+<h3><a name="Notes">Notes</a></h3>
+<p>The format string must have the following 
+  format, notice the &quot;\n&quot; at the end</p>
+<p>&quot;<strong><em>text</em></strong>%<strong><em>x</em>[<em>extra</em>]{tip}</strong>\n&quot;, where:</p>
+<p><strong><em>text</em></strong>
+      is a descriptive text, to be placed to the 
+      left of the entry field in a label. It can contains any string, but to 
+contain a &#39;%&#39; must use two characters &quot;%%&quot; to avoid conflict with the type 
+separator (since 3.6). If it is preceded by n '\t' characters then the parameter 
+will be indented by the same number (since 3.13).</p>
+<p><strong><em>x</em></strong>
+      is the type of the parameter. 
+      The valid options are:</p>
+<p style="margin-left: 40px">
+<strong>b</strong> = boolean 
+        (shows a True/False toggle, use &quot;int&quot; in C)<strong><br>
+i</strong> = integer (shows a integer number filtered text 
+        box, use &quot;int&quot; in C)<strong><br>
+r</strong> 
+        = real (shows a real number filtered text box, use &quot;float&quot; in C)<strong><br>
+R</strong> = same as<strong> r</strong> but using "double" in C (since 3.11.1)<strong><br>
+a</strong> = angle in degrees (shows 
+        a real number filtered text box and a dial [if <strong>IupControlsOpen</strong> 
+were 
+called], use &quot;float&quot; in C)<br><strong>A</strong> = same as<strong> a</strong> 
+but using "double" in C (since 3.11.1)<strong><br>
+s</strong> 
+        = string (shows a text box, use &quot;char*&quot; in C, it must have 
+        room enough for your string)<br>
+<strong>m</strong> 
+        = multiline string (shows a multiline text box, use &quot;char*&quot; in 
+        C, it must have room enough for your string)<br>
+<strong>l</strong> = list 
+        (shows a dropdown list box, use &quot;int&quot; in C for the zero based item index selected)<br>
+<strong>o</strong> = list 
+        (shows a list of toggles inside a radio, use &quot;int&quot; in C for the zero based item index selected)&nbsp; 
+(since 3.3)<br>
+<strong>t</strong> = separator 
+        (shows a horizontal line separator label, in this case text can be an empty string, 
+not included in parameter count)<br>
+<strong>f</strong> = string (same as <strong>s</strong>, but also show a button 
+to open a file selection dialog box)<br>
+<strong>c</strong> = string (same as <strong>s</strong>, but also show a color button 
+to open a color selection dialog box)<strong><br>
+n</strong> = string (same as <strong>s</strong>, but also show a font button 
+to open a font selection dialog box) (since 3.3)<strong><br>h</strong> = Ihandle*<strong> </strong>
+(a control handle that will be managed by the application, it will be place 
+after the parameters and before the buttons.) (since 3.9)<strong><br>
+u</strong> = buttons titles (allow to redefine the default button titles (OK and 
+Cancel), and to add a third button, use [button1,button2,button3] as extra data, can omit one of them, it 
+will use the default name, not included in parameter count) (since 3.1)</p>
+<p>
+<strong><em>extra</em></strong> is one or 
+      more additional options for the given type</p>
+<p style="margin-left: 40px">
+<strong>[min,max,step]</strong>
+        are optional limits for <u>integer</u> and
+        <u>real</u> types. The <strong>max</strong> and <strong>step</strong> values can be 
+omitted. When 
+<strong>min</strong> and <strong>max</strong> are specified a valuator will also be added to 
+        change the value. To specify <strong>step</strong>, <strong>max</strong> 
+must be also specified. <strong>step</strong> is the size of the increment.<br>
+<strong>[false,true]</strong>
+        are optional strings for <u>boolean</u> 
+        types to be displayed after the toggle. The strings can not have commas '<strong>,</strong>', nor brackets 
+        '<strong>[</strong>' 
+        or '<strong>]</strong>'.<strong><br>
+mask</strong> is an optional mask for the 
+  <u>string</u> 
+        and <u>multiline</u> types. The dialog uses the 
+<a href="../attrib/iup_mask.html">MASK</a> 
+attribute internally. In this case we 
+        do no use the brackets '<strong>[</strong>' and '<strong>]</strong>' to avoid 
+conflict with the specified 
+        mask.<br>
+<strong>|item0|item1|item2,...|</strong> are the items of the <u>list</u>. At least 
+        one item must exist. Again the brackets are not used to increase the possibilities for the strings, instead you 
+        must use '<strong>|</strong>'. Items index are zero based start.<br>
+<strong>[dialogtype|filter|directory|nochangedir|nooverwriteprompt]</strong> are 
+the respective attribute values passed to the <a href="iupfiledlg.html">
+IupFileDlg</a> control when activated. All &#39;<strong>|</strong>&#39; must exist, but you can let 
+empty values to use the default values. No mask can be set.</p>
+        <p><strong>tip</strong> is a string that is displayed in a TIP for the 
+                main control of the parameter. (since 3.0)</p>
+<p>The number of lines in the format string (number of '\n') will determine the number of required parameters. But separators 
+  will not count as parameters. There is no maximum number of parameters (since 
+3.13).</p>
+<p>A integer parameter always has a spin attached to the text to increment and 
+decrement the value. A real parameter only has a spin in a full interval is 
+defined (min and max), in this case the default step is (max-min)/20. When the 
+callback is called because a spin was activated then the attribute "<strong>SPINNING</strong>" of 
+the dialog will be defined to a non NULL and non zero value.</p>
+<p>The default precision for real value display is given by the global attribute
+<a href="../attrib/iup_globals.html#DEFAULTPRECISION">DEFAULTPRECISION</a>. But inside the callback 
+the application can set the param attribute "<strong>PRECISION</strong>" to use 
+another value. It will work only during interactive changes. The decimal symbol 
+will used the <a href="../attrib/iup_globals.html#DEFAULTDECIMALSYMBOL">
+DEFAULTDECIMALSYMBOL</a> global attribute. (since 3.13)</p>
+<p>The function does not allocate memory space to store the text entered by the 
+user. Therefore, the string parameter must be large enough to contain the user 
+input. If you want to set a maximum size for the string you can set the param 
+attribute <strong>MAXSTR</strong>, inside the callback when param_index=IUP_GETPARAM_INIT 
+(since 3.6). Its default value is 10240 for multiline strings, 4096 for file names, 
+and 512 for other strings.</p>
+<p>There is no extra parameters for the color string. The mask is automatically 
+set to capture 3 or 4 unsigned integers from 0 to 255 (R G B) or (R G B A) 
+(alpha is optional).</p>
+<p>The dialog is resizable if it contains a string, a multiline string or a 
+  number with a valuator. All the multiline strings will increase size equally in both directions.</p>
+<p>When the "s" type is used the size can be controlled using the VISIBLECOLUMNS 
+attribute at the param element. (since 3.16)</p>
+<p>The dialog uses a global attribute called &quot;<strong>PARENTDIALOG</strong>&quot; as the parent dialog if it is defined. It also uses a 
+  global attribute called &quot;<strong>ICON</strong>&quot; as the dialog icon if it is defined.</p>
+<h3><a name="aux">Utility Functions</a> (since 3.13)</h3>
+<p>Both functions bellow are used internally in <strong>IupGetParam</strong>. 
+But they can be used to integrate the <strong>IupGetParam</strong> contents in 
+other dialogs.</p>
+<pre>Ihandle* IupParamf(const char* <strong>format</strong>); [in C]
+iup.Paramf(<strong>format</strong>: string) -&gt; <strong>elem</strong>: ihandle [in Lua]</pre>
+<p>Creates an <strong>IupUser</strong> element to be used in the <strong>
+IupParamBox</strong> bellow. Each parameter format follows the same 
+specifications as the <strong>IupGetParam</strong> function, including the line 
+feed. </p>
+<p>The <strong>IupUser</strong> element can be directly used if the internal 
+attributes are set. Here are the respective attributes according to the <strong>
+IupGetParam</strong> format specification: </p>
+<p><strong>TITLE</strong>: text of the parameter, used as label.<br><strong>
+INDENT</strong>: number of indentation levels.<br>
+--------------------------------------------------------<br><strong>
+TYPE</strong>: can be BOOLEAN, LIST, OPTIONS, REAL, STRING, INTEGER, FILE, 
+COLOR, SEPARATOR, BUTTONNAMES and HANDLE. And describe the type of the 
+parameter.<br><strong>DATATYPE</strong>: can be INT (int), FLOAT (float), DOUBLE 
+(double), STRING (char*), HANDLE (Ihandle*) or NONE (when buttons and separators 
+are used). And describe the C data type that must be passed to <strong>
+IupGetParam</strong> to initialize and receive parameter values.<br>
+<strong>MULTILINE</strong>: can be Yes or No. Defines if the edit box can have 
+more than one line.<br><strong>
+ANGLE</strong>: can be Yes or No. defines if the REAL type is an angle.<br>
+--------------------------------------------------------<br><strong>TRUE</strong>, <strong>FALSE</strong>: 
+boolean names.<br><strong>INTERVAL</strong> (Yes/No), <strong>MIN</strong>,
+<strong>MAX</strong>, <strong>STEP</strong>, <strong>PARTIAL</strong> (Yes/No): 
+optional limits for <u>integer</u> and
+        <u>real</u> types.<br><strong>DIALOGTYPE</strong>, <strong>FILTER</strong>,
+<strong>DIRECTORY</strong>, <strong>NOCHANGEDIR</strong>, <strong>
+NOOVERWRITEPROMPT</strong>: used for the FILE parameter dialog. See
+<a href="iupfiledlg.html">IupFileDlg</a>.<br><strong>BUTTON1</strong>, <strong>
+BUTTON2</strong>, <strong>BUTTON3</strong>: button titles. Default is 
+"OK/Cancel/Help" for regular <strong>IupGetParam</strong>, and 
+"Apply/Reset/Help" for <strong>IupParamBox</strong>.<br><strong>0, 1, 2, 3, ...</strong> 
+: list items.<br><strong>MASK</strong>: mask for the edit box input.<br>
+--------------------------------------------------------<br><strong>TIP</strong>: 
+text of the tip.<br>
+--------------------------------------------------------<br><strong>
+VALUE</strong>: the parameter value.<strong><br>STATUS</strong>: set to 1 when button1 is activated, and set to 0 when button2 is 
+activated or the dialog close button is clicked.</p>
+<pre>Ihandle* IupParamBox(Ihandle* <strong>parent</strong>, Ihandle** <strong>params</strong>, int <strong>count</strong>); [in C]
+iup.ParamBox(<strong>parent</strong>: ihandle, <strong>params</strong>: table of ihandle) -&gt; <strong>elem</strong>: ihandle [in Lua]</pre>
+<p>Creates the <strong>IupGetParam</strong> dialog contents with the array of 
+parameters. This includes the button box at the bottom.&nbsp; </p>
+<p>The buttons of the button box can be retrieved using the <strong>BUTTON1</strong>, <strong>
+BUTTON2</strong>, <strong>BUTTON3</strong> attribute at the button box. They 
+will directly return the control handle not the button titles as in a <strong>
+IupParamf</strong>.</p>
+<p>The <strong>PARAM_CB</strong> callback will receive the box handle instead of the <strong>
+IupGetParam</strong> dialog handle. Buttons 1 and 2 will still close the dialog 
+as in <strong>IupGetParam</strong> (by returning IUP_CLOSE internally), so to 
+change that behavior return 0 in the callback. The <strong>USERDATA</strong> 
+attribute will hold the user data passed to the callback.</p>
+<p>The <strong>PARAMCOUNT</strong> attribute contains the number of parameters 
+not counting separators and button names.</p>
+<h3><a name="Examples">Examples</a></h3>
+<p>Here is an example showing many of the possible parameters. We show only one for each type, but you can have as many 
+  parameters of the same type you want.</p>
+<pre>
+  int pboolean = 1;
+  int pinteger = 3456;
+  float preal = 3.543f;
+  int pinteger2 = 192;
+  float preal2 = 0.5f;
+  float pangle = 90;
+  char pstring[100] = "string text";
+  char pfont[100] = "Courier, 24";
+  char pcolor[100] = "255 0 128";
+  int plist = 2, poptions = 1;
+  char pstring2[200] = "second text\nsecond line";
+  char file_name[500] = "test.jpg";
+  
+  if (!IupGetParam("Title", param_action, 0,
+                   "Bt %u[, MyCancel, Help!]\n"
+                   "Boolean: %b[No,Yes]\n"
+                   "Integer: %i\n"
+                   "Real 1: %r\n"
+                   "Sep1 %t\n"
+                   "Integer: %i[0,255]\n"
+                   "Real 2: %r[-1.5,1.5,0.05]\n"
+                   "Sep2 %t\n"
+                   "Angle: %a[0,360]\n"
+                   "String: %s\n"
+                   "Options: %o|item0|item1|item2|\n" 
+                   "List: %l|item0|item1|item2|item3|item4|item5|item6|\n" 
+                   "File: %f[OPEN|*.bmp;*.jpg|CURRENT|NO|NO]\n"
+                   "Color: %c{Color Tip}\n"
+                   "Font: %n\n"
+                   "Sep3 %t\n"
+                   "Multiline: %m\n",
+                   &pboolean, &pinteger, &preal, &pinteger2, &preal2, &pangle, pstring, 
+                   &poptions, &plist, file_name, pcolor, pfont, pstring2, NULL))
+    return;
+</pre>
+
+<p align="center">
+<img ALIGN="center" src="images/getparam.png">
+</p>
+<h3><a name="SeeAlso">See Also</a></h3>
+
+<p><a href="iupscanf.html">IupScanf</a>, <a href="iupgetcolor.html">IupGetColor</a>,
+  <a href="iupmask.html">IupMask</a>, <a href="../elem/iupval.html">IupVal</a>, 
+<a href="iupdial.html">IupDial</a>,
+  <a href="../elem/iuplist.html">IupList</a>, <a href="iupfiledlg.html">
+IupFileDlg</a>. 
+</p>
+
+</body>
+
+</html>
