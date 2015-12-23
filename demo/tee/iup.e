@@ -1367,6 +1367,8 @@ public constant -- function delcarations
         xIupElementPropertiesDialog       = define_c_func(iup, "+IupElementPropertiesDialog", {C_POINTER}, C_POINTER),
 $
 
+if xIupSetCallback=0 then ?9/0 end if
+
 public constant IUP_NAME = "IUP - Portable User Interface"
 public constant IUP_DESCRIPTION = "Multi-platform Toolkit for Building Graphical User Interfaces"
 public constant IUP_COPYRIGHT = "Copyright (C) 1994-2015 Tecgraf/PUC-Rio"
@@ -2007,13 +2009,15 @@ end function
 
 public procedure IupSetCallback(atom ih, object name, atom func)
     if sequence(name) then name = allocate_string(name,1) end if
-    atom result = c_func(xIupSetCallback, {ih,name,call_back(func)})
+--  atom result = c_func(xIupSetCallback, {ih,name,call_back(func)})
+    atom result = c_func(xIupSetCallback, {ih,name,func})
 end procedure
 
 --Icallback IupSetCallback(Ihandle* ih, const char *name, Icallback func);
 public function IupSetCallbackf(atom ih, object name, atom func)
     if sequence(name) then name = allocate_string(name,1) end if
-    atom result = c_func(xIupSetCallback, {ih,name,call_back(func)})
+--  atom result = c_func(xIupSetCallback, {ih,name,call_back(func)})
+    atom result = c_func(xIupSetCallback, {ih,name,func})
     return result
 end function
 
