@@ -205,6 +205,7 @@ Version 0.6.6
                 constant nan = -(inf/inf)
             are handled there rather than at run-time (and the same for 
             any other "*/+-" constant expressions, except for "/0").
+            [Update 8/1/16: specific example squished by 64-bit mods]
 17/03/2012  Still working on the migration to ebp-based local variables,
             in preparation for full thread support. This has broken many
             things, specifically error reporting and debugging. I will 

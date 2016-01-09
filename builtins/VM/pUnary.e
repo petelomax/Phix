@@ -18,7 +18,19 @@ include VM\pFPU.e   -- :%down53 etc
         ::e1408sona
             int3
         ::e1406sofa
-            int3
+            [32]
+                pop edx
+                mov al,14   -- e14soa(edi)
+                mov edi,6
+                sub edx,1
+            [64]
+                pop rdx
+                mov al,14   -- e14soa(edi)
+                mov rdi,6
+                sub rdx,1
+            []
+                jmp :!iDiag
+                int3
         ::e1412sonba
             int3
     [32]

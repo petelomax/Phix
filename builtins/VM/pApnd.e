@@ -1507,7 +1507,9 @@ end if
 --17/6/15:
         push qword[rcx-24]
         mov [rsi-24],rdi        -- replace length now
-        lea rdi,[rsi+rdx*4]
+--28/12/15:
+--      lea rdi,[rsi+rdx*4]
+        lea rdi,[rsi+rdx*8]
         mov rsi,rcx
 --NO!; x &= x will have just clobbered this!
 -->     mov rcx,[rcx-24]        -- length(p3)

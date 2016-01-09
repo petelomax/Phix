@@ -1365,6 +1365,54 @@ integer c
     return 1
 end function
 
+global function isFLOAT(atom N)
+if useFLOAT then --(DEV/temp)
+    if machine_bits()=32 then   -- (runtime)
+        if X64=0 then           -- (target)
+            -- 32 bit compiler -> 32 bit executable
+            return not integer(N)
+        else
+            -- 32 bit compiler -> 64 bit executable (partial range coverage)
+            return N!=floor(N) or N<-#80000000 or N>+#80000000
+        end if
+    else -- machine_bits()=64   -- (runtime)
+        if X64=1 then           -- (target)
+            -- 64 bit compiler -> 64 bit executable
+            return not integer(N)
+        else
+            -- 64 bit compiler -> 32 bit executable
+            return N!=floor(N) or N<-#40000000 or N>+#3FFFFFFF
+        end if
+    end if
+else
+    return not integer(N)
+end if
+end function
+
+procedure setFLOAT()
+--
+-- from the manual:
+--      When using a 32-bit compiler to create a 64-bit executable, be aware that the integer range is
+--      redefined as +/-#8000_0000 rather than -#4000_0000_0000_0000 to #3FFF_FFFF_FFFF_FFFF. See ptok.e/
+--      setFLOAT() for all the nitty-gritty details.
+-- details:
+--      Technically, when using a 32-bit compiler to create a 64-bit executable, using 64-bit atoms with
+--      53 bits of precision, a limit of +/-#2000_0000_0000_0000 would apply, and significant complications
+--      would be introduced by using a pair of dwords if we really wanted to go mad, but since the 32-bit
+--      runtime has inherent 32-bit limitations (such as and_bits) there seems little point trying harder.
+--      In practice (see above) we settle for a limit of +/-#8000_0000, to keep things reasonably simple.
+--      Programs which use (very large) integer values/constants in the uncovered ranges are likely to be
+--      incorrectly cross-compiled. Obviously these are only limits during compilation, not run-time, and
+--      the source code of Phix itself does not use any such values, nor do any of the supplied demos.
+--
+-- This particular routine is concerned with correctly tagging tokens found in the source code; the above
+--  isFLOAT() is factored out to apply the same logic elsewhere, eg/ie as part of constant propagation.
+--
+    if isFLOAT(TokN) then
+        toktype = FLOAT
+    end if
+end procedure
+
 --with trace
 procedure completeFloat()
 -- TokN contains the integer (mantissa) part of the float.
@@ -1558,9 +1606,7 @@ procedure loadBase()
         end while
         if toktype=DIGIBAD then Abort("missing digits") end if
     end if
-    if not integer(TokN) then
-        toktype = FLOAT
-    end if
+    setFLOAT()
 end procedure
 
 --with trace
@@ -1792,9 +1838,7 @@ global procedure getToken()
                 Ch = '.'
                 TokN = 0
                 completeFloat()     -- will set toktype to DIGIT
-                if not integer(TokN) then
-                    toktype = FLOAT
-                end if
+                setFLOAT()
                 return
             end if
         end if
@@ -1849,9 +1893,7 @@ global procedure getToken()
         or (Ch='e' or Ch='E') then              -- exponent ahead
             completeFloat()
         end if
-        if not integer(TokN) then
-            toktype = FLOAT
-        end if
+        setFLOAT()
         return
     elsif toktype=DQUOTE then
         TokStr = ""
@@ -1994,14 +2036,9 @@ global procedure getToken()
 --              toklen += 1
             end if
             toktype = DIGIT
+            setFLOAT()
             col += 1
             Ch = text[col]
---maybe:
---          if X64=1 and not integer(TokN) then
---              ....
---              toktype = DIGIT64 or FLOAT64
---              exit
---          end if
         end while
         if toktype=DIGIBAD then Abort("illegal") end if
 -- removed 24/09/2013:
@@ -2024,9 +2061,7 @@ global procedure getToken()
 --          end if
 --          TokN = and_bits(-1,TokN)
 --      end if
-        if not integer(TokN) then
-            toktype = FLOAT -- eg anything above #3FFFFFFF
-        end if
+        setFLOAT()
         return
     elsif toktype=SQUOTE then
         if Ch='\\' then

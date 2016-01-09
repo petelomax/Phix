@@ -29,7 +29,7 @@ constant pathslast = 0  -- (broken/never got working)
                         -- (the idea was that moving an app from one directory or machine to
                         --  another, should not suddenly make it stop (or start) working.)
 
-constant mapsymtab = 01 -- (implies newEmit) [expected to be 1 in all releases][DEV]
+constant mapsymtab = 01 -- (implies newEmit) [expected to be 1 in all releases][DEV] [DEV broken]
 integer symtabmax
 sequence symtabmap
 --constant mapgvars = 0
@@ -1856,8 +1856,17 @@ if vno=0 then ?9/0 end if   -- yep, thought so...
 --                      offset = DSvaddr+vno*4-4+ImageBase
 --DEV +?? ([ds+8] etc) (:%pGetSymPtr)
                         if X64 then
---                          offset = DSvaddr+vno*8+24
-                            offset = DSvaddr+vno*8+32
+                            offset = DSvaddr+vno*8+24
+--                          offset = DSvaddr+vno*8+32
+--8/1/16:
+                            if c=isVar1 then
+                                offset -= 1
+                            elsif c=isVar4 then
+                                offset -= 4
+                            end if
+--8/1/16:
+--                          offset = CSvaddr+cout+3-offset
+                            offset -= CSvaddr+cout+3
                         else --32
 --                          offset = DSvaddr+vno*4+12
                             offset = DSvaddr+vno*4+16
@@ -1918,6 +1927,7 @@ end if
                         --
                         if c=isConstRef then
 --if newEmit then ?9/0 end if -- (actually, fine for interpretation)
+--DEV X64??
                             setcsDword(cout,offset+#40000000) -- (make an atom value == to the ref)
                         else -- isConstRefCount
                             setcsDword(cout,offset*4-8) -- (make an atom value == to the refcount addr)
@@ -2578,7 +2588,8 @@ sequence si, x8
 integer x_addr
 --  v = tt[node+CH]
 --trace(1)
-    if not integer(v) then
+--  if not integer(v) then
+    if isFLOAT(v) then
 --SUG:
 --      x_addr = length(data_section)+2*dsize
         if X64 then
@@ -2651,7 +2662,8 @@ else
 --                  v = symtabmap[v]
 --              end if
                 if X64 then
-                    if not integer(v) then ?9/0 end if
+--                  if not integer(v) then ?9/0 end if
+                    if isFLOAT(v) then ?9/0 end if
                     setdsQword((maxop+si[S_Slink])*8+24, v)
                 else
                     setdsDword((maxop+si[S_Slink])*4+16, v)
@@ -2827,7 +2839,8 @@ integer sidx
 --DEV...
 --trace(1)
                     si = s[j]
-                    if not integer(si) then
+--                  if not integer(si) then
+                    if not atom(si) or isFLOAT(si) then
                         -- see pmain.e/DoSequence for tidx handling, ie
                         --      subsequence => {ttidx},
                         --      string => {-ttidx},
@@ -2895,8 +2908,9 @@ integer skt     -- verify sk[S_vtype], check for rescan
         -- fixup substrings and subsequences...
         for i=1 to l do
             si = s[i]
-            if not integer(si) then
-                if not atom(si) then
+--          if not integer(si) then
+            if sequence(si) or isFLOAT(si) then
+                if sequence(si) then
                     tidx = si[1]
                     skt = T_Dsq
                     if tidx<0 then -- a substring
@@ -3047,6 +3061,7 @@ integer refcount, slink, k
         end if
 --20/12/15:
 --      flag = 0
+if bind and mapsymtab then
         for j=2 to length(Signatures[i]) do
 --          k = Signatures[i][j]    if k!=0 then Signatures[i][j] = symtabmap[k] flag = 1 end if
 --          k = Signatures[i][j]    if k!=0 then Signatures[i][j] = symtabmap[k] end if
@@ -3064,6 +3079,7 @@ integer refcount, slink, k
 --                      k = si[S_vtype]     if k>T_object then si[S_vtype] = symtabmap[k] end if
 --
         end for
+end if
         slink = SigLinks[i]
         while slink do
 --if flag then
@@ -3133,30 +3149,6 @@ integer refcount, slink
     end for
 end procedure
 
---DEV old style:
-function DumpSignature(sequence s, integer node)
-integer refcount, slink
-    refcount = 0
-if newEmit then
---  s_addr = d_addr+#80000014
-    if X64 then ?9/0 end if
-    s_addr = length(data_section)+#80000014
-else
-    s_addr = floor(d_addr/4)+#40000005
-end if
-    slink = tt[node+EQ]
-    while slink do
-        flatsym2[slink][S_sig] = s_addr
-        refcount += 1
-        slink = flatsym2[slink][S_Nlink]
-    end while
-    flatdump(s,refcount)
-    return 1
-end function
-constant r_DumpSignature = routine_id("DumpSignature")
-
---sequence LineTabs
-
 procedure DumpSignaturesAndLineTables()
 integer rlink, tEQ
 sequence si
@@ -3193,7 +3185,6 @@ sequence si
         flatsym2[rlink] = si
         rlink = si[S_Slink]
     end while
-if newEmit then
     for i=T_integer to T_object do
         si = flatsym2[i]
         flatsym2[i] = 0 -- kill ref count
@@ -3204,14 +3195,9 @@ if newEmit then
         tt[tEQ] = i
         flatsym2[i] = si
     end for
-end if
-if newEmit then
     Signatures = {}
     SigLinks = {}
     tt_traverseQ(r_CollectSignatures)
-else
-    tt_traverseQ(r_DumpSignature)
-end if
 end procedure
 
 function ltpack(sequence linetab, integer i)
@@ -3358,9 +3344,12 @@ end if
                 v = si[S_value]
 if not integer(v) then
                 si[S_value] = 0 -- [DEV to go?]
-elsif bind and mapsymtab and and_bits(si[S_State],K_rtn) then
---elsif and_bits(si[S_State],K_rtn) then
+--30/12/15:
+--elsif bind and mapsymtab and and_bits(si[S_State],K_rtn) then
+elsif bind and and_bits(si[S_State],K_rtn) then
+    if mapsymtab then
                 v = symtabmap[v]
+    end if
                 si[S_value] = v
                 if listing then
                     symtab[i][S_value] = v
@@ -3562,7 +3551,10 @@ end procedure
 
 constant k32 = open_dll("kernel32.dll"),
          xLoadLibrary = define_c_func(k32,"LoadLibraryA",{C_PTR},C_PTR),
-         xGetProcAddress = define_c_func(k32,"GetProcAddress",{C_PTR,C_PTR},C_PTR)
+         xGetProcAddress = define_c_func(k32,"GetProcAddress",{C_PTR,C_PTR},C_PTR),
+         xVirtualProtect = define_c_func(k32,"VirtualProtect",{C_PTR,C_INT,C_INT,C_PTR},C_INT),
+         PAGE_EXECUTE_READWRITE = #40,
+         pDword = allocate(8)
 
 --DEV I've hard-coded 4096 here, might instead want to do something like:
 --       xGetSystemInfo = define_c_proc(k32,"GetSystemInfo",{C_POINTER}),
@@ -3603,7 +3595,8 @@ atom t0
 integer siNTyp
 
 --integer kfirst, klast
-integer xType,xMin,xMax
+integer xType
+atom xMin,xMax
 
 integer isKridt
 sequence re 
@@ -3731,8 +3724,10 @@ if length(APIerritem)!=0 then
 end if
     end if
 --DEV bind only...
+if bind then
     relocations = {{{},{}},{{},{}}}     --  ie [DATA][DATA],[DATA][CODE],[CODE][DATA],[CODE][CODE]
                                         -- (or [CODE][CODE],[CODE][DATA],[DATA][CODE],[DATA][DATA])
+end if
 
     -- check for unused/undefined/unassigned and if debugleak emit cleanup code (see pilx86.e):
 
@@ -4056,10 +4051,15 @@ end if
                             xMin = xi[gMin]
                             xMax = xi[gMax]
                             if and_bits(xType,T_atom)!=T_integer
+                            or not integer(xMin)
+                            or not integer(xMax)
                             or xMin>xMax
                             or (xMin=xMax and (xMin=MININT or xMin=MAXINT)) then
                                 xi[gMin] = MININT
                                 xi[gMax] = MAXINT
+                                if and_bits(xType,T_atom)=T_integer then
+                                    xi[gType] = or_bits(xType,T_atom)
+                                end if
                             end if
 
 --No good:
@@ -4088,6 +4088,9 @@ if rescancount>16 then
     ?i
     ?xi
     ?si
+    ?symtab[i]
+    k = symtab[i][S_FPno]
+    printf(1,"rescancount>16 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),filenames[k][2]})
     if getc(0) then end if
 end if
                                 symtab[i][S_gInfo] = xi
@@ -4966,7 +4969,7 @@ end if
 
 --      CreateExecutable(fn, imports, exports, relocations, data_section, code_section)
 --puts(1,"calling CreateExecutable\n")
-        CreateExecutable({fn}, imports, {}, relocations, data_section, code_section)
+        CreateExecutable(fn, imports, {}, relocations, data_section, code_section)
 --puts(1,"returned from CreateExecutable\n")
 --DEV (for listing)
 --DEV (breaks self-host)
@@ -5001,6 +5004,10 @@ end if
         else
             symtab[T_pathset] = filepaths
             symtab[T_fileset] = filenames
+        end if
+        if machine_bits()=64 then
+            poke8(pDword,CSvaddr)
+            if c_func(xVirtualProtect,{CSvaddr,CSvsize,PAGE_EXECUTE_READWRITE,pDword})=0 then ?9/0 end if
         end if
         poke(CSvaddr,code_section)
 ImageBase2 = 0

@@ -885,6 +885,14 @@ integer iThis
                 lea edi,[fhandle]
                 call :%pStoreMint               -- [edi]:=eax as 31-bit int or float if needed
             [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
+
                 mov rdx,[accessmode]            -- (/4)
                 mov rcx,[filepath]
                 shl rdx,2
@@ -902,7 +910,9 @@ integer iThis
 --              (rdx)                               -- dwDesiredAccess
 --              (rcx)                               -- lpFileName
                 call "kernel32.dll","CreateFileA"
-                add rsp,8*7
+--              add rsp,8*7
+--              pop rsp
+                mov rsp,[rsp+8*7]   -- equivalent to the add/pop
 --              mov [fhandle],eax
                 lea edi,[fhandle]
                 call :%pStoreMint               -- [edi]:=eax as 31-bit int or float if needed
@@ -1022,6 +1032,14 @@ integer iThis
             jne :nota
 --              push rax        -- save
         [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
+
             sub rsp,8*7                         -- minimum 4 param shadow space, newFilePointer, save rax, and align
             mov [rsp+40],rax                    -- save
             mov r9,FILE_END                     -- dwMoveMethod
@@ -1040,7 +1058,9 @@ integer iThis
           @@:
             mov rcx,[rsp+32]
             mov rax,[rsp+40]
-            add rsp,8*7
+--          add rsp,8*7
+--          pop rsp
+            mov rsp,[rsp+8*7]   -- equivalent to the add/pop
         [ELF64]
             pop al
         [64]
@@ -1219,7 +1239,9 @@ end procedure -- (for Edita/CtrlQ)
           :%n_flush_rsi2
             mov r8,[rsi+FEND64]
             test r8,r8
-            jz @f
+--29/12/15:
+--          jz @f
+            jz :flushret
             mov rax,[rsi+RPOS64]
             add rax,r8 -- frealposn += fend
             mov [rsi+RPOS64],rax
@@ -1250,7 +1272,9 @@ end procedure -- (for Edita/CtrlQ)
           @@:
 --          add rsp,8*5
 --          pop rsp
+--mov r11,rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+          ::flushret
             ret
         [ELF64]
             pop al
@@ -1346,10 +1370,20 @@ integer fidx
                         call :%n_flush_rsirdi       -- (rsi is preserved)
                   @@:
                 [PE64]
+                    mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                    push rsp
+                    push rcx
+                    or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                                -- if on entry rsp was xxx8: both copies remain on the stack
+                                -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                                -- obviously rsp is now xxx8, whichever alignment we started with
+
                     sub rsp,8*5
                     mov rcx,[rbx+rsi*4]                 -- hFile
                     call "kernel32.dll","FlushFileBuffers"
-                    add rsp,8*5
+--                  add rsp,8*5
+--                  pop rsp
+                    mov rsp,[rsp+8*5]   -- equivalent to the add/pop
                 [ELF64]
                     pop al
                 []
@@ -1406,10 +1440,19 @@ integer fidx
                     mov rax,[stderr]
               @@:
             [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
                 sub rsp,8*5
                 mov rcx,rax                         -- hFile
                 call "kernel32.dll","FlushFileBuffers"
-                add rsp,8*5
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             [ELF64]
                 pop al
             []
@@ -1524,10 +1567,19 @@ integer iThis
                    @@:
                     mov dword[rbx+rsi*4+MODE64],F_CLOSED
                 [PE64]
+                    mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                    push rsp
+                    push rcx
+                    or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                                -- if on entry rsp was xxx8: both copies remain on the stack
+                                -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                                -- obviously rsp is now xxx8, whichever alignment we started with
                     sub rsp,8*5
                     mov rcx,[rbx+rsi*4+HNDL64]      -- hObject
                     call "kernel32.dll","CloseHandle"
-                    add rsp,8*5
+--                  add rsp,8*5
+--                  pop rsp
+                    mov rsp,[rsp+8*5]   -- equivalent to the add/pop
                 [ELF64]
                     pop al
                 []
@@ -1760,8 +1812,15 @@ integer iThis
             [ELF32]
                 pop al
             [PE64]
-                mov rsi,[iThis]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
                 sub rsp,8*5                         -- minimum 4 param shadow space, newFilePointer, save rax, and align
+                mov rsi,[iThis]
                 mov r9,FILE_END                     -- dwMoveMethod
                 lea r8,[rsp+32]                     -- lpNewFilePointer
                 mov rdx,rbx                         -- liDistanceToMove (0)
@@ -1774,7 +1833,9 @@ integer iThis
                     jmp :%opRetf
               @@:
                 mov rcx,[rsp+32]
-                add rsp,8*5
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
                 mov [rbx+rsi*4+POSN64],qword 1
                 mov [rbx+rsi*4+FEND64],rbx --(0)
                 mov [rbx+rsi*4+RPOS64],rcx
@@ -1894,6 +1955,13 @@ integer iThis
                 pop rdx
           @@:
         [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*5                         -- minimum 4 param shadow space, newFilePointer, and align(0)
             mov r9,FILE_BEGIN                   -- dwMoveMethod
             lea r8,[rsp+32]                     -- lpNewFilePointer
@@ -1907,7 +1975,9 @@ integer iThis
                 jmp :%opRetf
           @@:
             mov rcx,[rsp+32]
-            add rsp,8*5
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             mov [rbx+rsi*4+POSN64],qword 1
             mov [rbx+rsi*4+FEND64],rbx --(0)
             mov [rbx+rsi*4+RPOS64],rcx
@@ -2201,6 +2271,13 @@ end function
                 call :%n_flush_rsirdi           -- (rsi is preserved)
           @@:
         [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*5                         -- minimum 4 param shadow space, lpOverlapped, and align(none here)
             mov [rsp+32],rbx                    -- lpOverlapped (NULL)
             lea r9,[rsi+FEND64]                 -- lpNumberOfBytesRead (fend) [DWORD, but should be fine]
@@ -2208,7 +2285,9 @@ end function
             lea rdx,[rsi+BUFF64]                -- lpBuffer
             mov rcx,[rsi+HNDL64]                -- hFile
             call "kernel32.dll","ReadFile"
-            add rsp,8*5
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         [ELF64]
             pop al
         [64]
@@ -2299,8 +2378,15 @@ end procedure -- (for Edita/CtrlQ)
     [ELF32]
         pop al
     [PE64]
-        push rax    -- save
-        sub rsp,8*4
+        push rax    -- save [DEV use [rsp+32]?]
+        mov rcx,rsp -- put 2 copies of rsp onto the stack...
+        push rsp
+        push rcx
+        or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                    -- if on entry rsp was xxx8: both copies remain on the stack
+                    -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                    -- obviously rsp is now xxx8, whichever alignment we started with
+        sub rsp,8*5
         call "kernel32.dll","AllocConsole"
         mov rcx,STD_OUTPUT_HANDLE           -- nStdHandle
         call "kernel32.dll","GetStdHandle"
@@ -2318,7 +2404,9 @@ end procedure -- (for Edita/CtrlQ)
         jnz @f
             mov [stdin_redirected],1
       @@:
-        add rsp,8*4
+--      add rsp,8*5
+--      pop rsp
+        mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         pop rax     -- restore
         ret
     [ELF64]
@@ -2380,6 +2468,13 @@ end procedure -- (for Edita/CtrlQ)
 --DEV clear_debug
 --      #ilASM{ call :%opClrDbg }
     [PE64]
+        mov rcx,rsp -- put 2 copies of rsp onto the stack...
+        push rsp
+        push rcx
+        or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                    -- if on entry rsp was xxx8: both copies remain on the stack
+                    -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                    -- obviously rsp is now xxx8, whichever alignment we started with
         sub rsp,8*7
         mov [rsp+48],rbx    -- NumberOfBytesRead
         mov [rsp+40],rbx    -- buffer (1 byte really)
@@ -2389,12 +2484,17 @@ end procedure -- (for Edita/CtrlQ)
         lea rdx,[rsp+40]                                -- lbBuffer
         mov rcx,[stdin]                                 -- hFile
         call "kernel32.dll","ReadFile"
+--      pop rdx         -- NumberOfBytesRead
+--      pop rcx         -- buffer (1 byte)
+--      add rsp,8*5
+        mov rdx,[rsp+48]    -- NumberOfBytesRead
+        mov rcx,[rsp+40]    -- buffer (1 byte)
+--      add rsp,8*7
+--      pop rsp
+        mov rsp,[rsp+8*7]   -- equivalent to the add/pop
     [ELF64]
         pop al
     [64]
-        pop rdx         -- NumberOfBytesRead
-        pop rcx         -- buffer (1 byte)
-        add rsp,8*5
         test rax,rax
         jz :retm1
         test rdx,rdx
@@ -2663,6 +2763,14 @@ adc ecx, ebx
                     call :%n_flush_rsirdi       -- (preserves rsi)
               @@:
             [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
+
                 sub rsp,8*5                     -- minimum 4 param shadow space, lpOverlapped, and align(none here)
                 mov [rsp+32],rbx                -- lpOverlapped (NULL)
                 lea r9,[rsi+FEND64]             -- lpNumberOfBytesRead (fend) [DWORD, but should be fine]
@@ -2670,7 +2778,9 @@ adc ecx, ebx
                 lea rdx,[rsi+BUFF64]            -- lpBuffer
                 mov rcx,[rsi+HNDL64]            -- hFile
                 call "kernel32.dll","ReadFile"
-                add rsp,8*5
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             [ELF64]
                 pop al
             [64]
@@ -3079,6 +3189,13 @@ end procedure -- (for Edita/CtrlQ)
       ::looptop3
 --      while 1 do
         [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*7
             mov [rsp+48],rbx                -- NumberOfBytesRead
             mov [rsp+40],rbx                -- buffer (1 byte really)
@@ -3088,9 +3205,14 @@ end procedure -- (for Edita/CtrlQ)
             lea rdx,[rsp+40]                -- lbBuffer
             mov rcx,[stdin]                 -- hFile
             call "kernel32.dll","ReadFile"
-            pop rdx             -- NumberOfBytesRead
-            pop rcx             -- buffer (1 byte)
-            add rsp,8*5
+--          pop rdx             -- NumberOfBytesRead
+--          pop rcx             -- buffer (1 byte)
+--          add rsp,8*5
+            mov rdx,[rsp+48]    -- NumberOfBytesRead
+            mov rcx,[rsp+40]    -- buffer (1 byte)
+--          add rsp,8*7
+--          pop rsp
+            mov rsp,[rsp+8*7]   -- equivalent to the add/pop
         [ELF64]
             pop al
         [64]
@@ -3111,6 +3233,13 @@ end procedure -- (for Edita/CtrlQ)
                 je :addlf
                 --DEV might be better to mov [skipstdinlf],1...
             [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
                 sub rsp,8*7
                 mov [rsp+48],rbx    -- NumberOfBytesRead
                 mov [rsp+40],rbx    -- buffer (1 byte really)
@@ -3120,7 +3249,9 @@ end procedure -- (for Edita/CtrlQ)
                 lea rdx,[rsp+40]                                -- lbBuffer
                 mov rcx,[stdin]                                 -- hFile
                 call "kernel32.dll","ReadFile"
-                add rsp,8*7
+--              add rsp,8*7
+--              pop rsp
+                mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             [ELF64]
                 pop al
             [64]
@@ -3159,15 +3290,26 @@ end procedure -- (for Edita/CtrlQ)
                 cmp [stdin_redirected],0
                 jne :looptop3
             [PE64]
-                push 0x21082008 -- back,space,back (buffer) [with a '!' (#21) that should not be seen/used]
-                sub rsp,8*6
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
+--              push 0x21082008 -- back,space,back (buffer) [with a '!' (#21) that should not be seen/used]
+--              sub rsp,8*6
+                sub rsp,8*7
+                mov dword[rsp+48],0x21082008            -- back,space,back (buffer) [with a '!' (#21) that should not be seen/used]
                 mov [rsp+32],rbx                        -- lpvReserved (NULL)
                 lea r9,[rsp+40]                         -- lpcchWritten
                 mov r8,3                                -- cchToWrite (3)
-                lea edx,[rsp+48]                        -- lpvBuffer (the push)
+                lea edx,[rsp+48]                        -- lpvBuffer
                 mov rcx,[stdout]                        -- hConsoleOutput
                 call "kernel32.dll","WriteConsoleA"
-                add rsp,8*7
+--              add rsp,8*7
+--              pop rsp
+                mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             [ELF64]
                 pop al
             [64]
@@ -3210,15 +3352,26 @@ end procedure -- (for Edita/CtrlQ)
                 cmp [stdin_redirected],0
                 jnz :looptop3
             [PE64]
-                push rcx
-                sub rsp,8*6
+                mov rdx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rdx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
+--              push rcx
+--              sub rsp,8*6
+                sub rsp,8*7
+                mov [rsp+48],rcx
                 mov [rsp+32],rbx                        -- lpvReserved (NULL)
                 lea r9,[rsp+40]                         -- lpcchWritten
                 mov r8,1                                -- cchToWrite (1)
-                lea edx,[rsp+48]                        -- lpvBuffer (the push)
+                lea edx,[rsp+48]                        -- lpvBuffer (the stored rcx)
                 mov rcx,[stdout]                        -- hConsoleOutput
                 call "kernel32.dll","WriteConsoleA"
-                add rsp,8*7
+--              add rsp,8*7
+--              pop rsp
+                mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             [ELF64]
                 pop al
             [64]
@@ -3423,8 +3576,15 @@ end procedure
             jg :clearbuff
                 sub [rsi+RPOS64],rax    -- (realpos -= fend)
             [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
                 sub rsp,8*5 -- minimum 4 param shadow space, save rdx, and align(0)
-                mov [rsp+40],rdx    -- save
+                mov [rsp+32],rdx    -- save
                 mov r9,FILE_BEGIN                       -- dwMoveMethod
                 mov r8,rbx                              -- lpNewFilePointer (NULL)
                 mov rdx,[rsi+RPOS64]                    -- liDistanceToMove
@@ -3432,8 +3592,10 @@ end procedure
                 call "kernel32.dll","SetFilePointerEx"
 --              cmp rax,0
 --              jne ??
-                mov rdx,[rsp+40] -- restore
-                add rsp,8*5
+                mov rdx,[rsp+32] -- restore
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             [ELF64]
                 pop al
             [64]
@@ -3626,12 +3788,20 @@ end procedure -- (for Edita/CtrlQ)
                 mov rax,[rsi+HNDL64]
                 shl rdx,2
             [PE64]
+                mov rax,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rax
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
                 sub rsp,8*5     -- minimum 4 param shadow space, lpOverlapped, and align (none in this case)
                 mov [rsp+32],rbx                            -- lpOverlapped (NULL)
 --              mov r9,rbx                                  -- lpNumberOfBytesWritten (NULL)    -- NO!
                 lea r9,[rsp+32]                             -- lpNumberOfBytesWritten
                 mov r8,rcx                                  -- nNumberOfBytesToWrite (fend)
-                lea rdx,[rsi+BUFF64]                        -- lpBuffer
+--30/12/15: no! rdx already set.
+--              lea rdx,[rsi+BUFF64]                        -- lpBuffer
                 mov rcx,[rsi+HNDL64]                        -- hFile
                 call "kernel32.dll","WriteFile"
 --/* (DEV: we should probably do this, but the 32-bit version don't, and we'd need a new error code)
@@ -3644,7 +3814,9 @@ end procedure -- (for Edita/CtrlQ)
                     jmp :%pRTErn                            -- fatal error
               @@:
 --*/
-                add rsp,8*5
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             [ELF64]
                 pop al
             [64]
@@ -4014,16 +4186,28 @@ end procedure -- (for Edita/CtrlQ)
             fld tbyte[rbx+rdx*4]
             fistp qword[rsp]
       @@:
+        pop rdx
     [PE64]
-        sub rsp,8*6     -- minimum 4 param shadow space, lpOverlapped, align, and buffer(/edx already pushed)
+        mov rcx,rsp -- put 2 copies of rsp onto the stack...
+        push rsp
+        push rcx
+        or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                    -- if on entry rsp was xxx8: both copies remain on the stack
+                    -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                    -- obviously rsp is now xxx8, whichever alignment we started with
+--      sub rsp,8*6     -- minimum 4 param shadow space, lpOverlapped, align, and buffer(/edx already pushed)
+        sub rsp,8*7     -- minimum 4 param shadow space, lpOverlapped, align, and buffer(/edx already pushed)
+        mov [rsp+48],rdx
         mov [rsp+32],rbx                -- lpOverlapped (NULL)
 --      mov r9,rbx                      -- lpNumberOfBytesWritten (NULL)    -- NO!
         lea r9,[rsp+32]                 -- lpNumberOfBytesWritten
         mov r8,1                        -- nNumberOfBytesToWrite
-        lea rdx,[rsp+48]                -- lpBuffer (that rdx we pushed)
+        lea rdx,[rsp+48]                -- lpBuffer
         mov rcx,rax                     -- hFile
         call "kernel32.dll","WriteFile"
-        add rsp,8*7
+--      add rsp,8*7
+--      pop rsp
+        mov rsp,[rsp+8*7]   -- equivalent to the add/pop
     [ELF64]
         pop al
     [64]
@@ -4098,6 +4282,13 @@ end procedure -- (for Edita/CtrlQ)
         jmp :p1blockloop
       ::p1oneblock
     [PE64]
+        mov rsi,rsp -- put 2 copies of rsp onto the stack...
+        push rsp
+        push rsi    -- (rax/rcx/rdx are all in use)
+        or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                    -- if on entry rsp was xxx8: both copies remain on the stack
+                    -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                    -- obviously rsp is now xxx8, whichever alignment we started with
         sub rsp,8*5     -- minimum 4 param shadow space, lpOverlapped, and align (none in this case)
         mov [rsp+32],rbx                -- lpOverlapped (NULL)
 --      mov r9,rbx                      -- lpNumberOfBytesWritten (NULL)    -- NO!
@@ -4106,7 +4297,9 @@ end procedure -- (for Edita/CtrlQ)
 --      (rdx already set)               -- lpBuffer
         mov rcx,rax                     -- hFile
         call "kernel32.dll","WriteFile"
-        add rsp,8*5
+--      add rsp,8*5
+--      pop rsp
+        mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 --      test rax,rax
 --      jz :puts1err
     [ELF64]
@@ -4195,7 +4388,15 @@ end procedure -- (for Edita/CtrlQ)
             fistp qword[rsp]
       @@:
     [PE64]
-        sub rsp,8*5     -- minimum 4 param shadow space, lpOverlapped, and align (none in this case)
+        mov rcx,rsp -- put 2 copies of rsp onto the stack...
+        push rsp
+        push rcx
+        or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                    -- if on entry rsp was xxx8: both copies remain on the stack
+                    -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                    -- obviously rsp is now xxx8, whichever alignment we started with
+--      sub rsp,8*5     -- minimum 4 param shadow space, lpOverlapped, and align (none in this case)
+        sub rsp,8*7     -- minimum 4 param shadow space, lpOverlapped, and align (none in this case)
         mov [rsp+40],rax                -- char/buffer
         mov [rsp+32],rbx                -- lpOverlapped (NULL)
 --      mov r9,rbx                      -- lpNumberOfBytesWritten (NULL)    -- NO!
@@ -4204,7 +4405,10 @@ end procedure -- (for Edita/CtrlQ)
 --      (rdx already set)               -- lpBuffer
         mov rcx,rdi                     -- hFile
         call "kernel32.dll","WriteFile"
-        add rsp,8*5
+--      add rsp,8*5
+--      pop rsp
+--      mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+        mov rsp,[rsp+8*7]   -- equivalent to the add/pop
     [ELF64]
         pop al
     [64]
@@ -4317,11 +4521,18 @@ end function
       @@:
 --      call clear_debug [DEV]
     [PE64]
+        mov rcx,rsp -- put 2 copies of rsp onto the stack...
+        push rsp
+        push rcx
+        or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                    -- if on entry rsp was xxx8: both copies remain on the stack
+                    -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                    -- obviously rsp is now xxx8, whichever alignment we started with
         sub rsp,24 -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD]) (rounded up to qwords)
         mov rdi,rsp -- (preserved over api calls)
 --      push rbx    -- DWORD NumberOfEventsRead(:=0) (rounded up to a whole qword)
 
-        sub rsp,8*5 -- shadow space for 4 params and NumberOfEventsRead
+        sub rsp,8*6 -- shadow space for 4 params and NumberOfEventsRead, plus align
       @@:
         mov [rsp+32],rbx
         lea r9,[rsp+32]                         -- lpNumberOfEventsRead
@@ -4366,7 +4577,10 @@ end function
 --              cmp ax,314  -- caps lock
 --              je @b
       @@:
-        add rsp,24+8*5  -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD] and shadowspace/NumberOfEventsRead)
+--      add rsp,24+8*6  -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD] and shadowspace/NumberOfEventsRead)
+--      pop rsp
+--      mov rsp,[rsp+24+8*6]    -- equivalent to the add/pop
+        mov rsp,[rsp+24+48] -- equivalent to the add/pop
     [ELF64]
         pop al
     [64]
@@ -4507,9 +4721,16 @@ end function
       @@:
 --      call clear_debug [DEV]
     [PE64]
+        mov rcx,rsp -- put 2 copies of rsp onto the stack...
+        push rsp
+        push rcx
+        or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                    -- if on entry rsp was xxx8: both copies remain on the stack
+                    -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                    -- obviously rsp is now xxx8, whichever alignment we started with
         sub rsp,24 -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD])   (rounded up to whole qwords)
         mov rdi,rsp -- (preserved over api calls)
-        sub rsp,8*5
+        sub rsp,8*6
       @@:
         mov [rsp+32],rbx
         lea r9,[rsp+32]                         -- lpNumberOfEventsRead
@@ -4545,10 +4766,12 @@ end function
 -- actually, RDS lets this through...
 --              cmp ax,314  -- caps lock
 --              je @b
-            xor ah,ah
+--          xor ah,ah
       @@:
---      add rsp,24+8*5  -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD] and shadowspace/DWORD NumberOfEventsRead)
-        add rsp,24+40   -- (19/8/15 oops, above became add rsp,160 ie 32*5)
+--      add rsp,24+8*6  -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD] and shadowspace/DWORD NumberOfEventsRead)
+--      add rsp,24+48   -- (19/8/15 oops, above became add rsp,160 ie 32*5)
+--      pop rsp
+        mov rsp,[rsp+24+48] -- equivalent to the add/pop
     [ELF64]
         pop al
     [64]
@@ -4739,19 +4962,28 @@ integer res
                 mov rsi,[iThis]
                 sub rsp,sizeof_BHFI64
                 mov rdx,rsp
+--              mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rdx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
                 sub rsp,8*5
 --              (rdx already set)                               -- lpFileInformation
                 mov rcx,[rbx+rsi*4+HNDL64]                      -- hFile
                 call "kernel32.dll","GetFileInformationByHandle"
-                add rsp,8*5
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 --              test rax,rax
 --              jz ??? [DEV]
---              fld qword[esp+BHFI_FSHI]    --DEV are these the wrong way round?
-                mov edx,[esp+BHFI_FSHI]
+--              fld qword[rsp+BHFI_FSHI]    --DEV are these the wrong way round?
+                mov edx,[rsp+BHFI_FSHI]
                 lea rdi,[bytes]
-                mov [esp+BHFI_NLINK],edx
-                fild qword[esp+BHFI_FSLO]
-                add esp,sizeof_BHFI64
+                mov [rsp+BHFI_NLINK],edx
+                fild qword[rsp+BHFI_FSLO]
+                add rsp,sizeof_BHFI64
                 call :%pStoreFlt
             [ELF64]
                 pop al
@@ -4839,12 +5071,22 @@ integer res
             mov rdi,[locktype]
             mov r10,rbx
             mov rax,rbx
+--DEV??
             mov r10d,[rsp]                      -- (DWORD) nNumberOfBytesTo(Un)LockLow
             mov eax,[rsp+4]                     -- (DWORD) nNumberOfBytesTo(Un)LockHigh
-            sub rsp,8*6
+            pop rcx
+            mov rsi,[iThis]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
+--          sub rsp,8*6
+            sub rsp,8*7
             mov rcx,[rbx+rsi*4+HNDL64]
             mov [rdx+OV_EVENT],rbx              -- OVERLAPPED.hEvent:=0
-            mov rsi,[iThis]
             cmp rdi,0
             je :unlock
             and rdi,2                           -- LOCKFILE_EXCLUSIVE_LOCK (keep)
@@ -4865,7 +5107,10 @@ integer res
 --          (rcx already set)                   -- hFile
             call "kernel32.dll","UnlockFileEx"
           @@:
-            add rsp,8*7 -- (includes the push rcx from 41 lines ago)
+--          add rsp,8*7 -- (includes the push rcx from 41 lines ago)
+--          add rsp,8*7
+--          pop rsp
+            mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             add rsp,sizeof_OVERLAPPED64
             mov [res],rax
         [ELF64]
@@ -5204,12 +5449,21 @@ integer iThis
         [64]
             mov rsi,[iThis]
         [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*7
             lea rdx,[rsp+32]                    -- lpFileSize
             mov rcx,[rbx+rsi*4+HNDL64]          -- hFile
             call "kernel32.dll","GetFileSizeEx"
             mov rcx,[rsp+32]
-            add rsp,8*7
+--          add rsp,8*7
+--          pop rsp
+            mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             mov [filesize],rcx
         [ELF64]
             pop al
@@ -5255,6 +5509,13 @@ integer iThis
             mov rsi,[iThis]
             shl rdx,2
         [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*7
             mov [rsp+40],rbx
             mov [rsp+32],rbx                                -- lpOverlapped (NULL)
@@ -5264,7 +5525,9 @@ integer iThis
             mov rcx,[ebx+esi*4+HNDL]                        -- hFile
             call "kernel32.dll","ReadFile"
             mov rcx,[rsp+40]
-            add rsp,8*7
+--          add rsp,8*7
+--          pop rsp
+            mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             test rax,rax
             jz :retZ2
             test rcx,rcx
@@ -5522,18 +5785,27 @@ integer posX,posY
             pop al
         [PE64]
             sub rsp,sizeof_CSBI64
-            mov rdx,rsp
+            mov rdi,rsp
+--          mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rdi
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*5
---          (rdx already set)                               -- lpConsoleScreenBufferInfo
+            mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","GetConsoleScreenBufferInfo"
-            add rsp,8*5
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 --          test eax,eax
 --          jz ??? [DEV]
             xor rax,rax
             xor rcx,rcx
-            mov ax,[edi+CSBI_CPOSX]
-            mov cx,[edi+CSBI_CPOSY]
+            mov ax,[rdi+CSBI_CPOSX]
+            mov cx,[rdi+CSBI_CPOSY]
             mov [posX],eax
             mov [posY],ecx
             add rsp,sizeof_CSBI64
@@ -5587,6 +5859,13 @@ procedure fwrap(integer flag)
           @@:
         [PE64]
 --          push ebx    -- pMode
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*5
             mov [rsp+32],rbx
             lea rdx,[rsp+32]                    -- lpMode
@@ -5608,7 +5887,9 @@ procedure fwrap(integer flag)
                 mov rcx,[stdout]                    -- hConsoleHandle
                 call "kernel32.dll","SetConsoleMode"
           @@:
-            add rsp,8*5
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         [ELF32]
             pop al
         [ELF64]
@@ -5648,11 +5929,20 @@ end procedure
 --      [PE64]
 --          sub rsp,sizeof_CSBI64
 --          mov rdi,rsp
+--          mov rcx,rsp -- put 2 copies of rsp onto the stack...
+--          push rsp
+--          push rcx
+--          or rsp,8    -- [rsp] is now 1st or 2nd copy:
+--                      -- if on entry rsp was xxx8: both copies remain on the stack
+--                      -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+--                      -- obviously rsp is now xxx8, whichever alignment we started with
 --          sub rsp,8*5
 --          mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
 --          mov rcx,[stdout]                                -- hConsoleOutput
 --          call "kernel32.dll","GetConsoleScreenBufferInfo"
 --          add rsp,8*5         
+--          pop rsp
+--          mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 ----            test rax,rax
 ----            jz ??? [DEV]
 --          xor rax,rax
@@ -5696,6 +5986,13 @@ end procedure
 --              [ELF32]
 --                  pop al
 --              [PE64]
+--                  mov rcx,rsp -- put 2 copies of rsp onto the stack...
+--                  push rsp
+--                  push rcx
+--                  or rsp,8    -- [rsp] is now 1st or 2nd copy:
+--                              -- if on entry rsp was xxx8: both copies remain on the stack
+--                              -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+--                              -- obviously rsp is now xxx8, whichever alignment we started with
 --                  sub rsp,8*7
 --                  mov rsi,[i]
 --                  xor rdx,rdx
@@ -5715,7 +6012,9 @@ end procedure
 --                  mov edx,[attributes]                                -- wAttribute
 --                  mov rcx,[stdout]                                    -- hConsoleOutput
 --                  call "kernel32.dll","FillConsoleOutputAttribute"
---                  add rsp,8*7
+---                 add rsp,8*7
+---                 pop rsp
+--                  mov rsp,[rsp+8*7]   -- equivalent to the add/pop
 --              [ELF64]
 --                  pop al
 --              []
@@ -5784,6 +6083,13 @@ end procedure
 --              sub rcx,1
 --              mov [rsi+CI_Attributes],dx
 --              mov [rdi+SR_Bottom],cx  -- bottom-1
+--              mov rcx,rsp -- put 2 copies of rsp onto the stack...
+--              push rsp
+--              push rcx
+--              or rsp,8    -- [rsp] is now 1st or 2nd copy:
+--                          -- if on entry rsp was xxx8: both copies remain on the stack
+--                          -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+--                          -- obviously rsp is now xxx8, whichever alignment we started with
 --              sub rsp,8*5
 --              mov [rsp+32],rsi                            -- lpFill
 --              mov r9,rax                                  -- dwDestinationOrigin
@@ -5791,7 +6097,9 @@ end procedure
 --              mov rdx,rdi                                 -- lpScrollRectangle
 --              mov rcx,[stdout]                            -- hConsoleOutput
 --              call "kernel32.dll","ScrollConsoleScreenBufferA"
---              add rsp,8*5
+---             add rsp,8*5
+---             pop rsp
+--              mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 --              add rsp,sizeof_CHAR_INFO+sizeof_SMALL_RECT
 --          [ELF64]
 --              pop al
@@ -5837,6 +6145,13 @@ integer res
         [PE64]
             sub rsp,sizeof_CSBI64
             mov rdi,rsp
+--          mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rdi
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*5
             mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
             mov rcx,[stdout]                                -- hConsoleOutput
@@ -5856,7 +6171,9 @@ integer res
 --          jz ??? [DEV]
             xor rax,rax
             mov ax,[rdi+CSBI_SIZEY]
-            add rsp,8*5
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             mov [res],rax
             add rsp,sizeof_CSBI64
         [ELF64]
@@ -5910,6 +6227,13 @@ procedure set_console_color(integer color, integer cmode)
         [PE64]
             sub rsp,sizeof_CSBI64
             mov rdi,rsp
+--          mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rdi
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*5
             mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
             mov rcx,[stdout]                                -- hConsoleOutput
@@ -5919,16 +6243,24 @@ procedure set_console_color(integer color, integer cmode)
             xor rax,rax
             mov rcx,[color]
             mov ax,[rdi+CSBI_ATTR]
+            and cl,0x0F
             cmp [cmode],0
             je :bk_clr
-                mov al,cl
+                and ax,0xF0
+--              mov al,cl
                 jmp @f
           ::bk_clr
-                mov ah,cl
+                and ax,0x0F
+                shl cl,4
+--              mov ah,cl
           @@:
+            or al,cl
             mov rdx,rax                                     -- wAttributes
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","SetConsoleTextAttribute"
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 --          test eax,eax
 --          jz ??? [DEV]
             add rsp,sizeof_CSBI64
@@ -5997,6 +6329,13 @@ procedure fclear_screen()
         [PE64]
             sub rsp,sizeof_CSBI64
             mov rdi,rsp
+--          mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rdi
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*7
             mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
             mov rcx,[stdout]                                -- hConsoleOutput
@@ -6029,7 +6368,9 @@ procedure fclear_screen()
             mov rdx,rbx                                     -- dwCursorPosition ({0,0})
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","SetConsoleCursorPosition"
-            add rsp,8*7
+--          add rsp,8*7
+--          pop rsp
+            mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             add rsp,sizeof_CSBI64
         [ELF64]
             pop al
@@ -6046,9 +6387,18 @@ procedure ffree_console()
             [PE32]
                 call "kernel32.dll","FreeConsole"
             [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
                 sub rsp,8*5
                 call "kernel32.dll","FreeConsole"
-                add rsp,8*5
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             [ELF32]
                 pop al
             [ELF64]
@@ -6081,11 +6431,20 @@ integer coord
         [ELF32]
             pop al
         [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whichever alignment we started with
             sub rsp,8*5
             mov rdx,[coord]                                 -- dwCursorPosition
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","SetConsoleCursorPosition"
-            add rsp,8*5
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         [ELF64]
             pop al
           }

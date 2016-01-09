@@ -1071,6 +1071,7 @@ integer r, blocks, new_recs, n, k
     key_location = -key_location
 
     data_string = compress(data)
+--?data_string
     key_string  = compress(key)
 
     data_ptr = db_allocate(length(data_string))

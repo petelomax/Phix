@@ -45,7 +45,9 @@ function cpuid(integer extended, integer param, integer idx)
 string result
     result = repeat(' ',16)
     if extended then -- (eax/ebx/ecx/edx order)
-        #ilASM{ mov eax,[param]
+        #ilASM{
+            [32]
+                mov eax,[param]
                 or eax,#80000000
                 cpuid
                 mov edi,[result]
@@ -54,9 +56,23 @@ string result
                 mov [esi+edi*4+4],ebx
                 mov [esi+edi*4+8],ecx
                 mov [esi+edi*4+12],edx
-                xor ebx,ebx}                            -- ebx:=0 (never forget to do this!)
+                xor ebx,ebx                             -- ebx:=0 (never forget to do this!)
+            [64]
+                mov rax,[param]
+                or eax,#80000000
+                cpuid
+                mov rdi,[result]
+                xor rsi,rsi                             -- rsi:=0 (as base)
+                mov [rsi+rdi*4],eax
+                mov [rsi+rdi*4+4],ebx
+                mov [rsi+rdi*4+8],ecx
+                mov [rsi+rdi*4+12],edx
+                xor rbx,rbx                             -- rbx:=0 (never forget to do this!)
+              }
     else -- basic (eax/ebx/edx/ecx order)
-        #ilASM{ mov eax,[param]
+        #ilASM{
+            [32]
+                mov eax,[param]
                 mov ecx,[idx]
                 cpuid
                 mov edi,[result]
@@ -65,7 +81,19 @@ string result
                 mov [esi+edi*4+4],ebx
                 mov [esi+edi*4+8],edx
                 mov [esi+edi*4+12],ecx
-                xor ebx,ebx}                            -- ebx:=0 (never forget to do this!)
+                xor ebx,ebx                             -- ebx:=0 (never forget to do this!)
+            [64]
+                mov rax,[param]
+                mov rcx,[idx]
+                cpuid
+                mov rdi,[result]
+                xor rsi,rsi                             -- rsi:=0 (as base)
+                mov [rsi+rdi*4],eax
+                mov [rsi+rdi*4+4],ebx
+                mov [rsi+rdi*4+8],edx
+                mov [rsi+rdi*4+12],ecx
+                xor rbx,rbx                             -- rbx:=0 (never forget to do this!)
+              }
     end if
     return result
 end function
@@ -82,14 +110,26 @@ function dword(string s, integer i)
     -- faster method, but no bounds checking:
     -- =====================================
 integer h
-    #ilASM{ mov eax,[s]
+    #ilASM{
+        [32]
+            mov eax,[s]
             mov edi,[i]
             xor edx,edx
             mov eax,dword[edi+eax*4-1] --(1)
             mov dx,ax
             shr eax,16
             mov [h],eax
-            mov [i],edx}
+            mov [i],edx
+        [64]
+            mov rax,[s]
+            mov rdi,[i]
+            xor rdx,rdx
+            mov rax,dword[rdi+rax*4-1] --(1)
+            mov dx,ax
+            shr rax,16
+            mov [h],rax
+            mov [i],rdx
+          }
 
     --
     -- (1) explanation: edi is the (1-based, hence the -1) index, whereas

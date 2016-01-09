@@ -435,7 +435,18 @@ integer tmp
     if not init2 then
 -- [DEV] technically this isn't thread safe... (code shown commented out should be enough, once those routines work)
 --      enter_cs()
-        inf = 1e300*1e300
+--DEV make INF a builtin (like PI):
+--      inf = 1e300*1e300
+        #ilASM{ fld1
+                fldz
+                fdivp
+            [32]
+                lea edi,[inf]
+            [64]
+                lea rdi,[inf]
+            []
+                call :%pStoreFlt }
+
         -- Erm, this one is a bit bizarre...
         -- On the one hand it seems RDS Eu does not support nan properly, but then it somehow does...
         -- If you try testing for nan, it seems to go all pear-shaped, but avoiding the tests

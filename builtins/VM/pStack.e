@@ -243,15 +243,14 @@ end procedure -- (for Edita/CtrlQ)
 --  jne ???
         pop rdx                         -- restore
         pop rcx                         -- restore
+        test eax,eax
+        jz :trimStackPop
         mov [rdi+8],rax                 -- set prev_block's vsb_next
         mov [rax],rdi                   -- set new_block's vsb_prev
         mov [rax+8],rbx                 -- set new_block's vsb_next = 0
---      mov qword[rax+16],#40565342     -- magic ("@VSB")
         mov [rax+16],rbx
         mov [rax+24],rbx
         mov qword[rax+32],#40565342     -- magic ("@VSB")
---pHeapD:
---<     mov qword[rax+9200],#3C565342   -- magic ("<VSB")
         mov qword[rax+11240],#3C565342  -- magic ("<VSB")
       @@:
 --  mov rdi,rax

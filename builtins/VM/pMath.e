@@ -444,7 +444,9 @@ end procedure -- (for Edita/CtrlQ)
 --          je @f
 --              int3
 --        @@:
+--30/12/15: (totally commented out!)
 --          mov eax,[esp]
+            mov rax,[rsp]
 --          cdq                         -- sign extend eax into edx
 ---- (cqo on 64-bit)
 --          cmp edx,[esp+4]

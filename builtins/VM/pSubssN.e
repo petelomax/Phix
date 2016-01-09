@@ -652,7 +652,9 @@ end procedure -- (for Edita/CtrlQ)
         je :pSubssDeallocRestDone
         mov rax,[rsi]
         sub rcx,1
-        add rsi,4
+--29/12/15:
+--      add rsi,4
+        add rsi,8
         cmp rax,r15
         jle :pSubssDeallocRestLoop
         sub qword[rbx+rax*4-16],1

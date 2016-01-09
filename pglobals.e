@@ -970,8 +970,8 @@ global integer PE
                PE = 1
 --             PE = (platform()==WIN32)
 global integer X64
-               X64 = 0
---             X64 = (machine()==64)
+--             X64 = 0
+               X64 = (machine_bits()==64)
 --             X64 = (bits()==64)
 global integer DLL
                DLL = 0

@@ -1,5 +1,5 @@
 --
---  pltype.e    -- localtypes handling (type inference)
+--  pltype.e    -- localtypes handling (type inference/constant propagation)
 --  ========
 --
 --  This is used during both initial parsing and dataflow analysis
@@ -119,14 +119,14 @@
 --   single pilx86.e passes that occur during interpretation.
 --   Specifically, a poor implementation might repeatedly scan the whole of
 --   any stack/tables; instead we should limit any such scans. To achieve
---   this, all information is cross-linked in as many different was as I
---   could think of. There are (at least) four different index types in 
+--   this, all information is cross-linked in as many different ways that
+--   I could think of. There are (at least) four different index types in 
 --   use here, so a simple naming convention helps to keep us sane:
 --
 --  Index naming convention.
 --  =======================
 --
---  v:  symtab: vno or vdx (or v).              symtab[n][S_maxlv] is an ldx.
+--  v:  symtab: vno or vdx (or v).              symtab[v][S_maxlv] is an ldx.
 --  i:  s5 (ilcode): idx (usually/esp s5idx).   most s5[idx] are s5idx (*).
 --  l:  localtype (lvno etc): ldx, lmax.        lvno[ldx] is a vno/vdx.
 --                                              ls5i[ldx] is an s5idx.
@@ -137,7 +137,7 @@
 -- (*) of course s5 contains all sorts of other things: opcodes, flags,
 --  and actually many vnos - but this program should never fetch a vno 
 --  from s5, nor will you ever find any ldx or cdx in there. Neither
---  is this program called after s5 has become x86 binary.
+--  is anything in this program called after s5 has become x86 binary.
 --
 --  Just remember these as v - variables/var_nos
 --                         i - intermediate code
@@ -542,8 +542,8 @@ end procedure
 
 
 global integer Ltype    Ltype = 0
-global integer Lmin     Lmin = 0
-global integer Lmax     Lmax = 0
+global atom    Lmin     Lmin = 0
+global atom    Lmax     Lmax = 0
 global integer Letyp    Letyp = 0
 global integer Lslen    Lslen = 0
 
@@ -624,6 +624,16 @@ integer ldx
 
 --          if getc(0) then end if
         end if
+    end if
+--4/1/16:
+--  if not integer(Lmin)
+--  or not integer(Lmax) then
+    if isFLOAT(Lmin)
+    or isFLOAT(Lmax) then
+--      ?9/0
+--      Lmin = MININT
+--      Lmax = MAXINT
+        ntyp = or_bits(ntyp,T_N)
     end if
     --
     --  *** NOTE *** we maintain [S_ltype], as (historically) it is 
@@ -975,7 +985,10 @@ procedure merge(integer tgtldx, integer srcldx)
 -- merge the two indicated [SET] entries
 --
 integer tflag,sflag,Ntype,
-        Ptype,Pmin,Pmax,Petyp,Pslen     -- prev [==tgt]
+--      Ptype,Pmin,Pmax,Petyp,Pslen     -- prev [==tgt]
+--DEV (temp?)
+        Ptype,Petyp,Pslen   -- prev [==tgt]
+atom Pmin,Pmax
 
     tflag = lflag[tgtldx]
     if and_bits(tflag,TEST) then ?9/0 end if

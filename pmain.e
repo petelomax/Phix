@@ -329,7 +329,7 @@ integer oIItype     -- scratch/rootType from a oneInitialisedInt call if S_Init
 
 integer constInt    -- only valid if oneInitialisedInt has just been called, or set manually
         constInt = 0
-integer constIntVal -- "", meaningless unless constInt=True
+atom constIntVal -- "", meaningless unless constInt=True
         constIntVal = 0
 
 integer oktoinit    -- avoid marking vars init in short-circuit cases
@@ -363,6 +363,8 @@ sequence symtabN
 --DEV change param to oneInitialisedInt() to opsidx/k and use opstype[opsidx],N=opstack[opsidx]...?
     if oIItype!=T_integer then return 0 end if
     if constInt then
+--      if not integer(symtabN[S_value]) then return 0 end if
+        if isFLOAT(symtabN[S_value]) then return 0 end if
         constIntVal = symtabN[S_value]
     end if
     return 1
@@ -370,7 +372,7 @@ end function
 
 
 -- for inc,dec,div2 optimisations, etc:
-integer secondintval    -- only ever tested for >=-1, iff twoInitInts() returns true
+atom secondintval   -- only ever tested for >=-1, iff twoInitInts() returns true
         secondintval = -2
 integer firstintval     -- only ever tested for >=-1, iff twoInitInts() returns true
         firstintval = -2
@@ -442,6 +444,9 @@ sequence symtabN1, symtabN2
     end if
 --  bothconst = 1
     if rInt and const2 then
+--3/2/15:
+--      if not integer(symtabN2[S_value]) then return 0 end if
+        if isFLOAT(symtabN2[S_value]) then return 0 end if
         secondintval = symtabN2[S_value]
     else
         secondintval = -2   -- NB only ever test for >=-1
@@ -1331,7 +1336,9 @@ end if
                 and symtab[p2][S_NTyp]=S_Const
                 and symtab[p2][S_vtype]=T_atom then
                     w = floor(symtab[p2][S_value])
-                    if integer(w) then
+--3/1/16:
+--                  if integer(w) then
+                    if not isFLOAT(w) then
                         p2 = addUnnamedConstant(w,T_integer)
                         if t=T_integer then
                             scode = opMovbi
@@ -2886,7 +2893,9 @@ else
 --else
                     v = symtabN[S_value]
 if newEmit then
-    if not integer(v) then
+--3/1/16:
+--  if not integer(v) then
+    if isFLOAT(v) then
         v = symtabN[S_Init]+0.5
     end if
 end if
@@ -2961,7 +2970,9 @@ integer N
                 if ch=' ' then exit end if
             end for
             constseq &= v
-            if not integer(v) then
+--3/1/16:
+--          if not integer(v) then
+            if isFLOAT(v) then
                 etype = T_atom
             end if
         end if
@@ -3431,6 +3442,7 @@ object Default
 --              and not and_bits(etype,T_sequence) then
 --                  TokN = -symtab[opstack[opsidx]][S_value]
 --                  if integer(TokN) then   -- -1073741824 aka -#40000000 case
+--                  if not isFLOAT(TokN) then   -- -1073741824 aka -#40000000 case
 --                      opstype[opsidx] = T_integer
 --                  end if
 --                  opstack[opsidx] = addUnnamedConstant(TokN,etype)
@@ -4649,7 +4661,8 @@ object dbg -- DEV (temp)
                         and opcode!=opLeaveCS
                         and opcode!=opDeleteCS
                         and opcode!=opCrashMsg
-                        and opcode!=opAbort then
+                        and opcode!=opAbort
+                        and opcode!=opWrap then
                             ?9/0
                         end if
                     end if
@@ -6763,7 +6776,9 @@ object sig
                 if opsltrl[opsidx]=1
                 and not and_bits(etype,T_sequence) then
                     TokN = -symtab[opstack[opsidx]][S_value]
-                    if integer(TokN) then   -- -1073741824 aka -#40000000 case
+--3/1/16:
+--                  if integer(TokN) then   -- -1073741824 aka -#40000000 case
+                    if not isFLOAT(TokN) then
                         opstype[opsidx] = T_integer
 -- added 8/6/2012 (!!!):
                     else
@@ -7095,7 +7110,9 @@ object sig
                     else ?9/0
                     end if
                     freeTmp(-2)
-                    if integer(vlhs) then
+--3/1/16:
+--                  if integer(vlhs) then
+                    if not isFLOAT(vlhs) then
                         vtype = T_integer
                     else
                         vtype = T_atom
@@ -11562,7 +11579,8 @@ end if
     if bind then
 --  if bind or newEmit then
 --  if bind and not listing then    --DEV make this a setting in p.ini/pgui.exw
-        if not nodiag then
+--      if not nodiag then
+        if not nodiag or not suppressopRetf then
             -- load error routine if we cannot use interpreter's
 -- 6/3/14:
 --          includeFile("pdiag.e",0,1)
@@ -11584,7 +11602,11 @@ end if
                 prevfile = fileno
 --DEV newEmit->pdiag2.e? (has invoke SetUnhandledExceptionFilter,finalExceptionHandler etc)
 if newEmit then
-                includeFile("VM\\pdiagN.e",0,1)
+                if not nodiag then
+                    includeFile("VM\\pdiagN.e",0,1)
+                else
+                    includeFile("VM\\pStack.e",0,1)
+                end if
 else
                 includeFile("pdiag.e",0,1)
 end if

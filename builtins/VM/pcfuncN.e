@@ -898,9 +898,9 @@ integer convention
 --                  mov ebp,ecx
 --            @@:
 --                              push ebp                    -- see note[2] below
-                xor edx,edx                 -- edx:=0
+                xor edx,edx             -- edx:=0
 --mov esi,2
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
                 test eax,eax
                 jz @f
                     mov ebp,eax
@@ -913,7 +913,7 @@ integer convention
 --              mov esi,[ebp+24]        -- symtab
 --14/8/15
 --              mov esi,[ds+8]          -- symtab
-                call :%pGetSymPtr
+                call :%pGetSymPtr       -- (mov esi,[ds+8])
 --27/2/15:
 --^             mov esi,[ebp+24]        -- vsb_root
 --^             mov esi,[esi+8]         -- symtabptr
@@ -983,7 +983,7 @@ integer convention
 --              mov ecx,eax
 push eax
 --mov esi,-2
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --                              pop ebp                     -- see note[2] below
 --              mov eax,ecx
 pop eax
@@ -1092,9 +1092,13 @@ pop eax
                 mov [rsp+24],rdx
                 mov [rsp+32],r8
                 mov [rsp+40],r9
+
+                push rax
+                xor rdx,rdx             -- edx:=0
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --14/8/15:
 --              mov rsi,[ds+8]          -- symtab (raw)
-                call :%pGetSymPtr
+                call :%pGetSymPtr       -- (mov rsi,[ds+8])
 --27/2/15:
 --^             mov rsi,[rbp+48]        -- vsb_root
 --^             mov rsi,[rsi+16]        -- symtabptr
@@ -1106,18 +1110,17 @@ pop eax
 --                  mov rbp,rcx
 --            @@:
 --                              push ebp                    -- see note[2] below
-                mov rcx,rax
-                xor rdx,rdx                 -- edx:=0
-                call :%pSetSaveEBP
+--              mov rcx,rax
+                pop rdx
                 test rax,rax
                 jz @f
                     mov rbp,rax
               @@:
                 push rax
-                mov rdx,rcx
+--              mov rdx,rcx
 
---              mov rsi,[rsi+rdx*8-8]   -- rsi:=symtab[rtnid]
-                mov rsi,[rsi+rcx*8-8]   -- rsi:=symtab[rtnid]
+                mov rsi,[rsi+rdx*8-8]   -- rsi:=symtab[rtnid]
+--              mov rsi,[rsi+rcx*8-8]   -- rsi:=symtab[rtnid]
 --[ELF64]
                 push rsi                --[1] save symtab[rtnid]
 --              mov rdi,[rbx+rsi*8+64]  -- rdi:=rsi[S_ParmN=9]
@@ -1177,11 +1180,13 @@ pop eax
                 mov qword[rbp+32],:retaddr64
                 jmp dword[rbx+rsi*4+80] -- execute first opcode (S_il=11)
             ::retaddr64
-                mov rcx,rax
+--              mov rcx,rax
                 pop rdx
-                call :%pSetSaveEBP
+                push rax
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --                              pop ebp                     -- see note[2] below
-                mov rax,rcx
+--              mov rax,rcx
+                pop rax             
 
                 -- result is in rax, but >63bit stored as a float
 --              cmp rax,h4
@@ -1304,7 +1309,7 @@ integer local_ebp4 -- (stored /4)
 --              mov [local_ebp],eax
                 mov edx,ebp
 --mov esi,3
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP          -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
                 shr eax,2
                 mov [local_ebp4],eax
 --DEV (pTrace.e)
@@ -1327,14 +1332,14 @@ integer local_ebp4 -- (stored /4)
                 mov edx,[local_ebp4]
                 shl edx,2
 --mov esi,-3
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP          -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 
             [64]
                 e_all                                       -- set "all side-effects"
 --              call :%save_rbp
 --              mov [local_ebp],rax
                 mov rdx,rbp
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP          -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
                 shr rax,2
                 mov [local_ebp4],rax
 
@@ -1352,16 +1357,25 @@ integer local_ebp4 -- (stored /4)
                     fistp qword[rsp]
                     pop rax
             @@:
---DEV is this just PE64? (it may not really matter)
+--DEV is this just PE64? (it may not really matter) [may also need stack align][added 29/12/15, no help]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
                 sub rsp,8*5
                 call rax
                 xor rbx,rbx
-                add rsp,8*5
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 --              mov rdx,[local_ebp]
 --              call :%restore_rbp
                 mov rdx,[local_ebp4]
                 shl rdx,2
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP          -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 
             []
         }
@@ -1704,7 +1718,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --              mov [local_ebp],eax
                 mov edx,ebp
 --mov esi,4
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
                 shr eax,2
                 mov [local_ebp4],eax
 
@@ -1798,13 +1812,13 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                 mov edx,[local_ebp4]
                 shl edx,2
 --mov esi,-4
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 
             [64]
 --              call :%save_rbp
 --              mov [local_ebp],rax
                 mov rdx,rbp
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
                 shr rax,2
                 mov [local_ebp4],rax
 
@@ -1925,7 +1939,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --              call :%restore_rbp
                 mov rdx,[local_ebp4]
                 shl rdx,2
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 
             []
         }
@@ -2124,7 +2138,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --              mov [local_ebp],eax
                 mov edx,ebp
 --mov esi,5
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
                 shr eax,2
                 mov [local_ebp4],eax
 
@@ -2150,13 +2164,13 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                 mov edx,[local_ebp4]
                 shl edx,2
 --mov esi,-5
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 
             [64]
 --              call :%save_rbp
 --              mov [local_ebp],rax
                 mov rdx,rbp
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
                 shr rax,2
                 mov [local_ebp4],rax
 
@@ -2192,7 +2206,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --              call :%restore_rbp
                 mov rdx,[local_ebp4]
                 shl rdx,2
-                call :%pSetSaveEBP
+                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 
 --!*/
 --pop al
@@ -2851,7 +2865,7 @@ end procedure -- (for Edita/CtrlQ)
 --DEV we should be able to (/will probably need to) get rid of this if we implement that get3/restore3 handling...
 --14/8/15:
 --      mov esi,[ds+8]              -- esi:=raw addr of symtab[1]
-        call :%pGetSymPtr
+        call :%pGetSymPtr           -- (mov esi,[ds+8])
     [32]
         mov edx,[esi+84]            -- edx:=symtab[T_EBP=22]
         test edx,edx

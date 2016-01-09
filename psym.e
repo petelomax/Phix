@@ -1641,7 +1641,7 @@ global procedure syminit()
     initialConstant("OSX", 5)       -- ??
 --DEV 64 bit? fldpi? E?
 --/* (untried)  DOH: [32] is WRONG! ...  It would be X64... and x8/x10/something else, but NOT atom...
-atom pi
+atom pi, inf, nan
     #ilASM{
             fldpi
         [32]
@@ -1651,6 +1651,18 @@ atom pi
         []
             call :%StoreFlt }
     initialConstant("PI",pi)
+    #ilASM{ fld1
+            fldz
+            fdivp
+        [32]
+            lea edi,[inf]
+        [64]
+            lea rdi,[inf]
+        []
+            call :%pStoreFlt }
+    initialConstant("INF",inf)
+    nan = -(inf/inf)
+    initialConstant("NAN",nan)
 --*/
     initialConstant("PI",3.141592653589793238)
     initialConstant("E",2.7182818284590452)

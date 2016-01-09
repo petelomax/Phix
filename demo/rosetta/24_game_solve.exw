@@ -49,7 +49,21 @@ atom inf
         elsif op='*' then
             vars[lhs] *= vars[rhs]
         elsif op='/' then
-            if vars[rhs]=0 then inf = 1e300*1e300 return inf end if
+--          if vars[rhs]=0 then inf = 1e300*1e300 return inf end if
+            if vars[rhs]=0 then
+                inf = 1e300*1e300
+--DEV make INF a builtin, like PI.
+                #ilASM{ fld1
+                        fldz
+                        fdivp
+                    [32]
+                        lea edi,[inf]
+                    [64]
+                        lea rdi,[inf]
+                    []
+                        call :%pStoreFlt }
+                return inf
+            end if
             vars[lhs] /= vars[rhs]
         end if
     end for

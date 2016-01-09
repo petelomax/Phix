@@ -944,6 +944,8 @@ sequence C_SIZES,C_CONSTS
                                          {{4,0},C_DWORD},   -- (=== C_PTR, C_HWND, etc)
                                          {{4,1},C_INT},
                                          {{8,0},C_POINTER},
+--DEV temp (do_type should probably zero signed on all pointers)
+                                         {{8,1},C_POINTER},
                                          $})
 --/* Some of these may need adding:
 --  initialConstant("C_CHAR",       #01000001)
@@ -1021,6 +1023,11 @@ integer rid
         end if
         {?,substruct,mtype,size,align,signed} = do_type(mtype,machine)
         if substruct then ?9/0 end if
+--printf(1,"%d\n",size)
+--?size
+--?signed
+--?C_SIZES
+--?{{size,signed},C_SIZES}
         ptype = C_CONSTS[find({size,signed},C_SIZES)]
         args = append(args,ptype)
         if ch=')' then exit end if

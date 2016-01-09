@@ -2145,8 +2145,11 @@ end if
 --  s5 &= 0o241
 --  apnds5dword(offset)
 --else
+
                             if p1size=2 
                             or p1size=4 
+--DEV added 28/12/15:
+                            or p2size=4 
                             or p1size=8 then
 --DEV shorter form for eax/ax (#A1/A3?) (0o241)
                                 if op=T_mov then

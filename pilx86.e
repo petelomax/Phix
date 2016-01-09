@@ -2820,8 +2820,8 @@ integer ssNTyp2 ssNTyp2 = 0
 
 integer dest    dest = 0
 integer dtype   dtype = 0   --DEV document this carefully...
-integer dmin    dmin = 0
-integer dmax    dmax = 0
+atom dmin   dmin = 0
+atom dmax   dmax = 0
 integer detyp   detyp = 0
 integer dlen    dlen = 0
 integer dname   dname = 0
@@ -2836,8 +2836,8 @@ integer tmpv    tmpv = 0    -- constant literal value to use (when tmpr=-1)
 
 --DEV document/rename these:::
 integer vroot   vroot = 0
-integer vmin    vmin = 0
-integer vmax    vmax = 0
+atom vmin   vmin = 0
+atom vmax   vmax = 0
 integer vlen    vlen = 0
 
 procedure getSrc()
@@ -3124,8 +3124,7 @@ integer state
     vmin = MININT
     vmax = MAXINT
 
---DEV 24/6/10:
-vlen = -1
+    vlen = -1
     if sequence(sdgi) then
         gtype = sdgi[gType]
         if vroot>T_object or gtype>T_object then ?9/0 end if
@@ -3133,7 +3132,7 @@ vlen = -1
         vetyp = sdgi[gEtyp]
         vmin = sdgi[gMin]
         vmax = sdgi[gMax]
-vlen = sdgi[gLen]
+        vlen = sdgi[gLen]
     end if
 
     if bind then
@@ -4457,7 +4456,8 @@ sequence b1, b2
 --  [1] if you wanna rewrite all of this to setup nmin/nmax etc,
 --      rather than clobber smin etc, be my guest (please!).
 --
-integer blroot, bmin, bmax, bmin2, bmax2
+integer blroot
+atom bmin, bmax, bmin2, bmax2
 
 with trace
 --constant linkFwd = 01 --DEV check docs for opAsm; pc+2 is next not prev..
@@ -4465,6 +4465,8 @@ constant false=(1=0), true=(1=1)
 
 --integer trapme
 --      trapme=0
+
+--integer zzcount = 0
 
 global procedure ilxlate(integer vi)
 integer p1, p2, p4, pc3, pc6,
@@ -4514,7 +4516,8 @@ lblidx
                 -- recursive routine calls only)
 integer isFresSrc
 integer isFresDst
-integer nmax    -- new max, used in opRmdr, opUminus, opAddiii
+--integer nmax  -- new max, used in opRmdr, opUminus, opAddiii
+atom nmax   -- new max, used in opRmdr, opUminus, opAddiii
 integer notString   -- used in opConcatN
 sequence symk
 sequence h5 -- (scratch var for keeping emitHex5s's #ginfo happy) [DEV temp?]
@@ -4562,7 +4565,8 @@ integer switch_duplicate_found,
         switch_duplicate_value,
         swecode             -- error code (1..12 to indicate which swecode = nn line triggered)
 
-integer swroot, swmin, swmax    -- scratch vars, not preserved between opCtrls
+integer swroot
+atom swmin, swmax   -- scratch vars, not preserved between opCtrls
 
 integer raoffset
 
@@ -4823,7 +4827,9 @@ end if
                 --          stype = T_integer
                 --      end if
                 --end if
-                while 1 do
+--31/12/15 (for suppressopRetf)
+--              while 1 do
+                while pc<=length(s5) do
                     k = s5[pc]
                     if k!=opNop then exit end if
                     pc += 1
@@ -8013,13 +8019,16 @@ end if
                     smin = MININT
                     smax = MAXINT
                 else
-                    if not integer(nMin) then
+--3/1/16:
+--                  if not integer(nMin) then
+                    if isFLOAT(nMin) then
                         slroot = T_atom
                         smin = MININT
                     else
                         smin = nMin
                     end if
-                    if not integer(nMax) then
+--                  if not integer(nMax) then
+                    if isFLOAT(nMax) then
                         slroot = T_atom
                         smax = MAXINT
                     else
@@ -8242,7 +8251,8 @@ if dest!=0 then
                 and not and_bits(slroot,T_N)
                 and smin=smax then
                     nMin = smin/2
-                    if integer(nMin) then
+--                  if integer(nMin) then
+                    if not isFLOAT(nMin) then
                         smin = nMin
                         smax = nMin
                     else
@@ -8319,7 +8329,8 @@ end if
                 --              and smin2>MININT and smin2=smax2 then
                 --                  nMin = smin/smax2
                 --                  if not integer(nMin) then nMin=9/0 end if   --DEV proper message (and/or flag for list.asm?)
-                --                  if not integer(nMin) then
+                --                  ?if not integer(nMin) then
+                --                  if isFLOAT?(nMin) then
                 --                      gscanerror()  -- or:
                 --                      msg = sprintf("division result of %g",nMin)
                 --                      Warn(msg,??line,1,0)
@@ -8516,13 +8527,15 @@ end if
                 if nMin>w then nMin = w end if
                 if nMax<w then nMax = w end if
                 slroot = T_integer
-                if integer(nMin) then
+--              if integer(nMin) then
+                if not isFLOAT(nMin) then
                     smin = nMin
                 else
                     slroot = T_atom
                     smin = MININT
                 end if
-                if integer(nMax) then
+--              if integer(nMax) then
+                if not isFLOAT(nMax) then
                     smax = nMax
                 else
                     slroot = T_atom
@@ -8587,10 +8600,19 @@ end if
                                 schedule(rb,0,rb,pU,1,0)
                             end if
                             xrm = #E0+reg -- 0o34r, shl/reg
+                            if X64=1 then
+                                emitHex1(#48)
+                            end if
                             emitHex2(#D1,xrm)                           -- shl reg,1
                             xrm = #D0+reg -- 0o32r
+                            if X64=1 then
+                                emitHex1(#48)
+                            end if
                             emitHex2(mov_dword,xrm)                     -- mov edx,reg
                             storeReg(reg,dest,1,0)                      -- mov [dest],reg
+                            if X64=1 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(shl_edx_1)                        -- shl edx,1
                             emitHex6j(jno_rel32,0)                      -- jno @f [sj NOT ok]
                             backpatch = length(x86)
@@ -8756,13 +8778,15 @@ end if
                                     smax = MAXINT
                                     sltype = T_atom
                                 else
-                                    if not integer(nMin) then
+--                                  if not integer(nMin) then
+                                    if isFLOAT(nMin) then
                                         smin = MININT
                                         sltype = T_atom
                                     else
                                         smin = nMin
                                     end if
-                                    if not integer(nMax) then
+--                                  if not integer(nMax) then
+                                    if isFLOAT(nMax) then
                                         smax = MAXINT
                                         sltype = T_atom
                                     else
@@ -8812,13 +8836,15 @@ end if
                             if nMax<w then nMax = w end if
                             sltype = T_integer
 --DEV common code?
-                            if integer(nMin) then
+--                          if integer(nMin) then
+                            if not isFLOAT(nMin) then
                                 smin = nMin
                             else
                                 smin = MININT
                                 sltype = T_atom
                             end if
-                            if integer(nMax) then
+--                          if integer(nMax) then
+                            if not isFLOAT(nMax) then
                                 smax = nMax
                             else
                                 smax = MAXINT
@@ -8850,7 +8876,8 @@ end if
                         else
                             nMin = smin/smin2
                         end if
-                        if integer(nMin) then
+--                      if integer(nMin) then
+                        if not isFLOAT(nMin) then
                             sltype = T_integer
                             smin = nMin
                             smax = smin
@@ -9316,7 +9343,9 @@ end if
                     if slroot=T_integer then
 --30/12/14:
 --                      if smin=smax then
-                        if smin=smax and not and_bits(state1,K_rtn) then
+--                      if smin=smax and not and_bits(state1,K_rtn) then
+                        if integer(smin) and smin=smax and not and_bits(state1,K_rtn) then
+--                      if not isFLOAT(smin) and smin=smax and not and_bits(state1,K_rtn) then
                             -- a known integer value
                             if smin>=-128 and smin<=127 then
                                 emitHex2(push_imm8,smin)
@@ -10214,8 +10243,10 @@ end if -- NOLT (opLoopTop should not actually be emitted?)
                 end if
                 chkreg = -1
 -- added 4/6/2012: [DEV we may need a couple of "or not =T_integer" here]
-if not integer(smin+smin2) 
-or not integer(smax+smax2) then
+--if not integer(smin+smin2) 
+if isFLOAT(smin+smin2) 
+--or not integer(smax+smax2) then
+or isFLOAT(smax+smax2) then
                 if limitreg!=-1 then
                     if and_bits(flags,#02)=0    -- limit was not init
                     or slroot!=T_integer then
@@ -10259,7 +10290,8 @@ or not integer(smax+smax2) then
                         emitHex3l(lea,xrm,smin)                 -- lea edx,[stepreg+nn]
                     end if
                     chkreg = edx
-                elsif not integer(smin+smin2) then
+--              elsif not integer(smin+smin2) then
+                elsif isFLOAT(smin+smin2) then
                     ?9/0 --DEV make this a proper compilation error if needed
                 end if
                 if chkreg!=-1 then
@@ -10508,10 +10540,12 @@ if not and_bits(symtab[p2][S_State],S_for) then
                         getSrc2()   -- (step)
                         slroot = T_integer
                         w = smin+smin2  -- (limit+step)
-                        if integer(w) then
+--                      if integer(w) then
+                        if not isFLOAT(w) then
                             if w<smin then smin = w end if
                             w = smax+smax2  -- (limit+step)
-                            if integer(w) then
+--                          if integer(w) then
+                            if not isFLOAT(w) then
                                 if w>smax then smax = w end if
                                 if nMin<smin then smin = nMin end if
                                 if nMax>smax then smax = nMax end if
@@ -11034,7 +11068,8 @@ if vtype=T_integer then -- dest is integer
 --symtab[504]:{-1,S_Const,1,(S_used+S_set+K_noclr+K_lit),0,249/#0040F3E0,atom,{atom,127.5,127.5,0,-1},127.5}
     if ssNTyp1=S_Const and sltype=T_atom then
         w = floor(symtab[src][S_value])
-        if integer(w) then
+--      if integer(w) then
+        if not isFLOAT(w) then
             clearMem(dest)
             storeImm(dest,w)                                    -- mov [dest],imm32
             dest = 0
@@ -11124,8 +11159,10 @@ end if
                 else                -- x is positive
                     nMin = power(smin,smin2)
                 end if
-                if not integer(nMax)
-                or not integer(nMin) then
+--              if not integer(nMax)
+--              or not integer(nMin) then
+                if isFLOAT(nMax)
+                or isFLOAT(nMin) then
                     slroot = T_atom
                 else
                     bmin = smin --\ save for
@@ -12098,6 +12135,7 @@ end if
         elsif opcode=opAndBits          -- 85
            or opcode=opOrBits           -- 86
            or opcode=opXorBits then     -- 87
+
 --if not isGscan then
 --  trace(1)
 --end if
@@ -12113,6 +12151,17 @@ end if
             getDest()
             getSrc()
             getSrc2()
+--DEV: (it is refcounting up the swannie!)
+--if X64=1
+--and vi=7405
+--and waspc=233 then
+----    ?{smin,smax,smin2,smax2}
+--  zzcount += 1
+--  if zzcount>=7 then
+--      puts(1,"count>7\n")
+--  end if
+----    dest = 0    -- (trapme)
+--end if
             if dtype>T_object then ?9/0 end if
             if tii then
                 slroot = T_integer
@@ -12165,7 +12214,8 @@ end if
                             smin = 0
                         else
                             nMin = smin+smin2
-                            if not integer(nMin) then
+--                          if not integer(nMin) then
+                            if isFLOAT(nMin) then
                                 -- (see pmain.e for why and_bits(a,b)
                                 --  where either a,b is an int always
                                 --  yields an integer)
@@ -12196,7 +12246,8 @@ end if
                             smax = -1
                         else
                             nMax = smax+smax2
-                            if not integer(nMax) then
+--                          if not integer(nMax) then
+                            if isFLOAT(nMax) then
                                 nMax = MAXINT
                             end if
                             smax = nMax
@@ -12216,6 +12267,7 @@ end if
 --                  end if
                 end if
             end if
+
             storeDest()
             --else
             if not isGscan then
@@ -14836,6 +14888,10 @@ if not newEmit then ?9/0 end if
             printf(1,"\n\n**internal error pilx86.e line 15225, unknown opcode(%d=%s), emitline=%d)**\n\n\n",{opcode,opName,emitline})
             opcode = opcode/0
         end if
+--31/12/15:
+if suppressopRetf then
+    if pc>length(s5) then exit end if
+end if
 --if ttrap then
 --  if tmpd and pc>=tmppc then
 --      ?9/0

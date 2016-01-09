@@ -119,7 +119,7 @@ end function
 
 --DEV integer userip, rather then integer machine?
 --function fixup(string res, sequence relocations, integer machine, integer userip, integer Base)
-function fixup(sequence res, sequence relocations, integer machine, integer userip, integer Base)
+function fixup(sequence res, sequence relocations, integer machine, integer userip, integer Base, integer traceit=0) --DEV
 --
 -- res can be code or data (or possibly something else)
 -- relocations contains a list of addresses of dwords (even on M64) that contain
@@ -148,6 +148,9 @@ integer lres = length(res)  -- temp/debug
 --DEV 5/12/14... (maybe we only need this for data section?) [DONE, 6/12/14, and undone immediately!]
             vhi = GetField(res,addr+4,DWORD)
 --          vhi = 0
+if traceit then
+--  printf(1,"fixup %08x: %08x, %08x [%d, %d, %d]\n",{addr,v,vhi,vhi=#80000000,vhi,#80000000})
+end if
         end if
 --      if machine=M32 then
         if userip=0 then
@@ -166,9 +169,18 @@ integer lres = length(res)  -- temp/debug
         else -- machine=64
             -- (assumes <=4GB executables)
             -- DEV not convinced this will be right for -ve offsets, btw
-            if vhi=#80000000 then
-                res = SetField(res,addr+4,DWORD,#40000000)
+--DEV
+--          if vhi=#80000000 then
+            if vhi/#100=#800000 then
+--              res = SetField(res,addr+4,DWORD,#40000000)
+                res = SetField(res,addr+4,DWORD,vhi/2)
                 v = floor(v/4)
+--DEV (3/1/16) try: (no help)
+--          elsif and_bits(vhi,#80000000) then
+--              ?9/0
+--          elsif and_bits(v,#80000000) then
+--              res = SetField(res,addr+4,DWORD,#40000000)
+--              v = floor(v/4)+#20000000
             end if
         end if
         res = SetField(res,addr,DWORD,v)
@@ -1728,8 +1740,7 @@ global sequence fixedupdata, fixedupcode
 --!/**/ #isginfo{fixedupdata,0b1000,MIN,MAX,integer,-2} -- verify this is a string
 
 --DEV string code?
---procedure CreatePE(integer fn, integer machine, integer subsystem, integer subvers, sequence imports, sequence exports, sequence relocations, string data, sequence code, sequence resources)
-procedure CreatePE(sequence fns, integer machine, integer subsystem, integer subvers, sequence imports, sequence exports, sequence relocations, string data, sequence code, sequence resources)
+procedure CreatePE(integer fn, integer machine, integer subsystem, integer subvers, sequence imports, sequence exports, sequence relocations, string data, sequence code, sequence resources)
 --
 -- fn should be an open file handle, created with "wb", closed on exit
 -- machine should be M32 or M64
@@ -1919,18 +1930,21 @@ end if
             end while
         end for
     end for
+?length(relocations)
     if length(relocations) then
 -- 6/12/14 (*2) (all code fixups are dword, all data fixups are qword)
         code = fixup(code,relocations[CODE][CODE],machine,0,codeBase+ImageBase)
 --      code = fixup(code,relocations[CODE][CODE],M32,0,codeBase+ImageBase)         -- eg return addresses
         if machine=M32 then
+--printf(1,"dATaBase:%08x, codeBase:%08x, d-c:%08x, c-d:%08x\n",{dataBase,codeBase,dataBase-codeBase,codeBase-dataBase})
             code = fixup(code,relocations[CODE][DATA],machine,0,dataBase+ImageBase) -- eg var references
         else -- M64, RIP addressing
+--printf(1,"dataBase:%08x, codeBase:%08x, d-c:%08x, c-d:%08x\n",{dataBase,codeBase,dataBase-codeBase,codeBase-dataBase})
             code = fixup(code,relocations[CODE][DATA],machine,1,dataBase-codeBase)
 --          code = fixup(code,relocations[CODE][DATA],M32,1,dataBase-codeBase)      -- eg var references
         end if
         data = fixup(data,relocations[DATA][CODE],machine,0,codeBase+ImageBase)     -- (eg symtab[N][S_il])
-        data = fixup(data,relocations[DATA][DATA],machine,0,dataBase+ImageBase)     -- (eg [nested] constants)
+        data = fixup(data,relocations[DATA][DATA],machine,0,dataBase+ImageBase,1)   -- (eg [nested] constants)
     end if
 --if 0 then -- checksum [DEV] (might still want this for linux)
 --  puts(fn,block)
@@ -2013,7 +2027,7 @@ end if
     close(fn)
 --*/
 --?SizeOfImage
---DEV repeat('\0',SizeOfImage,string)
+--DEV repeat('\0',SizeOfImage,string)/repeatch()/block&pad(data)&pad(code)&pad(resources)/SetCheckSumS(img)
     atom img = allocate(SizeOfImage)
 --printf(1,"SizeofImage:#%08x\n",SizeOfImage)
     mem_set(img,0,SizeOfImage)
@@ -2048,12 +2062,8 @@ end if
 --?{imgidx,SizeOfImage}
     if imgidx!=SizeOfImage then ?9/0 end if
     SetCheckSum(img,SizeOfImage)
---  puts(fn,peek({img,SizeOfImage}))
---  close(fn)
-for i=1 to length(fns) do
-    puts(fns[i],peek({img,SizeOfImage}))
-    close(fns[i])
-end for
+    puts(fn,peek({img,SizeOfImage}))
+    close(fn)
 --end if
 
 --DEV
@@ -2281,8 +2291,7 @@ SizeOfCode2 = codelen
 end function
 
 --procedure CreateELF(integer fn, integer machine, integer base, string data, string code, sequence relocations)
---procedure CreateELF(integer fn, integer machine, integer base, sequence data, sequence code, sequence relocations)
-procedure CreateELF(sequence fns, integer machine, integer base, sequence data, sequence code, sequence relocations)
+procedure CreateELF(integer fn, integer machine, integer base, sequence data, sequence code, sequence relocations)
 --
 -- fn should be an open file handle, created with "wb", closed on exit
 -- machine should be M32 or M64
@@ -2312,18 +2321,13 @@ integer codelen
 sequence block
 integer dataBase
 integer codeBase
-integer fn
 
     datalen = length(data)
     codelen = length(code)
     {block,codeBase,dataBase} = elfHeader(machine, base, datalen, codelen)
 --printf(1,"codeBase=#%08x, dataBase=#%08x\n",{codeBase,dataBase})
 --if getc(0) then end if
---  puts(fn,block)
-for i=1 to length(fns) do
-    fn = fns[i]
     puts(fn,block)
-end for
 --  if length(relocations[CODE][CODE]) then ?9/0 end if
 --  if length(relocations[DATA][DATA]) then ?"9/0" end if
 --datab4code?
@@ -2338,8 +2342,6 @@ end for
     end if
     data = fixup(data,relocations[DATA][CODE],machine,0,codeBase)
     data = fixup(data,relocations[DATA][DATA],machine,0,dataBase)
-for i=1 to length(fns) do
-    fn = fns[i]
 if datab4code then
     puts(fn,data)
     puts(fn,code)
@@ -2348,7 +2350,6 @@ else
     puts(fn,data)
 end if
     close(fn)
-end for
 --DEV
     fixedupdata = data
 --!/**/ #isginfo{data,0b1000,MIN,MAX,integer,-2} -- verify this is a string
@@ -2384,8 +2385,7 @@ integer k
 end function
 
 --global procedure CreateExecutable(integer fn, sequence imports, sequence exports, sequence relocations, string data, string code)
---global procedure CreateExecutable(integer fn, sequence imports, sequence exports, sequence relocations, sequence data, sequence code)
-global procedure CreateExecutable(sequence fns, sequence imports, sequence exports, sequence relocations, sequence data, sequence code)
+global procedure CreateExecutable(integer fn, sequence imports, sequence exports, sequence relocations, sequence data, sequence code)
 --
 -- fn should be an open file handle, created with "wb", which is closed on exit.
 -- globals X64/PE/DLL/OptConsole/subvers (from pglobals.e) should be set (see pmain.e/DoFormat)
@@ -2439,7 +2439,7 @@ integer subsystem
         resources = {rs_icon,rs_version,rs_manifest}
 --      resources = {rs_icon,{},rs_manifest}
 --      resources = {}
-        CreatePE(fns, machine, subsystem, subvers, imports, exports, relocations, data, code, resources)
+        CreatePE(fn, machine, subsystem, subvers, imports, exports, relocations, data, code, resources)
 --DEV (temp)
 --puts(1,"\n")
 --for i=1 to length(glboffset) do
@@ -2450,7 +2450,7 @@ integer subsystem
 --printf(1,"BaseOfData2: %08x\n",{BaseOfData2})
 --printf(1,"ImageBase2: %08x\n",{ImageBase2})
     else -- elf
-        CreateELF(fns, machine, base, data, code, relocations)
+        CreateELF(fn, machine, base, data, code, relocations)
     end if
 end procedure
 

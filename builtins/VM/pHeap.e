@@ -1011,18 +1011,19 @@ end procedure -- (for Edita/CtrlQ)
     ::pGetTCB
 --------------
         -- local routine for pSetSaveEBP; could also be used by pGetPool?
+        -- (esi:=pTCB/4; most regs trashed)
     [32]
         -- <no parameters>
         -- on exit, pTCB/4 in esi
         xor ebx,ebx -- (save some grief)
-        call :pGetThread
+        call :pGetThread    -- (eax:=dwThreadId; most regs trashed)
         mov esi,[pGtcb]
         test esi,esi
     [64]
         -- <no parameters>
         -- on exit, pTCB/4 in rsi
         xor rbx,rbx     -- (save some grief)
-        call :pGetThread
+        call :pGetThread    -- (rax:=dwThreadId; most regs trashed)
         mov rsi,[pGtcb]
         test rsi,rsi
     []
@@ -1071,7 +1072,7 @@ end procedure -- (for Edita/CtrlQ)
 --  A callback is an asynchrochronous event to Phix: when it invokes some external C/asm 
 --  code, it has no idea if, when, or in what state things will be in when control gets 
 --  to the callback handler, and it needs some way to restore a bit of sanity. Prior to 
---  multithreading, this used a local static variable in pcfuncN.e. The local integer 
+--  multithreading, this used a local static variable in pcfuncN.e. The local integer(s)
 --  local_ebp4, in call, c_func, and c_proc, uses the trick of storing a dword-aligned 
 --  value /4 in an integer, and that takes care of any nesting, to any depth. 
 --  Logically, I suppose, pSetSaveEBP belongs in pStack.e - but making pGetTCB global is 
@@ -1079,25 +1080,25 @@ end procedure -- (for Edita/CtrlQ)
 --
 --  call/c_func/proc should: 
 --                              mov edx,ebp
---                              call :%pSetSaveEBP
+--                              call :%pSetSaveEBP  -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --                              shr eax,2
 --                              mov [local_ebp4],eax
 --  and when control returns:
 --                              mov edx,[local_ebp4]        -- see note[1] below
 --                              shl edx,2
---                              call :%pSetSaveEBP
+--                              call :%pSetSaveEBP  -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --  callback_handler should:
 --                              push ebp                    -- see note[2] below
 --                              xor edx,edx                 -- edx:=0
---                              call :%pSetSaveEBP
---                              test eax,eax
+--                              call :%pSetSaveEBP  -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
+--                              test eax,eax                
 --                              jz @f
---                                  mov ebp,eax
+--                                  mov ebp,eax             -- see note[3] below
 --                            @@:
 --                              push eax
 --  and finally:
 --                              pop edx
---                              call :%pSetSaveEBP
+--                              call :%pSetSaveEBP  -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --                              pop ebp                     -- see note[2] below
 --  whew!
 --  note[1]: ebp must be correct for this to work. If you are worried that a c_func/proc
@@ -1107,6 +1108,10 @@ end procedure -- (for Edita/CtrlQ)
 --  note[2]: The callback handler also has the further responsibility of saving/restoring 
 --           ebp for the benefit of the C code, which has nothing to do with SetSaveEBP.
 --
+--  note[3]: callback_handler zeroes pTCB.SaveEBP: should it be invoked "twice in a row", 
+--           without an intervening call/c_func/proc, or directly from #ilASM before any
+--           such, the test eax,eax ensures it leaves ebp as-is.
+--
 
 --/*
 procedure :%pSetSaveEBP(:%)
@@ -1115,8 +1120,10 @@ end procedure
     :%pSetSaveEBP
 --------------
         -- save ebp before c_func (etc), in case of call_back, in a thread safe manner
+        -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --push esi
-        call :pGetTCB           -- (factored out as a prelude to using it elsewhere)
+        -- (factored out as a prelude to using it elsewhere:)
+        call :pGetTCB           -- (esi:=pTCB/4; most regs trashed)
 --pop edi
     [32]
         mov eax,[ebx+esi*4+264]     -- SaveEBP
@@ -2133,7 +2140,7 @@ sub edx,1
         push edx    -- [0] era
         push ecx    -- [1] save required size
         xor ebx,ebx -- (save some grief)
-        call :pGetThread
+        call :pGetThread    -- (eax:=dwThreadId; most regs trashed)
         push eax    -- [2] save thread id
         mov esi,[pGtcb]
         test esi,esi
@@ -2160,7 +2167,7 @@ sub edx,1
         xor rbx,rbx     -- (save some grief)
         mov [rsp+80],rdx    -- [0] era
         mov [rsp+32],rcx    -- [1] save required size
-        call :pGetThread
+        call :pGetThread    -- (rax:=dwThreadId; most regs trashed)
         mov [rsp+48],eax    -- [2] save thread id
         mov rsi,[pGtcb]
         test rsi,rsi
@@ -2617,7 +2624,7 @@ end procedure -- (for Edita/CtrlQ)
 --*/
       ::gpgotfromgpool
 ----------------------
-        call :pGetThread
+        call :pGetThread    -- (eax:=dwThreadId; most regs trashed)
     [32]
         pop edx             -- [4] size
         mov dword[esi],#00484253    -- dwMagic ("SBH\0")
@@ -3030,7 +3037,7 @@ push ecx -- (does not actually help) [DEV]
         mov [rax],rcx               -- nSize
         mov r12,rax                 -- [1] save
     []
-        call :pGetThread
+        call :pGetThread            -- (eax:=dwThreadId; most regs trashed)
     [32]
 pop ecx
         cmp eax,[esi+4]             -- sbh.dwThreadId
@@ -3244,7 +3251,9 @@ end procedure -- (for Edita/CtrlQ)
 --      js e101atasonl                  ; attempt to allocate string of negative length
         js :invalidmemoryrequest
 --      pushad
-        sub rsp,8                       -- align stack
+--28/12/15:
+--      sub rsp,8                       -- align stack
+        push r9                         -- [0] save
         xor rbx,rbx                     -- (save some grief)
         push rsi                        -- [1] save
         push rdi                        -- [2] save
@@ -3274,6 +3283,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,[rsp+8]                 -- [3] restore
         mov rdi,[rsp+16]                -- [2] restore
         mov rsi,[rsp+24]                -- [1] restore
+        mov r9,[rsp+32]                 -- [0] restore
         lea rax,[rax+41]                -- ref: raw plus header & type bit,
         add rsp,5*8
         ror rax,2                       -- rotated,

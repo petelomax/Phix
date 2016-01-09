@@ -548,7 +548,7 @@ constant msgs =
     -- Usually only happens on "if x then" where x is not 
     -- a relational expression (eg a=b) but is either a 
     -- single variable or a function result. (unlike RDS)
-    -- see also e14NNsoXa. Note this message may not occur
+    -- see also e14soa. Note this message may not occur
     -- on subscripted items when a program is compiled, eg
     -- if x is {1,2,"fred",4} then "if x[3] then" is just 
     -- treated as true (not zero), though you should get
@@ -580,7 +580,7 @@ constant msgs =
  "attempt to exit a function without returning a value\n",      -- e13ateafworav
     -- For an example of why this cannot/should not be trapped 
     -- as a compile-time error, see isChecked() in arwen.ew.
- "sequence op (%s) attempted (use sq_%s?)\n",                   -- e14NNsoXa
+ "sequence op (%s) attempted (use sq_%s?)\n",                   -- e14soa
     -- Phix does not support implicit/infix sequence ops;
     -- you must use explicit function-style calls, ie/eg
     -- replace "{1,2}+3" with "sq_add({1,2},3)" to get {4,5}.
@@ -830,8 +830,9 @@ constant msgs =
     -- whereas RDS Eu suffers a machine exception.
  "arguments to position() must be integer\n",                   -- e83atpmbi
  "call_back parameter must be routine_id or {'+',routine_id}\n", -- e84cbpmbropr
-
- -1,                                                            -- e85 no longer used
+ "unknown type byte (not 0x12, 0x80, or 0x82)\n",               -- e85utb
+    -- usually caused by memory corruption, has also occurred
+    -- due to compiler emitting invalid refs & fixup failures.
  "argument to trace() must be integer 0..3\n",                  -- e86attmbi03
     -- technically -1 is also valid, and implements the same as
     -- keying 'Q' in the trace() window, ie permanently off.
@@ -949,8 +950,12 @@ constant msgs =
  "invalid poke size\n",                                         -- e122ips
  -1}
 
---constant e14ops = {"add","sub","div","mul","remainder","floor","unary minus","not",
---                 "and_bits","or_bits","xor_bits","not_bits","power","xor"},
+                                                                -- e14soa(edi:)
+constant e14ops = {"add","sub","div","mul",                     -- 1,2,3,4
+                   "remainder","floor","unary minus","not",     -- 5,6,7,8
+                   "and_bits","or_bits","xor_bits","not_bits",  -- 9,10,11,12
+                   "power","xor"}                               -- 13,14
+--              ,
 --       e28ops = {"rand","cos","sin","tan","arctan","log","sqrt"}
 
 --DEV use NTdesc from pglobals.e?: (no, we don't have that here!)
@@ -2441,6 +2446,13 @@ atom gvarptr
         msg = sprintf(msg,or_edi)
     elsif msg_id=6 then         -- e06ioob(edi,esi)
         msg = sprintf(msg,{or_edi,or_esi})
+    elsif msg_id=14 then        -- e14soa(edi)
+        if or_edi>=1 and or_edi<=length(e14ops) then
+            o = e14ops[or_edi]
+        else
+            o = sprintf("???(%d)",or_edi)
+        end if
+        msg = sprintf(msg,{o,o})
     end if
 --?2
 --/*
@@ -2492,13 +2504,6 @@ atom gvarptr
         c = varIdx(ep2)
         o2 = getValue(c, 5, 0, 1)
         msg = sprintf(msg,{o,o2})
-    elsif msg_id=14 then    -- e14NNsoXa
-        if ep1>=1 and ep1<=length(e14ops) then
-            o = e14ops[ep1]
-        else
-            o = "???"
-        end if
-        msg = sprintf(msg,{o,o})
     elsif msg_id=28 then    -- e28NNatXmbausq
         if ep1>=1 and ep1<=length(e28ops) then
             o = e28ops[ep1]

@@ -41,10 +41,12 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
         [32]
             mov esi,[esp+ecx*4-4]   -- era
         [64]
-            mov rsi,[rsp+rcx*8-8]   -- era (DEV untested!)
+--          mov rsi,[rsp+rcx*8-8]   -- era (DEV untested!)
+            mov rdx,[rsp+rcx*8+8]   -- era (DEV untested!)
+            sub rdx,1
         []
             mov al,4
---          jmp :!iDiag
+            jmp :!iDiag
             int3
 --  ::e04atsaa4
 --          int3
@@ -933,7 +935,9 @@ end procedure -- (for Edita/CtrlQ)
         pop rcx                 --[2] no of remaining indexes
       ::opRepsSeqNoClone64
         add rsp,8               --[1] discard ref addr
-        lea rax,[rsi+rdi*4]
+--29/12/15:
+--      lea rax,[rsi+rdi*4]
+        lea rax,[rsi+rdi*8]
         jmp :opRepsRnxt64
 
       ::opRepsMain64
@@ -1082,7 +1086,9 @@ end procedure -- (for Edita/CtrlQ)
             cmp byte[rax-1],0x80
 --5/2/15:
 --          lea rdi,[rdi+rdx*4-8]       -- addr ref[slice start]
-            lea rdi,[rdi+rdx*4]         -- addr ref[slice start]
+--29/12/15:
+--          lea rdi,[rdi+rdx*4]         -- addr ref[slice start]
+            lea rdi,[rdi+rdx*8]         -- addr ref[slice start]
             jne :opRepsSeqStr64
           ::opRepsSeqSeqLoop64
                 lodsq                       -- mov rax,[rsi], rsi+=8
@@ -1233,7 +1239,9 @@ end procedure -- (for Edita/CtrlQ)
             sub rcx,rax
             jz :opRepsPop664
             mov rax,[rsp+8]         -- slice length
-            lea rsi,[rsi+rax*4-8]
+--29/12/15:
+--          lea rsi,[rsi+rax*4-8]
+            lea rsi,[rsi+rax*8-8]
           ::opRepsSeqMRAtomAfterLoop64
                 lodsq                       -- mov rax,[rsi], rsi+=8
                 stosq                       -- mov [rdi],rax, rdi+=8

@@ -1014,8 +1014,9 @@ string file1
 
 --if newEmit then
     -- **DO NOT DELETE** The next line can be extremely useful when diagnosing listing file problems.
---  printf(fn,";; ImageBase2=#%08x, BaseOfCode2=#%08x, SizeOfCode2=#%08x, BaseOfData2=#%08x, SizeOfData2=#%08x\n",
---            {ImageBase2,BaseOfCode2,SizeOfCode2,BaseOfData2,SizeOfData2})
+    printf(fn,";; ImageBase2=#%08x, BaseOfCode2=#%08x, SizeOfCode2=#%08x, BaseOfData2=#%08x, SizeOfData2=#%08x\n",
+              {ImageBase2,BaseOfCode2,SizeOfCode2,BaseOfData2,SizeOfData2})
+    printf(fn,";; X64=%d\n",{X64})
 --end if
 
     if listing=-1 then
@@ -1574,7 +1575,8 @@ if 0 then
 --                         123456789012345678901234
 else
                     file1 = sprintf("symtab[%d=optable]",{sidx})
-                    for i=1 to length(filenames) do
+--                  for i=1 to length(filenames) do
+                    for i=1 to length(si) do
                         sii = si[i]
                         if bind and sii!=0 then
                             sii += ImageBase2+BaseOfCode2

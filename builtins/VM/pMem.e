@@ -38,8 +38,8 @@ include builtins\VM\pFPU.e  -- :%down53, :%near53
 --      int3
     ::e114stbpmoca
         int3
-    ::showerror     -- (see also eNNunknown in pApnd.e)
-        int3
+--  ::showerror     -- (see also eNNunknown in pApnd.e)
+--      int3
     ::e42fatp4mba
         int3
     ::e39atmcmba
@@ -1368,7 +1368,14 @@ end procedure -- (for Edita/CtrlQ)
       ::PokeNStr
         -- edi now contains addr, esi raw addr of string(p2), ecx the length
         cmp byte[ebx+eax*4-1],0x82
-        jne :showerror          -- unknown type byte (not 0x12, 0x80, or 0x82)
+--      jne :showerror          -- unknown type byte (not 0x12, 0x80, or 0x82)
+        je @f
+            pop edx
+            mov al,85           -- e85utb
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
         cmp edx,1
         jne @f
           :!PokeN1StrE30                -- exception here mapped to e100ipmafeh
@@ -1519,7 +1526,14 @@ end procedure -- (for Edita/CtrlQ)
       ::PokeNStr64
         -- rdi now contains addr, rsi raw addr of string(p2), rcx the length
         cmp byte[rbx+rax*4-1],0x82
-        jne :showerror          -- unknown type byte (not 0x12, 0x80, or 0x82)
+--      jne :showerror          -- unknown type byte (not 0x12, 0x80, or 0x82)
+        je @f
+            pop rdx
+            mov al,85           -- e85utb
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
         cmp rdx,1
         jne @f
           :!PokeN1StrE30        -- exception here mapped to e100ipmafeh
