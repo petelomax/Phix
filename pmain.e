@@ -3524,8 +3524,12 @@ integer SNtyp
         getToken()
         while 1 do
             if toktype!=LETTER then
+if default_found then
                 Aborp("a parameter name is expected here")
-            end if
+end if
+                ttidx = -1
+        else
+--          end if
             N = InTable(-InAny)     -- -ve means no errors (eg/ie namespace rqd)
             if N>0 then
                 SNtyp = symtab[N][S_NTyp]
@@ -3540,6 +3544,7 @@ integer SNtyp
             k = find(ttidx,paramNames)
 --              if ttidx=rtnttidx or (k and k<=nParams) then Duplicate() end if
             if k and k<=nParams then Duplicate() end if
+        end if
             nParams += 1                
             if nParams>length(paramNames) then
                 paramNames = append(paramNames,ttidx)
@@ -3556,6 +3561,7 @@ integer SNtyp
                 paramDflts[nParams] = 0
                 paramUsed [nParams] = 0
             end if
+if ttidx!=-1 then
             getToken()
 -- added 6/4/2012: (may confuse default with named parameter a bit, but it is optional)
             if toktype=':' and Ch='=' then MatchChar(':') end if
@@ -3587,6 +3593,7 @@ integer SNtyp
                 --  defaulted, otherwise it just gets far too messy and confusing.
                 default_found = 1
             end if
+end if
             signature = append(signature,Typ)
             if toktype!=',' then
 -- removed 2/1/14 (we are going to do an Aborp() or MatchChar(')') rsn anyway)
@@ -10132,6 +10139,7 @@ integer lprev
                 -- that we might have to repeat that trick for several terms, the difficulty
                 -- of adequate testing, and the probability of adding further bugs, it seems 
                 -- better to force the programmer to use a named temp for the result of f().
+                -- (the "obvious" solution of stashing the rhs in a new temp achieves nowt.)
             end if
         end if
     end if

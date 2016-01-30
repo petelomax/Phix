@@ -884,10 +884,11 @@ constant msgs =
  "index %d out of bounds, reading sequence length %d\n",        -- e106ioob
     -- (edi,edx)
  "invalid free memory address\n",                               -- e107ifma
- "position error [%s]\n",                                       -- e108pe
+ "position error [%d]\n",                                       -- e108pe(edi)
     -- Maybe the co-ordinates specified are outside the boundaries
     -- of the (Windows) screen buffer. See also e83atpmbi, which
     -- occurs for attempts to position at negative coordinates.
+    -- Note this error is used by get_position() and postion().
  "clear_screen error\n",                                        -- e109cse
     -- Internal error, should not happen (and in fact this
     --  message has never been successfully triggered)
@@ -2453,6 +2454,8 @@ atom gvarptr
             o = sprintf("???(%d)",or_edi)
         end if
         msg = sprintf(msg,{o,o})
+    elsif msg_id=108 then       -- e108pe(edi)
+        msg = sprintf(msg,{or_edi})
     end if
 --?2
 --/*

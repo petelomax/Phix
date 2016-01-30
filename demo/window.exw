@@ -4,6 +4,7 @@
 --
 -- A Standard Windows Window coded at the primitive API level
 -- Most Phix programmers should simply use Arwen or similar (was:Win32Lib, wxWidgets, EuGTK or EuIUP!)
+-- See winwire.exw for a simpler way: use cffi for 32<->64 bit compatibility
 --
 
 --/*
@@ -12,6 +13,7 @@ include std/machine.e
 include std/dll.e
 --*/
 
+--DEV use cffi:
 constant cbSize = 0,
          style  = 4,
          lpfnWndProc = 8,
@@ -38,7 +40,7 @@ constant cbSize64           = 0,
          lpszMenuName64     = 56,
          lpszClassName64    = 64,
          hIconSm64          = 72,
-         SIZE_OF_WNDCLASS64 = 80+40
+         SIZE_OF_WNDCLASS64 = 80
 --/*
 
 typedef struct tagWNDCLASSEX {
@@ -84,8 +86,8 @@ ends
 
 --*/
 
-constant SIZE_OF_MESSAGE = 40   -- 28??
-constant SIZE_OF_MESSAGE64 = 48+80
+constant SIZE_OF_MESSAGE = 28
+constant SIZE_OF_MESSAGE64 = 48
 
 --/*
 
@@ -171,10 +173,10 @@ constant IDC_ARROW = 32512,
          DT_SINGLECENTER = or_all({DT_SINGLELINE, DT_CENTER, DT_VCENTER}),
          SND_FILEASYNC = or_bits(SND_FILENAME,SND_ASYNC)
 
-integer xLoadIcon, LoadCursor, GetStockObject, RegisterClassEx,
-        xCreateWindowEx, ShowWindow, UpdateWindow, xGetMessage,
-        TranslateMessage, DispatchMessage, PlaySound, BeginPaint,
-        GetClientRect, DrawText, EndPaint, xPostQuitMessage, DefWindowProc,
+integer xLoadIcon, xLoadCursor, xGetStockObject, xRegisterClassEx,
+        xCreateWindowEx, xShowWindow, xUpdateWindow, xGetMessage,
+        xTranslateMessage, xDispatchMessage, xPlaySound, xBeginPaint,
+        xGetClientRect, xDrawText, xEndPaint, xPostQuitMessage, xDefWindowProc,
         xGetLastError
 
 procedure not_found(sequence name)
@@ -213,26 +215,26 @@ atom user32, gdi32, winmm, kernel32
     kernel32 = link_dll("kernel32.dll")
 
     xLoadIcon = link_c_func(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT)
-    LoadCursor = link_c_func(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT)
-    GetStockObject = link_c_func(gdi32, "GetStockObject", {C_INT}, C_INT)
-    RegisterClassEx = link_c_func(user32, "RegisterClassExA", {C_POINTER}, C_INT)
+    xLoadCursor = link_c_func(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT)
+    xGetStockObject = link_c_func(gdi32, "GetStockObject", {C_INT}, C_INT)
+    xRegisterClassEx = link_c_func(user32, "RegisterClassExA", {C_POINTER}, C_INT)
     xCreateWindowEx = link_c_func(user32, "CreateWindowExA",
                                   {C_INT, C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},
                                   C_INT)
-    ShowWindow = link_c_proc(user32, "ShowWindow", {C_INT, C_INT})
-    UpdateWindow = link_c_proc(user32, "UpdateWindow", {C_INT})
+    xShowWindow = link_c_proc(user32, "ShowWindow", {C_INT, C_INT})
+    xUpdateWindow = link_c_proc(user32, "UpdateWindow", {C_INT})
     xGetMessage = link_c_func(user32, "GetMessageA",
                              {C_INT, C_INT, C_INT, C_INT}, C_INT)
-    TranslateMessage = link_c_proc(user32, "TranslateMessage", {C_INT})
-    DispatchMessage = link_c_proc(user32, "DispatchMessageA", {C_INT})
-    PlaySound = link_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT})
-    BeginPaint = link_c_func(user32, "BeginPaint", {C_INT, C_POINTER}, C_INT)
-    GetClientRect = link_c_proc(user32, "GetClientRect", {C_INT, C_POINTER})
-    DrawText = link_c_proc(user32, "DrawTextA",
+    xTranslateMessage = link_c_proc(user32, "TranslateMessage", {C_INT})
+    xDispatchMessage = link_c_proc(user32, "DispatchMessageA", {C_INT})
+    xPlaySound = link_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT})
+    xBeginPaint = link_c_func(user32, "BeginPaint", {C_INT, C_POINTER}, C_INT)
+    xGetClientRect = link_c_proc(user32, "GetClientRect", {C_INT, C_POINTER})
+    xDrawText = link_c_proc(user32, "DrawTextA",
                            {C_INT, C_INT, C_INT, C_INT, C_INT})
-    EndPaint = link_c_proc(user32, "EndPaint", {C_INT, C_INT})
+    xEndPaint = link_c_proc(user32, "EndPaint", {C_INT, C_INT})
     xPostQuitMessage = link_c_proc(user32, "PostQuitMessage", {C_INT})
-    DefWindowProc = link_c_func(user32, "DefWindowProcA",
+    xDefWindowProc = link_c_func(user32, "DefWindowProcA",
                                 {C_INT, C_INT, C_INT, C_INT}, C_INT)
     xGetLastError = link_c_func(kernel32,"GetLastError",{},C_INT)
 end procedure
@@ -245,15 +247,16 @@ atom hdc, wav_file, Euphoria, ps, rect
 
     if iMsg=WM_CREATE then
         wav_file = allocate_string("\\Windows\\Media\\tada.wav")
-        c_proc(PlaySound, {wav_file,NULL,SND_FILEASYNC})
+        c_proc(xPlaySound, {wav_file,NULL,SND_FILEASYNC})
         free(wav_file)
         return 0
 
     elsif iMsg=WM_PAINT then
+--DEV use cffi:
 if machine_bits()=32 then
         ps = allocate(64)
 else
-        ps = allocate(72+32)
+        ps = allocate(72)
 end if
 --/*
 struct PAINTSTRUCT
@@ -288,13 +291,14 @@ struct RECT64
   bottom dd ?
 ends
 --*/
-        rect = allocate(16+16)
-        hdc = c_func(BeginPaint, {hwnd, ps})
-        c_proc(GetClientRect, {hwnd, rect})
+--DEV use cffi:
+        rect = allocate(16)
+        hdc = c_func(xBeginPaint, {hwnd, ps})
+        c_proc(xGetClientRect, {hwnd, rect})
         Euphoria = allocate_string("A Plain Vanilla Window using Euphoria!")
-        c_proc(DrawText, {hdc, Euphoria, -1, rect,DT_SINGLECENTER})
+        c_proc(xDrawText, {hdc, Euphoria, -1, rect,DT_SINGLECENTER})
         free(Euphoria)
-        c_proc(EndPaint, {hwnd, ps})
+        c_proc(xEndPaint, {hwnd, ps})
         free(ps)
         free(rect)
         return 0
@@ -305,7 +309,7 @@ ends
 
     end if
 
-    return c_func(DefWindowProc, {hwnd, iMsg, wParam, lParam})
+    return c_func(xDefWindowProc, {hwnd, iMsg, wParam, lParam})
 end function
 
 procedure WinMain()
@@ -340,22 +344,7 @@ if machine_bits()=32 then
     poke4(wndclass+cbClsExtra, 0)
     poke4(wndclass+cbWndExtra, 0)
     poke4(wndclass+hInstance, 0) --hInstance
-else --64
---constant cbSize64         = 0,
---       style64            = 4,
---       lpfnWndProc64      = 8,
---       cbClsExtra64       = 16,
---       cbWndExtra64       = 20,
---       hInstance64        = 24,
---       hIcon64            = 32,
---       hCursor64          = 40,
---       hbrBackground64    = 48,
---       lpszMenuName64     = 56,
---       lpszClassName64    = 64,
---       hIconSm64          = 72,
---       SIZE_OF_WNDCLASS64 = 80
---
---?9/0
+else --machine_bits()=64
     poke4(wndclass+cbSize64, SIZE_OF_WNDCLASS64)
     poke4(wndclass+style64, or_bits(CS_HREDRAW, CS_VREDRAW))
     poke8(wndclass+lpfnWndProc64, WndProcAddress)
@@ -379,22 +368,23 @@ end if
     -- where WM_SETICON is 128, 1=big icon, 0 for small icon
 
 if machine_bits()=32 then
-    poke4(wndclass+hCursor, c_func(LoadCursor, {NULL, IDC_ARROW}))
-    poke4(wndclass+hbrBackground, c_func(GetStockObject, {WHITE_BRUSH}))
+    poke4(wndclass+hCursor, c_func(xLoadCursor, {NULL, IDC_ARROW}))
+    poke4(wndclass+hbrBackground, c_func(xGetStockObject, {WHITE_BRUSH}))
     poke4(wndclass+lpszMenuName, NULL)
     poke4(wndclass+lpszClassName, szAppName)
 else
-    poke8(wndclass+hCursor64, c_func(LoadCursor, {NULL, IDC_ARROW}))
-    poke8(wndclass+hbrBackground64, c_func(GetStockObject, {WHITE_BRUSH}))
+    poke8(wndclass+hCursor64, c_func(xLoadCursor, {NULL, IDC_ARROW}))
+    poke8(wndclass+hbrBackground64, c_func(xGetStockObject, {WHITE_BRUSH}))
     poke8(wndclass+lpszMenuName64, NULL)
     poke8(wndclass+lpszClassName64, szAppName)
 end if
 
-    class = c_func(RegisterClassEx, {wndclass})
+    class = c_func(xRegisterClassEx, {wndclass})
     free(szAppName)
     free(wndclass)
     if class=0 then
         puts(1, "Couldn't register class\n")
+--5 (ERROR_ACCESS_DENIED) [occurred when SIZE_OF_WNDCLASS64 was wrong/padded]
         ?c_func(xGetLastError,{})
         abort(1)
     end if
@@ -415,12 +405,12 @@ end if
     free(my_title)
     if hwnd=0 then
         puts(1, "Couldn't CreateWindow\n")
---5 (ERROR_ACCESS_DENIED??!!)
+--5 (ERROR_ACCESS_DENIED)
         ?c_func(xGetLastError,{})
         abort(1)
     end if
-    c_proc(ShowWindow, {hwnd, SW_SHOWNORMAL})
-    c_proc(UpdateWindow, {hwnd})
+    c_proc(xShowWindow, {hwnd, SW_SHOWNORMAL})
+    c_proc(xUpdateWindow, {hwnd})
 
 if machine_bits()=32 then
     msg = allocate(SIZE_OF_MESSAGE)
@@ -428,8 +418,8 @@ else
     msg = allocate(SIZE_OF_MESSAGE64)
 end if
     while c_func(xGetMessage, {msg, NULL, 0, 0}) do
-        c_proc(TranslateMessage, {msg})
-        c_proc(DispatchMessage, {msg})
+        c_proc(xTranslateMessage, {msg})
+        c_proc(xDispatchMessage, {msg})
     end while
     free(msg)
 end procedure
@@ -438,5 +428,5 @@ WinMain()
 
 --added to prevent false positives... [DEV, reported]
 --include ..\test\t01type.exw
-include ..\test\t02parms.exw
+--include ..\test\t02parms.exw
 

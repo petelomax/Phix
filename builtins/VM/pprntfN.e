@@ -194,7 +194,12 @@ integer exponent, k
     if charflag='e' or (charflag='g' and (exponent>=precision or exponent<-4)) then
         ewk = exponent
         if exponent>0 then
-            epwr = power(10,exponent)
+--DEV problems on 64bit: (opPow needs improvement!)
+--          epwr = power(10,exponent)
+epwr = 10
+for i=2 to exponent do
+    epwr *= 10
+end for
             fwk = 0--epwr
             digit = 0
             while f>=fwk+epwr do
@@ -435,7 +440,7 @@ integer tmp
     if not init2 then
 -- [DEV] technically this isn't thread safe... (code shown commented out should be enough, once those routines work)
 --      enter_cs()
---DEV make INF a builtin (like PI):
+--DEV make INF a builtin (like PI), ditto NAN:
 --      inf = 1e300*1e300
         #ilASM{ fld1
                 fldz

@@ -1749,7 +1749,8 @@ end procedure -- (for Edita/CtrlQ)
 --test/tmp (will only work for pFreePool/mergeone, not mergelist/mergeone.)
 -- (did not help: error occured mid-opRetf, so line number would be meaningless anyway,
 --                plus the jmp !iDiag bypassed the natural trapping of int3 in fdbg.)
---              mov rdx,[rsp+48]
+----                mov rdx,[rsp+48]
+--              mov rdx,[rsp+56]
 --              mov al,32                   -- e32hc(era,edi)
 --              sub rdx,1
 --              -- (rdi is supposed to be a pRoot, in this one particular case)
@@ -3289,16 +3290,6 @@ end procedure -- (for Edita/CtrlQ)
         ror rax,2                       -- rotated,
     []
         ret
-
---DEV test/fix this on 64-bit (hopefully not an issue)
---  However while power(3,5) is exactly 243 in 64-bit mode, it is one bit 
---  adrift in 80-bit mode, so eg:
---          f=power(3,5)
---          ?{f=243,f+1=244}
---  may display {0,1}, and I can tell you it took me a fair while to track 
---  that little bugger down. The really confusing thing was of course the
---  way that 243.0 + 1 was getting stored as an integer... ie the _reload_
---  of 243.0 cleared bits 64..80 compared to when it was first stored.
 
 --/*
 procedure :%pStoreFlt(:%)

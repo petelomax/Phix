@@ -3511,13 +3511,26 @@ end if
                 {p1type,p1size,p1details} = get_operand(P_MEM)
                 if emitON then
                     if p1type=P_VAR then
-if newEmit and X64=1 then
+                        {N,sType} = p1details
+if X64=1 then
                         if p1size!=8 then ?9/0 end if -- sanity check
-                        s5 &= #48
+--                      s5 &= #48
+                        if sType=S_GVar2
+                        or sType=S_Const then
+                            -- 0o337 0o055 m32                  -- fild qword[mem32]
+                            s5 &= {0o337,0o055,isVar,0,0,N}
+                        elsif sType=S_TVar then
+                            -- 0o337 0o05r                      -- fild qword[reg]
+                            -- 0o337 0o155 00                   -- fild dword[ebp]
+                            -- 0o337 0o155 d8                   -- fild dword[ebp+d8]
+                            -- 0o337 0o255 d32                  -- fild dword[ebp+d32]
+                            s5 &= 0o337
+                            emit_ebpN(5,N)
+                        else
+                            ?9/0
+                        end if
 else
                         if p1size!=4 then ?9/0 end if -- sanity check
-end if
-                        {N,sType} = p1details
                         if sType=S_GVar2
                         or sType=S_Const then
                             -- 0o333 0o005 m32                  -- fild dword[mem32]
@@ -3532,6 +3545,7 @@ end if
                         else
                             ?9/0
                         end if
+end if
                     elsif p1type=P_MEM then
                         -- 0o337 0o00b          -- fild word[base]
                         -- 0o333 0o00b          -- fild dword[base]

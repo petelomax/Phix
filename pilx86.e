@@ -1,3 +1,12 @@
+--mov_eax_imm32
+--       mov_m32_imm32  = {#C7,#05},    -- 0o307 0o005 m32 i32      -- mov [m32],imm32
+--       mov_medi_im32  = {#C7,#07},    -- 0o307 0o007 imm32        -- mov [edi],imm32
+--       mov_ebpd8_i32  = {#C7,#45},    -- 0o307 0o105 d8 imm32     -- mov [ebp+d8],imm32
+--       mov_edid8_i32  = {#C7,#47},    -- 0o307 0o107 d8 imm32     -- mov [edi+d8],imm32
+--       mov_ebpd32_i32 = {#C7,#85},    -- 0o307 0o205 d32 imm32    -- mov [ebp+d32],imm32
+--       mov_edid32_i32 = {#C7,#87},    -- 0o307 0o207 d32 imm32    -- mov [edi+d32],imm32
+--       mov_regimm32   =  #C7,         -- 0o307 0o30r imm32        -- mov reg,imm32
+
 --
 -- pilx86.e
 --  (created 14/3/09, from pilxl.e+pgscan.e+pltype.e)
@@ -294,7 +303,9 @@ constant
          mov_mem32_ebx  = {#89,#1D},    -- 0o211 0o035 m32          -- mov [m32],ebx
 --       mov_ebpi8_edx  = {#89,#55},    -- 0o211 0o125 imm8         -- mov [ebp+imm8],edx
          mov_ebpi8_ebx  = {#89,#5D},    -- 0o211 0o135 imm8         -- mov [ebp+imm8],ebx(0)
+         mov_rbpi8_r14  = {#89,#75},    -- 0o211 0o165 imm8         -- mov [rbp+imm8],r14 (needs a #4C)
          mov_ebpi32_ebx = {#89,#9D},    -- 0o211 0o235 imm32        -- mov [ebp+imm32],ebx(0)
+         mov_rbpi32_r14 = {#89,#B5},    -- 0o211 0o265 imm32        -- mov [rbp+imm32],r14 (needs a #4C)
 --       mov_ecx_eax    = {#89,#C1},    -- 0o211 0o301              -- mov ecx,eax  -- see 8B version below
 --       mov_edx_eax    = {#89,#C2},    -- 0o211 0o302              -- mov edx,eax  -- ""
 --       mov_esi_eax    = {#89,#C6},    -- 0o211 0o306              -- mov esi,eax  -- ""
@@ -1157,13 +1168,15 @@ procedure emitHex5v(integer op1, integer N)
 -- emit a 1 byte opcode and a 4 byte var addr
 --!/**/ #isginfo{op1,integer,104,191,object,-1} --dev allow "ANY"?
 --!/**/ #isginfo{op1,integer,61,191,object,-1} --dev allow "ANY"?
---/**/ #isginfo{op1,integer,161,191,object,-1} --dev allow "ANY"?
+--DEV broken on 64bit:
+--!/**/ #isginfo{op1,integer,161,191,object,-1} --dev allow "ANY"?
 --!/**/ #isginfo{op1,atom,MIN,MAX,object,-1}
 --DEV::
 --!/**/ #isginfo{N,integer,MIN,MAX,object,-2}
 --!/**/ #isginfo{N,object,MIN,MAX,object,-2}
 --!/**/ #isginfo{N,atom,MIN,MAX,object,-1}
---/**/  #isginfo{N,integer,MIN,MAX,object,-1}
+--DEV broken on 64bit:
+--!/**/ #isginfo{N,integer,MIN,MAX,object,-1}
     if not sched then
         if lastline!=emitline then lineinfo() end if
     end if
@@ -1186,7 +1199,8 @@ procedure emitHex5vno(integer op1, integer N)
 --!/**/ #isginfo{op1,integer,61,191,object,-1} --dev allow "ANY"?
 --!/**/ #isginfo{op1,integer,161,191,object,-1} --dev allow "ANY"?
 --!/**/ #isginfo{op1,atom,MIN,MAX,object,-1}
---/**/  #isginfo{N,integer,MIN,MAX,object,-1}
+--DEV broken/atom on 64bit
+--!/**/ #isginfo{N,integer,MIN,MAX,object,-1}
 if not newEmit then ?9/0 end if
     if not sched then
         if lastline!=emitline then lineinfo() end if
@@ -1415,7 +1429,8 @@ procedure movRegVno(integer reg, integer N)
 -- set the specified register to a 4 byte literal symtab index (which needs mapping)
 -- see also cmp_eax_srcid()
 --!/**/ #isginfo{reg,integer,0,15,object,-1} --dev allow "ANY"?
---/**/  #isginfo{N,integer,MIN,MAX,object,-1}
+--DEV broken on 64bit:
+--!/**/ #isginfo{N,integer,MIN,MAX,object,-1}
 integer op1, xrm
     if not sched then
         if lastline!=emitline then lineinfo() end if
@@ -2840,6 +2855,7 @@ atom vmin   vmin = 0
 atom vmax   vmax = 0
 integer vlen    vlen = 0
 
+--with trace
 procedure getSrc()
 object ss
 object ssgi
@@ -2862,7 +2878,11 @@ end if
     end if
 if NOLT=0 or bind or lint then
     if getLocal(src) then
+--15/1/16. We cannot know if optset[OptTypeCheck] is/was on, so we cannot do this...
         slroot = and_bits(rootType(Ltype),rootType(sudt))
+if slroot=0 then
+        slroot = or_bits(rootType(Ltype),rootType(sudt))
+end if
         sltype = Ltype
 --      slroot = rootType(Ltype)
         smin = Lmin
@@ -2973,6 +2993,10 @@ if NOLT=0 or bind or lint then
 --if Ltype>T_object then ?9/0 end if
         sltype2 = Ltype
         slroot2 = and_bits(rootType(Ltype),vroot2)
+--15/1/16 [as per GetSrc()]
+if slroot2=0 then
+        slroot2 = or_bits(rootType(Ltype),vroot2)
+end if
         --      slroot2 = rootType(Ltype)
         smin2 = Lmin
         smax2 = Lmax
@@ -3208,6 +3232,8 @@ integer gtypeonly       -- set to 1 to suppress ltAdd
         gtypeonly = 0   -- (15/11/09) now only used in opTchk, to set the globaltype
                         --  on type check calls
 
+--integer from_opRepCh = 0
+
 procedure storeDest()
 object sdgi
 if NOLT=0 or bind or lint then
@@ -3231,6 +3257,10 @@ if NOLT=0 or bind or lint then
 --  and not and_bits(detyp,T_N) then
 --      printf(1,"storeDest etype: emitline is %d\n",emitline)
 --  end if
+-- end if
+-- if dest=710 then
+----    if dtype=0 then ?9/0 end if
+--  printf(1,"storeDest 710: emitline is %d, callpending=%d, dtype=%d,slroot=%d,sltype=%d\n",{emitline,callpending,dtype,slroot,sltype})
 -- end if
     if and_bits(slroot,T_atom)=T_integer then
         if dmin>smin then dmin = smin end if
@@ -3257,6 +3287,9 @@ if NOLT=0 or bind or lint then
     end if
 
 --if NOLT=0 or bind or lint then
+--if from_opRepCh then
+--  ?{dtype,callpending,gtypeonly,dest}
+--end if
     if not callpending
     and not gtypeonly then
         Lmin = smin
@@ -3271,9 +3304,15 @@ if NOLT=0 or bind or lint then
 
 --21/8/10 (possibly temp?)
 if length(symtab[dest])>=S_ltype then
+--if from_opRepCh then
+--?1
+--end if
         ltAdd(SET,dest,symtab[dest][S_ltype],sltype,pc-1)
 end if
     end if
+--if from_opRepCh then
+--?0
+--end if
 --end if -- NOLT
     gtypeonly = 0
 --  if and_bits(stype,T_integer) then
@@ -3332,6 +3371,10 @@ if sequence(symtab[dest][S_gNew]) then
 end if
     symtab[dest][S_gNew] = sdgi
  end if
+if dest=710 then
+--  ?sdgi
+    sdgi = symtab[dest]
+end if
 end if -- NOLT
 end procedure
 
@@ -3831,8 +3874,19 @@ procedure movRegImm32(integer reg, atom v)
 integer mov_reg_imm32
     if newEmit and X64=1 then
         emitHex1(#48)
-        xrm = 0o300+reg
-        emitHex62w(mov_regimm32,xrm,v)      -- mov reg,imm32
+--16/1/16:
+--      xrm = 0o300+reg
+--      emitHex62w(mov_regimm32,xrm,v)      -- mov reg,imm32
+        if v>#7FFFFFFF or v<-#80000000 then
+--          if v>#FFFFFFFF or v<-#80000000 then ?9/0 end if -- placeholder for more code...
+            mov_reg_imm32 = mov_eax_imm32+reg
+            emitHex5w(mov_reg_imm32,and_bits(v,#FFFFFFFF))      -- mov reg,imm64(lsd)
+            v = floor(v/#100000000)
+            emitHexDword(and_bits(v,#FFFFFFFF))                 --      ...imm64(msd)
+        else
+            xrm = 0o300+reg
+            emitHex62w(mov_regimm32,xrm,v)      -- mov reg,imm32
+        end if
     else
         mov_reg_imm32 = mov_eax_imm32+reg
         emitHex5w(mov_reg_imm32,v)          -- mov reg,imm32
@@ -3855,19 +3909,39 @@ integer k
     elsif isFresDest then
 -- #48, maybe fine without (done inside movRegImm32)
 --      emitHex5w(mov_eax_imm32,v)              -- mov eax,imm32
+        if X64 then
+            if v>#7FFFFFFF then ?9/0 end if -- placeholder for more code...
+        end if
         movRegImm32(eax,v)                      -- mov eax,imm32
     elsif symtab[dest][S_NTyp]=S_TVar then
         k = symtab[dest][S_Tidx]
-        if newEmit and X64=1 then
+        if X64=1 and (v>#7FFFFFFF or v<-#80000000) then
             k *= 8
-            emitHex1(#48)
+            -- mov r14,imm64:
+            emitHex1(#49)
+            emitHex1(#BE)
+            emitHexDword(and_bits(v,#FFFFFFFF))
+            v = floor(v/#100000000)
+            emitHexDword(and_bits(v,#FFFFFFFF))
+            emitHex1(#4C)
+            if k<-128 then
+                emitHex6w(mov_rbpi32_r14,k)     -- mov [rbp+imm32],r14
+            else
+                emitHex3(mov_rbpi8_r14,k)       -- mov [rbp+imm8],r14
+            end if
         else
-            k *= 4
-        end if
-        if k<-128 then
-            emitHex10ww(mov_ebpd32_i32,k,v)     -- mov [ebp-nnnn],imm32
-        else -- (when k is 0 we still need a byte offset of 0)
-            emitHex7d8v(mov_ebpd8_i32,k,v)      -- mov [ebp-nn],imm32
+            if X64=1 then
+                k *= 8
+                emitHex1(#48)
+                if v>#7FFFFFFF then ?9/0 end if -- placeholder for more code...
+            else
+                k *= 4
+            end if
+            if k<-128 then
+                emitHex10ww(mov_ebpd32_i32,k,v)     -- mov [ebp-nnnn],imm32
+            else -- (when k is 0 we still need a byte offset of 0)
+                emitHex7d8v(mov_ebpd8_i32,k,v)      -- mov [ebp-nn],imm32
+            end if
         end if
     else
         if newEmit and X64=1 then
@@ -4757,6 +4831,10 @@ end if
                     src = forwardretarget[find(src+1,forwardingtable)]-1
                     s5[pc+2] = src
                 end if
+--if dest=710 then
+--?{dest,src,isInit,dtype,slroot,sltype,opcode,opMove}
+--  trace(1)
+--end if
                 getSrc()
 --if dest=391 then trace(1) end if
 --symk = symtab[src]
@@ -4912,19 +4990,19 @@ end if
 --if newEmit and X64 then ?9/0 end if
                             if isFresDst then -- no decref/dealloc, but incref maybe:
 --DEV (spotted in passing) is this not loadToReg?
-if 1 then
+--if 1 then
                                 loadToReg(eax,src)
-else
-                                reg = loadReg(src,NOLOAD)
-                                if reg=-1 then -- not already loaded
-                                    demoteReg(eax)
-                                    reg = loadReg(src)
-                                elsif reg!=eax then
---DEV do we need to clearReg(eax) or something here?
-                                    xrm = #C0 + reg*8 -- 0o3r0
-                                    emitHex2(mov_reg,xrm)                       -- mov eax,reg
-                                end if
-end if
+--else
+--                              reg = loadReg(src,NOLOAD)
+--                              if reg=-1 then -- not already loaded
+--                                  demoteReg(eax)
+--                                  reg = loadReg(src)
+--                              elsif reg!=eax then
+----DEV do we need to clearReg(eax) or something here?
+--                                  xrm = #C0 + reg*8 -- 0o3r0
+--                                  emitHex2(mov_reg,xrm)                       -- mov eax,reg
+--                              end if
+--end if
                                 storeReg(ebx,src,1,0)                           -- move [src],ebx(0)
 --10/11/15:
                             elsif onDeclaration then -- no need to decref/dealloc
@@ -10994,7 +11072,9 @@ end while
             bmin = smin --\ save for
             bmax = smax --/ use below
             setyp = slroot
-            if slroot=T_integer and smin>=7 and smax<=255 then
+--12/1/16:
+--          if slroot=T_integer and smin>=7 and smax<=255 then
+            if opcode=opRepCh or (slroot=T_integer and smin>=7 and smax<=255) then
                 slroot = T_string
             else
 --DEV (20/9) tryme instead: (ie can we trust min/max at all when T_N bit is set??
@@ -11014,8 +11094,12 @@ end while
             else
                 slen = -2
             end if
+--?{iroot,slroot,smin,smax,{opcode,opRepCh,opRepeat}}
+--if slroot = 0 then ?9/0 end if
             sltype = slroot
+--from_opRepCh = 1
             storeDest()
+--from_opRepCh = 0
             --else
             if not isGscan then
                 markConstUseds({dest,src,src2})
@@ -14888,10 +14972,10 @@ if not newEmit then ?9/0 end if
             printf(1,"\n\n**internal error pilx86.e line 15225, unknown opcode(%d=%s), emitline=%d)**\n\n\n",{opcode,opName,emitline})
             opcode = opcode/0
         end if
---31/12/15:
-if suppressopRetf then
-    if pc>length(s5) then exit end if
-end if
+        --31/12/15:
+        if suppressopRetf then
+            if pc>length(s5) then exit end if
+        end if
 --if ttrap then
 --  if tmpd and pc>=tmppc then
 --      ?9/0
@@ -15638,6 +15722,10 @@ integer lastop, lastln
         lastop = opcode
         if lastop=opLn then
             lastln = s5[pc-1]
+        end if
+        --12/01/16:
+        if suppressopRetf then
+            if pc>length(s5) then exit end if
         end if
     end while
     if dumpil then

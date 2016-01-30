@@ -1373,7 +1373,8 @@ if useFLOAT then --(DEV/temp)
             return not integer(N)
         else
             -- 32 bit compiler -> 64 bit executable (partial range coverage)
-            return N!=floor(N) or N<-#80000000 or N>+#80000000
+--          return N!=floor(N) or N<-#80000000 or N>+#80000000
+            return N!=floor(N) or N<-#FFFFFFFF or N>+#FFFFFFFF
         end if
     else -- machine_bits()=64   -- (runtime)
         if X64=1 then           -- (target)
@@ -1393,17 +1394,21 @@ procedure setFLOAT()
 --
 -- from the manual:
 --      When using a 32-bit compiler to create a 64-bit executable, be aware that the integer range is
---      redefined as +/-#8000_0000 rather than -#4000_0000_0000_0000 to #3FFF_FFFF_FFFF_FFFF. See ptok.e/
+--      redefined as +/-#FFFF_FFFF rather than -#4000_0000_0000_0000 to #3FFF_FFFF_FFFF_FFFF. See ptok.e/
 --      setFLOAT() for all the nitty-gritty details.
 -- details:
 --      Technically, when using a 32-bit compiler to create a 64-bit executable, using 64-bit atoms with
---      53 bits of precision, a limit of +/-#2000_0000_0000_0000 would apply, and significant complications
---      would be introduced by using a pair of dwords if we really wanted to go mad, but since the 32-bit
+--      53 bits of precision, a limit of +/-#2000_0000_0000_0000 would apply (/significant complications
+--      would be introduced by using a pair of atoms if we really wanted to go mad) but since the 32-bit
 --      runtime has inherent 32-bit limitations (such as and_bits) there seems little point trying harder.
---      In practice (see above) we settle for a limit of +/-#8000_0000, to keep things reasonably simple.
+--      In practice (see above) we settle for a limit of +/-#FFFF_FFFF, to keep things reasonably simple.
 --      Programs which use (very large) integer values/constants in the uncovered ranges are likely to be
 --      incorrectly cross-compiled. Obviously these are only limits during compilation, not run-time, and
 --      the source code of Phix itself does not use any such values, nor do any of the supplied demos.
+--      The absolute minimum range that we MUST cope with perfectly is (signed) #80000000 (ie -2147483648) 
+--      through to (unsigned) #FFFFFFFF (ie + 4294967295), especially <-#40000000|>+#3FFFFFFF, otherwise
+--      code that works perfectly on 32-bit may well exhibit cryptic mishaps on 64-bit. I am not overly
+--      concerned with 64-bit code failing when compiled to a 32-bit executable, for obvious reasons.
 --
 -- This particular routine is concerned with correctly tagging tokens found in the source code; the above
 --  isFLOAT() is factored out to apply the same logic elsewhere, eg/ie as part of constant propagation.

@@ -9,18 +9,23 @@
 
 include builtins\VM\pHeap.e
 
-global procedure free(atom addr)
-    #ilASM{
-        [32]
-            mov eax,[addr]
---          mov edx,[ebp+16]
-            mov edx,[ebp+12]
-        [64]
-            mov rax,[addr]
-            mov rdx,[rbp+24]
-        []
-            call :%pFree
-          }
+global procedure free(object addr)
+    if sequence(addr) then
+        for i=1 to length(addr) do
+            free(addr[i])
+        end for
+    else
+        #ilASM{
+            [32]
+                mov eax,[addr]
+                mov edx,[ebp+12]
+            [64]
+                mov rax,[addr]
+                mov rdx,[rbp+24]
+            []
+                call :%pFree
+              }
+    end if
 end procedure
 constant r_free = routine_id("free")
 

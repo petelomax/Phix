@@ -34,28 +34,56 @@ procedure sleep(integer t)
 end procedure
 --*/
 
-global function reverse(sequence s)
--- reverse the top-level elements of a sequence.
--- Thanks to Hawke' for helping to make this run faster.
-integer rlower, n, n2
-sequence t
+--global function reverse(sequence s)
+---- reverse the top-level elements of a sequence.
+---- Thanks to Hawke' for helping to make this run faster.
+--integer rlower, n, n2
+--sequence t
+--
+--  n = length(s)
+--  n2 = floor(n/2)+1
+----!/**/  t = repeat(iff(string(s)?' ':0),n) --/*
+----/**/ if string(s) then      --   -- Phix
+----/**/     t = repeat(' ',n)
+----/**/ else
+----/**/     t = repeat(0,n)
+----/**/ end if                 --/*
+--  t = repeat(0, n)            --*/ -- RDS
+--  rlower = 1
+--  for rupper=n to n2 by -1 do
+--      t[rupper] = s[rlower]
+--      t[rlower] = s[rupper]
+--      rlower += 1
+--  end for
+--  return t
+--end function
 
-    n = length(s)
-    n2 = floor(n/2)+1
---!/**/  t = repeat(iff(string(s)?' ':0),n) --/*
---/**/ if string(s) then        --   -- Phix
---/**/   t = repeat(' ',n)
---/**/ else
---/**/    t = repeat(0,n)
---/**/ end if                   --/*
-    t = repeat(0, n)            --*/ -- RDS
-    rlower = 1
-    for rupper=n to n2 by -1 do
-        t[rupper] = s[rlower]
-        t[rlower] = s[rupper]
-        rlower += 1
+--global function reverse_subset(sequence s, integer pFrom = 1, integer pTo = -1)
+--global function reverse(sequence s, integer pFrom = 1, integer pTo = -1)
+global function reverse(sequence src, sequence pFromTo = {1,-1})
+integer {pFrom,pTo} = pFromTo, len = length(src)
+integer lowr, uppr, midpoint
+sequence res
+
+    if pFrom<0 then
+        pFrom = len+1+pFrom
+    end if
+    if pTo<0 then
+        pTo = len+1+pTo
+    end if
+    if len<2 or pFrom=pTo then
+        return src
+    end if
+
+    midpoint = floor((pFrom+pTo-1)/2)
+    res = src
+    uppr = pTo
+    for lowr=pFrom to midpoint do
+        res[uppr] = src[lowr]
+        res[lowr] = src[uppr]
+        uppr -= 1
     end for
-    return t
+    return res
 end function
 
 --/* Not required for Phix (defined in psprint.e):

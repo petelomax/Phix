@@ -545,8 +545,11 @@ function toInt(sequence txt)
 -- convert string to integer.
 -- " is treated as 0
 integer ch, n
-    if equal(txt,"KNOWN_CONSTANT") then -- (something like this to handle MAX_PATH etc)
-        n = 9/0                         -- (or maybe parse C constants/enums/#defines?)
+
+    -- (add more cases for MAX_PATH etc as needed)
+    -- (or maybe parse C constants/enums/#defines?)
+    if equal(txt,"LF_FACESIZE") then
+        n = 32
     else
         n = 0
         for i=1 to length(txt) do

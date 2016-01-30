@@ -651,7 +651,9 @@ end procedure
 --end procedure
 
 constant e58ifn     = 58,       -- "invalid file number"
-         e59wfmfao  = 59        -- "wrong file mode for attempted operation"
+         e59wfmfao  = 59,       -- "wrong file mode for attempted operation"
+         e83atpmbi  = 83,       -- "arguments to position() must be integer"
+         e108pe     = 108       -- "position error [%s]"
 
 procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
 --DEV reword, or just refer to pcfunc.e (note pcfunc hasn't had the open->:%opOpen stuff done yet)
@@ -5773,11 +5775,12 @@ integer posX,posY
             push eax                                        -- hConsoleOutput
             call "kernel32.dll","GetConsoleScreenBufferInfo"
 --          test eax,eax
---          jz ??? [DEV]
+--          jz @f
             xor eax,eax
             xor ecx,ecx
             mov ax,[edi+CSBI_CPOSX]
             mov cx,[edi+CSBI_CPOSY]
+--        @@:
             mov [posX],eax
             mov [posY],ecx
             add esp,sizeof_CSBI
@@ -5800,12 +5803,13 @@ integer posX,posY
 --          add rsp,8*5
 --          pop rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
---          test eax,eax
---          jz ??? [DEV]
+--          test rax,rax
+--          jz @f
             xor rax,rax
             xor rcx,rcx
             mov ax,[rdi+CSBI_CPOSX]
             mov cx,[rdi+CSBI_CPOSY]
+--        @@:
             mov [posX],eax
             mov [posY],ecx
             add rsp,sizeof_CSBI64
@@ -5813,7 +5817,19 @@ integer posX,posY
             pop al
         []
           }
-    return {posY,posX}
+--  if platform()=WINDOWS then
+--      if posX=0 then
+--          #ilASM{
+--                  call "kernel32.dll","GetLastError"
+--              [32]
+--                  mov [posX],eax
+--              [64]
+--                  mov [posX],rax
+--                }
+--          fatalN(2,e108pe,posX)
+--      end if
+--  end if
+    return {posY+1,posX+1}
 end function
 
 --  :%opWrap
@@ -6420,6 +6436,10 @@ end procedure
 procedure fposition(integer line, integer col)
 integer coord
     if not cinit then initConsole() end if
+--23/1/16:
+    if line<1 or line>=#4000 or col<1 or col>=#4000 then
+        fatalN(2, e83atpmbi)
+    end if
 --  #ilASM{ call :%pClearDbg }
 --  coord = and_bits(line-1,#FFFF)*#10000 + and_bits(col,#FFFF)
     coord = and_bits(line-1,#FFFF)*#10000 + and_bits(col-1,#FFFF)
@@ -6428,6 +6448,10 @@ integer coord
             push dword[coord]                           -- dwCursorPosition
             push [stdout]                               -- hConsoleOutput
             call "kernel32.dll","SetConsoleCursorPosition"
+            test eax,eax
+            jne @f
+                mov [coord],-1
+          @@:
         [ELF32]
             pop al
         [PE64]
@@ -6445,9 +6469,25 @@ integer coord
 --          add rsp,8*5
 --          pop rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+            test rax,rax
+            jne @f
+                mov [coord],-1
+          @@:
         [ELF64]
             pop al
           }
+    if platform()=WINDOWS then
+        if coord=-1 then
+            #ilASM{
+                    call "kernel32.dll","GetLastError"
+                [32]
+                    mov [coord],eax
+                [64]
+                    mov [coord],rax
+                  }
+            fatalN(2,e108pe,coord)
+        end if
+    end if
 end procedure
 
 #ilASM{ jmp :fin

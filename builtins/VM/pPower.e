@@ -2,8 +2,34 @@
 -- pPower.e
 -- ========
 --
---  Implements :%opPow
+--  Implements :%opPow, [edi]:=power(eax,ecx) (where [edi],eax,ecx are all int/atom [not sequence])
 --
+
+-- Quick analysis of int:=power(int,int) that we could do in the ALU. Originally written because power(3,5) is non-exact on X64, 
+--  which I have now conceded as not important, it looks like "+/177,<=4" should have been "+/-181,<=4" but otherwise seems to
+--  be a perfectly reasonable compromise. 
+--  What I have not done is test performance: is ALU better/worse than fyl2x/frndint/f2xm1/fscale etc? If it is (which I doubt) 
+--  then some more power(x,2..3) optimisations might just have merits.
+--power(<atm>,0) [already handled separately]
+--power(<int>,1) [worthwhile handling separately?]
+--power(-32767..32767,2)
+--power(-1024..1023,3)
+--power(-181..181,4)    -- (1073283121 = #3FF90031)     [who knows where +/-177 came from?]
+--power(-64..63,5)
+--power(-31..31,6)
+--power(-19..19,7)
+--power(-13..13,8)
+--power(-10..10,9)
+--power(-7..7,10)
+--power(-6..6,11)
+--power(-5..5,12)
+--power(-4..4,13..14)
+--power(-4..3,15)
+--power(-3..3,16..18)
+--power(-2..2,19..29) [power(2,0..29) already handled separately]
+--power(-1..1,>=1) [worthwhile handling separately?]
+--power(0,x) [worthwhile handling separately?]
+
 
 include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
 include VM\pFPU.e   -- :%down53 etc

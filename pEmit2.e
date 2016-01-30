@@ -93,7 +93,7 @@ constant isShortJmp = #010000   -- isJmp that has been found to fit in a byte.
 --          The value of layout has no specific meaning; it can be eg a version, or a bitfield.
 --          Note these are 4+4 bytes on both 32 and 64-bit, whereas all following 4/h4 go 8.
 --          Update: on file, layout is as above some small number for the use of filedump.exw,
---          but at runtime, that dword [ds+4] is used to hold a 32-bit random number seed.
+--          but at runtime, that dword [ds+4] is used to hold a 32-bit random number seed.  [[ DEV why?  see VM\pRand.e (only file that uses it/use a local var in there instead) ]]
 --  symptr  When this is non-zero (see below), it should be (maxop+maxgvar)*4+40, on 32-bit,
 --          or *8+72 on 64-bit, ie it locates symtab[1] rather than slack/maxlen/length etc.
 --27/2/15:
@@ -1801,7 +1801,14 @@ if newEmit then
                     offset = imports[libidx][3][fnidx]
                     imports[libidx][3][fnidx] = cout-1
                 else
-                    offset = thunktable+vno*4-4
+--                  offset = thunktable+vno*4-4
+--9/1/16:
+                    if X64 then
+                        offset = thunktable+vno*8-8
+                        offset -= CSvaddr+cout+3
+                    else
+                        offset = thunktable+vno*4-4
+                    end if
                 end if
 else
                 offset = APINames[vno]
@@ -1880,11 +1887,15 @@ if vno=0 then ?9/0 end if   -- yep, thought so...
                     offset = vno
                 elsif c=isData then     -- 4 byte absolute offset
                     offset = vno
-if bind then
-                    relocations[CODE][DATA] = append(relocations[CODE][DATA],cout-1)    -- (dword)
-else
-                    offset += DSvaddr
-end if
+                    if bind then
+                        relocations[CODE][DATA] = append(relocations[CODE][DATA],cout-1)    -- (dword)
+                    else
+                        offset += DSvaddr
+--9/1/16:
+                        if X64 then
+                            offset -= CSvaddr+cout+3
+                        end if
+                    end if
                 elsif c<=isConstRefCount then
                     if bind then
 if newEmit then
@@ -1993,7 +2004,9 @@ end if
 --  end if
                     else
 --if not bind then ?9/0 end if -- 27/2/15 just see (triggered on t38, 23/3/15...)
+if bind then
                         relocations[CODE][CODE] = append(relocations[CODE][CODE],cout-1)    -- (dword)
+end if
                     end if
 --else
 --                  if c=isIL then      -- isIL  = 4 byte relative offset to symtab[routineNo][S_il]
@@ -3692,6 +3705,7 @@ if bind and mapsymtab then
 end if
 
 --DEV use readheader? - NO!
+--DEV stash info for plist (32 and 64 bit), esp under bind=0/-d!
     imports = repeat(0,length(APIlibs))
     for i=1 to length(APIlibs) do
         s = APIlibs[i]
@@ -3717,17 +3731,24 @@ end if
         APIerritem[i] = thunk
     end for
     if not bind then
---added 19/10/15:
-if length(APIerritem)!=0 then
-        thunktable = allocate(length(APIerritem)*4)
-        poke4(thunktable,APIerritem)
-end if
+        --added 19/10/15:
+        if length(APIerritem)!=0 then
+            if X64 then
+                thunktable = allocate(length(APIerritem)*8)
+                poke8(thunktable,APIerritem)
+            else
+                thunktable = allocate(length(APIerritem)*4)
+                poke4(thunktable,APIerritem)
+            end if
+        end if
     end if
---DEV bind only...
-if bind then
-    relocations = {{{},{}},{{},{}}}     --  ie [DATA][DATA],[DATA][CODE],[CODE][DATA],[CODE][CODE]
-                                        -- (or [CODE][CODE],[CODE][DATA],[DATA][CODE],[DATA][DATA])
-end if
+    if bind then
+        relocations = {{{},{}},{{},{}}}     --  ie [DATA][DATA],[DATA][CODE],[CODE][DATA],[CODE][CODE]
+                                            -- (or [CODE][CODE],[CODE][DATA],[DATA][CODE],[DATA][DATA])
+                                            -- eg [CODE][DATA] contains the offsets in CODE that refer
+                                            --    to DATA, so we need to pbinary.e/fixup() that once we
+                                            --    know exactly how big and where they both are.
+    end if
 
     -- check for unused/undefined/unassigned and if debugleak emit cleanup code (see pilx86.e):
 
@@ -3756,15 +3777,13 @@ end if
 --  emitline = line
 --22/1/15 (going bananas on a t00, "if ltline>skipline then ?9/0 end if -- major guff" in lineinfo())
 --  emitline = line-1
---  emitline = line-(emitline<line)     -- (works fine, btw, but I think the following is clearer)
-    if emitline<line then emitline = line-1 end if
-    if emitline>line then ?9/0 end if   -- sanity check
+    emitline = line-(emitline<line)     -- (works fine, btw, but I think the following is clearer)
+--  if emitline<line then emitline = line-1 end if
+--  if emitline>line then ?9/0 end if   -- sanity check
 --  emitline = tokline
 --puts(1,"warning: opRetf omitted, line 4022 pemit2.e\n")
 if not suppressopRetf then
---if newEmit then
     agcheckop(opRetf)
---end if
     apnds5(opRetf)
 end if
 
@@ -3773,7 +3792,7 @@ end if
 --pp(filepaths)
 --pp(filenames)
 
---puts(1,"finalfixups2 line 3756\n")
+--puts(1,"finalfixups2 line 3778\n")
 
     --
     -- finalise gvar nos and do initial linkup of udts and toplevelsubs:
@@ -4031,6 +4050,7 @@ sv = si[S_Name]
                             if xType=0 then
 --DEV 15/4/2010. skip temps (see challenge0001)
 if not equal(sv,-1) then
+--?xi
                                 k = symtab[i][S_FPno]
                                 printf(1,"xType=0 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),filenames[k][2]})
 end if
@@ -4054,7 +4074,10 @@ end if
                             or not integer(xMin)
                             or not integer(xMax)
                             or xMin>xMax
-                            or (xMin=xMax and (xMin=MININT or xMin=MAXINT)) then
+--                          or (xMin=xMax and (xMin=MININT or xMin=MAXINT)) then
+                            or (xMin=xMax and (xMin=MININT or xMin=MAXINT))
+-- SUG: as below (untried)
+                            or rescancount>7 then
                                 xi[gMin] = MININT
                                 xi[gMax] = MAXINT
                                 if and_bits(xType,T_atom)=T_integer then
@@ -4078,20 +4101,31 @@ end if
 --  1) If it really is an infinite loop, I suspect it really is a problem.
 --      (maybe try commenting out getc(0) and let it run for 10 mins?)
 --  2) If it resolves in a few more iterations, obviously increase to fit.
---      See example (search for "The process of repeated iteration.") 
+--      See example ("The process of repeated iteration." in pilx86.e) 
 --      requiring 9 scans in pilx86.e, if we find a real-world program 
 --      that needs a silly number of iterations (eg 7,654), then maybe a 
 --      reasonable cap really might be in order...
 --  3) You /might/ get a bit further uncommenting the >16 exit below, at
 --      least be able to get a list.asm with a few more clues in it.
-if rescancount>16 then
+--  Update 18/1/16: I /believe/ the worst case is 1 multiplied by 2 every 
+--  gvar_scan, taking 31/63 iterations to blow an integer. Quite probably 
+--  after "7 or 8 iterations without settling down", what we should do is 
+--  simply give up and flag the value as unbounded/possibly atom (ie just
+--  add "or rescancount>7" to the above test). I also suspect the 16/20
+--  (as experimentally found) derive from decimal number processing; in
+--  particular printf()'s precision and minfieldwidth were culprits, not
+--  that I've dotted the i's and crossed the t's on that one.
+--9/1/16: (no joy) [18/1/16: yes joy]
+--if rescancount>16 then
+if rescancount>20 then
     ?i
     ?xi
     ?si
     ?symtab[i]
     k = symtab[i][S_FPno]
-    printf(1,"rescancount>16 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),filenames[k][2]})
-    if getc(0) then end if
+--  printf(1,"rescancount>16 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),iff(k=0?"??k=0":filenames[k][2])})
+    printf(1,"rescancount>20 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),iff(k=0?"??k=0":filenames[k][2])})
+--  if getc(0) then end if
 end if
                                 symtab[i][S_gInfo] = xi
                                 rescan = 1
@@ -4112,8 +4146,10 @@ end if
 --      if rescancount>16 then exit end if      -- RDS/Knuth suggest 7 as a reasonable max
                                                 -- (though technically I suspect Knuth was 
                                                 --  referring to a different problem.)
-        if rescancount>16 then
-            if rescancount>18 then exit end if
+--      if rescancount>16 then
+        if rescancount>20 then
+--          if rescancount>18 then exit end if
+            if rescancount>22 then exit end if
             puts(1,"\nrescanning...\n")
         end if
         ltDiagMsg("*** rescanning ***\n")   -- (pltype.e diagnostics)
@@ -4399,7 +4435,7 @@ end if
         end if
     end for
 
---puts(1,"finalfixups2 line 4353\n")
+--puts(1,"finalfixups2 line 4404\n")
 --if Z_ridN!=0 then -- still OK?...
 --  ?symtab[Z_ridN]
 --end if
@@ -4541,12 +4577,12 @@ if X64 then
                          0,#40000000})  -- unassigned
         #ilASM{
             [32]
---              pop al (not convinced we really need this)
-                int3
---              mov eax,[symtab]
---              mov edi,[DSvaddr4]
---              shl eax,2
---              mov [ebx+edi*4+12],eax
+--              pop al (not convinced we really need this) [triggered 17/1/16, p -d! -x64 e03]
+--              int3
+                mov eax,[symtab]
+                mov edi,[DSvaddr4]
+                shl eax,2
+                mov [ebx+edi*4+12],eax
             [64]
                 mov rax,[symtab]
                 mov rdi,[DSvaddr4]
@@ -4800,24 +4836,39 @@ end if
                             if X64 then
 --                              d_addr = floor(DSvaddr/8)+sv[S_Slink]+2
                                 d_addr = floor(DSvaddr/8)+sv[S_Slink]+3
+                                #ilASM{
+                                    [32]
+                                        mov edi,[d_addr]
+                                        mov eax,[xi]
+                                        mov [ebx+edi*8],eax
+--DEV?  
+                                        mov [xi],ebx
+                                    [64]
+                                        mov rdi,[d_addr]
+                                        mov rax,[xi]
+                                        mov [rbx+rdi*8],rax
+                                        mov [xi],rbx
+                                    []
+                                      }
                             else --32
 --                              d_addr = floor(DSvaddr/4)+sv[S_Slink]+3
                                 d_addr = floor(DSvaddr/4)+sv[S_Slink]+4
-                            end if
-                            #ilASM{
-                                [32]
-                                    mov edi,[d_addr]
-                                    mov eax,[xi]
-                                    mov [ebx+edi*4],eax
+                                #ilASM{
+                                    [32]
+                                        mov edi,[d_addr]
+                                        mov eax,[xi]
+                                        mov [ebx+edi*4],eax
 --DEV?
-                                    mov [xi],ebx
-                                [64]
-                                    mov rdi,[d_addr]
-                                    mov rax,[xi]
-                                    mov [rbx+rdi*8],rax
-                                    mov [xi],rbx
-                                []
-                                  }
+                                        mov [xi],ebx
+                                    [64]
+                                        mov rdi,[d_addr]
+                                        mov rax,[xi]
+--                                      mov [rbx+rdi*4],rax
+                                        mov [rbx+rdi*4],eax
+                                        mov [xi],rbx
+                                    []
+                                      }
+                            end if
                         end if
                     end if
                 else    -- bind
@@ -4853,7 +4904,7 @@ end if
     end if
     symtab[ridlink][S_Slink] = 0
 
---puts(1,"finalfixups2 line 4807\n")
+--puts(1,"finalfixups2 line 4858\n")
 
     if bind then
 --if newEmit then
@@ -4931,10 +4982,11 @@ end if
                 if not rescan then exit end if
             end while
         end if
---puts(1,"finalfixups2 line 5093\n")
+--puts(1,"finalfixups2 line 4936\n")
 
         DumpSignaturesAndLineTables()               -- [S_sig] on routine entries
 
+--puts(1,"finalfixups2 line 4940\n")
         DumpSymTab()                                -- the symtab itself
 --puts(1,"finalfixups2 line 5112\n")
         if X64 then
@@ -4967,6 +5019,8 @@ end if
             end if
         end while
 
+--puts(1,"finalfixups2 line 4973\n")
+
 --      CreateExecutable(fn, imports, exports, relocations, data_section, code_section)
 --puts(1,"calling CreateExecutable\n")
         CreateExecutable(fn, imports, {}, relocations, data_section, code_section)
@@ -4976,7 +5030,7 @@ end if
 --      data_section = fixedupdata
         code_section = fixedupcode
 
---puts(1,"finalfixups2 line 5242\n")
+--puts(1,"finalfixups2 line 4981\n")
 
     else -- not bind
 -- 21/4/15:
@@ -5022,6 +5076,8 @@ dsize = 4
 --printf(1,"BaseOfData2: %08x\n",{BaseOfData2})
 --printf(1,"ImageBase2: %08x\n",{ImageBase2})
     end if
+
+--puts(1,"finalfixups2 line 5028\n")
 
 if listing then
         for glidx=1 to length(glblname) do

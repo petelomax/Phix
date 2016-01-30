@@ -20,12 +20,15 @@
 
 --include std/rand.e
 
-include iup.e
+--include iup.e
+include pIUP.e
 --include iup/cd.e
 
-object not_used
+--object not_used
 --, use_it
 
+--DEV add/document these later:
+--/*
 puts(1, cdVersion() & '\n')
 puts(1, cdVersionDate() & '\n')
 
@@ -33,25 +36,22 @@ ifdef WINDOWS then
     printf(1, "window screen size: w=%d, h=%d, w(mm)=%10f,h(mm)=%10f\n", cdGetScreenSize())
     printf(1, "window screen color planes=%d\n", cdGetScreenColorPlanes())
 end ifdef
+--*/
 
-{} = IupOpen()
+IupOpen()
 
 Ihandle hDialog, hIupCanvas, hCdCanvas, hTimer
 
---integer intimer = 0
 function OnTimer(atom h)
 integer n, draw, mode
 atom color, line_width, line_style
-
---if not intimer then   --DEV (no help)
---  intimer = 1
 
     if h then end if
     color = rand(255)*power(2, 24)+rand(255)*65536+rand(256)
     line_width = rand(5)
     line_style = rand(5)-1
-    not_used = cdCanvasLineWidth(hCdCanvas, line_width)
-    not_used = cdCanvasLineStyle(hCdCanvas, line_style)
+    cdCanvasLineWidth(hCdCanvas, line_width)
+    cdCanvasLineStyle(hCdCanvas, line_style)
     cdCanvasSetForeground(hCdCanvas, color)
     draw = rand(5)
     mode = rand(3)-1
@@ -74,9 +74,6 @@ atom color, line_width, line_style
         cdCanvasEnd(hCdCanvas)
     end if
 
---  intimer = 0
---end if
-
     return IUP_IGNORE
 end function
 constant fOnTimer = routine_id("OnTimer")
@@ -87,7 +84,9 @@ procedure main()
     hDialog = IupDialog(hIupCanvas)
     IupStoreAttribute(hDialog, "TITLE", "Canvas Draw Test")
     {} = IupShowXY(hDialog, IUP_CENTER, IUP_CENTER)
+--/*
     printf(1, "CD_IUP context caps=%x\n", cdContextCaps(CD_IUP))
+--*/
     hCdCanvas = cdCreateCanvas(CD_IUP, hIupCanvas)
     if not hCdCanvas then
         puts(1, "cdCreateCanvas() failed\n")
@@ -95,6 +94,7 @@ procedure main()
         abort(1)
     end if
 
+--/*
     puts(1, cdCanvasGetAttribute(hCdCanvas, "BACKGROUND"))
     printf(1, "canvas context=%d, creation context was=%d (must be the same)\n", {cdCanvasGetContext(hCdCanvas), CD_IUP})
     ? cdCanvasGetSize(hCdCanvas)
@@ -111,8 +111,10 @@ procedure main()
     ? cdCanvasTransformPoint(hCdCanvas, 10, 10)
     ? cdCanvasGetOrigin(hCdCanvas)
     ? cdCanvasFont(hCdCanvas, "helvetica", 0, 13)
+--*/
     cdCanvasVectorTextDirection(hCdCanvas, 200, 200, 250, 210)
     cdCanvasMultiLineVectorText(hCdCanvas, 20, 100, "multi lines\nvector text\nHé!Hé!")
+--/*
     printf(1, "canvas font name: %s\n", cdCanvasGetFont(hCdCanvas))
     --printf(1,"vector font is %s\n", { cdCanvasVectorFont(hCdCanvas, "")})
     ? cdCanvasGetVectorTextBounds(hCdCanvas, "hello world", 10, 10)
@@ -121,13 +123,17 @@ procedure main()
     ? cdCanvasGetTextBox(hCdCanvas, 10, 10, "hello world")
     ? cdCanvasGetTextBounds(hCdCanvas, 10, 10, "hello world")
     ? cdCanvasGetColorPlanes(hCdCanvas)
+--*/
     cdCanvasPutImageRectRGB(hCdCanvas, 40, 40, repeat(repeat(128, 40*40), 3), 200, 200, 0, 0, 0, 0, 0, 0)
     --? cdCanvasGetImageRGB(hCdCanvas,200,200,40,40) 
     wdCanvasWindow(hCdCanvas, -1000, 1000, -2000, 2000)
+--/*
     ? wdCanvasGetWindow(hCdCanvas)
+--*/
     wdCanvasViewport(hCdCanvas, 100, 200, 100, 200)
+--/*
     ? wdCanvasGetViewport(hCdCanvas)
-
+--*/
     hTimer = IupTimer(fOnTimer, 300)
 
     IupMainLoop()

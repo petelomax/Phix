@@ -840,12 +840,13 @@ opProfout = 171,        -- profile_dump()
 --end if
 --  opName("opPokeRef",opPokeRef,0) -- ??
 --  opName("opGetRaw",opGetRaw,0)   --??
-    opUsed += 8
+    opUsed += 6
 --  opName("opLicence",opLicence,0) -- (#ilASM only, see pemit.e)
 --  opName("opSetDbg",opSetDbg,0)   --??
 --  opName("opCrshRtn",opCrshRtn,0) --??
 --  opName("opRbldIds",opRbldIds,0) --??
---  opName("opCrshMsg",opCrshMsg,2)
+    opName("opCrshMsg",opCrshMsg,2)
+    opUsed += 1
 --  opName("opDelRtn",opDelRtn,0)   --??
     opName("opCrshFile",opCrshFile,2)
     opUsed += 1

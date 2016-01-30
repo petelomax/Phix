@@ -4,6 +4,10 @@
 --
 --  implements :%opSetRand, :%opRand
 --
+--DEV/SUG:
+--atom rseed
+-- The original rseed was a "dd 0" in the fasm stub source; I think I went with [ds+4] to avoid issues of >31-bit ints <=> floats,
+--  but that would have been before pHeap.e's pStoreMint|pLoadMint existed.
 
 include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
 --include VM\pFPU.e -- :%down53 etc

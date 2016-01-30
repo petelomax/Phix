@@ -28,10 +28,10 @@
     procedure</font><font color="#000000"> plot</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> char</font><font color="#0000FF">=</font><font color="#008000">'*'</font><font color="#0000FF">)
 </font><font color="#7060A8">        position</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)
 </font><font color="#008080">        if</font><font color="#004080"> sequence</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">)</font><font color="#008080"> then
-            if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">)&gt;</font><font color="#000000">1</font><font color="#008080"> then</font><font color="#000080"> -- else use defaults
-</font><font color="#000000">                setfont</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#800000">[</font><font color="#000000">2</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#000080">                -- ... etc
-</font><font color="#008080">            end if
+            if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">)&gt;</font><font color="#000000">1</font><font color="#008080"> then</font><font color="#000080"><i> -- else use defaults
+</i></font><font color="#000000">                setfont</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#800000">[</font><font color="#000000">2</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#000080"><i>                -- ... etc
+</i></font><font color="#008080">            end if
 </font><font color="#000000">            char</font><font color="#0000FF"> =</font><font color="#000000"> char</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]
 </font><font color="#008080">        end if  
 </font><font color="#7060A8">        puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> char</font><font color="#0000FF">)
@@ -81,7 +81,66 @@
         non-optional parameters as normal, and then start using named parameters, or 
         you can use the names of all of them. Obviously you must supply all the 
         non-optional parameters, somewhere, and once a name has been specified then 
-        all subsequent parameters must also be named.
+        all subsequent parameters must also be named. The <a href="timedelta.htm">timedelta</a>
+        routine is possibly the ultimate example of named parameters.
+       <br>
+       <br>
+        Un-named parameters are also permitted (added in version 0.6.8). In many cases, especially callbacks, 
+        a routine must accept a fixed set of parameters, even if it does not use them. This can cause annoying 
+        "not used" warnings. Instead of
+<!--eucode>
+    function mainHandler(integer id, integer msg, atom wParam, object lParam)
+        if id or wParam or object(lParam) then end if   -- suppress warnings
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    function</font><font color="#000000"> mainHandler</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> wParam</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> lParam</font><font color="#0000FF">)
+</font><font color="#008080">        if</font><font color="#000000"> id</font><font color="#008080"> or</font><font color="#000000"> wParam</font><font color="#008080"> or</font><font color="#004080"> object</font><font color="#0000FF">(</font><font color="#000000">lParam</font><font color="#0000FF">)</font><font color="#008080"> then end if  </font><font color="#000080"><i> -- suppress warnings</i></font>
+</pre>
+        (in which the "if then if" generates no code) you can declare it as
+<!--eucode>
+    function mainHandler(integer /*id*/, integer msg, atom /*wParam*/, object /*lParam*/)
+        -- (and obviously the comments are optional)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    function</font><font color="#000000"> mainHandler</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000080"><i> /*id*/</i></font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000080"><i> /*wParam*/</i></font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000080"><i> /*lParam*/</i></font><font color="#0000FF">)
+</font><font color="#000080"><i>        -- (and obviously the comments are optional)</i></font>
+</pre>
+        Note that typechecking still occurs, which can lead to interesting run-time error messages:
+<!--eucode>
+    procedure test(integer a, integer /*b*/, integer c)
+        ?{a,c}
+    end procedure
+--  test(1,"error",2)   -- (causes a perfectly sensible compile-time error)
+    constant r_test = routine_id("test")
+    call_proc(r_test,{1,"error",3})
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> test</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000080"><i> /*b*/</i></font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)
+        ?{</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">c</font><font color="#0000FF">}
+</font><font color="#008080">    end procedure
+</font><font color="#000080"><i>--  test(1,"error",2)   -- (causes a perfectly sensible compile-time error)
+</i></font><font color="#008080">    constant</font><font color="#000000"> r_test</font><font color="#0000FF"> =</font><font color="#800080"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"test"</font><font color="#0000FF">)
+</font><font color="#7060A8">    call_proc</font><font color="#0000FF">(</font><font color="#000000">r_test</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+        which triggers
+ <pre>
+C:\test\test.exw:1 in procedure test()
+type check failure, ???(symtab[472][S_name]=0) is "error"
+    a = 1
+    c = 3
+... called from test.exw:4
+
+--&gt; see C:\Program Files (x86)\Phix\ex.err
+Press Enter...
+ </pre>     
+        To avoid any such hiccups, and assuming you really do not care either way, I might suggest
+<!--eucode>
+    procedure test(integer a, object /*integer b*/, integer c)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> test</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000080"><i> /*integer b*/</i></font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)</font>
+</pre>
+        Also note that un-named parameters cannot occur after any defaulted parameters (sorry).
        <br>
        <br>
         A copy of the value of each argument is passed in. The formal parameter 

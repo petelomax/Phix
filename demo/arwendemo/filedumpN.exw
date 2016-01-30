@@ -1205,6 +1205,7 @@ string notes
         res[tabidx][$][R_NOTES] = sprintf("%d",maxop)
         size -= msize
         addr += msize
+--DEV length 0 now...
         for i=1 to maxop do
             opcode = decode(sprintf("%08x: opcode[%d]",{addr,i}),fmt,"")
             size -= msize
@@ -1227,11 +1228,13 @@ string notes
             if (machine=64 and gvarX=#4000000000000000)
             or (machine=32 and gvarX=#40000000) then
                 res[tabidx][$][R_NOTES] = "<unassigned>"
-            elsif (machine=64 and sequence(gvarX) and gvarX[1]=#40000000)
+--          elsif (machine=64 and sequence(gvarX) and gvarX[1]=#40000000)
+            elsif (machine=64 and sequence(gvarX) and gvarX[2]=#40000000)
 --          or (machine=32 and gvarX>#3FFFFFFF and gvarX<#C0000000) then
             or (machine=32 and gvarX>#40000000 and gvarX<#C0000000) then
                 if machine=64 then
-                    gvarX=gvarX[2]
+--                  gvarX=gvarX[2]
+                    gvarX=gvarX[1]
                 end if
                 rawptr = and_bits(gvarX,#3FFFFFFF)*4
                 res[tabidx][$][R_NOTES] = sprintf("see #%08x",rawptr)
@@ -1287,10 +1290,12 @@ string notes
 --if machine=64 then ?"9/0(2)" ?siX printf(1,"%08x%08x\n",siX) end if
 --end if
 --{#80000000,#4022A8}
-            if (machine=64 and sequence(siX) and siX[1]=#40000000)
+--          if (machine=64 and sequence(siX) and siX[1]=#40000000)
+            if (machine=64 and sequence(siX) and siX[2]=#40000000)
             or (machine=32 and siX>#3FFFFFFF and siX<#C0000000) then
                 if machine=64 then
-                    siX=siX[2]
+--                  siX=siX[2]
+                    siX=siX[1]
                 end if
                 rawptr = and_bits(siX,#3FFFFFFF)*4
                 snotes = sprintf("see #%08x",rawptr)
@@ -1451,13 +1456,19 @@ end if
                         sdesc = sprintf("%08x: dseq[%d]",{addr,i})
                     end if
                     siX = decode(sdesc,fmt,notes)
+if length(notes) and notes[1]!='?' then
+    --DEV
+    --append names,ptrs
+end if
 --if machine=64 then ?"9/0(7)" end if
 --(something else entirely will also likely be needed for (the very different case of) machine_bits()=64...)
 --                  if siX>#3FFFFFFF and siX<#C0000000 then
-                    if (machine=64 and sequence(siX) and siX[1]=#40000000)
+--                  if (machine=64 and sequence(siX) and siX[1]=#40000000)
+                    if (machine=64 and sequence(siX) and siX[2]=#40000000)
                     or (machine=32 and siX>#3FFFFFFF and siX<#C0000000) then
                         if machine=64 then
-                            siX=siX[2]
+--                          siX=siX[2]
+                            siX=siX[1]
                         end if
                         siX = and_bits(siX,#3FFFFFFF)*4
                         res[tabidx][$][R_NOTES] = sprintf("see #%08x",siX)
@@ -7308,10 +7319,11 @@ object rii, size
 --          if integer(rii) then
             if atom(rii) then
 --              return sprintf("%g",rii)
-                return sprintf("%16xh",rii)
+                return sprintf("%16xAh",rii)
             end if
 --?rii
-            return sprintf("%08x%08xh",rii)
+--          return sprintf("%08x%08xZh",rii)
+            return sprintf("%08x%08xZh",reverse(rii))
         elsif find(size,{"x","x2","x3","x4","x8","-"}) then
             return rii
         elsif length(size)>1 and size[1]='u' and find(size[2],"123456789") then
@@ -7838,12 +7850,13 @@ procedure main()
 --  load_file("C:\\Edita14\\bitmap_write.ppm")
 --  load_file("C:\\Edita14\\rayv3\\ex.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\p7.exe")
+--  load_file("C:\\Program Files (x86)\\Phix\\pth.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\e03.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\e09.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\test\\t00.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\test\\t01type.exe")
-    load_file("C:\\Program Files (x86)\\Phix\\test\\t02parms.exe")
+--  load_file("C:\\Program Files (x86)\\Phix\\test\\t02parms.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\test\\t04unary.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\test\\t18equal.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\e01z.exe")
@@ -7856,6 +7869,7 @@ procedure main()
 --  load_file("C:\\Users\\Pete\\Downloads\\ollydbg110\\e01.udd")
 --  load_file("C:\\Users\\Pete\\Downloads\\ollydbg110\\pw.udd")
 --  load_file("C:\\Program Files (x86)\\Phix\\demo\\tee\\simple_notepad.exe")
+    load_file("C:\\Program Files (x86)\\Phix\\demo\\sudoku.exe")
 
     WinMain(Main,SW_NORMAL)
 end procedure

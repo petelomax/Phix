@@ -165,7 +165,8 @@ global function rootType(integer N)
 -- for a variable declared as type am_shift, return the fact
 --  that it is an extension of the builtin type integer.
 integer nxt
---/**/ #isginfo{N,integer,MIN,MAX,object,-1}
+--DEV broken/atom on 64bit...
+--!/**/ #isginfo{N,integer,MIN,MAX,object,-1}
     while N>T_object do
         if DEBUG then
             if symtab[N][S_NTyp]!=S_Type then ?9/0 end if
@@ -179,7 +180,7 @@ end function
 --
 constant diag = 0   -- TIP: get any misbehaving program as small as possible before turning
 --                  --      this on, as it can produce an awful lot of output!
-constant diagmsg = 0    -- just show ltDisgMsg (if diag is 0)
+constant diagmsg = 0    -- just show ltDiagMsg (if diag is 0)
 --constant ltypetoo = 0 -- also show symtab[N][S_ltype] updates --DEV breaks self-host...? (10/3/15)
 
 --DEV should really close(diagfn) formally somewhere...

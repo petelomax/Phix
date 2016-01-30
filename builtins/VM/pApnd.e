@@ -2062,7 +2062,9 @@ end procedure -- (for Edita/CtrlQ)
         jne :opConcatNnewStr64
         mov rcx,[rbx+rdi*4-32]      -- maxlen
         mov rax,[rbx+rdi*4-24]      -- length   
-        sub rcx,16
+--24/1/16:
+--      sub rcx,16
+        sub rcx,32
         cmp rcx,rdx
         jle :opConcatNnewStr64      -- insufficient space
         mov [rbx+rdi*4-24],rdx      -- set new length

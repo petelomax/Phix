@@ -178,7 +178,8 @@ integer opLnv
 --!/**/ #isginfo{code,0b1101,MIN,MAX,integer,-2} -- (integer|dseq of integer), any length
 --DEV borken:
 --!/**/ #isginfo{s5,0b0100,MIN,MAX,integer,-2}      -- (as good a place as any to check this)
---/**/ #isginfo{s5,0b0100,MIN,MAX,atom,-2}          -- WRONG!!
+--!/**/ #isginfo{s5,0b0100,MIN,MAX,atom,-2}         -- WRONG!!
+--!/**/ #isginfo{s5,0b1100,MIN,MAX,atom,-2}         -- EVEN WRONGER!! [DEV]
     if lastline!=emitline then
 --DEV why oh why is this not just part of DoWithOptions?! (and optset=)
         opLnv = opLn
@@ -1102,7 +1103,8 @@ integer state, sig, wasttidx, slink, nlink, snext
 --16/10/10:
     state = K_lit+K_gbl+K_noclr
 --  state = K_lit+K_gbl
-    if integer(v) then
+--  if integer(v) then
+    if not isFLOAT(v) then
         sig = T_integer
     else
         sig = T_atom
@@ -2197,7 +2199,7 @@ if newEmit then
     AutoAsm("append",           S_Func,"FOO",   "VM\\pApnd.e",      opApnd,     "%opApnd",      E_none,T_sequence)
     AutoAsm("prepend",          S_Func,"FOO",   "VM\\pApnd.e",      opPpnd,     "%opApnd",      E_none,T_sequence) -- (:%opApnd is used for both append and prepend)
     AutoAsm("repeat",           S_Func,"FOI",   "VM\\pRepeatN.e",   opRepeat,   "%opRepeat",    E_none,T_sequence)  T_repeat = symlimit
-    AutoAsm("repeatch",         S_Func,"FOI",   "VM\\pRepeatN.e",   opRepCh,    "%opRepCh",     E_none,T_string)    T_repch = symlimit      -- (209)
+    AutoAsm("repeatch",         S_Func,"FII",   "VM\\pRepeatN.e",   opRepCh,    "%opRepCh",     E_none,T_string)    T_repch = symlimit      -- (209)
     AutoAsm("get_position",     S_Func,"F",     "VM\\pfileioN.e",   opGetPos,   "%opGetPos",    E_none,T_sequence)
 
     -- the following functions return an object:
@@ -2516,7 +2518,9 @@ end if
 --DEV document
     initialAutoEntry("replace",         S_Func,"FPONN", "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
-    initialAutoEntry("reverse",         S_Func,"FP",    "misc.e",0,E_none)
+--  initialAutoEntry("reverse",         S_Func,"FP",    "misc.e",0,E_none)
+    initialAutoEntry("reverse",         S_Func,"FPP",   "misc.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("scanf",           S_Func,"FSS",   "scanf.e",0,E_none)
     initialAutoEntry("shuffle",         S_Func,"FP",    "shuffle.e",0,E_none)
     initialAutoEntry("sort",            S_Func,"FP",    "sort.e",0,E_none)
@@ -2728,7 +2732,7 @@ end if
     initialAutoEntry("display_text_image",  S_Proc,"PPP",   "pscreen.e",0,E_other)
 if newEmit then
     initialAutoEntry("exit_thread",         S_Proc,"PI",    "VM\\pThreadN.e",0,E_other)
-    initialAutoEntry("free",                S_Proc,"PN",    "pAlloc.e",0,E_other)
+    initialAutoEntry("free",                S_Proc,"PO",    "pAlloc.e",0,E_other)
 --  initialAutoEntry("poke2N",              S_Proc,"PNO",   "VM\\ppoke2N.e",0,E_other)
 else
     initialAutoEntry("poke2",               S_Proc,"PNO",   "ppoke2.e",0,E_other)

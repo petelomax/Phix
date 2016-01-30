@@ -58,19 +58,18 @@ constant BYTE = 1,
          DWORD = 4, 
          QWORD = 8
 
---DEV:
 function stringify(sequence s)
---/*
 string res, ch
-    if string(s) then return s end if
-    res = repeat(' ',length(s))
-    for i=1 to length(s) do
-        ch = s[i]
-        res[i] = ch
-    end for
+    if string(s) then
+        res = s
+    else
+        res = repeat(' ',length(s))
+        for i=1 to length(s) do
+            ch = s[i]
+            res[i] = ch
+        end for
+    end if
     return res
---*/
-    return s
 end function
 
 --DEV:
@@ -454,8 +453,8 @@ integer importBase
 --          appropriate padding (which should /not/ be included in the lengths passed).
 --
 --DEV:
-sequence res
---string res
+--sequence res
+string res
 sequence sections
 integer RVAaddr
 --sequence names
@@ -1691,7 +1690,7 @@ sequence params -- scratch var
 end function
 
 --DEV (split temporarily)
-procedure SetCheckSumO(object img, integer SizeOfImage)
+procedure SetCheckSum(string img, integer SizeOfImage)
 atom imagehlp = 0, 
      kernel32,
      xCheckSumMappedFile,
@@ -1716,23 +1715,24 @@ atom imagehlp = 0,
     if pPE=NULL then pPE=c_func(xGetLastError,{}) ?9/0 end if
     if peek4u(pPE+#58)!=peek4u(pChecksums) then ?9/0 end if
     poke(pPE+#58,peek4u(pChecksums+4))
+    free(pChecksums)
 end procedure
 
-procedure SetCheckSum(atom img, integer SizeOfImage)
---DEV (temp)
-if peek(img)='M' then
-    SetCheckSumO(img, SizeOfImage)
-else
-    poke(img,'M')
-    SetCheckSumO(img, SizeOfImage)
-    poke(img,'Z')
-end if
-end procedure
---/*
-procedure SetCheckSum2(string img, integer SizeOfImage)
-    SetCheckSumO(img, SizeOfImage)
-end procedure
---*/
+--procedure SetCheckSum(atom img, integer SizeOfImage)
+----DEV (temp)
+----if peek(img)='M' then
+--  SetCheckSumO(img, SizeOfImage)
+----else
+----    poke(img,'M')
+----    SetCheckSumO(img, SizeOfImage)
+----    poke(img,'Z')
+----end if
+--end procedure
+
+--procedure SetCheckSum2(string img, integer SizeOfImage)
+--  SetCheckSumO(img, SizeOfImage)
+--end procedure
+
 
 --DEV (for listing)
 global sequence fixedupdata, fixedupcode
@@ -1740,7 +1740,7 @@ global sequence fixedupdata, fixedupcode
 --!/**/ #isginfo{fixedupdata,0b1000,MIN,MAX,integer,-2} -- verify this is a string
 
 --DEV string code?
-procedure CreatePE(integer fn, integer machine, integer subsystem, integer subvers, sequence imports, sequence exports, sequence relocations, string data, sequence code, sequence resources)
+procedure CreatePE(integer fn, integer machine, integer subsystem, integer subvers, sequence imports, sequence exports, sequence relocations, string data, string  code, sequence resources)
 --
 -- fn should be an open file handle, created with "wb", closed on exit
 -- machine should be M32 or M64
@@ -1800,7 +1800,8 @@ sequence ResourceRVA
 integer resourcelen
 sequence mergedrelocations
 sequence res -- scratch
-sequence block
+--sequence block
+string block
 integer importBase
 integer codeBase
 integer dataBase
@@ -1837,27 +1838,26 @@ end if
 // hFile      - Valid file handle
 // lpszString - Pointer to buffer to receive string
 
-function GetLastAccessTime(string filename)
-{
-atom hFile
-atom pAccessTime
-atom res
-    hFile = c_func(xCreateFile,{"p.ini", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
-    if hFile == INVALID_HANDLE_VALUE then
-        printf(1,"CreateFile(p.ini) failed\n")-- with %d\n", c_func(xGetLastError,{}))
-        return 0
-    end if
-    pAccessTime = allocate(sizeofFILETIME)
-    if c_func(xGetFileTime,{hFile, NULL, pAccessTime, NULL})=0 then
-        res = printf(1,"GetFileTime(p.ini) failed\n")
-        res = 0
-    else
-        res = FILETIMEtoDateTimeStamp(pAccessTime)
-    end if
-    if c_func(xCloseHandle,{hFile}) then end if
-    free(pAccessTime)
-    return res
-end function
+--function GetLastAccessTime(string filename)
+--atom hFile
+--atom pAccessTime
+--atom res
+--  hFile = c_func(xCreateFile,{"p.ini", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
+--  if hFile == INVALID_HANDLE_VALUE then
+--      printf(1,"CreateFile(p.ini) failed\n")-- with %d\n", c_func(xGetLastError,{}))
+--      return 0
+--  end if
+--  pAccessTime = allocate(sizeofFILETIME)
+--  if c_func(xGetFileTime,{hFile, NULL, pAccessTime, NULL})=0 then
+--      res = printf(1,"GetFileTime(p.ini) failed\n")
+--      res = 0
+--  else
+--      res = FILETIMEtoDateTimeStamp(pAccessTime)
+--  end if
+--  if c_func(xCloseHandle,{hFile}) then end if
+--  free(pAccessTime)
+--  return res
+--end function
 
 --*/
 --??FILETIMEtoDateTimeStamp(atom pFileTime)
@@ -1930,7 +1930,7 @@ end if
             end while
         end for
     end for
-?length(relocations)
+--?length(relocations)
     if length(relocations) then
 -- 6/12/14 (*2) (all code fixups are dword, all data fixups are qword)
         code = fixup(code,relocations[CODE][CODE],machine,0,codeBase+ImageBase)
@@ -1993,25 +1993,29 @@ end if
 --  close(fn)
 --else
 --DEV tryme:
---/*
-    img = repeat(' ',SizeOfImage)
-    for i=1 to SizeOfImage do
-        img[i] = '\0'
-    end for
+--!/*
+--if 01 then
+
+--DEV fixme... ("repeatch" and/or "= resources" messes it up...)    [FIXED 15/1/16, see pilx86/GetSrc()]
+--  string img = repeat(' ',SizeOfImage)
+--  for i=1 to SizeOfImage do
+--      img[i] = '\0'
+--  end for
+    string img = repeatch('\0',SizeOfImage)
     blocklen = length(block)
     imgidx = blocklen
     img[1..imgidx] = block
-if datab4code then
-    img[imgidx+1..imgidx+datalen] = data
-    imgidx += RoundToFileAlignment(datalen)
-    img[imgidx+1..imgidx+codelen] = code
-    imgidx += RoundToFileAlignment(codelen)
-else
-    img[imgidx+1..imgidx+codelen] = code
-    imgidx += RoundToFileAlignment(codelen)
-    img[imgidx+1..imgidx+datalen] = data
-    imgidx += RoundToFileAlignment(datalen)
-end if
+    if datab4code then
+        img[imgidx+1..imgidx+datalen] = data
+        imgidx += RoundToFileAlignment(datalen)
+        img[imgidx+1..imgidx+codelen] = code
+        imgidx += RoundToFileAlignment(codelen)
+    else
+        img[imgidx+1..imgidx+codelen] = code
+        imgidx += RoundToFileAlignment(codelen)
+        img[imgidx+1..imgidx+datalen] = data
+        imgidx += RoundToFileAlignment(datalen)
+    end if
     if resourcelen then
         for i=1 to length(ResourceRVA) do
             offset = ResourceRVA[i]
@@ -2019,51 +2023,56 @@ end if
             resources = SetField(resources,offset,DWORD,newRVA)
         end for
         img[imgidx+1..imgidx+resourcelen] = resources
+--      for i=1 to resourcelen do
+--          img[imgidx+i] = resources[i]
+--      end for
         imgidx += RoundToFileAlignment(resourcelen)
     end if
-    if imgidx!=SizeOfImage then ?9/0 end if
-    SetCheckSum2(img,SizeOfImage)
-    puts(fn,img)
-    close(fn)
---*/
---?SizeOfImage
---DEV repeat('\0',SizeOfImage,string)/repeatch()/block&pad(data)&pad(code)&pad(resources)/SetCheckSumS(img)
-    atom img = allocate(SizeOfImage)
---printf(1,"SizeofImage:#%08x\n",SizeOfImage)
-    mem_set(img,0,SizeOfImage)
---  mem_set(img,#90,SizeOfImage)    -- no help :-(
-    poke(img,block)
-    blocklen = length(block)
-    imgidx = length(block)
-if datab4code then
-    poke(img+imgidx,data)
-    imgidx += RoundToFileAlignment(datalen)
-    poke(img+imgidx,code)
-    imgidx += RoundToFileAlignment(codelen)
-else
-    poke(img+imgidx,code)
-    imgidx += RoundToFileAlignment(codelen)
-    poke(img+imgidx,data)
---printf(1,"data:#%08x, len:#%08x, datalen:#%08x, rounded:#%08x, ",{imgidx,length(data),datalen,RoundToFileAlignment(datalen)})
-    imgidx += RoundToFileAlignment(datalen)
---printf(1,"-> #%08x\n",{imgidx})
-end if
-    if resourcelen then
-        for i=1 to length(ResourceRVA) do
-            offset = ResourceRVA[i]
---          resources = SetField(resources,offset,DWORD,GetField(resources,offset,DWORD)+resourceBase)
-            newRVA = GetField(resources,offset,DWORD)+resourceBase
-            resources = SetField(resources,offset,DWORD,newRVA)
-        end for
-        poke(img+imgidx,resources)
-        imgidx += RoundToFileAlignment(resourcelen)
---?imgidx
-    end if
---?{imgidx,SizeOfImage}
     if imgidx!=SizeOfImage then ?9/0 end if
     SetCheckSum(img,SizeOfImage)
-    puts(fn,peek({img,SizeOfImage}))
+    puts(fn,img)
     close(fn)
+--!*/
+--?SizeOfImage
+--DEV repeat('\0',SizeOfImage,string)/repeatch()/block&pad(data)&pad(code)&pad(resources)/SetCheckSumS(img)
+--else
+--  atom img = allocate(SizeOfImage)
+----printf(1,"SizeofImage:#%08x\n",SizeOfImage)
+--  mem_set(img,0,SizeOfImage)
+----    mem_set(img,#90,SizeOfImage)    -- no help :-(
+--  poke(img,block)
+--  blocklen = length(block)
+--  imgidx = length(block)
+--  if datab4code then
+--      poke(img+imgidx,data)
+--      imgidx += RoundToFileAlignment(datalen)
+--      poke(img+imgidx,code)
+--      imgidx += RoundToFileAlignment(codelen)
+--  else
+--      poke(img+imgidx,code)
+--      imgidx += RoundToFileAlignment(codelen)
+--      poke(img+imgidx,data)
+----printf(1,"data:#%08x, len:#%08x, datalen:#%08x, rounded:#%08x, ",{imgidx,length(data),datalen,RoundToFileAlignment(datalen)})
+--      imgidx += RoundToFileAlignment(datalen)
+----printf(1,"-> #%08x\n",{imgidx})
+--  end if
+--  if resourcelen then
+--      for i=1 to length(ResourceRVA) do
+--          offset = ResourceRVA[i]
+----            resources = SetField(resources,offset,DWORD,GetField(resources,offset,DWORD)+resourceBase)
+--          newRVA = GetField(resources,offset,DWORD)+resourceBase
+--          resources = SetField(resources,offset,DWORD,newRVA)
+--      end for
+--      poke(img+imgidx,resources)
+--      imgidx += RoundToFileAlignment(resourcelen)
+----?imgidx
+--  end if
+----?{imgidx,SizeOfImage}
+--  if imgidx!=SizeOfImage then ?9/0 end if
+--  SetCheckSum(img,SizeOfImage)
+--  puts(fn,peek({img,SizeOfImage}))
+--  close(fn)
+----end if
 --end if
 
 --DEV
@@ -2290,8 +2299,7 @@ SizeOfCode2 = codelen
     return {res,codeBase,dataBase}
 end function
 
---procedure CreateELF(integer fn, integer machine, integer base, string data, string code, sequence relocations)
-procedure CreateELF(integer fn, integer machine, integer base, sequence data, sequence code, sequence relocations)
+procedure CreateELF(integer fn, integer machine, integer base, string data, string code, sequence relocations)
 --
 -- fn should be an open file handle, created with "wb", closed on exit
 -- machine should be M32 or M64
@@ -2384,8 +2392,7 @@ integer k
     return imports
 end function
 
---global procedure CreateExecutable(integer fn, sequence imports, sequence exports, sequence relocations, string data, string code)
-global procedure CreateExecutable(integer fn, sequence imports, sequence exports, sequence relocations, sequence data, sequence code)
+global procedure CreateExecutable(integer fn, sequence imports, sequence exports, sequence relocations, string data, string code)
 --
 -- fn should be an open file handle, created with "wb", which is closed on exit.
 -- globals X64/PE/DLL/OptConsole/subvers (from pglobals.e) should be set (see pmain.e/DoFormat)
