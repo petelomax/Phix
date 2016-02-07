@@ -1,0 +1,370 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupFileDlg</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pIUP.e
+            <br>
+            <br>
+            Ihandle ih = IupFileDlg()
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates the File Dialog element. It is a predefined dialog for selecting files or a directory. The dialog can be shown with the IupPopup function only.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            The IupFileDlg is a native pre-defined dialog that is not altered by IupSetLanguage.
+            <br>
+            <br>
+            To show the dialog, use function IupPopup.
+            <br>
+            <br>
+            The dialog is mapped only inside IupPopup, IupMap does nothing.
+            <br>
+            <br>
+            The IupGetFile function simply creates and popup a IupFileDlg.
+            <br>
+            <br>
+            In Windows, the FILE and the DIRECTORY attributes also accept strings containing "/" as path separators, but the VALUE attribute will always return strings using the "\" character.
+            <br>
+            <br>
+            In Windows, the dialog will be modal relative only to its parent or to the active dialog. 
+            <br>
+            <br>
+            In Windows, when using UTF-8 strings (UTF8MODE=Yes), attributes that return file names are still using the current locale, 
+            because the standard file I/O functions, like fopen, use ANSI file names. 
+            To use UTF-8 filenames (that can be lately be converted to UTF-16) set the global attribute UTF8MODE_FILE to Yes. 
+            In a specific case, the application can set before popup, and unset after, so for just that call will return in UTF-8.
+            <br>
+            <br>
+            When saving a file, the overwrite check is done before the FILE_CB callback is called with status=OK. 
+            If the application wants to add an extension to the file name inside the FILE_CB callback when status=OK, then it must manually 
+            check if the file with the extension exits and asks the user if the file should be replaced, if not then the callback can set 
+            the FILE attribute and returns IUP_CONTINUE, so the file dialog will remain open and the user will have an opportunity to change 
+            the file name now that it contains the extension.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ALLOWNEW
+         </td>
+         <td>
+            Indicates if non-existent file names are accepted. If equals "NO" and the user specifies a non-existing file, an alert dialog is shown. 
+            <br>
+            Default: if the dialog is of type "OPEN", default is "NO"; if the dialog is of type "SAVE", default is "YES". Not used when DIALOGTYPE=DIR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DIALOGTYPE
+         </td>
+         <td>
+            Type of dialog (Open, Save or Directory). Can have values "OPEN", "SAVE" or "DIR". Default: "OPEN". 
+            <br>
+            In Windows, when DIALOGTYPE=DIR the dialog shown is not the same dialog for OPEN and SAVE, this new dialog does not have the Help button neither filters. 
+            Also this new dialog needs CoInitializeEx with COINIT_APARTMENTTHREADED (done in IupOpen), if the COM library was initialized with COINIT_MULTITHREADED 
+            prior to IupOpen then the new dialog will have limited functionality. In Motif or GTK the dialog is the same, but it only allows the user to select a directory. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DIRECTORY
+         </td>
+         <td>
+            Initial directory. When consulted after the dialog is closed and the user pressed the OK button, it will contain the directory of the selected file.
+            <br>
+            <br>
+            In Motif or GTK, if not defined, the dialog opens in the current directory. 
+            <br>
+            <br>
+            In Windows, if not defined and the application has used the dialog in the past, the path most recently used is selected as the initial directory. 
+            However, if an application is not run for a long time, its saved selected path is discarded. 
+            Also if not defined and the current directory contains any files of the specified filter types, the initial directory is the current directory. 
+            Otherwise, the initial directory is the "My Documents" directory of the current user. Otherwise, the initial directory is the Desktop folder.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EXTFILTER
+         </td>
+         <td>
+            [Windows and GTK Only] Defines several file filters. It has priority over FILTERINFO and FILTER. 
+            Must be a text with the format "FilterInfo1|Filter1|FilterInfo2|Filter2|...". The list ends with character '|'. 
+            Example: "Text files|*.txt;*.doc|Image files|*.gif;*.jpg;*.bmp|". 
+            In GTK there is no way how to overwrite the filters, so it is recommended to always add a less restrictive filter to the filter list, for example "All Files|*.*".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FILE
+         </td>
+         <td>
+            Name of the file initially shown in the "File Name" field in the dialog. If contains a full path, then it is used as the initial directory and DIRECTORY is ignored.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FILEEXIST
+         </td>
+         <td>
+            (read-only) Indicates if the file defined by the FILE attribute exists or not. It is only valid if the user has pressed OK in the dialog. Not set when DIALOGTYPE=DIR or MULTIPLEFILES=YES.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FILTER
+         </td>
+         <td>
+            String containing a list of file filters separated by ';' without spaces. Example: "*.C;*.LED;test.*". In Motif only the first filter is used. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FILTERINFO
+         </td>
+         <td>
+            [Windows and GTK Only] Filter's description. If not defined the filter itself will be used as its description.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FILTERUSED
+         </td>
+         <td>
+            [Windows and GTK Only] the index of the filter in EXTFILTER to use starting at 1. It returns the selection made by the user. Set only if EXTFILTER is defined.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MULTIPLEFILES
+         </td>
+         <td>
+            When "YES", this attribute allows the user to select multiple files when DIALOGTYPE=OPEN. 
+            <br>
+            The value returned by VALUE is to be changed the following way: the directory and the files are passed separately, in this order. 
+            The character used for separating the directory and the files is '|'. The file list ends with character '|'. 
+            When the user selects just one file, the directory and the file are not separated by '|'. For example:
+            
+            "/tecgraf/iup/test|a.txt|b.txt|c.txt|" or
+            "/tecgraf/iup/test/a.txt" (only one file is selected)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NOCHANGEDIR
+         </td>
+         <td>
+            Indicates if the current working directory must be restored after the user navigation. Default: "YES".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NOOVERWRITEPROMPT
+         </td>
+         <td>
+            do not prompt to overwrite an existent file when in "SAVE" dialog. Default is "NO", i.e. prompt before overwrite.  (GTK 2.8)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          PARENTDIALOG
+         </td>
+         <td>
+            Makes the dialog be treated as a child of the specified dialog.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHOWHIDDEN
+         </td>
+         <td>
+            Show hidden files. Default: NO. (since 3.0) (GTK 2.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHOWPREVIEW
+         </td>
+         <td>
+            A preview area is shown inside the file dialog. Can have values "YES" or "NO". 
+            <br>
+            Default: "NO". Valid only if the FILE_CB callback is defined, use it to retrieve the file name and the necessary attributes to paint the preview area. (in Motif since 3.0)
+            <br>
+            Read only attributes that are valid inside the FILE_CB callback when status="PAINT":
+            <ul>
+            <li>PREVIEWDC: Returns the Device Context (HDC in Windows and GC in UNIX)</li>
+            <li>PREVIEWWIDTH and PREVIEWHEIGHT: Returns the width and the height of the client rectangle for the preview area.</li>
+            </ul>
+            Also the attributes WID, HWND, XWINDOW and XDISPLAY are valid and are relative to the preview area.
+            <br>
+            <br>
+            If the attribute PREVIEWGLCANVAS is defined then it is used as the name of an existent IupGLCanvas control to be mapped internally to the preview canvas. 
+            Notice that this is not a fully implemented IupGLCanvas that inherits from IupCanvas. 
+            This does the minimum necessary so you can use IupGLCanvas auxiliary functions for the preview canvas and call OpenGL functions. 
+            No IupCanvas attributes or callbacks are available. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          STATUS
+         </td>
+         <td>
+            (read-only) Indicates the status of the selection made:
+            <ul>
+            <li>"1": New file.</li>
+            <li>"0": Normal, existing file or directory.</li>
+            <li>"-1": Operation cancelled.</li>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          TITLE
+         </td>
+         <td>
+            Dialog's title.
+            <br>
+            VALUE (read-only): Name of the selected file(s), or NULL if no file was selected. If FILE is not defined this is used as the initial value. 
+            When MULTIPLEFILES=Yes it contains the path and several file names separated by the '|' character.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MULTIVALUECOUNT
+         </td>
+         <td>
+            (read-only) number of returned values when MULTIPLEFILES=Yes. It includes the path. (Since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MULTIVALUEid
+         </td>
+         <td>
+            (read-only) the same sequence returned in VALUE when MULTIPLEFILES=Yes but split in several attributes. 
+            VALUE0 contains the path (same as DIRECTORY), and VALUE1,VALUE2,... contains each file name without the path. (Since 3.14)
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FILE_CB
+         </td>
+         <td>
+            Action generated when a file is selected. Not called when DIALOGTYPE=DIR. When MULTIPLEFILES=YES it is called only for one file. Can be used with SHOWPREVIEW=NO also. (Windows only in 2.x)
+            <br>
+            <br>
+int function(Ihandle *ih, const char* file_name, const char* status)<br>
+ih: identifier of the element that activated the event.<br>
+file_name: name of the file selected.<br>
+status: describes the action. Can be:
+<ul>
+<li>"INIT" - when the dialog has started. file_name is NULL. </li>
+<li>"FINISH" - when the dialog is closed. file_name is NULL. </li>
+<li>"SELECT" - a file has been selected. </li>
+<li>"OTHER" - an invalid file or a directory is selected. file_name is the one selected. (Since 3.0) </li>
+<li>"OK" - the user pressed the OK button. If returns IUP_IGNORE, the action is refused and the dialog is not closed, if returns IUP_CONTINUE does the same, but if the FILE attribute is defined the current filename is updated (since 3.8). </li>
+<li>"PAINT" - the preview area must be redrawn.
+Used only when SHOWPREVIEW=YES. If an invalid file or a directory is selected, file_name is NULL. </li>
+<li>"FILTER" - when a filter is changed. (Windows Only) (since 3.6)
+FILTERUSED attribute will be updated to reflect the change. If returns IUP_CONTINUE, the FILE attribute if defined will update the current filename. </li>
+</ul>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          HELP_CB
+         </td>
+         <td>
+            Action generated when the Help button is pressed.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+Ihandle dlg = IupFileDlg(); 
+
+IupSetAttribute(dlg, "DIALOGTYPE", "OPEN");
+IupSetAttribute(dlg, "TITLE", "IupFileDlg Test");
+IupSetAttributes(dlg, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"");
+IupSetCallback(dlg, "HELP_CB", Icallback("help_cb"));
+
+IupPopup(dlg, IUP_CURRENT, IUP_CURRENT); 
+
+if IupGetInt(dlg, "STATUS")!=-1 then
+  printf(1,"OK\n");
+  printf(1,"  VALUE(%s)\n",{IupGetAttribute(dlg, "VALUE")}); 
+else
+  printf(1,"CANCEL\n")
+end if
+
+IupDestroy(dlg)
+</eucode-->
+<pre>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupMessage.htm">IupMessage</a>,
+          <a href="IupAlarm.htm">IupAlarm</a>,
+          <a href="IupPopup.htm">IupPopup</a>
+<br>
+DEV See Also
+IupMessage, IupScanf, IupListDialog, IupAlarm, IupGetFile, IupPopup
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

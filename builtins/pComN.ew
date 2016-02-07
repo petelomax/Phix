@@ -14,6 +14,7 @@
 --  What little documentation there is lies scattered throughout this code.
 --  If you have winAPI.chm (and PwinAPI.txt) properly installed, then F1 Help, in
 --  Edita, on almost anything (COM-related) in this file should find it.
+-- [Update: Should now all be linked to mini.chm]
 --
 
 constant DEBUG=0    -- When 1, outputs "COM error %08x [%s] (%08x:%02x %s)\n" for
@@ -29,11 +30,38 @@ constant DEBUG=0    -- When 1, outputs "COM error %08x [%s] (%08x:%02x %s)\n" fo
                     --  those particular calls.
                     
 
-include arwen.ew
+--include arwen.ew
 -- required for (at least):
 --  xMultiByteToWideChar, xWideCharToMultiByte, xCoInitialize, xCoCreateInstance, 
 --  xSHCreateItemFromParsingName, xCoTaskMemFree, CP_UTF8
 -- 
+--!/*
+constant 
+    kernel32 = open_dll("kernel32.dll"),
+
+    xMultiByteToWideChar = define_c_func(kernel32,"MultiByteToWideChar",
+        {C_INT,     --  UINT  CodePage,     // code page 
+         C_INT,     --  DWORD  dwFlags,     // character-type options 
+         C_PTR,     --  LPCSTR  lpMultiByteStr,     // address of string to map 
+         C_INT,     --  int  cchMultiByte,  // number of characters in string 
+         C_PTR,     --  LPWSTR  lpWideCharStr,      // address of wide-character buffer 
+         C_INT},    --  int  cchWideChar    // size of buffer 
+        C_INT),     -- int
+
+    xWideCharToMultiByte = define_c_func(kernel32,"WideCharToMultiByte",
+        {C_INT,     --  UINT  CodePage,     // code page 
+         C_INT,     --  DWORD  dwFlags,     // performance and mapping flags 
+         C_PTR,     --  LPCWSTR  lpWideCharStr,     // address of wide-character string 
+         C_INT,     --  int  cchWideChar,   // number of characters in string 
+         C_PTR,     --  LPSTR  lpMultiByteStr,      // address of buffer for new string 
+         C_INT,     --  int  cchMultiByte,  // size of buffer 
+         C_PTR,     --  LPCSTR  lpDefaultChar,      // address of default for unmappable characters  
+         C_PTR},    --  LPBOOL  lpUsedDefaultChar   // address of flag set when default char. used 
+        C_INT),     -- int
+
+    CP_UTF8 = 65001,
+    $
+--!*/
 
 
 global constant CLSCTX_INPROC_SERVER        = 0x000001

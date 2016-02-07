@@ -1,0 +1,156 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupSetAttribute</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pIUP.e
+           <br>
+           <br>
+            IupSetAttribute(Ihandln ih, string name, atom_string val)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Sets an interface element attribute.
+            <br>
+            <br>
+            ih: Identifier of the interface element. If NULL will set in the global environment.
+            <br>
+            name: name of the attribute.
+            <br>
+            val: val of the attribute. If NULL the default value will be used.
+
+<!--DEV (see also IupSetStrAttribute)
+Parameters/Return
+//void IupSetAttribute(Ihandle *ih, const char *name, const char *value);
+//void IupSetStrAttribute(Ihandle *ih, const char *name, const char *value);
+
+void IupSetAttributeId(Ihandle *ih, const char *name, int id, const char *value);
+void IupSetStrAttributeId(Ihandle *ih, const char *name, int id, const char *value);
+
+void IupSetAttributeId2(Ihandle* ih, const char* name, int lin, int col, const char* value);
+void IupSetStrAttributeId2(Ihandle* ih, const char* name, int lin, int col, const char* value);
+id, lin, col: used when the attribute has additional ids.
+
+
+Notes
+See the Attributes Guide for more details.
+
+//IupSetStrAttribute (old IupStoreAttribute) can only store strings. The given string value will be duplicated internally. 
+
+Id based attributes are always non inheritable, so all IupSet*Id functions will not propagate the attribute to the children. 
+-->
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            IupSetAttribute can store only constant strings (like "Title", "30", etc) or application pointers.<br>
+            An error occurs if val is neither an atom nor a string.<br>
+            The given value is not duplicated as a string, only a reference is stored.<br>
+            Therefore, you can store application custom attributes, such as a context structure to be used in a callback.
+            <br>
+            <br>
+            <b>IMPORTANT</b>: String values of the val parameter <b>must</b> be literal constants, or otherwise outlive the interface element.<br>
+            Instead of IupSetAttribute(ih,name,sprintf(fmt,x)) use <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(ih,name,fmt,x), or 
+            <a href="IupSetAttributes.htm">IupSetAttributes</a>(ih,"name="&fmt,x).<br>
+            Likewise instead of IupSetAttribute(ih,name,stringvar) use <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(ih,name,stringvar), or 
+            even <a href="IupSetAttributes.htm">IupSetAttributes</a>(ih,"%s=%s",{name,stringvar}).<br>
+            When non-string values are used (such as raw memory pointers) you must ensure they remain valid for the lifetime of the interface element.<br>
+            In contrast, the attribute name is always internally duplicated.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+IupSetAttribute(dlg, "VISIBLE", "YES")
+IupSetAttribute(text, "VALUE", "Hello!")
+IupSetAttribute(indicator, "VALUE", "ON")
+IupSetAttribute(dlg, sprintf("MY ITEM (%d)", i), "Test")
+atom myStruct = allocate(sizeofstruct(myData))
+IupSetAttribute(dlg, "MYDATA", myStruct)
+-- Note that myStruct must be manually freed after dlg is destroyed
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000"> "VISIBLE"</font><font color="#0000FF">,</font><font color="#008000"> "YES"</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">text</font><font color="#0000FF">,</font><font color="#008000"> "VALUE"</font><font color="#0000FF">,</font><font color="#008000"> "Hello!"</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">indicator</font><font color="#0000FF">,</font><font color="#008000"> "VALUE"</font><font color="#0000FF">,</font><font color="#008000"> "ON"</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#5E005E"> sprintf</font><font color="#800000">(</font><font color="#008000">"MY ITEM (%d)"</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000"> "Test"</font><font color="#0000FF">)
+</font><font color="#004080">atom</font><font color="#000000"> myStruct</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#000000">sizeofstruct</font><font color="#800000">(</font><font color="#000000">myData</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000"> "MYDATA"</font><font color="#0000FF">,</font><font color="#000000"> myStruct</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- Note that myStruct must be manually freed after dlg is destroyed</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+            Defines a radio’s initial value:
+         </td>
+        </tr>
+        <tr>
+         <td>
+         </td>
+         <td>
+<!--eucode>
+Ihandle portrait = IupToggle("Portrait", NULL)
+Ihandle landscape = IupToggle("landscape", NULL)
+Ihandle box = IupVbox({portrait, IupFill(), landscape})
+Ihandle mode = IupRadio(box)
+IupSetHandle("landscape", landscape) -- associates a name to initialize the radio
+IupSetAttribute(mode, "VALUE", "landscape") -- defines the radio’s initial value
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> portrait</font><font color="#0000FF"> =</font><font color="#5E005E"> IupToggle</font><font color="#0000FF">(</font><font color="#008000">"Portrait"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">)
+</font><font color="#5E005E">Ihandle</font><font color="#000000"> landscape</font><font color="#0000FF"> =</font><font color="#5E005E"> IupToggle</font><font color="#0000FF">(</font><font color="#008000">"landscape"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">)
+</font><font color="#5E005E">Ihandle</font><font color="#000000"> box</font><font color="#0000FF"> =</font><font color="#5E005E"> IupVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">portrait</font><font color="#0000FF">,</font><font color="#5E005E"> IupFill</font><font color="#800080">()</font><font color="#0000FF">,</font><font color="#000000"> landscape</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#5E005E">Ihandle</font><font color="#000000"> mode</font><font color="#0000FF"> =</font><font color="#5E005E"> IupRadio</font><font color="#0000FF">(</font><font color="#000000">box</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetHandle</font><font color="#0000FF">(</font><font color="#008000">"landscape"</font><font color="#0000FF">,</font><font color="#000000"> landscape</font><font color="#0000FF">)</font><font color="#000080"><i> -- associates a name to initialize the radio
+</i></font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">mode</font><font color="#0000FF">,</font><font color="#008000"> "VALUE"</font><font color="#0000FF">,</font><font color="#008000"> "landscape"</font><font color="#0000FF">)</font><font color="#000080"><i> -- defines the radio’s initial value</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>,
+          <a href="IupSetAttributes.htm">IupSetAttributes</a>
+          <br>
+          <!--DEV-->
+See also IupSetCallbacks.
+See Also IupGetAttribute, IupSetAttributes, IupGetAttributes, IupSetGlobal, IupGetGlobal
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

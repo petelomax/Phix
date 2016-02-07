@@ -13,7 +13,36 @@
 --
 
 --with trace
-include pComN.ew
+include builtins/pComN.ew
+
+--!/*
+constant 
+    shell32  = open_dll("shell32.dll"),
+    ole32    = open_dll("ole32.dll"),
+
+    xCoInitialize = define_c_func(ole32,"CoInitialize",
+        {C_PTR},    --  VOID* pvReserved // must be NULL
+        C_UINT),    -- HRESULT
+
+    xCoCreateInstance = define_c_func(ole32,"CoCreateInstance",
+        {C_PTR,     --  REFCLSID rclsid, // Class Id to create an instance of.
+         C_PTR,     --  IUnknown* pUnkOuter, // Optional outer unknown to allow aggregation with another object.
+         C_LONG,    --  DWORD dwClsContext, // Flags to restrict the location of the created instance.
+         C_PTR,     --  REFIID riid, // The Id of the interface of the instance to return.
+         C_PTR},    --  LPVOID* ppv // On return, contains a pointer to the specified interface of the instance.
+        C_UINT),    -- HRESULT
+
+    xSHCreateItemFromParsingName = define_c_func(shell32,"SHCreateItemFromParsingName",
+        {C_PTR,     --  PCWSTR pszPath, // A pointer to a display name
+         C_PTR,     --  IBindCtx* pbc, // bind context (use NULL)
+         C_PTR,     --  REFIID riid, // typically IID_ShellItem
+         C_PTR},    --  void** ppv // returned interface pointer, typically IShellItem.
+        C_UINT),    -- HRESULT
+
+    xCoTaskMemFree = define_c_proc(ole32,"CoTaskMemFree",
+        {C_PTR}),   --  VOID* pv
+    $
+--!*/
 
 global constant ENC_NONE    = 0,
                 ENC_ANSI    = 1,
@@ -363,7 +392,7 @@ atom pShellItemArray, pShellItemArrayCount
                                             c_proc(xCoTaskMemFree,{pName})
                                             if encoding!=0 then
 --                                              res = {peek4s(pEnc),res}
-                                                if res=encfilename  then
+                                                if res=encfilename then
 --?{res,encfilename}
                                                     encoding = peek4s(pEnc)
                                                 else

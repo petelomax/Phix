@@ -881,7 +881,7 @@ integer vtyp, len
         result -= #40000000
     else
         result = peek8s(addr)
-        if result<#4000000000000000 then    -- a 53-bit integer
+        if result<#4000000000000000 then    -- a 63-bit integer
             return result
         end if
         result -= #4000000000000000
@@ -901,8 +901,13 @@ integer vtyp, len
     vtyp = peek(addr-1)
     if vtyp=#12 then        -- a 64-bit float
 --DEV 80-bit float
-        result = peek({addr,8})
-        return float64_to_atom(result)
+        if machine_bits()=32 then
+            result = peek({addr,8})
+            return float64_to_atom(result)
+        else
+            result = peek({addr,10})
+            return float80_to_atom(result)
+        end if
     end if
     if machine_bits()=32 then
         len = peek4s(addr-12)
@@ -928,6 +933,8 @@ integer vtyp, len
         lc -= 1
         len -= 1
         result = append(result,getVal(addr))
+--DEV (untried)
+--      addr += machine_word()
         if machine_bits()=32 then
             addr += 4
         else

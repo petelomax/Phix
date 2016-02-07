@@ -4853,17 +4853,23 @@ end if
 ----            and hence spannered that routineNo<=T_Bin above.
             elsif routineNo=T_equal then
                 PushOp(opJeq,BranchOp)
-            elsif newEmit and routineNo=T_platform then
+            elsif routineNo=T_platform then
                 if PE then
                     PushFactor(T_win32,1,T_integer)
                 else
                     PushFactor(T_linux,1,T_integer)
                 end if
-            elsif newEmit and routineNo=T_machine_bits then
+            elsif routineNo=T_machine_bits then
                 if X64 then
                     PushFactor(addUnnamedConstant(64, T_integer),1,T_integer)
                 else
                     PushFactor(addUnnamedConstant(32, T_integer),1,T_integer)
+                end if
+            elsif routineNo=T_machine_word then
+                if X64 then
+                    PushFactor(addUnnamedConstant(8, T_integer),1,T_integer)
+                else
+                    PushFactor(addUnnamedConstant(4, T_integer),1,T_integer)
                 end if
             else
 dbg = symtab[routineNo]
@@ -9681,7 +9687,9 @@ integer link
         if toktype!=LETTER then exit end if
 --DEV?
 --      emitON = (emitON and emitElse)
+if emitON then
         ctrltyp = s5[switchtop-1]
+end if
         if ttidx=T_break then
             MatchString(T_break)
             -- added 18/12/15:
@@ -9694,10 +9702,12 @@ integer link
         elsif ttidx=T_fallthru
            or ttidx=T_fallthrough then
 --DEV ? we may want to force ctrltyp/s5[switchop-1] to have SWTABLE bit set..?
+if emitON then
             if not and_bits(ctrltyp,SWTABLE) then
                 ctrltyp += SWTABLE
                 s5[switchtop-1] = ctrltyp
             end if
+end if
             MatchString(ttidx)
 --          ctrltyp = or_bits(ctrltyp,FALLTHRU)
             ctrltyp = FALLTHRU  -- (set FALLTHRU bit!)
@@ -11546,11 +11556,7 @@ global procedure Compile()
     glblline = {}
     glblcol = {}
     glblname = {}
---DEV platform(),machine_bits()
     PE = 1
---  PLATFORM = platform()   -- (overwritten by format directive, if present, when compiling)
---  X64 = 0 -- (21/8/15, for -x64 temp command line option)
---  X64 = machine_bits()=64
     DLL = 0
 
 --DEV

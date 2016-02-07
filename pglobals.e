@@ -641,6 +641,7 @@ global integer T_command_line   T_command_line = 0  -- (for parameter defaulting
 global integer Z_command_line   Z_command_line = 0  -- (1 iff needs linking for parameter defaulting)
 global integer T_platform       T_platform = 0
 global integer T_machine_bits   T_machine_bits = 0
+global integer T_machine_word   T_machine_word = 0
 global integer T_min            T_min = 0
 global integer T_minsq          T_minsq = 0
 global integer T_max            T_max = 0

@@ -1967,6 +1967,7 @@ atom pi, inf, nan
     -- optimised away at compile-time:
     initialSymEntry("platform",         S_Func,"F",     opPlatform, E_none)     T_platform = symlimit
     initialSymEntry("machine_bits",     S_Func,"F",     opMachine,  E_none)     T_machine_bits = symlimit
+    initialSymEntry("machine_word",     S_Func,"F",     opMachine,  E_none)     T_machine_word = symlimit
 
 --end if -- newEmit ends
 

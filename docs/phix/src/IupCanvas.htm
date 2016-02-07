@@ -1,0 +1,476 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupCanvas</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pIUP.e
+            <br>
+            <br>
+            Ihandle ih = IupCanvas(nullable_string action = NULL)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates an interface element that is a canvas - a working area for your application.
+            <br>
+            <br>
+            The parameter is the name of the action generated when the canvas needs to be redrawn. It can be NULL.
+            A typecheck error occurs if it is not NULL and not a string.
+            <br>
+            <br>
+            Returns the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Note that some keys might remove the focus from the canvas. To avoid this, return IGNORE in the K_ANY callback. 
+            <br>
+            <br>
+            The mouse cursor position can be programmatically controlled using the global attribute CURSORPOS.
+            <br>
+            <br>
+            Drag & Drop attributes and callbacks are supported. 
+            <br>
+            <br>
+            When the canvas is displayed for the first time, the callback call order is always:
+            <br>
+            <br>
+            MAP_CB()<br>
+            RESIZE_CB()<br>
+            ACTION()
+            <br>
+            <br>
+            When the canvas is resized the ACTION callback is always called after the RESIZE_CB callback.
+            <br>
+            <br>
+            <h4>Using with the CD library</h4>
+            <br>
+            When using the CD library to draw in a IupCanvas, you can use the callbacks to manage the canvas. The simplest way is to do:
+            <br>
+            <br>
+            MAP_CB   - calls cdCreateCanvas  (current size is not available yet)<br>
+            UNMAP_CB - calls cdKillCanvas<br>
+            RESIZE_CB - Calling cdCanvasActivate and cdCanvasGetSize returns the same values as given by the callback parameters.
+                        Recalculate the drawing size, update the scrollbars if any.<br>
+            ACTION - calls cdCanvasActivate then use CD primitives to draw the scene, finally calls cdCanvasFlush if using double buffer<br>
+            SCROLL_CB - when using scrollbars, if this callback is defined the canvas must be manually redrawn,
+                        call yourself the action callback or call IupUpdate.
+                        In other words, if this callback is not defined 
+                        the canvas is automatically redrawn.<br>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BACKINGSTORE
+         </td>
+         <td>
+            [Motif Only]: Controls the canvas backing store flag. The default value is "YES".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BGCOLOR
+         </td>
+         <td>
+            Background color. The background is painted only if the ACTION callback is not defined. If the callback is defined the application must draw all the canvas contents. In GTK or Motif if you set the ACTION callback after map then you should also set BGCOLOR to any value just after setting the callback or the first redraw will be lost. Default: "255 255 255".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BORDER
+         </td>
+         <td>
+            (creation only): Shows a border around the canvas. Default: "YES".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CANFOCUS
+         </td>
+         <td>
+            (creation only) (non inheritable): enables the focus traversal of the control. In Windows the canvas will respect CANFOCUS in opposite to the other controls. Default: YES. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CAIRO_CR
+         </td>
+         <td>
+            [GTK Only] (non inheritable): Contains the "cairo_t*" parameter of the internal GTK callback. Valid only during the ACTION callback and onyl when using GTK version 3. (since 3.7)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CLIPRECT
+         </td>
+         <td>
+            [Windows and GTK Only] (only during ACTION): Specifies a rectangle that has its region invalidated for painting, it could be used for clipping. Format: "%d %d %d %d"="x1 y1 x2 y2".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURSOR
+         </td>
+         <td>
+            (non inheritable): Defines a cursor for the canvas. The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EXPAND
+         </td>
+         <td>
+            (non inheritable): The default value is "YES". The natural size is the size of 1 character.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPFILESTARGET
+         </td>
+         <td>
+            [Windows and GTK Only] (non inheritable): Enable or disable the drop of files. Default: NO, but if DROPFILES_CB is defined when the element is mapped then it will be automatically enabled.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DRAWSIZE
+         </td>
+         <td>
+            (non inheritable): The size of the drawing area in pixels. This size is also used in the RESIZE_CB callback.
+          <br>
+            Notice that the drawing area size is not the same as RASTERSIZE. The SCROLLBAR and BORDER attributes affect the size of the drawing area.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          HDC_WMPAINT
+         </td>
+         <td>
+            [Windows Only] (non inheritable): Contains the HDC created with the BeginPaint inside the WM_PAINT message. Valid only during the ACTION callback.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          HWND
+         </td>
+         <td>
+            [Windows Only] (non inheritable, read-only): Returns the Windows Window handle. Available in the Windows driver or in the GTK driver in Windows.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SCROLLBAR
+         </td>
+         <td>
+            (creation only): Associates a horizontal and/or vertical scrollbar to the canvas. Default: "NO". The secondary attributes are all non inheritable.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DX:
+         </td>
+         <td>
+            Size of the thumb in the horizontal scrollbar. Also the horizontal page size. Default: "0.1".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DY:
+         </td>
+         <td>
+            Size of the thumb in the vertical scrollbar. Also the vertical page size. Default: "0.1".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          POSX:
+         </td>
+         <td>
+            Position of the thumb in the horizontal scrollbar. Default: "0.0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          POSY:
+         </td>
+         <td>
+            Position of the thumb in the vertical scrollbar. Default: "0.0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          XMIN:
+         </td>
+         <td>
+            Minimum value of the horizontal scrollbar. Default: "0.0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          XMAX:
+         </td>
+         <td>
+            Maximum value of the horizontal scrollbar. Default: "1.0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          YMIN:
+         </td>
+         <td>
+            Minimum value of the vertical scrollbar. Default: "0.0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          YMAX:
+         </td>
+         <td>
+            Maximum value of the vertical scrollbar. Default: "1.0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          LINEX:
+         </td>
+         <td>
+            The amount the thumb moves when an horizontal step is performed. Default: 1/10th of DX. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          LINEY:
+         </td>
+         <td>
+            The amount the thumb moves when a vertical step is performed. Default: 1/10th of DY. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          XAUTOHIDE:
+         </td>
+         <td>
+            When enabled, if DX >= XMAX-XMIN then the horizontal scrollbar is hidden. Default: "YES". (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          YAUTOHIDE:
+         </td>
+         <td>
+            When enabled, if DY >= YMAX-YMIN then the vertical scrollbar is hidden. Default: "YES". (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          TOUCH
+         </td>
+         <td>
+            [Windows 7 Only]: enable the multi-touch events processing. (Since 3.3)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          XDISPLAY
+         </td>
+         <td>
+            [UNIX Only](non inheritable, read-only): Returns the X-Windows Display. Available in the Motif driver or in the GTK driver in UNIX.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          XWINDOW
+         </td>
+         <td>
+            [UNIX Only](non inheritable, read-only): Returns the X-Windows Window (Drawable). Available in the Motif driver or in the GTK driver in UNIX.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also
+         </td>
+         <td>
+            ACTIVE, FONT, SCREENPOSITION, POSITION, MINSIZE, MAXSIZE, WID, TIP, SIZE, RASTERSIZE, ZORDER, VISIBLE: also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ACTION
+         </td>
+         <td>
+            Action generated when the canvas needs to be redrawn.
+            <br>
+            <br>
+int function(Ihandle *ih, float posx, float posy); ih: identifier of the element that activated the event.
+posx: thumb position in the horizontal scrollbar. The POSX attribute value.
+posy: thumb position in the vertical scrollbar. The POSY attribute value.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BUTTON_CB
+         </td>
+         <td>
+            Action generated when any mouse button is pressed or released.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPFILES_CB
+         </td>
+         <td>
+            [Windows and GTK Only]: Action generated when one or more files are dropped in the element.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FOCUS_CB
+         </td>
+         <td>
+            Called when the canvas gets or looses the focus. It is called after the common callbacks GETFOCUS_CB and KILL_FOCUS_CB.
+            <br>
+            <br>
+int function(Ihandle *ih, int focus); ih: identifier of the element that activated the event.
+focus: is non zero if the canvas is getting the focus, is zero if it is loosing the focus.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MOTION_CB
+         </td>
+         <td>
+            Action generated when the mouse is moved.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          KEYPRESS_CB
+         </td>
+         <td>
+            Action generated when a key is pressed or released. It is called after the common callback K_ANY.
+            <br>
+            <br>
+When the canvas has the focus, pressing the arrow keys may change the focus to another control in some systems. If your callback process the arrow keys, we recommend you to return IUP_IGNORE so it will not lose its focus.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          RESIZE_CB
+         </td>
+         <td>
+            Action generated when the canvas size is changed. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SCROLL_CB
+         </td>
+         <td>
+            Called when the scrollbar is manipulated. (GTK 2.8) Also the POSX and POSY values will not be correctly updated for older GTK versions.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          TOUCH_CB
+         </td>
+         <td>
+            [Windows 7 Only]: Action generated when a touch event occurred. Multiple touch events will trigger several calls. Must set TOUCH=Yes to receive this event. (Since 3.3)
+            <br>
+            <br>
+int function(Ihandle* ih, int id, int x, int y, char* state); 
+ih: identifies the element that activated the event.
+id: identifies the touch point. 
+x, y: position in pixels, relative to the top-left corner of the canvas.
+state: the touch point state. Can be: DOWN, MOVE or UP. If the point is a "primary" point then "-PRIMARY" is appended to the string.
+<br>
+<br>
+Returns: IUP_CLOSE will be processed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MULTITOUCH_CB
+         </td>
+         <td>
+            [Windows 7 Only]: Action generated when multiple touch events occurred. Must set TOUCH=Yes to receive this event. (Since 3.3)
+            <br>
+            <br>
+int function(Ihandle *ih, int count, int* pid, int* px, int* py, int* pstate) 
+ih: identifier of the element that activated the event.
+count: Number of touch points in the array.
+pid: Array of touch point ids.
+px: Array of touch point x coordinates in pixels, relative to the top-left corner of the canvas.
+py: Array of touch point y coordinates in pixels, relative to the top-left corner of the canvas.
+pstate: Array of touch point states. Can be 'D' (DOWN), 'U' (UP) or 'M' (MOVE).
+            <br>
+            <br>
+            Returns: IUP_CLOSE will be processed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          WHEEL_CB
+         </td>
+         <td>
+            Action generated when the mouse wheel is rotated.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          WOM_CB
+         </td>
+         <td>
+            [Windows Only]: Action generated when an audio device receives an event.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also
+         </td>
+         <td>
+            MAP_CB, UNMAP_CB, DESTROY_CB, GETFOCUS_CB, KILLFOCUS_CB, ENTERWINDOW_CB, LEAVEWINDOW_CB, K_ANY, HELP_CB: All common callbacks are supported.
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -6,8 +6,8 @@
      <stripped>
       <h1 class="title">format directive</h1>
       <div id="mainSection">
-        The primary purpose of the format directive is cross-compilation, ie 32<->64 and pe<->elf.
-       <br> 
+        The primary purpose of the format directive is cross-compilation, ie 32&lt;-&gt;64 and pe&lt;-&gt;elf.
+       <br>
        <br> 
         If the format directive is completely omitted then suitable defaults for all values are provided,
         largely based on the compiler being run. For example, assuming -c, running the console version 
@@ -36,8 +36,8 @@
         another component could have all four currently supported targets, as a safety measure against
         ARM or some other target being added in the future.
         Consequently this section is likely to be updated as/when things get implemented/fixed.
-        <br>
-        <br>
+       <br>
+       <br>
         The format directive should be at the start of the main file, before any constant, variable, or
         routine definitions, or any executable code or include statements, but can be after namespace
         and with/without directives. To get technical for a moment, the real issue is that an #ilASM
@@ -47,8 +47,8 @@
         work in all cases. Likewise you may also get away with a few simple constants, etc. Otherwise 
         once any "prohibited code" has been processed the compiler simply issues an "invalid" error 
         against the word "format".
-        <br>
-        <br>
+       <br>
+       <br>
         At most two redirects are permitted. For example, both p.exw and pth.exw have the directive 
         'format "p.fmt"'; p.fmt is intended to contain one of 'format "pe32.fmt"', 'format "pe64.fmt"', 
         'format "elf32.fmt"', or 'format "elf64.fmt"', and finally pe32.fmt (etc) contains the actual 
@@ -57,12 +57,13 @@
         p.fmt for cross-compilation etc. A redirected file cannot contain anything other than a format 
         directive; pmain.e/DoFormat() issues a compilation error if it does not reach EOF. In case you
         have not guessed, if the token following the format keyword is a string, it is a filename. In 
-        fact, a format "<filename>" directive is almost identical to an include <filename> statement, 
+        fact, a format "
+       <i>filename</i>" directive is almost identical to an include <i>filename</i> statement, 
         except that the former expressly prohibits anything other than a format directive in the target 
         file. Also, redirects are ignored during interpretation, whereas an "inline" format directive 
         that specifies an incompatible architecture for interpretation causes a compilation error.
-        <br>
-        <br>
+       <br>
+       <br>
         As an example, the file pe32.fmt distributed with Phix contains:
  <pre>
 format PE32 4.0
@@ -90,16 +91,16 @@ manifest `
         pw.exe anyway. Subsystem version 4.0 is the default for 32-bit executables and 5.0 the default for
         64-bit files (for PE format files, that is). Note that (the older) with/without console/gui affect
         exactly the same settings (variables OptConsole and subvers, which are defined in pglobals.e).
-        <br>
-        <br>
+       <br>
+       <br>
         The values shown above for icons and manifest coincide with the defaults (see pglobals.e). If the 
         version details (which must be an even number of strings) are omitted, then no version information 
         is output in the resulting executable file. There is no way to dynamically set any values during 
         compilation, though it should be trivial to (programmatically) create such a file beforehand.
-        <br>
-        <br>
+       <br>
+       <br>
 DEV not sure we really need this, see http://openeuphoria.org/forum/124650.wc#124650
-        <br>
+       <br>
  <pre>
 &lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;
 &lt;assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"&gt;
@@ -113,12 +114,18 @@ DEV not sure we really need this, see http://openeuphoria.org/forum/124650.wc#12
  &lt;/dependency&gt;
 &lt;/assembly&gt;
  </pre>
-        Lastly, any "x86" in the manifest are automatically replaced with "amd64" (including the quotes)
+        Any "x86" in the manifest are automatically replaced with "amd64" (including the quotes)
         when PE64 is in force, as it seems that doing so is necessary to properly initialise the common
         controls (without manually invoking InitCommonControlsEx). This was, of couse, originally only 
         intended to apply to the default rather than any explicit replacement, but since it is an easy 
         fix to a possibly fairly common mistake that would otherwise completely hose an application, it 
         has been deliberately left like that (applying across the board to everything).
+       <br>
+       <br>
+        Lastly, when using a 32-bit compiler to create a 64-bit executable, be aware that the integer range is redefined 
+        as +/-#FFFF_FFFF rather than -#4000_0000_0000_0000 to #3FFF_FFFF_FFFF_FFFF. See ptok.e/setFLOAT() for all the 
+        nitty-gritty details. It is also true that the value of PI, and possibly some other constants, will be slightly 
+        out, by about one trillionth of one percent, when performing such cross-compilations.
        <br>
        <br>
       </div>

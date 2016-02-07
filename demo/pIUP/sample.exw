@@ -1,4 +1,8 @@
-include iup.e
+--
+-- sample.exw
+--
+
+include pIUP.e
 
 function load_image_Tecgraf()
 sequence imgdata =
@@ -176,14 +180,15 @@ end function
 --char *iupKeyCodeToName(int code);
 
 function k_any(Ihandle ih, integer c)
-    if iup_isprint(c) then
-        printf(1,"K_ANY(%s, %d = %s \'%c\')\n",{IupGetClassName(ih), c, "iupKeyCodeToName(c)", c});
+--  if iup_isprint(c) then
+    if c>31 and c<127 then
+        printf(1,"K_ANY(%s, %d = %s \'%c\')\n",{IupGetClassName(ih), c, iupKeyCodeToName(c), c});
     else
-        printf(1,"K_ANY(%s, %d = %s)\n",{IupGetClassName(ih), c, "iupKeyCodeToName(c)"})
+        printf(1,"K_ANY(%s, %d = %s)\n",{IupGetClassName(ih), c, iupKeyCodeToName(c)})
     end if
-    if c==K_r then IupRecordInput("inputtest.iup", IUP_RECTEXT); return IUP_IGNORE; end if  -- IUP_RECBINARY, IUP_RECTEXT 
-    if c==K_s then IupRecordInput(NULL, 0); IupPlayInput(NULL); return IUP_IGNORE; end if
-    if c==K_p then IupPlayInput("inputtest.iup"); return IUP_IGNORE; end if
+    if c=='r' then IupRecordInput("inputtest.iup", IUP_RECTEXT); return IUP_IGNORE; end if  -- IUP_RECBINARY, IUP_RECTEXT 
+    if c=='s' then IupRecordInput(NULL, 0); IupPlayInput(NULL); return IUP_IGNORE; end if
+    if c=='p' then IupPlayInput("inputtest.iup"); return IUP_IGNORE; end if
     return IUP_CONTINUE;
 end function
 
@@ -196,24 +201,21 @@ end function
 procedure show_menu(Ihandle ih)
 integer x, y;
 
-Ihandle menu_file = IupMenuv({
-                              IupSetAttributesf(IupItem("Item with Image", "item_cb"), "IMAGE=image_tec"),
-                              IupSetAttributesf(IupItem("Toggle using VALUE", NULL), "VALUE=ON, KEY=K_V"),
-                              IupSetAttributesf(IupItem("Auto &Toggle", "item_cb"), "AUTOTOGGLE=YES, VALUE=OFF, IMAGE=image_test, IMPRESS=image_test_pressed"),
-                              IupSeparator(),
-                              IupItem("E&xit (Close)", NULL),
-                              NULL});
-Ihandle menu = IupMenuv({
-                         IupSetAttributesf(IupSubmenu("Submenu", menu_file), "KEY=K_S, IMAGE=image_tec"),
-                         IupItem("Item", "item_cb"),
-                         IupSetAttributesf(IupItem("Item", "item_cb"), "VALUE=ON"),
-                         IupSetAttributesf(IupItem("Item", "item_cb"), "KEY=K_I, IMAGE=image_tec"),
-                         NULL});
+Ihandle menu_file = IupMenu({IupSetAttributesf(IupMenuItem("Item with Image", "item_cb"), "IMAGE=image_tec"),
+                             IupSetAttributesf(IupMenuItem("Toggle using VALUE", NULL), "VALUE=ON, KEY=K_V"),
+                             IupSetAttributesf(IupMenuItem("Auto &Toggle", "item_cb"), "AUTOTOGGLE=YES, VALUE=OFF, IMAGE=image_test, IMPRESS=image_test_pressed"),
+                             IupSeparator(),
+                             IupMenuItem("E&xit (Close)", NULL)});
+
+Ihandle menu = IupMenu({IupSetAttributesf(IupSubmenu("Submenu", menu_file), "KEY=K_S, IMAGE=image_tec"),
+                        IupMenuItem("Item", "item_cb"),
+                        IupSetAttributesf(IupMenuItem("Item", "item_cb"), "VALUE=ON"),
+                        IupSetAttributesf(IupMenuItem("Item", "item_cb"), "KEY=K_I, IMAGE=image_tec")});
 
     x = IupGetInt(ih, "X");
     y = IupGetInt(ih, "Y")+IupGetInt2(ih, "RASTERSIZE");
 
-    {} = IupPopup(menu, x, y);
+    IupPopup(menu, x, y);
     IupDestroy(menu);
 end procedure
 
@@ -236,16 +238,16 @@ function action3_cb(Ihandle ih)
 end function
 
 function set_callbacks(Ihandle ih)
-    IupSetCallback(ih, "VALUECHANGED_CB", routine_id("valuechanged_cb"));
+    IupSetCallback(ih, "VALUECHANGED_CB", Icallback("valuechanged_cb"));
 
---  IupSetCallback(ih, "GETFOCUS_CB", routine_id("getfocus_cb"));
---  IupSetCallback(ih, "KILLFOCUS_CB", routine_id("killfocus_cb"));
+--  IupSetCallback(ih, "GETFOCUS_CB", Icallback("getfocus_cb"));
+--  IupSetCallback(ih, "KILLFOCUS_CB", Icallback("killfocus_cb"));
 
---  IupSetCallback(ih, "ENTERWINDOW_CB", routine_id("enterwindow_cb"));
---  IupSetCallback(ih, "LEAVEWINDOW_CB", routine_id("leavewindow_cb"));
+--  IupSetCallback(ih, "ENTERWINDOW_CB", Icallback("enterwindow_cb"));
+--  IupSetCallback(ih, "LEAVEWINDOW_CB", Icallback("leavewindow_cb"));
 
-    IupSetCallback(ih, "K_ANY", routine_id("k_any"));
---  IupSetCallback(ih, "HELP_CB", routine_id("help_cb"));
+    IupSetCallback(ih, "K_ANY", Icallback("k_any"));
+--  IupSetCallback(ih, "HELP_CB", Icallback("help_cb"));
 
     return ih;
 end function
@@ -275,62 +277,51 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     frm_1, frm_2, frm_3, frm_4, frm_5, pbar, val, tabs,
     list_1, list_2, list_3, text_1, ml_1, tree;
 
-  --img = IupImage(32,32, img_bits1);
-  --{} = IupSetHandle ("img1", img); 
-  --IupSetAttribute (img, "0", "0 0 0"); 
-  --IupSetAttribute (img, "1", "BGCOLOR");
-  --IupSetAttribute (img, "2", "255 0 0");
+--  img = IupImage(32,32, img_bits1);
+--  IupSetHandle ("img1", img); 
+--  IupSetAttribute (img, "0", "0 0 0"); 
+--  IupSetAttribute (img, "1", "BGCOLOR");
+--  IupSetAttribute (img, "2", "255 0 0");
 
     img = load_image_Tecgraf();
-    {} = IupSetHandle("img1", img);
+    IupSetHandle("img1", img);
 
     img = IupImage(32,32, img_bits2);
-    {} = IupSetHandle("img2", img);
+    IupSetHandle("img2", img);
     IupSetAttribute(img, "0", "0 0 0");
     IupSetAttribute(img, "1", "0 255 0");
     IupSetAttribute(img, "2", "BGCOLOR");
     IupSetAttribute(img, "3", "255 0 0");
 
-    mnu = IupMenuv({
-                    IupSubmenu("IupSubmenu 1", IupMenuv({
-                                                         IupSetAttributesf(IupItem("IupItem 1 Checked", NULL), "VALUE=ON"),
-                                                         IupSeparator(),
+    mnu = IupMenu({IupSubmenu("IupSubmenu 1", IupMenu({IupSetAttributesf(IupMenuItem("IupMenuItem 1 Checked", NULL), "VALUE=ON"),
+                                                       IupSeparator(),
+                                                       IupSetAttributesf(IupMenuItem("IupMenuItem 2 Disabled", NULL), "ACTIVE=NO")})),
+                   IupMenuItem("IupMenuItem 3", NULL),
+                   IupMenuItem("IupMenuItem 4", NULL)});
 
-                                                         IupSetAttributesf(IupItem("IupItem 2 Disabled", NULL), "ACTIVE=NO"),
-                                                         NULL})),
-                    IupItem("IupItem 3", NULL),
-                    IupItem("IupItem 4", NULL),
-                    NULL});
-    {} = IupSetHandle("mnu",mnu);
+    IupSetHandle("mnu",mnu);
 
     frm_1 = IupFrame(
-    IupVboxv({
-              set_callbacks(IupSetAttributesf(IupButton("Button Text"), "PADDING=5x5")),
-              IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton("Text"), "IMAGE=img1, PADDING=5x5")),"ACTION", routine_id("action1_cb")),
-              IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(""), "IMAGE=img1")),"ACTION", routine_id("action2_cb")),
-              IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(""), "IMAGE=img1,IMPRESS=img2")),"ACTION", routine_id("action3_cb")),
-              IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(""), "BGCOLOR=\"255 0 128\", SIZE=20x10")),"ACTION", routine_id("action3_cb")),
-              NULL}));
+    IupVbox({set_callbacks(IupSetAttributesf(IupButton("Button Text"), "PADDING=5x5")),
+             IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton("Text"), "IMAGE=img1, PADDING=5x5")),"ACTION", Icallback("action1_cb")),
+             IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(""), "IMAGE=img1")),"ACTION", Icallback("action2_cb")),
+             IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(""), "IMAGE=img1,IMPRESS=img2")),"ACTION", Icallback("action3_cb")),
+             IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(""), "BGCOLOR=\"255 0 128\", SIZE=20x10")),"ACTION", Icallback("action3_cb"))}));
     IupSetAttribute(frm_1,"TITLE","IupButton");
 
     frm_2 = IupFrame(
-    IupVboxv({
-              IupLabel("Label Text"),
-              IupSetAttributesf(IupLabel(""), "SEPARATOR=HORIZONTAL, MAXSIZE=150, NAME=SAMP_SEP"),
-              IupSetAttributesf(IupLabel(""), "IMAGE=img1"),
-              NULL}));
+    IupVbox({IupLabel("Label Text"),
+             IupSetAttributesf(IupLabel(""), "SEPARATOR=HORIZONTAL, MAXSIZE=150, NAME=SAMP_SEP"),
+             IupSetAttributesf(IupLabel(""), "IMAGE=img1")}));
     IupSetAttribute(frm_2,"TITLE","IupLabel");
 
     frm_3 = IupFrame(
-    IupVboxv({
-              set_callbacks(IupSetAttributesf(IupToggle("Toggle Text"), "VALUE=ON")),
-              set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1,IMPRESS=img2")),
-              set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1")),
-              IupSetAttributesf(IupFrame(IupRadio(IupVboxv({
-                                                            set_callbacks(IupToggle("Toggle Text")),
-                                                            set_callbacks(IupToggle("Toggle Text")),
-                                                            NULL}))), "TITLE=IupRadio"),
-              NULL}));
+    IupVbox({set_callbacks(IupSetAttributesf(IupToggle("Toggle Text"), "VALUE=ON")),
+             set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1,IMPRESS=img2")),
+             set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1")),
+             IupSetAttributesf(IupFrame(IupRadio(IupVbox({set_callbacks(IupToggle("Toggle Text")),
+                                                           set_callbacks(IupToggle("Toggle Text"))}))),
+                               "TITLE=IupRadio")}));
     IupSetAttribute(frm_3,"TITLE","IupToggle");
 
     text_1 = IupText();
@@ -344,10 +335,8 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(ml_1,"EXPAND","YES");
     IupSetAttribute(ml_1,"SIZE","80x40");
 
-    frm_4 = IupFrame(IupVboxv({
-                               set_callbacks(text_1),
-                               set_callbacks(ml_1),
-                               NULL}));
+    frm_4 = IupFrame(IupVbox({set_callbacks(text_1),
+                              set_callbacks(ml_1)}));
     IupSetAttribute(frm_4,"TITLE","IupText");
 
     list_1 = IupList();
@@ -376,24 +365,24 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(list_3,"3","Item 3 Text");
     IupSetAttribute(list_3,"TIP","List 3");
 
-    frm_5 = IupFrame(IupVboxv({
-                               set_callbacks(list_1),
-                               set_callbacks(list_2),
-                               set_callbacks(list_3),
-                               NULL}));
+    frm_5 = IupFrame(IupVbox({set_callbacks(list_1),
+                              set_callbacks(list_2),
+                              set_callbacks(list_3)}));
     IupSetAttribute(frm_5,"TITLE","IupList");
 
-    hbox_1 = IupHboxv({frm_1,frm_2,frm_3,frm_4,frm_5});
+    hbox_1 = IupHbox({frm_1,frm_2,frm_3,frm_4,frm_5});
 
-    val = IupVal();
+--  val = IupVal();
+    val = IupValuator();
     {} = set_callbacks(val);
 
     pbar = IupProgressBar();
     IupSetAttribute(pbar, "VALUE", "0.5");
     {} = set_callbacks(pbar);
 
---  tabs = IupTabs(IupVboxv({IupLabel(""), NULL}), IupVboxv({IupFill(), NULL}), IupVboxv({IupFill(), NULL}), NULL);
-    tabs = IupTabs({IupVboxv({IupLabel("")}), IupVboxv({IupFill()}), IupVboxv({IupFill()})});
+    tabs = IupTabs({IupVbox({IupLabel("")}),
+                    IupVbox({IupFill()}),
+                    IupVbox({IupFill()})});
     IupSetAttribute(tabs,"TABTITLE0","Tab Title 0");
     IupSetAttribute(tabs,"TABTITLE1","Tab Title 1");
     IupSetAttributeHandle(tabs,"TABIMAGE1", load_image_LogoTecgraf());
@@ -415,19 +404,17 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
 --  IupSetAttribute(cnv_1,"CANFOCUS","NO");
     {} = set_callbacks(cnv_1);
 
-    vbox_1 = IupVboxv({
-                       hbox_1,
-                       IupHboxv({IupSetAttributesf(IupFrame(IupHboxv({val})), "TITLE=IupVal"),
-                                 IupSetAttributesf(IupFrame(IupHboxv({pbar})), "TITLE=IupProgressBar"),
-                                 IupSetAttributesf(IupFrame(IupHboxv({tabs})), "TITLE=IupTabs")}),
-                       IupHboxv({IupSetAttributesf(IupFrame(IupHboxv({cnv_1})), "TITLE=IupCanvas"),
-                                 IupSetAttributesf(IupFrame(IupHboxv({tree})), "TITLE=IupTree")}),
-                       NULL});
+    vbox_1 = IupVbox({hbox_1,
+                      IupHbox({IupSetAttributesf(IupFrame(IupHbox({val})), "TITLE=IupVal"),
+                               IupSetAttributesf(IupFrame(IupHbox({pbar})), "TITLE=IupProgressBar"),
+                               IupSetAttributesf(IupFrame(IupHbox({tabs})), "TITLE=IupTabs")}),
+                      IupHbox({IupSetAttributesf(IupFrame(IupHbox({cnv_1})), "TITLE=IupCanvas"),
+                               IupSetAttributesf(IupFrame(IupHbox({tree})), "TITLE=IupTree")})});
     IupSetAttribute(vbox_1,"MARGIN","5x5");
     IupSetAttribute(vbox_1,"GAP","5");
 
     dlg = IupDialog(vbox_1);
-    {} = IupSetHandle("dlg",dlg);
+    IupSetHandle("dlg",dlg);
     IupSetAttribute(dlg,"MENU","mnu");
     IupSetAttribute(dlg,"TITLE","IupDialog Title");
 --  IupSetAttribute(dlg,"COMPOSITED","YES");   /* Windows Only */
@@ -449,15 +436,15 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
 
 --  IupSetAttribute(dlg,"RASTERSIZE","1000x800");
 
-    IupSetCallback(dlg, "COPYDATA_CB", routine_id("copydata_cb"));
+    IupSetCallback(dlg, "COPYDATA_CB", Icallback("copydata_cb"));
 
   --IupSetGlobal("INPUTCALLBACKS", "Yes");
-  --IupSetFunction("GLOBALKEYPRESS_CB", routine_id("globalkeypress_cb"));
-  --IupSetFunction("GLOBALMOTION_CB", routine_id("globalmotion_cb"));
-  --IupSetFunction("GLOBALBUTTON_CB", routine_id("globalbutton_cb"));
-  --IupSetFunction("GLOBALWHEEL_CB", routine_id("globalwheel_cb"));
+  --IupSetFunction("GLOBALKEYPRESS_CB", Icallback("globalkeypress_cb"));
+  --IupSetFunction("GLOBALMOTION_CB", Icallback("globalmotion_cb"));
+  --IupSetFunction("GLOBALBUTTON_CB", Icallback("globalbutton_cb"));
+  --IupSetFunction("GLOBALWHEEL_CB", Icallback("globalwheel_cb"));
 
-    {} = IupMap(dlg);
+    IupMap(dlg);
 
     IupSetAttribute(tree, "TITLE0",       "Figures");
     IupSetAttribute(tree, "ADDLEAF0",    "Other");     /* new id=1 */
@@ -466,13 +453,13 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(tree, "ADDLEAF3",   "isoceles");
     IupSetAttribute(tree, "ADDLEAF4",   "scalenus");
 
-    {} = IupShow(dlg);
+    IupShow(dlg);
 
 --  IupSetAttribute(dlg,"RASTERSIZE", NULL);
 end procedure
 
-procedure main()--int argc, char* argv[])
-    {} = IupOpen()--&argc, &argv);
+procedure main()
+    IupOpen()
 
     IupSetGlobal("SINGLEINSTANCE", "Iup Sample");
     if IupGetGlobal("SINGLEINSTANCE")!="" then

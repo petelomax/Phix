@@ -1,51 +1,28 @@
---//TOM needs a sensible default size
-
-
--- IupMenu: Example in C 
+--
+-- menu.exw
+--
 --   Creates a dialog with a menu with two submenus.
 
-include iup.e
+include pIUP.e
 
-function exit_cb(object void)
+function exit_cb(Ihandle /*ih*/)
     return IUP_CLOSE
 end function
 
-Ihandle  dlg,  menu,    item_save,  item_open,  item_undo,  item_exit,  file_menu
-Ihandle  sub1_menu
+Ihandle dlg, file_menu
 
-    {} = IupOpen()
+    IupOpen()
 
-    item_open = IupItem("Open", NULL)
-    IupSetAttribute(item_open, "KEY", "O")
-
-    item_save = IupItem("Save", NULL)
-    IupSetAttribute(item_save, "KEY", "S")
-
-    item_undo = IupItem("Undo", NULL)
-    IupSetAttribute(item_undo, "KEY", "U")
-    IupSetAttribute(item_undo, "ACTIVE", "NO")
-
-    item_exit = IupItem("Exit", NULL)
-    IupSetAttribute(item_exit, "KEY", "x")
-    IupSetCallback(item_exit, "ACTION", routine_id("exit_cb"))
-
-    file_menu = IupMenuv({item_open,
-                         item_save,
+    file_menu = IupMenu({IupMenuItem("&Open"),
+                         IupMenuItem("&Save"),
                          IupSeparator(),
-                         item_undo,
-                         item_exit,
-                         NULL})
+                         IupMenuItem("&Undo", NULL, NULL, "ACTIVE=NO"),
+                         IupMenuItem("E&xit", "ACTION", Icallback("exit_cb"))})
 
-    sub1_menu = IupSubmenu("File", file_menu)
+    IupSetHandle("mymenu", IupMenu({IupSubmenu("File", file_menu)}))
+    dlg = IupDialog(IupCanvas(""),"MENU=mymenu, TITLE=IupMenu, SIZE=200x100")
 
-    menu = IupMenuv({sub1_menu, NULL})
-    {} = IupSetHandle("mymenu", menu)
-    dlg = IupDialog(IupCanvas(""))
-    IupSetAttribute(dlg, "MENU", "mymenu")
-    IupSetAttribute(dlg, "TITLE", "IupMenu")
-    IupSetAttribute(dlg, "SIZE", "200x100")  --//TOM added
-
-    {} = IupShow(dlg)
+    IupShow(dlg)
     IupMainLoop()
     IupClose()
 

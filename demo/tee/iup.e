@@ -3,9 +3,13 @@ namespace iup
 --public include std/dll.e
 public include std/machine.e
 
-atom iup = open_dll({"bin\\iup.dll", "libiup.so"})
+global type Ihandle(integer /*i*/)
+    return 1
+end type
+
+atom iup = open_dll({"win32\\iup.dll", "libiup.so"})
 if iup=0 then ?9/0 end if
-atom iupimglib = open_dll({"bin\\iupimglib.dll", "libiupimglib.so"})
+atom iupimglib = open_dll({"win32\\iupimglib.dll", "libiupimglib.so"})
 if iupimglib=0 then ?9/0 end if
 
 public constant EXIT_SUCCESS = 0
@@ -1375,17 +1379,33 @@ public constant IUP_COPYRIGHT = "Copyright (C) 1994-2015 Tecgraf/PUC-Rio"
 public constant IUP_VERSION = "3.16" /* bug fixes are reported only by IupVersion functions */
 public constant IUP_VERSION_NUMBER = 316000
 public constant IUP_VERSION_DATE = "2015/09/15" /* does not include bug fix releases */
+
+/************************************************************************/
+/*                   Common Flags and Return Values                     */
+/************************************************************************/
+public constant IUP_ERROR = 1
+public constant IUP_NOERROR = 0
+public constant IUP_OPENED = -1
+public constant IUP_INVALID = -1
+public constant IUP_INVALID_ID = -10
+
 /************************************************************************/
 /*                        Main API                                      */
 /************************************************************************/
 --int IupOpen(int *argc, char ***argv);
-public function IupOpen(atom argc, sequence argv = {})
-atom p_argv = allocate_string_pointer_array(argv)
-atom result = c_func(xIupOpen, {argc,p_argv})
-    free(p_argv)
-    return result
-end function
+global procedure IupOpen()
+    if c_func(xIupOpen, {NULL,NULL})=IUP_ERROR then
+        ?9/0
+    end if
+end procedure
 
+--public function IupOpen(atom argc, sequence argv = {})
+--atom p_argv = allocate_string_pointer_array(argv)
+--atom result = c_func(xIupOpen, {argc,p_argv})
+--  free(p_argv)
+--  return result
+--end function
+--
 --void IupClose(void);
 public procedure IupClose()
     c_proc(xIupClose, {})
@@ -1648,10 +1668,13 @@ atom result = c_func(xIupShow, {ih})
 end function
 
 --int IupShowXY(Ihandle* ih, int x, int y);
-public function IupShowXY(atom ih, atom x, atom y)
-atom result = c_func(xIupShowXY, {ih,x,y})
-    return result
-end function
+--public function IupShowXY(atom ih, atom x, atom y)
+--atom result = c_func(xIupShowXY, {ih,x,y})
+--  return result
+--end function
+global procedure IupShowXY(Ihandle ih, integer x, integer y)
+    if c_func(xIupShowXY, {ih, x, y})!=IUP_NOERROR then ?9/0 end if
+end procedure
 
 --int IupHide(Ihandle* ih);
 public function IupHide(atom ih)
@@ -1685,10 +1708,21 @@ atom ptr = allocate_data(sizeof(C_POINTER)*n, 1)
 end function
 
 --Ihandle* IupSetAttributes(Ihandle* ih, const char *str);
-public function IupSetAttributes(atom ih, object str = NULL)
-    if sequence(str) then str = allocate_string(str,1) end if
-    atom result = c_func(xIupSetAttributes, {ih,str})
-    return result
+--public function IupSetAttributes(atom ih, object str = NULL)
+--  if sequence(str) then str = allocate_string(str,1) end if
+--  atom result = c_func(xIupSetAttributes, {ih,str})
+--  return result
+--end function
+global procedure IupSetAttributes(Ihandle ih, string attributes, sequence data = {})
+    if length(data) then
+        attributes = sprintf(attributes, data)
+    end if
+    ih = c_func(xIupSetAttributes, {ih, attributes})
+end procedure
+
+global function IupSetAttributesf(Ihandle ih, string attributes, sequence data = {})
+    IupSetAttributes(ih, attributes, data)
+    return ih
 end function
 
 --char* IupGetAttributes(Ihandle* ih);
@@ -1706,11 +1740,12 @@ public procedure IupSetAttribute(atom ih, object name = NULL, object v = NULL)
     c_proc(xIupSetAttribute, {ih,name,v})
 end procedure
 
-global procedure IupSetAttributef(atom ih, sequence name, string fmt, sequence data)
-atom pName = allocate_string(name,1)
-atom pValue = allocate_string(sprintf(fmt,data),1)
-    c_proc(xIupSetAttribute, {ih, pName, pValue})
-end procedure
+--NO!
+--global procedure IupSetAttributef(atom ih, sequence name, string fmt, sequence data)
+--atom pName = allocate_string(name,1)
+--atom pValue = allocate_string(sprintf(fmt,data),1)
+--  c_proc(xIupSetAttribute, {ih, pName, pValue})
+--end procedure
 
 --void IupSetStrAttribute(Ihandle* ih, const char* name, const char* v);
 public procedure IupSetStrAttribute(atom ih, object name = NULL, object v = NULL)
@@ -2721,14 +2756,6 @@ atom result = c_func(xIupElementPropertiesDialog, {elem})
 end function
 
 /************************************************************************/
-/*                   Common Flags and Return Values                     */
-/************************************************************************/
-public constant IUP_ERROR = 1
-public constant IUP_NOERROR = 0
-public constant IUP_OPENED = -1
-public constant IUP_INVALID = -1
-public constant IUP_INVALID_ID = -10
-/************************************************************************/
 /*                   Callback Return Values                             */
 /************************************************************************/
 public constant IUP_IGNORE = -1
@@ -2822,11 +2849,11 @@ $
 /*        Used only for Watcom.                                         */
 /************************************************************************/
 
-atom zlib1 = open_dll({ "bin\\zlib1.dll", "??libiupim.so", "??libiupim.dylib" })
+atom zlib1 = open_dll({ "win32\\zlib1.dll", "??libiupim.so", "??libiupim.dylib" })
 if zlib1=0 then ?9/0 end if
-atom im = open_dll({ "bin\\im.dll", "??libiupim.so", "??libiupim.dylib" })
+atom im = open_dll({ "win32\\im.dll", "??libiupim.so", "??libiupim.dylib" })
 if im=0 then ?9/0 end if
-atom iupim = open_dll({ "bin\\iupim.dll", "libiupim.so" })
+atom iupim = open_dll({ "win32\\iupim.dll", "libiupim.so" })
 if iupim=0 then ?9/0 end if
 
 public constant -- function delcarations
@@ -3087,7 +3114,7 @@ public procedure IupConfigDialogClosed(atom ih, atom dialog, object name = NULL)
     c_proc(xIupConfigDialogClosed, {ih,dialog,name})
 end procedure
 
-atom iup_scintilla = open_dll({ "bin\\iup_scintilla.dll", "libiup_scintilla.so" })
+atom iup_scintilla = open_dll({ "win32\\iup_scintilla.dll", "libiup_scintilla.so" })
 if iup_scintilla=0 then ?9/0 end if
 
 public constant -- function delcarations

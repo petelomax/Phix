@@ -1,0 +1,626 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupList</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pIUP.e
+            <br>
+            <br>
+            Ihandle ih = IupList(nullable_string action = NULL)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates an interface element that displays a list of items. <br>
+            The list can be visible or can be dropped down. <br>
+            It also can have an edit box for text input. <br>
+            So it is a 4 in 1 element. <br>
+            In native systems the dropped down case is called Combo Box.
+            <br>
+            <br>
+            action: String with the name of the action generated when the state of an item is changed. It can be NULL.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Text is always left aligned.
+            <br>
+            <br>
+            When the list has focus use the arrow keys to move focus from one item to another. 
+            When DROPDOWN=Yes use the Alt+Down key combination to show the dropdown list. 
+            While the dropdown is shown the arrow key may change the current value depending on the system, 
+            on Windows will directly change the current value, on GTK will change the current value only if Enter is pressed. 
+            In all systems the dropdown list is closed by using the Alt+Up key combination, or by pressing Enter or Esc keys 
+            ( while the dropdown list dropdown list the DEFAULTENTER and DEFAULTESC buttons will not be called (fixed in 3.14)).
+            [DEV: above typo copied faithfully from iup docs, reported]
+            <br>
+            <br>
+            The GETFOCUS_CB and KILLFOCUS_CB callbacks behave differently depending on the list configuration and on the native system:
+            <ul>
+            <li>If DROPDOWN=NO and EDITBOX=YES, then the list never gets the focus, the callbacks are called only when the edit box is clicked. </li>
+            <li>In Motif if DROPDOWN=YES then when the dropdown button is clicked the list looses its focus and when the dropped list is closed the list regain the focus, also when that happen if the list looses its focus to another control the kill focus callback is not called. </li>
+            <li>In GTK, if DROPDOWN=YES and EDITBOX=NO, both callbacks are called only when navigating with the keyboard (tip: if you need those callbacks with mouse navigation set EDITBOX=YES and READONLY=YES). Also in GTK, if DROPDOWN=YES and EDITBOX=YES then when the dropdown button is clicked the list looses its focus and it gets it back only if the edit box is clicked. </li>
+            <li>In Windows, if EDITBOX=YES then the tooltips are shown only when the cursor is near the control border or at the dropdown arrow. Also the selection and caret attributes are not preserved if the list loses its focus, or in other words these attributes are only useful in Windows if the list has the focus.</li>
+            </ul>
+            <br>
+            IMPORTANT: In Windows when DROPDOWN=Yes the vertical size is controlled by the system, and has the height just right to include the borders and the text. 
+            So the User height from RASTERSIZE or SIZE will be always ignored.
+            <br>
+            <br>
+            In Windows, list items are limited to 255 pixels height. 
+            <br>
+            <br>
+            In GTK older than 2.12, the editbox of a dropdown will not follow the list attributes: FONT, BGCOLOR, FGCOLOR and SPACING.
+            <br>
+            <br>
+            Clicking and dragging a item: if SHOWDRAGDROP=Yes starts a drag. When mouse is released, the DRAGDROP_CB callback is called. 
+            If the callback does not exist or if it returns IUP_CONTINUE then the item is moved to the new position. 
+            If Ctrl is pressed then the node is copied instead of moved. In Windows and GTK, drag is performed with the left mouse button. 
+            In Motif, the middle mouse button is used to drag.
+<!--DEV (??)
+Utility Functions 
+These functions can be used to set and get attributes from the element:
+
+void  IupSetAttributeId(Ihandle *ih, const char* name, int id, const char* value);
+char* IupGetAttributeId(Ihandle *ih, const char* name, int id);
+int   IupGetIntId(Ihandle *ih, const char* name, int id);
+float IupGetFloatId(Ihandle *ih, const char* name, int id);
+void  IupSetfAttributeId(Ihandle *ih, const char* name, int id, const char* format, ...);
+void  IupSetIntId(Ihandle* ih, const char* name, int id, int value);
+void  IupSetFloatId(Ihandle* ih, const char* name, int id, float value);They work just like the respective traditional set and get functions. But the attribute string is complemented with the id value. For ex:
+
+IupSetAttributeId(ih, "", 3, value) == IupSetAttribute(ih, "3", value)
+IupSetAttributeId(ih, "INSERTITEM", 8, value) == IupSetAttribute(ih, "INSERTITEM8", value)But these functions are faster than the traditional functions because they do not need to parse the attribute name string and the application does not need to concatenate the attribute name with the id.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          "1","2"
+         </td>
+         <td>
+            First, Second, etc item in the list.
+            <br>
+            <br>
+            (non inheritable) The values can be any text. Items before "1" are ignored. <br>
+            Before map the first item with a NULL is considered the end of the list and items can be set in any order. 
+            <br>
+            After map, there are a few rules:
+            <ul>
+            <li>if "1" is set to NULL, all items are removed. </li>
+            <li>if "id" is set to NULL, all items after id are removed. </li>
+            <li>if "id" is between the first and the last item, the current idth item is replaced. 
+                The effect is the same as removing the old item and inserting a new one at the old position. </li>
+            <li>if "id+1" is set then it is appended after the last item. </li>
+            <li>Items after "id+1" are ignored.</li>
+            </ul>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          APPENDITEM
+         </td>
+         <td>
+            (write-only) inserts an item after the last item. Ignored if set before map.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          AUTOHIDE
+         </td>
+         <td>
+            scrollbars are shown only if they are necessary. Default: "YES".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          AUTOREDRAW
+         </td>
+         <td>
+            [Windows] (non inheritable) automatically redraws the list when something has change. Set to NO to add many items to the list without updating the display. Default: "YES".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BGCOLOR
+         </td>
+         <td>
+            Background color of the text. Default the global attribute TXTBGCOLOR. In GTK does nothing when DROPDOWN=Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CANFOCUS
+         </td>
+         <td>
+            (creation only) (non inheritable) enables the focus traversal of the control. In Windows the control will still get the focus when clicked. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          COUNT
+         </td>
+         <td>
+            (read-only) (non inheritable) returns the number of items. Before mapping it counts the number of non NULL items before the first NULL item.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DRAGDROPLIST
+         </td>
+         <td>
+            (non inheritable) enable or disable the drag and drop of items between lists, in the same IUP application. 
+            Drag & Drop attributes must be set in order to activate the drag & drop support. 
+            On the other hand, it is not necessary to register drag & drop callbacks. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPFILESTARGET
+         </td>
+         <td>
+            [Windows and GTK Only] (non inheritable) Enable or disable the drop of files. 
+            Default: NO, but if DROPFILES_CB is defined when the element is mapped then it will be automatically enabled.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPDOWN
+         </td>
+         <td>
+            (creation only) Changes the appearance of the list for the user: only the selected item is shown beside a button with the image of an arrow pointing down. 
+            To select another option, the user must press this button, which displays all items in the list. Can be "YES" or "NO". Default "NO".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPEXPAND
+         </td>
+         <td>
+            [Windows Only] When DROPDOWN=Yes the size of the dropped list will expand to include the largest text. Can be "YES" or "NO". Default: "YES".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EDITBOX
+         </td>
+         <td>
+            (creation only) Adds an edit box to the list. Can be "YES" or "NO". Default "NO".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FGCOLOR
+         </td>
+         <td>
+            Text color. Default: the global attribute TXTFGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          IMAGEid
+         </td>
+         <td>
+            (non inheritable) (write only) [Windows and GTK Only] image name to be used in the specified item, where id is the specified item starting at 1. 
+            The item must already exist. Use IupSetHandle or IupSetAttributeHandle to associate an image to a name. See also IupImage. 
+            The image is always displayed at the left of the text and only when SHOWIMAGE=Yes. When EDITBOX=Yes the image is not display at the edit box. 
+            Images don't need to have the same size. In Windows, list items are limited to 255 pixels height.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          INSERTITEMid
+         </td>
+         <td>
+            (write-only) inserts an item before the given id position. id starts at 1. If id=COUNT+1 then it will append after the last item. 
+            Ignored if out of bounds. Ignored if set before map.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MULTIPLE
+         </td>
+         <td>
+            (creation only) Allows selecting several items simultaneously (multiple list). Default: "NO". Only valid when EDITBOX=NO and DROPDOWN=NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          REMOVEITEM
+         </td>
+         <td>
+            (write-only) removes the given value. value starts at 1. If value is NULL or "ALL" removes all the items. Ignored if set before map.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SCROLLBAR
+         </td>
+         <td>
+            (creation only) Associates automatic scrollbars to the list when DROPDOWN=NO. Can be: "YES" or "NO" (none). Default: "YES". 
+            For all systems, when SCROLLBAR=YES the natural size will always include its size even if the native system hides the scrollbars. 
+            If AUTOHIDE=YES scrollbars are shown only if they are necessary, by default AUTOHIDE=YES. 
+            In Motif, SCROLLBAR=NO is not supported and if EDITBOX=YES the horizontal scrollbar is never shown.
+            <br>
+            <br>
+            When DROPDOWN=YES the scrollbars are system dependent, and do NOT depend on the SCROLLBAR or AUTOHIDE attributes. 
+            Usually the scrollbars are shown if necessary. In GTK, scrollbars are never shown and all items are always visible. 
+            In Motif, the horizontal scrollbar is never shown. In Windows, if DROPEXPAND=YES then the horizontal scrollbar is never shown.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHOWDRAGDROP
+         </td>
+         <td>
+            (creation only) (non inheritable) enables the internal drag and drop of items, and enables the DRAGDROP_CB callback. Default: "NO". 
+            Works only if DROPDOWN=NO and MULTIPLE=NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHOWDROPDOWN
+         </td>
+         <td>
+            (write-only) opens or closes the dropdown list. Can be "YES" or "NO". Valid only when DROPDOWN=YES. Ignored if set before map. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHOWIMAGE
+         </td>
+         <td>
+            (creation only) [Windows and GTK Only] enables the use of an image for each item. Can be "YES" or "NO". Ignored if set before map.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SIZE
+         </td>
+         <td>
+            Size of the list. The Natural Size is defined by the number of elements in the list and the with of the largest item, the default has room for 5 characters in 1 item. 
+            In IUP 3, the Natural Size ignores the list contents if VISIBLECOLUMNS or VISIBLELINES attributes are defined. The text in the edit box is ignored when considering the list contents.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SORT
+         </td>
+         <td>
+            (creation only) force the list to be alphabetically sorted. When using INSERTITEMn or APPENDITEM the position will be ignored.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          TOPITEM
+         </td>
+         <td>
+            (write-only) position the given item at the top of the list or near to make it visible. Valid only when DROPDOWN=NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SPACING
+         </td>
+         <td>
+            internal padding for each item. Notice that vertically the distance between each item will be actually 2x the spacing. 
+            It also affects the horizontal margin of the item. In Windows, the text is aligned at the top left of the item always. 
+            Valid only when DROPDOWN=NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VALUE
+         </td>
+         <td>
+            (non inheritable) Depends on the DROPDOWN+EDITBOX combination:
+            <ul>
+            <li>EDITBOX=YES: Text entered by the user. </li>
+            <li>DROPDOWN=YES or MULTIPLE=NO: Integer number representing the selected item in the list (begins at 1). It can be zero if there is no selected item. </li>
+                The value can be NULL for no item selected (In Motif when DROPDOWN=YES there is always an item selected, except only when the list is empty). </li>
+            <li>MULTIPLE=YES: Sequence of '+' and '-' symbols indicating the state of each item. </li>
+                When setting this value, the user must provide the same amount of '+' and '-' symbols as the amount of items in the list, otherwise the specified items will be deselected. </li>
+            <li>Obs: always returns a non NULL value, event if the list is empty or the text box is empty. </li>
+            </ul>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VALUESTRING
+         </td>
+         <td>
+            (non inheritable) changes or retrieves the value attribute using a string of an item. Works only when EDITBOX=NO and DROPDOWN=YES and MULTIPLE=NO. 
+            When set it will search for the first item with the same string.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VALUEMASKED
+         </td>
+         <td>
+            (non inheritable) (write-only) sets VALUE but first checks if it is validated by MASK. If not does nothing. Works only when EDITBOX=YES.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VISIBLEITEMS
+         </td>
+         <td>
+            [Windows and Motif Only] Number of items that are visible when DROPDOWN=YES is used for the dropdown list. Default: 5.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VISIBLECOLUMNS
+         </td>
+         <td>
+            Defines the number of visible columns for the Natural Size, this means that will act also as minimum number of visible columns. 
+            It uses a wider character size then the one used for the SIZE attribute so strings will fit better without the need of extra columns. 
+            Set this attribute to speed Natural Size computation for very large lists.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VISIBLELINES
+         </td>
+         <td>
+            When DROPDOWN=NO defines the number of visible lines for the Natural Size, this means that will act also as minimum number of visible lines.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also
+         </td>
+         <td>
+            APPEND, CARET, CARETPOS, CLIPBOARD, CUEBANNER, FILTER, INSERT, PADDING, MASK, NC, READONLY, SELECTEDTEXT, SELECTION, SELECTIONPOS, SCROLLTO, SCROLLTOPOS: 
+            Same as the IupText attributes, but are valid only when EDITBOX=YES and effective only for the edit box inside the list.
+            <br>
+            <br>
+            ACTIVE, FONT, EXPAND, SCREENPOSITION, POSITION, MINSIZE, MAXSIZE, WID, TIP, RASTERSIZE, ZORDER, VISIBLE: also accepted.
+            <br>
+            <br>
+            Drag & Drop attributes and callbacks are supported.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ACTION
+         </td>
+         <td>
+            Action generated when the state of an item in the list is changed. Also provides information on the changed item:
+            <br>
+            <br>
+            int function (Ihandle *ih, char *text, int item, int state)<br>
+            ih: identifier of the element that activated the event.<br>
+            text: Text of the changed item.<br>
+            item: Number of the changed item starting at 1.<br>
+            state: Equal to 1 if the option was selected or to 0 if the option was deselected.
+            <br>
+            <br>
+            The state=0 is simulated internally by IUP in all systems. 
+            If you add or remove items to/from the list and you count on the state=0 value, 
+            then after adding/removing items set the VALUE attribute to ensure proper state=0 value.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BUTTON_CB
+         </td>
+         <td>
+            Action generated when any mouse button is pressed or released inside the list. Called only when DROPDOWN=NO. 
+            If the list has an editbox the message is called when cursor is at the listbox only (ignored at the editbox). 
+            Use IupConvertXYToPos to convert (x,y) coordinates in item position.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CARET_CB
+         </td>
+         <td>
+            Action generated when the caret/cursor position is changed.  Valid only when EDITBOX=YES.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, int pos)<br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: line and column number (start at 1).<br>
+            pos: 0 based character position.
+            <br>
+            <br>
+            For lists lin is always 1, and pos is always "col-1".
+            <br>
+            <br>
+            This is the same CARET_CB callback definition as for the IupText.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DBLCLICK_CB
+         </td>
+         <td>
+            Action generated when the user double click an item. Called only when DROPDOWN=NO.
+            <br>
+            <br>
+            int function (Ihandle *ih, int item, char *text)<br>
+            ih: identifier of the element that activated the event.<br>
+            item: Number of the selected item starting at 1.<br>
+            text: Text of the selected item.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DRAGDROP_CB
+         </td>
+         <td>
+            Action generated when an internal drag and drop is executed. Only active if SHOWDRAGDROP=YES.
+            <br>
+            <br>
+            int function(Ihandle *ih, int drag_id, int drop_id, int isshift, int iscontrol)<br>
+            ih: identifier of the element that activated the event. <br>
+            drag_id: Identifier of the clicked item where the drag start. <br>
+            drop_id: Identifier of the clicked item where the drop were executed. -1 indicates a drop in a blank area.<br>
+            isshift: flag indicating the shift key state. <br>
+            iscontrol: flag indicating the control key state.
+            <br>
+            <br>
+            Returns: if returns IUP_CONTINUE, or if the callback is not defined and SHOWDRAGDROP=YES, then the item is moved to the new position. 
+            If Ctrl is pressed then the item is copied instead of moved.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPDOWN_CB
+         </td>
+         <td>
+            Action generated when the list of a dropdown is shown or hidden. Called only when DROPDOWN=YES.
+            <br>
+            <br>
+            int function (Ihandle *ih, int state)<br>
+            ih: identifier of the element that activated the event.<br>
+            state: state of the list 1=shown, 0=hidden.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPFILES_CB
+         </td>
+         <td>
+            [Windows and GTK Only] Action generated when one or more files are dropped in the element.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EDIT_CB
+         </td>
+         <td>
+            Action generated when the text in the text box is manually changed by the user, but before its value is actually updated. Valid only when EDITBOX=YES.
+            <br>
+            <br>
+            int function(Ihandle *ih, int c, char *new_value)<br>
+            ih: identifier of the element that activated the event.<br>
+            c: valid alpha numeric character or 0.<br>
+            new_value: Represents the new text value.
+            <br>
+            <br>
+            Returns: IUP_CLOSE will be processed, but the change will be ignored. 
+            If IUP_IGNORE, the system will ignore the new value. 
+            If c is valid and returns a valid alpha numeric character, this new character will be used instead. 
+            The VALUE attribute can be changed only if IUP_IGNORE is returned.
+            <br>
+            <br>
+            This is the same ACTION callback definition as for the IupText.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MOTION_CB
+         </td>
+         <td>
+            Action generated when the mouse is moved over the list. Called only when DROPDOWN=NO. 
+            If the list has an editbox the message is called when cursor is at the listbox only (ignored at the editbox). 
+            Use IupConvertXYToPos to convert (x,y) coordinates in item position.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MULTISELECT_CB
+         </td>
+         <td>
+            Action generated when the state of an item in the multiple selection list is changed. But it is called only when the interaction is over.
+            <br>
+            <br>
+            int function (Ihandle *ih, char *value)<br>
+            ih: identifier of the element that activated the event.<br>
+            value: Similar to the VALUE attribute for a multiple selection list. <br>
+            Items selected are marked with '+', items deselected are marked with '-', and non changed items are marked with an 'x'.
+            <br>
+            <br>
+            This callback is called only when MULTIPLE=YES. If this callback is defined the ACTION callback will not be called.
+            <br>
+            <br>
+            The non changed items marked with 'x' are simulated internally by IUP in all systems. 
+            If you add or remove items to/from the list and you count on the 'x' values, then after 
+            adding/removing items set the VALUE attribute to ensure proper 'x' values.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VALUECHANGED_CB
+         </td>
+         <td>
+            Called after the value was interactively changed by the user. Called when the selection is changed or when the text is edited.
+            <br>
+            <br>
+            int function(Ihandle *ih)<br>
+            ih: identifier of the element that activated the event.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also
+         </td>
+         <td>
+            MAP_CB, UNMAP_CB, DESTROY_CB, GETFOCUS_CB, KILLFOCUS_CB, ENTERWINDOW_CB, LEAVEWINDOW_CB, K_ANY, HELP_CB: All common callbacks are supported.
+            <br>
+            <br>
+            Drag & Drop attributes and callbacks are supported, but SHOWDRAGDROP must be set to NO. 
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupOpen.htm">XIupOpen</a>,
+          <a href="IupText.htm">IupText</a>
+<br>
+See Also 
+IupListDialog, IupText
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

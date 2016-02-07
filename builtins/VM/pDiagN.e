@@ -1724,6 +1724,8 @@ integer nTyp
 --          mov [maxgvar],rcx
         []
           } 
+--DEV (untried)
+--  varno = floor((addr-gvar0)/machine_word())
     if machine_bits()=32 then
         varno = floor((addr-gvar0)/4)
     else
@@ -1762,6 +1764,8 @@ integer nTyp
         printf(1,"pdiag.e/VarIdx:bad type(symtab[%d][S_NTyp]=%d)!\n",{rtn,nTyp})
         return -1
     end if
+--DEV (untried)
+--  tidx = floor((or_ebp*4-addr)/machine_word())
     if machine_bits()=32 then
         tidx = floor((or_ebp*4-addr)/4)
     else
@@ -2082,16 +2086,14 @@ atom gvarptr
 --puts(1,"d2a-\n")
 --DEV (temp)
 --DEV these may want to be inside the loop... (is ebp_root overwritten?)
+--DEV untried:
+--  {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+machine_word(),6},machine_word(),0)
+--  {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peekNS({ebp_root,5},machine_word(),0)
     if machine_bits()=32 then
         {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
---      {vsb_prev,vsb_next,vsb_magic} = peek4u({ebp_root,3})
---?     dd symtabptr                [vsb_root+8]        -- (raw address of symtab[1])
---?     dd gvarptr                  [vsb_root+12]       -- (raw address of gvar[1])
---      dd magic                    [vsb_root+16]       -- (#40565342 = "@VSB")
         {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peek4u({ebp_root,5})
     else -- machine_bits()=64
         {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
---      {vsb_prev,vsb_next,vsb_magic} = peek8u({ebp_root,3})
         {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peek8u({ebp_root,5})
     end if
 
@@ -2102,7 +2104,7 @@ atom gvarptr
         printf(1,"or_ecx=#%08x, or_edx=#%08x, or_esi=#%08x, or_edi=#%08x\n",
                {or_ecx,or_edx,or_esi,or_edi})
         magicok = "\"@VSB\""
---DEV wrong on machine_bits()=64... (possibly one for docs)
+--DEV wrong on machine_bits()=64... (possibly one for docs) [I think it may be OK now...]
 --      if vsb_magic!=#40565342 then
         if (vsb_magic-#40565342) then
             magicok = "**BAD MAGIC**"
@@ -2863,6 +2865,8 @@ end if
                 or_era = ret_addr-1
             end if
             if or_ebp=0 then exit end if
+--DEV (untried)
+--          {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+machine_word(),6},machine_word(),0)
             if machine_bits()=32 then
                 {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
             else -- machine_bits()=64

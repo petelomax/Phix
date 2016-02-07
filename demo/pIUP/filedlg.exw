@@ -1,33 +1,75 @@
--- IupFileDlg Example in C 
--- Shows a typical file-saving dialog.
+--
+-- filedlg.exw
+--
+-- IupFileDlg Example: Shows a typical file-saving dialog.
+--
 
-include iup.e
+constant UseNativeDialog = 01
 
-Ihandle  filedlg
+include pIUP.e
 
-    {} = IupOpen()
---  IupSetLanguage("ENGLISH")   -- no effect? (correct, I'd seen this: "The IupFileDlg is a native pre-defined dialog that is not altered by IupSetLanguage")
+include builtins\fileopenN.ew
 
-    filedlg = IupFileDlg()
+Ihandle filedlg
 
-    IupSetAttributes(filedlg, "DIALOGTYPE = SAVE, TITLE = \"File Save\"")
---  IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
-    IupSetAttributes(filedlg, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"")
+    if UseNativeDialog then
+        object res = newGetOpenFileName(NULL)
+--pp(newGetOpenFileName(NULL,NULL,{0,0,FOS_ALLOWMULTISELECT}))
+--pp(newGetOpenFileName(NULL,NULL,{0,0,0}))
+--pp(newGetOpenFileName(getHwnd(id),NULL,{0,0,0}))
+--pp(newGetOpenFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}}))
+--pp(newGetOpenFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{1,"txt"}))
+--pp(newGetOpenFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{2,NULL}))  -- fine
+--pp(newGetSaveFileName(NULL))
+--pp(newGetSaveFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{1,"txt"}))
+--pp(newGetSaveFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{2,NULL}))
+--pp(newGetSaveFileName(NULL,NULL,NULL,"C:\\Windows",2))
+--pp(newGetSaveFileName(NULL,NULL,NULL,"C:\\Windows",0))
+--trace(1)
+--  res = newGetSaveFileName(NULL,NULL,NULL,"C:\\Program Files (x86)\\Phix\\demo\\win32dibademo",0)
+--  res = newGetSaveFileName(NULL,NULL,NULL,"C:\\Program Files (x86)\\Phix\\demo\\win32dibademo")
+        if sequence(res) then
+            integer r1 = res[1]
+--global constant ENC_NONE  = 0,
+--              ENC_ANSI    = 1,
+--              ENC_UTF8    = 2,
+--              ENC_UTF16LE = 3,
+--              ENC_UTF16BE = 4     -- (rare case)
+--
+--global constant Encodings = {"ANSI","UTF8","UTF16LE","UTF16BE"}
+            if r1=ENC_NONE then
+                res[1] = "0 (ENC_NONE)"
+            else
+                res[1] = sprintf("%d (%s)",{r1,Encodings[r1]})
+            end if
+        end if
+        pp(res)
+        {} = wait_key()
+    else
+        IupOpen()
+--      IupSetLanguage("ENGLISH")   -- no effect? (correct, I'd seen this: "The IupFileDlg is a native pre-defined dialog that is not altered by IupSetLanguage")
 
-    {} = IupPopup(filedlg, IUP_CENTER, IUP_CENTER)
+        filedlg = IupFileDlg()
 
-    switch (IupGetInt(filedlg, "STATUS")) do
+        IupSetAttributes(filedlg, "DIALOGTYPE = SAVE, TITLE = \"File Save\"")
+--      IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
+        IupSetAttributes(filedlg, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"")
 
-        case 1 then
-            IupMessage("New file",IupGetAttribute(filedlg, "VALUE"))
+        IupPopup(filedlg, IUP_CENTER, IUP_CENTER)
 
-        case 0 then
-            IupMessage("File already exists",IupGetAttribute(filedlg, "VALUE"))
+        switch IupGetInt(filedlg, "STATUS") do
 
-        case -1 then
-            IupMessage("IupFileDlg","Operation Canceled")
-    end switch
+            case 1 then
+                IupMessage("New file",IupGetAttribute(filedlg, "VALUE"))
 
-    IupDestroy(filedlg)
-    IupClose()
+            case 0 then
+                IupMessage("File already exists",IupGetAttribute(filedlg, "VALUE"))
+
+            case -1 then
+                IupMessage("IupFileDlg","Operation Canceled")
+        end switch
+
+        IupDestroy(filedlg)
+        IupClose()
+    end if
 

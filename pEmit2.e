@@ -2435,7 +2435,7 @@ integer refcount
             mov [StmAddr],rax
         []
           }
---DEV: (and we need poke8s below)
+--DEV: (and we need poke8s below) [I assume we're getting away with this because of little endian and refcounts<1billion]
 --  if machine_bits()=32 then
         refaddr = StmAddr*4-8
         refcount = peek4s(refaddr)

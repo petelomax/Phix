@@ -568,21 +568,21 @@ end procedure -- (for Edita/CtrlQ)
                 fild qword[rdi]
                 fldpi                   -- (any non-integer value would do)
                 call :%pStoreFlt        -- (preserves rax)
-                mov rdi,[rdi]
-                fstp tbyte[rbx+rdi*4]
---              mov rax,[rbx+rdx*4-8]
+                mov rsi,[rdi]
+                fstp tbyte[rbx+rsi*4]
+--              mov rax,[rbx+rsi*4-8]
 --              or rax,rcx  -- (combine rid and type byte)
 --              mov [rbx+rdx*4-8],rax
                 or [rbx+rsi*4-8],rax
                 ret
           @@:
-                mov rcx,[rbx+rdx*4-8]
+                mov rcx,[rbx+rsi*4-8]
                 cmp rax,-1
                 jne @f
                     -- :e??iri  (invalid routine id)
                     int3
               @@:
-                or [rbx+rdx*4-8],rax
+                or [rbx+rsi*4-8],rax
                 shl rcx,8
 --              or rcx,rsi  -- (combine rid and type byte)
 --              shr rcx,8

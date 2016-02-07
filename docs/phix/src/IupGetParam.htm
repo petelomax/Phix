@@ -1,0 +1,399 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupGetParam</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pIUP.e
+            <br>
+            <br>
+            sequence res = IupGetParam(string title, integer rid, object data, string fmt, sequence args)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Shows a modal dialog for capturing parameter values using several types of controls.
+            <br>
+            <br>
+            title: dialog title.<br>
+            rid: user callback to be called whenever a parameter value was changed, and when the user pressed the OK button. It can be NULL.<br>
+            user_data: user pointer passed to the user callback.<br>
+            format: string describing all the parameters, see Notes. <br>
+            args: list of variables address with initial values for the parameters.
+            <br>
+            <br>
+            Returns: args plus a status code 1 in res[$] if the button 1 was pressed, 0 if the button 2 was pressed or if an error occurred.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            The function will abort if there are errors in the format string as in the number of the expected parameters. 
+            <br>
+            <br>
+            The format string must have the following format, notice the "\n" at the end
+            <br>
+            <br>
+            "text%x[extra]{tip}\n", where:
+            <ul>
+            <li>text is a descriptive text, to be placed to the left of the entry field in a label. <br>
+                It can contains any string, but to contain a '%' must use two characters "%%" to avoid conflict with the type separator. <br>
+                If it is preceded by n '\t' characters then the parameter will be indented by the same number.
+            <li>x is the type of the parameter. The valid options are:
+             <ul>
+             <li>b = boolean (shows a True/False toggle)</li>
+             <li>i = integer (shows a integer number filtered text box)</li>
+             <li>r = real (shows a real number filtered text box)</li>
+             <li>R = same as r but using "double" in C</li>
+             <li>a = angle in degrees (shows a real number filtered text box and a dial)</li>
+             <li>A = same as a but using "double" in C</li>
+             <li>s = string (shows a text box)</li>
+             <li>m = multiline string (shows a multiline text box)</li>
+             <li>l = list (shows a dropdown list box, with a zero based item index selected)</li>
+             <li>o = list (shows a list of toggles inside a radio, with a zero based item index selected)</li>
+             <li>t = separator (shows a horizontal line separator label, in this case text can be an empty string, not included in parameter count)</li>
+             <li>f = string (same as s, but also show a button to open a file selection dialog box)</li>
+             <li>c = string (same as s, but also show a color button to open a color selection dialog box)</li>
+             <li>n = string (same as s, but also show a font button to open a font selection dialog box)</li>
+             <li>h = Ihandle* (a control handle that will be managed by the application, it will be placed after the parameters and before the buttons.) [not yet in Phix]</li>
+             <li>u = buttons titles (allow to redefine the default button titles (OK and Cancel), and to add a third button, 
+                     use [button1,button2,button3] as extra data, can omit one of them, it will use the default name, not included in parameter count)</li>
+             </ul></li>
+            <li>extra is one or more additional options for the given type
+             <ul>
+             <li>[min,max,step] are optional limits for integer and real types. 
+                 The max and step values can be omitted. When min and max are specified a valuator will also be added to change the value. 
+                To specify step, max must be also specified. step is the size of the increment.</li>
+             <li>[false,true] are optional strings for boolean types to be displayed after the toggle. The strings can not have commas ',', nor brackets '[' or ']'.</li>
+             <li>mask is an optional mask for the string and multiline types. The dialog uses the MASK attribute internally. 
+                 In this case we do no use the brackets '[' and ']' to avoid conflict with the specified mask.</li>
+             <li>|item0|item1|item2,...| are the items of the list. At least one item must exist. 
+                 Again the brackets are not used to increase the possibilities for the strings, instead you must use '|'. Items index are zero based start.</li>
+             <li>[dialogtype|filter|directory|nochangedir|nooverwriteprompt] are the respective attribute values passed to the IupFileDlg control when activated. 
+                 All '|' must exist, but you can let empty values to use the default values. No mask can be set.</li>
+             </ul></li>
+            <li>tip is a string that is displayed in a TIP for the main control of the parameter. (since 3.0)</li>
+            </ul>
+            The number of lines in the format string (number of '\n') will determine the number of required parameters. But separators will not count as parameters. 
+            There is no maximum number of parameters (since 3.13). [<b>Phix</b>: the wrapper is currently limited to 20, but that is trivial to increase if needed.
+            Strings are also currently limited to 1024 bytes, also trivial to increase.]
+            <br>
+            <br>
+            A integer parameter always has a spin attached to the text to increment and decrement the value. <br>
+            A real parameter only has a spin in a full interval is defined (min and max), in this case the default step is (max-min)/20. <br>
+            When the callback is called because a spin was activated then the attribute "SPINNING" of the dialog will be defined to a non NULL and non zero value.
+            <br>
+            <br>
+            The default precision for real value display is given by the global attribute DEFAULTPRECISION. <br>
+            But inside the callback the application can set the param attribute "PRECISION" to use another value. <br>
+            It will work only during interactive changes. The decimal symbol will used the DEFAULTDECIMALSYMBOL global attribute.
+            <br>
+            <br>
+            The function does not allocate memory space to store the text entered by the user. <br>
+            Therefore, the string parameter must be large enough to contain the user input. <br>
+            If you want to set a maximum size for the string you can set the param attribute MAXSTR, inside the callback when param_index=IUP_GETPARAM_INIT.<br>
+            Its default value is 10240 for multiline strings, 4096 for file names, and 512 for other strings.<br>
+            [<b>Phix</b>: currently 1024 across the board, easily increased. If you need your app to be robust, you must implement that callback.]
+            <br>
+            <br>
+            There is no extra parameters for the color string. The mask is automatically set to capture 3 or 4 unsigned integers from 0 to 255 (R G B) or (R G B A) (alpha is optional).
+            <br>
+            <br>
+            The dialog is resizable if it contains a string, a multiline string or a number with a valuator. All the multiline strings will increase size equally in both directions.
+            <br>
+            <br>
+            When the "s" type is used the size can be controlled using the VISIBLECOLUMNS attribute at the param element. (since 3.16)
+            <br>
+            <br>
+            The dialog uses a global attribute called "PARENTDIALOG" as the parent dialog if it is defined. It also uses a global attribute called "ICON" as the dialog icon if it is defined.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Utility Functions:</b>
+         </td>
+         <td>
+            Both functions bellow are used internally in IupGetParam. But they can be used to integrate the IupGetParam contents in other dialogs.
+            <br>
+            Ihandle* IupParamf(const char* format);<br>
+            Creates an IupUser element to be used in the IupParamBox bellow. Each parameter format follows the same specifications as the IupGetParam function, including the line feed. 
+            <br>
+            <br>
+            The IupUser element can be directly used if the internal attributes are set. Here are the respective attributes according to the IupGetParam format specification: 
+            <ul>
+            <li>TITLE: text of the parameter, used as label.</li>
+            <li>INDENT: number of indentation levels.</li>
+            <li>TYPE: can be BOOLEAN, LIST, OPTIONS, REAL, STRING, INTEGER, FILE, COLOR, SEPARATOR, BUTTONNAMES and HANDLE. And describe the type of the parameter.</li>
+            <li>DATATYPE: can be INT (int), FLOAT (float), DOUBLE (double), STRING (char*), HANDLE (Ihandle*) or NONE (when buttons and separators are used). 
+                          And describe the C data type that must be passed to IupGetParam to initialize and receive parameter values.</li>
+            <li>MULTILINE: can be Yes or No. Defines if the edit box can have more than one line.</li>
+            <li>ANGLE: can be Yes or No. defines if the REAL type is an angle.</li>
+            <li>TRUE, FALSE: boolean names.</li>
+            <li>INTERVAL (Yes/No), MIN, MAX, STEP, PARTIAL (Yes/No): optional limits for integer and real types.</li>
+            <li>DIALOGTYPE, FILTER, DIRECTORY, NOCHANGEDIR, NOOVERWRITEPROMPT: used for the FILE parameter dialog. See IupFileDlg.</li>
+            <li>BUTTON1, BUTTON2, BUTTON3: button titles. Default is "OK/Cancel/Help" for regular IupGetParam, and "Apply/Reset/Help" for IupParamBox.</li>
+            <li>0, 1, 2, 3, ... : list items.</li>
+            <li>MASK: mask for the edit box input.</li>
+            <li>TIP: text of the tip.</li>
+            <li>VALUE: the parameter value.</li>
+            <li>STATUS: set to 1 when button1 is activated, and set to 0 when button2 is activated or the dialog close button is clicked.</li>
+            </ul>
+            <br>
+            Ihandle* IupParamBox(Ihandle* parent, Ihandle** params, int count)<br>
+            Creates the IupGetParam dialog contents with the array of parameters. This includes the button box at the bottom.   
+            <br>
+            <br>
+            The buttons of the button box can be retrieved using the BUTTON1, BUTTON2, BUTTON3 attribute at the button box. 
+            They will directly return the control handle not the button titles as in a IupParamf.
+            <br>
+            <br>
+            The PARAM_CB callback will receive the box handle instead of the IupGetParam dialog handle. 
+            Buttons 1 and 2 will still close the dialog as in IupGetParam (by returning IUP_CLOSE internally), so to change that behavior return 0 in the callback. 
+            The USERDATA attribute will hold the user data passed to the callback.
+            <br>
+            <br>
+            The PARAMCOUNT attribute contains the number of parameters not counting separators and button names.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            (inside the callback) For the dialog:
+            <ul>
+            <li>"PARAMn" - returns an IUP Ihandle* representing the nth parameter, indexed by the declaration order, not counting separators or button names.</li>
+            <li>"BUTTON1" - returns an IUP Ihandle*, the button 1.</li>
+            <li>"BUTTON2" - returns an IUP Ihandle*, the button 2.</li>
+            <li>"BUTTON3" - returns an IUP Ihandle*, the button 3.</li>
+            </ul>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            (inside the callback) For a parameter:
+            <ul>
+            <li>"LABEL" - returns an IUP Ihandle*, the label associated with the parameter.</li>
+            <li>"CONTROL" - returns an IUP Ihandle*, the real control associated with the parameter.</li>
+            <li>"AUXCONTROL" - returns an IUP Ihandle*,  the auxiliary control associated with the parameter (only for Valuators). </li>
+            <li>"INDEX" - returns an integer value associated with the parameter index. IupGetInt can also be used.</li>
+            <li>"VALUE" - returns the value of the parameter. IupGetFloat and IupGetInt can also be used. 
+                For the current parameter inside the callback contains the new value that will be applied to the control, 
+                to get the old value use the VALUE attribute for the CONTROL returned Ihandle*.</li>
+            </ul>
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+            int function(Ihandle* dialog, int param_index, void* user_data)<br>
+            dialog: dialog handle<br>
+            param_index: current parameter being changed. Can have negative values to indicate specific situations: 
+            <ul>
+            <li>IUP_GETPARAM_BUTTON1 (-1) = if the user pressed the button 1;</li>
+            <li>IUP_GETPARAM_INIT (-2)  = after the dialog is mapped and just before it is shown. Not called for IupParamBox;</li>
+            <li>IUP_GETPARAM_BUTTON2 (-3) = if the user pressed the button 2;</li>
+            <li>IUP_GETPARAM_BUTTON3 (-4) = if the user pressed the button 3, if any;</li>
+            <li>IUP_GETPARAM_CLOSE (-5) = if the user clicked on the dialog close button. Not called for IupParamBox; (since 3.13)</li>
+            </ul>
+            user_data: a user pointer that is passed in the function call.
+            <br>
+            <br>
+            Returns: You can reject the change or the button action by returning 0 in the callback, otherwise you must return 1. By default button 1 and button2 will close the dialog.
+            <br>
+            <br>
+            Internally the callback is stored as a regular callback with the "PARAM_CB" name.
+            <br>
+            <br>
+            You should not programmatically change the current parameter value during the callback. On the other hand you can freely change the value of other parameters.
+            <br>
+            <br>
+            <br>
+            Use the dialog attribute "PARAMn" to get the parameter "Ihandle*", where "n" is the parameter index in the order they are specified starting at 0, but separators and button names are not counted. 
+            Notice that this is not the actual control, use the parameter attribute "CONTROL" to get the actual control. For example:
+<!--eucode>
+Ihandle* param2 = (Ihandle*)IupGetAttribute(dialog, "PARAM2");
+int value2 = IupGetInt(param2, IUP_VALUE);
+
+Ihandle* param5 = (Ihandle*)IupGetAttribute(dialog, "PARAM5");
+Ihandle* ctrl5 = (Ihandle*)IupGetAttribute(param5, "CONTROL");
+
+if (value2 == 0)
+{
+  IupSetAttribute(param5, IUP_VALUE, "New Value");
+  IupSetAttribute(ctrl5, IUP_VALUE, "New Value");
+}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#0000FF">*</font><font color="#000000"> param2</font><font color="#0000FF"> = (</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*)</font><font color="#5E005E">IupGetAttribute</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "PARAM2"</font><font color="#0000FF">);
+</font><font color="#000000">int value2</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetInt</font><font color="#0000FF">(</font><font color="#000000">param2</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">);
+
+</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*</font><font color="#000000"> param5</font><font color="#0000FF"> = (</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*)</font><font color="#5E005E">IupGetAttribute</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "PARAM5"</font><font color="#0000FF">);
+</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*</font><font color="#000000"> ctrl5</font><font color="#0000FF"> = (</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*)</font><font color="#5E005E">IupGetAttribute</font><font color="#0000FF">(</font><font color="#000000">param5</font><font color="#0000FF">,</font><font color="#008000"> "CONTROL"</font><font color="#0000FF">);
+
+</font><font color="#008080">if</font><font color="#0000FF"> (</font><font color="#000000">value2</font><font color="#0000FF"> ==</font><font color="#000000"> 0</font><font color="#0000FF">)
+{
+</font><font color="#5E005E">  IupSetAttribute</font><font color="#800000">(</font><font color="#000000">param5</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">,</font><font color="#008000"> "New Value"</font><font color="#800000">)</font><font color="#0000FF">;
+</font><font color="#5E005E">  IupSetAttribute</font><font color="#800000">(</font><font color="#000000">ctrl5</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">,</font><font color="#008000"> "New Value"</font><font color="#800000">)</font><font color="#0000FF">;
+}</font>
+</pre>
+            <br>
+            Since parameters are user controls and not real controls, you must update the control value and the parameter value.
+            <br>
+            <br>
+            Be aware that programmatically changes are not filtered. The valuator, when available, can be retrieved using the parameter attribute "AUXCONTROL". <br>
+            The valuator is not automatically updated when the text box is changed programmatically. The parameter label is also available using the parameter attribute "LABEL".
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+        Here is an example showing many of the possible parameters. We show only one for each type, but you can have as many parameters of the same type you want.
+<!--eucode>
+include pIUP.e
+
+IupOpen()
+
+integer pboolean = 1;
+integer pinteger = 3456;
+atom preal = 3.543
+integer pinteger2 = 192;
+atom preal2 = 0.5;
+atom pangle = 90;
+string pstring = "string text";
+integer poptions = 1, plist = 2
+string file_name = "test.jpg";
+string pcolor = "255 0 128";
+string pfont = "Courier, 24";
+string pstring2 = "second text\nsecond line";
+  
+  sequence res = IupGetParam("Title", -2, 0,
+                   "Bt %u[, MyCancel, Help!]\n"&
+                   "Boolean: %b[No,Yes]\n"&
+                   "Integer: %i\n"&
+                   "Real 1: %r\n"&
+                   "Sep1 %t\n"&
+                   "Integer2: %i[0,255]\n"&
+                   "Real 2: %r[-1.5,1.5,0.05]\n"&
+                   "Sep2 %t\n"&
+                   "Angle: %a[0,360]\n"&
+                   "String: %s\n"&
+                   "Options: %o|item0|item1|item2|\n" &
+                   "List: %l|item0|item1|item2|item3|item4|\n" &
+                   "File: %f[OPEN|*.bmp;*.jpg|CURRENT|NO|NO]\n"&
+                   "Color: %c{Color Tip}\n"&
+                   "Font: %n\n"&
+                   "Sep3 %t\n"&
+                   "Multiline: %m\n",
+                   {pboolean, pinteger, preal, pinteger2, preal2, 
+                    pangle, pstring, poptions, plist, file_name, 
+                    pcolor, pfont, pstring2})
+    string msg = ""
+    for i=1 to length(res) do
+        msg &= sprint(res[i])&'\n'
+    end for
+    IupShow(IupDialog(NULL))
+    IupMessage("results",msg)
+
+IupClose()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pIUP.e
+
+</font><font color="#5E005E">IupOpen</font><font color="#0000FF">()
+
+</font><font color="#004080">integer</font><font color="#000000"> pboolean</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">;
+</font><font color="#004080">integer</font><font color="#000000"> pinteger</font><font color="#0000FF"> =</font><font color="#000000"> 3456</font><font color="#0000FF">;
+</font><font color="#004080">atom</font><font color="#000000"> preal</font><font color="#0000FF"> =</font><font color="#000000"> 3.543
+</font><font color="#004080">integer</font><font color="#000000"> pinteger2</font><font color="#0000FF"> =</font><font color="#000000"> 192</font><font color="#0000FF">;
+</font><font color="#004080">atom</font><font color="#000000"> preal2</font><font color="#0000FF"> =</font><font color="#000000"> 0.5</font><font color="#0000FF">;
+</font><font color="#004080">atom</font><font color="#000000"> pangle</font><font color="#0000FF"> =</font><font color="#000000"> 90</font><font color="#0000FF">;
+</font><font color="#004080">string</font><font color="#000000"> pstring</font><font color="#0000FF"> =</font><font color="#008000"> "string text"</font><font color="#0000FF">;
+</font><font color="#004080">integer</font><font color="#000000"> poptions</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">,</font><font color="#000000"> plist</font><font color="#0000FF"> =</font><font color="#000000"> 2
+</font><font color="#004080">string</font><font color="#000000"> file_name</font><font color="#0000FF"> =</font><font color="#008000"> "test.jpg"</font><font color="#0000FF">;
+</font><font color="#004080">string</font><font color="#000000"> pcolor</font><font color="#0000FF"> =</font><font color="#008000"> "255 0 128"</font><font color="#0000FF">;
+</font><font color="#004080">string</font><font color="#000000"> pfont</font><font color="#0000FF"> =</font><font color="#008000"> "Courier, 24"</font><font color="#0000FF">;
+</font><font color="#004080">string</font><font color="#000000"> pstring2</font><font color="#0000FF"> =</font><font color="#008000"> "second text\nsecond line"</font><font color="#0000FF">;
+</font><font color="#C0C0C0">  
+</font><font color="#004080">  sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetParam</font><font color="#0000FF">(</font><font color="#008000">"Title"</font><font color="#0000FF">, -</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">,
+</font><font color="#008000">                   "Bt %u[, MyCancel, Help!]\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Boolean: %b[No,Yes]\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Integer: %i\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Real 1: %r\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Sep1 %t\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Integer2: %i[0,255]\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Real 2: %r[-1.5,1.5,0.05]\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Sep2 %t\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Angle: %a[0,360]\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "String: %s\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Options: %o|item0|item1|item2|\n"</font><font color="#0000FF"> &amp;
+</font><font color="#008000">                   "List: %l|item0|item1|item2|item3|item4|\n"</font><font color="#0000FF"> &amp;
+</font><font color="#008000">                   "File: %f[OPEN|*.bmp;*.jpg|CURRENT|NO|NO]\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Color: %c{Color Tip}\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Font: %n\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Sep3 %t\n"</font><font color="#0000FF">&amp;
+</font><font color="#008000">                   "Multiline: %m\n"</font><font color="#0000FF">,
+</font><font color="#800000">                   {</font><font color="#000000">pboolean</font><font color="#0000FF">,</font><font color="#000000"> pinteger</font><font color="#0000FF">,</font><font color="#000000"> preal</font><font color="#0000FF">,</font><font color="#000000"> pinteger2</font><font color="#0000FF">,</font><font color="#000000"> preal2</font><font color="#0000FF">, 
+</font><font color="#000000">                    pangle</font><font color="#0000FF">,</font><font color="#000000"> pstring</font><font color="#0000FF">,</font><font color="#000000"> poptions</font><font color="#0000FF">,</font><font color="#000000"> plist</font><font color="#0000FF">,</font><font color="#000000"> file_name</font><font color="#0000FF">, 
+</font><font color="#000000">                    pcolor</font><font color="#0000FF">,</font><font color="#000000"> pfont</font><font color="#0000FF">,</font><font color="#000000"> pstring2</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#004080">    string</font><font color="#000000"> msg</font><font color="#0000FF"> =</font><font color="#008000"> ""
+</font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> do
+</font><font color="#000000">        msg</font><font color="#0000FF"> &amp;=</font><font color="#5E005E"> sprint</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)&amp;</font><font color="#008000">'\n'
+</font><font color="#008080">    end for
+</font><font color="#5E005E">    IupShow</font><font color="#0000FF">(</font><font color="#5E005E">IupDialog</font><font color="#800000">(</font><font color="#004600">NULL</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#5E005E">    IupMessage</font><font color="#0000FF">(</font><font color="#008000">"results"</font><font color="#0000FF">,</font><font color="#000000">msg</font><font color="#0000FF">)
+
+</font><font color="#5E005E">IupClose</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            <img src="Images/getparam.png"/>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupOpen.htm">XIupOpen</a>,
+          <a href="IupGetColor.htm">IupGetColor</a>,
+          <a href="IupFileDlg.htm">IupFileDlg</a>
+<br>
+See Also IupScanf, IupGetColor, IupMask, IupVal, IupDial, IupList, IupFileDlg. 
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>
