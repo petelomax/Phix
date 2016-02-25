@@ -41,7 +41,7 @@
 <pre>
 <font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">&lt;</font><font color="#000000">y</font><font color="#0000FF">?</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">x</font><font color="#800000">)</font><font color="#0000FF">:</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">)</font><font color="#0000FF">)</font>
 </pre>
-        is likely to be exponentially slower than the much neater and more obvious
+        is likely to be exponentially slower (you would still need millions of calls to notice) than the much neater and more obvious
 <!--eucode>
     s = append(s,iff(x<y?x:y))
 </eucode-->
@@ -64,7 +64,7 @@
 <font color="#000000">    extra_space</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">&lt;</font><font color="#000000">y</font><font color="#0000FF">?</font><font color="#000000">l</font><font color="#0000FF">-</font><font color="#000000">x</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#0000FF">:</font><font color="#000000">l</font><font color="#0000FF">-</font><font color="#800000">(</font><font color="#800080">(</font><font color="#000000">x</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">w</font><font color="#0000FF">+</font><font color="#7060A8">floor</font><font color="#800080">(</font><font color="#000000">y</font><font color="#0000FF">/</font><font color="#000000">w</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#800000">)
 </font><font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">extra_space</font><font color="#800000">)</font>
 </pre>
-        Such clarifications normally incur no additional penalty whatsoever over the hidden unnamed temporary variable that the compiler would otherwise use.
+        Such clarifications normally incur no additional penalty whatsoever<sup>1</sup> over the hidden unnamed temporary variable that the compiler would otherwise use amyway.
         <br>
         <br>
        <table>
@@ -86,9 +86,15 @@
          </td>
          <td>
           A plain infix C-style syntax (<code>c?e1:e2</code> without an <code>iff()</code> container) is unfortunately not practical, 
-          since eg a = b?c:d would be treated as the statements <code>a = b</code> then <code><a href="qu.htm">?</a>c</code> and then an
-          error would be triggered as <code>:d</code> is not recognised. It would require Phix to become a multi-pass compiler, and
-          no-one (in their right mind) wants that.
+          since eg a = b?c:d would be treated as the statement <code>a = b</code> followed by <code><a href="qu.htm">?</a>c:d</code>
+          (ie print variable d in namespace c). There may also be cases such as <code>iff(a:b?c:d:e:f)</code>, where the "a:", "c:", 
+          and "e:" are (automatically) treated as namespace qualifiers, which may be much clearer with extra parentheses and/or comma 
+          separators, or indeed a more traditional if-construct.
+          <br>
+          <br>
+          <sup>1</sup>Alright, one of the executables would be a few bytes larger (~0.001%, without doubt wholly justified if it eases
+            the development cost or maintenance burden in any way) but otherwise you would be very hard pressed indeed to devise an 
+            experiment that showed any other measurable difference.
          </td>
         </tr>
        </table>

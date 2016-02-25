@@ -22,13 +22,8 @@
 -- License along with EuIup.  If not, see <http://www.gnu.org/licenses/>.
 --
 
---include std/rand.e
-
---include iup.e
 include pIUP.e
---include iup/cd.e
 
---DEV add/document these later:
 --/*
 puts(1, cdVersion() & '\n')
 puts(1, cdVersionDate() & '\n')
@@ -87,51 +82,45 @@ procedure main()
     printf(1, "CD_IUP context caps=%x\n", cdContextCaps(CD_IUP))
 --*/
     hCdCanvas = cdCreateCanvas(CD_IUP, hIupCanvas)
--- cannot happen (a type check occurs)
---  if hCdCanvas=NULL then
---      puts(1, "cdCreateCanvas() failed\n")
---      IupClose()
---      abort(1)
---  end if
-
 --/*
-    puts(1, cdCanvasGetAttribute(hCdCanvas, "BACKGROUND"))
+--  puts(1, cdCanvasGetAttribute(hCdCanvas, "BACKGROUND"))
+    ? cdCanvasGetAttribute(hCdCanvas, "BACKGROUND")     -- prints 0 [??]
     printf(1, "canvas context=%d, creation context was=%d (must be the same)\n", {cdCanvasGetContext(hCdCanvas), CD_IUP})
-    ? cdCanvasGetSize(hCdCanvas)
+--  ? cdCanvasGetSize(hCdCanvas)
+    printf(1, "canvas size: w=%d, h=%d, w(mm)=%10f,h(mm)=%10f\n", cdCanvasGetSize(hCdCanvas))
+    printf(1, "canvas color planes=%d\n", cdCanvasGetColorPlanes(hCdCanvas))
     ? cdCanvasUpdateYAxis(hCdCanvas, 200)
     ? cdCanvasInvertYAxis(hCdCanvas, 200)
-    ? cdfCanvasUpdateYAxis(hCdCanvas, 10.1)
-    ? cdfCanvasInvertYAxis(hCdCanvas, 10.1)
+    ? cdCanvasUpdateYAxis(hCdCanvas, 10.1)
+    ? cdCanvasInvertYAxis(hCdCanvas, 10.1)
     ? cdCanvasMM2Pixel(hCdCanvas, 2.54, 10.2)
-    ? cdfCanvasMM2Pixel(hCdCanvas, 2.54, 10.2)
+    ? cdCanvasMM2Pixel(hCdCanvas, 105.83, 105.83)   -- good, 400,400
     ? cdCanvasPixel2MM(hCdCanvas, 9, 39)
-    ? cdfCanvasPixel2MM(hCdCanvas, 9.6, 38.55)
-    --  cdCanvasOrigin(hCdCanvas,200,200) 
+    ? cdCanvasPixel2MM(hCdCanvas, 400, 39)          -- good, 105.8333
+    -- cdCanvasOrigin(hCdCanvas,200,200) 
     ? cdCanvasGetTransform(hCdCanvas)
     ? cdCanvasTransformPoint(hCdCanvas, 10, 10)
     ? cdCanvasGetOrigin(hCdCanvas)
-    ? cdCanvasFont(hCdCanvas, "helvetica", 0, 13)
+    -- cdCanvasFont(hCdCanvas, "helvetica", 0, 13)
 --*/
     cdCanvasVectorTextDirection(hCdCanvas, 200, 200, 250, 210)
     cdCanvasMultiLineVectorText(hCdCanvas, 20, 100, "multi lines\nvector text\nHé!Hé!")
 --/*
     printf(1, "canvas font name: %s\n", cdCanvasGetFont(hCdCanvas))
-    --printf(1,"vector font is %s\n", { cdCanvasVectorFont(hCdCanvas, "")})
+    -- printf(1,"vector font is %s\n", {cdCanvasVectorFont(hCdCanvas,"")})  -- not working (NULL? filename?)
     ? cdCanvasGetVectorTextBounds(hCdCanvas, "hello world", 10, 10)
     ? cdCanvasGetFontDim(hCdCanvas)
     ? cdCanvasGetTextSize(hCdCanvas, "hello world")
+    ? cdCanvasGetVectorTextSize(hCdCanvas, "hello world")
     ? cdCanvasGetTextBox(hCdCanvas, 10, 10, "hello world")
     ? cdCanvasGetTextBounds(hCdCanvas, 10, 10, "hello world")
-    ? cdCanvasGetColorPlanes(hCdCanvas)
 --*/
     cdCanvasPutImageRectRGB(hCdCanvas, 40, 40, repeat(repeat(128, 40*40), 3), 200, 200, 0, 0, 0, 0, 0, 0)
-    --? cdCanvasGetImageRGB(hCdCanvas,200,200,40,40) 
+--/*
+--  ? length(cdCanvasGetImageRGB(hCdCanvas,200,200,40,40)[1])
     wdCanvasWindow(hCdCanvas, -1000, 1000, -2000, 2000)
---/*
     ? wdCanvasGetWindow(hCdCanvas)
---*/
     wdCanvasViewport(hCdCanvas, 100, 200, 100, 200)
---/*
     ? wdCanvasGetViewport(hCdCanvas)
 --*/
     hTimer = IupTimer(Icallback("OnTimer"), 300)

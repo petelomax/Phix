@@ -1007,8 +1007,11 @@ end if
             end while
         elsif ctype!=Comment then                       syntaxClass = Other
         end if
+--DEV test added 22/2/16...
+if chidx2-1<=lt then
         textC[chidx..chidx2-1] = ColourTab[syntaxClass]
         attrC[chidx..chidx2-1] = StyleTab[syntaxClass]
+end if
 
         chidx = chidx2
     end while

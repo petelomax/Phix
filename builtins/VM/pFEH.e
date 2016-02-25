@@ -59,6 +59,7 @@ integer finit = 0
                     -- obviously rsp is now xxx8, whatever alignment we started with
         sub rsp,8*5
         mov rcx,:finalExceptionHandler              -- lpTopLevelExceptionFilter
+        mov [rsp],rcx
         call "kernel32.dll","SetUnhandledExceptionFilter"
 --      add rsp,8*5
 --      pop rsp     -- restore, equivalent to rsp += (either #08 or #10)

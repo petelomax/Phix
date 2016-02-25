@@ -1,0 +1,37 @@
+--
+-- menu.exw
+--
+--   Creates a dialog with a menu with two submenus.
+--
+
+include pGUI.e
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+function exit_cb(Ihandle /*ih*/)
+    return IUP_CLOSE
+end function
+
+Ihandle dlg, file_menu
+
+    IupOpen()
+
+    file_menu = IupMenu({IupMenuItem("&Open"),
+                         IupMenuItem("&Save"),
+                         IupSeparator(),
+                         IupMenuItem("&Undo", NULL, NULL, "ACTIVE=NO"),
+                         IupMenuItem("E&xit", "ACTION", Icallback("exit_cb"))})
+                        -- works just fine, instead of the above, btw:
+--                       IupMenuItem("E&xit", NULL, Icallback("exit_cb"))})
+
+    IupSetHandle("mymenu", IupMenu({IupSubmenu("File", file_menu)}))
+    dlg = IupDialog(IupCanvas(""),"MENU=mymenu, TITLE=IupMenu, SIZE=200x100")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+
+    IupShow(dlg)
+    IupMainLoop()
+    IupClose()
+

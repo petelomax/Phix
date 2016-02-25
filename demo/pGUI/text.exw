@@ -1,0 +1,77 @@
+--
+-- text.exw
+--  Creates a IupText that shows asterisks instead of characters (password-like)./
+
+include pGUI.e
+
+Ihandle text, dlg, pwd
+sequence password
+
+function k_any(Ihandle /*self*/, integer c)
+    switch (c) do
+
+        case K_BS then
+
+            integer size = length(password)
+            if size=0 then
+                return IUP_IGNORE
+            end if
+            password[size-1] = 0
+            IupSetAttribute(pwd, "VALUE", password)
+            return IUP_DEFAULT
+
+        case K_CR then
+        case K_SP then
+        case K_ESC then
+            return IUP_CLOSE
+        case K_INS then
+        case K_DEL then
+        case K_TAB then
+        case K_HOME then
+        case K_UP then
+        case K_PGUP then
+        case K_LEFT then
+        case K_MIDDLE then
+        case K_RIGHT then
+        case K_END then
+        case K_DOWN then
+        case K_PGDN then
+            return IUP_IGNORE
+        case else
+            return IUP_DEFAULT
+    end switch
+    return 1
+end function
+
+function action(Ihandle /*self*/, integer c, integer /*after*/)
+    if (c) then
+        integer size = length(password)
+        password[size-1] = c
+        password[size] = 0
+        IupSetAttribute(pwd, "VALUE", password)
+    end if
+
+    return K_asterisk
+end function
+
+    IupOpen()
+
+    password = repeat('\0',100)
+
+    text = IupText()
+    IupSetAttribute(text, "SIZE",  "200x")
+    IupSetCallback(text, "ACTION", Icallback("action"))
+    IupSetCallback(text, "K_ANY", Icallback("k_any"))
+
+    pwd = IupText()
+    IupSetAttribute(pwd, "READONLY", "YES")
+    IupSetAttribute(pwd, "SIZE", "200x")
+
+    dlg = IupDialog(IupVbox({text, pwd}))
+    IupSetAttribute(dlg, "TITLE", "IupText")
+
+    IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
+
+    IupMainLoop()
+    IupClose()
+

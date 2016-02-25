@@ -96,7 +96,15 @@ function h0(integer flag)
         -- NB: "return 3.14..." would not work in a define_c_func'd call_back 
         --      declared as returning C_FLOAT or C_DOUBLE.
         --  
---/**/  #ilASM{ fldpi }         --/* -- Phix
+--/**/  #ilASM{ fldpi 
+                -- 15/2/16: 64-bit expects result in xmm0, not st0.
+                [64]
+                    sub rsp,8
+                    fstp qword[rsp]
+                    movsd xmm0,qword[rsp]
+                    add rsp,8
+                []
+              }                 --/* -- Phix
         call(mc)                --*/ -- RDS Eu
         --
         -- (Phix/Eu "return" value is effectively ignored
@@ -111,7 +119,7 @@ constant cb_h0 = call_back(r_h0)
 
 object e
 type obj(object o)
-    if showprogress then ?o end if
+    if showprogress then ?o ?e end if
     if not equal(o,e) then Abort("not equal(o,e)\n") end if
     return 1
 end type
@@ -129,13 +137,13 @@ o = c_func(define_c_func({},cb_h0,{C_INT},C_INT),{0}) -- -77 (=#FFFFFFB3)
 --o = c_func(define_c_func({},cb_h0,{C_INT},C_POINTER),{0}) -- 4294967219 (=#FFFFFFB3)
 --/**/e = PI
 --DEV fudge while PI not quite right (when a 32-bit Phix compiles a 64-bit app)
-#ilASM{
-    [64]
-        fldpi
-        lea rdi,[e]
-        call :%pStoreFlt
-    []
-      }
+--#ilASM{
+--  [64]
+--      fldpi
+--      lea rdi,[e]
+--      call :%pStoreFlt
+--  []
+--    }
 --/*
       e = 3.14159265358979323846
 --*/
@@ -273,16 +281,16 @@ if machine_bits()=32 then
 --if 01 then
 add_code = {
        -- first int argument is at stack offset +4, 2nd int is at +8 
-       #8B, #44, #24, #04,        -- mov eax, [esp+4]
-       #03, #44, #24, #08,        -- add eax, [esp+8]
-       #C2, #08 * (platform() = WIN32), #00 -- ret 8    -- pop 8 bytes off the stack
+       #8B, #44, #24, #04,              -- mov eax, [esp+4]
+       #03, #44, #24, #08,              -- add eax, [esp+8]
+       #C2, #08*(platform()=WIN32), #00 -- ret 8
 }
 else
 add_code = {
        -- first int argument is at stack offset +8, 2nd int is at +16 
-       #48, #8B, #44, #24, #08,   -- mov rax, [rsp+8]
-       #48, #03, #44, #24, #10,   -- add rax, [rsp+16]
-       #C2, #10 * (platform() = WIN32), #00 -- ret 16   -- pop 16 bytes off the stack
+       #48, #8B, #44, #24, #08,         -- mov rax, [rsp+8]
+       #48, #03, #44, #24, #10,         -- add rax, [rsp+16]
+       #C2, #10*(platform()=WIN32), #00 -- ret 16
 }
 end if
 
@@ -364,6 +372,11 @@ multiply_code = {
    -- int argument is at stack offset +8, double is at +16
    #DB, #44, #24, #08,        -- fild  qword [esp+8]
    #DC, #4C, #24, #10,        -- fmul  qword [esp+16]
+   -- 15/2/16 (result in xmm0 not st0)
+   #48, #83, #EC, #08,        -- sub rsp,8
+   #DD, #1C, #24,             -- fstp qword[rsp]
+   #F2, #0F, #10, #04, #24,   -- movsd xmm0,qword[rsp]
+   #48, #83, #C4, #08,        -- add rsp,8
    #C2, #10 * (platform()=WIN32), #00  -- ret 16 (or 0)
     }
 end if

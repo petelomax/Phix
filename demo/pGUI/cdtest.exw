@@ -1,0 +1,139 @@
+--
+-- cdtest.exw
+--
+
+--
+-- Copyright (C) 2008-2010 by Jeremy Cowgar <jeremy@cowgar.com>
+-- Copyright (C) 2008 by Jacques Deschênes <desja@globetrotter.net>
+--
+-- This file is part of EuIup.
+--
+-- EuIup is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU Lesser General Public License as
+-- published by the Free Software Foundation, either version 3 of
+-- the License, or (at your option) any later version.
+--
+-- EuIup is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU Lesser General Public
+-- License along with EuIup.  If not, see <http://www.gnu.org/licenses/>.
+--
+
+include pGUI.e
+
+--/*
+puts(1, cdVersion() & '\n')
+puts(1, cdVersionDate() & '\n')
+
+ifdef WINDOWS then
+    printf(1, "window screen size: w=%d, h=%d, w(mm)=%10f,h(mm)=%10f\n", cdGetScreenSize())
+    printf(1, "window screen color planes=%d\n", cdGetScreenColorPlanes())
+end ifdef
+--*/
+
+IupOpen()
+
+Ihandle hDialog, hIupCanvas, hCdCanvas, hTimer
+
+function OnTimer(atom h)
+integer n, draw, mode
+atom color, line_width, line_style
+
+    if h then end if
+    color = rand(255)*power(2, 24)+rand(255)*65536+rand(256)
+    line_width = rand(5)
+    line_style = rand(5)-1
+    cdCanvasLineWidth(hCdCanvas, line_width)
+    cdCanvasLineStyle(hCdCanvas, line_style)
+    cdCanvasSetForeground(hCdCanvas, color)
+    draw = rand(5)
+    mode = rand(3)-1
+
+    if draw=1 then -- rectangle  
+        cdCanvasRect(hCdCanvas, rand_range(20, 200), rand_range(20, 200),
+                                rand_range(20, 400), rand_range(20, 400))
+    elsif draw=2 then -- line
+        cdCanvasLine(hCdCanvas, rand_range(20, 200), rand_range(20, 200),
+                                rand_range(20, 400), rand_range(20, 400))
+    elsif draw=3 then -- arc
+        cdCanvasArc(hCdCanvas, 200+rand(200), 200+rand(200), rand_range(20, 200),
+                      rand_range(20, 200), rand_range(20, 360), rand_range(20, 360))
+    elsif draw=4 then -- open polygon
+        n = 2+rand(10)
+        cdCanvasBegin(hCdCanvas, mode)
+        for i=1 to n do
+            cdCanvasVertex(hCdCanvas, rand_range(20, 400), rand_range(20, 400))
+        end for
+        cdCanvasEnd(hCdCanvas)
+    end if
+
+    return IUP_IGNORE
+end function
+
+procedure main()
+    hIupCanvas = IupCanvas()
+    IupSetAttributes(hIupCanvas, "RASTERSIZE=400x400, BORDER=NO, DRAWSIZE=400x400")
+    hDialog = IupDialog(hIupCanvas)
+    IupStoreAttribute(hDialog, "TITLE", "Canvas Draw Test")
+    IupShowXY(hDialog, IUP_CENTER, IUP_CENTER)
+--/*
+    printf(1, "CD_IUP context caps=%x\n", cdContextCaps(CD_IUP))
+--*/
+    hCdCanvas = cdCreateCanvas(CD_IUP, hIupCanvas)
+    if not hCdCanvas then
+        puts(1, "cdCreateCanvas() failed\n")
+        IupClose()
+        abort(1)
+    end if
+
+--/*
+--  puts(1, cdCanvasGetAttribute(hCdCanvas, "BACKGROUND"))
+--  ? cdCanvasGetAttribute(hCdCanvas, "BACKGROUND")     -- prints 0 [??]
+    printf(1, "canvas context=%d, creation context was=%d (must be the same)\n", {cdCanvasGetContext(hCdCanvas), CD_IUP})
+    ? cdCanvasGetSize(hCdCanvas)
+    printf(1, "canvas size: w=%d, h=%d, w(mm)=%10f,h(mm)=%10f\n", cdCanvasGetSize(hCdCanvas))
+    printf(1, "canvas color planes=%d\n", cdCanvasGetColorPlanes(hCdCanvas))
+    ? cdCanvasUpdateYAxis(hCdCanvas, 200)
+    ? cdCanvasInvertYAxis(hCdCanvas, 200)
+    ? cdCanvasUpdateYAxis(hCdCanvas, 10.1)
+    ? cdCanvasInvertYAxis(hCdCanvas, 10.1)
+    ? cdCanvasMM2Pixel(hCdCanvas, 2.54, 10.2)
+    ? cdCanvasMM2Pixel(hCdCanvas, 105.83, 105.83)   -- good, 400,400
+    ? cdCanvasPixel2MM(hCdCanvas, 9, 39)
+    ? cdCanvasPixel2MM(hCdCanvas, 400, 39)          -- good, 105.8333
+--  cdCanvasOrigin(hCdCanvas,200,200) 
+    ? cdCanvasGetTransform(hCdCanvas)
+    ? cdCanvasTransformPoint(hCdCanvas, 10, 10)
+    ? cdCanvasGetOrigin(hCdCanvas)
+    cdCanvasFont(hCdCanvas, "helvetica", 0, 13)
+--*/
+    cdCanvasVectorTextDirection(hCdCanvas, 200, 200, 250, 210)
+    cdCanvasMultiLineVectorText(hCdCanvas, 20, 100, "multi lines\nvector text\nHé!Hé!")
+--/*
+    printf(1, "canvas font name: %s\n", cdCanvasGetFont(hCdCanvas))
+    --printf(1,"vector font is %s\n", { cdCanvasVectorFont(hCdCanvas, "")})
+    ? cdCanvasGetVectorTextBounds(hCdCanvas, "hello world", 10, 10)
+    ? cdCanvasGetFontDim(hCdCanvas)
+    ? cdCanvasGetTextSize(hCdCanvas, "hello world")
+    ? cdCanvasGetTextBox(hCdCanvas, 10, 10, "hello world")
+    ? cdCanvasGetTextBounds(hCdCanvas, 10, 10, "hello world")
+--*/
+    cdCanvasPutImageRectRGB(hCdCanvas, 40, 40, repeat(repeat(128, 40*40), 3), 200, 200, 0, 0, 0, 0, 0, 0)
+--/*
+    --? length(cdCanvasGetImageRGB(hCdCanvas,200,200,40,40))
+    wdCanvasWindow(hCdCanvas, -1000, 1000, -2000, 2000)
+    ? wdCanvasGetWindow(hCdCanvas)
+    wdCanvasViewport(hCdCanvas, 100, 200, 100, 200)
+    ? wdCanvasGetViewport(hCdCanvas)
+--*/
+    hTimer = IupTimer(Icallback("OnTimer"), 300)
+
+    IupMainLoop()
+    cdKillCanvas(hCdCanvas)
+    IupClose()
+end procedure
+
+main()

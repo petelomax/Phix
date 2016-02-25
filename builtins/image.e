@@ -363,7 +363,7 @@ function get_screen_char(positive_atom line, positive_atom column)
 atom scr_addr
 sequence vc
     
-    if platform() = DOS32 then
+    if platform()=DOS32 then
         vc = video_config()
         if line >= 1 and line <= vc[VC_LINES] and
         column >= 1 and column <= vc[VC_COLUMNS] then
@@ -387,7 +387,7 @@ atom scr_addr
 sequence vc
 integer overflow
     
-    if platform() = DOS32 then
+    if platform()=DOS32 then
         vc = video_config()
         if line <= vc[VC_LINES] and column <= vc[VC_COLUMNS] then
             scr_addr = DOS_scr_addr(vc, {line, column})
@@ -415,7 +415,7 @@ integer screen_width, extra_col2, extra_lines
 sequence vc, one_row
     
     vc = video_config()
-    if platform() = DOS32 then
+    if platform()=DOS32 then
         screen_width = vc[VC_COLUMNS] * BYTES_PER_CHAR
         scr_addr = DOS_scr_addr(vc, xy)
     end if
@@ -438,7 +438,7 @@ sequence vc, one_row
             end if
             one_row = one_row[1..extra_col2] -- truncate
         end if
-        if platform() = DOS32 then
+        if platform()=DOS32 then
             poke(scr_addr, one_row)
             scr_addr += screen_width
         else
@@ -462,7 +462,7 @@ integer page_size
     
     vc = video_config()
     screen_width = vc[VC_COLUMNS] * BYTES_PER_CHAR
-    if platform() = DOS32 then
+    if platform()=DOS32 then
         if vc[VC_MODE] = 7 then
             screen_memory = MONO_TEXT_MEMORY
         else
@@ -478,7 +478,7 @@ integer page_size
     image = {}
     image_width = (bottom_right[2] - top_left[2] + 1) * BYTES_PER_CHAR
     for row = top_left[1] to bottom_right[1] do
-    if platform() = DOS32 then
+    if platform()=DOS32 then
         row_chars = peek({scr_addr, image_width})
         scr_addr += screen_width
     else

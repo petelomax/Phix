@@ -1,0 +1,510 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Attributes</h1>
+      <div id="mainSection">
+        On the first reading, you should assume something like
+       <code>button = IupButton("button")</code> and without worrying too much about the
+        technical details of that, it should be obvious that it creates a button. Equally I am sure you can imagine a fairly long list of things
+        you might want to alter: size, font, colour, dynamically change the text, add an image, enable/disable it, and of course configure what
+        happens when it is clicked. 
+        Aside: in IUP element position is dynamically determined through nested containers and fillers, though if you are adamantly married to 
+        specifying everything in pixels you could always try using an IupCbox.<!--DEV-->
+       <br>
+       <br>
+        All of that, even the callbacks, is achieved through the use of attributes.
+       <br>
+       <br>
+        Without looking at the C source, I would hazard that all attributes are in fact stored as pointers, or more accurately machine-sized 
+        words, which delivers high performance, with a handful of selected routines carefully taking a copy of any volatile strings, floats, 
+        etc and keeping them safe for the duration. My first reaction was predictable enough given my obsession with performance, but once I 
+        accepted it is no big deal to convert "200" to 200, or "YES/NO" to 1/0, I realised it is a pretty good way to keep things simple.
+       <br>
+       <br>
+        The majority of attributes are implemented using text strings, but there are also routines for storing (and perhaps more importantly
+        retrieving) numbers, pointers, etc. Depending on the interface element, some attributes are inheritable (eg BGCOLOR on an IupButton: 
+        ie if not specifically set, a button takes on the background colour of whatever control it is sitting on), and some attributes are 
+        non-inheritable (eg TITLE). Some must be set at creation time, ie before the dialog is first displayed (eg CANFOCUS), while others 
+        can be amended on the fly (eg <a href="iupattr.htm#ACTIVE">ACTIVE</a>), and some are read-only, or platform-specific. Whilst most
+        attributes are static, referred to as needed, a few trigger actions when read or set (eg <a href="iupgattr.htm#KEY">KEY</a>).
+        These are all documented for each element type.
+       <br>
+       <br>
+        You can also set bespoke application-specific attributes on any control, which the underlying platform-specific driver will completely 
+        ignore. The most likely thing I can think of where that might be useful would be to have a single callback that deals with several 
+        controls, which fetches an attribute off the control that triggered it, and tweaks the behaviour accordingly. Perhaps (I have not 
+        tried this) a clock application could have a single callback that gets called by three timers, and draws the hour, minute, and second 
+        hand appropriately, but I digress...
+       <br>
+       <br>
+        The point I am trying to make here is that, sheer number of different controls aside, by and large the core of IUP is jaw-droppingly 
+        trivial - all the important stuff gets controlled by attributes. Equally there are quite a few ways to set and retrieve attributes,
+        of which there are plenty knocking about, but otherwise the attribute system itself is also conceptually quite trivial.
+       <br>
+       <br>
+        The following routines are used to set/retrieve attributes:
+       <br>
+       <br>
+        <table>
+         <col style="width: 5%"/>
+         <tr>
+          <td valign=top>
+           <a href="IupSetAttribute.htm">
+            <b>IupSetAttribute</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Sets an interface element attribute.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupSetStrAttribute.htm">
+            <b>IupSetStrAttribute</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Sets an interface element attribute, making a safe copy of any transient string.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupSetAttributes.htm">
+            <b>IupSetAttributes</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Sets several attributes of an interface element.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupResetAttribute.htm">
+            <b>IupResetAttribute</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Removes an attribute
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetAttribute.htm">
+            <b>IupGetAttribute</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Retrieve an interface element attribute value.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetAllAttributes.htm">
+            <b>IupGetAllAttributes</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Returns a list of attribute names.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupSetAttributeHandle.htm">
+            <b>IupSetAttributeHandle</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Sets an attribute to a handle (instead of the usual string).
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupSetGlobal.htm">
+            <b>IupSetGlobal</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Sets an attribute in the global environment.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetGlobal.htm">
+            <b>IupGetGlobal</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Returns an attribute value from the global environment.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupSetCallback.htm">
+            <b>IupSetCallback</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Associates a callback to an event.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetCallback.htm">
+            <b>IupGetCallback</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Returns the callback associated to an event.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupSetHandle.htm">
+            <b>IupSetHandle</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>(deprecated) Associates a name with an interface element.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetClassName.htm">
+            <b>IupGetClassName</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Returns the name of the class of an interface element.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetAllClasses.htm">
+            <b>IupGetAllClasses</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Returns the names of all registered classes.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetClassType.htm">
+            <b>IupGetClassType</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Returns the name of the native type of an interface element.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetClassAttributes.htm">
+            <b>IupGetClassAttributes</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Returns the names of all registered attributes of a class.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupGetClassCallbacks.htm">
+            <b>IupGetClassCallbacks</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Returns the names of all registered callbacks of a class.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupSaveClassAttributes.htm">
+            <b>IupSaveClassAttributes</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Saves all registered attributes on the internal hash table.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupCopyClassAttributes.htm">
+            <b>IupCopyClassAttributes</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Copies all registered attributes from one element to another.
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="IupSetClassDefaultAttribute.htm">
+            <b>IupSetClassDefaultAttribute</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>Changes the default value of an attribute for a class. 
+          </td>
+         </tr>
+        </table>
+       <br>
+        &nbsp;
+       <br>
+        The following attributes are common to several controls/interface element types:
+       <br>
+       <br>
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <a name=ACTIVE></a>
+          ACTIVE
+         </td>
+         <td>
+            Activates or inhibits user interaction. Value "YES" (active), "NO" (inactive). Default: "YES".<br>
+            An interface element is only active if its native parent is also active.<br>
+            ACTIVE can also be set for controls that do not have user interaction because they may have a visual feedback to indicate the inactive state.<br>
+            In GTK and Motif the inactive dialogs will still be able to move, resize and change their Z-order.<br>
+            Affects: All controls that have visual representation.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=EXPAND></a>
+          EXPAND
+         </td>
+         <td>
+            Allows the element to expand, fulfilling empty spaces inside its container.
+            <br>
+            <br>
+            It is a non inheritable attribute, but a container inherit its parents EXPAND attribute. <br>
+            In other words, although EXPAND is non inheritable, it is inheritable for containers. <br>
+            So if you set it at a container it will not affect its children, except for those who are containers.<br>
+            The expansion is done equally for all expandable elements in the same container.<br>
+            <br>
+            For a container, the actual EXPAND value will be always a combination of its own value and the value of its children, <br>
+            in the sense that a container can only expand if its children can expand too in the same direction.<br>
+            <br>
+            The HORIZONTALFREE and VERTICALFREE values will not behave as normal expansion. <br>
+            These values will NOT affect the expansion of the container when set at its children, <br>
+            the children will simply expand to the available free space at the container.<br>
+            See the Layout Guide for more details on sizes.<br>
+            Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".<br>
+            Default: "NO". For containers the default is "YES".<br>
+            Affects: All elements, except menus.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=FONT></a>
+          FONT
+         </td>
+         <td>
+            A string defining the font, in the format "&lt;face&gt;, &lt;styles&gt; &lt;size&gt;".
+            <br>
+            <br>
+            Since font face names are not a standard between Windows, Motif and GTK, a few names are specially handled to improve application portability. 
+            If you want to use names that work for all systems we recommend using: Courier, Times and Helvetica (same as Motif). Those names always have 
+            a native system equivalent, see the table below:
+            <br>
+            <div id="images" class="images">
+            <br>
+            <table>
+            <tr>
+                <th>Recommended/Motif</th>
+                <th><center>Windows</center></th>
+                <th><center>GTK</center></th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <td><strong>Helvetica</strong></td>
+                <td><center>Arial</center></td>
+                <td><center>Sans</center></td>
+                <td>without serif, variable spacing</td>
+            </tr>
+            <tr>
+                <td><strong>Courier</strong></td>
+                <td><center>Courier New</center></td>
+                <td><center>Monospace</center></td>
+                <td>with serif, fixed spacing</td>
+            </tr>
+            <tr>
+                <td><strong>Times</strong></td>
+                <td><center>Times New Roman</center></td>
+                <td><center>Serif</center></td>
+                <td>with serif, variable spacing</td>
+            </tr>
+            </table>
+            </div>
+            <div class="clear"></div>
+            <br>
+            The supported font style is a combination of: Bold, Italic, Underline and Strikeout. Unsupported values are simply ignored. 
+            The names must be in the same case described here.
+            <br>
+            <br>
+            Font size is in points (1/72 inch) or in pixels (using negative values).
+            <br>
+            <br>
+            Examples:
+<!--eucode>
+    "Times, Bold 18"
+    "Arial, 24" (no style)
+    "Courier New, Italic Underline -30" (size in pixels)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008000">    "Times, Bold 18"
+    "Arial, 24"</font><font color="#0000FF"> (</font><font color="#000000">no style</font><font color="#0000FF">)
+</font><font color="#008000">    "Courier New, Italic Underline -30"</font><font color="#0000FF"> (</font><font color="#000000">size in pixels</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            On Windows the native handle can be obtained using the "HFONT" attribute.<br>
+            On Motif the native handle can be obtained using the "XMFONTLIST" and "XFONTSTRUCT" attributes. The selected X Logical Font Description string can be obtained from the attribute "XLFD".<br>
+            On GTK the native handle can be obtained using the "PANGOFONTDESC" attribute.
+            <br>
+            <br>
+            <h2>Auxiliary Attributes</h2>
+            These will change the FONT attribute, and depend on it. <br>
+            They are used only to set partial FONT parameters of style and size. <br>
+            To do that the FONT attribute is parsed, changed and updated to the new value in the common format definition. <br>
+            This means that if the attribute was set in X-Windows format or in the old Windows and IUP formats, the previous value will be replaced by a new value in the common format definition. <br>
+            Pango additional styles will also be removed.
+            <br>
+            <table>
+             <tr><td>FONTSTYLE</td><td>(non inheritable) Replaces or returns the style of the current FONT attribute. Since font styles are case sensitive, this attribute is also case sensitive.</td></tr>
+             <tr><td>FONTSIZE</td><td>(non inheritable) Replaces or returns the size of the current FONT attribute.</td></tr>
+             <tr><td>FONTFACE</td><td>(non inheritable) Replaces or returns the face name of the current FONT attribute.</td></tr>
+             <tr><td>CHARSIZE</td><td>(read-only, non inheritable) Returns the average character size of the current FONT attribute. 
+                                        This is the factor used by the SIZE attribute to convert its units to pixels.</td></tr>
+             <tr><td>FOUNDRY</td><td>[Motif Only] (non inheritable) Allows to select a foundry for the FONT being selected. Must be set before setting the FONT attribute.</td></tr>
+            </table>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=SCREENPOSITION></a>
+          SCREENPOSITION/X/Y
+         </td>
+         <td>
+            (read-only) (non inheritable) Returns the absolute horizontal and/or vertical position of the top left corner of the client area relative to the origin of the main screen in pixels. <br>
+            It is similar to <a href="iupattr.htm#POSITION">POSITION</a> but relative to the origin of the main screen, instead of the origin of the client area. <br>
+            The origin of the main screen is at the upper left corner, in Windows it is affected by the position of the Start Menu when it is at the top or left side of the screen. 
+            <br>
+            <br>
+            IMPORTANT: For the dialog, it is the position of the top left corner of the window, NOT the client area. <br>
+            It is the same position used in IupShowXY and IupPopup. <br>
+            In GTK, if the dialog is hidden the values can be outdated.
+            <br>
+            <br>
+            Value: "x,y", where x and y are integer values corresponding to the horizontal and vertical position, respectively, in pixels. <br>
+            When X or Y are used a single value is returned.
+            <br>
+            <br>
+            Affects: All controls that have visual representation.
+            <br>
+            <br>
+            See Also: <a href="iupattr.htm#POSITION">POSITION</a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=POSITION></a>
+          POSITION
+         </td>
+         <td>
+            (non inheritable) The position of the element relative to the origin of the Client area of the native parent. <br>
+            If you add the CLIENTOFFSET attribute of the native parent, you can obtain the coordinates relative to the Window area of the native parent. See the Layout Guide.
+            <br>
+            <br>
+            It will be changed during the layout computation, except when FLOATING=YES or when used inside a concrete layout container.
+            <br>
+            <br>
+            Value: "x,y", where x and y are integer values corresponding to the horizontal and vertical position, respectively, in pixels.
+            <br>
+            <br>
+            Affects: All, except menus.
+            <br>
+            <br>
+            See Also: SIZE, RASTERSIZE, FLOATING, CLIENTOFFSET
+         </td>
+        </tr>
+<!--DEV-->
+<!--
+        <tr>
+         <td valign=top>
+          <a name=BGCOLOR></a>
+          BGCOLOR
+         </td>
+         <td>
+            Background color. If ...
+         </td>
+        </tr>
+-->
+        <tr>
+         <td valign=top>
+          also [DEV]
+         </td>
+         <td>
+            <a href="iupattr.htm#ACTIVE">ACTIVE</a>, 
+            <a href="iupattr.htm#EXPAND">EXPAND</a>, 
+            <a href="iupattr.htm#FONT">FONT</a>, 
+            <a href="iupattr.htm#SCREENPOSITION">SCREENPOSITION</a>, 
+            <a href="iupattr.htm#POSITION">POSITION</a>, 
+            MINSIZE, MAXSIZE, WID, TIP, SIZE, RASTERSIZE, ZORDER, VISIBLE,
+            FLOATING, CLIENTOFFSET
+         </td>
+        </tr>
+       </table>
+       <br>
+        &nbsp;
+       <br>
+        The following callbacks are common to several controls/interface elements:
+       <br>
+       <br>
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          ACTION
+         </td>
+         <td>
+            Action generated when the button is selected. This callback is called only after the mouse is released and when it is released inside the button area.
+          <br>
+          <br>
+int function(Ihandle* ih)<br>
+ih: identifier of the element that activated the event.
+          <br>
+          <br>
+            Returns: IUP_CLOSE will be processed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BUTTON_CB
+         </td>
+         <td>
+            Action generated when any mouse button is pressed and when it is released. Both calls occur before the ACTION callback when button 1 is being used.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also [DEV]
+         </td>
+         <td>
+            MAP_CB, UNMAP_CB, DESTROY_CB, GETFOCUS_CB, KILLFOCUS_CB, ENTERWINDOW_CB, LEAVEWINDOW_CB, K_ANY, HELP_CB: All common callbacks are supported.
+         </td>
+        </tr>
+       </table>
+       <br>
+        &nbsp;
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

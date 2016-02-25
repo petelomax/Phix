@@ -14,7 +14,7 @@
          </td>
          <td>
           <font face = "Arial, Helvetica">
-            include pIUP.e
+            include pGUI.e
             <br>
             <br>
             Ihandle config = IupConfig()
@@ -30,91 +30,19 @@
             <br>
             <br>
             Returns a new database where the variables will be stored.
-            <br>
-            <br>
-            The IupConfigXXX routines are a group of functions to load, store and save application configuration variables. <br>
-            For example, the list of Recent Files, the last position and size of a dialog, last used parameters in dialogs, etc.
-            <br>
-            <br>
-            Each variable has a key name, a value and a group that it belongs to. <br>
-            The file is based on a simple configuration file like ".ini" or ".cfg". <br>
-            Each group can have more than one key, but all keys in the same group must have different names. <br>
-            Group and Key names can NOT have a period ".". The file syntax is such as:
-            <pre>
-[Group]
-Key=Value
-Key=Value
-            </pre>
-            <br>
-            <h4>Guide</h4>
-            First create a new configuration database using the IupConfig constructor. <br>
-            To destroy it use the IupDestroy function. <br>
-            When the application starts call IupConfigLoad and <br>
-            when the application closes, call IupConfigSave.
-            <br>
-            <br>
-            To retrieve settings use the IupConfigGetVariable* functions <br>
-            and to save settings use the IupConfigSetVariable* functions.
 
 <!--DEV
-File Storage
-============
-int IupConfigLoad(Ihandle* ih)
-
-int IupConfigSave(Ihandle* ih)
-
-ih: Identifier of the configuration database
-
-Returns: an error code. 0= no error; -1=error opening the file; -2=error accessing the file; -3=error during filename construction
-
-Loads or saves the configuration file. 
-
-The filename (with path) can be set using a regular attribute called APP_FILENAME. 
-
-But the most interesting is to let the filename to be dynamically constructed using the APP_NAME attribute. 
-In this case APP_FILENAME must not be defined. The file name creation will depend on the system and on its usage.
-
-There are two defined usages. First, for a User Configuration File, it will be stored on the user Home folder. 
-Second, as an Application Configuration File, it will be stored in the same folder of the executable.
-
-The User Configuration File is the most common usage. 
-In UNIX, the filename will be "<HOME>/.<APP_NAME>", 
-where "<HOME>" is replaced by the "HOME" environment variable contents, 
-and <APP_NAME> replaced by the APP_NAME attribute value. 
-In Windows, the filename will be "<HOMEDRIVE><HOMEPATH>\<APP_NAME>.cfg", 
-where HOMEDRIVE and HOMEPATH are also obtained from environment variables.
-
-The Application Configuration File is defined by setting the attribute APP_CONFIG to Yes (default is No). 
-In this case the attribute APP_PATH must also be set. 
-In UNIX, the filename will be "<APP_PATH>.<APP_NAME>",  
-and in Windows will be "<APP_PATH><APP_NAME>.cfg". 
-Notice that the attribute APP_PATH must contain a folder separator "/" at the end.
-
-After the functions are called the attribute FILENAME is set reflecting the constructed filename.
-
-So usually at start up, an application will do:
-
-<.!.-.-.eucode>
-Ihandle config = IupConfig();
-IupSetAttribute(config, "APP_NAME", "MyAppName");
-IupConfigLoad(config);
-</eucode.-.-.>
-<pre>
-<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> config</font><font color="#0000FF"> =</font><font color="#5E005E"> IupConfig</font><font color="#0000FF">();
-</font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">,</font><font color="#008000"> "APP_NAME"</font><font color="#0000FF">,</font><font color="#008000"> "MyAppName"</font><font color="#0000FF">);
-</font><font color="#000000">IupConfigLoad</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">);</font>
-</pre>
-
-Variables
+Variables (master in IupConfigGetVariableStr)
 =========
-void IupConfigSetVariableStr(Ihandle* ih, const char* group, const char* key, const char* value);
-void IupConfigSetVariableStrId(Ihandle* ih, const char* group, const char* key, int id, const char* value);
+//void IupConfigSetVariableStr(Ihandle* ih, const char* group, const char* key, const char* value);
+//void IupConfigSetVariableStrId(Ihandle* ih, const char* group, const char* key, int id, const char* value);
 void IupConfigSetVariableInt(Ihandle* ih, const char* group, const char* key, int value);
 void IupConfigSetVariableIntId(Ihandle* ih, const char* group, const char* key, int id, int value);
 void IupConfigSetVariableDouble(Ihandle* ih, const char* group, const char* key, double value);
 void IupConfigSetVariableDoubleId(Ihandle* ih, const char* group, const char* key, int id, double value);
 
-const char* IupConfigGetVariableStr(Ihandle* ih, const char* group, const char* key);
+//const char* IupConfigGetVariableStr(Ihandle* ih, const char* group, const char* key);
+string res = IupConfigGetVariableStr(Ihandle ih, string group, string key)
 const char* IupConfigGetVariableStrId(Ihandle* ih, const char* group, const char* key, int id);
 int    IupConfigGetVariableInt(Ihandle* ih, const char* group, const char* key);
 int    IupConfigGetVariableIntId(Ihandle* ih, const char* group, const char* key, int id);
@@ -124,7 +52,7 @@ double IupConfigGetVariableDoubleId(Ihandle* ih, const char* group, const char* 
 const char* IupConfigGetVariableStrDef(Ihandle* ih, const char* group, const char* key, const char* def);
 const char* IupConfigGetVariableStrIdDef(Ihandle* ih, const char* group, const char* key, int id, const char* def);
 int    IupConfigGetVariableIntDef(Ihandle* ih, const char* group, const char* key, int def);
-int    IupConfigGetVariableIntIdDef(Ihandle* ih, const char* group, const char* key, int id, int def);
+//int    IupConfigGetVariableIntIdDef(Ihandle* ih, const char* group, const char* key, int id, int def);
 double IupConfigGetVariableDoubleDef(Ihandle* ih, const char* group, const char* key, double def);
 double IupConfigGetVariableDoubleIdDef(Ihandle* ih, const char* group, const char* key, int id, double def);
 
@@ -142,66 +70,90 @@ When the variable may not exist you can use the *Def functions to use a default 
 These functions are very similar to the IupSetAttribute and IupGetAttribute functions. <br>
 Internally the variables are stored as attributes using a "<GROUP>.<KEY>" combination, that's why group and key names can not have periods ".".
 
-Recent File Menu
-================
-void IupConfigRecentInit(Ihandle* ih, Ihandle* menu, Icallback recent_cb, int max_recent);
-
-void IupConfigRecentUpdate(Ihandle* ih, const char* filename);
-
-ih: Identifier of the configuration database<br>
-menu: menu where the recent file items will be listed<br>
-recent_cb: callback that will be called when a recent file item is selected on the menu<br>
-max_recent: the maximum number of recent file items.<br>
-filename: name of the file that where just saved or open
-<br>
-<br>
-These functions store and manage a "Recent Files" menu for the application. <br>
-Call IupConfigRecentInit once to initialize the menu. <br>
-Then every time a file is open or saved call IupConfigRecentUpdate so that the menu list is updated. <br>
-The last file will be always on the top of the list. 
-<br>
-<br>
-Inside the RECENT_CB callback the TITLE attribute contains the filename, but the ih handle is not the menu, it is the IupConfig handle. <br>
-But also inside the callback the IupConfig will inherit attributes from the menu as if it was its parent. (since 3.15)
-
-Dialog Position and Size
-========================
-void IupConfigDialogShow(Ihandle* ih, Ihandle* dialog, const char* name);
-
-void IupConfigDialogClosed(Ihandle* ih, Ihandle* dialog, const char* name);
-
-ih: Identifier of the configuration database<br>
-dialog: the dialog to manage the size and position<br>
-name: a name for this dialog
-<br>
-<br>
-These functions store and manage the position and size of a dialog. <br>
-So when the application is run again the dialog can be show at its last position and last size. <br>
-Use the function IupConfigDialogShow to show the dialog adjusting its size and position. <br>
-And use the function IupConfigDialogClosed to save the last dialog position and size when the dialog is about to be closed, usually inside the dialog CLOSE_CB callback.
-<br>
-<br>
-IupConfigDialogShow does no adjustments if the dialog is already visible, just call IupShow. <br>
-If the dialog was closed maximized it will be shown maximized. <br>
-The default size, at the first time ever the dialog is shown, is maximized. <br>
-The dialog size is set only if RESIZE=Yes. (since 3.16)
-<br>
-<br>
-The position is saved in the variables "X" and "Y" of the given group name. <br>
-The size is saved in the variables "Width" and "Height" of the given group name. 
-<br>
-<br>
-If your dialog is resizable and you want to avoid the last size usage because you changed the dialog layout, 
-then reset the "Width" and "Height" variables before calling IupConfigDialogShow.
-<br>
-<br>
-To avoid the dialog size to be maximized, set the variable "Maximized" to 0 before calling IupConfigDialogShow. (since 3.16)
 
 See Also
 -->
+         </td>
+        </tr>
 
+        <tr>
+         <td valign=top>
+          <b>Notes</b>
+         </td>
+         <td>
+            The IupConfigXXX routines are a group of functions to load, store and save application configuration variables. <br>
+            For example, the list of Recent Files, the last position and size of a dialog, last used parameters in dialogs, etc.
+            <br>
+            <br>
+            Each variable has a key name, a value and a group that it belongs to. <br>
+            The file is based on a simple configuration file like ".ini" or ".cfg". <br>
+            Each group can have more than one key, but all keys in the same group must have different names. <br>
+            Group and Key names can NOT have a period ".". The file syntax is such as:
+            <pre>
+[Group]
+Key=Value
+Key=Value
+            </pre>
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Guide</b>
+         </td>
+         <td>
+            First create a new configuration database using the IupConfig constructor. <br>
+            To destroy it use the IupDestroy function. <br>
+            When the application starts call IupConfigLoad and <br>
+            when the application closes, call IupConfigSave.
+            <br>
+            <br>
+            Call IupConfigRecentInit once to initialize a recent files menu.<br>
+            Call IupConfigRecentUpdate every time a file is open or saved, to keep the recent file menu updated.
+            <br>
+            <br>
+            To retrieve settings use the IupConfigGetVariable* functions <br>
+            and to save settings use the IupConfigSetVariable* functions.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Subsidiary functions</b>
+         </td>
+         <td>
           <table>
            <col style="width: 5%"/>
+           <tr>
+            <td valign=top>
+             <a href="IupConfigLoad.htm">
+              <b>IupConfigLoad</b>
+             </a>
+            </td>
+            <td width=10 align=center valign=top>-</td>
+            <td>Loads the configuration file.
+            </td>
+           </tr>
+           <tr>
+            <td valign=top>
+             <a href="IupConfigSave.htm">
+              <b>IupConfigSave</b>
+             </a>
+            </td>
+            <td width=10 align=center valign=top>-</td>
+            <td>Saves the configuration file.
+            </td>
+           </tr>
+           <tr>
+            <td valign=top>
+             <a href="IupConfigRecentInit.htm">
+              <b>IupConfigRecentInit</b>
+             </a>
+            </td>
+            <td width=10 align=center valign=top>-</td>
+            <td>Initialize a "Recent Files" menu for the application.
+            </td>
+           </tr>
            <tr>
             <td valign=top>
              <a href="IupConfigRecentUpdate.htm">
@@ -212,15 +164,64 @@ See Also
             <td>Update the recent file menu.
             </td>
            </tr>
-            <br>
            <tr>
             <td valign=top>
-             <a href="IupConfigRecentInit.htm">
-              <b>IupConfigRecentInit</b>
+             <a href="IupConfigGetVariableIntDef.htm">
+              <b>IupConfigGetVariableIntDef</b>
              </a>
             </td>
             <td width=10 align=center valign=top>-</td>
-            <td>Initialize a "Recent Files" menu for the application.
+            <td>Like IupGetInt, but persistent.
+            </td>
+           </tr>
+           <tr>
+            <td valign=top>
+             <a href="IupConfigGetVariableStr.htm">
+              <b>IupConfigGetVariableStr</b>
+             </a>
+            </td>
+            <td width=10 align=center valign=top>-</td>
+            <td>Like IupGetAttribute, but persistent.
+            </td>
+           </tr>
+           <tr>
+            <td valign=top>
+             <a href="IupConfigSetVariableInt.htm">
+              <b>IupConfigSetVariableInt</b>
+             </a>
+            </td>
+            <td width=10 align=center valign=top>-</td>
+            <td>Like IupSetInt, but persistent.
+            </td>
+           </tr>
+           <tr>
+            <td valign=top>
+             <a href="IupConfigSetVariableStr.htm">
+              <b>IupConfigSetVariableStr</b>
+             </a>
+            </td>
+            <td width=10 align=center valign=top>-</td>
+            <td>Like IupSetAttribute, but persistent.
+            </td>
+           </tr>
+           <tr>
+            <td valign=top>
+             <a href="IupConfigDialogClosed.htm">
+              <b>IupConfigDialogClosed</b>
+             </a>
+            </td>
+            <td width=10 align=center valign=top>-</td>
+            <td>Store the position and size of a dialog
+            </td>
+           </tr>
+           <tr>
+            <td valign=top>
+             <a href="IupConfigDialogShow.htm">
+              <b>IupConfigDialogShow</b>
+             </a>
+            </td>
+            <td width=10 align=center valign=top>-</td>
+            <td>Show a dialog using the previous position and size
             </td>
            </tr>
           </table>
@@ -232,7 +233,7 @@ See Also
           <b>Attributes:</b>
          </td>
          <td>
-            APP_FILENAME, APP_NAME, APP_CONFIG, APP_PATH, FILENAME, <GROUP>.<KEY>, TITLE, RESIZE as above
+            APP_FILENAME, APP_NAME, APP_CONFIG, APP_PATH, FILENAME, RESIZE as above
          </td>
         </tr>
 
@@ -249,7 +250,7 @@ IupConfigLoad(config);
 <pre>
 <font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> config</font><font color="#0000FF"> =</font><font color="#5E005E"> IupConfig</font><font color="#0000FF">();
 </font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">,</font><font color="#008000"> "APP_NAME"</font><font color="#0000FF">,</font><font color="#008000"> "MyAppName"</font><font color="#0000FF">);
-</font><font color="#000000">IupConfigLoad</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">);</font>
+</font><font color="#5E005E">IupConfigLoad</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">);</font>
 </pre>
          </td>
         </tr>

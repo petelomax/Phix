@@ -1,5 +1,4 @@
---DEV: doc IupConfig* routines
--- redo IupMenuItem items...
+--DEV: redo IupMenuItem items...
 
 include pIUP.e
 
@@ -303,11 +302,11 @@ end function
 
 function item_save_action_cb(Ihandle item_save)
 Ihandle multitext = IupGetDialogChild(item_save, "MULTITEXT");
-string filename = IupGetAttribute(multitext, "FILENAME");
-    if length(filename)=0 then
+object filename = IupGetAttribute(multitext, "FILENAME");
+    if sequence(filename) and length(filename)=0 then
         {} = item_saveas_action_cb(item_save);
     else
-    /* test again because in can be called using the hot key */
+        /* test again because in can be called using the hot key */
         integer dirty = IupGetInt(multitext, "DIRTY");
         if dirty then
             save_file(multitext);
@@ -375,15 +374,12 @@ integer line_count = IupGetInt(multitext, "LINECOUNT");
     IupSetCallback(bt_cancel, "ACTION", Icallback("goto_cancel_action_cb"));
     IupSetAttribute(bt_cancel, "PADDING", "10x2");
 
-    box = IupVbox({
-                    lbl,
-                    txt,
-                    IupSetAttributesf(IupHbox({
-                                               IupFill(),
-                                               bt_ok,
-                                               bt_cancel,
-                                               NULL}), "NORMALIZESIZE=HORIZONTAL"),
-                    NULL});
+    box = IupVbox({lbl,
+                   txt,
+                   IupSetAttributesf(IupHbox({IupFill(),
+                                              bt_ok,
+                                              bt_cancel}),
+                                     "NORMALIZESIZE=HORIZONTAL")});
     IupSetAttribute(box, "MARGIN", "10x10");
     IupSetAttribute(box, "GAP", "5");
 
@@ -398,8 +394,7 @@ integer line_count = IupGetInt(multitext, "LINECOUNT");
 
     if IupGetInt(goto_dlg, "STATUS")==1 then
         integer line = IupGetInt(txt, "VALUE");
-        integer pos;
-        pos = IupTextConvertLinColToPos(multitext, line, 0);
+        integer pos = IupTextConvertLinColToPos(multitext, line, 0);
         IupSetInt(multitext, "CARETPOS", pos);
         IupSetInt(multitext, "SCROLLTOPOS", pos);
     end if
@@ -529,17 +524,16 @@ Ihandle txt_replace, bt_replace;
     IupSetCallback(bt_close, "ACTION", Icallback("find_close_action_cb"));
     IupSetAttribute(bt_close, "PADDING", "10x2");
 
-    box = IupVbox({
-                    IupLabel("Find What:"),
-                    txt,
-                    IupSetAttributesf(IupLabel("Replace with:"), "NAME=REPLACE_LABEL"),
-                    txt_replace,
-                    find_case,
-                    IupSetAttributesf(IupHbox({IupFill(),
+    box = IupVbox({IupLabel("Find What:"),
+                   txt,
+                   IupSetAttributesf(IupLabel("Replace with:"), "NAME=REPLACE_LABEL"),
+                   txt_replace,
+                   find_case,
+                   IupSetAttributesf(IupHbox({IupFill(),
                                                bt_next,
                                                bt_replace,
                                                bt_close}),
-                                      "NORMALIZESIZE=HORIZONTAL")});
+                                     "NORMALIZESIZE=HORIZONTAL")});
     IupSetAttribute(box, "MARGIN", "10x10");
     IupSetAttribute(box, "GAP", "5");
 
@@ -960,17 +954,17 @@ string font;
     IupSetCallback(dlg, "K_cO", Icallback("item_open_action_cb"));
     IupSetCallback(dlg, "K_cS", Icallback("item_save_action_cb"));
     IupSetCallback(dlg, "K_cF", Icallback("item_find_action_cb"));
-    IupSetCallback(dlg, "K_cH", Icallback("item_replace_action_cb"));   /* replace system processing */
+    IupSetCallback(dlg, "K_cH", Icallback("item_replace_action_cb"));   -- replace system processing
     IupSetCallback(dlg, "K_cG", Icallback("item_goto_action_cb"));
     IupSetCallback(dlg, "K_F3", Icallback("find_next_action_cb"));
     IupSetCallback(dlg, "K_cF3", Icallback("selection_find_next_action_cb"));
-    IupSetCallback(dlg, "K_cV", Icallback("item_paste_action_cb")); /* replace system processing */
-  /* Ctrl+C, Ctrl+X, Ctrl+A, Del, already implemented inside IupText */
+    IupSetCallback(dlg, "K_cV", Icallback("item_paste_action_cb"));     -- replace system processing
+    -- Ctrl+C, Ctrl+X, Ctrl+A, Del, already implemented inside IupText
 
-  /* parent for pre-defined dialogs in closed functions (IupMessage and IupAlarm) */
+    -- parent for pre-defined dialogs in closed functions (IupMessage and IupAlarm)
     IupSetAttributeHandle(NULL, "PARENTDIALOG", dlg);
 
-  /* Initialize variables from the configuration file */
+    -- Initialize variables from the configuration file
 
     IupConfigRecentInit(config, recent_menu, Icallback("config_recent_cb"), 10);
 
@@ -1010,12 +1004,13 @@ Ihandle config;
 --
 --  {} = IupOpen(argc, argv);
     IupOpen();
---DEV
+
     IupImageLibOpen();
 
     config = IupConfig();
     IupSetAttribute(config, "APP_NAME", "simple_notepad");
-    {} = IupConfigLoad(config);
+    integer iclerr = IupConfigLoad(config);
+    if iclerr!=0 then ?9/0 end if
 
     dlg = create_main_dialog(config);
 

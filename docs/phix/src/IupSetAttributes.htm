@@ -14,10 +14,14 @@
          </td>
          <td>
           <font face = "Arial, Helvetica">
-            include pIUP.e
+            include pGUI.e
            <br>
            <br>
             IupSetAttributes(Ihandle ih, string attributes, sequence data = {})
+            <br>
+            <i>-- or --</i>
+            <br>
+            Ihandle ih = IupSetAttributesf(Ihandle ih, string attributes, sequence data = {})
           </font>
          </td>
         </tr>
@@ -31,7 +35,7 @@
           <br>
             ih: Identifier of the interface element.
           <br>
-            attributes: string with the attributes in the format "v1=a1, v2=a2,..." where vi is the name of an attribute and ai is its value.
+            attributes: string with the attributes in the format "v1=a1, v2=a2,..." where v<sub>i</sub> is the name of an attribute and a<sub>i</sub> is its value.
           <br>
             data: if a non-empty sequence is passed, it performs attributes = sprintf(attributes,data) first.
          </td>
@@ -44,9 +48,18 @@
             The function IupSetAttributesf is identical, except that it returns the ih parameter, which can make it easier to create dialogs.
             <br>
             <br>
-            Of course there are cases such as IupSetStrAttribute(ih,"TITLE","this,that [SIZE=%d]",data) which <i>cannot</i> be achieved via
-            IupSetAttributes, because of the obvious mis-parsing of commas and equal signs, but also bear such in mind, especially when 
-            data originates from file or user input, as a similar potential catastrophy might not be so readily apparent.
+            Of course there are cases such as a title of "this,that [SIZE=%d]" which are difficult if not impossible to achieve via
+            IupSetAttributes, because of the obvious mis-parsing of commas, spaces, and equal signs. Bear this in mind, especially when 
+            the data originates from file or user input, as a similar potential error might not be so readily apparent. I also understand
+            that quotation marks are parsed, so eg IupSetAttributes(ih,"TITLE=\"Address Book\", SIZE=500x300") works fine, which may or 
+            may not solve the issue with the previous example. However there is no way to include literal quotation marks in a value when 
+            using IupSetAttributes. Any such fields must be set individually using IupSetAttribute or (perhaps better) IupSetStrAttribute. 
+            If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
+            <br>
+            <br>
+            There is no wrapper for the C function IupSetAtt: a call such as 
+            <code>IupSetAtt(NULL, list, "VALUE", "3", "1", "Brazil", "2", "USA", "3", "Japan", "4", "France", NULL);</code>
+            should be translated as shown for example 2 below, or separate calls to IupSet[Str]Attribute.
          </td>
         </tr>
         <tr>
@@ -67,6 +80,14 @@ dialog = IupSetAttributesf(IupDialog(IupSetAttributesf(IupHBox({canvas}),
 </font><font color="#000000">dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupSetAttributesf</font><font color="#0000FF">(</font><font color="#5E005E">IupDialog</font><font color="#800000">(</font><font color="#5E005E">IupSetAttributesf</font><font color="#800080">(</font><font color="#000000">IupHBox</font><font color="#00FF00">(</font><font color="#000080">{</font><font color="#000000">canvas</font><font color="#000080">}</font><font color="#00FF00">)</font><font color="#0000FF">,
 </font><font color="#008000">                                                       "MARGIN=10x10"</font><font color="#800080">)</font><font color="#800000">)</font><font color="#0000FF">,
 </font><font color="#008000">                           "TITLE=Test"</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Admittedly the second statement could be written more succinctly:
+<!--eucode>
+dialog = IupDialog(IupHBox({canvas},"MARGIN=10x10"),"TITLE=Test")
+</eucode-->
+<pre>
+<font color="#000000">dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">IupHBox</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">canvas</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#008000">"MARGIN=10x10"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"TITLE=Test"</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
@@ -105,12 +126,8 @@ Ihandle list = IupSetAttributesf(IupList(NULL),
           <b>See Also:</b>
          </td>
          <td>
-          <a href="IupClose.htm">IupClose</a>,
-          <a href="prepend.htm">?IupMainLoop</a>
-          <br>
-          <!--DEV-->
-See also IupSetCallbacks.
-See Also IupGetAttribute, IupSetAttribute, IupGetAttributes, IupSetAtt
+          <a href="IupGetAttribute.htm">IupGetAttribute</a>,
+          <a href="IupSetAttribute.htm">IupSetAttribute</a>
          </td>
         </tr>
        </table>

@@ -2125,9 +2125,10 @@ atom gvarptr
     end if
 --puts(1,"d2a\n")
     abortcode = 1
-    if string(crash_msg) then
-        msg = crash_msg
-    elsif msg_id<1 or msg_id>length(msgs) then
+--  if string(crash_msg) then
+--      msg = crash_msg
+--  els
+    if msg_id<1 or msg_id>length(msgs) then
         msg = sprintf("diag(%d) [**BAD MESSAGE ID**] called\n",msg_id)
 --      msg_id = 1 --DEV abortcode
 --      abortcode = 1
@@ -2284,6 +2285,7 @@ atom gvarptr
 --              wmsg = "[MEMORY VIOLATION]"
 --          elsif xceptn=#C00000FD-#100000000 then
 --              wmsg = "[STACK OVERFLOW]"
+--#80000003/[EXCEPTION_BREAKPOINT(int3)]
 --          else
                 wmsg = sprintf("#%08x",xceptn)
 --          end if

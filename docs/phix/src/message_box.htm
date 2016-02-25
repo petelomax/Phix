@@ -24,8 +24,8 @@
          </td>
          <td>
           <font face = "Arial, Helvetica"> include msgbox.e
-           <BR>
-             integer i = message_box(sequence msg, sequence title, object style)
+           <br>
+             integer i = message_box(string msg, string title, integer style=MB_OK, atom hWnd=mWnd)
           </font>
          </td>
         </tr>
@@ -37,24 +37,137 @@
             Display a window with the specified message and title.
             <br>
             <br>
-            The style parameter determines the combination of buttons that will be 
-            available for the user to press, plus some other characteristics. It can be
-            an atom or a sequence.
+            The style parameter determines the combination of buttons that are available for the user to press, plus 
+            some other characteristics, as detailed below.
             <br>
             <br>
-            A return value of 0 indicates a failure to set up the window.
+            The hWnd parameter allows you to specify the owning window, see notes below.
+            <br>
+            <br>
+            A return value of 0 indicates a failure to set up the window, otherwise one of the values listed below is returned.
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Comments:</b>
          </td>
-<!-- DEV -->
-         <td>See
-          <font color="#5500FF">
-           <b>builtins\msgbox.e</b>
-          </font> for a complete list of possible values for style and i.
-         </td>
+         <td>
+<!-- DEV
+            Previous versions allowed style to be a sequence - for legacy code wrap such in <a href="or_all.htm">or_all</a>().
+-->
+            Previous versions allowed style to be a sequence - for legacy code wrap such in or_all().
+            <br>
+            <br>
+            Previous versions of this routine used a hWnd obtained from the C function GetActiveWindow, which could cause all
+            manner of rude and and nasty behaviour, including disabling Task Manager, at least according to Raymond Chen. You
+            can use procedure set_mb_hwnd(atom hWnd) to set a default for all future calls to message_box(). There is little or 
+            no excuse for being unable to provide a better and more sensible value, however if hWnd is NULL, then MB_TASKMODAL 
+            is applied automatically (suspends all top-level windows associated with the current thread).
+            <br>
+            <br>
+            The following constants should be used for style:
+            <br>
+            <br>
+            To indicate the buttons displayed in the message box, specify one of the following values [optionally plus MB_HELP].
+            <br>
+            &nbsp
+            <br>
+            <table valign=top>
+             <col style="width: 5%"/>
+             <tr><td><b>MB_OK</b></td>                  <td width=60>#00</td>       <td width=10>-</td><td>OK</td></tr>
+             <tr><td><b>MB_OKCANCEL</b></td>            <td width=60>#01</td>       <td width=10>-</td><td>OK and Cancel</td></tr>
+             <tr><td><b>MB_ABORTRETRYIGNORE</b></td>    <td width=60>#02</td>       <td width=10>-</td><td>Abort, Retry, Ignore (use 6 instead)</td></tr>
+             <tr><td><b>MB_YESNOCANCEL</b></td>         <td width=60>#03</td>       <td width=10>-</td><td>Yes, No, and Cancel</td></tr>
+             <tr><td><b>MB_YESNO</b></td>               <td width=60>#04</td>       <td width=10>-</td><td>Yes and No</td></tr>
+             <tr><td><b>MB_RETRYCANCEL</b></td>         <td width=60>#05</td>       <td width=10>-</td><td>Retry and Cancel</td></tr>
+             <tr><td><b>MB_CANCELTRYCONTINUE</b></td>   <td width=60>#06</td>       <td width=10>-</td><td>Cancel, Try Again, Continue</td></tr>
+             <tr><td><b>MB_HELP</b></td>                <td width=60>#4000</td>     <td width=10>-</td><td>Add a Help button (sends WM_HELP)</td></tr>
+            </table>
+            <br>
+            &nbsp
+            <br>
+            To display an icon in the message box, specify one of the following values. <br>
+            Note that MB_ICONQUESTION is no longer recommended as it is ambiguous with respect to question vs. help, and should therefore be avoided.
+            <br>
+            &nbsp
+            <br>
+            <table valign=top>
+             <col style="width: 5%"/>
+             <tr><td><b>MB_ICONSTOP</b></td>            <td width=60>#10</td>       <td width=10>-</td><td>A stop-sign appears</td></tr>
+             <tr><td><b>MB_ICONHAND</b></td>            <td width=60>#10</td>       <td width=10>-</td><td>(same as MB_ICONSTOP)</td></tr>
+             <tr><td><b>MB_ICONERROR</b></td>           <td width=60>#10</td>       <td width=10>-</td><td>(same as MB_ICONSTOP)</td></tr>
+             <tr><td><b>MB_ICONQUESTION</b></td>        <td width=60>#20</td>       <td width=10>-</td><td>A question-mark icon appears (deprecated)</td></tr>
+             <tr><td><b>MB_ICONEXCLAMATION</b></td>     <td width=60>#30</td>       <td width=10>-</td><td>Exclamation-point appears in the box</td></tr>
+             <tr><td><b>MB_ICONWARNING</b></td>         <td width=60>#30</td>       <td width=10>-</td><td>(same as MB_ICONEXCLAMATION)</td></tr>
+             <tr><td><b>MB_ICONASTERISK</b></td>        <td width=60>#40</td>       <td width=10>-</td><td>Lowercase letter i in a circle appears</td></tr>
+             <tr><td><b>MB_ICONINFORMATION</b></td>     <td width=60>#40</td>       <td width=10>-</td><td>(same as MB_ICONASTERISK)</td></tr>
+            </table>
+            <br>
+            &nbsp
+            <br>
+            To specify the default button, (ie the one that gets initial focus and is selected by Return) specify one of the following values.
+            <br>
+            &nbsp
+            <br>
+            <table valign=top>
+             <col style="width: 5%"/>
+             <tr><td><b>MB_DEFBUTTON1</b></td>          <td width=60>#000</td>      <td width=10>-</td><td>First button (default)</td></tr>
+             <tr><td><b>MB_DEFBUTTON2</b></td>          <td width=60>#100</td>      <td width=10>-</td><td>Second button</td></tr>
+             <tr><td><b>MB_DEFBUTTON3</b></td>          <td width=60>#200</td>      <td width=10>-</td><td>Third button</td></tr>
+             <tr><td><b>MB_DEFBUTTON4</b></td>          <td width=60>#300</td>      <td width=10>-</td><td>Fourth button</td></tr>
+            </table>
+            <br>
+            &nbsp
+            <br>
+            To indicate the modality of the dialog box, specify one of the following values.
+            <br>
+            &nbsp
+            <br>
+            <table valign=top>
+             <col style="width: 5%"/>
+             <tr><td><b>MB_APPLMODAL</b></td>           <td width=60>#0000</td>     <td width=10>-</td><td>User must respond before doing something else (default)</td></tr>
+             <tr><td><b>MB_SYSTEMMODAL</b></td>         <td width=60>#1000</td>     <td width=10>-</td><td>Serious: All applications suspended until user responds</td></tr>
+             <tr><td><b>MB_TASKMODAL</b></td>           <td width=60>#2000</td>     <td width=10>-</td><td>Similar to MB_APPLMODAL, for when hWnd=NULL</td></tr>
+            </table>
+            <br>
+            &nbsp
+            <br>
+            To specify other options, use one or more of the following values.
+            <br>
+            &nbsp
+            <br>
+            <table valign=top>
+             <col style="width: 5%"/>
+             <tr><td><b>MB_SETFOREGROUND</b></td>       <td width=60>#10000</td>    <td width=10>-</td><td>Message box becomes the foreground window</td></tr>
+             <tr><td><b>MB_DEFAULT_DESKTOP_ONLY</b></td><td width=60>#20000</td>    <td width=10>-</td><td>Same as desktop of the interactive window station</td></tr>
+             <tr><td><b>MB_TOPMOST</b></td>             <td width=60>#40000</td>    <td width=10>-</td><td>Message box has the WS_EX_TOPMOST style</td></tr>
+             <tr><td><b>MB_RIGHT</b></td>               <td width=60>#80000</td>    <td width=10>-</td><td>The text is right-justified</td></tr>
+             <tr><td><b>MB_RTLREADING</b></td>          <td width=60>#100000</td>   <td width=10>-</td><td>For Hebrew and Arabic systems</td></tr>
+             <tr><td><b>MB_SERVICE_NOTIFICATION</b></td><td width=60>#200000</td>   <td width=10>-</td><td>Serious: The caller is a service. hWnd must be NULL.</td></tr>
+            </table>
+           <br>
+            &nbsp;
+           <br>
+            Possible values returned by message_box() (0 means failure):
+           <br>
+            &nbsp
+            <br>
+            <table valign=top>
+             <col style="width: 5%"/>
+             <tr><td><b>IDABORT</b></td>    <td width=15>3</td> <td width=10>-</td><td>Abort button was selected.</td></tr>
+             <tr><td><b>IDCANCEL</b></td>   <td width=15>2</td> <td width=10>-</td><td>Cancel button was selected.</td></tr>
+             <tr><td><b>IDCONTINUE</b></td> <td width=15>11</td><td width=10>-</td><td>Continue button was selected.</td></tr>
+             <tr><td><b>IDIGNORE</b></td>   <td width=15>5</td> <td width=10>-</td><td>Ignore button was selected.</td></tr>
+             <tr><td><b>IDNO</b></td>       <td width=15>7</td> <td width=10>-</td><td>No button was selected.</td></tr>
+             <tr><td><b>IDOK</b></td>       <td width=15>1</td> <td width=10>-</td><td>OK button was selected.</td></tr>
+             <tr><td><b>IDRETRY</b></td>    <td width=15>4</td> <td width=10>-</td><td>Retry button was selected.</td></tr>
+             <tr><td><b>IDTRYAGAIN</b></td> <td width=15>10</td><td width=10>-</td><td>Try Again button was selected.</td></tr>
+             <tr><td><b>IDYES</b></td>      <td width=15>6</td> <td width=10>-</td><td>Yes button was selected.</td></tr>
+            </table>
+           <br>
+            &nbsp;
+           <br>
+          </td>
         </tr>
         <tr>
          <td valign=top>
@@ -62,18 +175,20 @@
          </td>
          <td>
 <!--eucode>
-response = message_box("Do you wish to proceed?",
-                       "My Application",
-                       MB_YESNOCANCEL)
-if response = IDCANCEL or response = IDNO then
+set_mb_hwnd(getHwnd(main)) -- (or 4th param on each call)
+integer response = message_box("Do you wish to proceed?",
+                               "My Application",
+                               MB_YESNOCANCEL)
+if response=IDCANCEL or response=IDNO then
     abort(1)
 end if
 </eucode-->
 <pre>
-<font color="#000000">response</font><font color="#0000FF"> =</font><font color="#5E005E"> message_box</font><font color="#0000FF">(</font><font color="#008000">"Do you wish to proceed?"</font><font color="#0000FF">,
-</font><font color="#008000">                       "My Application"</font><font color="#0000FF">,
-</font><font color="#004600">                       MB_YESNOCANCEL</font><font color="#0000FF">)
-</font><font color="#008080">if</font><font color="#000000"> response</font><font color="#0000FF"> =</font><font color="#004600"> IDCANCEL</font><font color="#008080"> or</font><font color="#000000"> response</font><font color="#0000FF"> =</font><font color="#004600"> IDNO</font><font color="#008080"> then
+<font color="#000000"></font><font color="#5E005E">set_mb_hwnd</font><font color="#0000FF">(</font><font color="#000000">getHwnd</font><font color="#800000">(</font><font color="#000000">main</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- (or 4th param on each call)
+</i></font><font color="#004080">integer</font><font color="#000000"> response</font><font color="#0000FF"> =</font><font color="#5E005E"> message_box</font><font color="#0000FF">(</font><font color="#008000">"Do you wish to proceed?"</font><font color="#0000FF">,
+</font><font color="#008000">                               "My Application"</font><font color="#0000FF">,
+</font><font color="#004600">                               MB_YESNOCANCEL</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> response</font><font color="#0000FF">=</font><font color="#004600">IDCANCEL</font><font color="#008080"> or</font><font color="#000000"> response</font><font color="#0000FF">=</font><font color="#004600">IDNO</font><font color="#008080"> then
 </font><font color="#7060A8">    abort</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">)
 </font><font color="#008080">end if</font>
 </pre>

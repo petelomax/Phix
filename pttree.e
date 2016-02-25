@@ -1196,6 +1196,7 @@ global constant T_iff           = 4872  tt_stringF("iff",T_iff)
 global constant T_iif           = 4884  tt_stringF("iif",T_iif)
 global constant T_EU4_1         = 4904  tt_stringF("EU4_1",T_EU4_1)
 
+--global constant T_movq            = 4912  tt_stringF("movq",T_movq)
 --global constant gtiTestM  = T_ilASM+0     tt_glabel("%opTestM", gtiTestM)
 --global constant gtiopTestM        = 4020  tt_glabel("%opTestM", gtiopTestM)
 --global constant gtiopFrame        = 4044  tt_glabel("%opFrame", gtiopFrame)

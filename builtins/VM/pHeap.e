@@ -981,6 +981,8 @@ end procedure -- (for Edita/CtrlQ)
         --   (but feel free to save/restore them here, if it helps any)
         --  result in eax/rax
         [PE32]
+--DEV for the crack, when you've bored, instead try ([also try debugging] then try PE64, then replace everywhere it's called)
+--          mov eax,fs:[0x24]
             call "kernel32.dll","GetCurrentThreadId"
         [ELF32]
             mov eax,20              -- sys_getpid()

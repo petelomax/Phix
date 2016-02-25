@@ -13,8 +13,16 @@ global type Ihandln(integer i)
     return i>=0
 end type
 
+sequence callbacks = {}
+
+type cbfunc(atom cb)
+    return cb=NULL or rfind(cb,callbacks)!=0
+end type
+
 global function Icallback(sequence name, atom rid = routine_id(name))
-    return call_back({'+', rid})
+    atom cb = call_back({'+', rid})
+    callbacks = append(callbacks,cb)
+    return cb
 end function
 
 --type non_null_atom(object o)
@@ -31,7 +39,9 @@ end type
 
 -- only used by IupSetAttribute and cdCreateCanvas:
 type atom_string(object o)
-    return string(o) or (integer(o) and o>=NULL) or (atom(o) and o>=NULL and o=floor(o))
+    return string(o) 
+        or (integer(o) and o>=NULL) 
+        or (atom(o) and o>=NULL and o=floor(o))
 end type
 
 global function rand_range(integer lo, integer hi)
@@ -40,37 +50,42 @@ global function rand_range(integer lo, integer hi)
     return lo+rand(hi-lo)
 end function
 
-global procedure free_pointer_array(atom pointers_array)
-atom next_ptr = pointers_array, ptr
-    while 1 do
-        ptr = peekNS(next_ptr,machine_word(),0)
-        if ptr=0 then exit end if
-        free(ptr)
-        next_ptr += machine_word()
-    end while
-    free(pointers_array)
-end procedure
-constant FREE_ARRAY_RID = routine_id("free_pointer_array")
-
-global function allocate_pointer_array(sequence pointers, integer cleanup = 0)
+global function ptr_array(sequence pointers)
 atom pList
 
     pointers &= 0
     pList = allocate(length(pointers)*machine_word())
     pokeN(pList, pointers, machine_word())
---  if machine_bits()=32 then
---      pList = allocate(length(pointers)*4)
---      poke4(pList, pointers)
---  else
---      pList = allocate(length(pointers)*8)
---      poke8(pList, pointers)
---  end if
-    if cleanup then
-        return delete_routine(pList, FREE_ARRAY_RID)
-    end if
     return pList
 end function
 
+--global 
+function peek_double(object pDouble)
+sequence doubles
+
+    if atom(pDouble) then
+        return float64_to_atom(peek({pDouble,8}))
+    else
+        doubles = {}
+
+        for i=1 to pDouble[2] do
+            doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
+        end for
+
+        return doubles
+    end if
+end function
+
+--global 
+procedure poke_double(atom ptr, object data)
+    if atom(data) then
+        poke(ptr,atom_to_float64(data))
+    else
+        for i=1 to length(data) do
+            poke(ptr+8*(i-1),atom_to_float64(data[i]))
+        end for
+    end if
+end procedure
 
 global constant
     IUP_ERROR       = 1,
@@ -92,8 +107,15 @@ global constant
 
     IUP_MASK_UINT = "/d+",
 
+    K_ESC = 0xFF1B,
+
     ACTION = "ACTION",
     ACTION_CB = "ACTION_CB",
+    $
+
+global enum
+    IUP_RECBINARY = 0,
+    IUP_RECTEXT,
     $
 
 include builtins\VM\\pcmdlnN.e      -- command_line()
@@ -119,12 +141,12 @@ end function
 
 constant
          D  = C_DOUBLE, 
---       F  = C_FLOAT, 
+--       F  = C_FLOAT,      -- NB: VM/pcfuncN.e may not be up to this..
          I  = C_INT,
          L  = C_LONG,
          P  = C_POINTER, 
 --       UC = C_UCHAR,
---       UL = C_ULONG,
+         UL = C_ULONG,
          $
 
 constant atom iup = iup_open_dll({"iup.dll",
@@ -138,8 +160,7 @@ constant atom iupControls = iup_open_dll({"iupcontrols.dll",
 constant atom iupimglib = iup_open_dll({"iupimglib.dll",
                                           "libiupimglib.so"})
 
-
-constant 
+constant
     xIupOpen = define_c_func(iup, "IupOpen", {P,P},I),
     xIupControlsOpen = define_c_proc(iupControls, "IupControlsOpen", {}),
     xIupImageLibOpen = define_c_proc(iupimglib, "IupImageLibOpen", {}),
@@ -152,15 +173,21 @@ constant
     xIupRefresh = define_c_proc(iup, "IupRefresh", {P}),
     xIupSetFocus = define_c_proc(iup, "IupSetFocus", {P}),
     xIupSetCallback = define_c_func(iup, "IupSetCallback", {P,P,P},P),
+    xIupVersion = define_c_func(iup, "IupVersion", {},P),
+    xIupVersionDate = define_c_func(iup, "IupVersionDate", {}, P),
+    xIupVersionNumber = define_c_func(iup, "IupVersionNumber", {}, I),
+
     xIupSetAttribute = define_c_proc(iup, "IupSetAttribute", {P,P,P}),
-    xIupSetStrAttribute = define_c_proc(iup, "IupSetStrAttribute", {P,P,P}),
-    xIupSetInt = define_c_proc(iup, "IupSetInt", {P,P,I}),
-    xIupStoreAttribute = define_c_proc(iup, "IupStoreAttribute", {P,P,P}),
     xIupSetAttributes = define_c_proc(iup, "IupSetAttributes", {P,P}),
     xIupSetAttributeHandle = define_c_proc(iup, "IupSetAttributeHandle", {P,P,P}),
     xIupSetHandle = define_c_proc(iup, "IupSetHandle", {P,P}),
+    xIupSetInt = define_c_proc(iup, "IupSetInt", {P,P,I}),
+    xIupSetStrAttribute = define_c_proc(iup, "IupSetStrAttribute", {P,P,P}),
+    xIupStoreAttribute = define_c_proc(iup, "IupStoreAttribute", {P,P,P}),
     xIupGetAttribute = define_c_func(iup, "IupGetAttribute", {P,P},P),
     xIupGetInt = define_c_func(iup, "IupGetInt", {P,P},I),
+    xIupGetInt2 = define_c_func(iup, "IupGetInt", {P,P},I),
+    xIupGetIntInt = define_c_func(iup, "IupGetIntInt", {P,P,P,P},I),
 --  xIupGetAllClasses = define_c_func(hIup, "IupGetAllClasses", {P,I},I),
     xIupGetClassName = define_c_func(iup, "IupGetClassName", {P},P),
 --  xIupGetClassType = define_c_func(hIup, "IupGetClassType", {P},P),
@@ -169,28 +196,40 @@ constant
 --  xIupSaveClassAttributes = define_c_proc(hIup, "IupSaveClassAttributes", {P}),
 --  xIupCopyClassAttributes = define_c_proc(hIup, "IupCopyClassAttributes", {P,P}),
 --  xIupSetClassDefaultAttribute = define_c_proc(hIup, "IupSetClassDefaultAttribute", {P,P,P}),
+
     xIupAlarm = define_c_func(iup, "IupAlarm", {P,P,P,P,P},I),
     xIupMessage = define_c_proc(iup, "IupMessage", {P,P}),
     xIupButton = define_c_func(iup, "IupButton", {P,P},P),
     xIupCanvas = define_c_func(iup, "IupCanvas", {P},P),
+    xIupCboxv = define_c_func(iup, "IupCboxv", {P},P),
     xIupFill  = define_c_func(iup, "IupFill", {},P),
     xIupFrame = define_c_func(iup, "IupFrame", {P},P),
     xIupHboxv = define_c_func(iup, "IupHboxv", {P},P),
     xIupImage = define_c_func(iup, "IupImage", {I,I,P},P),
+    xIupImageRGB = define_c_func(iup, "IupImageRGB", {I,I,P},P),
+    xIupImageRGBA = define_c_func(iup, "IupImageRGBA", {I,I,P},P),
     xIupLabel = define_c_func(iup, "IupLabel", {P},P),
+    xIupList = define_c_func(iup, "IupList", {P},P),
     xIupMenuv = define_c_func(iup, "IupMenuv", {P},P),
     xIupItem = define_c_func(iup, "IupItem",  {P,P},P),
     xIupSeparator = define_c_func(iup, "IupSeparator", {},P),
     xIupSubmenu = define_c_func(iup, "IupSubmenu", {P,P},P),
+    xIupProgressBar = define_c_func(iup, "IupProgressBar", {},P),
     xIupRadio = define_c_func(iup, "IupRadio", {P},P),
+    xIupTabsv = define_c_func(iup, "IupTabsv", {P},P),
     xIupText = define_c_func(iup, "IupText", {P},P),
     xIupMultiLine = define_c_func(iup, "IupMultiLine", {P},P),
     xIupTextConvertLinColToPos = define_c_proc(iup, "IupTextConvertLinColToPos", {P,I,I,P}),
     xIupTextConvertPosToLinCol = define_c_proc(iup, "IupTextConvertPosToLinCol", {P,I,P,P}),
     xIupTimer = define_c_func(iup, "IupTimer", {},P),
     xIupToggle = define_c_func(iup, "IupToggle", {P,P},P),
+    xIupTree = define_c_func(iup, "IupTree", {},P),
+    xIupVal = define_c_func(iup, "IupVal", {P},P),
     xIupVboxv = define_c_func(iup, "IupVboxv", {P},P),
     xIupZboxv = define_c_func(iup, "IupZboxv", {P},P),
+
+    xIupMap = define_c_func(iup, "IupMap", {P},I),
+--  xIupUnmap = define_c_proc(iup, "IupUnmap", {P}),
     xIupMainLoop = define_c_proc(iup, "IupMainLoop", {}),
     xIupDestroy = define_c_proc(iup, "IupDestroy", {P}),
     xIupFileDlg = define_c_func(iup, "IupFileDlg", {},P),
@@ -198,6 +237,9 @@ constant
     xIupGetColor = define_c_func(iup, "IupGetColor", {I,I,P,P,P},I),
 --  xIupGetParam = define_c_func(iup, "IupGetParam", {P,P,P,P,P,P,P,P,P,P,P,P,P,P,P},I),
     xIupGetParam = define_c_func(iup, "IupGetParam", {P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P},I),
+    xIupGetParamv = define_c_func(iup, "IupGetParamv", {P,P,P,P,I,I,P}, I),
+    xIupRecordInput = define_c_func(iup, "IupRecordInput", {P,I},I),
+    xIupPlayInput = define_c_func(iup, "IupPlayInput", {P},I),
 --/*
     xIupSetHandle = define_c_proc(iup, "IupSetHandle", {P,P}),
 --  xIupGetHandle = define_c_func(iup, "IupGetHandle", {P},P),
@@ -212,6 +254,7 @@ constant
 --  xIupSaveClassAttributes = define_c_proc(iup, "IupSaveClassAttributes", {P}),
 --  xIupCopyClassAttributes = define_c_proc(iup, "IupCopyClassAttributes", {P,P}),
 --  xIupSetClassDefaultAttribute = define_c_proc(iup, "IupSetClassDefaultAttribute", {P,P,P}),
+--*/
     xIupSetGlobal = define_c_proc(iup, "IupSetGlobal", {P,P}),
     xIupGetGlobal = define_c_func(iup, "IupGetGlobal", {P},P),
     xiupKeyCodeToName = define_c_func(iup, "iupKeyCodeToName", {I},P),
@@ -219,7 +262,6 @@ constant
 --  xIupDetach = define_c_proc(iup, "IupDetach", {P}),
 --  xIupInsert = define_c_func(iup, "IupInsert", {P,P,P},P),
 --  xIupReparent = define_c_func(iup, "IupReparent", {P,P,P},P),
---*/
     xIupGetParent = define_c_func(iup, "IupGetParent", {P},P),
     xIupGetChild = define_c_func(iup, "IupGetChild", {P,I},P),
 --  xIupGetChildPos = define_c_func(iup, "IupGetChildPos", {P,P},I),
@@ -259,6 +301,12 @@ constant
     xIupHelp = define_c_func(iup, "IupHelp", {P},I),
     $
 
+--DEV
+--sequence cmd = command_line()
+--sequence argv = cmd[3..$]
+--integer argc = length(argv)
+--
+--  {} = IupOpen(argc, argv);
 global procedure IupOpen()
     if c_func(xIupOpen, {NULL,NULL})=IUP_ERROR then ?9/0 end if
 end procedure
@@ -311,6 +359,33 @@ end procedure
 global procedure IupSetFocus(Ihandle ih)
     c_proc(xIupSetFocus, {ih})
 end procedure
+
+global function iup_version()
+    -- static value internal to iup, do not need to free
+    return peek_string(c_func(xIupVersion))
+end function
+
+--char* IupVersion(void);
+public function IupVersion()
+atom ptr = c_func(xIupVersion, {})
+sequence str = ""
+    if ptr!=NULL then str = peek_string(ptr) end if
+    return str
+end function
+
+--char* IupVersionDate(void);
+public function IupVersionDate()
+atom ptr = c_func(xIupVersionDate, {})
+sequence str = ""
+    if ptr!=NULL then str = peek_string(ptr) end if
+    return str
+end function
+
+--int IupVersionNumber(void);
+public function IupVersionNumber()
+atom result = c_func(xIupVersionNumber, {})
+    return result
+end function
 
 
 global procedure IupSetAttribute(Ihandln ih, string name, atom_string val)
@@ -365,25 +440,52 @@ global procedure IupSetHandle(string name, Ihandle ih)
 end procedure
 
 global function IupGetAttribute(Ihandle ih, string name)
-atom pValue = c_func(xIupGetAttribute, {ih, name})
+    atom pValue = c_func(xIupGetAttribute, {ih, name})
     if pValue=NULL then return NULL end if
     return peek_string(pValue)
 end function
 
 global function IupGetInt(Ihandle ih, string name)
-integer res = c_func(xIupGetInt, {ih, name})
+    atom res = c_func(xIupGetInt, {ih, name})
     return res
+end function
+
+global function IupGetInt2(Ihandle ih, string name)
+    atom res = c_func(xIupGetInt2, {ih, name})
+    return res
+end function
+
+global function IupGetIntInt(Ihandle ih, string name)
+sequence res
+atom pTwoInts = allocate(8)
+    if c_func(xIupGetIntInt, {ih,name,pTwoInts,pTwoInts+4})!=2 then ?9/0 end if
+    res = {peek4s(pTwoInts),peek4s(pTwoInts+4)}
+    free(pTwoInts)
+    return res
+end function
+
+global procedure IupSetGlobal(string name, nullable_string v)
+    c_proc(xIupSetGlobal, {name, v})
+end procedure
+
+global function IupGetGlobal(string name)
+    return peek_string(c_func(xIupGetGlobal, {name}))
+end function
+
+global function IupGetGlobalInt(string name)
+    return c_func(xIupGetGlobal, {name})
 end function
 
 global function IupGetClassName(Ihandle ih)
     return peek_string(c_func(xIupGetClassName, {ih}))
 end function
 
-global procedure IupSetCallback(Ihandle ih, string name, atom func)
-    func = c_func(xIupSetCallback, {ih, name, func})
+global procedure IupSetCallback(Ihandle ih, string name, cbfunc func)
+--  func = c_func(xIupSetCallback, {ih, name, func})
+    atom prev = c_func(xIupSetCallback, {ih, name, func})
 end procedure
 
-global function IupSetCallbackf(Ihandle ih, string name, atom func)
+global function IupSetCallbackf(Ihandle ih, string name, cbfunc func)
     IupSetCallback(ih, name, func)
     return ih
 end function
@@ -433,13 +535,34 @@ atom pPixels = allocate(length(pixels))
     return ih
 end function
 
+global function IupImageRGB(integer width, integer height, sequence pixels)
+atom pPixels = allocate(length(pixels))
+    poke(pPixels, pixels)
+    Ihandle ih = c_func(xIupImageRGB, {width, height, pPixels})
+    free(pPixels)
+    return ih
+end function
+
+global function IupImageRGBA(integer width, integer height, sequence pixels)
+atom pPixels = allocate(length(pixels))
+    poke(pPixels, pixels)
+    Ihandle ih = c_func(xIupImageRGBA, {width, height, pPixels})
+    free(pPixels)
+    return ih
+end function
+
 global function IupLabel(string title)
     Ihandle ih = c_func(xIupLabel, {title})
     return ih
 end function
 
+global function IupList(nullable_string action = NULL)
+    Ihandle ih = c_func(xIupList, {action})
+    return ih
+end function
+
 global function IupMenu(sequence children)
-atom pChildren = allocate_pointer_array(children)
+atom pChildren = ptr_array(children)
 Ihandle ih = c_func(xIupMenuv, {pChildren})
     free(pChildren)
     return ih
@@ -470,8 +593,20 @@ global function IupSubmenu(nullable_string title, Ihandle menu)
     return ih
 end function
 
+global function IupProgressBar()
+    Ihandle ih = c_func(xIupProgressBar, {})
+    return ih
+end function
+
 global function IupRadio(Ihandle pChild)
     Ihandle ih = c_func(xIupRadio, {pChild})
+    return ih
+end function
+
+global function IupTabs(sequence children)
+atom pChildren = ptr_array(children)
+    Ihandle ih = c_func(xIupTabsv, {pChildren})
+    free(pChildren)
     return ih
 end function
 
@@ -517,8 +652,33 @@ global function IupToggle(string title, nullable_string action = NULL)
     return ih
 end function
 
+global function IupTree()
+    Ihandle ih = c_func(xIupTree, {})
+    return ih
+end function
+
+global function IupVal(nullable_string orientation=NULL)
+    Ihandle ih = c_func(xIupVal, {orientation})
+    return ih
+end function
+
+global function IupValuator(nullable_string orientation=NULL)
+    Ihandle ih = c_func(xIupVal, {orientation})
+    return ih
+end function
+
+global function IupCbox(sequence children, string attributes = "", sequence data = {})
+atom pChildren = ptr_array(children)
+    Ihandle ih = c_func(xIupCboxv, {pChildren})
+    free(pChildren)
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
 global function IupHbox(sequence children, string attributes = "", sequence data = {})
-atom pChildren = allocate_pointer_array(children)
+atom pChildren = ptr_array(children)
     Ihandle ih = c_func(xIupHboxv, {pChildren})
     free(pChildren)
     if length(attributes) then
@@ -528,7 +688,7 @@ atom pChildren = allocate_pointer_array(children)
 end function
 
 global function IupVbox(sequence children, string attributes = "", sequence data = {})
-atom pChildren = allocate_pointer_array(children)
+atom pChildren = ptr_array(children)
     Ihandle ih = c_func(xIupVboxv, {pChildren})
     free(pChildren)
     if length(attributes) then
@@ -538,7 +698,7 @@ atom pChildren = allocate_pointer_array(children)
 end function
 
 global function IupZbox(sequence children, string attributes = "", sequence data = {})
-atom pChildren = allocate_pointer_array(children)
+atom pChildren = ptr_array(children)
     Ihandle ih = c_func(xIupZboxv, {pChildren})
     free(pChildren)
     if length(attributes) then
@@ -546,6 +706,10 @@ atom pChildren = allocate_pointer_array(children)
     end if
     return ih
 end function
+
+global procedure IupMap(Ihandle ih)
+    if c_func(xIupMap, {ih})!=IUP_NOERROR then ?9/0 end if
+end procedure
 
 global procedure IupMainLoop()
     c_proc(xIupMainLoop, {})
@@ -586,6 +750,126 @@ atom pR, pG, pB
     return {result, r, g, b}
 end function
 
+function iup_ptr_array(sequence pointers)
+atom pList
+    pointers &= 0
+    pList = allocate(length(pointers)*machine_word())
+    pokeN(pList, pointers, machine_word())
+    return pList
+end function
+
+global function IupGetParamv(string title, cbfunc action, atom user_data, string fmt, sequence param_data = {})
+--?                                         cbfunc?                                  ?                    ?
+--  atom p_param_data = iup_ptr_array(param_data)
+--  atom result = c_func(xIupGetParamv, {title,action,user_data,fmt,param_count,param_extra,p_param_data})
+--? atom result = c_func(xIupGetParamv, {title,action,user_data,fmt,?length(param_data),param_extra,p_param_data})
+--  free(p_param_data)
+--  return result
+
+--?atom pRid = 0
+integer param_count = 0-- length(param_data)
+--sequence pN = repeat(0,21)
+
+    controls_open()
+
+--  if la>20 then
+--      -- if this triggers, because you genuinely want >20 args, just
+--      --  increase the define_c_func and the 20/21 in here to match.
+--      ?9/0
+--  end if
+--
+--DEV??
+--  if rid>0 then
+--      pRid = call_back({'+', rid})
+--  end if
+
+    integer fskip = 0
+    integer param_extra = 0
+    string fmts = ""
+    for i=1 to length(fmt) do
+        if fskip then
+            fskip -= 1
+        elsif fmt[i]='%' then
+            integer fi = fmt[i+1]
+            if fi='%' then
+                fskip = 1
+--          elsif not find(fi,"ut") then
+            elsif find(fi,"uth") then   -- dunno what to do with a handle...
+                param_extra += 1
+            else
+                fmts = append(fmts,fi)
+                param_count += 1
+            end if
+        end if
+    end for
+
+    if length(fmts)!=param_count then ?9/0 end if
+    if length(param_data)!=param_count then ?9/0 end if
+
+    sequence pN = repeat(0,param_count)
+
+    for i=param_count to 1 by -1 do
+        object param = param_data[i]
+        integer fi = fmts[i]
+        atom p
+        if find(fi,"bilo") then                     -- bool/int/list/radio
+            if not integer(param) then ?9/0 end if
+            p = allocate(4)
+            poke4(p, param)
+        elsif find(fi,"ra") then                    -- real/angle (as 32-bit float)
+            if not atom(param) then ?9/0 end if
+            p = allocate(4)
+            poke(p,atom_to_float32(param))
+        elsif find(fi,"RA") then                    -- "" but double
+            if not atom(param) then ?9/0 end if
+            p = allocate(8)
+            poke(p,atom_to_float64(param))
+        elsif find(fi,"smfcn") then                 -- string/multiline/file/color/font
+            if not string(param) then ?9/0 end if
+            -- feel free to increase these if needed (and update the docs)
+            integer size = iff(fi='m'?10240:    -- multiline
+                           iff(fi='f'?4096:     -- filenames
+                                      512))     -- other strings
+            p = allocate(size)
+            mem_set(p, 0, size)
+            poke(p, param)
+        else
+            -- unknown parameter type
+            ?9/0
+        end if
+        pN[i] = p
+    end for
+
+    atom data = iup_ptr_array(pN)
+
+    integer result = c_func(xIupGetParamv, {title, action, user_data, fmt, param_count, param_extra, data})
+
+    free(data)
+
+    sequence vals = repeat(0,param_count)&result
+
+    for i=param_count to 1 by -1 do
+        object param
+        integer fi = fmts[i]
+        atom p = pN[i]
+        if find(fi,"bilo") then
+            param = peek4s(p)
+        elsif find(fi,"ra") then
+            param = float32_to_atom(peek({p,4}))
+        elsif find(fi,"RA") then
+            param = float64_to_atom(peek({p,8}))
+        elsif find(fi,"smfcn") then
+            param = peek_string(p)
+        else
+            -- unknown parameter type
+            ?9/0
+        end if
+        vals[i] = param
+        free(p)
+    end for
+    return vals
+end function
+
 global function IupGetParam(string title, integer rid, object data, string fmt, sequence args)
 atom pRid = 0
 integer la = length(args)
@@ -598,6 +882,7 @@ sequence pN = repeat(0,21)
         --  increase the define_c_func and the 20/21 in here to match.
         ?9/0
     end if
+
     if rid>0 then
         pRid = call_back({'+', rid})
     end if
@@ -675,6 +960,19 @@ sequence pN = repeat(0,21)
     return vals
 end function
 
+global procedure IupRecordInput(nullable_string filename, integer mode)
+    if c_func(xIupRecordInput, {filename,mode})!=IUP_NOERROR then ?9/0 end if
+end procedure
+
+global procedure IupPlayInput(nullable_string filename = NULL)
+    if c_func(xIupPlayInput, {filename})!=IUP_NOERROR then ?9/0 end if
+end procedure
+
+global function iupKeyCodeToName(atom ch)
+    atom pKeyName = c_func(xiupKeyCodeToName,{ch})
+    return peek_string(pKeyName)
+end function
+
 --/*
 global procedure IupAppend(Ihandle ih, Ihandle child)
     Ihandle parent = c_func(xIupAppend, {ih,child}) -- (error if NULL/fail)
@@ -735,24 +1033,17 @@ global function IupConfig()
     return config
 end function
 
---int IupConfigLoad(Ihandle* ih);
-public function IupConfigLoad(atom ih)
-atom result = c_func(xIupConfigLoad, {ih})
-    return result
+global function IupConfigLoad(Ihandle ih)
+    integer errcode = c_func(xIupConfigLoad, {ih})
+    return errcode  -- 0=no error; -1=error opening the file; -2=error accessing the file; -3=error during filename construction
 end function
 
---int IupConfigSave(Ihandle* ih);
-public function IupConfigSave(atom ih)
-atom result = c_func(xIupConfigSave, {ih})
-    return result
+global function IupConfigSave(Ihandle ih)
+    integer errcode = c_func(xIupConfigSave, {ih})
+    return errcode  -- 0=no error; -1=error opening the file; -2=error accessing the file; -3=error during filename construction
 end function
 
-/****************************************************************/
---void IupConfigSetVariableStr(Ihandle* ih, const char* group, const char* key, const char* v);
-public procedure IupConfigSetVariableStr(atom ih, object group = NULL, object key = NULL, object v = NULL)
-    if sequence(group) then group = allocate_string(group,1) end if
-    if sequence(key) then key = allocate_string(key,1) end if
-    if sequence(v) then v = allocate_string(v,1) end if
+global procedure IupConfigSetVariableStr(Ihandle ih, string group, string key, string v)
     c_proc(xIupConfigSetVariableStr, {ih,group,key,v})
 end procedure
 
@@ -764,10 +1055,7 @@ public procedure IupConfigSetVariableStrId(atom ih, object group, object key, at
     c_proc(xIupConfigSetVariableStrId, {ih,group,key,id,v})
 end procedure
 
---void IupConfigSetVariableInt(Ihandle* ih, const char* group, const char* key, int v);
-public procedure IupConfigSetVariableInt(atom ih, object group, object key, atom v)
-    if sequence(group) then group = allocate_string(group,1) end if
-    if sequence(key) then key = allocate_string(key,1) end if
+global procedure IupConfigSetVariableInt(Ihandle ih, string group, string key, integer v)
     c_proc(xIupConfigSetVariableInt, {ih,group,key,v})
 end procedure
 
@@ -792,13 +1080,10 @@ public procedure IupConfigSetVariableDoubleId(atom ih, object group, object key,
     c_proc(xIupConfigSetVariableDoubleId, {ih,group,key,id,v})
 end procedure
 
---const char* IupConfigGetVariableStr(Ihandle* ih, const char* group, const char* key);
-public function IupConfigGetVariableStr(atom ih, object group = NULL, object key = NULL)
-    if sequence(group) then group = allocate_string(group,1) end if
-    if sequence(key) then key = allocate_string(key,1) end if
-    atom result = c_func(xIupConfigGetVariableStr, {ih,group,key})
-    if result=NULL then return "" end if
-    return peek_string(result)
+global function IupConfigGetVariableStr(Ihandle ih, string group, string key)
+    atom pString = c_func(xIupConfigGetVariableStr, {ih,group,key})
+    string res = iff(pString=NULL?"":peek_string(pString))
+    return res
 end function
 
 --const char* IupConfigGetVariableStrId(Ihandle* ih, const char* group, const char* key, int id);
@@ -859,12 +1144,9 @@ public function IupConfigGetVariableStrIdDef(atom ih, object group, object key, 
     return peek_string(result)
 end function
 
---int IupConfigGetVariableIntDef(Ihandle* ih, const char* group, const char* key, int def);
-public function IupConfigGetVariableIntDef(atom ih, object group, object key, atom def)
-    if sequence(group) then group = allocate_string(group,1) end if
-    if sequence(key) then key = allocate_string(key,1) end if
-    atom result = c_func(xIupConfigGetVariableIntDef, {ih,group,key,def})
-    return result
+global function IupConfigGetVariableIntDef(Ihandle ih, string group, string key, integer def)
+    integer res = c_func(xIupConfigGetVariableIntDef, {ih,group,key,def})
+    return res
 end function
 
 --int IupConfigGetVariableIntIdDef(Ihandle* ih, const char* group, const char* key, int id, int def);
@@ -903,15 +1185,11 @@ public procedure IupConfigRecentUpdate(atom ih, object filename = NULL)
     c_proc(xIupConfigRecentUpdate, {ih,filename})
 end procedure
 
---void IupConfigDialogShow(Ihandle* ih, Ihandle* dialog, const char* name);
-public procedure IupConfigDialogShow(atom ih, atom dialog, object name = NULL)
-    if sequence(name) then name = allocate_string(name,1) end if
+global procedure IupConfigDialogShow(Ihandle ih, Ihandle dialog, string name)
     c_proc(xIupConfigDialogShow, {ih,dialog,name})
 end procedure
 
---void IupConfigDialogClosed(Ihandle* ih, Ihandle* dialog, const char* name);
-public procedure IupConfigDialogClosed(atom ih, atom dialog, object name = NULL)
-    if sequence(name) then name = allocate_string(name,1) end if
+global procedure IupConfigDialogClosed(Ihandle ih, Ihandle dialog, string name)
     c_proc(xIupConfigDialogClosed, {ih,dialog,name})
 end procedure
 
@@ -935,7 +1213,52 @@ end type
 global constant
     CD_QUERY = -1,
     CD_ERROR = -1,
-    CD_OK = 0
+    CD_OK = 0,
+    
+    /* Context Capabilities */
+    CD_CAP_NONE             = 0x00000000,
+    CD_CAP_FLUSH            = 0x00000001,
+    CD_CAP_CLEAR            = 0x00000002,
+    CD_CAP_PLAY             = 0x00000004,
+    CD_CAP_YAXIS            = 0x00000008,
+    CD_CAP_CLIPAREA         = 0x00000010,
+    CD_CAP_CLIPPOLY         = 0x00000020,
+    CD_CAP_REGION           = 0x00000040,
+    CD_CAP_RECT             = 0x00000080,
+    CD_CAP_CHORD            = 0x00000100,
+    CD_CAP_IMAGERGB         = 0x00000200,
+    CD_CAP_IMAGERGBA        = 0x00000400,
+    CD_CAP_IMAGEMAP         = 0x00000800,
+    CD_CAP_GETIMAGERGB      = 0x00001000,
+    CD_CAP_IMAGESRV         = 0x00002000,
+    CD_CAP_BACKGROUND       = 0x00004000,
+    CD_CAP_BACKOPACITY      = 0x00008000,
+    CD_CAP_WRITEMODE        = 0x00010000,
+    CD_CAP_LINESTYLE        = 0x00020000,
+    CD_CAP_LINEWITH         = 0x00040000,
+    CD_CAP_FPRIMTIVES       = 0x00080000,
+    CD_CAP_HATCH            = 0x00100000,
+    CD_CAP_STIPPLE          = 0x00200000,
+    CD_CAP_PATTERN          = 0x00400000,
+    CD_CAP_FONT             = 0x00800000,
+    CD_CAP_FONTDIM          = 0x01000000,
+    CD_CAP_TEXTSIZE         = 0x02000000,
+    CD_CAP_TEXTORIENTATION  = 0x04000000,
+    CD_CAP_PALETTE          = 0x08000000,
+    CD_CAP_LINECAP          = 0x10000000,
+    CD_CAP_LINEJOIN         = 0x20000000,
+    CD_CAP_PATH             = 0x40000000,
+    CD_CAP_BEZIER           = 0x80000000,
+    CD_CAP_ALL              = 0xFFFFFFFF,
+
+    CD_PLAIN = 0,
+    CD_BOLD = 1,
+    CD_ITALIC = 2,
+    CD_UNDERLINE = 4,
+    CD_STRIKEOUT = 8,
+    CD_BOLD_ITALIC = or_bits(CD_BOLD, CD_ITALIC),
+
+    $
 
 --****
 -- === Conversion Factor Constants
@@ -972,6 +1295,27 @@ constant atom hCd = iup_open_dll({"cd.dll", "libcd.so","libcd.dylib"})
 constant atom hCdIup = iup_open_dll({"iupcd.dll", "libiupcd.so","libiupcd.dylib"})
 
 constant
+    xcdVersion = define_c_func(hCd, "cdVersion", {},P),
+    xcdVersionDate = define_c_func(hCd, "cdVersionDate", {},P),
+    xcdCanvasGetAttribute = define_c_func(hCd, "cdCanvasGetAttribute", {P,P},P),
+    xcdCanvasGetColorPlanes = define_c_func(hCd, "cdCanvasGetColorPlanes", {P},I),
+    xcdCanvasGetContext = define_c_func(hCd, "cdCanvasGetContext", {P},P),
+    xcdCanvasFont = define_c_proc(hCd, "cdCanvasFont", {P,P,I,I}),
+    xcdCanvasGetFont = define_c_proc(hCd, "cdCanvasGetFont", {P,P,P,P}),
+--  xcdCanvasOrigin = define_c_proc(hCd, "cdCanvasOrigin", {P,I,I}),
+    xcdfCanvasOrigin = define_c_proc(hCd, "cdfCanvasOrigin", {P,D,D}),
+--  xcdCanvasGetOrigin = define_c_proc(hCd, "cdfCanvasGetOrigin", {P,P,P}),
+    xcdfCanvasGetOrigin = define_c_proc(hCd, "cdfCanvasGetOrigin", {P,P,P}),
+    xcdCanvasGetSize = define_c_proc(hCd, "cdCanvasGetSize", {P,I,I,P,P}),
+    xcdCanvasGetTransform = define_c_func(hCd, "cdCanvasGetTransform", {P},P),
+--  xcdCanvasUpdateYAxis = define_c_func(hCd, "cdCanvasUpdateYAxis", {P,P},I),
+    xcdfCanvasUpdateYAxis = define_c_func(hCd, "cdfCanvasUpdateYAxis", {P,P},D),
+--  xcdCanvasInvertYAxis = define_c_func(hCd, "cdCanvasInvertYAxis", {P,I},I),
+    xcdfCanvasInvertYAxis = define_c_func(hCd, "cdfCanvasInvertYAxis", {P,D},D),
+    xcdCanvasMM2Pixel = define_c_proc(hCd, "cdCanvasMM2Pixel", {P,D,D,P,P}),
+--  xcdCanvasPixel2MM = define_c_proc(hCd, "cdCanvasPixel2MM", {P,I,I,P,P}),
+--  xcdfCanvasMM2Pixel = define_c_proc(hCd, "cdfCanvasMM2Pixel", {P,D,D,P,P}),
+    xcdfCanvasPixel2MM = define_c_proc(hCd, "cdfCanvasPixel2MM", {P,D,D,P,P}),
     xcdCanvasSetForeground = define_c_proc(hCd, "cdCanvasSetForeground", {P,I}),
     xcdCanvasForeground = define_c_func(hCd, "cdCanvasForeground", {P,L},L),
     xcdCanvasLineWidth = define_c_func(hCd, "cdCanvasLineWidth", {P,I},I),
@@ -982,11 +1326,30 @@ constant
     xcdCanvasEnd = define_c_proc(hCd, "cdCanvasEnd", {P}),
     xcdCanvasRect = define_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I}),
     xcdCanvasArc = define_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D}),
-    xcdCanvasVectorTextDirection = define_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I}),
+--  xcdCanvasVectorTextDirection = define_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I}),
     xcdCanvasMultiLineVectorText = define_c_proc(hCd, "cdCanvasMultiLineVectorText", {P,I,I,P}),
+    xcdCanvasGetVectorTextSize = define_c_proc(hCd, "cdCanvasGetVectorTextSize", {P,P,P,P}),
+    xcdCanvasGetVectorTextBounds = define_c_proc(hCd, "cdCanvasGetVectorTextBounds", {P,P,I,I,P}),
+    xwdCanvasGetVectorTextBounds = define_c_proc(hCd, "wdCanvasGetVectorTextBounds", {P,P,D,D,P}),
+    xcdCanvasGetFontDim = define_c_proc(hCd, "cdCanvasGetFontDim", {P,P,P,P,P}),
+    xcdCanvasGetTextSize = define_c_proc(hCd, "cdCanvasGetTextSize", {P,P,P,P}),
+--  xcdCanvasGetTextBox = define_c_proc(hCd, "cdCanvasGetTextBox", {P,P,I,I,P,P,P,P}),
+--  xcdCanvasGetTextBox = define_c_proc(hCd, "cdCanvasGetTextBox", {P,I,I,P,P,P,P,P}),
+    xcdfCanvasGetTextBox = define_c_proc(hCd, "cdfCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
+    xwdCanvasGetTextBox = define_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
+    xcdCanvasGetTextBounds = define_c_proc(hCd, "cdCanvasGetTextBounds", {P,I,I,P,P}),
+--  xcdfCanvasGetTextBounds = define_c_proc(hCd, "cdCanvasGetTextBounds", {P,D,D,P,P}),
+    xwdCanvasGetTextBounds = define_c_proc(hCd, "wdCanvasGetTextBounds", {P,D,D,P,P}),
+    xcdCanvasGetImageRGB = define_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I}),
+    xwdCanvasGetImageRGB = define_c_proc(hCd, "wdCanvasGetImageRGB", {P,P,P,P,D,D,I,I}),
     xcdCanvasPutImageRectRGB = define_c_proc(hCd, "cdCanvasPutImageRectRGB", {P,I,I,P,P,P,I,I,I,I,I,I,I,I}),
+--  xcdCanvasTransformPoint = define_c_proc(hCd, "cdCanvasTransformPoint", {P,I,I,P,P}),
+    xcdfCanvasTransformPoint = define_c_proc(hCd, "cdfCanvasTransformPoint", {P,D,D,P,P}),
     xwdCanvasWindow = define_c_proc(hCd, "wdCanvasWindow", {P,D,D,D,D}),
+    xwdCanvasGetWindow = define_c_proc(hCd, "wdCanvasGetWindow", {P,P,P,P,P}),
     xwdCanvasViewport = define_c_proc(hCd, "wdCanvasViewport", {P,I,I,I,I}),
+    xwdCanvasGetViewport = define_c_proc(hCd, "wdCanvasGetViewport", {P,P,P,P,P}),
+    xcdContextCaps = define_c_func(hCd, "cdContextCaps", {P},UL),
     xcdCreateCanvas = define_c_func(hCd, "cdCreateCanvas", {P,P},P),
     xcdKillCanvas = define_c_proc(hCd, "cdKillCanvas", {P}),
     xcdContextIup = define_c_func(hCdIup, "cdContextIup", {},P),
@@ -1010,8 +1373,8 @@ C:\Program Files (x86)\Phix\demo\tee\simple_paint.exw:1222               cdCanva
 ifdef WINDOWS then
 constant
     xcdContextNativeWindow = define_c_func(hCd, "cdContextNativeWindow", {},P),
---  xcdGetScreenSize = define_c_proc(hCd, "cdGetScreenSize", {P,P,P,P}),
---  xcdGetScreenColorPlanes = define_c_func(hCd, "cdGetScreenColorPlanes", {},I),
+    xcdGetScreenSize = define_c_proc(hCd, "cdGetScreenSize", {P,P,P,P}),
+    xcdGetScreenColorPlanes = define_c_func(hCd, "cdGetScreenColorPlanes", {},I),
     $
 
 global constant
@@ -1024,6 +1387,79 @@ global function cdCreateCanvas(atom hCdContext, atom_string data, sequence param
     end if
     cdCanvas hCdCanvas = c_func(xcdCreateCanvas,{hCdContext,data})
     return hCdCanvas
+end function
+
+global function cdCanvasGetAttribute(cdCanvas hCdCanvas, string name)
+atom fnVal
+    fnVal = c_func(xcdCanvasGetAttribute, {hCdCanvas, name})
+    if fnVal=NULL then return NULL end if
+    return peek_string(fnVal)
+end function
+
+global function cdCanvasGetColorPlanes(atom hCdCanvas)
+    integer p = c_func(xcdCanvasGetColorPlanes, {hCdCanvas})
+    return p
+end function
+
+global function cdCanvasGetContext(atom hCdCanvas)
+    atom hCdContext = c_func(xcdCanvasGetContext, {hCdCanvas})
+    return hCdContext
+end function
+
+global procedure cdCanvasFont(atom hCdCanvas, nullable_string font, integer style, integer size)
+    c_proc(xcdCanvasFont, {hCdCanvas, font, style, size})
+end procedure
+
+global function cdCanvasGetFont(atom hCdCanvas)
+atom pFont, pSize, pStyle
+sequence font
+    pStyle = allocate(1024)
+    pSize = pStyle+4
+    pFont = pSize+4
+    c_proc(xcdCanvasGetFont, {hCdCanvas, pFont, pStyle, pSize})
+    font = {peek_string(pFont)} & peek4s({pStyle, 2})
+    free(pStyle)
+    return font
+end function
+
+--global procedure cdCanvasOrigin(atom hCdCanvas, atom x, atom y)
+--  c_proc(xcdCanvasOrigin, {hCdCanvas, x, y})
+--end procedure
+
+global procedure cdCanvasOrigin(atom hCdCanvas, atom x, atom y)
+    c_proc(xcdfCanvasOrigin, {hCdCanvas, x, y})
+end procedure
+
+global function cdCanvasGetOrigin(atom hCdCanvas)
+atom pX, pY
+sequence origin
+
+    pX = allocate(16)
+    pY = pX+8
+    c_proc(xcdfCanvasGetOrigin, {hCdCanvas, pX, pY})
+    origin = peek_double({pX, 2})
+    free(pX)
+    return origin
+end function
+
+global function cdCanvasGetSize(cdCanvas hCdCanvas)
+atom pWidth, pHeight, pWidth_mm, pHeight_mm
+sequence size
+--DEV machine_bits()?
+    pWidth = allocate(2*4+2*8)
+    pHeight = pWidth+4
+    pWidth_mm = pHeight+4
+    pHeight_mm = pWidth_mm+8
+    c_proc(xcdCanvasGetSize, {hCdCanvas, pWidth, pHeight, pWidth_mm, pHeight_mm})
+    size = peek4s({pWidth, 2}) & peek_double({pWidth_mm, 2})
+    free(pWidth)
+    return size
+end function
+
+global function cdCanvasGetTransform(atom hCdCanvas)
+atom pMatrix
+    pMatrix = c_func(xcdCanvasGetTransform, {hCdCanvas})
+    return peek_double({pMatrix, 6})
 end function
 
 global procedure cdCanvasSetForeground(cdCanvas hCdCanvas, atom color)
@@ -1085,13 +1521,152 @@ global procedure cdCanvasEnd(cdCanvas hCdCanvas)
     c_proc(xcdCanvasEnd, {hCdCanvas})
 end procedure
 
-global procedure cdCanvasVectorTextDirection(cdCanvas hCdCanvas, integer x1, integer y1, integer x2, integer y2)
-    c_proc(xcdCanvasVectorTextDirection, {hCdCanvas, x1, y1, x2, y2})
-end procedure
-
 global procedure cdCanvasMultiLineVectorText(cdCanvas hCdCanvas, atom x, atom y, string text)
     c_proc(xcdCanvasMultiLineVectorText, {hCdCanvas, x, y, text})
 end procedure
+
+global function cdCanvasGetVectorTextSize(atom hCdCanvas, sequence text)
+atom pX, pY
+sequence x_y
+    pX = allocate(8)
+    pY = pX+4
+    c_proc(xcdCanvasGetVectorTextSize, {hCdCanvas, text, pX, pY})
+    x_y = peek4s({pX, 2})
+    free(pX)
+    return x_y
+end function
+
+global function cdCanvasGetVectorTextBounds(atom hCdCanvas, string text, integer px, integer py)
+atom pRect
+sequence rect
+    pRect = allocate(8*4)
+    c_proc(xcdCanvasGetVectorTextBounds, {hCdCanvas, text, px, py, pRect})
+    rect = peek4s({pRect, 8})
+    free(pRect)
+    return rect
+end function
+
+global function wdCanvasGetVectorTextBounds(atom hCdCanvas, sequence text, atom px, atom py)
+atom pRect
+sequence rect
+    pRect = allocate(8*8)
+    c_proc(xwdCanvasGetVectorTextBounds, {hCdCanvas, text, px, py, pRect})
+    rect = peek_double({pRect, 8})
+    free(pRect)
+    return rect
+end function
+
+global function cdCanvasGetFontDim(atom hCdCanvas)
+atom pWidth, pHeight, pAscent, pDescent
+sequence font_metrics
+    pWidth = allocate(16)
+    pHeight = pWidth+4
+    pAscent = pHeight+4
+    pDescent = pAscent+4
+    c_proc(xcdCanvasGetFontDim, {hCdCanvas, pWidth, pHeight, pAscent, pDescent})
+    font_metrics = peek4s({pWidth, 4})
+    free(pWidth)
+    return font_metrics -- {width, height, ascent, descent}
+end function
+
+global function cdCanvasGetTextSize(atom hCdCanvas, string text)
+atom pW, pH
+sequence text_size
+    pW = allocate(8)
+    pH = pW+4
+    c_proc(xcdCanvasGetTextSize, {hCdCanvas, text, pW, pH})
+    text_size = peek4s({pW, 2})
+    free(pW)
+    return text_size
+end function
+
+
+global function cdCanvasGetTextBox(atom hCdCanvas, atom x, atom y, string text)
+atom pXmin, pXmax, pYmin, pYmax
+sequence box
+    pXmin = allocate(32)
+    pXmax = pXmin+8
+    pYmin = pXmax+8
+    pYmax = pYmin+8
+    c_proc(xcdfCanvasGetTextBox, {hCdCanvas, x, y, text, pXmin, pXmax, pYmin, pYmax})
+    box = peek_double({pXmin, 4})
+    free(pXmin)
+    return box
+end function
+
+global function wdCanvasGetTextBox(atom hCdCanvas, atom x, atom y, sequence text)
+atom pXmin, pXmax, pYmin, pYmax
+sequence box
+    pXmin = allocate(32)
+    pXmax = pXmin+8
+    pYmin = pXmax+8
+    pYmax = pYmin+8
+    c_proc(xwdCanvasGetTextBox, {hCdCanvas, x, y, text, pXmin, pXmax, pYmin, pYmax})
+    box = peek_double({pXmin, 4})
+    free(pXmin)
+    return box
+end function
+
+global function cdCanvasGetTextBounds(atom hCdCanvas, atom x, atom y, string text)
+atom pRect
+sequence bounds
+    pRect = allocate(32)
+    c_proc(xcdCanvasGetTextBounds, {hCdCanvas, x, y, text, pRect})
+    bounds = peek4s({pRect, 8})
+    free(pRect)
+    return bounds
+end function
+
+--DEV crashes...
+--global function cdCanvasGetTextBounds(atom hCdCanvas, atom x, atom y, string text)
+--atom pRect
+--sequence bounds
+--  pRect = allocate(64)
+--  c_proc(xcdfCanvasGetTextBounds, {hCdCanvas, x, y, text, pRect})
+--  bounds = peek_double({pRect, 8})
+--  free(pRect)
+--  return bounds
+--end function
+
+global function wdCanvasGetTextBounds(atom hCdCanvas, atom x, atom y, string text)
+atom pRect
+sequence bounds
+    pRect = allocate(64)
+    c_proc(xwdCanvasGetTextBounds, {hCdCanvas, x, y, text, pRect})
+    bounds = peek_double({pRect, 8})
+    free(pRect)
+    return bounds
+end function
+
+global function cdCanvasGetImageRGB(atom hCdCanvas, atom x, atom y, atom w, atom h)
+atom pR, pG, pB
+sequence r,g,b
+
+    pR = allocate(3*w*h)
+    pG = pR+w*h
+    pB = pG+w*h
+    c_proc(xcdCanvasGetImageRGB, {hCdCanvas, pR, pG, pB, x, y, w, h})
+    r = peek({pR, w*h})
+    g = peek({pG, w*h})
+    b = peek({pB, w*h})
+    free(pR)
+    return {r,g,b}
+end function
+
+global function wdCanvasGetImageRGB(atom hCdCanvas, atom x, atom y, atom w, atom h)
+atom pR, pG, pB
+sequence r,g,b
+
+    pR = allocate(3*w*h)
+    pG = pR+w*h
+    pB = pG+w*h
+    c_proc(xwdCanvasGetImageRGB, {hCdCanvas, pR, pG, pB, x, y, w, h})
+    r = peek({pR, w*h})
+    g = peek({pG, w*h})
+    b = peek({pB, w*h})
+    free(pR)
+    return {r,g,b}
+end function
 
 global procedure cdCanvasPutImageRectRGB(cdCanvas hCdCanvas, atom iw, atom ih, sequence rgb, atom x, atom y,
                                          atom w, atom h, atom xmin, atom xmax, atom ymin, atom ymax)
@@ -1107,13 +1682,270 @@ atom pR, pG, pB
     free(pR)
 end procedure
 
+--global function cdCanvasUpdateYAxis(atom hCdCanvas, atom y)
+--atom newy, pY
+--  pY = allocate(machine_word())
+--  pokeN(pY, y, machine_word())
+--  newy = c_func(xcdCanvasUpdateYAxis, {hCdCanvas, pY})
+--  if newy!=peekNS(pY,machine_word(),1) then ?9/0 end if
+--  free(pY)
+--  return newy
+--end function
+
+--global function cdCanvasTransformPoint(atom hCdCanvas, atom x, atom y)
+--atom pX, pY
+--sequence tx_ty
+--  pX = allocate(8)
+--  pY = pX+4
+--  c_proc(xcdCanvasTransformPoint, {hCdCanvas, x, y, pX, pY})
+--  tx_ty = peek4s({pX, 2})
+--  free(pX)
+--  return tx_ty
+--end function
+
+global function cdCanvasTransformPoint(atom hCdCanvas, atom x, atom y)
+atom pX, pY
+sequence tx_ty
+    pX = allocate(16)
+    pY = pX+8
+    c_proc(xcdfCanvasTransformPoint, {hCdCanvas, x, y, pX, pY})
+    tx_ty = peek_double({pX, 2})
+    free(pX)
+    return tx_ty
+end function
+
+global function cdCanvasUpdateYAxis(atom hCdCanvas, atom y)
+atom newy, pY
+    pY = allocate(8)
+    poke_double(pY, y)
+    newy = c_func(xcdfCanvasUpdateYAxis, {hCdCanvas, pY})
+    -- if this triggers we may need to resurrect the int C function
+atom dbg = peek_double(pY)
+    if newy!=peek_double(pY) then ?9/0 end if
+    free(pY)
+    return newy
+end function
+
+--global function cdCanvasInvertYAxis(atom hCdCanvas, atom y)
+--  return c_func(xcdCanvasInvertYAxis, {hCdCanvas, y})
+--end function
+
+global function cdCanvasInvertYAxis(atom hCdCanvas, atom y)
+    atom newy = c_func(xcdfCanvasInvertYAxis, {hCdCanvas, y})
+    return newy
+end function
+
+global function cdCanvasMM2Pixel(atom hCdCanvas, atom mm_dx, atom mm_dy)
+atom pDx, pDy
+sequence dx_dy
+    pDx = allocate(machine_word()*2)
+    pDy = pDx+machine_word()
+    c_proc(xcdCanvasMM2Pixel, {hCdCanvas, mm_dx, mm_dy, pDx, pDy})
+    dx_dy = peekNS({pDx, 2},machine_word(),1)
+    free(pDx)
+    return dx_dy
+end function
+--
+--global function cdCanvasPixel2MM(atom hCdCanvas, atom dx, atom dy)
+--atom pmm_dx, pmm_dy
+--sequence mmdx_mmdy
+--
+--  pmm_dx = allocate(16)
+--  pmm_dy = pmm_dx+8
+--  c_proc(xcdCanvasPixel2MM, {hCdCanvas, dx, dy, pmm_dx, pmm_dy})
+--  mmdx_mmdy = peek_double({pmm_dx, 2})
+--  free(pmm_dx)
+--  return mmdx_mmdy
+--end function
+
+--global function cdCanvasMM2Pixel(atom hCdCanvas, atom mm_dx, atom mm_dy)
+--atom pDx, pDy
+--sequence dx_dy
+--  pDx = allocate(16)
+--  pDy = pDx+8
+--  c_proc(xcdfCanvasMM2Pixel, {hCdCanvas, mm_dx, mm_dy, pDx, pDy})
+--  dx_dy = peek_double({pDx, 2})
+--  free(pDx)
+--  return dx_dy
+--end function
+
+global function cdCanvasPixel2MM(atom hCdCanvas, atom dx, atom dy)
+atom pmm_dx, pmm_dy
+sequence mmdx_mmdy
+
+    pmm_dx = allocate(16)
+    pmm_dy = pmm_dx+8
+    c_proc(xcdfCanvasPixel2MM, {hCdCanvas, dx, dy, pmm_dx, pmm_dy})
+    mmdx_mmdy = peek_double({pmm_dx, 2})
+    free(pmm_dx)
+    return mmdx_mmdy
+end function
+
+global function cdGetScreenSize()
+ifdef WINDOWS then
+--DEV machine_bits?
+atom w = allocate(24)
+atom h = w+4
+atom w_mm = h+4
+atom h_mm = w_mm+8
+
+    c_proc(xcdGetScreenSize, {w, h, w_mm, h_mm})
+
+    sequence data = peek4s({w, 2}) & peek_double({w_mm, 2})
+
+    free(w)
+
+    return data
+elsedef
+    return 0
+end ifdef
+end function
+
+global function cdGetScreenColorPlanes()
+ifdef WINDOWS then
+    return c_func(xcdGetScreenColorPlanes, {})
+elsedef
+    return 0
+end ifdef
+end function
+
+global function cdContextCaps(atom hCdContext)
+    return c_func(xcdContextCaps, {hCdContext})
+end function
+
+global function cdVersion()
+    return peek_string(c_func(xcdVersion, {}))
+end function
+
+global function cdVersionDate()
+    return peek_string(c_func(xcdVersionDate, {}))
+end function
+
+ -- vector text attributes
+--------------------------
+constant
+--  xcdCanvasVectorFont = define_c_func(hCd, "cdCanvasVectorFont", {P,P},P),
+    xcdCanvasVectorTextDirection = define_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I}),
+--  xcdCanvasVectorTextTransform = define_c_func(hCd, "cdCanvasVectorTextTransform", {P,P},P),
+--  xcdCanvasVectorTextSize = define_c_proc(hCd, "cdCanvasVectorTextSize", {P,I,I,P}),
+--  xcdCanvasVectorCharSize = define_c_func(hCd, "cdCanvasVectorCharSize", {P,I},I),
+    $
+
+--global function cdCanvasVectorFont(atom hCdCanvas, string font)
+--  atom pFont = c_func(xcdCanvasVectorFont, {hCdCanvas, font})
+--  font = peek_string(pFont)
+--  return font
+--end function
+
+global procedure cdCanvasVectorTextDirection(cdCanvas hCdCanvas, integer x1, integer y1, integer x2, integer y2)
+    c_proc(xcdCanvasVectorTextDirection, {hCdCanvas, x1, y1, x2, y2})
+end procedure
+
+--global function canvas_vector_text_transform(atom hCdCanvas, object matrix=NULL)
+--atom pPrevMatrix, pMatrix = NULL
+--
+--  if matrix!=NULL then
+--      if length(matrix)!=6 then ?9/0 end if
+--      pMatrix = allocate(8*6)
+--      poke_double(pMatrix, matrix)
+--  end if
+--  pPrevMatrix = c_func(xcdCanvasVectorTextTransform, {hCdCanvas, pMatrix})
+--  matrix = peek_double({pPrevMatrix, 6})
+--  if pMatrix!=NULL then
+--      free(pMatrix)
+--  end if
+--  return res
+--end function
+
+--global procedure canvas_vector_text_size(atom hCdCanvas, atom w, atom h, string text)
+--  c_proc(xcdCanvasVectorTextSize, {hCdCanvas, w, h, text})
+--end procedure
+--
+--global function canvas_vector_char_size(atom hCdCanvas, atom size)
+--  return c_func(xcdCanvasVectorCharSize, {hCdCanvas, size})
+--end function
+
+ -- world draw attributes
+-------------------------
+constant 
+--  xwdCanvasLineWidth = define_c_func(hCd, "wdCanvasLineWidth", {P,D},D),
+    xwdCanvasFont = define_c_proc(hCd, "wdCanvasFont", {P,P,I,D}),
+--  xwdCanvasGetFont = define_c_proc(hCd, "wdCanvasGetFont", {P,P,P,P}),
+--  xwdCanvasMarkSize = define_c_func(hCd, "wdCanvasMarkSize", {P,D},D),
+    xwdCanvasGetFontDim = define_c_proc(hCd, "wdCanvasGetFontDim", {P,P,P,P,P}),
+    xwdCanvasGetTextSize = define_c_proc(hCd, "wdCanvasGetTextSize", {P,P,P,P}),
+--  xwdCanvasGetTextBox = define_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
+--  xwdCanvasGetTextBounds = define_c_proc(hCd, "wdCanvasGetTextbounds", {P,D,D,P,P}),
+--  xwdCanvasStipple = define_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D}),
+--  xwdCanvasPattern = define_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
+    $
+
+global procedure wdCanvasFont(atom hCdCanvas, nullable_string font, integer style, atom size)
+    c_proc(xwdCanvasFont, {hCdCanvas, font, style, size})
+end procedure
+
+global function wdCanvasGetFontDim(atom hCdCanvas)
+atom pWidth, pHeight, pAscent, pDescent
+sequence font_metrics
+    pWidth = allocate(32)
+    pHeight = pWidth+8
+    pAscent = pHeight+8
+    pDescent = pAscent+8
+    c_proc(xwdCanvasGetFontDim, {hCdCanvas, pWidth, pHeight, pAscent, pDescent})
+    font_metrics = peek_double({pWidth, 4})
+    free(pWidth)
+    return font_metrics -- {width, height, ascent, descent}
+end function
+
+global function wdCanvasGetTextSize(atom hCdCanvas, sequence text)
+atom pW, pH
+sequence text_size
+
+    pW = allocate(16)
+    pH = pW+8
+    c_proc(xwdCanvasGetTextSize, {hCdCanvas, text, pW, pH})
+    text_size = peek_double({pW, 2})
+    free(pW)
+    return text_size
+end function
+
+--
+
 global procedure wdCanvasWindow(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xwdCanvasWindow, {hCdCanvas, xmin, xmax, ymin, ymax})
 end procedure
 
+global function wdCanvasGetWindow(cdCanvas hCdCanvas)
+atom pXmin, pXmax, pYmin, pYmax
+sequence wdWindow
+
+    pXmin = allocate(4*8)
+    pXmax = pXmin+8
+    pYmin = pXmax+8
+    pYmax = pYmin+8
+    c_proc(xwdCanvasGetWindow, {hCdCanvas, pXmin, pXmax, pYmin, pYmax})
+    wdWindow = peek_double({pXmin, 4})
+    free(pXmin)
+    return wdWindow
+end function
+
 global procedure wdCanvasViewport(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xwdCanvasViewport, {hCdCanvas, xmin, xmax, ymin, ymax})
 end procedure
+
+global function wdCanvasGetViewport(cdCanvas hCdCanvas)
+atom pXmin, pXmax, pYmin, pYmax
+sequence wdViewport
+
+    pXmin = allocate(4*4)
+    pXmax = pXmin+4
+    pYmin = pXmax+4
+    pYmax = pYmin+4
+    c_proc(xwdCanvasGetViewport, {hCdCanvas, pXmin, pXmax, pYmin, pYmax})
+    wdViewport = peek4s({pXmin, 4})
+    free(pXmin)
+    return wdViewport
+end function
 
 global procedure cdKillCanvas(atom hCdCanvas)
     c_proc(xcdKillCanvas, {hCdCanvas})

@@ -1,27 +1,47 @@
-/*IupFrame Example in C 
-Draws a frame around a button. Note that "FGCOLOR" is added to the frame but it is inherited by the button. */
+--
+-- frame.exw
+-- =========
+--  IupFrame with a label, filler, and button.
+--  Note that "FGCOLOR" is added to the frame but also inherited by the button.
+--   (though obviously it does not propagate up to the dialog title)
+--
+--  You make like to remove the IupFill() and see the difference that makes,
+--   and/or change the sizes, margins, etc.
+--
 
-/* IupFrame example */
 include pIUP.e
 
-Ihandle label, frame, dialog
+function quit_cb(Ihandle /*ih*/)
+  return IUP_CLOSE
+end function
 
+--function k_any(Ihandle /*ih*/, atom c)
+---- (I like all my demos to close when escape is keyed)
+--  if c=K_ESC then
+--      return IUP_CLOSE
+--  end if
+--  return IUP_CONTINUE
+--end function
+
+constant attrtext="FGCOLOR=\"255 0 0\", SIZE=160x100, TITLE=\"This is the frame\", MARGIN=40x20",
+         labeltext = "IupFrame Attributes:\n"&substitute(attrtext,", ","\n")
+
+procedure main()
     IupOpen()
 
-    /* Creates frame with a label */
-    label = IupLabel("IupFrame Attributes:\nFGCOLOR = \"255 0 0\"\nSIZE = \"EIGHTHxEIGHTH\"\nTITLE = \"This is the frame\"\nMARGIN = \"10x10\"")
-    frame = IupFrame(IupHbox({IupFill(),label,IupFill()}))
+    Ihandle quit_bt = IupButton("Quit", "ACTION", Icallback("quit_cb"))
+    Ihandle dialog = IupDialog(IupFrame(IupVbox({IupLabel(labeltext),
+                                                 IupFill(),
+                                                 quit_bt}),
+                                        attrtext),
+                               "TITLE=IupFrame")
 
-    /* Sets frame's attributes */
-    IupSetAttributes(frame, "FGCOLOR=\"255 0 0\", SIZE=EIGHTHxEIGHTH, TITLE=\"This is the frame\", MARGIN=10x10")
-
-    /* Creates dialog  */
-    dialog = IupDialog(frame)
-
-    /* Sets dialog's title */
-    IupSetAttribute(dialog, "TITLE", "IupFrame")
+--  IupSetCallback(dialog, "K_ANY", Icallback("k_any"));
+    IupSetAttributeHandle(dialog, "DEFAULTESC", quit_bt)
 
     IupShow(dialog)   /* Shows dialog in the center of the screen */
     IupMainLoop()     /* Initializes IUP main loop */
     IupClose()        /* Finishes IUP */
+end procedure
 
+main()

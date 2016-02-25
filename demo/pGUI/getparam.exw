@@ -1,0 +1,73 @@
+--
+-- getparam.exw
+--
+--  Demonstrates use of IupGetParam
+--
+
+include pGUI.e
+
+integer pboolean = 1;
+integer pinteger = 3456;
+atom preal = 3.543
+integer pinteger2 = 192;
+atom preal2 = 0.5;
+atom pangle = 90;
+string pstring = "string text";
+integer poptions = 1, plist = 2
+string file = "test.jpg";
+string pcolor = "255 0 128";
+string pfont = "Courier, 24";
+string pstring2 = "second text\nsecond line";
+  
+constant fmt="""
+_____________Boolean: %b[No,Yes]
+             Integer: %i
+             Real 1: %r
+Sep1 %t
+             Integer2: %i[0,255]
+             Real 2: %r[-1.5,1.5,0.05]
+Sep2 %t
+             Angle: %a[0,360]
+             String: %s
+Sep3 %t
+             Options: %o|item0|item1|item2|
+             List: %l|item0|item1|item2|item3|item4|item5|item6|
+Sep4 %t
+             File: %f[OPEN|*.bmp;*.jpg|CURRENT|NO|NO]
+             Color: %c{Color Tip}
+             Font: %n
+Sep5 %t
+             Multiline: %m
+             Bt %u[, MyCancel, Help!]
+"""  
+
+--function gp_cb(Ihandle /*dialog*/, integer param_index, atom user_data)
+---- -ve param_index is init/button/close, see IupGetParam docs
+--  ?{"gp_cb",param_index,user_data}
+--  return 1    -- 0 to reject the change
+--end function
+
+    IupOpen()
+
+--  sequence res = IupGetParam("Title", Icallback("gp_cb"), 0, fmt,
+    sequence res = IupGetParam("Title", NULL, 0, fmt,
+                               {pboolean, pinteger, preal, 
+--                              (sep1)
+                                pinteger2, preal2, 
+--                              (sep2)
+                                pangle, pstring, 
+--                              (sep3)
+                                poptions, plist, 
+--                              (sep4)
+                                file, pcolor, pfont, 
+--                              (sep5)
+                                pstring2})
+    string msg = ""
+    for i=1 to length(res) do
+        msg &= sprint(res[i])&'\n'
+    end for
+    IupShow(IupDialog(NULL)) -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
+    IupMessage("results",msg)
+
+IupClose()
+

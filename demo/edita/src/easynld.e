@@ -682,8 +682,10 @@ integer TokenType
 --          sectionNo -= Other+bracelevel
 --          sectionNo -= Other+7
             sectionNo -= BookMarks+7
+if sectionNo<=0 then fatal("not allowed") close(f) return end if
             while not columnOne and ch>' ' do
                 word = getWord()
+--DEV crash here with sectionNo of -13 when I tried adding a section named Illegals (hopefully fixed by the above)
                 newWordLists[sectionNo] = append(newWordLists[sectionNo],word)
                 skipSpaces()
             end while

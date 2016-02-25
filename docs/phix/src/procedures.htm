@@ -8,35 +8,79 @@
       <div id="mainSection">
          These perform some computation and may have a list of parameters, e.g.
 <!--eucode>
-    procedure empty()
-    end procedure
     procedure plot(integer x, integer y, object char='*')
         position(x, y)
         if sequence(char) then
-            if length(char)>1 then -- else use defaults
+            if length(char)>1 then
                 setfont(char[2])
                 -- ... etc
             end if
-            char = char[1]
+            char = iff(length(char)=0?'?':char[1])
         end if  
         puts(1, char)
     end procedure
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> empty</font><font color="#0000FF">()
-</font><font color="#008080">    end procedure
-    procedure</font><font color="#000000"> plot</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> char</font><font color="#0000FF">=</font><font color="#008000">'*'</font><font color="#0000FF">)
+<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> plot</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> char</font><font color="#0000FF">=</font><font color="#008000">'*'</font><font color="#0000FF">)
 </font><font color="#7060A8">        position</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)
 </font><font color="#008080">        if</font><font color="#004080"> sequence</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">)</font><font color="#008080"> then
-            if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">)&gt;</font><font color="#000000">1</font><font color="#008080"> then</font><font color="#000080"><i> -- else use defaults
-</i></font><font color="#000000">                setfont</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#800000">[</font><font color="#000000">2</font><font color="#800000">]</font><font color="#0000FF">)
+            if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">)&gt;</font><font color="#000000">1</font><font color="#008080"> then
+</font><font color="#000000">                setfont</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#800000">[</font><font color="#000000">2</font><font color="#800000">]</font><font color="#0000FF">)
 </font><font color="#000080"><i>                -- ... etc
 </i></font><font color="#008080">            end if
-</font><font color="#000000">            char</font><font color="#0000FF"> =</font><font color="#000000"> char</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]
+</font><font color="#000000">            char</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">length</font><font color="#800000">(</font><font color="#000000">char</font><font color="#800000">)</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">?</font><font color="#008000">'?'</font><font color="#0000FF">:</font><font color="#000000">char</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)
 </font><font color="#008080">        end if  
 </font><font color="#7060A8">        puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> char</font><font color="#0000FF">)
 </font><font color="#008080">    end procedure</font>
 </pre>
+        A copy of the value of each argument is passed in. The formal parameter 
+        variables may be modified inside the procedure but this does not affect the 
+        value of the arguments (in the calling routine).
+       <dl>
+        <dt>
+          <b>
+           <font color="navy">Performance Note:</font>
+          </b>
+         <dd>
+            <br>
+            The interpreter does not actually copy sequences or
+            floating-point numbers unless it becomes necessary. For example,
+<!--eucode>
+     y = {1,2,3,4,5,6,7,8.5,"ABC"}
+     x = y
+</eucode-->
+<pre>
+<font color="#000000">     y</font><font color="#0000FF"> = {</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">8.5</font><font color="#0000FF">,</font><font color="#008000">"ABC"</font><font color="#0000FF">}
+</font><font color="#000000">     x</font><font color="#0000FF"> =</font><font color="#000000"> y</font>
+</pre>
+            The statement x = y does not actually cause a new copy of y to be
+            created. Both x and y will simply "point" to the same sequence. If we
+            later perform x[3] = 9, then a separate sequence will be created for x
+            in memory (although there will still be just one shared copy of 8.5 and
+            "ABC") and y is not altered. The same thing applies to "copies" of 
+            arguments passed in to subroutines.
+         </dd>
+        </dt>
+       </dl>
+       <br>
+         If there are no parameters, the parentheses are still required, on both the procedure declaration and any calls to it, e.g.
+<!--eucode>
+    procedure empty()
+    end procedure
+    ...
+    empty()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> empty</font><font color="#0000FF">()
+</font><font color="#008080">    end procedure
+</font><font color="#0000FF">    ..</font><font color="#FF0000">.
+</font><font color="#000000">    empty</font><font color="#0000FF">()</font>
+</pre>
+
+        Repeated consecutive parameter types may be omitted, for example in (integer a, b, string c, d) the compiler assumes
+        b is another integer, and d is another string.
+        <br>
+        <br>
         Optional parameters can be declared simply by defining a default value,
         as shown for char. In many languages variable-length parameter
         lists are impossible. In C, you must set up strange mechanisms that
@@ -48,13 +92,10 @@
        <br>
         Alternatively, optional parameters can be emulated by specifying a single
         sequence parameter, which can be populated by anything from a zero-length 
-        sequence up to the maximum that the routine can handle. This approach can
-        be particularly effective when used in combination with 
-        <a href="routine_id.htm">routine_id</a>: Edita\eamenus.ew\resetMenus() has 
-        literally hundreds of examples of doing exactly that, in table form.
-        As written, the above routine (ie plot()) will crash if passed {} as the 
-        third parameter, but you could easily guard against that condition, eg by
-        setting char to '?' instead of (the offending expression) char[1]. 
+        sequence up to the maximum that the routine can handle. This approach is
+        used by <a href="printf.htm">printf</a>, <a href="call_proc.htm">call_proc</a>, 
+        <a href="call_func.htm">call_func</a>, <a href="c_proc.htm">c_proc</a>, and 
+        <a href="c_func.htm">c_func</a>.
        <br>
        <br>
          Named parameters (handiest when there are quite a few optional parameters)
@@ -85,6 +126,11 @@
         routine is possibly the ultimate example of named parameters.
        <br>
        <br>
+        <b>NB</b>: the ":=" signifies the use of named parameters; "=" has an entirely different meaning.
+        It is perfectly legitimate, assuming you have local variables x and y, to write plot(x:=x,y:=y), 
+        whereas in the same circumstances the statement plot(x=x,y=y) would always be equivalent to plot(1,1).
+       <br>
+       <br>
         Un-named parameters are also permitted (added in version 0.6.8). In many cases, especially callbacks, 
         a routine must accept a fixed set of parameters, even if it does not use them. This can cause annoying 
         "not used" warnings. Instead of
@@ -96,7 +142,7 @@
 <font color="#000000"></font><font color="#008080">    function</font><font color="#000000"> mainHandler</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> wParam</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> lParam</font><font color="#0000FF">)
 </font><font color="#008080">        if</font><font color="#000000"> id</font><font color="#008080"> or</font><font color="#000000"> wParam</font><font color="#008080"> or</font><font color="#004080"> object</font><font color="#0000FF">(</font><font color="#000000">lParam</font><font color="#0000FF">)</font><font color="#008080"> then end if  </font><font color="#000080"><i> -- suppress warnings</i></font>
 </pre>
-        (in which the "if then if" generates no code) you can declare it as
+        (in which the "if then if" generates no code) you can instead declare it as
 <!--eucode>
     function mainHandler(integer /*id*/, integer msg, atom /*wParam*/, object /*lParam*/)
         -- (and obviously the comments are optional)
@@ -105,72 +151,34 @@
 <font color="#000000"></font><font color="#008080">    function</font><font color="#000000"> mainHandler</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000080"><i> /*id*/</i></font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000080"><i> /*wParam*/</i></font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000080"><i> /*lParam*/</i></font><font color="#0000FF">)
 </font><font color="#000080"><i>        -- (and obviously the comments are optional)</i></font>
 </pre>
-        Note that typechecking still occurs, which can lead to interesting run-time error messages:
+        Note that typechecking of un-named parameters still occurs, which can lead to interesting run-time error messages, eg
 <!--eucode>
     procedure test(integer a, integer /*b*/, integer c)
         ?{a,c}
     end procedure
 --  test(1,"error",2)   -- (causes a perfectly sensible compile-time error)
-    constant r_test = routine_id("test")
-    call_proc(r_test,{1,"error",3})
+    call_proc(routine_id("test"),{1,"error",3})
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> test</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000080"><i> /*b*/</i></font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)
         ?{</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">c</font><font color="#0000FF">}
 </font><font color="#008080">    end procedure
 </font><font color="#000080"><i>--  test(1,"error",2)   -- (causes a perfectly sensible compile-time error)
-</i></font><font color="#008080">    constant</font><font color="#000000"> r_test</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"test"</font><font color="#0000FF">)
-</font><font color="#7060A8">    call_proc</font><font color="#0000FF">(</font><font color="#000000">r_test</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</i></font><font color="#7060A8">    call_proc</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"test"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
-        which triggers
+        triggers something like
  <pre>
 C:\test\test.exw:1 in procedure test()
 type check failure, ???(symtab[472][S_name]=0) is "error"
     a = 1
     c = 3
-... called from test.exw:4
+... called from test.exw:5
 
 --&gt; see C:\Program Files (x86)\Phix\ex.err
-Press Enter...
- </pre>     
-        To avoid any such hiccups, and assuming you really do not care either way, I might suggest
-<!--eucode>
-    procedure test(integer a, object /*integer b*/, integer c)
-</eucode-->
-<pre>
-<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> test</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000080"><i> /*integer b*/</i></font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)</font>
-</pre>
-        Also note that un-named parameters cannot occur after any defaulted parameters (sorry).
-       <br>
-       <br>
-        A copy of the value of each argument is passed in. The formal parameter 
-        variables may be modified inside the procedure but this does not affect the 
-        value of the arguments (in the calling routine).
-       <dl>
-        <dt>
-          <b>
-           <font color="navy">Performance Note:</font>
-          </b>
-         <dd>
-            The interpreter does not actually copy sequences or
-            floating-point numbers unless it becomes necessary. For example,
-<!--eucode>
-     y = {1,2,3,4,5,6,7,8.5,"ABC"}
-     x = y
-</eucode-->
-<pre>
-<font color="#000000">     y</font><font color="#0000FF"> = {</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">8.5</font><font color="#0000FF">,</font><font color="#008000">"ABC"</font><font color="#0000FF">}
-</font><font color="#000000">     x</font><font color="#0000FF"> =</font><font color="#000000"> y</font>
-</pre>
-            The statement x = y does not actually cause a new copy of y to be
-            created. Both x and y will simply "point" to the same sequence. If we
-            later perform x[3] = 9, then a separate sequence will be created for x
-            in memory (although there will still be just one shared copy of 8.5 and
-            "ABC"). The same thing applies to "copies" of arguments passed in to
-            subroutines.
-         </dd>
-        </dt>
-       </dl>
+Press Enter...</pre>    
+        - at least it indicates the offending source code line, and it should be fairly obvious the problem is with "/*b*/", for want of a better name.
+        Of course no such errors would happen for parameters declared as type object. You should also be aware that the absence of "/*b*/" in the ex.err 
+        file, as deliberately shown above, may sometimes make debugging somewhat more difficult.
        <br>
        <br>
       </div>

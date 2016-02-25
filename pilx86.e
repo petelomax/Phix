@@ -3909,9 +3909,10 @@ integer k
     elsif isFresDest then
 -- #48, maybe fine without (done inside movRegImm32)
 --      emitHex5w(mov_eax_imm32,v)              -- mov eax,imm32
-        if X64 then
-            if v>#7FFFFFFF then ?9/0 end if -- placeholder for more code...
-        end if
+--      if X64 then
+--14/2/16 removed (now covered by movRegImm32):
+--          if v>#7FFFFFFF then ?9/0 end if -- placeholder for more code...
+--      end if
         movRegImm32(eax,v)                      -- mov eax,imm32
     elsif symtab[dest][S_NTyp]=S_TVar then
         k = symtab[dest][S_Tidx]

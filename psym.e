@@ -1802,14 +1802,14 @@ atom pi, inf, nan
     initialConstant("MB_DEFBUTTON4",               #300)    -- Fourth button is default button
     initialConstant("MB_SYSTEMMODAL",             #1000)    -- All applications suspended until user responds
     initialConstant("MB_TASKMODAL",               #2000)    -- Similar to MB_APPLMODAL 
-    initialConstant("MB_TOPMOST",                #40000)    -- create with the WS_EX_TOPMOST style
     initialConstant("MB_USERICON",                  #80)    -- (see MSGBOXPARAMS)
     initialConstant("MB_HELP",                    #4000)    -- Windows 95: Help button generates help event
     initialConstant("MB_SETFOREGROUND",          #10000)    -- Message box becomes the foreground window 
     initialConstant("MB_DEFAULT_DESKTOP_ONLY",   #20000)
-    initialConstant("MB_SERVICE_NOTIFICATION",   #40000)    -- Windows NT: The caller is a service 
+    initialConstant("MB_TOPMOST",                #40000)    -- create with the WS_EX_TOPMOST style
     initialConstant("MB_RIGHT",                  #80000)    -- Windows 95: The text is right-justified
     initialConstant("MB_RTLREADING",            #100000)    -- Windows 95: For Hebrew and Arabic systems
+    initialConstant("MB_SERVICE_NOTIFICATION",  #200000)    -- Windows NT: The caller is a service 
     initialConstant("IDOK",         1)  -- OK button was selected.
     initialConstant("IDCANCEL",     2)  -- Cancel button was selected.
     initialConstant("IDABORT",      3)  -- Abort button was selected.
@@ -1817,6 +1817,8 @@ atom pi, inf, nan
     initialConstant("IDIGNORE",     5)  -- Ignore button was selected.
     initialConstant("IDYES",        6)  -- Yes button was selected.
     initialConstant("IDNO",         7)  -- No button was selected.
+    initialConstant("IDTRYAGAIN",   10) -- Try Again button was selected.
+    initialConstant("IDCONTINUE",   11) -- Continue button was selected.
     -- from pfileio3.e[?]
     initialConstant("SEEK_OK",      0)
 
@@ -2323,7 +2325,8 @@ if newEmit then --DEV (temp) (T_find/T_match will be rqd once the asm conversion
 --  Alias("match_from", symlimit)   -- killed 3/8/15
 end if
 
-    initialAutoEntry("message_box",     S_Func,"FPPO",  "msgbox.e",0,E_none)
+    initialAutoEntry("message_box",     S_Func,"FSSIN", "msgbox.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
 if newEmit then
     initialAutoEntry("routine_id",      S_Func,"FP",    "VM\\prtnidN.e",0,E_none)   T_routine = symlimit
 else

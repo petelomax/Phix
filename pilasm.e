@@ -3927,8 +3927,48 @@ end if
                     s5 &= 0o244
                 end if
             elsif ttidx=T_movsd then
-                if emitON then
-                    s5 &= 0o245
+                skipSpacesAndComments()
+                if line=tokline and Ch!='}' then
+                    {p1type,p1size,p1details} = get_operand(P_XMMM)
+                    comma()
+                    if p1type=P_XMM then
+                        {p2type,p2size,p2details} = get_operand(P_MEM)
+                        if p2type!=P_MEM then ?9/0 end if
+                        if emitON then
+                            {scale,idx,base,offset} = p2details
+                            s5 &= {0o362,0o017,0o020}
+                            reg = p1details-1
+                            emit_xrm_sib(reg,scale,idx,base,offset)
+                        end if
+                    elsif p1type=P_MEM then
+                        {p2type,p2size,p2details} = get_operand(P_XMM)
+                        if p2type!=P_XMM then ?9/0 end if
+                        if emitON then
+                            {scale,idx,base,offset} = p1details
+                            s5 &= {0o362,0o017,0o021}
+                            reg = p2details-1
+                            emit_xrm_sib(reg,scale,idx,base,offset)
+                        end if
+                    else
+                        ?9/0 -- sanity check (should never trigger)
+                    end if
+--NB: only MOVSD here, MOVUPS elsewhere, others not attempted:
+--; 134 --  movups xmm0,[esi] -- 0x0F, #10, 0o006, //copy 16 bytes of source data
+--; 135 --  movups xmm1,[esi+16] -- 0x0F, 0o020, 0o116, 0x10, //copy more 16 bytes
+--; 136 --  movups xmm2,[esi+#020] -- 0x0F, 0o020, 0o126, 0x20, //copy more
+--;     0F  10  r   MOVUPS  xmm         xmm/m128    Move Unaligned Packed Single-FP Values
+--; F3  0F  10  r   MOVSS   xmm         xmm/m32     Move Scalar Single-FP Values
+--; 66  0F  10  r   MOVUPD  xmm         xmm/m128    Move Unaligned Packed Double-FP Value
+--; F2  0F  10  r   MOVSD   xmm         xmm/m64     Move Scalar Double-FP Value
+--;     0F  11  r   MOVUPS  xmm/m128    xmm         Move Unaligned Packed Single-FP Values
+--; F3  0F  11  r   MOVSS   xmm/m32     xmm         Move Scalar Single-FP Values
+--; 66  0F  11  r   MOVUPD  xmm/m128    xmm         Move Unaligned Packed Double-FP Values
+--; F2  0F  11  r   MOVSD   xmm/m64     xmm         Move Scalar Double-FP Value
+--; F2  0F  11  r   MOVSD   xmm/m64     xmm         Move Scalar Double-FP Value
+                else
+                    if emitON then
+                        s5 &= 0o245         -- mov dword[esi],[edi]; esi+/-=4; edi+/-=4
+                    end if
                 end if
             elsif ttidx=T_movsq then
                 if emitON then

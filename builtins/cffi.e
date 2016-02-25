@@ -49,9 +49,9 @@
 --                                BOOL fIncUpdate;
 --                                BYTE rgbReserved[32];
 --                              } PAINTSTRUCT, *PPAINTSTRUCT;"""
---          idRECT = define_struct(tRECT)
---          idPS = define_struct(tPS)
---          pPS = allocate_struct(idPS)
+--          constant idRECT = define_struct(tRECT),
+--                   idPS = define_struct(tPS)
+--                   pPS = allocate_struct(idPS)
 --          ...
 --          {oRECT,size,sign} = get_field_details(idPS,"rcPaint.left")
 --          pokeN(pPS+oRECT,{1,2,3,4},size)
@@ -159,7 +159,12 @@
 --  would be relatively trivial to add, I'll not bother until I actually need/can test it.
 
 --with trace
---/* -- OpenEuphoria compatability (4.1.0+; for RDS Eu 2.4 see cffi.2.4.e):
+
+--/*
+--
+-- OpenEuphoria compatability (4.1.0+; for RDS Eu 2.4 see cffi.2.4.e):
+-- ==================================================================
+--
 type string(object s)
     return sequence(s)
 end type

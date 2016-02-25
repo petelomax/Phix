@@ -209,10 +209,10 @@ atom xSystemTime, xLocalFileTime,
      xFindData = allocate(FDsize)
 
     if not dinit then initD() end if
-    if platform()=2 then    --Win32
+    if platform()=WINDOWS then
         slash = '\\'
         rslash = '/'
-    elsif platform()=3 then --Linux
+    elsif platform()=LINUX then
         slash = '/'
         rslash = '\\'
     end if

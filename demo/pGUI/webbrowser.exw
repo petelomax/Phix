@@ -1,0 +1,74 @@
+--
+-- Copyright (C) 2008-2010 by Jeremy Cowgar <jeremy@cowgar.com>
+--
+-- This file is part of EuIup.
+--
+-- EuIup is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU Lesser General Public License as
+-- published by the Free Software Foundation, either version 3 of
+-- the License, or (at your option) any later version.
+--
+-- EuIup is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU Lesser General Public
+-- License along with EuIup.  If not, see <http://www.gnu.org/licenses/>.
+--
+
+include pGUI.e
+
+Ihandle hDialog, hToolBar, hUrlEntry, hGoButton, hWebBrowser
+
+function on_go(Ihandle /*ih*/)
+    IupStoreAttribute(hWebBrowser, "VALUE", IupGetAttribute(hUrlEntry, "VALUE"))
+
+    return IUP_DEFAULT
+end function
+
+function on_navigate_cb(Ihandle /*ih*/, atom pUrl)
+    IupSetAttribute(hUrlEntry, "VALUE", pUrl)
+
+    return IUP_DEFAULT
+end function
+
+function on_completed_cb(Ihandle /*ih*/, atom pUrl)
+    IupSetAttribute(hUrlEntry, "VALUE", pUrl)
+    
+    return IUP_DEFAULT
+end function
+
+procedure create_gui()
+    hUrlEntry = IupText()
+    IupSetAttributes(hUrlEntry, "EXPAND=HORIZONTAL")
+
+    hGoButton = IupButton("Go",NULL,Icallback("on_go"))
+
+    hToolBar = IupHbox({hUrlEntry, hGoButton})
+
+    hWebBrowser = IupWebBrowser()
+    IupSetAttributes(hWebBrowser, "EXPAND=YES")
+    IupSetCallback(hWebBrowser, "NAVIGATE_CB", Icallback("on_navigate_cb"))
+    IupSetCallback(hWebBrowser, "COMPLETED_CB", Icallback("on_completed_cb"))
+
+    hDialog = IupDialog(IupVbox({hToolBar, hWebBrowser}, "MARGIN=5x5,GAP=5"))
+    IupSetAttributes(hDialog, `TITLE="EuIup Web Browser"`)
+end procedure
+
+procedure main()
+    IupOpen()
+
+    create_gui()
+
+    IupShow(hDialog)
+
+    -- Load our initial page
+    IupStoreAttribute(hWebBrowser, "VALUE", "http://openeuphoria.org")
+
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

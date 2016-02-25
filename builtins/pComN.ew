@@ -36,6 +36,7 @@ constant DEBUG=0    -- When 1, outputs "COM error %08x [%s] (%08x:%02x %s)\n" fo
 --  xSHCreateItemFromParsingName, xCoTaskMemFree, CP_UTF8
 -- 
 --!/*
+--DEV move to cinit():
 constant 
     kernel32 = open_dll("kernel32.dll"),
 
@@ -200,6 +201,7 @@ global constant atom IID_IUnknown = GUID("00000000-0000-0000-C000-000000000046")
 --                   IID_ITaskbarList = GUID(56FDF342-FD6D-11D0-958A-006097C9A090)
 
 global procedure freeGUIDS()
+--DEV if cinit
     free(CLSID_FileOpenDialog)
     free(CLSID_FileSaveDialog)
 --  free(CLSID_TaskbarList)
@@ -218,6 +220,7 @@ end procedure
 --  matter of get it right or watch it not work: it (really!) is as simple as that.
 -- (There is no particular reason why most of these are commented out, except to show
 --  which of them are actively used/have been thoroughly tested.)
+-- Note these constants are simply/automatically doubled when running on 64-bit.
 --
 global constant IUnknown_QueryInterface                         = #00,
 --              IUnknown_AddRef                                 = #04,
@@ -465,8 +468,10 @@ global function create_com_object(sequence vtable)
 --  a {<pointer to vtable>,refcount} pair, and the vtable itself.
 -- 
 --DEV 64 bit?
-atom res = allocate(8+length(vtable)*4)
-    poke4(res,{res+8,0}&vtable)
+--atom res = allocate(8+length(vtable)*4)
+atom res = allocate((length(vtable)+2)*machine_word())
+--  poke4(res,{res+8,0}&vtable)
+    pokeN(res,{res+2*machine_word(),0}&vtable,machine_word())
     return res
 end function
 
@@ -514,12 +519,50 @@ global function cominvk_imm(atom pInterface,integer vIdx,sequence params, intege
 --  are unsigned, so use and_bits(hResult,#80000000) instead of hResult<0,
 --  but you can compare directly against eg constant E_FAIL (=#80004005).
 --
-integer local_ebp4
+integer local_ebp4, la
 atom res
     if and_bits(vIdx,#03) then
         #ilASM { ::kaboom }
         ?9/0
     end if
+
+    if machine_bits()=64 then
+        --DEV actually, this should be more like pHeap.e/pGetMem... (nah, this shd be fine...)
+        la = length(params)
+        if la<4 then
+            params &= repeat(0,4-la)
+--          argdefs &= repeat(#01000004,5-la)
+        elsif remainder(la,2)=1 then
+            params &= 0
+--          argdefs &= #01000004    -- (C_INT)
+        end if
+        la = length(params)
+        #ilASM{
+            [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
+--          sub rsp,8*5                             -- minimum 4 param shadow space, and align/somewhere to save rax
+--          mov [rsp+32],rax                        -- save rax (required length)
+--          call "kernel32.dll","GetProcessHeap"
+--          mov r8,[rsp+32]                         -- dwBytes (p3)
+--          mov rdx,rbx                             -- dwFlags (p2,0)
+--          mov rcx,rax                             -- hHeap (p1)
+--          call "kernel32.dll","HeapAlloc"
+--          add rsp,8*5
+--          pop rsp
+--          mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+
+            [ELF64]
+                pop al
+            []              
+              }
+    end if
+
     if string(params) and length(params) then
         params &= -1    -- force conversion to dword-sequence
         params = params[1..$-1]
@@ -556,12 +599,14 @@ atom res
                 sub ecx,1
                 jnz :paramloop          
           ::zeroparams
-            mov eax,[pInterface]            
+            mov eax,[pInterface]
             mov edx,[vIdx]
             push eax
 --DEV 23/10/15 fatal exception here...
             mov eax,[eax]
-            call [eax+edx]
+--          call [eax+edx]
+            mov ecx,[eax+edx]
+            call ecx
             xor ebx,ebx
             lea edi,[res]
             push ebx
@@ -581,7 +626,68 @@ atom res
             call :%pSetSaveEBP
 
         [64]
-            pop al
+--          pop al
+
+--  --DEV not convinced this is necessary:
+            mov rdx,rbp
+--  --mov esi,1
+            call :%pSetSaveEBP
+            shr rax,2
+            mov [local_ebp4],rax
+
+            mov rsi,[params]
+            mov r15,h4
+--          mov rcx,[rbx+rsi*4-24]  -- length
+            mov rcx,[la]
+            shl rsi,2
+            cmp rcx,0
+            je :zeroparams
+          ::paramloop
+                mov rax,[rsi+rcx*8-8]
+                cmp rax,r15
+                jl @f
+                    sub rsp,8
+                    cmp byte[rbx+rax*4-1],0x12          -- (ebx==0)
+                    jne :kaboom
+                    fld tbyte[rbx+rax*4]
+                    fistp qword[rsp]
+                    pop rax
+              @@:
+                push rax
+                sub rcx,1
+                jnz :paramloop          
+          ::zeroparams
+            mov rax,[pInterface]            
+            mov rdx,[vIdx]
+            push rax
+--DEV 23/10/15 fatal exception here... (when it was 32 bit)
+            mov rax,[rax]
+--          call [eax+edx]
+--          mov rbx,[rax+rdx]
+            mov rbx,[rax+rdx*2]
+
+            mov rcx,[rsp]
+            mov rdx,[rsp+8]
+            mov r8,[rsp+16]
+            mov r9,[rsp+24]
+
+            call rbx
+            xor rbx,rbx
+            lea rdi,[res]
+--          push ebx
+            push rax
+            fild qword[rsp]
+            add rsp,8
+            call :%pStoreFlt    -- ([rdi]:=ST0)
+--  --DEV not convinced this is necessary:
+            mov rdx,[local_ebp4]
+            shl rdx,2
+--  --mov esi,-1
+            call :%pSetSaveEBP
+
+            mov rcx,[la]
+            mov rsp,[rsp+rcx*8+8]   -- equivalent to the add/pop
+
         []
     }
     if bDebug then

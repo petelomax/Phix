@@ -14,10 +14,10 @@
          </td>
          <td>
           <font face = "Arial, Helvetica">
-            include pIUP.e
+            include pGUI.e
             <br>
             <br>
-            sequence res = IupGetParam(string title, integer rid, object data, string fmt, sequence args)
+            sequence res = IupGetParam(string title, cbfunc action, atom user_data, string fmt, sequence param_data = {})
           </font>
          </td>
         </tr>
@@ -30,10 +30,10 @@
             <br>
             <br>
             title: dialog title.<br>
-            rid: user callback to be called whenever a parameter value was changed, and when the user pressed the OK button. It can be NULL.<br>
+            action: callback to be called whenever a parameter value was changed, and when the user pressed the OK button. It can be NULL.<br>
             user_data: user pointer passed to the user callback.<br>
-            format: string describing all the parameters, see Notes. <br>
-            args: list of variables address with initial values for the parameters.
+            fmt: string describing all the parameters, see Notes. <br>
+            param_data: list of initial values for the parameters.
             <br>
             <br>
             Returns: args plus a status code 1 in res[$] if the button 1 was pressed, 0 if the button 2 was pressed or if an error occurred.
@@ -44,7 +44,7 @@
           <b>Notes:</b>
          </td>
          <td>
-            The function will abort if there are errors in the format string as in the number of the expected parameters. 
+            The function will abort if there are errors in the format string such as the number of parameters. 
             <br>
             <br>
             The format string must have the following format, notice the "\n" at the end
@@ -91,8 +91,7 @@
             <li>tip is a string that is displayed in a TIP for the main control of the parameter. (since 3.0)</li>
             </ul>
             The number of lines in the format string (number of '\n') will determine the number of required parameters. But separators will not count as parameters. 
-            There is no maximum number of parameters (since 3.13). [<b>Phix</b>: the wrapper is currently limited to 20, but that is trivial to increase if needed.
-            Strings are also currently limited to 1024 bytes, also trivial to increase.]
+            There is no maximum number of parameters (since 3.13). [Internally Phix wraps IupGetParamsv, rather than IupGetParams, not that it matters.]
             <br>
             <br>
             A integer parameter always has a spin attached to the text to increment and decrement the value. <br>
@@ -109,10 +108,10 @@
             Therefore, the string parameter must be large enough to contain the user input. <br>
             If you want to set a maximum size for the string you can set the param attribute MAXSTR, inside the callback when param_index=IUP_GETPARAM_INIT.<br>
             Its default value is 10240 for multiline strings, 4096 for file names, and 512 for other strings.<br>
-            [<b>Phix</b>: currently 1024 across the board, easily increased. If you need your app to be robust, you must implement that callback.]
+            [<b>Phix</b>: The above sizes are hard coded but otherwise easily modified. If you need your app to be robust, you must implement that callback.]
             <br>
             <br>
-            There is no extra parameters for the color string. The mask is automatically set to capture 3 or 4 unsigned integers from 0 to 255 (R G B) or (R G B A) (alpha is optional).
+            There are no extra parameters for the color string. The mask is automatically set to capture 3 or 4 unsigned integers from 0 to 255 (R G B) or (R G B A) (alpha is optional).
             <br>
             <br>
             The dialog is resizable if it contains a string, a multiline string or a number with a valuator. All the multiline strings will increase size equally in both directions.
@@ -277,7 +276,10 @@ if (value2 == 0)
          <td>
         Here is an example showing many of the possible parameters. We show only one for each type, but you can have as many parameters of the same type you want.
 <!--eucode>
-include pIUP.e
+--
+-- demo\pGUI\getparams.exw
+--
+include pGUI.e
 
 IupOpen()
 
@@ -294,38 +296,56 @@ string pcolor = "255 0 128";
 string pfont = "Courier, 24";
 string pstring2 = "second text\nsecond line";
   
-  sequence res = IupGetParam("Title", -2, 0,
-                   "Bt %u[, MyCancel, Help!]\n"&
-                   "Boolean: %b[No,Yes]\n"&
-                   "Integer: %i\n"&
-                   "Real 1: %r\n"&
-                   "Sep1 %t\n"&
-                   "Integer2: %i[0,255]\n"&
-                   "Real 2: %r[-1.5,1.5,0.05]\n"&
-                   "Sep2 %t\n"&
-                   "Angle: %a[0,360]\n"&
-                   "String: %s\n"&
-                   "Options: %o|item0|item1|item2|\n" &
-                   "List: %l|item0|item1|item2|item3|item4|\n" &
-                   "File: %f[OPEN|*.bmp;*.jpg|CURRENT|NO|NO]\n"&
-                   "Color: %c{Color Tip}\n"&
-                   "Font: %n\n"&
-                   "Sep3 %t\n"&
-                   "Multiline: %m\n",
-                   {pboolean, pinteger, preal, pinteger2, preal2, 
-                    pangle, pstring, poptions, plist, file_name, 
-                    pcolor, pfont, pstring2})
+constant fmt="""
+_____________Boolean: %b[No,Yes]
+             Integer: %i
+             Real 1: %r
+Sep1 %t
+             Integer2: %i[0,255]
+             Real 2: %r[-1.5,1.5,0.05]
+Sep2 %t
+             Angle: %a[0,360]
+             String: %s
+Sep3 %t
+             Options: %o|item0|item1|item2|
+             List: %l|item0|item1|item2|item3|item4|item5|item6|
+Sep4 %t
+             File: %f[OPEN|*.bmp;*.jpg|CURRENT|NO|NO]
+             Color: %c{Color Tip}
+             Font: %n
+Sep5 %t
+             Multiline: %m
+             Bt %u[, MyCancel, Help!]
+"""  
+
+    IupOpen()
+
+    sequence res = IupGetParam("Title", NULL, 0, fmt,
+                               {pboolean, pinteger, preal, 
+--                              (sep1)
+                                pinteger2, preal2, 
+--                              (sep2)
+                                pangle, pstring, 
+--                              (sep3)
+                                poptions, plist, 
+--                              (sep4)
+                                file, pcolor, pfont, 
+--                              (sep5)
+                                pstring2})
     string msg = ""
     for i=1 to length(res) do
         msg &= sprint(res[i])&'\n'
     end for
-    IupShow(IupDialog(NULL))
+    IupShow(IupDialog(NULL)) -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
     IupMessage("results",msg)
 
 IupClose()
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pIUP.e
+<font color="#000000"></font><font color="#000080"><i>--
+-- demo\pGUI\getparams.exw
+--
+</i></font><font color="#008080">include</font><font color="#000000"> pGUI.e
 
 </font><font color="#5E005E">IupOpen</font><font color="#0000FF">()
 
@@ -342,36 +362,54 @@ IupClose()
 </font><font color="#004080">string</font><font color="#000000"> pfont</font><font color="#0000FF"> =</font><font color="#008000"> "Courier, 24"</font><font color="#0000FF">;
 </font><font color="#004080">string</font><font color="#000000"> pstring2</font><font color="#0000FF"> =</font><font color="#008000"> "second text\nsecond line"</font><font color="#0000FF">;
 </font><font color="#C0C0C0">  
-</font><font color="#004080">  sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetParam</font><font color="#0000FF">(</font><font color="#008000">"Title"</font><font color="#0000FF">, -</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">,
-</font><font color="#008000">                   "Bt %u[, MyCancel, Help!]\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Boolean: %b[No,Yes]\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Integer: %i\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Real 1: %r\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Sep1 %t\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Integer2: %i[0,255]\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Real 2: %r[-1.5,1.5,0.05]\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Sep2 %t\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Angle: %a[0,360]\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "String: %s\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Options: %o|item0|item1|item2|\n"</font><font color="#0000FF"> &amp;
-</font><font color="#008000">                   "List: %l|item0|item1|item2|item3|item4|\n"</font><font color="#0000FF"> &amp;
-</font><font color="#008000">                   "File: %f[OPEN|*.bmp;*.jpg|CURRENT|NO|NO]\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Color: %c{Color Tip}\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Font: %n\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Sep3 %t\n"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                   "Multiline: %m\n"</font><font color="#0000FF">,
-</font><font color="#800000">                   {</font><font color="#000000">pboolean</font><font color="#0000FF">,</font><font color="#000000"> pinteger</font><font color="#0000FF">,</font><font color="#000000"> preal</font><font color="#0000FF">,</font><font color="#000000"> pinteger2</font><font color="#0000FF">,</font><font color="#000000"> preal2</font><font color="#0000FF">, 
-</font><font color="#000000">                    pangle</font><font color="#0000FF">,</font><font color="#000000"> pstring</font><font color="#0000FF">,</font><font color="#000000"> poptions</font><font color="#0000FF">,</font><font color="#000000"> plist</font><font color="#0000FF">,</font><font color="#000000"> file_name</font><font color="#0000FF">, 
-</font><font color="#000000">                    pcolor</font><font color="#0000FF">,</font><font color="#000000"> pfont</font><font color="#0000FF">,</font><font color="#000000"> pstring2</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">constant</font><font color="#000000"> fmt</font><font color="#0000FF">=</font><font color="#008000">"""
+_____________Boolean: %b[No,Yes]
+             Integer: %i
+             Real 1: %r
+Sep1 %t
+             Integer2: %i[0,255]
+             Real 2: %r[-1.5,1.5,0.05]
+Sep2 %t
+             Angle: %a[0,360]
+             String: %s
+Sep3 %t
+             Options: %o|item0|item1|item2|
+             List: %l|item0|item1|item2|item3|item4|item5|item6|
+Sep4 %t
+             File: %f[OPEN|*.bmp;*.jpg|CURRENT|NO|NO]
+             Color: %c{Color Tip}
+             Font: %n
+Sep5 %t
+             Multiline: %m
+             Bt %u[, MyCancel, Help!]
+"""  
+
+</font><font color="#5E005E">    IupOpen</font><font color="#0000FF">()
+
+</font><font color="#004080">    sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetParam</font><font color="#0000FF">(</font><font color="#008000">"Title"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000"> fmt</font><font color="#0000FF">,
+</font><font color="#800000">                               {</font><font color="#000000">pboolean</font><font color="#0000FF">,</font><font color="#000000"> pinteger</font><font color="#0000FF">,</font><font color="#000000"> preal</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                              (sep1)
+</i></font><font color="#000000">                                pinteger2</font><font color="#0000FF">,</font><font color="#000000"> preal2</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                              (sep2)
+</i></font><font color="#000000">                                pangle</font><font color="#0000FF">,</font><font color="#000000"> pstring</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                              (sep3)
+</i></font><font color="#000000">                                poptions</font><font color="#0000FF">,</font><font color="#000000"> plist</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                              (sep4)
+</i></font><font color="#000000">                                file</font><font color="#0000FF">,</font><font color="#000000"> pcolor</font><font color="#0000FF">,</font><font color="#000000"> pfont</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                              (sep5)
+</i></font><font color="#000000">                                pstring2</font><font color="#800000">}</font><font color="#0000FF">)
 </font><font color="#004080">    string</font><font color="#000000"> msg</font><font color="#0000FF"> =</font><font color="#008000"> ""
 </font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> do
 </font><font color="#000000">        msg</font><font color="#0000FF"> &amp;=</font><font color="#5E005E"> sprint</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)&amp;</font><font color="#008000">'\n'
 </font><font color="#008080">    end for
-</font><font color="#5E005E">    IupShow</font><font color="#0000FF">(</font><font color="#5E005E">IupDialog</font><font color="#800000">(</font><font color="#004600">NULL</font><font color="#800000">)</font><font color="#0000FF">)
-</font><font color="#5E005E">    IupMessage</font><font color="#0000FF">(</font><font color="#008000">"results"</font><font color="#0000FF">,</font><font color="#000000">msg</font><font color="#0000FF">)
+</font><font color="#5E005E">    IupShow</font><font color="#0000FF">(</font><font color="#5E005E">IupDialog</font><font color="#800000">(</font><font color="#004600">NULL</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
+</i></font><font color="#5E005E">    IupMessage</font><font color="#0000FF">(</font><font color="#008000">"results"</font><font color="#0000FF">,</font><font color="#000000">msg</font><font color="#0000FF">)
 
 </font><font color="#5E005E">IupClose</font><font color="#0000FF">()</font>
 </pre>
+            <br>
+            <small>(I have added a couple of separators not shown on the following image)</small>
+            <br>
             <br>
             <img src="Images/getparam.png"/>
          </td>
@@ -383,9 +421,11 @@ IupClose()
          <td>
           <a href="IupOpen.htm">XIupOpen</a>,
           <a href="IupGetColor.htm">IupGetColor</a>,
+          <a href="IupValuator.htm">IupValuator</a>,
+          <a href="IupList.htm">IupList</a>,
           <a href="IupFileDlg.htm">IupFileDlg</a>
 <br>
-See Also IupScanf, IupGetColor, IupMask, IupVal, IupDial, IupList, IupFileDlg. 
+See Also IupScanf, IupGetColor, IupMask, IupValuator, IupDial, IupList, IupFileDlg. 
          </td>
         </tr>
        </table>

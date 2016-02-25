@@ -16,6 +16,7 @@
 include builtins/pComN.ew
 
 --!/*
+--DEV finit:
 constant 
     shell32  = open_dll("shell32.dll"),
     ole32    = open_dll("ole32.dll"),
@@ -52,7 +53,8 @@ global constant ENC_NONE    = 0,
 
 global constant Encodings = {"ANSI","UTF8","UTF16LE","UTF16BE"}
 
-constant atom pFileDialogCustomize = allocate(4)    -- (set/retrieved in filedialog())
+--constant atom pFileDialogCustomize = allocate(4)  -- (set/retrieved in filedialog())
+constant atom pFileDialogCustomize = allocate(machine_word())   -- (set/retrieved in filedialog())
 
 string encfilename
 
@@ -87,9 +89,11 @@ end function
 --         set the custom encoding drop down added below (same as the one in Notepad).
 --
 function fn_IFileDialogEvents_OnSelectionChange(atom this, atom pFileDialog)
-atom psiCurrent = allocate(4)
+--atom psiCurrent = allocate(4)
+atom psiCurrent = allocate(machine_word())
 atom pName = 0
-atom ppName = allocate(4)
+--atom ppName = allocate(4)
+atom ppName = allocate(machine_word())
 string sres
 integer encoding
 
@@ -98,7 +102,8 @@ integer encoding
     --        be the case when this is called for the first time at startup, hence the 0.)
     if cominvk_imm(pFileDialog,IFileDialog_GetCurrentSelection,{psiCurrent},0)=S_OK then
         if cominvk(psiCurrent,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
-            pName = peek4u(ppName)
+--          pName = peek4u(ppName)
+            pName = peekNS(ppName,machine_word(),0)
         end if
         {} = cominvk(psiCurrent,IShellItem_Release,{})
     end if
@@ -114,6 +119,7 @@ integer encoding
     end if
     return S_OK
 end function
+--DEV finit*6:
 constant cb_IFileDialogEvents_OnSelectionChange = call_back(routine_id("fn_IFileDialogEvents_OnSelectionChange"))
 
 -- Dummy routines to complete the interface:
@@ -125,7 +131,8 @@ without warning
 --      poke4(ppv,this)
 --      return S_OK
 --  end if
-    poke4(ppv,NULL)
+--  poke4(ppv,NULL)
+    pokeN(ppv,NULL,machine_word())
     return E_NOINTERFACE
 end function
 constant cb_IFileDialogEvents_QueryInterface = call_back(routine_id("fn_IFileDialogEvents_QueryInterface"))
@@ -196,6 +203,7 @@ constant cb_IFileDialogEvents_Dummy3 = call_back(routine_id("fn_IFileDialogEvent
 -- Our statically allocated IFileDialogEvents. 
 --  We are only interested in intercepting the selection change,
 --  so most of these methods (including QueryInterface) are dummy.
+--DEV finit:
 constant atom pIFileDialogEvents = create_com_object({cb_IFileDialogEvents_QueryInterface,
                                                       cb_IFileDialogEvents_DummyRef,            -- AddRef
                                                       cb_IFileDialogEvents_DummyRef,            -- Release
@@ -256,12 +264,14 @@ atom pFlags
     end if
     flags = FOS_FORCEFILESYSTEM
     if extension!=NULL then
-        pFlags = allocate(4)
+--      pFlags = allocate(4)
+        pFlags = allocate(machine_word())
         if length(extension)>=3 then
             flags = or_bits(flags,extension[3])
         end if
         if cominvk(pFileDialog,IFileDialog_GetOptions,{pFlags})!=S_OK
-        or cominvk(pFileDialog,IFileDialog_SetOptions,{or_bits(peek4u(pFlags),flags)})!=S_OK then
+--      or cominvk(pFileDialog,IFileDialog_SetOptions,{or_bits(peek4u(pFlags),flags)})!=S_OK then
+        or cominvk(pFileDialog,IFileDialog_SetOptions,{or_bits(peekNS(pFlags,machine_word(),0),flags)})!=S_OK then
             res = 0
         end if
         free(pFlags)
@@ -305,7 +315,8 @@ function filedialog(integer fmode, integer hWnd, object filters, object extensio
 --  http://msdn.microsoft.com/en-us/library/windows/desktop/bb776913
 --
 object res = 0
-atom pFileDialog = allocate(4)
+--atom pFileDialog = allocate(4)
+atom pFileDialog = allocate(machine_word())
 integer I_SetFolder = IFileDialog_SetDefaultFolder
 atom pDefaultFolder, pShellItem = NULL
 atom dwCookie, psiResult, pEnc, ppName, pName
@@ -323,7 +334,8 @@ atom pShellItemArray, pShellItemArrayCount
             --Bugfix 8/7/14. If the folder does not exist then crop until it does, and if default_folder is
             --               say H:\blah and the H: drive has been unplugged, pretend that NULL was passed,
             --               that is, rather than just quietly return 0 and offer absolutely no explanation!
-            pShellItem = allocate(4)
+--          pShellItem = allocate(4)
+            pShellItem = allocate(machine_word())
             while 1 do
                 pDefaultFolder = unicode_string(default_folder)
                 res = c_func(xSHCreateItemFromParsingName,{pDefaultFolder,NULL,IID_IShellItem,pShellItem})
@@ -346,7 +358,8 @@ atom pShellItemArray, pShellItemArrayCount
             res = 0
         end if
         if default_folder=NULL
-        or (pShellItem!=NULL and cominvk(pFileDialog,I_SetFolder,{peek4u(pShellItem)})=S_OK) then
+--      or (pShellItem!=NULL and cominvk(pFileDialog,I_SetFolder,{peek4u(pShellItem)})=S_OK) then
+        or (pShellItem!=NULL and cominvk(pFileDialog,I_SetFolder,{peekNS(pShellItem,machine_word(),0)})=S_OK) then
             if set_Filters(pFileDialog,filters,extension) then
                 if and_bits(flags,FOS_ALLOWMULTISELECT) then
                     if fmode!=OPEN then ?9/0 end if  -- (IFileOpenDialog_GetResults must be available!)
@@ -356,22 +369,31 @@ atom pShellItemArray, pShellItemArrayCount
                 or cominvk(pFileDialog,IFileDialog_QueryInterface,{IID_IFileDialogCustomize,pFileDialogCustomize})=S_OK then
                     if add_encoding_dropdown(encoding) then
                         dwCookie = allocate(4)
+--                      dwCookie = allocate(machine_word())
+--                      pokeN(dwCookie,0,machine_word())
+--                      dwCookie = allocate(DWORD)
                         if fmode=SAVE
                         or encoding=0
                         or cominvk(pFileDialog,IFileDialog_Advise,{pIFileDialogEvents,dwCookie})=S_OK then
                             if cominvk(pFileDialog,IFileDialog_Show,{hWnd})=S_OK then
-                                psiResult = allocate(4)
-                                ppName = allocate(4)
+--                              psiResult = allocate(4)
+                                psiResult = allocate(machine_word())
+--                              ppName = allocate(4)
+                                ppName = allocate(machine_word())
                                 if and_bits(flags,FOS_ALLOWMULTISELECT) then
-                                    pShellItemArray = allocate(4)
+--                                  pShellItemArray = allocate(4)
+                                    pShellItemArray = allocate(machine_word())
                                     if cominvk(pFileDialog,IFileOpenDialog_GetResults,{pShellItemArray})=S_OK then
-                                        pShellItemArrayCount = allocate(4)
+--                                      pShellItemArrayCount = allocate(4)
+                                        pShellItemArrayCount = allocate(machine_word())
                                         if cominvk(pShellItemArray,IShellItemArray_GetCount,{pShellItemArrayCount})=S_OK then
-                                            res = repeat(0,peek4s(pShellItemArrayCount))
+--                                          res = repeat(0,peek4s(pShellItemArrayCount))
+                                            res = repeat(0,peekNS(pShellItemArrayCount,machine_word(),1))
                                             for i=1 to length(res) do
                                                 if cominvk(pShellItemArray,IShellItemArray_GetItemAt,{i-1,psiResult})!=S_OK then exit end if
                                                 if cominvk(psiResult,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
-                                                    pName = peek4u(ppName)
+--                                                  pName = peek4u(ppName)
+                                                    pName = peekNS(ppName,machine_word(),0)
                                                     res[i] = peek_unicode_string(pName)
                                                     c_proc(xCoTaskMemFree,{pName})
                                                 end if
@@ -383,18 +405,20 @@ atom pShellItemArray, pShellItemArrayCount
                                     end if
                                     free(pShellItemArray)
                                 else
-                                    pEnc = allocate(4)
+--                                  pEnc = allocate(4)
+                                    pEnc = allocate(machine_word())
                                     if (encoding=0 or cominvk(pFileDialogCustomize,IFileDialogCustomize_GetSelectedControlItem,{100,pEnc})=S_OK)
                                     and cominvk(pFileDialog,IFileDialog_GetResult,{psiResult})=S_OK then
                                         if cominvk(psiResult,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
-                                            pName = peek4u(ppName)
+--                                          pName = peek4u(ppName)
+                                            pName = peekNS(ppName,machine_word(),0)
                                             res = peek_unicode_string(pName)
                                             c_proc(xCoTaskMemFree,{pName})
                                             if encoding!=0 then
---                                              res = {peek4s(pEnc),res}
                                                 if res=encfilename then
 --?{res,encfilename}
-                                                    encoding = peek4s(pEnc)
+--                                                  encoding = peek4s(pEnc)
+                                                    encoding = peekNS(pEnc,machine_word(),1)
                                                 else
                                                     encoding = getEncoding(res)
                                                 end if

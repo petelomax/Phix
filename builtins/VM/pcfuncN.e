@@ -1087,11 +1087,26 @@ pop eax
                 -- (same for both STDCALL and CDECL, cmiiw)
 
 --[PE64]
+--15/2/16:
+            -- rax/rcx/rdx/r8/r9/r10/r11 are damaged, as are xmm0..5 and st0..7
+            -- rbx/rbp/rdi/rsi/r12/r13/r14/r15 are preserved (as are xmm6..15)
+push rbx
+push rbp
+push rdi
+push rsi
+push r12
+push r13
+push r14
+push r15
                 xor rbx,rbx
-                mov [rsp+16],rcx
-                mov [rsp+24],rdx
-                mov [rsp+32],r8
-                mov [rsp+40],r9
+--              mov [rsp+16],rcx
+--              mov [rsp+24],rdx
+--              mov [rsp+32],r8
+--              mov [rsp+40],r9
+                mov [rsp+16+64],rcx
+                mov [rsp+24+64],rdx
+                mov [rsp+32+64],r8
+                mov [rsp+40+64],r9
 
                 push rax
                 xor rdx,rdx             -- edx:=0
@@ -1141,7 +1156,8 @@ pop eax
 --31/12/14:
 --                  lea rsi,[rsp+16]    -- params (on stack)
 --                  lea rsi,[rsp+24]    -- params (on stack)
-                    lea rsi,[rsp+32]    -- params (on stack)
+--                  lea rsi,[rsp+32]    -- params (on stack)
+                    lea rsi,[rsp+32+64] -- params (on stack)
                 ::paramloop
                     lodsq               --  rax:=[rsi], rsi+=8
                     cmp rax,r15
@@ -1215,6 +1231,15 @@ pop eax
 --              mov [ebp_save],rdx      -- restore (important!)
 --              popad                   -- restore all other registers
 --              ret 8                   -- (the two dwords pushed by template code)
+--15/2/16:
+pop r15
+pop r14
+pop r13
+pop r12
+pop rsi
+pop rdi
+pop rbp
+pop rbx
                 ret
 
             -- end of cbhandler
@@ -1526,20 +1551,112 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                 if DEBUG then
                     if not find(argdefi,{
                                          #01000001,     -- C_CHAR
+                                         #02000001,     -- C_UCHAR
+                                         #01000002,     -- C_SHORT
+                                         #02000002,     -- C_USHORT
                                          #01000004,     -- C_INT
-                                         #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                                         #02000004,     -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                                         #03000008      -- C_DOUBLE
                                         }) then ?9/0 end if
                 end if
-                #ilASM{
-                        [32]
-                            mov edx,[argi]
-                            push edx
-                        [64]
---                          mov rdx,[argi]  --DEV everywhere
---                          push rdx
-                            push [argi]
-                        []
-                    }
+                if find(argdefi,{
+                                 #01000001,     -- C_CHAR
+                                 #02000001,     -- C_UCHAR
+                                 #01000002,     -- C_SHORT (a 16 bit signed integer)
+                                 #02000002,     -- C_USHORT (a 16 bit signed integer)
+                                 #01000004,     -- C_INT
+                                 #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                                }) then
+                    #ilASM{
+                            [32]
+                                mov edx,[argi]
+                                push edx
+                            [64]
+--                              mov rdx,[argi]  --DEV everywhere
+--                              push rdx
+                                push [argi]
+                            []
+                        }
+                elsif find(argdefi,{
+                                    #03000008       -- C_DOUBLE
+                                   }) then
+                    #ilASM{
+                            [32]
+                                sub esp,8
+                                fild dword[argi]
+                                fstp qword[esp]
+                            [64]
+                                sub rsp,8
+                                fild qword[argi]
+                                fstp qword[rsp]
+                            []
+                        }
+--14/2/16:
+                    -- (technically this should probably be done just before the "call rax" in c_func/proc,
+                    --  but as we won't damage them (ie xmm0..xmm3) before that, this should be fine.)
+                    if machine_bits()=64 then
+                        if i<=4 then
+                            if i=1 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm0,qword[rsp]
+                                        []
+                                    }
+                            elsif i=2 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm1,qword[rsp]
+                                        []
+                                    }
+                            elsif i=3 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm2,qword[rsp]
+                                        []
+                                    }
+                            elsif i=4 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm3,qword[rsp]
+                                        []
+                                    }
+                            else
+                                ?9/0
+                            end if
+                        elsif platform()=LINUX and i<=8 then
+                            if i=5 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm4,qword[rsp]
+                                        []
+                                    }
+                            elsif i=6 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm5,qword[rsp]
+                                        []
+                                    }
+                            elsif i=7 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm6,qword[rsp]
+                                        []
+                                    }
+                            elsif i=8 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm7,qword[rsp]
+                                        []
+                                    }
+                            else
+                                ?9/0
+                            end if
+                        end if
+                    end if
+                else
+--DEV #3000004 (float)
+                    ?9/0
+                end if
             elsif atom(argi) then
 --DEV switch would be better?
                 if find(argdefi,{
@@ -1595,6 +1712,66 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                                 fstp qword[rsp]
                             []
                         }
+--14/2/16:
+                    if machine_bits()=64 then
+                        if i<=4 then
+                            if i=1 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm0,qword[rsp]
+                                        []
+                                    }
+                            elsif i=2 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm1,qword[rsp]
+                                        []
+                                    }
+                            elsif i=3 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm2,qword[rsp]
+                                        []
+                                    }
+                            elsif i=4 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm3,qword[rsp]
+                                        []
+                                    }
+                            else
+                                ?9/0
+                            end if
+                        elsif platform()=LINUX and i<=8 then
+                            if i=5 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm4,qword[rsp]
+                                        []
+                                    }
+                            elsif i=6 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm5,qword[rsp]
+                                        []
+                                    }
+                            elsif i=7 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm6,qword[rsp]
+                                        []
+                                    }
+                            elsif i=8 then
+                                #ilASM{
+                                        [64]
+                                            movsd xmm7,qword[rsp]
+                                        []
+                                    }
+                            else
+                                ?9/0
+                            end if
+                        end if
+                    end if
                 else
                     ?9/0
                 end if
@@ -1770,7 +1947,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                 je :cstore
                 cmp edx,0x03000008  -- (C_DOUBLE)
                 jne @f
-            ::cstore                                        --    cstore:
+            ::cstore
                     lea edi,[r]
                     call :%pStoreFlt                    -- ([edi]:=ST0)
                     jmp :done
@@ -1834,6 +2011,8 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                     pop rax
             @@:
 --[PE64]    
+                -- (xmm0..3 are set in c_common; one or more of
+                --  these may actually be garbage, but no matter.)
                 mov rcx,[rsp]
                 mov rdx,[rsp+8]
                 mov r8,[rsp+16]
@@ -1893,7 +2072,13 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                 je :cstore
                 cmp rdx,0x03000008  -- (C_DOUBLE)
                 jne @f
-            ::cstore                                        --    cstore:
+            ::cstore
+-- 14/2/16: (certainly C_DOUBLE, not necessarily C_FLOAT?)
+                    sub rsp,8
+                    movsd qword[rsp],xmm0
+                    fld qword[rsp]
+                    add rsp,8
+-- (14/2/16 ends)
                     lea rdi,[r]
                     call :%pStoreFlt                    -- ([rdi]:=ST0)
                     jmp :done
@@ -2187,6 +2372,8 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
             @@:
 --push rbp
 --[PE64]
+                -- (xmm0..3 are set in c_common; one or more of
+                --  these may actually be garbage, but no matter.)
                 mov rcx,[rsp]
                 mov rdx,[rsp+8]
                 mov r8,[rsp+16]

@@ -105,6 +105,12 @@ Version 0.6.7
             and opLnt, and replace opTchkRetAddr with called from in pDiag).
 12/12/2015  Finally vanquished that "oops2 in ReconstructIds" message when
             producing some listing files (esp "-d!"). Also added UnAlias.
+09/02/2016  BUGFIX: a procedure with atom prev=c_func() was being flagged as
+            having no side effects. Moved SideEffects = None above the call
+            to Locals() in pmain.e/DoRoutineDef(). Then moved it even further
+            up, as parameter types and defaults could equally be missed.
+15/02/2016  BUGFIX: preserved rbx/rbp/rdi/rsi/r12/r13/r14/r15 over callbacks;
+            fileopen/pcom now appear to work on 64-bit!! (YAY!)
 
 
 Version 0.6.6

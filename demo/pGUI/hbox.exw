@@ -1,0 +1,48 @@
+--
+-- hobx.exw
+--  
+--  Creates a dialog with buttons placed side by side, with the purpose of showing the 
+--  organization possibilities of elements inside an IupHbox. The "ALIGNMENT" attribute 
+--  is explored in all its possibilities to obtain the given effect.
+--
+
+include pGUI.e
+
+function button(string desc, string size)
+    return IupButton(desc,NULL,NULL,"SIZE=%s",{size})
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+/* IUP identifiers */
+Ihandle fr1, fr2, fr3, dialog
+
+    /* Initializes IUP */
+    IupOpen()
+
+    /* Creates frame with three top aligned buttons */
+    fr1 = IupFrame(IupHbox({IupFill(),button("1","30x30"),button("2","30x40"),button("3","30x50")},
+                           "ALIGNMENT=ATOP, GAP=10, SIZE=200"))
+    IupSetAttribute(fr1, "TITLE", "ALIGNMENT=ATOP, GAP=10, SIZE=200")   /* set description */
+
+    /* Creates frame with three centred buttons */
+    fr2 = IupFrame(IupHbox({IupFill(),button("1","30x30"),button("2","30x40"),button("3","30x50"),IupFill()},
+                           "ALIGNMENT=ACENTER, GAP=20"))
+    IupSetAttribute(fr2, "TITLE", "ALIGNMENT=ACENTER, GAP=20")
+
+    /* Creates frame with three bottom aligned buttons */
+    fr3 = IupFrame(IupHbox({IupFill(),button("1","30x30"),button("2","30x40"),button("3","30x50"),IupFill()},
+                           "ALIGNMENT=ABOTTOM, SIZE=150"))
+    IupSetAttribute(fr3, "TITLE", "ALIGNMENT=ABOTTOM, SIZE=150")
+
+    /* Creates dialog with the three frames */
+    dialog = IupDialog(IupVbox({fr1,fr2,fr3}),"TITLE=IupHbox")
+    IupSetCallback(dialog, "K_ANY", Icallback("esc_close"));
+
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER)   /* Shows dialog in the center of the screen */
+    IupMainLoop()                               /* Initializes IUP main loop */
+    IupClose()                                  /* Finishes IUP */
+

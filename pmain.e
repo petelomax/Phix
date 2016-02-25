@@ -3489,6 +3489,7 @@ end procedure
 
 integer r_Assignment
 
+--with trace
 function Params()
 -- process the parameter list
 --  invoked from DoRoutineDef and DoForwardDef
@@ -3525,7 +3526,11 @@ integer SNtyp
         while 1 do
             if toktype!=LETTER then
 if default_found then
-                Aborp("a parameter name is expected here")
+--              Aborp("a parameter name is expected here")
+                if (toktype!=':' or Ch!='=')
+                and toktype!='=' then
+                    Aborp("a parameter name or value is expected here")
+                end if
 end if
                 ttidx = -1
         else
@@ -3563,6 +3568,7 @@ end if
             end if
 if ttidx!=-1 then
             getToken()
+end if
 -- added 6/4/2012: (may confuse default with named parameter a bit, but it is optional)
             if toktype=':' and Ch='=' then MatchChar(':') end if
             if toktype='=' 
@@ -3593,7 +3599,7 @@ if ttidx!=-1 then
                 --  defaulted, otherwise it just gets far too messy and confusing.
                 default_found = 1
             end if
-end if
+--end if
             signature = append(signature,Typ)
             if toktype!=',' then
 -- removed 2/1/14 (we are going to do an Aborp() or MatchChar(')') rsn anyway)
@@ -5752,12 +5758,15 @@ end if
         symtab[N][S_State] -= S_fwd
     end if
 
+--9/2/16: moved above Locals()
+    SideEffects = E_none
+
     Locals(1)
 --DEV can use returntype?
     CheckForFunctionReturn = 0
 
 --  SideEffects = symtab[N][S_Efct]     -- pick up S_Ainc initial values, why not.
-    SideEffects = E_none
+--  SideEffects = E_none
     symtab[N][S_Efct] = E_all   -- recursive calls must assume the worst
 
 --  call_proc(rBlock,{})
