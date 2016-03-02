@@ -1255,15 +1255,15 @@ object res
                 push 1      -- UINT_PTR ucb
                 push edi    -- LPVOID lp
                 call "kernel32.dll","IsBadWritePtr"
-            [ELF32]
-                pop al -- (or we could just skip this entirely)
-            [32]
                 test eax,eax
                 jz :typeaddrok
                     mov [novalue],2 -- invalid ref
                     mov [res],0
                     jmp :done
               ::typeaddrok
+            [ELF32]
+--              pop al -- (or we could just skip this entirely)
+            [32]
                 mov cl,[edi]
                 cmp cl,#12
                 je :typebyteok
@@ -1381,15 +1381,15 @@ object res
                 push 1      -- UINT_PTR ucb
                 push edi    -- LPVOID lp
                 call "kernel32.dll","IsBadWritePtr"
-            [ELF32]
-                pop al
-            [32]
                 test eax,eax
                 jz :typeaddrok
                     mov [novalue],2 -- invalid ref
                     mov [res],0
                     jmp :done
               ::typeaddrok
+            [ELF32]
+--              pop al
+            [32]
                 mov cl,[edi]
                 cmp cl,#12
                 je :typebyteok

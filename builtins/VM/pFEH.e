@@ -32,6 +32,7 @@ integer finit = 0
 #ilASM{ jmp :!opCallOnceYeNot
 
   :>initFEH
+    [PE32,ELF]
         cmp [finit],0
         jne :dont_do_everything_twice
         mov [finit],1
@@ -49,6 +50,7 @@ integer finit = 0
         push eax                                    -- lpTopLevelExceptionFilter
 --::sehcall
         call "kernel32.dll","SetUnhandledExceptionFilter"
+--/*
     [PE64]
         mov rcx,rsp -- put 2 copies of rsp onto the stack...
         push rsp
@@ -64,8 +66,14 @@ integer finit = 0
 --      add rsp,8*5
 --      pop rsp     -- restore, equivalent to rsp += (either #08 or #10)
         mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+--*/
     [ELF32]
-        pop al
+-- nah, methinks we want sigaction...
+--      --; install signal handler 
+--      mov eax,48  -- SYSCALL_SIGNAL ( syscall to function signal() )
+--      mov ebx,11  -- signal id SIGSEGV 
+--      mov ecx,:my_signal_handler 
+--      int 0x80 
 --48        sys_signal                  0x30    int sig                 __sighandler_t handler  -                       -                       -               kernel/signal.c:2683
 --67        sys_sigaction               0x43    int sig                 const struct old_sigaction *act struct old_sigaction *oact  -           -               arch/mips/kernel/signal.c:300
 --119       sys_sigreturn               0x77    struct pt_regs *regs    -                       -                       -                       -               arch/alpha/kernel/entry.S:758
@@ -73,13 +81,14 @@ integer finit = 0
 -- got it!: http://syprog.blogspot.co.uk/2011/10/iterfacing-linux-signals.html (saved in edita14)
     [ELF64]
         pop al
-    []
+    [PE32,ELF]
       ::dont_do_everything_twice
         ret
 
 
-      ::finalExceptionHandler
+--  [PE]
     [PE32]
+      ::finalExceptionHandler
         xor ebx,ebx -- important!!
 
         call :lowlevel              -- (temp)
@@ -184,9 +193,11 @@ integer finit = 0
 
         ret
 
-    [ELF32]
-        pop al
     [PE64]
+  :<exch64
+--DEV you should be able to debug this with fdbg no problem... (Ctrl F12 to pass exception to handler?)
+--  qword[r8+248] == context.Rip
+
         xor rbx,rbx -- important!!
 
         mov [rsp+8],rcx             -- copy actual param into shadow space!
@@ -199,6 +210,7 @@ integer finit = 0
 --      mov rsi,[rsi+8]             -- CONTEXT_RECORD
         mov rsi,[rcx+8]             -- CONTEXT_RECORD
         mov rdx,[rsi+248]           -- DWORD64 Rip (exception_addr)
+--  add qword[r8+248],2
         mov ecx,dword[rdi]          -- exception_code (DWORD)
         mov rbp,[rsi+160]           -- DWORD64 Rbp (restore)
         mov rdi,rsp                 -- (in case :!fehDiag not called)
@@ -240,6 +252,7 @@ integer finit = 0
 
         mov rdi,[ecode]             -- "exception code #"
         call :%puts1
+--/*
         mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
         mov rdi,[rsi]               -- EXCEPTION_RECORD
         mov edx,[rdi]               -- exception_code (DWORD)
@@ -295,7 +308,6 @@ integer finit = 0
         mov rdx,[rcx+176]           -- DWORD64 Rdi
         push 1                      -- cr
         call :%puthex64
-
         ret
 
       ::puts1r
@@ -304,7 +316,13 @@ integer finit = 0
         call :%puts1
         pop rdi
         mov byte[rbx+rdi*4],'e'     -- restore (in case values are shared)
+--*/
         ret
+
+    [ELF]
+      ::my_signal_handler
+    [ELF32]
+        pop al
 
     [ELF64]
         pop al

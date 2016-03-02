@@ -61,7 +61,7 @@
 --
 
 --/**/with console
-constant showprogress=0
+constant showprogress=01
 procedure Abort(sequence msg)
     puts(1,msg)
     if getc(0) then end if
@@ -96,9 +96,13 @@ function h0(integer flag)
         -- NB: "return 3.14..." would not work in a define_c_func'd call_back 
         --      declared as returning C_FLOAT or C_DOUBLE.
         --  
---/**/  #ilASM{ fldpi 
+--/**/  #ilASM{ 
+                fldpi 
                 -- 15/2/16: 64-bit expects result in xmm0, not st0.
                 [64]
+                    -- there are also accuracy issues...
+                    mov rax,[PI]
+                    fld tbyte[rbx+rax*4]
                     sub rsp,8
                     fstp qword[rsp]
                     movsd xmm0,qword[rsp]
@@ -147,8 +151,11 @@ o = c_func(define_c_func({},cb_h0,{C_INT},C_INT),{0}) -- -77 (=#FFFFFFB3)
 --/*
       e = 3.14159265358979323846
 --*/
+--DEV still got problems (accuracy) with this on 64 bit...
+if machine_bits()=32 then
 o = c_func(define_c_func({},cb_h0,{C_INT},C_FLOAT),{1}) -- 3.1415... (see note 4 above)
 o = c_func(define_c_func({},cb_h0,{C_INT},C_DOUBLE),{1}) -- 3.1415... ("")
+end if
 --o=c_func(define_c_func({},cb_h0,{},P_REF),{}) -- -77
 
 -- "call_back parameter must be routine_id or {'+',routine_id}" error:
@@ -369,11 +376,15 @@ multiply_code = {
     }
 else
 multiply_code = {
-   -- int argument is at stack offset +8, double is at +16
+   -- 27/2/16 (arg2 in xmm1)
+   -- int argument is at stack offset +8 (and rcx), double is in xmm1
    #DB, #44, #24, #08,        -- fild  qword [esp+8]
-   #DC, #4C, #24, #10,        -- fmul  qword [esp+16]
-   -- 15/2/16 (result in xmm0 not st0)
    #48, #83, #EC, #08,        -- sub rsp,8
+   #F2, #0F, #11, #0C, #24,   -- movsd qword[rsp],xmm1
+   #DC, #0C, #24,             -- fmul qword[rsp]
+--   #48, #83, #C4, #08,          -- add rsp,8
+   -- 15/2/16 (result in xmm0 not st0)
+--   #48, #83, #EC, #08,          -- sub rsp,8
    #DD, #1C, #24,             -- fstp qword[rsp]
    #F2, #0F, #10, #04, #24,   -- movsd xmm0,qword[rsp]
    #48, #83, #C4, #08,        -- add rsp,8

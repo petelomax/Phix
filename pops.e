@@ -1259,6 +1259,7 @@ opProfout = 171,        -- profile_dump()
 -- Special Labels
 -- ==============
 --  ":>init" introduces an init label in #ilASM; pmain.e kick-starts things with opInit which calls all such labels at the start of execution.
+--  ":<exch" is reserved for an exception handler; a fatal error occurs on attempt to define more than one handler, or !PE64. (see pFEH.e)
 --  ":!bang" introduces a crash label in #ilASM; pDiagN.e (and anything else that wants to) can "cmp reg,:!bang"/"je :???" which will obviously 
 --  generate the expected code when the specified label has been defined, but - just as importantly - will just quietly resolve as 0 when the
 --  label has /not/ been defined. Obviously an optional jump is a no-brainer, as it will either actually go there or carry on at the next line
@@ -1273,6 +1274,7 @@ opProfout = 171,        -- profile_dump()
 --              call :!bang     -- if not linked in, does nowt      --       call :!bang
 --              add esp,4                                           --       add rsp,8 )
 --
+--DEV now :<exch
 --  I originally considered reserving ":<stop" to compliment ":>init", before realising that bang labels probably fulfil any such requirement.
 --  (Not to mention that a single point of stoppage is a tad trickier than a single point of initialisation, and at this level it probably is
 --   better to force the poor programmer to figure something out, rather than risk a fresh can of fiddly edge cases that I never considered.)
@@ -1313,7 +1315,7 @@ opProfout = 171,        -- profile_dump()
 --      :>Time0         builtins\VM\pTime.e     (time() function, set t0)
 --      :>Rand0         builtins\VM\pRand.e     (initial seed for rand())
 --
---  Most applications will start with calls to the first three, and many all five, which is      (DEV make stack call the other 4)
+--  Most applications will start with calls to the first three, and many all five, which is      (DEV make stack call the other 4?)
 --   still extremely lightweight compared to what most other languages do at startup.
 --  Note that when interpreting, the init labels within the VM called when p.exe starts up
 --   are NOT re-invoked at the start of the code generated for the main .exw file.

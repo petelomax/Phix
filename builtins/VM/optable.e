@@ -169,7 +169,7 @@ constant vm_names = {
                                      "%down64",
                                      "%near64",
                                      "%trunc64"}},
-                     {"pFEH.e",     {}},                -- (:>initFEH)
+                     {"pFEH.e",     {">initFEH"}},      -- (same as :<exch64 on PE64)
                      {"pUnassigned.e",
                                     {"%pUnassigned",
                                      "%pBadRetf",

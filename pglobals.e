@@ -858,7 +858,9 @@ global constant G_declared  = #01,  -- (absense is only an error when processing
                 G_set       = #04,  -- (set when opLogPos processed)
                 G_init      = #08,  -- a :>init style label
                 G_bang      = #10,  -- a :!bang style label
-                G_stop      = #20   -- a :<stop style label (not yet implemented)
+--28/2/16:
+--              G_stop      = #20   -- a :<stop style label (not yet implemented)
+                G_exch      = #20   -- an :<exception_handler label (not yet implemented)
 
 global sequence glblused,   -- G_declared/G_used/G_set
                 glboffset,
@@ -867,6 +869,8 @@ global sequence glblused,   -- G_declared/G_used/G_set
                 glblline,
                 glblcol,
                 glblname
+
+global integer gexch = 0    -- index of exception handler (PE64 only)
 
 --global integer glbopFrame = 0
 
@@ -967,6 +971,14 @@ end procedure
 
 --DEV these need setting based on the p[w].exe being run:
 -- (also, gui/console and subvers belong with this lot)
+--global integer PEtrap = 0
+--type PEinteger(integer i)
+--  if PEtrap then
+--      if i!=0 then ?9/0 end if
+--  end if
+--?{i,PEtrap}
+--  return 1
+--end type
 global integer PE
                PE = 1
 --             PE = (platform()==WIN32)

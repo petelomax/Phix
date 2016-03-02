@@ -14617,10 +14617,11 @@ ltDiagMsg(sprintf("opLchk,N=%d,typ=%d,line %d\n",{p1,mtype,s5[pc+3]}))
 if not newEmit then ?9/0 end if
             if not isGscan then
 --puts(1,"opInit in pilx86.e doing nowt (line 13215)\n")
+--DEV try removing this:
                 if X64=1 then
 --                  sub rsp,8   -- align stack
 --                  emitHex1(push_eax)                  -- align stack
---                  sub_esp_imm8    = {#48,#83,#EC},    -- 0o203 0o354 imm8         -- sub esp,imm8
+--                  sub_rsp_imm8    = {#48,#83,#EC},    -- #48 0o203 0o354 imm8         -- sub Rsp,imm8
                     if not sched then
                         if lastline!=emitline then lineinfo() end if
                     end if

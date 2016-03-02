@@ -455,7 +455,7 @@ integer importBase
 --DEV:
 --sequence res
 string res
-sequence sections
+sequence sections   -- {{RVAdx,name,VirtualSize,VirtualAddress}}
 integer RVAaddr
 --sequence names
 integer thunks,
@@ -560,6 +560,14 @@ if and_bits(esize,1) then esize += 1 end if
         end if
     else
         HeaderCharacteristics += IMAGE_FILE_RELOCS_STRIPPED
+    end if
+    if gexch!=0 then
+        ?9/0
+--      xsize = #18
+--      xbase = RVAaddr
+--      RVAaddr += RoundToSectionAlignment(xsize)
+--      sections = append(sections,{4,".pdata",xsize,xbase})
+--      SizeOfImage += RoundToFileAlignment(xsize)
     end if
     if length(relocations) then
         -- (only needed for 32-bit dlls)
@@ -2015,6 +2023,9 @@ end if
         imgidx += RoundToFileAlignment(codelen)
         img[imgidx+1..imgidx+datalen] = data
         imgidx += RoundToFileAlignment(datalen)
+    end if
+    if gexch!=0 then
+        ?9/0
     end if
     if resourcelen then
         for i=1 to length(ResourceRVA) do

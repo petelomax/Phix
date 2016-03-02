@@ -1,0 +1,65 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Paranormalised Functions</h1>
+      <div id="mainSection">
+        Several routines implement a little trickery to make them easier to use, for example this documentation contains
+ <pre>
+        IupButton(nullable_string title=NULL, [[nullable_string action = NULL,] atom func = NULL,] string attributes = "", sequence data = {}) </pre>
+
+        with the idea being that [action, func] are doubly-optional. I made up the term paranormalise as a jokey way to explain
+        that you have much more flexibility than normal in how you can provide the parameters. In short you can assume
+ <pre>
+        IupButton()       [NB title/NULL must be provided in all other cases]
+        IupButton(title)
+        IupButton(title,action,func) [NB func is /not/ optional in this case]
+        IupButton(title,func)
+        IupButton(title,attributes[,data])
+        IupButton(title,func,attributes[,data])
+        IupButton(title,action,func,attributes[,data])</pre>
+
+        are all valid. Note that (unless using named parameters) you cannot change the order [afad], eg:
+ <pre>
+        IupButton(title,attributes[,data][,action],func)    -- !INVALID!
+        IupButton(title,func,attributes,data,action)        -- !Stop this madness!
+        IupButton(action,attributes,data,func,title)        -- !You're being silly now! </pre>
+
+        The action and func parameters are actually declared as object, attributes as sequence, and data as dword_seq,
+        but manually and thoroughly verified to be of the documented types, after they have all been repositioned.
+        See pGUI.e/paranormalise() for the precise details of this handling (plus a full set of unit tests).
+        <br>
+        <br>
+        There is an underlying assumption that if func is NULL then action is meaningless; what that specifically
+        means is <code>IupButton(title,action,func)</code> is ok, however <code>IupButton(title,action)</code> is not 
+        supported - it would in fact be misinterpreted as <code>IupButton(title,attributes)</code>.
+        <br>
+        <br>
+        If any of this troubles you, just provide the full set of parameters, every time. Alternatively, break the 
+        line up into several discrete statements, ie/eg:
+ <pre>
+        Ihandle button = IupButton([title])
+        IupSetCallback(button, <i>"action name"</i>, Icallback(<i>"function name"</i>)) 
+        IupSetAttributes(button, attributes[, data]) 
+        IupSetAttribute(button, name, v) </pre>
+
+        Technicalia: The action name is partially defunct, or at least I have seen many things work happily without one.
+        It originated (I believe) from the LED roots of IUP, where you /had/ to specify a unique name to an interface 
+        element and only then could you associate a handler to that name, whereas nowadays IupSetAttributeHandle can 
+        be used instead of an IupSetHandle/IupSetAttribute combo, and likewise IupSetCallback used instead of an 
+        IupSetFunction/IupSetAttribute pair: although you can still specify an action name, it suggests to me that a 
+        layer of indirection has been removed (sometime in the past two decades), or maybe it has just been given a 
+        logical default (quite possibly "ACTION"). It may only be so when there is only one handler, and some elements 
+        may have more than one, so of course in those cases you may still need a name to specify which one - see the 
+        documentation of the specific interface element.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

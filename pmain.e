@@ -11565,7 +11565,8 @@ global procedure Compile()
     glblline = {}
     glblcol = {}
     glblname = {}
-    PE = 1
+    gexch = 0
+--  PE = 1
     DLL = 0
 
 --DEV

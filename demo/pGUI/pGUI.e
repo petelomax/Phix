@@ -47,7 +47,7 @@ type bool(object o)
     return integer(o) and (o=0 or o=1)
 end type
 
---DEV...
+--DEV (make this a builtin)
 global function rand_range(integer lo, integer hi)
     if lo>hi then {lo,hi} = {hi,lo} end if
     lo -= 1
@@ -190,6 +190,31 @@ global enum
 include builtins\VM\\pcmdlnN.e      -- command_line()
 include builtins\pgetpath.e         -- get_proper_path()
 
+--/* DEV/SUG:
+procedure iup_link_error(sequence name)
+    puts(1,"link error: "&name)
+    ?9/0
+end procedure
+
+function iup_dll(sequence dll_file)
+    atom handle = open_dll(dll_file)
+    if handle=NULL then iup_link_error(dll_file) end if
+    return handle
+end function
+
+function iup_func(atom dll, sequence name, sequence args, atom result)
+    integer handle = define_c_func(dll, name, args, result)
+    if handle = -1 then iup_link_error(name) end if
+    return handle
+end function
+
+function iup_proc(atom dll, sequence name, sequence args)
+    integer handle = define_c_proc(dll, name, args)
+    if handle = -1 then iup_link_error(name) end if
+    return handle
+end function
+--*/
+
 constant string root_dir = get_proper_dir(command_line()[2])
 constant string curr_dir = current_dir()
 constant integer libidx = iff(platform()=WINDOWS ? 1:
@@ -226,7 +251,7 @@ end if
 
 constant
          D  = C_DOUBLE, 
-         F  = C_FLOAT,      -- NB: VM/pcfuncN.e may not be up to this..
+         F  = C_FLOAT,      -- NB: VM/pcfuncN.e may not be up to this.. [edited 25/2/16]
          I  = C_INT,
          L  = C_LONG,
          P  = C_POINTER, 
@@ -397,10 +422,9 @@ constant
       xIupSetInt                = define_c_proc(iup, "IupSetInt", {P,P,I}),
       xIupSetIntId              = define_c_proc(iup, "IupSetIntId", {P,P,I,I}),
       xIupSetIntId2             = define_c_proc(iup, "IupSetIntId2", {P,P,I,I,I}),
---DEV (pcfuncN.e not coping with floats)
---    xIupSetFloat              = define_c_proc(iup, "IupSetFloat", {P,P,F}),
---    xIupSetFloatId            = define_c_proc(iup, "IupSetFloatId", {P,P,I,F}),
---    xIupSetFloatId2           = define_c_proc(iup, "IupSetFloatId2", {P,P,I,I,F}),
+      xIupSetFloat              = define_c_proc(iup, "IupSetFloat", {P,P,F}),
+      xIupSetFloatId            = define_c_proc(iup, "IupSetFloatId", {P,P,I,F}),
+      xIupSetFloatId2           = define_c_proc(iup, "IupSetFloatId2", {P,P,I,I,F}),
       xIupSetDouble             = define_c_proc(iup, "IupSetDouble", {P,P,D}),
       xIupSetDoubleId           = define_c_proc(iup, "IupSetDoubleId", {P,P,I,D}),
       xIupSetDoubleId2          = define_c_proc(iup, "IupSetDoubleId2", {P,P,I,I,D}),
@@ -424,9 +448,9 @@ constant
      xIupGetIntInt              = define_c_func(iup, "IupGetIntInt", {P,P,P,P}, I),
      xIupGetIntId               = define_c_func(iup, "IupGetIntId", {P,P,I}, I),
      xIupGetIntId2              = define_c_func(iup, "IupGetIntId2", {P,P,I,I}, I),
---   xIupGetFloat               = define_c_func(iup, "IupGetFloat", {P,P}, F),
---   xIupGetFloatId             = define_c_func(iup, "IupGetFloatId", {P,P,I}, F),
---   xIupGetFloatId2            = define_c_func(iup, "IupGetFloatId2", {P,P,I,I}, F),
+     xIupGetFloat               = define_c_func(iup, "IupGetFloat", {P,P}, F),
+     xIupGetFloatId             = define_c_func(iup, "IupGetFloatId", {P,P,I}, F),
+     xIupGetFloatId2            = define_c_func(iup, "IupGetFloatId2", {P,P,I,I}, F),
      xIupGetDouble              = define_c_func(iup, "IupGetDouble", {P,P}, D),
      xIupGetDoubleId            = define_c_func(iup, "IupGetDoubleId", {P,P,I}, D),
      xIupGetDoubleId2           = define_c_func(iup, "IupGetDoubleId2", {P,P,I,I}, D),
@@ -491,20 +515,16 @@ global procedure IupSetIntId2(Ihandle ih, string name, integer lin, integer col,
     c_proc(xIupSetIntId2, {ih,name,lin,col,v})
 end procedure
 
---DEV (as pcfuncN.e not coping with floats)
 global procedure IupSetFloat(Ihandle ih, string name, atom v)
---  c_proc(xIupSetFloat, {ih,name,v})
-    c_proc(xIupSetDouble, {ih,name,v})
+    c_proc(xIupSetFloat, {ih,name,v})
 end procedure
 
 global procedure IupSetFloatId(Ihandle ih, string name, integer id, atom v)
---  c_proc(xIupSetFloatId, {ih,name,id,v})
-    c_proc(xIupSetDoubleId, {ih,name,id,v})
+    c_proc(xIupSetFloatId, {ih,name,id,v})
 end procedure
 
 global procedure IupSetFloatId2(Ihandle ih, string name, integer lin, integer col, atom v)
---  c_proc(xIupSetFloatId2, {ih,name,lin,col,v})
-    c_proc(xIupSetDoubleId2, {ih,name,lin,col,v})
+    c_proc(xIupSetFloatId2, {ih,name,lin,col,v})
 end procedure
 
 global procedure IupSetDouble(Ihandle ih, string name, atom v)
@@ -570,8 +590,6 @@ global procedure IupResetAttribute(Ihandle ih, string name)
     c_proc(xIupResetAttribute, {ih,name})
 end procedure
 
---DEV/doc
---global function IupGetAttribute(Ihandle ih, string name)
 global function IupGetAttribute(Ihandln ih, string name)
     atom ptr = c_func(xIupGetAttribute, {ih, name})
     if ptr=NULL then return "" end if
@@ -603,7 +621,6 @@ integer n = c_func(xIupGetAllAttributes, {ih,NULL,0})
     return iup_peek_string_pointer_array(ptr, n)
 end function
 
---DEV
 global function IupGetAttributeHandle(Ihandle ih, string name)
     Ihandln ih_named = c_func(xIupGetAttributeHandle, {ih, name})
     return ih_named
@@ -615,8 +632,6 @@ global function IupGetHandle(string name)
     return ih
 end function
 
---DEV doc:
---global function IupGetInt(Ihandle ih, string name)
 global function IupGetInt(Ihandln ih, string name)
     atom res = c_func(xIupGetInt, {ih, name})
     return res
@@ -646,27 +661,21 @@ global function IupGetIntId2(Ihandle ih, string name, integer lin, integer col)
     return result
 end function
 
---DEV (ditto)
 global function IupGetFloat(Ihandle ih, string name)
---  atom result = c_func(xIupGetFloat, {ih,name})
-    atom result = c_func(xIupGetDouble, {ih,name})
+    atom result = c_func(xIupGetFloat, {ih,name})
     return result
 end function
 
 global function IupGetFloatId(Ihandle ih, string name, integer id)
---  atom result = c_func(xIupGetFloatId, {ih,name,id})
-    atom result = c_func(xIupGetDoubleId, {ih,name,id})
+    atom result = c_func(xIupGetFloatId, {ih,name,id})
     return result
 end function
 
 global function IupGetFloatId2(Ihandle ih, string name, integer lin, integer col)
---  atom result = c_func(xIupGetFloatId2, {ih,name,lin,col})
-    atom result = c_func(xIupGetDoubleId2, {ih,name,lin,col})
+    atom result = c_func(xIupGetFloatId2, {ih,name,lin,col})
     return result
 end function
 
---DEV/doc:
---global function IupGetDouble(Ihandle ih, string name)
 global function IupGetDouble(Ihandln ih, string name)
     atom result = c_func(xIupGetDouble, {ih,name})
     return result
@@ -829,22 +838,6 @@ constant
 global procedure IupImageLibOpen()
     c_proc(xIupImageLibOpen, {})
 end procedure
-
---/*
-
-constant atom iupIm = iup_open_dll({"iupim.dll",
-                                    "libiupim.so",
-                                    "libiupim.dylib"})
-
-
-(put this with IupImage)
-
---*/
-
---/?**?/    include builtins\read_file.e
-
-
-
 
 
  -- pIUP\iupX.e
@@ -2032,16 +2025,6 @@ global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --
 --include core.e
 --include wrap.e
---global 
---constant
---  UC = C_UCHAR,
---  P  = C_POINTER, 
---  F  = C_FLOAT, 
---  D  = C_DOUBLE, 
---  I  = C_INT,
---  L  = C_LONG,
---  UL = C_ULONG
---$
 
 --/*
 --global 
@@ -2086,13 +2069,6 @@ integer name_count      -- the number of names loaded to the table
 end function
 --*/
 --include common.e
-
---constant iupdlls = {
---                  "iup.dll",
---                  "libiup.so",
---                  "libiup.dylib"
---                 }
---iup = iup_open_dll(iupdlls)
 
 --****
 -- === Routines
@@ -2633,109 +2609,171 @@ constant
     xIupTree = define_c_func(iup, "IupTree", {}, P),
     xIupVal = define_c_func(iup, "IupVal", {P}, P),
     $
---/*
-function paranormalise(object action = NULL, object func = NULL, sequence attributes = "", sequence data = {})
+
+
+type dword_seq(sequence s)  -- (technically qword_seq on 64-bit)
+    return not string(s)
+end type
+
+function paranormalise(object action = NULL, object func = NULL, sequence attributes = "", dword_seq data = {})
 --
 --  This routine implements a little trickery to make certain routines easier to use, for example the documentation contains
 --
 --      IupButton(string title, [[nullable_string action = NULL,] atom func = NULL,] string attributes = "", sequence data = {})
 --
---  with the idea being that [action, func] are doubly-optional. In short you can assume
+--  with the idea being that [action, func] are doubly-optional. I made up the term paranormalise as a jokey way to explain
+--  that you have much more flexibility than normal in how you can provide the parameters. In short you can assume
 --
---      IupButton(title) and
---      IupButton(title,action,func) [NB func is /not/ optional in this case] and
---      IupButton(title,func) and
---      IupButton(title,attributes[,data]) and
---      IupButton(title,func,attributes[,data]) and
---      IupButton(title,action,func,attributes[,data])
+--  1   IupButton(title) and
+--  2   IupButton(title,action,func) [NB func is /not/ optional in this case] and
+--  3   IupButton(title,func) and
+--  4   IupButton(title,attributes[,data]) and
+--  5   IupButton(title,func,attributes[,data]) and
+--  6   IupButton(title,action,func,attributes[,data])
 --
---  are all valid. 
+--  are all valid. Note that (unless using named parameters) you cannot change the order [afad], eg:
 --
---  The action and func parameters are actually declared as an object, and attributes as a sequence.
+--      IupButton(title,attributes[,data][,action],func)    -- !INVALID!
+--      IupButton(title,func,attributes,data,action)        -- !Stop this madness!
+--      IupButton(action,attributes,data,func,title)        -- !You're being silly now!
+--
+--  The action and func parameters are actually declared as object, attributes as sequence, and data as dword_seq,
+--  but manually and thoroughly verified to be of the documented types, after they have all been repositioned.
+--
 --  There is an underlying assumption that if func is NULL then action is meaningless; what that specifically
---  means is IupButton(title,action,func) is ok but IupButton(title,action) is not supported/would be misread.
+--  means is IupButton(title,action,func) is ok, however IupButton(title,action) is not supported - it would 
+--  in fact be misinterpreted as IupButton(title,attributes).
 --
---  The comments below assume the calling routine has another/hidden first parameter - not the case for IupText,
---  but true for IupButton, Iup[Menu]Item, )
+--  If any of this troubles you, just provide the full set of parameters, every time. Alternatively, break the 
+--  line up into several discrete statements, ie/eg:
 --
+--      Ihandle button = IupButton(title)
+--      IupSetCallback(button, action, func) 
+--      IupSetAttributes(button, attributes[, data]) 
+--      IupSetAttribute(button, name, v) 
+--
+-- Technicalia: The action name is partially defunct, or at least I've seen many things work happily without one.
+--  It originated (I believe) from the LED roots of IUP, where you had to specify a unique name to an interface 
+--  element and only then could you associate a handler to that name, whereas nowadays IupSetAttributeHandle can 
+--  be used instead of an IupSetHandle/IupSetAttribute combo: although you can still specify an action name, it
+--  suggests to me that a layer of indirection has been removed (sometime in the past two decades), or maybe it
+--  has just been given a suitable default. It may only be so when there is only one handler, but some elements 
+--  may have more than one, and of course in those cases you may still need a name to specify which (see the
+--  documentation of the specific interface elements).
+--
+-- This routine is designed to crash on the slightest oddity. It may be posssible to crib fatalN (eg from   [DEV/SUG]
+--  builtins\VM\pcallfunc.e) and use crash_message() to get an error reported on offending user code line.
+--
+
     if not nullable_string(action) then
         -- assume action omitted (and at least one other parameter passed)
-        if atom(action) then
-            -- assume p2 is func
-            if func!=NULL then
-                
+        if atom(action) then    -- (and, obviously in fact, action is not NULL)
+            -- assume p1[action] is really func (cases 3,5)
+            if length(data) then ?9/0 end if
+            if length(attributes) then
+                -- (func,attributes,data)
+                data = attributes
+--              if not dword_seq(data) then ?9/0 end if -- (ple/autoverified)
+                attributes = func           -- (forced typecheck)
+            elsif sequence(func) then
+                -- (func,attributes)
+                attributes = func           -- (typecheck avoided)
+            elsif func!=NULL then
+                -- (func,???)?
+                ?9/0    -- something odd passed (atom!=NULL, atom!=NULL)
             end if
+            if not string(attributes) then ?9/0 end if
+            func = action
+            if not cbfunc(func) then ?9/0 end if
+            action = NULL
+            if not nullable_string(action) then ?9/0 end if
+        else
+            -- assume p1 is attributes[, p2 is data]
+            if length(attributes) or length(data) then ?9/0 end if
+            if sequence(func) then
+                data = func
+--              if not dword_seq(data) then ?9/0 end if     -- (ple/autoverified)
+            end if
+            attributes = action
+            if not string(attributes) then ?9/0 end if
+            func = NULL
+--          if not cbfunc(func) then ?9/0 end if            -- (pointless)
+            action = NULL
+--          if not nullable_string(action) then ?9/0 end if -- (pointless)
         end if
     elsif func=NULL then
         if length(attributes) then
-            -- assume 4 or 5 parameters were passed
+            -- assume 3 or 4 parameters were passed (or named parameters were used)
+            -- (the following all get done below anyway)
+--          if not dword_seq(data) then ?9/0 end if
+--          if not string(attributes) then ?9/0 end if
+--          if not cbfunc(func) then ?9/0 end if
+--          if not nullable_string(action) then ?9/0 end if
         elsif length(data)!=0 then
             ?9/0    -- something odd passed (attributes="", data!={})
         elsif action!=NULL then
             -- assume IupButton(title,attributes)
-            attributes = action -- p4:=p2
+            if length(data) then ?9/0 end if
+            attributes = action -- p3:=p1
+            if not string(attributes) then ?9/0 end if
             action = NULL
         end if
     elsif sequence(func) then
-        -- assume IupButton(title,attributes,data), ie func (p3) is actually data
-        -- [it would be odd for data to be {} here in a static call, but things might be table-driven]
+        -- assume (attributes,data), ie func (p2) is actually data
+        -- [it would be odd for data (in func) to be {} here in a static call, but things might be table-driven]
+        -- first, quickly check that p3 and p4 were /not/ passed:
+        if length(data) then ?9/0 end if
+        if length(attributes) then ?9/0 end if
+        -- then validate action,func as attributes,data:
         if length(action)=0 and length(func)!=0 then ?9/0 end if -- (odd, as above)
-        attributes = action     -- p4:=p2
-        data = func             -- p5:=p3
+        attributes = action     -- p3:=p1
+        if not string(attributes) then ?9/0 end if
+        data = func             -- p4:=p2
+--      if not dword_seq(data) then ?9/0 end if     -- (ple/autoverified)
         action = NULL
         func = NULL
-    else
-        -- assume 4 or 5 parameters were passed
+--  else
+        -- assume 3 or 4 parameters were passed (action,func,attributes[,data)
     end if
+--  if not dword_seq(data) then ?9/0 end if         -- (ple/autoverified)
+    if not string(attributes) then ?9/0 end if
+    if not cbfunc(func) then ?9/0 end if
+    if not nullable_string(action) then ?9/0 end if
     return {action,func,attributes,data}
 end function
---*/
 
---DEV can we cope with say IupButton("clickme","SIZE=80x20")? Do we want to say action is always NULL?
---      (ie if func=NULL or sequence(func) then action is meaningless/must be attributes, and non-NULL func must be data)
--- document as:  IupButton(string title, [[nullable_string action = NULL,] atom func = NULL,] string attributes = "", sequence data = {})
---  This routine uses a little trickery to make it easier to use, such that [action, func] are doubly-optional. In short you can assume
---      IupButton(title) and
---      IupButton(title,action,func) [NB func is /not/ optional in this case] and
---      IupButton(title,func) and
---      IupButton(title,attributes[,data]) and
---      IupButton(title,func,attributes[,data]) and
---      IupButton(title,action,func,attributes[,data])
---  are all valid. Note however that the following (action=NULL, func!=NULL cases) cannot be shortened any further:
---      IupButton(title,NULL,Icallback("btn_cb"))
---      IupButton(title,NULL,Icallback("btn_cb"),"SIZE=80x20")
---  The func parameter is actually declared as an object. See pGUI.e/paranormalise() for the precise details of this handling.
---? This is a <a href=??">paranormalisable</a> function.
---? See the Technicalia dropdown [on IupButton] for more details and some pseudo code.
---  The func parameter is actually declared as an object. There is an underlying assumption that if func is NULL then action is meaningless. 
---  What that specifically means is IupButton(title,action,func) is ok but IupButton(title,action) is not supported/would be misread.
---  The following pseudo code ("paranormalise" in pGUI.e) shows how it decides that action/func (p2/p3) are actually p4/p5:
---      if func=NULL then
---          if length(attributes) then
---              -- assume 4 or 5 parameters were passed
---          elsif length(data)!=0 then
---              ?9/0    -- something odd passed (attributes="", data!={})
---          elsif action!=NULL then
---              -- assume IupButton(title,attributes)
---              attributes = action -- p4:=p2
---              action = NULL
---          end if
---      elsif sequence(func) then
---          -- assume IupButton(title,attributes,data), ie func (p3) is actually data
---          -- [it would be odd for data to be {} here in a static call, but things might be table-driven]
---          if length(action)=0 and length(func)!=0 then ?9/0 end if -- (odd, as above)
---          attributes = action     -- p4:=p2
---          data = func             -- p5:=p3
---          action = NULL
---          func = NULL
---      else
---          -- assume 4 or 5 parameters were passed
---      end if
-global function IupButton(nullable_string title=NULL, nullable_string action=NULL, atom func=NULL, string attributes="", sequence data={})
---  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+function testcb()
+    return 1
+end function
+constant tcb = Icallback("testcb")
+--tests:
+--  1   IupButton(title)
+--  2   IupButton(title,action,func) [NB func is /not/ optional in this case]
+--  3   IupButton(title,func)
+--  4   IupButton(title,attributes[,data])
+--  5   IupButton(title,func,attributes[,data])
+--  6   IupButton(title,action,func,attributes[,data])
+if paranormalise()!={NULL,NULL,"",{}} then ?9/0 end if                      -- 1
+if paranormalise(NULL,tcb)!={NULL,tcb,"",{}} then ?9/0 end if               -- 2
+if paranormalise("",tcb)!={"",tcb,"",{}} then ?9/0 end if                   -- 2
+if paranormalise(tcb)!={NULL,tcb,"",{}} then ?9/0 end if                    -- 3
+if paranormalise("x")!={NULL,NULL,"x",{}} then ?9/0 end if                  -- 4
+if paranormalise("x",{1})!={NULL,NULL,"x",{1}} then ?9/0 end if             -- 4
+if paranormalise(tcb,"x")!={NULL,tcb,"x",{}} then ?9/0 end if               -- 5
+if paranormalise(tcb,"x",{1})!={NULL,tcb,"x",{1}} then ?9/0 end if          -- 5
+if paranormalise(NULL,tcb,"x")!={NULL,tcb,"x",{}} then ?9/0 end if          -- 6
+if paranormalise(NULL,tcb,"x",{1})!={NULL,tcb,"x",{1}} then ?9/0 end if     -- 6
+--named parameters:
+if paranormalise(func:=tcb)!={NULL,tcb,"",{}} then ?9/0 end if
+if paranormalise(attributes:="x")!={NULL,NULL,"x",{}} then ?9/0 end if
+
+
+--global function IupButton(nullable_string title=NULL, nullable_string action=NULL, cbfunc func=NULL, string attributes="", sequence data={})
+global function IupButton(object title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupButton, {title, action})
     if func!=NULL then
-        IupSetCallback(ih, ACTION, func)
+        IupSetCallback(ih, ACTION, func)    -- action?
     end if
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)

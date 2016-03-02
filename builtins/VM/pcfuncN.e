@@ -1556,6 +1556,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                                          #02000002,     -- C_USHORT
                                          #01000004,     -- C_INT
                                          #02000004,     -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                                         #03000004,     -- C_FLOAT
                                          #03000008      -- C_DOUBLE
                                         }) then ?9/0 end if
                 end if
@@ -1577,9 +1578,8 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                                 push [argi]
                             []
                         }
-                elsif find(argdefi,{
-                                    #03000008       -- C_DOUBLE
-                                   }) then
+                elsif argdefi=#03000008                                 -- C_DOUBLE
+                   or (argdefi=#03000004 and machine_bits()=64) then    -- C_FLOAT
                     #ilASM{
                             [32]
                                 sub esp,8
@@ -1593,7 +1593,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                         }
 --14/2/16:
                     -- (technically this should probably be done just before the "call rax" in c_func/proc,
-                    --  but as we won't damage them (ie xmm0..xmm3) before that, this should be fine.)
+                    --  but as we won't damage them (ie xmm0..xmm3/7) before that, this should be fine.)
                     if machine_bits()=64 then
                         if i<=4 then
                             if i=1 then
@@ -1601,28 +1601,33 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                                         [64]
                                             movsd xmm0,qword[rsp]
                                         []
-                                    }
+                                      }
                             elsif i=2 then
                                 #ilASM{
                                         [64]
                                             movsd xmm1,qword[rsp]
                                         []
-                                    }
+                                      }
                             elsif i=3 then
                                 #ilASM{
                                         [64]
                                             movsd xmm2,qword[rsp]
                                         []
-                                    }
+                                      }
                             elsif i=4 then
                                 #ilASM{
                                         [64]
                                             movsd xmm3,qword[rsp]
                                         []
-                                    }
+                                      }
                             else
                                 ?9/0
                             end if
+                            #ilASM{
+                                    [64]
+                                        add rsp,8
+                                    []
+                                  }
                         elsif platform()=LINUX and i<=8 then
                             if i=5 then
                                 #ilASM{
@@ -1651,14 +1656,37 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                             else
                                 ?9/0
                             end if
+                            #ilASM{
+                                    [64]
+                                        add rsp,8
+                                    []
+                                  }
+                        elsif argdefi=#03000004 then
+                            #ilASM{
+                                    [64]
+                                        fld qword[rsp]
+                                        add rsp,4
+                                        fstp dword[rsp]
+                                    []
+                                  }
                         end if
                     end if
+                elsif argdefi=#03000004 then -- (and machine_bits()=32) -- C_FLOAT
+                    #ilASM{
+                            [32]
+                                sub esp,4
+                                fild dword[argi]
+                                fstp dword[esp]
+--                          [64]
+--                              sub rsp,4
+--                              fild qword[argi]
+--                              fstp dword[rsp]
+                            []
+                        }
                 else
---DEV #3000004 (float)
                     ?9/0
                 end if
             elsif atom(argi) then
---DEV switch would be better?
                 if find(argdefi,{
                                  #01000004,     -- C_INT
                                  #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
@@ -1679,26 +1707,8 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                                 fistp qword[rsp]
                             []
                         }
-                elsif find(argdefi,{
-                                    #03000004       -- C_FLOAT
-                                   }) then
-                    #ilASM{
-                            [32]
-                                mov edx,[argi]
-                                sub esp,4
-                                fld qword[ebx+edx*4]
-                                fstp dword[esp]
-                            [64]
---erm... (no self-respecting 64-bit code should be using 32-bit float params...)
-                                mov rdx,[argi]
-                                sub rsp,8
-                                fld tbyte[rbx+rdx*4]
-                                fstp qword[rsp]
-                            []
-                        }
-                elsif find(argdefi,{
-                                    #03000008       -- C_DOUBLE
-                                   }) then
+                elsif argdefi=#03000008     -- C_DOUBLE
+                   or (argdefi=#03000004 and machine_bits()=64) then
                     #ilASM{
                             [32]
                                 mov edx,[argi]
@@ -1742,6 +1752,11 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                             else
                                 ?9/0
                             end if
+                            #ilASM{
+                                    [64]
+                                        add rsp,8
+                                    []
+                                  }
                         elsif platform()=LINUX and i<=8 then
                             if i=5 then
                                 #ilASM{
@@ -1770,8 +1785,35 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
                             else
                                 ?9/0
                             end if
+                            #ilASM{
+                                    [64]
+                                        add rsp,8
+                                    []
+                                  }
+                        elsif argdefi=#03000004 then
+                            #ilASM{
+                                    [64]
+                                        fld qword[rsp]
+                                        add rsp,4
+                                        fstp dword[rsp]
+                                    []
+                                  }
                         end if
-                    end if
+                    end if -- machine_bits()=64
+                elsif argdefi=#03000004 then -- (and machine_bits()=32) -- C_FLOAT
+                    #ilASM{
+                            [32]
+                                mov edx,[argi]
+                                sub esp,4
+                                fld qword[ebx+edx*4]
+                                fstp dword[esp]
+--                          [64]
+--                              mov rdx,[argi]
+--                              sub rsp,8
+--                              fld tbyte[rbx+rdx*4]
+--                              fstp qword[rsp]
+                            []
+                        }
                 else
                     ?9/0
                 end if
@@ -1859,7 +1901,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 
 --(DEV: delete once all types are handled)
     if not find(return_type,{
---                               C_CHAR,        -- #01000001
+--                           C_CHAR,        -- #01000001
                              C_UCHAR,       -- #02000001
                              C_SHORT,       -- #01000002
                              C_USHORT,      -- #02000002
@@ -1878,12 +1920,11 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --                               P_STRING,      -- #04040004      > dlls, if we ever get round
 --                               P_SEQUENCE,    -- #040C0004     /  to creating them that is!)
 --                               P_OBJECT,      -- #040F0004    /
---                               ""}) then      -- (dummy entry)
-                                 $}) then       -- (dummy entry)
---          printf(1,"c_func: return type %08x not yet coded/tested\n",return_type)
+--                           ""}) then      -- (dummy entry)
+                             $}) then       -- (dummy entry)
+--      printf(1,"c_func: return type %08x not yet coded/tested\n",return_type)
         ?9/0    -- return type not yet coded/tested!
 --DEV e15?
-
     end if
 
     --
@@ -2073,7 +2114,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                 cmp rdx,0x03000008  -- (C_DOUBLE)
                 jne @f
             ::cstore
--- 14/2/16: (certainly C_DOUBLE, not necessarily C_FLOAT?)
+-- 14/2/16: (certainly C_DOUBLE, not necessarily C_FLOAT?) [25/2, I think it's the same]
                     sub rsp,8
                     movsd qword[rsp],xmm0
                     fld qword[rsp]

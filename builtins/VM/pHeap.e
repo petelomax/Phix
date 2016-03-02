@@ -33,6 +33,8 @@
 --  all. (Reference: http://x86asm.net/articles/memory-allocation-in-linux/index.html )
 --  I looked at a few existing heap managers, but of course none are written in Phix, 
 --  and besides, what works for (eg) C++ is not necessarily the best fit here. 
+--  Further reading:
+--   http://gee.cs.oswego.edu/dl/html/malloc.html (found after this was written)
 -- As well as dealing with internal/implicit memory requirements, this also implements 
 --  thread-safe and cross-platform allocate() and free(). The externally exposed asm 
 --  entry points are: :%pAllocStr, :%pAllocSeq, :%pStoreFlt, :%pStoreMint, :%pLoadMint, 

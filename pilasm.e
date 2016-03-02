@@ -1605,7 +1605,7 @@ integer unrecognised
                         tt[ttidx+EQ] = length(lblttidx)
                     end if -- existing/new label
                 end if -- emitON
-            else -- ltype=2 (global label), 3 (init), 4 (bang), 5 (stop)
+            else -- ltype=2 (global label), 3 (init), 4 (bang), 5 (exch)
                 lstart = col
                 lblidx = il_search(':')
 --?? = text[lstart..col-1]
@@ -1622,10 +1622,12 @@ integer unrecognised
                     gflags = G_declared
                     if ltype=3 then         gflags += G_init
                     elsif ltype=4 then      gflags += G_bang
-                    elsif ltype=5 then      gflags += G_stop
+--                  elsif ltype=5 then      gflags += G_stop
+                    elsif ltype=5 then      gflags += G_exch
                     end if
                     if lblidx then
-                        if lblidx<=0 or lblidx>length(glblused) then
+--DEV (it might be better to do ltype=5 completely outside glbxx tables)
+                        if lblidx<=0 or lblidx>length(glblused) or ltype=5 then
                             Aborp("bad lblidx (bug in phix)")
                         end if
                         if and_bits(glblused[lblidx],G_declared) then
@@ -1648,6 +1650,13 @@ integer unrecognised
                         glblname = append(glblname,text[lstart..col-1])
                         lblidx = length(glblused)
                         tt[ttidx+EQ] = lblidx
+                        if ltype=5 then
+                            --DEV 
+                            if gexch!=0 or PE=0 or Z64=0 then
+                                Aborp("error")
+                            end if
+                            gexch = lblidx
+                        end if
 --DEV should there be the inverse of:
 --          agcheck[tt](ttidx)
 --  ie we are processing the expected file, and/or mark that file as already included (if manually included?)

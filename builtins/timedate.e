@@ -3,8 +3,41 @@
 -- ==========
 --
 --  Inspired by but with very little connection to the OpenEuphoiria std\datetime.e
+--  Also influenced by Python, and (some of!) the C# DateTime object.
 --
 --  Incorporates additional timezone and daylight savings handling.
+--
+--DEV/SUG:
+--> atom diff = timediff(timedate t1, timedate t2)
+--      the result is a value in seconds, compatible/comparable with a result from timedelta.
+--> string res = format_timedelta(atom td) -- ?[, string fmt=??, integer flags=??]?
+--      returns a string representation of a timedelta, eg "127 days, 4 hours, 15 minutes and 10 seconds".
+--? isleapyear [or link to], isdaylightsavingtime
+--x> integer c = time_cmp(timedate t1, timedate t2)
+--x     returns -1, 0, 1 in a similar fashion to compare [is compare not good enough?   ** OF COURSE IT IS! **, also <, <=, >, >=, =, !=...]
+--/* worth testing:
+/ Define two dates.
+DateTime date1 = new DateTime(2016, 1, 10, 11, 20, 30);
+DateTime date2 = new DateTime(2016, 2, 20, 12, 25, 35);
+
+hxxps://msdn.microsoft.com/en-us/library/system.datetime.datetime(v=vs.110).aspx%3E
+// Calculate the interval between the two dates.
+TimeSpan interval = date2 - date1;
+
+// Display individual properties of the resulting TimeSpan object.
+Console.WriteLine("No of Days:", interval.Days); // 41
+Console.WriteLine("Total No of Days:", interval.TotalDays); // 41.0451
+Console.WriteLine("No of Hours:", interval.Hours); //1
+Console.WriteLine("Total No of Hours:", interval.TotalHours); // 985.084
+Console.WriteLine("No of Minutes:", interval.Minutes); // 5
+Console.WriteLine("Total No of Minutes:", interval.TotalMinutes); // 59105.833
+Console.WriteLine("No of Seconds:", interval.Seconds); // 5
+Console.WriteLine("Total No of Seconds:", interval.TotalSeconds); // 3546305.0
+Console.WriteLine("No of Milliseconds:", interval.Milliseconds); // 0
+Console.WriteLine("Total No of Milliseconds:", interval.TotalMilliseconds); // 3546305000
+Console.WriteLine("Ticks:", interval.Ticks); // 354630500000000
+--*/
+--</DEV/SUG>
 --
 --  type timedate (weak validation)
 --      a sequence of between 8 and 10 integers, depending on whether it has a timezone.
