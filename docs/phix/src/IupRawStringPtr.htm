@@ -1,0 +1,105 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupRawStringPtr</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pGUI.e
+            <br>
+            <br>
+            atom res = IupRawStringPtr(<i>"string"</i>)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>Utility function. Returns a raw pointer to a string, like <a href="allocate_string.htm">allocate_string</a>() but using the existing memory.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            The result is only valid as long as the argument still exists. In effect it creates a non-reference-counted reference, and that requires it to
+            be carefully managed. In particular the result of sprint[f]() should not normally be used directly, and callbacks must make a semi-permanent copy 
+            somewhere other than locals/temps. It is in fact callbacks that have the most obvious need for such a function.
+            <br>
+            <br>
+            In the example below, if semiperm were local to the value_cb routine, it would be freed (and the first few bytes clobbered) by the return statement, 
+            before the caller had a chance to inspect it. Likewise any hidden unnamed temp. Obviously if data[l][c] was a string, then it would be fine to 
+            return IupRawStringPtr(data[l][c]), that is assuming data persists when value_cb returns. There may be some cases where the fact that semiperm is 
+            clobbered on the very next call of value_cb may cause issues (in which case a more complex stack of allocate_string()s may need to be kept), but 
+            offhand I cannot think of any (at least any that would be used with pGUI).
+            <br>
+            <br>
+            I should also note that using the optional automatic memory management flag of <a href="allocate_string.htm">allocate_string</a> is equally incorrect 
+            and inappropriate for callback returns, for exactly the same reason, unless you use something like atom semiperm in a similar fashion to that below.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+include pGUI.e
+
+sequence data = {{1,11.17},
+                 {2, 7.54},
+                 {3,15.35}}
+
+string semiperm -- (return of value_cb must outlive the call)
+
+function value_cb(Ihandle self, integer l, integer c)
+    &lt;if l or c out of range then return NULL end if&gt;
+    semiperm = sprint(data[l][c])
+    return IupRawStringPtr(semiperm)
+end function
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pGUI.e
+
+</font><font color="#004080">sequence</font><font color="#000000"> data</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">11.17</font><font color="#800000">}</font><font color="#0000FF">,
+</font><font color="#800000">                 {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000"> 7.54</font><font color="#800000">}</font><font color="#0000FF">,
+</font><font color="#800000">                 {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">15.35</font><font color="#800000">}</font><font color="#0000FF">}
+
+</font><font color="#004080">string</font><font color="#000000"> semiperm</font><font color="#000080"><i> -- (return of value_cb must outlive the call)
+
+</i></font><font color="#008080">function</font><font color="#000000"> value_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> self</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> l</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)
+    &amp;</font><font color="#000000">lt</font><font color="#0000FF">;</font><font color="#008080">if</font><font color="#000000"> l</font><font color="#008080"> or</font><font color="#000000"> c out of range</font><font color="#008080"> then return</font><font color="#004600"> NULL</font><font color="#008080"> end if</font><font color="#0000FF">&amp;</font><font color="#000000">gt</font><font color="#0000FF">;
+</font><font color="#000000">    semiperm</font><font color="#0000FF"> =</font><font color="#5E005E"> sprint</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">l</font><font color="#800000">][</font><font color="#000000">c</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#008080">    return</font><font color="#5E005E"> IupRawStringPtr</font><font color="#0000FF">(</font><font color="#000000">semiperm</font><font color="#0000FF">)
+</font><font color="#008080">end function</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="allocate_string.htm">allocate_string</a>
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

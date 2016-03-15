@@ -228,7 +228,11 @@ function action1_cb(Ihandle ih)
 end function
 
 function action2_cb(Ihandle ih)
-    IupSetAttribute(IupGetDialog(ih), "BGCOLOR", "0 128 0");
+    if IupGetAttribute(IupGetDialog(ih), "BGCOLOR")="240 240 240" then
+        IupSetAttribute(IupGetDialog(ih), "BGCOLOR", "0 128 0");
+    else
+        IupSetAttribute(IupGetDialog(ih), "BGCOLOR", "240 240 240");
+    end if
     return IUP_DEFAULT;
 end function
 
@@ -316,11 +320,11 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetHandle("mnu",mnu);
 
     frm_1 = IupFrame(
-    IupVbox({set_callbacks(IupSetAttributesf(IupButton("Button Text"), "PADDING=5x5")),
-             IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton("Text"), "IMAGE=img1, PADDING=5x5")),"ACTION", Icallback("action1_cb")),
-             IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(), "IMAGE=img1")),"ACTION", Icallback("action2_cb")),
-             IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(), "IMAGE=img1,IMPRESS=img2")),"ACTION", Icallback("action3_cb")),
-             IupSetCallbackf(set_callbacks(IupSetAttributesf(IupButton(), "BGCOLOR=\"255 0 128\", SIZE=20x10")),"ACTION", Icallback("action3_cb"))}));
+    IupVbox({set_callbacks(IupButton("Button Text", "PADDING=5x5")),
+             set_callbacks(IupButton("Text", Icallback("action1_cb"), "IMAGE=img1, PADDING=5x5")),
+             set_callbacks(IupButton(NULL, Icallback("action2_cb"), "IMAGE=img1")),
+             set_callbacks(IupButton(NULL, Icallback("action3_cb"), "IMAGE=img1,IMPRESS=img2")),
+             set_callbacks(IupButton(NULL, Icallback("action3_cb"), "BGCOLOR=\"255 0 128\", SIZE=20x10"))}));
 
     IupSetAttribute(frm_1,"TITLE","IupButton");
 
@@ -332,12 +336,18 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(frm_2,"TITLE","IupLabel");
 
     frm_3 = IupFrame(
-    IupVbox({set_callbacks(IupSetAttributesf(IupToggle("Toggle Text"), "VALUE=ON")),
-             set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1,IMPRESS=img2")),
-             set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1")),
-             IupSetAttributesf(IupFrame(IupRadio(IupVbox({set_callbacks(IupToggle("Toggle Text")),
-                                                          set_callbacks(IupToggle("Toggle Text"))}))),
-                               "TITLE=IupRadio")}));
+--  IupVbox({set_callbacks(IupSetAttributesf(IupToggle("Toggle Text"), "VALUE=ON")),
+--           set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1,IMPRESS=img2")),
+--           set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1")),
+--           IupSetAttributesf(IupFrame(IupRadio(IupVbox({set_callbacks(IupToggle("Toggle Text")),
+--                                                        set_callbacks(IupToggle("Toggle Text"))}))),
+--                             "TITLE=IupRadio")}));
+    IupVbox({set_callbacks(IupToggle("Toggle Text", "VALUE=ON")),
+             set_callbacks(IupToggle("", "VALUE=ON,IMAGE=img1,IMPRESS=img2")),
+             set_callbacks(IupToggle("", "VALUE=ON,IMAGE=img1")),
+             IupFrame(IupRadio(IupVbox({set_callbacks(IupToggle("Toggle Text")),
+                                        set_callbacks(IupToggle("Toggle Text"))})),
+                      "TITLE=IupRadio")}));
 
     IupSetAttribute(frm_3,"TITLE","IupToggle");
 
@@ -345,9 +355,9 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(text_1,"VALUE","Single Line Text");
     IupSetAttribute(text_1,"SIZE","80x");
 
---  ml_1 = IupMultiLine( NULL);
-    ml_1 = IupText()
-    IupSetAttribute(ml_1, "MULTILINE", "YES")
+    ml_1 = IupMultiLine();
+--  ml_1 = IupText()
+--  IupSetAttribute(ml_1, "MULTILINE", "YES")
     IupSetAttribute(ml_1,"VALUE","Multiline Text\nSecond Line\nThird Line");
     IupSetAttribute(ml_1,"EXPAND","YES");
     IupSetAttribute(ml_1,"SIZE","80x40");
@@ -390,9 +400,7 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
 
     hbox_1 = IupHbox({frm_1,frm_2,frm_3,frm_4,frm_5});
 
---  val = IupVal();
-    val = IupValuator();
-    {} = set_callbacks(val);
+    val = set_callbacks(IupValuator());
 
     pbar = IupProgressBar();
     IupSetAttribute(pbar, "VALUE", "0");

@@ -1,0 +1,71 @@
+--
+-- mandelbrot.exw
+--  translated from a scriptbasic sample
+--
+-- BUG: clears itself... (on focus change) [try using IDLE_ACTION or a timer]
+--
+
+include pGUI.e
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+IupOpen()
+
+Ihandle ican = IupCanvas()
+IupSetAttribute(ican, "RASTERSIZE", "800x600")
+IupSetAttribute(ican, "BORDER", "NO")
+
+Ihandle dlg = IupDialog(IupVbox({ican}))
+IupSetAttribute(dlg, "TITLE", "Mandelbrot Set")
+IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+
+IupMap(dlg)
+
+cdCanvas ccan = cdCreateCanvas(cdContextIup(), ican)
+
+IupShow(dlg)
+
+atom przelx = 3 / 800
+atom przely = 2 / 600
+
+atom a, b, c, x2, y2, a2, b2, z, pixclr, g
+
+for x = 1 to 800 do
+  for y = 1 to 600 do
+    a = 0
+    b = 0
+    c = 0
+    x2 = (przelx * x) - 2
+    y2 = (przely * y) - 1
+    while 1 do
+        a2 = a * a - b * b
+        b2 = 2 * a * b
+        a = a2 + x2
+        b = b2 + y2
+        z = a * a + b * b
+        if z < 4 and c < 255 then
+          c = c + 1
+        else
+            exit
+        end if
+    end while
+    if c = 255 then
+      pixclr = cdEncodeColor(0, 0, 0)
+    else
+      g = 255 - c
+      pixclr = cdEncodeColor(g, g, g)
+      -- Color version
+--    pixclr = (g+64) * g * (g+16)
+    end if
+    cdCanvasPixel(ccan, x, y, pixclr)
+  end for
+end for
+
+--?1    -- BUG!
+
+IupMainLoop()
+IupClose()
+

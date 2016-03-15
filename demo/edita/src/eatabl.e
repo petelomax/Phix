@@ -18,17 +18,17 @@ without trace
 --include builtins\ppp.e
 --      ppOpt({pp_Maxlen,9999999})  -- stop ppf() putting \n in results.
 
-constant TLwin=create(Window,xl("Tabs List"),0,Main,20,20,610,368,0)
+constant TLwin=create(Window,xl("Tabs List"),0,Main,20,20,690,368,0)
 constant LVstyle=or_all({LVS_OWNERDATA, LVS_SINGLESEL, LVS_SHOWSELALWAYS})
 constant LVxstyle=or_all({LVS_EX_FULLROWSELECT,LVS_EX_GRIDLINES,LVS_EX_HEADERDRAGDROP})
 constant TLlvw = create(ListView,
-                        {{xlna("File"),80},
+                        {{xlna("File"),160},
                          {xlna("ext"),40},
                          {xlna("Directory"),244},
                          {xlna("Size"),60,LVCFMT_RIGHT},
                          {xl("Last modified"),140,LVCFMT_CENTER},
                          {xl("rec"),30,LVCFMT_CENTER}},
-                        0,TLwin,2,44,516,660,LVstyle)
+                        0,TLwin,2,44,596,660,LVstyle)
 
     void = sendMessage(TLlvw, LVM_SETEXTENDEDLISTVIEWSTYLE, 0,LVxstyle)
 

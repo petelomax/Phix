@@ -17,7 +17,7 @@
             include pGUI.e
             <br>
             <br>
-            Ihandle ih = IupDialog(Ihandln child = NULL, string attributes = "", sequence data = {})
+            Ihandle ih = IupDialog(Ihandln child=NULL, [[nullable_string action=NULL,] cbfunc func=NULL,] string attributes="", sequence data={})
           </font>
          </td>
         </tr>
@@ -29,8 +29,11 @@
             Creates a dialog element. It manages user interaction with the interface elements. For any interface element to be shown, it must be encapsulated in a dialog.
             <br>
             <br>
-            The child parameter is the identifier of an interface element (usually an Ihandle). The dialog has only one child. It can be NULL.<br>
-            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            child: the identifier of an interface element (usually an Ihandle). The dialog has only one child. It can be NULL.<br>
+            action: a callback name, see below. Only one can be set on creation. A NULL value does nothing.<br>
+            func: a callback address, usually specified as Icallback(<i>"name"</i>).<br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.<br>
+            This is a <a href="paranormal.htm">paranormalised function</a>.
             <br>
             <br>
             Returns the identifier of the created element.
@@ -45,7 +48,8 @@
             <br>
             Except for the menu, all other elements must be inside a dialog to interact with the user. Therefore, an interface element will only be visible if its dialog is also visible.
             <br>
-            The order of callback calling is system dependent. For instance, the RESIZE_CB and the SHOW_CB are called in a different order in Win32 and in X-Windows when the dialog is shown for the first time.
+            The order of callback calling is system dependent. For instance, the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> and the SHOW_CB 
+            are called in a different order in Win32 and in X-Windows when the dialog is shown for the first time.
             <br>
             Windows MDI support is composed of 3 components: the MDI frame window (IupDialog), the MDI client window (IupCanvas) and the MDI children (IupDialog). 
             Although the MDI client is a IupCanvas it is not used directly by the application, but it must be created and included in the dialog that will be the MDI frame, 
@@ -70,7 +74,9 @@
           BACKGROUND
          </td>
          <td>
-            Dialog background color or image. Can be a non inheritable alternative to BGCOLOR or can be the name of an image to be tiled on the background. See also the screenshots of the sample.c results with normal background, changing the dialog BACKGROUND, the dialog BGCOLOR and the children BGCOLOR.
+            Dialog background color or image. <br>
+            Can be a non inheritable alternative to BGCOLOR or can be the name of an image to be tiled on the background. <br>
+            See also the screenshots of the sample.c results with normal background, changing the dialog BACKGROUND, the dialog BGCOLOR and the children BGCOLOR.
          </td>
         </tr>
         <tr>
@@ -78,7 +84,8 @@
           BORDER
          </td>
          <td>
-            (creation only) Shows a resize border around the dialog. Default: "YES". BORDER=NO is useful only when RESIZE=NO, MAXBOX=NO, MINBOX=NO, MENUBOX=NO and TITLE=NULL, if any of these are defined there will be always some border.
+            (creation only) Shows a resize border around the dialog. Default: "YES". <br>
+            BORDER=NO is useful only when RESIZE=NO, MAXBOX=NO, MINBOX=NO, MENUBOX=NO and TITLE=NULL, if any of these are defined there will be always some border.
          </td>
         </tr>
         <tr>
@@ -86,7 +93,9 @@
           CHILDOFFSET
          </td>
          <td>
-            Allow to specify a position offset for the child. Available for native containers only. It will not affect the natural size, and allows to position controls outside the client area. Format "dxxdy", where dx and dy are integer values corresponding to the horizontal and vertical offsets, respectively, in pixels. Default: "0x0".
+            Allow to specify a position offset for the child. Available for native containers only. <br>
+            It will not affect the natural size, and allows to position controls outside the client area. <br>
+            Format "dxxdy", where dx and dy are integer values corresponding to the horizontal and vertical offsets, respectively, in pixels. Default: "0x0".
          </td>
         </tr>
         <tr>
@@ -127,26 +136,30 @@
          </td>
          <td>
             Dialog’s size. Additionally the following values can also be defined for width and/or height: 
-<br>
-"FULL": Defines the dialog’s width (or height) equal to the screen's width (or height) <br>
-"HALF": Defines the dialog’s width (or height) equal to half the screen's width (or height) <br>
-"THIRD": Defines the dialog’s width (or height) equal to 1/3 the screen's width (or height) <br>
-"QUARTER": Defines the dialog’s width (or height) equal to 1/4 of the screen's width (or height) <br>
-"EIGHTH": Defines the dialog’s width (or height) equal to 1/8 of the screen's width (or height) <br>
-<b>NOTE:</b> the above SIZE values are for IupDialog <i>only</i>, they will <b>not</b> work with other controls such as IupButton or IupFrame.<br>
-The dialog Natural size is only considered when the User size is not defined or when it is bigger than the Current size. <br>
-This behavior is different from a control that goes inside the dialog. <br>
-Because of that, when SIZE or RASTERSIZE are set (changing the User size), the Current size is internally reset to 0x0, 
-so the the Natural size can be considered when re-computing the Current size of the dialog.
-<br>
-Values set at SIZE or RASTERSIZE attributes of a dialog are always accepted, regardless of the minimum size required by its children. 
-For a dialog to have the minimum necessary size to fit all elements contained in it, simply define SIZE or RASTERSIZE to NULL. 
-Also if you set SIZE or RASTERSIZE to be used as the initial size of the dialog, its contents will be limited to this size as the minimum size, 
-if you do not want that, then after showing the dialog reset this size to NULL so the dialog can be resized to smaller values. 
-But notice that its contents will still be limited by the Natural size, to also remove that limitation set SHRINK=YES. 
-To only change the User size in pixels, without resetting the Current size, set the USERSIZE attribute.
-<br>
-Notice that the dialog size includes its decoration (it is the Window size), the area available for controls are returned by the dialog CLIENTSIZE. For more information see Layout Guide.
+            <br>
+            <br>
+            "FULL": Makes the dialog width (or height) equal to the screen width (or height) <br>
+            "HALF": Makes the dialog width (or height) equal to half the screen width (or height) <br>
+            "THIRD": Makes the dialog width (or height) equal to 1/3 the screen width (or height) <br>
+            "QUARTER": Makes the dialog width (or height) equal to 1/4 of the screen width (or height) <br>
+            "EIGHTH": Makes the dialog width (or height) equal to 1/8 of the screen width (or height) <br>
+            <b>NOTE:</b> the above SIZE values are for IupDialog <i>only</i>, they will <b>not</b> work with other controls such as IupButton or IupFrame.<br>
+            The dialog Natural size is only considered when the User size is not defined or when it is bigger than the Current size. <br>
+            This behavior is different from a control that goes inside the dialog. <br>
+            Because of that, when SIZE or RASTERSIZE are set (changing the User size), the Current size is internally reset to 0x0, 
+            so the the Natural size can be considered when re-computing the Current size of the dialog.
+            <br>
+            <br>
+            Values set at SIZE or RASTERSIZE attributes of a dialog are always accepted, regardless of the minimum size required by its children. <br>
+            For a dialog to have the minimum necessary size to fit all elements contained in it, simply define SIZE or RASTERSIZE to NULL. <br>
+            Also if you set SIZE or RASTERSIZE to be used as the initial size of the dialog, its contents will be limited to this size as the minimum size, <br>
+            if you do not want that, then after showing the dialog reset this size to NULL so the dialog can be resized to smaller values. <br>
+            But notice that its contents will still be limited by the Natural size, to also remove that limitation set SHRINK=YES. <br>
+            To only change the User size in pixels, without resetting the Current size, set the USERSIZE attribute.
+            <br>
+            <br>
+            Notice that the dialog size includes its decoration (it is the Window size), the area available for controls are returned by the dialog CLIENTSIZE. <br>
+            For more information see Layout Guide.
          </td>
         </tr>
         <tr>
@@ -154,7 +167,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           TITLE
          </td>
          <td>
-            Dialog’s title. Default: NULL. If you want to remove the title bar you must also set MENUBOX=NO, MAXBOX=NO and MINBOX=NO, before map. But in Motif and GTK it will hide it only if RESIZE=NO also.
+            Dialog’s title. Default: NULL. If you want to remove the title bar you must also set MENUBOX=NO, MAXBOX=NO and MINBOX=NO, before map. <br>
+            But in Motif and GTK it will hide it only if RESIZE=NO also.
          </td>
         </tr>
         <tr>
@@ -194,7 +208,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           DEFAULTENTER<br>DEFAULTESC
          </td>
          <td>
-            Name of the button activated when the user press Enter/Esc when focus is in another control of the dialog. Use IupSetHandle or IupSetAttributeHandle to associate a button to a name.
+            Name of the button activated when the user press Enter/Esc when focus is in another control of the dialog. <br>
+            Use IupSetHandle or IupSetAttributeHandle to associate a button to a name.
          </td>
         </tr>
         <tr>
@@ -202,7 +217,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           DIALOGFRAME
          </td>
          <td>
-            Set the common decorations for modal dialogs. This means RESIZE=NO, MINBOX=NO and MAXBOX=NO. In Windows, if the PARENTDIALOG is defined then the MENUBOX is also removed, but the Close button remains.
+            Set the common decorations for modal dialogs. This means RESIZE=NO, MINBOX=NO and MAXBOX=NO. <br>
+            In Windows, if the PARENTDIALOG is defined then the MENUBOX is also removed, but the Close button remains.
          </td>
         </tr>
         <tr>
@@ -218,7 +234,10 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           FULLSCREEN
          </td>
          <td>
-            Makes the dialog occupy the whole screen over any system bars in the main monitor. All dialog details, such as title bar, borders, maximize button, etc, are removed. Possible values: YES, NO. In Motif you may have to click in the dialog to set its focus.
+            Makes the dialog occupy the whole screen over any system bars in the main monitor. <br>
+            All dialog details, such as title bar, borders, maximize button, etc, are removed. <br>
+            Possible values: YES, NO. <br>
+            In Motif you may have to click in the dialog to set its focus.
             In Motif if set to YES when the dialog is hidden, then it can not be changed after it is visible.
          </td>
         </tr>
@@ -227,7 +246,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           HWND
          </td>
          <td>
-            [Windows Only] (non inheritable, read-only) Returns the Windows Window handle. Available in the Windows driver or in the GTK driver in Windows.
+            [Windows Only] (non inheritable, read-only) Returns the Windows Window handle. <br>
+            Available in the Windows driver or in the GTK driver in Windows.
          </td>
         </tr>
         <tr>
@@ -235,7 +255,10 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           MAXBOX
          </td>
          <td>
-            (creation only) Requires a maximize button from the window manager. If RESIZE=NO then MAXBOX will be set to NO. Default: YES. In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP. In Windows MAXBOX is hidden only if MINBOX is hidden as well, or else it will be just disabled.
+            (creation only) Requires a maximize button from the window manager. <br>
+            If RESIZE=NO then MAXBOX will be set to NO. Default: YES. <br>
+            In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP. <br>
+            In Windows MAXBOX is hidden only if MINBOX is hidden as well, or else it will be just disabled.
          </td>
         </tr>
         <tr>
@@ -243,7 +266,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           MAXSIZE
          </td>
          <td>
-            Maximum size for the dialog in raster units (pixels). The windowing system will not be able to change the size beyond this limit. Default: 65535x65535.
+            Maximum size for the dialog in raster units (pixels). <br>
+            The windowing system will not be able to change the size beyond this limit. Default: 65535x65535.
          </td>
         </tr>
         <tr>
@@ -251,7 +275,9 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           MENU
          </td>
          <td>
-            Name of a menu. Associates a menu to the dialog as a menu bar. The previous menu, if any, is unmapped. Use IupSetHandle or IupSetAttributeHandle to associate a menu to a name. See also IupMenu.
+            Name of a menu. Associates a menu to the dialog as a menu bar. <br>
+            The previous menu, if any, is unmapped. <br>
+            Use IupSetHandle or IupSetAttributeHandle to associate a menu to a name. See also IupMenu.
          </td>
         </tr>
         <tr>
@@ -259,7 +285,10 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           MENUBOX
          </td>
          <td>
-            (creation only) Requires a system menu box from the window manager. If hidden will also remove the Close button. Default: YES. In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP. In Windows if hidden will hide also MAXBOX and MINBOX.
+            (creation only) Requires a system menu box from the window manager. <br>
+            If hidden will also remove the Close button. Default: YES. <br>
+            In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP. <br>
+            In Windows if hidden will hide also MAXBOX and MINBOX.
          </td>
         </tr>
         <tr>
@@ -267,7 +296,9 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           MINBOX
          </td>
          <td>
-            (creation only) Requires a minimize button from the window manager. Default: YES. In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP. In Windows MINBOX is hidden only if MAXBOX is hidden as well, or else it will be just disabled.
+            (creation only) Requires a minimize button from the window manager. Default: YES. <br>
+            In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP. <br>
+            In Windows MINBOX is hidden only if MAXBOX is hidden as well, or else it will be just disabled.
          </td>
         </tr>
         <tr>
@@ -275,7 +306,9 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           MINSIZE
          </td>
          <td>
-            Minimum size for the dialog in raster units (pixels). The windowing system will not be able to change the size beyond this limit. Default: 1x1. Some systems define a very minimum size greater than this, for instance in Windows the horizontal minimum size includes the window decoration buttons.
+            Minimum size for the dialog in raster units (pixels). <br>
+            The windowing system will not be able to change the size beyond this limit. Default: 1x1. <br>
+            Some systems define a very minimum size greater than this, for instance in Windows the horizontal minimum size includes the window decoration buttons.
          </td>
         </tr>
         <tr>
@@ -321,7 +354,9 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           RESIZE
          </td>
          <td>
-            (creation only) Allows interactively changing the dialog’s size. Default: YES. If RESIZE=NO then MAXBOX will be set to NO. In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP.
+            (creation only) Allows interactively changing the dialog’s size. Default: YES. <br>
+            If RESIZE=NO then MAXBOX will be set to NO. <br>
+            In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP.
          </td>
         </tr>
         <tr>
@@ -329,7 +364,10 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           SAVEUNDER
          </td>
          <td>
-            [Windows and Motif Only] (creation only) When this attribute is true (YES), the dialog stores the original image of the desktop region it occupies (if the system has enough memory to store the image). In this case, when the dialog is closed or moved, a redrawing event is not generated for the windows that were shadowed by it. Its default value is YES. To save memory disable it for your main dialog. Not available in GTK.
+            [Windows and Motif Only] (creation only) When this attribute is true (YES), the dialog stores the original image of the desktop region it occupies 
+            (if the system has enough memory to store the image). <br>
+            In this case, when the dialog is closed or moved, a redrawing event is not generated for the windows that were shadowed by it. <br>
+            Its default value is YES. To save memory disable it for your main dialog. Not available in GTK.
          </td>
         </tr>
         <tr>
@@ -345,7 +383,9 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           STARTFOCUS
          </td>
          <td>
-            Name of the element that must receive the focus right after the dialog is shown using IupShow or IupPopup. If not defined then the first control than can receive the focus is selected (same effect of calling IupNextField for the dialog). Updated after SHOW_CB is called and only if the focus was not changed during the callback.
+            Name of the element that must receive the focus right after the dialog is shown using IupShow or IupPopup. <br>
+            If not defined then the first control than can receive the focus is selected (same effect of calling IupNextField for the dialog). <br>
+            Updated after SHOW_CB is called and only if the focus was not changed during the callback.
          </td>
         </tr>
         <tr>
@@ -377,7 +417,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           OPACITY
          </td>
          <td>
-            [Windows and GTK Only] sets the dialog transparency alpha value. Valid values range from 0 (completely transparent) to 255 (opaque). In Windows must be set before map so the native window would be properly initialized when mapped. (GTK 2.12)
+            [Windows and GTK Only] sets the dialog transparency alpha value. Valid values range from 0 (completely transparent) to 255 (opaque). <br>
+            In Windows must be set before map so the native window would be properly initialized when mapped. (GTK 2.12)
          </td>
         </tr>
         <tr>
@@ -385,7 +426,9 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           OPACITYIMAGE
          </td>
          <td>
-            [Windows and GTK Only] sets a transparent image as the dialog shape so it is possible to create a non rectangle window. In Windows must be set before map so the native window would be properly initialized when mapped. In GTK the shape works only as a bitmap mask, to view a color image must also use a label. (GTK 2.12)
+            [Windows and GTK Only] sets a transparent image as the dialog shape so it is possible to create a non rectangle window. <br>
+            In Windows must be set before map so the native window would be properly initialized when mapped. <br>
+            In GTK the shape works only as a bitmap mask, to view a color image must also use a label. (GTK 2.12)
          </td>
         </tr>
         <tr>
@@ -409,7 +452,11 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           HIDETASKBAR
          </td>
          <td>
-            [Windows and GTK Only] (write-only) Action attribute that when set to "YES", hides the dialog, but does not decrement the visible dialog count, does not call SHOW_CB and does not mark the dialog as hidden inside IUP. It is usually used to hide the dialog and keep the tray icon working without closing the main loop. It has the same effect as setting LOCKLOOP=Yes and normally hiding the dialog. IMPORTANT: when you hide using HIDETASKBAR, you must show using HIDETASKBAR also. Possible values: YES, NO. 
+            [Windows and GTK Only] (write-only) Action attribute that when set to "YES", hides the dialog, 
+            but does not decrement the visible dialog count, does not call SHOW_CB and does not mark the dialog as hidden inside IUP. <br>
+            It is usually used to hide the dialog and keep the tray icon working without closing the main loop. <br>
+            It has the same effect as setting LOCKLOOP=Yes and normally hiding the dialog. <br>
+            IMPORTANT: when you hide using HIDETASKBAR, you must show using HIDETASKBAR also. Possible values: YES, NO. 
          </td>
         </tr>
         <tr>
@@ -425,7 +472,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           TRAYIMAGE
          </td>
          <td>
-            [Windows and GTK Only] Name of a IUP image to be used as the tray icon. The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time. (GTK 2.10)
+            [Windows and GTK Only] Name of a IUP image to be used as the tray icon. <br>
+            The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time. (GTK 2.10)
          </td>
         </tr>
         <tr>
@@ -441,7 +489,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           TRAYTIPMARKUP
          </td>
          <td>
-            [GTK Only] allows the tip string to contains Pango markup commands. Can be "YES" or "NO". Default: "NO". Must be set before setting the TRAYTIP attribute. (GTK 2.16)
+            [GTK Only] allows the tip string to contains Pango markup commands. Can be "YES" or "NO". Default: "NO". <br>
+            Must be set before setting the TRAYTIP attribute. (GTK 2.16)
          </td>
         </tr>
         <tr>
@@ -449,7 +498,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           TRAYTIPBALLOON
          </td>
          <td>
-            [Windows Only] The tip window will have the appearance of a cartoon "balloon" with rounded corners and a stem pointing to the item. Default: NO. Must be set before setting the TRAYTIP attribute.
+            [Windows Only] The tip window will have the appearance of a cartoon "balloon" with rounded corners and a stem pointing to the item. Default: NO. <br>
+            Must be set before setting the TRAYTIP attribute.
          </td>
         </tr>
         <tr>
@@ -457,7 +507,9 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           TRAYTIPBALLOONDELAY
          </td>
          <td>
-            [Windows Only] Time the tip will remain visible. Default is system dependent. The minimum and maximum values are 10000 and 30000 milliseconds. Must be set before setting the TRAYTIP attribute.
+            [Windows Only] Time the tip will remain visible. Default is system dependent. <br>
+            The minimum and maximum values are 10000 and 30000 milliseconds. <br>
+            Must be set before setting the TRAYTIP attribute.
          </td>
         </tr>
         <tr>
@@ -465,7 +517,8 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           TRAYTIPBALLOONTITLE
          </td>
          <td>
-            [Windows Only] When using the balloon format, the tip can also has a title in a separate area. Must be set before setting the TRAYTIP attribute.
+            [Windows Only] When using the balloon format, the tip can also has a title in a separate area. <br>
+            Must be set before setting the TRAYTIP attribute.
          </td>
         </tr>
         <tr>
@@ -473,13 +526,15 @@ Notice that the dialog size includes its decoration (it is the Window size), the
           TRAYTIPBALLOONTITLEICON
          </td>
          <td>
-            [Windows Only] When using the balloon format, the tip can also has a pre-defined icon in the title area. Must be set before setting the TRAYTIP attribute.
-<br>
-Values can be:<br>
-"0" - No icon (default)<br>
-"1" - Info icon <br>
-"2" - Warning icon<br>
-"3" - Error Icon<br>
+            [Windows Only] When using the balloon format, the tip can also has a pre-defined icon in the title area. <br>
+            Must be set before setting the TRAYTIP attribute.
+            <br>
+            <br>
+            Values can be:<br>
+            "0" - No icon (default)<br>
+            "1" - Info icon <br>
+            "2" - Warning icon<br>
+            "3" - Error Icon<br>
          </td>
         </tr>
         <tr>
@@ -519,7 +574,8 @@ Values can be:<br>
           COMPOSITED
          </td>
          <td>
-            [Windows Only] (creation only) controls if the window will have an automatic double buffer for all children. Default is "NO". In Windows Vista it is NOT working as expected.
+            [Windows Only] (creation only) controls if the window will have an automatic double buffer for all children. Default is "NO". <br>
+            In Windows Vista it is NOT working as expected.
          </td>
         </tr>
         <tr>
@@ -535,7 +591,10 @@ Values can be:<br>
           HELPBUTTON
          </td>
          <td>
-            [Windows Only] (creation only) Inserts a help button in the same place of the maximize button. It can only be used for dialogs without the minimize and maximize buttons, and with the menu box. For the next interaction of the user with a control in the dialog, the callback  HELP_CB will be called instead of the control defined ACTION callback. Possible values: YES, NO. Default: NO.
+            [Windows Only] (creation only) Inserts a help button in the same place of the maximize button. <br>
+            It can only be used for dialogs without the minimize and maximize buttons, and with the menu box. <br>
+            For the next interaction of the user with a control in the dialog, the callback HELP_CB will be called instead of 
+            the control defined ACTION callback. Possible values: YES, NO. Default: NO.
          </td>
         </tr>
         <tr>
@@ -559,7 +618,8 @@ Values can be:<br>
           TASKBARPROGRESS
          </td>
          <td>
-            [Windows Only] (write-only) this functionality enables the use of progress bar on a taskbar button (Windows 7 or earlier version) (Available only for Visual C++ 10 and above). Default: NO.
+            [Windows Only] (write-only) this functionality enables the use of progress bar on a taskbar button <br>
+            (Windows 7 or earlier version) (Available only for Visual C++ 10 and above). Default: NO.
          </td>
         </tr>
         <tr>
@@ -567,7 +627,8 @@ Values can be:<br>
           TASKBARPROGRESSSTATE
          </td>
          <td>
-            [Windows Only] (write-only) sets the type and state of the progress indicator displayed on a taskbar button. Possible values: NORMAL (a green bar), PAUSED (a yellow bar), ERROR (a red bar), INDETERMINATE (a green marquee) and NOPROGRESS (no bar). Default: NORMAL.
+            [Windows Only] (write-only) sets the type and state of the progress indicator displayed on a taskbar button. <br>
+            Possible values: NORMAL (a green bar), PAUSED (a yellow bar), ERROR (a red bar), INDETERMINATE (a green marquee) and NOPROGRESS (no bar). Default: NORMAL.
          </td>
         </tr>
         <tr>
@@ -575,7 +636,8 @@ Values can be:<br>
           TASKBARPROGRESSVALUE
          </td>
          <td>
-            [Windows Only] (write-only) updates a progress bar hosted in a taskbar button to show the specific percentage completed of the full operation. The value must be between 0 and 100.
+            [Windows Only] (write-only) updates a progress bar hosted in a taskbar button to show the specific percentage completed of the full operation. <br>
+            The value must be between 0 and 100.
          </td>
         </tr>
         <tr>
@@ -583,7 +645,8 @@ Values can be:<br>
           TOOLBOX
          </td>
          <td>
-            [Windows Only] (creation only) makes the dialog look like a toolbox with a smaller title bar. It is only valid if the PARENTDIALOG or NATIVEPARENT attribute is also defined. Default: NO.
+            [Windows Only] (creation only) makes the dialog look like a toolbox with a smaller title bar. <br>
+            It is only valid if the PARENTDIALOG or NATIVEPARENT attribute is also defined. Default: NO.
          </td>
         </tr>
         <tr>
@@ -608,7 +671,8 @@ Values can be:<br>
           MDIACTIVE
          </td>
          <td>
-            [Windows Only] (read-only) Returns the name of the current active MDI child. Use IupGetAttributeHandle to directly retrieve the child handle.
+            [Windows Only] (read-only) Returns the name of the current active MDI child. <br>
+            Use IupGetAttributeHandle to directly retrieve the child handle.
          </td>
         </tr>
         <tr>
@@ -616,7 +680,9 @@ Values can be:<br>
           MDIACTIVATE
          </td>
          <td>
-            [Windows Only] (write-only) Name of a MDI child window to be activated. If value is "NEXT" will activate the next window after the current active window. If value is "PREVIOUS" will activate the previous one. 
+            [Windows Only] (write-only) Name of a MDI child window to be activated. <br>
+            If value is "NEXT" will activate the next window after the current active window. <br>
+            If value is "PREVIOUS" will activate the previous one. 
          </td>
         </tr>
         <tr>
@@ -624,7 +690,8 @@ Values can be:<br>
           MDIARRANGE
          </td>
          <td>
-            [Windows Only] (write-only) Action to arrange MDI child windows. Possible values: TILEHORIZONTAL, TILEVERTICAL, CASCADE and ICON (arrange the minimized icons).
+            [Windows Only] (write-only) Action to arrange MDI child windows. <br>
+            Possible values: TILEHORIZONTAL, TILEVERTICAL, CASCADE and ICON (arrange the minimized icons).
          </td>
         </tr>
         <tr>
@@ -632,9 +699,12 @@ Values can be:<br>
           MDICLOSEALL
          </td>
          <td>
-            [Windows Only] (write-only) Action to close and destroy all MDI child windows. The CLOSE_CB callback will be called for each child. 
+            [Windows Only] (write-only) Action to close and destroy all MDI child windows. <br>
+            The CLOSE_CB callback will be called for each child. 
             <br>
-            IMPORTANT: When a MDI child window is closed it is automatically destroyed. The application can override this returning IUP_IGNORE in CLOSE_CB.
+            <br>
+            IMPORTANT: When a MDI child window is closed it is automatically destroyed. <br>
+            The application can override this returning IUP_IGNORE in CLOSE_CB.
          </td>
         </tr>
         <tr>
@@ -642,7 +712,10 @@ Values can be:<br>
           MDINEXT
          </td>
          <td>
-            [Windows Only] (read-only) Returns the name of the next available MDI child. Use IupGetAttributeHandle to directly retrieve the child handle. Must use MDIACTIVE to retrieve the first child. If the application is going to destroy the child retrieve the next child before destroying the current.
+            [Windows Only] (read-only) Returns the name of the next available MDI child. <br>
+            Use IupGetAttributeHandle to directly retrieve the child handle. <br>
+            Must use MDIACTIVE to retrieve the first child. <br>
+            If the application is going to destroy the child retrieve the next child before destroying the current.
          </td>
         </tr>
         <tr>
@@ -658,7 +731,9 @@ Values can be:<br>
           MDICLIENT
          </td>
          <td>
-            [Windows Only] (creation only, non inheritable) Configure the canvas as a MDI client. Can be YES or NO. No callbacks will be called. This canvas will be used internally only by the MDI Frame and its MDI Children. The MDI frame must have one and only one MDI client. Default: NO.
+            [Windows Only] (creation only, non inheritable) Configure the canvas as a MDI client. Can be YES or NO. <br>
+            No callbacks will be called. This canvas will be used internally only by the MDI Frame and its MDI Children. <br>
+            The MDI frame must have one and only one MDI client. Default: NO.
          </td>
         </tr>
         <tr>
@@ -666,7 +741,8 @@ Values can be:<br>
           MDIMENU
          </td>
          <td>
-            [Windows Only] (creation only) Name of a IupMenu to be used as the Window list of a MDI frame. The system will automatically add the list of MDI child windows there.
+            [Windows Only] (creation only) Name of a IupMenu to be used as the Window list of a MDI frame. <br>
+            The system will automatically add the list of MDI child windows there.
          </td>
         </tr>
         <tr>
@@ -682,7 +758,9 @@ Values can be:<br>
           MDICHILD
          </td>
          <td>
-            (creation only) [Windows Only] Configure this dialog to be a MDI child. Can be YES or NO. The PARENTDIALOG attribute must also be defined. Each MDI child is automatically named if it does not have one. Default: NO.
+            (creation only) [Windows Only] Configure this dialog to be a MDI child. Can be YES or NO. <br>
+            The PARENTDIALOG attribute must also be defined. <br>
+            Each MDI child is automatically named if it does not have one. Default: NO.
          </td>
         </tr>
         <tr>
@@ -706,13 +784,15 @@ Values can be:<br>
           COPYDATA_CB
          </td>
          <td>
-            [Windows Only] Called at the first instance, when a second instance is running. Must set the global attribute SINGLEINSTANCE to be called.
-<br>
-<!--DEV-->
-int function(Ihandle *ih, char* cmdLine, int size); ih: identifier of the element that activated the event.
-cmdLine: command line of the second instance. 
-size: size of the command line string including the null character. 
-<br>
+            [Windows Only] Called at the first instance, when a second instance is running. <br>
+            Must set the global attribute SINGLEINSTANCE to be called.
+            <br>
+            <br>
+            function(Ihandle ih, atom pCmdLine, integer size)<br>
+            ih: identifier of the element that activated the event.<br>
+            pCmdLine: command line (char*) of the second instance. <br>
+            size: size of the command line string including the null character. 
+            <br>
          </td>
         </tr>
         <tr>
@@ -728,11 +808,13 @@ size: size of the command line string including the null character.
           MDIACTIVATE_CB
          </td>
          <td>
-            [Windows Only] Called when a MDI child window is activated. Only the MDI child receive this message. It is not called when the child is shown for the first time.
-<br>
-<!--DEV-->
-int function(Ihandle *ih); ih: identifier of the element that activated the event.
-<br>
+            [Windows Only] Called when a MDI child window is activated. <br>
+            Only the MDI child receive this message. <br>
+            It is not called when the child is shown for the first time.
+            <br>
+            <br>
+            function(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
          </td>
         </tr>
         <tr>
@@ -740,17 +822,18 @@ int function(Ihandle *ih); ih: identifier of the element that activated the even
           MOVE_CB
          </td>
          <td>
-            [Windows and GTK Only] Called after the dialog was moved on screen. The coordinates are the same as the <a href="iupattr.htm#SCREENPOSITION">SCREENPOSITION</a> attribute.
-<br>
-<!--DEV-->
-int function(Ihandle *ih, int x, int y); ih: identifier of the element that activated the event.
-x, y: coordinates of the new position. 
-<br>
+            [Windows and GTK Only] Called after the dialog was moved on screen. <br>
+            The coordinates are the same as the <a href="iupattr.htm#SCREENPOSITION">SCREENPOSITION</a> attribute.
+            <br>
+            <br>
+            function(Ihandle ih, integer x, integer y)<br>
+            ih: identifier of the element that activated the event.<br>
+            x, y: coordinates of the new position. 
          </td>
         </tr>
         <tr>
          <td valign=top>
-          RESIZE_CB
+          <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a>
          </td>
          <td>
             Action generated when the dialog size is changed. If returns IUP_IGNORE the dialog layout is NOT recalculated.
@@ -770,14 +853,17 @@ x, y: coordinates of the new position.
          </td>
          <td>
             [Windows and GTK Only] Called right after the mouse button is pressed or released over the tray icon. (GTK 2.10)
-<br>
-<!--DEV-->
-int function(Ihandle *ih, int but, int pressed, int dclick); ih: identifier of the element that activated the event.
-but: identifies the activated mouse button. Can be: 1, 2 or 3. Note that this is different from the BUTTON_CB canvas callback definition. GTK does not get button=2 messages.
-pressed: indicates the state of the button. Always 1 in GTK.
-dclick: indicates a double click. In GTK double click is simulated.
-<br>
-Returns: IUP_CLOSE will be processed.
+            <br>
+            <br>
+            function(Ihandle ih, integer but, integer pressed, integer dclick)<br>
+            ih: identifier of the element that activated the event.<br>
+            but: identifies the activated mouse button. Can be: 1, 2 or 3 (left, middle or right). <br>
+            Note that this is different from the <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a> canvas callback definition. GTK does not get button=2 messages.
+            pressed: indicates the state of the button. Always 1 in GTK.<br>
+            dclick: indicates a double click. In GTK double click is simulated.
+            <br>
+            <br>
+            Returns: IUP_CLOSE will be processed.
          </td>
         </tr>
         <tr>
@@ -890,14 +976,11 @@ procedure</font><font color="#000000"> main</font><font color="#0000FF">()
          </td>
          <td>
           <a href="IupFileDlg.htm">IupFileDlg</a>,
-          <a href="IupDestroy.htm">XIupDestroy</a>,
+          <a href="IupMessageDlg.htm">IupMessageDlg</a>,
           <a href="IupDestroy.htm">IupDestroy</a>,
           <a href="IupShowXY.htm">IupShowXY</a>,
           <a href="IupShow.htm">IupShow</a>,
           <a href="IupPopup.htm">IupPopup</a>
-<br>
-DEV See Also
-IupFileDlg, IupMessageDlg, IupDestroy, IupShowXY, IupShow, IupPopup
          </td>
         </tr>
        </table>

@@ -1,0 +1,837 @@
+--
+-- matrix.exw
+-- ==========
+--
+--  Experiments with an IupMatrix control, in particular to emulate a listview control
+--  
+-- BUG: after selecting a line with the mouse, cursor moves from last position  -- fixed by [1], but only when HIDEFOCUS=YES
+
+include pGUI.e
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+--1: looks ok, no data, could suffer a border
+--/*
+function enteritem_cb(Ihandle ih, integer lin, integer col)
+  IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
+--  IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
+  IupSetAttributes(ih,"MARK%d:0=Yes",{lin});
+--  IupSetfAttribute(ih,"REDRAW", "L%d", lin);
+  IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
+  IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col});   -- [1]
+  return IUP_DEFAULT;
+end function
+
+Ihandle dlg, mat
+
+    IupOpen()
+
+    mat = IupMatrix();
+
+    IupSetAttribute(mat, "READONLY", "YES");
+    IupSetAttribute(mat, "HIDEFOCUS", "YES");
+    IupSetAttribute(mat, "FRAMECOLOR", "220 220 220");
+    IupSetAttribute(mat, "NUMCOL", "5");
+    IupSetAttribute(mat, "NUMCOL_VISIBLE", "5");
+    IupSetAttribute(mat, "NUMLIN", "30");
+    IupSetAttribute(mat, "NUMLIN_VISIBLE", "30");
+    IupSetAttribute(mat, "RESIZEMATRIX", "YES");
+    IupSetAttribute(mat, "MARKMODE", "LIN");
+    IupSetAttribute(mat, "MARKAREA", "CONTINUOUS");
+    IupSetAttribute(mat, "MULTIPLE", "NO");
+    IupSetAttribute(mat, "BORDER", "NO");
+    IupSetAttribute(mat, "CURSOR", "ARROW");
+    IupSetAttribute(mat, "ALIGNMENT", "ARIGHT");
+    IupSetAttribute(mat, "ALIGNMENT1", "ALEFT");
+    IupSetAttribute(mat, "ALIGNMENT5", "ACENTER");
+
+--  IupSetAttribute(mat, "WIDTH0", "30");
+    IupSetAttribute(mat, "WIDTH1", "150");
+    IupSetAttribute(mat, "WIDTH2", "50");
+    IupSetAttribute(mat, "WIDTH3", "50");
+    IupSetAttribute(mat, "WIDTH4", "50");
+
+--  IupSetAttribute(mat, "0:0", "Row H");
+    IupSetAttribute(mat, "0:1", "Col1");
+    IupSetAttribute(mat, "0:2", "Col2");
+    IupSetAttribute(mat, "0:3", "Col3");
+    IupSetAttribute(mat, "0:4", "Col4");
+    IupSetAttribute(mat, "0:5", "Col5");
+
+--DEV
+--  IupSetCallback(mat, "CLICK_CB", Icallback("click"));
+--  IupSetCallback(mat, "LEAVEITEM_CB", Icallback("leave"));
+--  IupSetCallback(mat, "ENTERITEM_CB", Icallback("enter"));
+    IupSetCallback(mat, "ENTERITEM_CB", Icallback("enteritem_cb"));
+--  IupSetCallback(mat, "WHEEL_CB", Icallback("wheel"));
+
+    dlg = IupDialog(mat)
+    IupSetAttribute(dlg, "TITLE", "IupMatrix")
+    IupSetAttribute(dlg, "SIZE", "465x260")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+
+    IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+
+--*/
+
+--2: single column (well a 'header' column and a data column)
+--/*
+-- (translated from basic)
+procedure list_print(sequence list)
+ 
+ if length(list)!=0 then
+  IupOpen()
+  IupControlsOpen()
+  Ihandle mat = IupMatrix()
+  IupSetStrAttribute(mat,"NUMCOL","1")
+  IupSetStrAttribute(mat,"NUMLIN","%d",{length(list)})
+  IupSetStrAttribute(mat,"NUMCOL_VISIBLE","1")
+  IupSetStrAttribute(mat,"NUMLIN_VISIBLE","12")
+  IupSetStrAttribute(mat,"READONLY","YES")  
+  -- set the heading of the table
+  IupSetStrAttribute(mat,"0:1","list->value")
+  IupSetStrAttribute(mat,"0:0","#") 
+  for i=1 to length(list) do
+    -- show the node number
+    IupSetAttributes(mat,"%d:0=%d",{i,i})
+    -- show the value
+    integer li = list[i]
+    IupSetAttributes(mat,"%d:1=%d",{i,li})
+    -- add some color
+    if li>20 and li<50 then
+--    IupSetAttributes(mat,"BGCOLOR%d:*=\"255 0 0\"",{i})   -- (works fine)
+      IupSetAttributes(mat,"FGCOLOR%d:*=\"255 0 0\"",{i})
+    end if
+  end for
+  IupStoreAttribute(mat,"RESIZEMATRIX","YES")
+  Ihandle dlg = IupDialog(mat)
+  IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+  IupShowXY(dlg,IUP_CENTER,IUP_CENTER)  
+  IupMainLoop()
+  IupClose()  
+ end if
+end procedure
+
+
+procedure list_main()
+sequence list = {}
+
+  for i=1 to 100 do
+    list = append(list,rand(100))
+  end for
+  
+  -- show the list
+  list_print(list)
+  for i=1 to 100 do
+    list = append(list,rand(100))
+  end for
+  -- show the list
+  list_print(list)
+end procedure
+
+list_main()
+--*/
+
+--3: as 2, multi-column
+--/*
+-- translated from perl
+
+    IupOpen()
+--my $mat = IUP::Matrix->new( NUMCOL=>5, NUMCOL_VISIBLE=>2, NUMLIN=>3, NUMLIN_VISIBLE=>3, WIDTHDEF=>60, RESIZEMATRIX=>"YES" );
+    Ihandle mat = IupMatrix("NUMCOL=5, NUMCOL_VISIBLE=2, NUMLIN=3, NUMLIN_VISIBLE=3, WIDTHDEF=60, RESIZEMATRIX=YES, "&
+--                          "0:0=Inflation, 1:0=Medicine, 2:0=Food, 3:0=Energy, "&
+--                          "0:1=\"January 2000\", 1:1=5.6, 2:1=2.2, 3:1=7.2,"&
+--                          "0:2=\"February 2000\",1:2=4.6, 2:2=1.3, 3:2=1.4")
+                            "0:0=Inflation, 0:1=\"January 2000\", 0:2=\"February 2000\", "&
+                            "1:0=Medicine,  1:1=5.6,              1:2=4.6, "&
+                            "2:0=Food,      2:1=2.2,              2:2=1.3, "&
+                            "3:0=Energy,    3:1=7.2,              3:2=1.4")
+
+--$mat->MatCell(0,0,"Inflation");
+--$mat->MatCell(1,0,"Medicine");
+--$mat->MatCell(2,0,"Food");
+--$mat->MatCell(3,0,"Energy");
+--$mat->MatCell(0,1,"January 2000");
+--$mat->MatCell(1,1,"5.6");
+--$mat->MatCell(2,1,"2.2");
+--$mat->MatCell(3,1,"7.2");
+--$mat->MatCell(0,2,"February 2000");
+--$mat->MatCell(1,2,"4.6");
+--$mat->MatCell(2,2,"1.3");
+--$mat->MatCell(3,2,"1.4");
+
+--$mat->MatAttribute("BGCOLOR", 2, 2, "200 0 0");
+--  IupSetAttribute(mat,"BGCOLOR2:2","200 0 0")
+    IupSetAttribute(mat,"FGCOLOR2:2","200 0 0")
+
+--my $dlg = IUP::Dialog->new( TITLE=>'IUP::Matrix Example', child=>IUP::Vbox->new( child=>$mat, MARGIN=>"10x10") );
+    Ihandle dlg = IupDialog(IupVbox({mat},"MARGIN=10x10"),"TITLE=\"IupMatrix Example\"")
+--$dlg->ShowXY(IUP_CENTER, IUP_CENTER);
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)    
+--IUP->MainLoop;
+    IupMainLoop()
+    IupClose()  
+--*/
+
+--4: as 3 but using value_cb, lovely scroll effect!
+--!/*
+-- using VALUE_CB:
+constant data = {{"Inflation", "January 2000", "February 2000"},
+                 {"Medicine",  "5.6",          "4.6"},
+                 {"Food",      "2.2",          "1.3"},
+                 {"Energy",    "7.2",          "1.4"}}
+
+function value_cb(Ihandle /*ih*/, integer lin, integer col)
+--?{lin,col}
+    if lin>=length(data) then return NULL end if
+--  if col>=length(data[1]) then return NULL end if
+    if col>length(data[1]) then return NULL end if
+--  atom res = IupRawStringPtr(data[lin+1][col+1])
+    atom res = IupRawStringPtr(data[lin+1][col])
+    return res
+end function
+
+    IupOpen()
+--  Ihandle mat = IupMatrix("NUMCOL=5, NUMCOL_VISIBLE=2, NUMLIN=3, NUMLIN_VISIBLE=3, WIDTHDEF=60, RESIZEMATRIX=YES")
+    Ihandle mat = IupMatrix("NUMCOL=3, NUMCOL_VISIBLE=3, NUMLIN=13, NUMLIN_VISIBLE=3, WIDTHDEF=60, RESIZEMATRIX=YES, "&
+                            "WIDTH1=60, HEIGHT0=10");
+--  Ihandle mat = IupMatrix("NUMCOL=5, NUMCOL_VISIBLE=2, NUMLIN=3, NUMLIN_VISIBLE=3, WIDTHDEF=60, RESIZEMATRIX=YES")
+--  Ihandle mat = IupMatrix("NUMCOL=5, NUMCOL_VISIBLE=2, NUMLIN=3, NUMLIN_VISIBLE=3, WIDTHDEF=60, RESIZEMATRIX=YES, "&
+--                          "0:0=Inflation, 0:1=\"January 2000\", 0:2=\"February 2000\", "&
+--                          "1:0=Medicine,  1:1=5.6,              1:2=4.6, "&
+--                          "2:0=Food,      2:1=2.2,              2:2=1.3, "&
+--                          "3:0=Energy,    3:1=7.2,              3:2=1.4")
+    IupSetCallback(mat, "VALUE_CB", Icallback("value_cb"));
+--  IupSetAttribute(mat,"BGCOLOR2:2","200 0 0") -- (works fine)
+    IupSetAttribute(mat,"FGCOLOR2:2","200 0 0")
+
+--my $dlg = IUP::Dialog->new( TITLE=>'IUP::Matrix Example', child=>IUP::Vbox->new( child=>$mat, MARGIN=>"10x10") );
+    Ihandle dlg = IupDialog(IupVbox({mat},"MARGIN=10x10"),"TITLE=\"IupMatrix Example\"")
+--$dlg->ShowXY(IUP_CENTER, IUP_CENTER);
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)    
+--IUP->MainLoop;
+    IupMainLoop()
+    IupClose()  
+--!*/
+
+--4a:
+--/* translated from perl
+-- IupMatrix (callback mode) example
+
+--DEV TYPE*:C=IMAGE (data[l][c] is an image name, a string)
+
+IupOpen()
+--IMPORTANT: HEIGHT0 tells IupMatrix that we are gonna have column titles at line 0
+--Ihandle matrix = IupMatrix("NUMLIN=3, NUMCOL=3, NUMLIN_VISIBLE=3, NUMCOL_VISIBLE=3, HEIGHT0=10, WIDTHDEF=30, SCROLLBAR=NO")
+--Ihandle matrix = IupMatrix("NUMLIN=3, NUMCOL=3, NUMLIN_VISIBLE=3, NUMCOL_VISIBLE=3, HEIGHT0=10, WIDTHDEF=30, SCROLLBAR=NO, EXPAND=YES")
+--Ihandle matrix = IupMatrix("NUMLIN=3, NUMCOL=3, NUMLIN_VISIBLE=3, NUMCOL_VISIBLE=3, HEIGHT0=10, WIDTHDEF=30, EXPAND=YES")
+    Ihandle matrix = IupMatrix("NUMCOL=4, NUMCOL_VISIBLE=4, NUMLIN=3, NUMLIN_VISIBLE=3, WIDTHDEF=40, RESIZEMATRIX=YES, HEIGHT0=10");
+--  Ihandle matrix = IupMatrix("NUMCOL=3, NUMCOL_VISIBLE=3, NUMLIN=13, NUMLIN_VISIBLE=3, WIDTHDEF=40, HEIGHT0=10, EXPAND=YES");
+--  IupSetAttribute(matrix, "FITTOSIZE", "COLUMNS");    -- BROKEN
+--  IupSetAttribute(matrix, "FITTOSIZE", "YES");
+    IupSetAttribute(matrix, "MARKMODE", "LIN");
+    IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS");
+
+--  IupSetAttribute(matrix, "READONLY", "YES"); -- with VALUE_CB set, non-setting of VALUE_EDIT_CB (also) makes it read-only
+    IupSetAttribute(matrix, "HIDEFOCUS", "YES");
+    IupSetAttribute(matrix, "FRAMECOLOR", "220 220 220");
+--  IupSetAttribute(matrix, "NUMCOL", "5");
+--  IupSetAttribute(matrix, "NUMCOL_VISIBLE", "5");
+--  IupSetAttribute(matrix, "NUMLIN", "30");
+--  IupSetAttribute(matrix, "NUMLIN_VISIBLE", "30");
+--  IupSetAttribute(matrix, "RESIZEMATRIX", "YES");
+--  IupSetAttribute(matrix, "MARKMODE", "LIN");
+--  IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS");
+--  IupSetAttribute(matrix, "MULTIPLE", "NO");
+    IupSetAttribute(matrix, "BORDER", "NO");
+    IupSetAttribute(matrix, "CURSOR", "ARROW");
+--  IupSetAttribute(matrix, "ALIGNMENT", "ARIGHT");
+--  IupSetAttribute(matrix, "ALIGNMENT1", "ALEFT");
+--  IupSetAttribute(matrix, "ALIGNMENT5", "ACENTER");
+    IupSetAttribute(matrix, "TYPE*:1", "IMAGE");
+
+constant titles = {"icon", "Col.A", "Col.B", "Col.C"}
+ 
+constant LB = "lightbulb"
+Ihandle image =  IupLoadImage("lightbulb.png")
+IupSetHandle(LB, image)
+
+--IupSetStrAttribute(item, "IMAGE", get_image("IUP_FileExit"))
+
+sequence data = {{LB, 1.1, 2.2, 3.3},
+                 {"", 2.1, 3.2, 1.3},
+                 {"", 3.1, 1.2, 2.3}}
+
+sequence tags = tagset(length(data))
+
+string semiperm -- (return value of value_cb must outlive it)
+
+function value_cb(Ihandle /*self*/, integer l, integer c)
+object dlc
+--printf(1,"value_cb: l=%d, c=%d\n",{l,c})
+  if l>0 and c>0 then
+    if l>length(data) then return NULL end if
+    l = tags[l]
+    if c>length(data[l]) then return NULL end if
+    dlc = data[l][c]
+--  if l=2 and c=2 then return NULL end if
+    if string(dlc) then
+        if length(dlc)=0 then return NULL end if
+        return IupRawStringPtr(dlc)
+    end if
+    semiperm = sprint(dlc)
+    return IupRawStringPtr(semiperm)
+  elsif l==0 and c>0 then
+    -- column title
+    if c>length(titles) then return NULL end if
+    return IupRawStringPtr(titles[c])
+  end if
+  return NULL  
+end function
+IupSetCallback(matrix,"VALUE_CB",Icallback("value_cb"))
+ 
+--/*
+function value_edit_cb(Ihandle /*self*/, integer l, c, atom pNewValue)
+string newstr = peek_string(pNewValue)
+sequence asnum = scanf(newstr,"%f")
+--printf(1,"value_edit_cb: (%d, %d) = %s\n",{l,c,newstr})
+    if l>0 and l<=length(data) 
+    and c>0 and c<=length(data[l]) then
+        l = tags[l]
+        if length(asnum)=1 then
+            data[l][c] = asnum[1][1]
+        else
+            data[l][c] = newstr
+        end if
+    end if
+    return IUP_DEFAULT
+end function
+if "abc"="def" then
+    IupSetCallback(matrix,"VALUE_EDIT_CB",Icallback("value_edit_cb"))
+end if
+
+--*/
+function enteritem_cb(Ihandle ih, integer lin, integer col)
+--?lin
+  IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
+--  IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
+  IupSetAttributes(ih,"MARK%d:0=Yes",{lin});
+  IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
+  IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col});   -- [1]
+  return IUP_DEFAULT;
+end function
+IupSetCallback(matrix, "ENTERITEM_CB", Icallback("enteritem_cb"));
+
+integer sorted = 0
+integer sortdir = 1
+
+function by_column(integer i, integer j)
+integer res = sortdir*compare(data[i][sorted],data[j][sorted])
+    return res
+end function
+
+function click_cb(Ihandle self, integer l, integer c, atom pStatus)
+string sortc
+--nullable_string v = IupMatGetAttribute(self, "", l, c);
+--  if v=NULL then v = "NULL" end if
+--  printf(1,"click_cb(%d, %d, %s)\n", {l, c, peek_string(pStatus)})
+--  printf(1,"  VALUE%d:%d = %s\n", {l, c, v})
+    if c>0 and c<=length(titles) then
+        if l=0 then
+            if sorted!=0 and sorted!=c then
+                sortc = sprintf("SORTSIGN%d",sorted)
+                IupSetAttribute(self,sortc,"NO")
+            end if
+            sortc = sprintf("SORTSIGN%d",c)
+            sortdir = iff(IupGetAttribute(self,sortc)="DOWN"?-1:1)
+            IupSetAttribute(self,sortc,iff(sortdir=-1?"UP":"DOWN"))
+            sorted = c
+            tags = custom_sort(routine_id("by_column"),tags)
+            IupSetAttribute(self,"REDRAW","ALL")
+        elsif l<=length(data)
+          and iup_isdouble(pStatus) then
+--good:
+--printf(1,"click_cb(%d, %d, %s)\n", {l, c, peek_string(pStatus)})
+            ?IupGetInt(matrix,"FOCUSCELL")  -- (we only want the line)
+            -- (we probably want to use tags[] here)
+        end if
+    end if
+  return IUP_DEFAULT;
+end function
+IupSetCallback(matrix, "CLICK_CB", Icallback("click_cb"));
+
+function resize_cb(Ihandle /*ih*/, integer width, integer /*height*/) 
+sequence widths = repeat(0,IupGetInt(matrix,"NUMCOL"))
+integer total_width = 0, new_width
+    for i=1 to length(widths) do
+        widths[i] = IupGetInt(matrix,sprintf("RASTERWIDTH%d",i))
+    end for
+    width -= 41
+    if width<120 then width = 120 end if
+--  ?widths 
+    total_width = sum(widths)
+--?total_width
+--?width
+    IupSetInt(matrix,"RASTERWIDTH0",0)
+    for i=1 to length(widths) do
+--?floor((widths[i]/total_width)*width)
+        new_width = floor((widths[i]/total_width)*width)
+        if new_width<10 then new_width=10 end if
+        IupSetInt(matrix,sprintf("RASTERWIDTH%d",i),new_width)
+    end for
+    return IUP_DEFAULT
+end function
+
+--no good - no sign of doubleclick:
+----/*
+--int function(Ihandle *ih, int lin, int col, char *status)
+--
+--ih: identifier of the element that activated the event.
+--lin, col: Coordinates of the cell where the mouse button was pressed. 
+--status: Status of the mouse buttons and some keyboard keys at the moment the event is generated. 
+--The same macros used for BUTTON_CB can be used for this status. 
+----*/
+--function release_cb(Ihandle /*ih*/, integer l, integer c, atom pStatus)
+--  printf(1,"release_cb(%d, %d, %s)\n", {l, c, peek_string(pStatus)})
+--  return IUP_DEFAULT
+--end function
+--IupSetCallback(matrix, "RELEASE_CB", Icallback("release_cb"));
+
+
+-- disables mouse selection:
+--function button_cb(Ihandle /*canvas*/, integer button, integer pressed, integer x, integer y, atom pStatus)
+--  printf(1,"button_cb(button=%c, pressed=%d, x=%d, y=%d, status=%s)\n", {button,pressed,x,y,peek_string(pStatus)})
+----            if button==IUP_BUTTON1 then
+----                if pressed then
+----                else
+----                end if
+----            elsif button==IUP_BUTTON3 then
+----                if not pressed then
+----                end if
+----            end if
+----
+----    return IUP_IGNORE
+----    return IUP_DEFAULT
+--  return IUP_CONTINUE
+--end function
+----if "abc"="def" then
+--IupSetCallback(matrix, "BUTTON_CB", Icallback("button_cb"))
+----end if
+
+function key_cb(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_CR then
+        ?IupGetInt(matrix,"FOCUSCELL")  -- (we only want the line)
+        -- (we probably want to use tags[] here)
+    end if
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+
+Ihandle dlg = IupDialog(matrix, "TITLE=\"IupMatrix in Callback Mode\"")
+--if "abc"="def" then
+    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"));
+--end if
+--IupSetCallback(dlg, "BUTTON_CB", Icallback("button_cb"))
+if "abc"="def" then
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+end if
+IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+IupShow(dlg)
+ 
+IupMainLoop()
+IupClose()
+--*/
+
+--5: rubbish
+--/* untried:
+IupOpen()
+Ihandle mat = IupMatrix("NUMCOL=5, NUMLIN=3, NUMCOL_VISIBLE=5, NUMLIN_VISIBLE=3, WIDTHDEF=34, RESIZEMATRIX=YES, "&
+                        "MARKMODE=CELL, MARKMULTIPLE=YES, MARKAREA=NOT_CONTINUOUS, " &
+                        "0:0=Inflation, 0:1=\"January 2000\", 0:2=\"February 2000\", "&
+                        "1:0=Medicine,  1:1=5.6,              1:2=4.6, "&
+                        "2:0=Food,      2:1=2.2,              2:2=1.3, "&
+                        "3:0=Energy,    3:1=7.2,              3:2=1.4")
+
+function dropcheck_cb(integer /*l*/, integer c)
+    if c==2 then
+        return IUP_DEFAULT; 
+    end if
+    return IUP_IGNORE; 
+end function
+IupSetCallback(mat, "DROPCHECK_CB", Icallback("dropcheck_cb"));
+
+function drop_cb(Ihandle /*self*/, Ihandle drop, integer lin, integer col)
+printf(1,"drop_cb(%d, %d)\n", {lin, col})
+    if col==2 then 
+        IupSetAttribute(drop, "1", "123");
+        IupSetAttribute(drop, "2", "456");
+--DEV tryme
+--      IupSetInt(drop, "2", 456);
+--      IupSetInt(drop, "3", 789);
+        IupSetAttribute(drop, "3", "789");
+        return IUP_DEFAULT 
+    end if
+    return IUP_IGNORE
+end function
+IupSetCallback(mat, "DROP_CB", Icallback("drop_cb"));
+
+    Ihandle dlg = IupDialog(IupVbox({mat}, "MARGIN=10x10"))
+    IupShowXY(dlg,IUP_CENTER, IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+     
+--*/
+
+--6: soso
+--/*
+
+IupOpen()
+
+--ah! HEIGHT0!
+Ihandle matrix = IupMatrix("NUMLIN=3, NUMCOL=3, NUMCOL_VISIBLE=3, HEIGHT0=10, WIDTHDEF=30, SCROLLBAR=\"VERTICAL\"")
+--Ihandle matrix = IupMatrix("NUMLIN=3, NUMCOL=3, NUMCOL_VISIBLE=3, HEIGHT0=10, WIDTH0=30, WIDTHDEF=30, SCROLLBAR=\"VERTICAL\"")
+    
+sequence data = { 
+                 {"1:1", "1:2", "1:3"},
+                 {"2:1", "2:2", "2:3"}, 
+                 {"3:1", "3:2", "3:3"}
+                }
+  
+function value_cb(Ihandle /*ih*/, integer l, c)
+printf(1,"[value_cb] (%d, %d)\n",{l,c})
+  if l == 0 or c == 0 then
+    return IupRawStringPtr("title")
+  end if
+  return IupRawStringPtr(data[l][c])
+end function
+  
+function value_edit_cb(Ihandle /*ih*/, integer l, c, atom newvalue)
+string newstr = peek_string(newvalue)
+printf(1,"[value_edit_cb] (%d, %d) = %s\n",{l,c,newstr})
+  data[l][c] = newstr
+  return IUP_DEFAULT
+end function
+  
+function enteritem_cb(Ihandle /*ih*/, integer l, c)
+printf(1,"[enteritem_cb] (%d, %d)\n",{l,c})
+  return IUP_DEFAULT
+end function
+
+    IupSetCallback(matrix, "VALUE_CB", Icallback("value_cb"));
+    IupSetCallback(matrix, "VALUE_EDIT_CB", Icallback("value_edit_cb"));
+    IupSetCallback(matrix, "ENTERITEM_CB", Icallback("enteritem_cb"));
+
+    Ihandle dlg = IupDialog(matrix,"TITLE=\"teste\"")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+    IupShow(dlg)
+    IupMainLoop()
+    IupClose()  
+--*/
+
+--7: OTT
+--/*
+function leave_cb(Ihandle /*self*/, integer lin, integer col)
+  printf(1,"leaveitem_cb(%d, %d)\n", {lin, col})
+--  if lin==3 and col==2 then
+--    return IUP_IGNORE;   /* notice that this will lock the matrix in this cell */
+--  end if
+  return IUP_DEFAULT;
+end function
+
+--!/*
+string strval   -- semi-permanent
+function value_cb(Ihandle /*self*/, integer lin, integer col)
+    if lin == 0 or col == 0 then
+        strval = "title"
+    else
+        strval = sprintf("%d-%d", {lin, col})
+    end if
+    return IupRawStringPtr(strval)
+end function
+--!*/
+
+function enter_cb(Ihandle /*self*/, integer lin, integer col)
+  printf(1,"enteritem_cb(%d, %d)\n", {lin, col})
+  if lin==2 and col==2 then
+    IupSetAttribute(IupGetHandle("mat1"), IUP_REDRAW, "ALL");
+    IupSetAttribute(IupGetHandle("mat2"), IUP_REDRAW, "ALL");
+    IupSetAttribute(IupGetHandle("mat3"), IUP_REDRAW, "ALL");
+    IupSetAttribute(IupGetHandle("mat4"), IUP_REDRAW, "ALL");
+    IupSetAttribute(IupGetHandle("mat5"), IUP_REDRAW, "ALL");
+    IupSetAttribute(IupGetHandle("mat6"), IUP_REDRAW, "ALL");
+  end if
+  return IUP_DEFAULT;
+end function
+
+function dropselect_cb(Ihandle /*self*/, integer lin, integer col, Ihandle /*drop*/, atom /*t*/, integer /*i*/, integer /*v*/)
+  printf(1,"dropselect_cb(%d, %d)\n", {lin, col})
+  return IUP_DEFAULT;
+end function
+
+integer mdrop = 1;
+function dropcheck_cb(Ihandle /*self*/, integer lin, integer col)
+  if lin==1 and col==1 then
+    if mdrop then
+      return IUP_DEFAULT;
+    else
+      return IUP_IGNORE;
+    end if
+  end if
+  return IUP_IGNORE;
+end function
+
+function click_cb(Ihandle self, integer lin, integer col)
+nullable_string v = IupMatGetAttribute(self, "", lin, col);
+  if v=NULL then v = "NULL" end if
+  printf(1,"click_cb(%d, %d)\n", {lin, col})
+  printf(1,"  VALUE%d:%d = %s\n", {lin, col, v})
+  return IUP_DEFAULT;
+end function
+
+function drop_cb(Ihandle /*self*/, Ihandle drop, integer lin, integer col)
+  printf(1,"drop_cb(%d, %d)\n", {lin, col})
+  if lin==1 and col==1 and mdrop then
+    IupSetAttribute(drop, "1", "A - Test of Very Big String for Dropdown!");
+    IupSetAttribute(drop, "2", "B");
+    IupSetAttribute(drop, "3", "C");
+    IupSetAttribute(drop, "4", "XXX");
+    IupSetAttribute(drop, "5", "5");
+    IupSetAttribute(drop, "6", "6");
+    IupSetAttribute(drop, "7", "7");
+    IupSetAttribute(drop, "8", NULL);
+    return IUP_DEFAULT;
+  end if
+  return IUP_IGNORE;
+end function
+
+function edition_cb(Ihandle self, integer lin, integer col, integer mode) 
+  printf(1,"edition_cb(lin=%d, col=%d, mode=%d)\n", {lin, col, mode})
+  if mode==1 then
+    IupSetAttribute(self, IUP_CARET, "3");
+
+    if lin==3 and col==2 then
+      return IUP_IGNORE;
+    end if
+  end if
+
+--  if lin==1 and col==1 and mode==0 and mdrop==1 then
+--    mdrop = 0;
+--    IupSetAttribute(self, "EDIT_MODE", "NO");
+--    IupSetAttribute(self, "EDIT_MODE", "YES");
+--    return IUP_IGNORE;
+--  end if
+
+  return IUP_DEFAULT;
+end function
+
+function draw_cb(Ihandle /*ih*/, integer lin, integer col, integer x1, integer x2, integer y1, integer y2)
+  if lin<4 then
+    return IUP_IGNORE;
+  end if
+
+  cdSetForeground(CD_RED);
+  cdLine(x1, y1, x2, y2);
+  cdLine(x1, y2, x2, y1);
+
+    {} = cdTextAlignment(CD_CENTER);
+    cdText((x1+x2)/2, (y1+y2)/2, sprintf("%d:%d", {lin, col}))
+
+  return IUP_DEFAULT;
+end function
+
+function action_cb(Ihandle ih, integer /*c*/, integer lin, integer col, integer active, atom after)
+  printf(1,"action_cb(lin=%d, col=%d, active=%d, after=%s)\n", {lin, col, active, iff(after=NULL?"NULL":peek_string(after))});
+  if lin==2 and col==3 and active and after!=NULL then
+    IupStoreAttribute(ih,"VALUE", peek_string(after));
+
+    IupSetAttribute(ih,"CARET","1");
+
+    IupSetAttribute(ih,"REDRAW","ALL");
+  end if
+
+  return IUP_DEFAULT;
+end function
+
+integer mati = 1
+function create_mat()
+  Ihandle mat = IupMatrix() 
+  IupMatrixExInit(mat)
+  IupSetHandle(sprintf("mat%d", mati), mat);
+  mati += 1
+  
+  IupSetAttribute(mat,IUP_NUMCOL,"15"); 
+  IupSetAttribute(mat,IUP_NUMLIN,"18"); 
+  
+  IupSetAttribute(mat,IUP_NUMCOL_VISIBLE,"5") ;
+  IupSetAttribute(mat,IUP_NUMLIN_VISIBLE,"8") ;
+
+--  IupSetAttribute(mat,IUP_EXPAND, "NO");
+--  IupSetAttribute(mat,IUP_SCROLLBAR, "NO");
+  IupSetAttribute(mat,"RESIZEMATRIX", "YES");
+
+  IupSetAttribute(mat,IUP_MARK_MODE, "CELL");
+--  IupSetAttribute(mat,IUP_MARK_MODE, "LINCOL");
+  IupSetAttribute(mat,IUP_MULTIPLE, "YES");
+--  IupSetAttribute(mat,"AREA", "NOT_CONTINUOUS");
+ IupSetAttribute(mat, "AREA", "CONTINUOUS");
+
+  IupSetAttribute(mat,"0:0","Inflation");
+  IupSetAttribute(mat,"1:0","Medicine ");
+  IupSetAttribute(mat,"2:0","Food"); 
+  IupSetAttribute(mat,"3:0","Energy"); 
+  IupSetAttribute(mat,"0:1","January 2000"); 
+  IupSetAttribute(mat,"0:2","February 2000"); 
+  IupSetAttribute(mat,"1:1","5.6");
+  IupSetAttribute(mat,"2:1","2.2");
+  IupSetAttribute(mat,"3:1","7.2");
+  IupSetAttribute(mat,"1:2","4.5");
+  IupSetAttribute(mat,"2:2","8.1");
+  IupSetAttribute(mat,"3:2","3.4 (RO)");
+
+  IupSetAttribute(mat,"BGCOLOR","255 255 255");
+  IupSetAttribute(mat,"BGCOLOR1:*","255 128 0");
+  IupSetAttribute(mat,"BGCOLOR2:1","255 128 0");
+  IupSetAttribute(mat,"FGCOLOR2:0","255 0 128");
+  IupSetAttribute(mat,"BGCOLOR0:*","255 0 128");
+  IupSetAttribute(mat,"FGCOLOR1:1","255 0 128");
+  IupSetAttribute(mat,"BGCOLOR3:*","255 128 0");
+  IupSetAttribute(mat,"BGCOLOR*:4","255 128 0");
+  --IupSetAttribute(mat,"FONT2:*", "Times New Roman:BOLD:8");
+  --IupSetAttribute(mat,"FONT*:2", "Courier::12");
+  IupSetAttribute(mat,"SORTSIGN1","UP");
+--  IupSetAttribute(mat,"SORTSIGN2","DOWN");
+--  IupSetAttribute(mat,"FRAMEVERTCOLOR2:2","255 255 255");
+--  IupSetAttribute(mat,"CHECKFRAMECOLOR","YES");
+
+  IupSetCallback(mat,"LEAVEITEM_CB",Icallback("leave_cb"));
+  IupSetCallback(mat,"ENTERITEM_CB",Icallback("enter_cb"));
+  IupSetCallback(mat,"DROPSELECT_CB",Icallback("dropselect_cb"));
+  IupSetCallback(mat,"DROP_CB",Icallback("drop_cb"));
+  IupSetCallback(mat,"DROPCHECK_CB",Icallback("dropcheck_cb"));
+  IupSetCallback(mat,"EDITION_CB",Icallback("edition_cb"));
+  IupSetCallback(mat,"CLICK_CB",Icallback("click_cb"));
+  IupSetCallback(mat,"DRAW_CB",Icallback("draw_cb"));
+  IupSetCallback(mat,"ACTION_CB",Icallback("action_cb"));
+
+    IupSetCallback(mat,"VALUE_CB",Icallback("value_cb"));
+    IupSetAttribute(mat,"WIDTH0","24");
+    IupSetAttribute(mat,"HEIGHT0","8");
+
+--  iupmaskMatSet(mat, IUPMASK_FLOAT, 0, 1, 2, 1) ;
+
+  return mat;
+end function
+
+-- PL: omg, that blanking out thing is deliberate!
+function redraw_cb(Ihandle /*self*/)
+--  IupSetAttribute(IupGetHandle("mat1"),"REDRAW","ALL"); 
+--  IupSetAttribute(IupGetHandle("mat2"),"REDRAW","ALL"); 
+--  IupSetAttribute(IupGetHandle("mat3"),"REDRAW","ALL"); 
+--  IupSetAttribute(IupGetHandle("mat4"),"REDRAW","ALL"); 
+--  IupSetAttribute(IupGetHandle("mat5"),"REDRAW","ALL"); 
+--  IupSetAttribute(IupGetHandle("mat6"),"REDRAW","ALL"); 
+
+  Ihandle mat = IupGetHandle("mat1");
+  if IupGetInt(mat, "VISIBLE") then
+    IupSetAttribute(mat,"VISIBLE","NO"); 
+    IupStoreAttribute(mat, "OLD_SIZE", IupGetAttribute(mat, "RASTERSIZE"));
+    IupSetAttribute(mat, "RASTERSIZE", "1x1");
+  else
+    IupStoreAttribute(mat, "RASTERSIZE", IupGetAttribute(mat, "OLD_SIZE"));
+    IupSetAttribute(mat,"VISIBLE","YES"); 
+  end if
+
+  return IUP_DEFAULT;
+end function
+
+function removeline_cb(Ihandle /*self*/)
+  IupSetAttribute(IupGetHandle("mat1"),"DELLIN","1"); 
+  return IUP_DEFAULT;
+end function
+
+function addline_cb(Ihandle /*self*/)
+  IupSetAttribute(IupGetHandle("mat1"),"ADDLIN","0"); 
+  return IUP_DEFAULT;
+end function
+
+function removecol_cb(Ihandle /*self*/)
+  IupSetAttribute(IupGetHandle("mat1"),"DELCOL","1"); 
+  return IUP_DEFAULT;
+end function
+
+function addcol_cb(Ihandle /*self*/)
+  IupSetAttribute(IupGetHandle("mat1"),"ADDCOL","0"); 
+  return IUP_DEFAULT;
+end function
+
+procedure createmenu()
+  Ihandle menu = IupMenu({
+    IupSubmenu("submenu", IupMenu({IupItem("item1","x"), IupItem("item2","x")})),
+    IupItem("remove line","removeline",Icallback("removeline_cb")), 
+    IupItem("add line","addline",Icallback("addline_cb")), 
+    IupItem("remove col","removecol",Icallback("removecol_cb")), 
+    IupItem("add col","addcol",Icallback("addcol_cb")), 
+    IupItem("redraw","redraw",Icallback("redraw_cb"))});
+  IupSetHandle("mymenu", menu);
+end procedure
+
+procedure main()
+Ihandle dlg;
+  IupOpen()
+  IupControlsOpen()
+ 
+--  IupSetFunction("removeline", (Icallback)removeline);
+--  IupSetFunction("addline", (Icallback)addline);
+--  IupSetFunction("removecol", (Icallback)removecol);
+--  IupSetFunction("addcol", (Icallback)addcol);
+--  IupSetFunction("redraw", (Icallback)redraw);
+
+  createmenu();
+  
+  dlg = IupDialog(
+          IupTabs({
+            IupVbox({create_mat(),
+                     IupText(), 
+                     IupLabel("Label Text"), 
+                     IupVal("HORIZONTAL")},
+                    "MARGIN=10x10, GAP=10, TABTITLE=Test1"),
+            IupVbox({IupFrame(create_mat()), 
+                     IupText(), 
+                     IupLabel("Label Text"), 
+                     IupVal("HORIZONTAL")},
+--                  "BGCOLOR=\"0 255 255\", MARGIN=10x10, GAP=10, TABTITLE=Test2,FONT=HELVETICA_ITALIC_14"), 
+                    "FONT=HELVETICA_NORMAL_12, BGCOLOR=\"0 255 255\", MARGIN=10x10, GAP=10, TABTITLE=Test2")
+                  })); 
+  IupSetAttribute(dlg,IUP_TITLE, "IupMatrix");
+  IupSetAttribute(dlg,IUP_MENU, "mymenu");
+--  IupSetAttribute(dlg,"BGCOLOR", "255 0 255");
+
+  --IupSetAttribute(dlg,"COMPOSITED", "YES");
+  --IupSetAttribute(dlg,"LAYERED", "YES");
+  --IupSetAttribute(dlg,"LAYERALPHA", "192");
+
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+
+  IupShowXY(dlg,IUP_CENTER,IUP_CENTER) ;
+  IupMainLoop();
+
+--DEV PL:
+--  iupmaskMatRemove(IupGetHandle("mat1"), 2, 1) ;
+--  iupmaskMatRemove(IupGetHandle("mat2"), 2, 1) ;
+  IupDestroy(dlg);
+
+--DEV PL:
+--  IupControlsClose();
+  IupClose();  
+end procedure
+
+main()
+--*/

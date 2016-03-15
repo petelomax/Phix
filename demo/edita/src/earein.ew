@@ -2335,6 +2335,7 @@ end procedure
 --NB keep Statement() in step with this
 constant ifforwhileetc = {"if","for","while","continue","exit","switch","return","end","?","#i"}
 
+--with trace
 procedure DoRoutineDef(integer rType)
 sequence sType, tType
 
@@ -2358,6 +2359,9 @@ sequence sType, tType
                 WarnType()
                 vartypes = append(vartypes,token)
             end if
+--if tType="resize_cb" then
+--  trace(1)
+--end if
             getToken()
 --15/2/16:
 if equal(token,",") then
@@ -2366,6 +2370,8 @@ if equal(token,",") then
                 if not equal(token,",") then exit end if
             end while
             if equal(token,")") then exit end if
+elsif equal(token,")") then
+            exit
 else
             getToken()
 --          if equal(token,"=") then
@@ -2401,6 +2407,11 @@ end if
         if parser_tokno=1 then Indent(0) end if
         while 1 do
             getToken()
+--added 7/3/16:
+            if toktype=SYMBOL and equal(token,"{") then
+                MultiAssignment()
+                if Ch!=',' then exit end if
+            end if
             if Ch='=' then
                 Assignment()
                 if token!="," then exit end if

@@ -991,11 +991,17 @@ pop eax
                 -- result is in eax, but >31bit stored as a float
                 cmp eax,h4 --DEV :%pLoadMint
                 jl :retint
-                    sub esp,8
                     cmp byte[ebx+eax*4-1],0x12          -- (ebx==0)
                     je @f
-                        call :%e02atdb0                 -- (DEV better: call back returned non-atom?)[YES, 17/12/15: plus error of line -1]****
+--                      call :%e02atdb0                 -- (DEV better: call back returned non-atom?)[YES, 17/12/15: plus error of line -1]****
+                        mov esi,[esp+28]                -- restore symtab[rtnid]
+                        mov al,80                       -- e80cbrna(esi)
+                        mov edx,[ebx+esi*4+40]          -- first opcode (S_il=11)
+                        mov esi,[esp+36]                -- routine no
+                        jmp :!iDiag
+                        int3
                   @@:
+                    sub esp,8
                     fld qword[ebx+eax*4]
                     fistp qword[esp]
                     dec dword[ebx+eax*4-8]
@@ -1131,7 +1137,7 @@ push r15
                 jz @f
                     mov rbp,rax
               @@:
-                push rax
+                push rax                --[0] saved ebp
 --              mov rdx,rcx
 
                 mov rsi,[rsi+rdx*8-8]   -- rsi:=symtab[rtnid]
@@ -1191,13 +1197,17 @@ push r15
 --              mov rax,[ebp_save]
 --              mov rsi,[rsp+?28]       -- restore symtab[rtnid]
                 pop rsi                 --[1]
+--              mov rsi,[rsp]
+                push rdx
 --              mov [ebp_save],rbx      -- (0)  ; important!
 --              push rax
                 mov qword[rbp+32],:retaddr64
                 jmp dword[rbx+rsi*4+80] -- execute first opcode (S_il=11)
             ::retaddr64
 --              mov rcx,rax
-                pop rdx
+--              pop rsi                 --[1] symtab[rtnid]
+                pop rsi                 --[1] routine No
+                pop rdx                 --[0] saved ebp
                 push rax
                 call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --                              pop ebp                     -- see note[2] below
@@ -1212,7 +1222,19 @@ push r15
                     sub rsp,8
                     cmp byte[rbx+rax*4-1],0x12          -- (ebx==0)
                     je @f
-                        call :%e02atdb0                 -- (DEV better: call back returned non-atom?)
+--                      call :%e02atdb0                 -- (DEV better: call back returned non-atom?)
+--DEV:
+--                      mov rsi,[rsp+??28]              -- restore symtab[rtnid]
+                        mov al,80                       -- e80cbrna
+                        mov rcx,rsi                     -- routine no
+--DEV...
+--                      mov esi,[esp+36]                -- routine no
+                        call :%pGetSymPtr               -- (mov rsi,[ds+8])
+                        mov rsi,[rsi+rcx*8-8]           -- rsi:=symtab[rtnid]
+                        mov rdx,[rbx+rsi*4+80]          -- first opcode (S_il=11)
+                        mov rsi,rcx
+                        jmp :!iDiag
+                        int3
                   @@:
                     fld tbyte[rbx+rax*4]
                     fistp qword[rsp]
@@ -2019,6 +2041,7 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
 --                  and eax,0xFF
 --                  jmp :intres
 --          @@:
+                int3
                 call :%e02atdb0
 --DEV e15 instead
 

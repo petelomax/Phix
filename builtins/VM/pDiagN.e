@@ -820,7 +820,9 @@ constant msgs =
     --  whole thing into memory at once (1GB is about
     --  300 copies of the bible, a lot of text).
  "argument to rand() must be an atom\n",                        -- e79atrmba
- -1,                                                            -- e80 no longer in use
+ "call_back returned non-atom\n",                               -- e80cbrna(esi)
+    -- note this error occurs after the callback has returned,
+    -- hence none of the parameters or locals can be shown.
  "insufficient parameters in call_func/proc()\n",               -- e81ipicfp
     -- second argument to call_func/proc must be a sequence
     -- containing at least the number of non-defaluted elements 
@@ -2460,6 +2462,9 @@ atom gvarptr
         msg = sprintf(msg,{o,o})
     elsif msg_id=108 then       -- e108pe(edi)
         msg = sprintf(msg,{or_edi})
+    elsif msg_id=80 then        -- e80cbrna(esi)
+        rtn = or_esi    -- routine number
+        -- (params/locals suppressed below, since they no longer exist)
     end if
 --?2
 --/*
@@ -2802,6 +2807,10 @@ else
                     put2(msg)
                     msg = ""
                 end if
+if msg_id=80 then
+    -- (parameters/locals are not available)
+    msg_id = 0
+else
 --?sr
                 p = sr[S_Parm1]         -- (0 for all top-level subs)
 --?sr
@@ -2843,6 +2852,7 @@ else
                     tidx -= 1
                     p = sp[S_Slink]
                 end while
+end if
 --              if not retN() then exit end if
                 rtype = 2       -- 2 normal
             end if  -- lineno!=-1

@@ -17,7 +17,7 @@
             include pGUI.e
             <br>
             <br>
-            Ihandle ih = IupCanvas(nullable_string action = NULL)
+            Ihandle ih = IupCanvas([[nullable_string action=NULL,] cbfunc func=NULL,] string attributes="", sequence data={})
           </font>
          </td>
         </tr>
@@ -29,8 +29,11 @@
             Creates an interface element that is a canvas - a working area for your application.
             <br>
             <br>
-            The parameter is the name of the action generated when the canvas needs to be redrawn. It can be NULL.
-            A typecheck error occurs if it is not NULL and not a string.
+            action: name of the action generated when the canvas needs to be redrawn. It can be NULL.
+            A typecheck error occurs if it is not NULL and not a string.<br>
+            func: a callback address, usually specified as Icallback(<i>"name"</i>).<br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.<br>
+            This is a <a href="paranormal.htm">paranormalised function</a>.
             <br>
             <br>
             Returns the identifier of the created element.
@@ -54,11 +57,11 @@
             <br>
             <br>
             MAP_CB()<br>
-            RESIZE_CB()<br>
-            ACTION()
+            <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a>()<br>
+            <a href="#ACTION">ACTION</a>()
             <br>
             <br>
-            When the canvas is resized the ACTION callback is always called after the RESIZE_CB callback.
+            When the canvas is resized the <a href="#ACTION">ACTION</a> callback is always called after the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> callback.
             <br>
             <br>
             <h4>Using with the CD library</h4>
@@ -68,9 +71,9 @@
             <br>
             MAP_CB   - calls cdCreateCanvas  (current size is not available yet)<br>
             UNMAP_CB - calls cdKillCanvas<br>
-            RESIZE_CB - Calling cdCanvasActivate and cdCanvasGetSize returns the same values as given by the callback parameters.
+            <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> - Calling cdCanvasActivate and cdCanvasGetSize returns the same values as given by the callback parameters.
                         Recalculate the drawing size, update the scrollbars if any.<br>
-            ACTION - calls cdCanvasActivate then use CD primitives to draw the scene, finally calls cdCanvasFlush if using double buffer<br>
+            <a href="#ACTION">ACTION</a> - calls cdCanvasActivate then use CD primitives to draw the scene, finally calls cdCanvasFlush if using double buffer<br>
             SCROLL_CB - when using scrollbars, if this callback is defined the canvas must be manually redrawn,
                         call yourself the action callback or call IupUpdate.
                         In other words, if this callback is not defined 
@@ -98,7 +101,10 @@
           BGCOLOR
          </td>
          <td>
-            Background color. The background is painted only if the ACTION callback is not defined. If the callback is defined the application must draw all the canvas contents. In GTK or Motif if you set the ACTION callback after map then you should also set BGCOLOR to any value just after setting the callback or the first redraw will be lost. Default: "255 255 255".
+            Background color. The background is painted only if the <a href="#ACTION">ACTION</a> callback is not defined. <br>
+            If the callback is defined the application must draw all the canvas contents. <br>
+            In GTK or Motif if you set the <a href="#ACTION">ACTION</a> callback after map then you should also set BGCOLOR to any value just after 
+            setting the callback or the first redraw will be lost. Default: "255 255 255".
          </td>
         </tr>
         <tr>
@@ -122,7 +128,8 @@
           CAIRO_CR
          </td>
          <td>
-            [GTK Only] (non inheritable): Contains the "cairo_t*" parameter of the internal GTK callback. Valid only during the ACTION callback and onyl when using GTK version 3. (since 3.7)
+            [GTK Only] (non inheritable): Contains the "cairo_t*" parameter of the internal GTK callback. <br>
+            Valid only during the <a href="#ACTION">ACTION</a> callback and onyl when using GTK version 3. (since 3.7)
          </td>
         </tr>
         <tr>
@@ -130,7 +137,8 @@
           CLIPRECT
          </td>
          <td>
-            [Windows and GTK Only] (only during ACTION): Specifies a rectangle that has its region invalidated for painting, it could be used for clipping. Format: "%d %d %d %d"="x1 y1 x2 y2".
+            [Windows and GTK Only] (only during <a href="#ACTION">ACTION</a>): Specifies a rectangle that has its region invalidated for painting, 
+            it could be used for clipping. Format: "%d %d %d %d"="x1 y1 x2 y2".
          </td>
         </tr>
         <tr>
@@ -162,7 +170,7 @@
           DRAWSIZE
          </td>
          <td>
-            (non inheritable): The size of the drawing area in pixels. This size is also used in the RESIZE_CB callback.
+            (non inheritable): The size of the drawing area in pixels. This size is also used in the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> callback.
           <br>
             Notice that the drawing area size is not the same as RASTERSIZE. The SCROLLBAR and BORDER attributes affect the size of the drawing area.
          </td>
@@ -172,7 +180,8 @@
           HDC_WMPAINT
          </td>
          <td>
-            [Windows Only] (non inheritable): Contains the HDC created with the BeginPaint inside the WM_PAINT message. Valid only during the ACTION callback.
+            [Windows Only] (non inheritable): Contains the HDC created with the BeginPaint inside the WM_PAINT message. <br>
+            Valid only during the <a href="#ACTION">ACTION</a> callback.
          </td>
         </tr>
         <tr>
@@ -320,7 +329,9 @@
             <a href="iupattr.htm#FONT">FONT</a>, 
             <a href="iupattr.htm#SCREENPOSITION">SCREENPOSITION</a>, 
             <a href="iupattr.htm#POSITION">POSITION</a>, 
-            MINSIZE, MAXSIZE, WID, TIP, SIZE, RASTERSIZE, ZORDER, VISIBLE: also accepted.
+            MINSIZE, MAXSIZE, WID, TIP, 
+            <a href="iupattr.htm#SIZE">SIZE</a>,
+            RASTERSIZE, ZORDER, VISIBLE: also accepted.
          </td>
         </tr>
         <tr>
@@ -333,20 +344,22 @@
         </tr>
         <tr>
          <td valign=top>
+          <a name=ACTION></a>
           ACTION
          </td>
          <td>
             Action generated when the canvas needs to be redrawn.
             <br>
             <br>
-int function(Ihandle *ih, float posx, float posy); ih: identifier of the element that activated the event.
-posx: thumb position in the horizontal scrollbar. The POSX attribute value.
-posy: thumb position in the vertical scrollbar. The POSY attribute value.
+            function(Ihandle ih, atom posx, atom posy)<br>
+            ih: identifier of the element that activated the event.<br>
+            posx: thumb position in the horizontal scrollbar. The POSX attribute value.<br>
+            posy: thumb position in the vertical scrollbar. The POSY attribute value.
          </td>
         </tr>
         <tr>
          <td valign=top>
-          BUTTON_CB
+          <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>
          </td>
          <td>
             Action generated when any mouse button is pressed or released.
@@ -388,12 +401,13 @@ focus: is non zero if the canvas is getting the focus, is zero if it is loosing 
             Action generated when a key is pressed or released. It is called after the common callback K_ANY.
             <br>
             <br>
-When the canvas has the focus, pressing the arrow keys may change the focus to another control in some systems. If your callback process the arrow keys, we recommend you to return IUP_IGNORE so it will not lose its focus.
+            When the canvas has the focus, pressing the arrow keys may change the focus to another control in some systems. <br>
+            If your callback process the arrow keys, we recommend you to return IUP_IGNORE so it will not lose its focus.
          </td>
         </tr>
         <tr>
          <td valign=top>
-          RESIZE_CB
+          <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a>
          </td>
          <td>
             Action generated when the canvas size is changed. 

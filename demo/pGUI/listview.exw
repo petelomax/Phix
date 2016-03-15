@@ -1,0 +1,218 @@
+--
+-- listview.exw
+--  listview in pGUI, using an IupMatrix with a value_cb callback
+--  (ported from/compare with ..\arwendemo\demo_listviews.exw)
+--
+--  The lightbulb.ico file is actually 32x32 and this did not do a
+--  very good job of resizing it (to 16x16), so I converted it to
+--  lightbulb.png by hand. But anyway, you don't really want .ico
+--  files anywhere other than Windows.
+--
+
+include pGUI.e
+--include builtins\sort.e       -- (not strictly necessary)
+
+--#withtype Ihandle
+
+Ihandle matrix, statusbar
+
+constant titles = {"", "Chq#", "Date", "Amount", "Status", "Bank"},
+         twidth = {20,  40,     60,     100,      50,       50},
+         C = "ACENTER", L = "ALEFT", R = "ARIGHT",
+         talign = {C,   L,      C,      R,        C,        L},
+         MAX = 5000,
+         LB = "lightbulb",
+         RSPACE = "R    "
+
+sequence data
+
+sequence tags = tagset(MAX)
+
+function buildDummyData()
+atom t = time()
+    data = repeat(0,MAX)
+    for i=1 to MAX do
+        data[i] = {i,                                                   -- ChqNo
+                   {2016,rand(12),rand(28)},                            -- Date
+                   rand(999999)/100,                                    -- Amount,
+                   RSPACE[rand(5)],                                     -- Status,
+                   sprintf("%5d", rand(9999)+10000)}                    -- Bank
+    end for
+    return sprintf("%d records created in %3.2f seconds",{MAX,time()-t})
+end function
+
+string semiperm -- (return value of value_cb must outlive it)
+
+function value_cb(Ihandle /*self*/, integer l, integer c)
+object dlc
+--  printf(1,"value_cb: l=%d, c=%d\n",{l,c})
+    if c>0 then
+        if c>length(titles) then return NULL end if
+        if l==0 then
+            return IupRawStringPtr(titles[c])   -- column title
+        end if
+        if l>length(data) then return NULL end if
+        l = tags[l]
+        if c=1 then -- icon
+            if data[l][4]!='R' then return NULL end if
+            dlc = LB
+        else
+            dlc = data[l][c-1]
+            if c=3 then -- date
+                dlc = sprintf("%02d/%02d/%04d",reverse(dlc))
+            elsif c=4 then  -- amount
+                dlc = sprintf("%9.2f",dlc)
+            elsif c=5 then  -- status
+                dlc = sprintf("%c",dlc)
+            end if
+        end if
+        if string(dlc) then
+            if length(dlc)=0 then return NULL end if
+            return IupRawStringPtr(dlc)
+        end if
+        -- (c=2 (ChqNo) and/or c=6 (Bank):)
+        semiperm = sprint(dlc)
+        return IupRawStringPtr(semiperm)
+    end if
+    return NULL
+end function
+
+integer eiskip = 1
+
+function enteritem_cb(Ihandle ih, integer lin, integer col)
+    IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
+--DEV doc:
+    IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
+--  IupSetAttributes(ih,"MARK%d:0=Yes",{lin});
+    IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
+    IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col}); -- [1]
+    if eiskip then
+        eiskip -= 1 -- (don't clobber inital buildDummyData() msg)
+    else
+        IupSetAttribute(statusbar, "TITLE", sprint(data[tags[lin]]))
+    end if
+    return IUP_DEFAULT;
+end function
+
+integer sortcol = 0
+integer sortdir = 1
+
+function by_column(integer i, integer j)
+    return sortdir*compare(data[i][sortcol],data[j][sortcol])
+end function
+
+procedure showselected()
+integer idx = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+string msg = sprint(data[tags[idx]])
+    IupMessage("Selected", msg)
+end procedure
+
+function click_cb(Ihandle self, integer l, integer c, atom pStatus)
+string sortc
+--nullable_string v = IupMatGetAttribute(self, "", l, c);
+--  if v=NULL then v = "NULL" end if
+--  printf(1,"click_cb(%d, %d, %s)\n", {l, c, peek_string(pStatus)})
+--  printf(1,"  VALUE%d:%d = %s\n", {l, c, v})
+    if c>0 and c<=length(titles) then
+        if l=0 then -- title clicked, so sort that column
+            atom t = time()
+            if sortcol!=0 and sortcol!=c then
+                sortc = sprintf("SORTSIGN%d",sortcol)
+                IupSetAttribute(self,sortc,"NO")
+            end if
+            sortc = sprintf("SORTSIGN%d",c)
+            sortdir = iff(IupGetAttribute(self,sortc)="DOWN"?-1:1)
+            IupSetAttribute(self,sortc,iff(sortdir=-1?"UP":"DOWN"))
+            sortcol = iff(c=1?4:c-1)
+            tags = custom_sort(routine_id("by_column"),tags)
+            sortcol = c
+            IupSetAttribute(statusbar, "TITLE", sprintf("sort completed in %3.2f seconds",time()-t))
+            IupSetAttribute(self,"REDRAW","ALL")
+        elsif l<=length(data)
+          and iup_isdouble(pStatus) then
+            showselected()
+        end if
+    end if
+    return IUP_DEFAULT;
+end function
+
+function resize_cb(Ihandle /*ih*/, integer width, integer /*height*/)
+sequence widths = repeat(0,IupGetInt(matrix,"NUMCOL"))
+integer total_width = 0, new_width
+    for i=1 to length(widths) do
+        widths[i] = IupGetInt(matrix,sprintf("RASTERWIDTH%d",i))
+    end for
+    width -= 65
+    if width<120 then width = 120 end if
+    total_width = sum(widths)
+    IupSetInt(matrix,"RASTERWIDTH0",0)
+    for i=1 to length(widths) do
+        new_width = floor((widths[i]/total_width)*width)
+        if new_width<10 then new_width = 10 end if
+        IupSetInt(matrix,sprintf("RASTERWIDTH%d",i),new_width)
+        widths[i] = new_width
+    end for
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_CR then showselected() end if
+    -- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+procedure main()
+    IupOpen()
+
+    IupSetHandle(LB, IupLoadImage("lightbulb.png"))
+
+    matrix = IupMatrix()
+    IupSetInt(matrix, "NUMCOL", length(titles))
+    IupSetInt(matrix, "NUMCOL_VISIBLE", length(titles))
+    IupSetInt(matrix, "NUMLIN", MAX)
+    IupSetInt(matrix, "NUMLIN_VISIBLE", 15)
+--  IupSetInt(matrix, "WIDTHDEF", 40) -- (now completely overidden anyway)
+    for i=1 to length(twidth) do
+        IupSetInt(matrix, sprintf("RASTERWIDTH%d",{i}), twidth[i])
+        IupSetAttribute(matrix, sprintf("ALIGNMENT%d",{i}), IupRawStringPtr(talign[i]))
+    end for
+    --IMPORTANT: HEIGHT0 tells IupMatrix that we are gonna have column titles at line 0
+    IupSetInt(matrix, "HEIGHT0", 10);
+--  IupSetInt(matrix, "WIDTH0", NULL);  -- (no help)
+    IupSetAttribute(matrix, "RESIZEMATRIX", "YES");
+    IupSetAttribute(matrix, "MARKMODE", "LIN");
+    IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS");
+--DEV does not seem to work...
+--  IupSetAttribute(matrix, "MULTIPLE", "YES"); -- (or is that "MARKMULTIPLE"? the default is NO anyway)
+
+--  IupSetAttribute(matrix, "READONLY", "YES"); -- with VALUE_CB set, non-setting of VALUE_EDIT_CB (also) makes it read-only
+    IupSetAttribute(matrix, "HIDEFOCUS", "YES");
+    IupSetAttribute(matrix, "FRAMECOLOR", "220 220 220");
+--  IupSetAttribute(matrix, "FRAMEVERTCOLOR*:1", "255 255 255")
+    IupSetAttribute(matrix, "BORDER", "NO");
+    IupSetAttribute(matrix, "CURSOR", "ARROW");
+    IupSetAttribute(matrix, "TYPE*:1", "IMAGE");
+
+    IupSetCallback(matrix, "VALUE_CB",      Icallback("value_cb"))
+    IupSetCallback(matrix, "ENTERITEM_CB",  Icallback("enteritem_cb"));
+    IupSetCallback(matrix, "CLICK_CB",      Icallback("click_cb"));
+
+    statusbar = IupLabel(buildDummyData());
+    IupSetAttribute(statusbar, "EXPAND", "HORIZONTAL");
+    IupSetAttribute(statusbar, "PADDING", "10x5");
+
+    Ihandle vbox = IupVbox({matrix,
+                            statusbar});
+
+    Ihandle dlg = IupDialog(vbox)
+    IupSetAttribute(dlg, "TITLE", "IupMatrix in Callback Mode");
+    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"));
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+    IupShow(dlg)
+
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

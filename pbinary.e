@@ -311,6 +311,7 @@ end procedure
     DefineSectionCharacteristics(".idata",IMAGE_SCN_MEM_READ+IMAGE_SCN_MEM_WRITE+IMAGE_SCN_CNT_INITIALIZED_DATA)
     DefineSectionCharacteristics(".edata",IMAGE_SCN_MEM_READ+IMAGE_SCN_CNT_INITIALIZED_DATA)
     DefineSectionCharacteristics(".reloc",IMAGE_SCN_MEM_READ+IMAGE_SCN_CNT_INITIALIZED_DATA+IMAGE_SCN_MEM_DISCARDABLE)
+    DefineSectionCharacteristics(".pdata",IMAGE_SCN_MEM_READ+IMAGE_SCN_CNT_INITIALIZED_DATA)
     DefineSectionCharacteristics(".data",IMAGE_SCN_MEM_READ+IMAGE_SCN_MEM_WRITE+IMAGE_SCN_CNT_INITIALIZED_DATA)
 --DEV lets have .code rather than .text:
     DefineSectionCharacteristics(".text",IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ)
@@ -465,6 +466,8 @@ integer thunks,
         esize = 0,
         elen,
         ebase,
+        xsize = 0,
+        xbase,
         rsize = 0,
         rbase,
         prevbase,
@@ -562,12 +565,12 @@ if and_bits(esize,1) then esize += 1 end if
         HeaderCharacteristics += IMAGE_FILE_RELOCS_STRIPPED
     end if
     if gexch!=0 then
-        ?9/0
---      xsize = #18
---      xbase = RVAaddr
---      RVAaddr += RoundToSectionAlignment(xsize)
---      sections = append(sections,{4,".pdata",xsize,xbase})
---      SizeOfImage += RoundToFileAlignment(xsize)
+--      ?9/0
+        xsize = #0C
+        xbase = RVAaddr
+        RVAaddr += RoundToSectionAlignment(xsize)
+        sections = append(sections,{4,".pdata",xsize,xbase})
+        SizeOfImage += RoundToFileAlignment(xsize)
     end if
     if length(relocations) then
         -- (only needed for 32-bit dlls)
@@ -881,6 +884,9 @@ integer SizeOfImage2 = RVAaddr
         ln = length(name)
         if ln>8 then ?9/0 end if
         section[1..ln] = name
+        if name=".pdata" then
+            VirtualSize = #18
+        end if
         section = SetField(section,#08,DWORD,VirtualSize)
         section = SetField(section,#0C,DWORD,VirtualAddress)
         SizeOfRawData = RoundToFileAlignment(VirtualSize)
@@ -1054,7 +1060,45 @@ if and_bits(length(section),1) then section &= 0 end if
             res &= stringify(repeat(0,padding))
         end if
     end if
+    if gexch!=0 then
+--;   DWORD BeginAddress; 
+--;   DWORD EndAddress; 
+--;   DWORD UnwindData; 
+--
+--;   UBYTE Version       : 3;      \ PL: so that be one byte!
+--;   UBYTE Flags         : 5;      / #19 = 0b10001001, 1 plus flags 2 and #10
+--;   UBYTE SizeOfProlog; 
+--;   UBYTE CountOfCodes; 
+--;   UBYTE FrameRegister : 4; 
+--;   UBYTE FrameOffset   : 4; 
+--;   UNWIND_CODE UnwindCode[1]; 
+--; /*  UNWIND_CODE MoreUnwindCode[((CountOfCodes + 1) & ~1) - 1]; 
+--; *   union { 
+--; *     OPTIONAL ULONG ExceptionHandler; 
+--; *     OPTIONAL ULONG FunctionEntry; 
+--; *   }; 
+--; *   OPTIONAL ULONG ExceptionData[]; */ 
+        section = stringify(
+                  { 0,0,0,0,        --00000000, BeginAddress,   h4,00001000h,   (should be RVA of code section)
+                    0,0,0,0,        --00000004, EndAddress,             h4,000010??h,   (end of code section)
+                    0,0,0,0,        --00000008, UnwindData,             h4,000030??h,   (RVA of next byte)
+                    0x19,           --0000000C, VersionFlags,           h1,19h,         {1,0b00011}
+                    0,              --0000000D, SizeOfProlog,           h1,00h,         (should be 0)
+                    0,              --0000000E, CountOfCodes,           h1,00h,         (should be 0)
+                    0,              --0000000F, FrameRegister/Offset,   h1,00h,         (should be 0:0)
+                    0,0,0,0,        --00000010, ExceptionHandler,       h4,000010??h,   address of exception handler
+                    0,0,0,0})       --00000014, ExceptionData,          h4,00000000h,   (should be 0)
+        section = SetField(section,#0,DWORD,BaseOfCode)
+        section = SetField(section,#4,DWORD,BaseOfCode+codelen)
+        section = SetField(section,#08,DWORD,xbase+#0C)
+        section = SetField(section,#10,DWORD,BaseOfCode+glboffset[gexch]+symtab[glblabel[gexch]][S_il])
 
+        res &= section
+        padding = RoundToFileAlignment(length(res))-length(res)
+        if padding then
+            res &= stringify(repeat(0,padding))
+        end if
+    end if
     if length(relocations) then
         -- (only needed for 32-bit dlls) [DEV you sure about that?]
         res &= relocate(relocations,ridx,{BaseOfCode,BaseOfData})
@@ -2024,9 +2068,10 @@ end if
         img[imgidx+1..imgidx+datalen] = data
         imgidx += RoundToFileAlignment(datalen)
     end if
-    if gexch!=0 then
-        ?9/0
-    end if
+--  if gexch!=0 then
+--      ?9/0
+-->
+--  end if
     if resourcelen then
         for i=1 to length(ResourceRVA) do
             offset = ResourceRVA[i]

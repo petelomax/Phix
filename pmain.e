@@ -4045,71 +4045,49 @@ end if
             minsiglen = 1
         end if
     end if
--- 26/11/15 (routine x(string name, rid=routine_id(name)) support)
---?{length(actsig),minsiglen}
+    -- 26/11/15 (routine x(string name, rid=routine_id(name)) support):
     if length(actsig)>0 
     and length(actsig)=minsiglen-1
     and paramsOnStack=0
-    and not forward_call
-    and symtab[lastparam][S_Name]=-1
-    and symtab[lastparam][S_NTyp]=S_Const
-    and symtab[lastparam][S_ltype]=T_string
-    and and_bits(symtab[lastparam][S_State],K_litnoclr)=K_litnoclr then
---?2
-        k = symtab[wasRoutineNo][S_Parm1]+length(actsig)
-        if and_bits(symtab[k][S_State],K_drid) then
-            TokStr = symtab[lastparam][S_value]
---?TokStr
-            Q_Routine = 0
-            if resolveRoutineId() then
-                k = addRoutineId(Q_Routine)
-                PushFactor(k,1,T_integer)
-                actsig &= T_integer
-                sigidx += 1
-                siglen += 1
-            else
-                Aborp("error resolving routine_id")
+    and not forward_call then
+        if lastparam=0 then
+            if emitON=0 then
+                -- 11/3/16, cope with Icallback("xx") under emitON=0
+                --  (we just have to assume the routine name would
+                --   resolve - at least we do not emit wrong code.)
+                k = symtab[wasRoutineNo][S_Parm1]+length(actsig)
+                if and_bits(symtab[k][S_State],K_drid) then
+                    PushFactor(T_const0,1,T_integer)
+                    actsig &= T_integer
+                    sigidx += 1
+                    siglen += 1
+                end if  -- (K_drid)
+--          else
+--              (report missing params as normal below)
             end if
-            Q_Routine = 0
-        end if
---          DBG = {symtab[lastparam][S_value],symtab[k]}
---  DBG = {"Icallback",{21736,3,1,#90113,-2,0,3,0,-1,623,1,3,0,0,0}}
---          if rest_must_be_named=0 then
---                      maxparms = length(symtab[routineNo][S_sig])-1
---                      txids = repeat(0,maxparms)
---                      txcols = repeat(0,maxparms)
---                      for i=1 to maxparms do
---                          txids[i] = symtab[pfirst][S_Name]
---                          pfirst += 1
---                      end for
---
---              K_lit  = #004000,   -- literal flag
---              K_noclr= #000200,   -- do not clear on load (ie assignment on declaration occurred)
---              S_set  = #000002,   -- bit for never assigned a value warnings
---  siglen = 1
---  sigidx = 2
---  minsiglen = 2
---  wasRoutineNo = 893
---  lastparam = 911
---lastparam
---              DBG = symtab[lastparam]--[S_ltype]
---  DBG = {-1,1,1,#4202,0,0,8,"Icallback",0,0,21744,8,0}
---                      Default = ?
---                  elsif toktype=DQUOTE then
---                      Q_Routine = 0
---                      if Ch!=')' then skipSpacesAndComments() end if
---                      if Ch!=')'      -- not eg "do"&opname[i]
---                      or resolveRoutineId()=0 then
---                          Aborp("unsupported")
---                      end if
---              k = addRoutineId(Q_Routine)
---                      Q_Routine = 0
---K_drid
---          actsig &= T_integer
---          sigidx += 1
-
-    end if
---?{siglen,minsiglen}
+        else
+            if symtab[lastparam][S_Name]=-1
+            and symtab[lastparam][S_NTyp]=S_Const
+            and symtab[lastparam][S_ltype]=T_string
+            and and_bits(symtab[lastparam][S_State],K_litnoclr)=K_litnoclr then
+                k = symtab[wasRoutineNo][S_Parm1]+length(actsig)
+                if and_bits(symtab[k][S_State],K_drid) then
+                    TokStr = symtab[lastparam][S_value]
+                    Q_Routine = 0
+                    if resolveRoutineId() then
+                        k = addRoutineId(Q_Routine)
+                        PushFactor(k,1,T_integer)
+                        actsig &= T_integer
+                        sigidx += 1
+                        siglen += 1
+                    else
+                        Aborp("error resolving routine_id")
+                    end if
+                    Q_Routine = 0
+                end if  -- (K_drid)
+            end if -- (literal string)
+        end if -- lastparam=0 (emitON=0)
+    end if -- (actsig one too short, etc)
 
     -- initialise the parameter backpatch list if needed:
     if forward_call then

@@ -1,0 +1,2089 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupMatrix</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pGUI.e
+            <br>
+            <br>
+            Ihandle ih = IupMatrix(string attributes="", sequence data={})
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a matrix of alphanumeric fields. Therefore, all values of the matrix fields are strings. <br>
+            The matrix is not a grid container like many systems have. It inherits from IupCanvas.
+            <br>
+            <br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.<br>
+            <br>
+            <br>
+            This is an additional control that depends on the CD library. It is included in the IupControls library.
+            <br>
+            <br>
+            It has two modes of operation: normal and callback mode. <br>
+            In normal mode, string values are stored in attributes for each cell. <br>
+            In callback mode these attributes are ignored and the cells are filled with strings returned by the <a href="#VALUE_CB">VALUE_CB</a> callback. <br>
+            So the existence of this callback defines the mode the matrix will operate.
+            <br>
+            <br>
+            Returns the identifier of the created matrix.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Utility Functions:</b>
+         </td>
+         <td>
+            These functions can be used to help set and get attributes from the matrix:
+            <br>
+            <br>
+            [DEV none of these are wrapped]<br>
+            void  IupSetAttributeId2(Ihandle* ih, const char* name, int lin, int col, const char* value);   [aka IupMatSetAttribute]<br>
+            char* IupGetAttributeId2(Ihandle* ih, const char* name, int lin, int col);<br>
+            int   IupGetIntId2(Ihandle* ih, const char* name, int lin, int col);<br>
+            float IupGetFloatId2(Ihandle* ih, const char* name, int lin, int col);<br>
+            void  IupSetfAttributeId2(Ihandle* ih, const char* name, int lin, int col, const char* format, ...);<br>
+            void  IupSetIntId2(Ihandle* ih, const char* name, int lin, int col, int value);<br>
+            void  IupSetFloatId2(Ihandle* ih, const char* name, int lin, int col, float value);<br>
+            <br>
+            They work just like the respective traditional set and get functions. But the attribute string is complemented with the L and C values. <br>
+            <br>
+            When only one value is needed then use the Iup*AttributeId functions. For example:<br>
+            <br>
+            IupSetAttribute(ih, "30:10", value)        => IupSetAttributeId2(ih, "", 30, 10, value)<br>
+            IupSetAttribute(ih, "BGCOLOR30:10", value) => IupSetAttributeId2(ih, "BGCOLOR", 30, 10, value)<br>
+            IupSetAttribute(ih, "ALIGNMENT10", value)  => IupSetAttributeId(ih, "ALIGNMENT", 10, value)<br>
+            <br>
+            When one of the indices is the asterisk, use IUP_INVALID_ID as the parameter. For example:<br>
+            <br>
+            IupSetAttribute(ih, "BGCOLOR30:*", value) => IupSetAttributeId2(ih, "BGCOLOR", 30, IUP_INVALID_ID, value)<br>
+            <br>
+            These functions are faster than the traditional functions because they do not need to parse the attribute name string and the application does not 
+            need to concatenate the attribute name with the id.
+            <br>
+            <br>
+            IupMatrixSetFormula and IupMatrixSetDynamic are not supported at this time.
+<!--
+void IupMatrixSetFormula(Ihandle* ih, int col, const char* formula, const char* init)<br>
+Fill the contents of the given column using the formula (since 3.13). The formula is executed for each line within the column. Internally uses Lua to parse the formula. 
+init is an optional Lua initialization code that is called only once (can be NULL). The callback "int FORMULAINIT_CB(Ihandle* ih, lua_State *L);" can also be used to initialize the Lua state. 
+All Lua standard libraries are pre-loaded.
+
+This function is available in the "iupluacontrols" library but it does not requires an active Lua context, because it uses a temporary Lua context. 
+If called from Lua it will also be independent from the application's Lua context. To use it in C/C++ you must link also with Lua and iuplua even when not using theses libraries directly.
+[PL I doubt we do!]
+
+The formula will be encapsulated within an internal Lua function so it will not affect the call of subsequent cells. 
+This internal function receives two parameters "lin" and "col" correspondent to the current cell being processed during script execution. 
+The formula can contain only one valid Lua statement that will be retuned by the internal Lua function. The formula can evaluate to nil, number, boolean or a string. 
+
+The most commonly used tokens are:
+
++  (addition) 
+-  (subtraction and negation) 
+*  (multiplication) 
+/  (division) 
+%  (modulo)
+^  (exponentiation)
+== (equal)
+~= (different)
+<  (less than)
+>  (greater than)
+<= (less than or equal)
+>= (greater than or equal)
+and (logical and)
+or  (logical or)
+not (logical not)The Lua Math Functions are loaded also at the global level, so there is no need for the "math." prefix. The most commonly used functions are:
+
+abs(x)    acos(x)    asin(x)    atan(x)    atan2(y,x)    ceil(x)    cos(x)
+deg(x)    exp(x)     floor(x)   log(x)     min(x,...)    max(x,...) pow(x,y)
+sin(x)    sqrt(x)    tan(x)There are also some exclusive functions to access cell values and perform special operations:
+
+sum(x,...)  - computes the sum of the input paramters.
+average(x,...)  - computes the average of the input paramters.
+range(lin1, col1, lin2, col2[, only_number]) - returns a range of cell values. 
+                     Can be used in functions like min, max, sum and average.
+                     If only_number boolean is used then only numbers are included, 
+                     and others are skipped.
+cell(lin, col) - returns the cell value at given line and column.
+ifelse(test, value_true, value_false) - if test boolean is true then return value_true,
+                                        if not return value_falseor else.
+       The problem with ifelse is that both values are evaluated before calling the function.
+       In Lua the solution is to use logical operators:
+       test and value_true or value_false
+       (but value_true can not be false)
+       See http://lua-users.org/wiki/TernaryOperatorIf the attribute CELLNAMES is set to "Excel" or "Matrix" (default "No") then 
+    it will enable cell names to be used as alternative for "cell(lin, col)". 
+    There are two notations available: the Matrix "L123C123" notation where L and C are fixed and 123s are the line and columns numbers; 
+    and the Excel "ABC123" notation where 123 denotes the line number and ABC denotes the column number just like in Microsoft Excel. (since 3.14) 
+    Obs: there is not support for cell range like "A1:B2" in Excel.
+
+Some formula examples:
+
+"cos(pi*lin/4)"
+"cell(lin, 1) + cell(lin, 2)"
+"cell(lin, 4) < 3"  -- cell value will be 0 or 1
+"sum(range(lin, 1, lin, 7))"
+"cell('x', 1)"  -- error
+--------------------------------------------------------------------------------
+
+void IupMatrixSetDynamic(Ihandle* ih, const char* init)
+Enable dynamic cell values using formulas (since 3.13). 
+It uses the TRANSLATEVALUE_CB callback to process strings just before the value is displayed, 
+if the string starts with a equal sign ("=") then it is interpreted as a formula using the same features and rules as the IupMatrixSetFormula function above. 
+If the value is being edited the callback will return the original value so the formula can be edited.
+
+Internally also uses Lua to parse the formula. init is an optional Lua initialization code that is called only once (can be NULL), at the function call. 
+The callback "int FORMULAINIT_CB(Ihandle* ih, lua_State *L);" can also be used to initialize the Lua state, at the function call. All Lua standard libraries are pre-loaded.
+
+This Lua state is initialize at the function call and saved for processing during the TRANSLATEVALUE_CB callback. 
+If IupMatrixSetDynamic is called again then the previous state will be destroyed and a new one will be created. This state is automatically destroyed when the control is destroyed.
+
+This function is available in the "iupluacontrols" library but it does not requires an active Lua context, because it uses a temporary Lua context. 
+If called from Lua it will also be independent from the application's Lua context. To use it in C/C++ you must link also with Lua and iuplua even when not using theses libraries directly.
+
+If the cell has a formula, i.e. starts with the equal sign, and the attribute EDITHIDEONFOCUS is NO, then 
+during editing the user can click on another cell to insert a reference to its value in the format "cell(lin,col)". 
+If CELLNAMES is enabled then the respective cell name will be used instead of the "cell" function call. 
+Selecting a range of cells it will insert a "range(lin1,col1,lin2,col2)" call instead (there is no special notation for a range). (since 3.14)
+-->
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Storage<br>
+            Before mapped to the native system, all attributes are stored in the hash table, independently from the size of the matrix or its operation mode. <br>
+            The action attributes like ADDLIN and DELCOL will NOT work.
+            <br>
+            <br>
+            When the matrix is mapped, and it is NOT in callback mode, then the cell values and mark state are moved from the hash table to an internal storage at the matrix. <br>
+            Other cell attributes remains on the hash table. Cell values with indices greater than (NUMLIN,NUMCOL) are ignored. When in callback mode cell values stored in the hash table are ignored.
+            <br>
+            <br>
+            Callback Mode<br>
+            Very large matrices can use the callback mode to store the cell values at the application, and not at the internal matrix storage. The idea is the following:
+            <br>
+            <br>
+            1 - Register the <a href="#VALUE_CB">VALUE_CB</a> callback<br>
+            2 - No longer set the value of the cells. Store the cell value at the application. They will be retrieved one by one by the callback.<br>
+            3 - If the matrix can be edited, set the VALUE_EDIT_CB callback.<br>
+            4 - When the matrix display must be updated, use the REDRAW attribute to force a matrix redraw.<br>
+            <br>
+            <br>
+            A negative aspect is that, when <a href="#VALUE_CB">VALUE_CB</a> is defined, after it is mapped the matrix never verifies attributes of type L:C again.
+            <br>
+            <br>
+            If <a href="#VALUE_CB">VALUE_CB</a> is defined and VALUE_EDIT_CB is not defined when the matrix is mapped then READONLY will be set to YES.
+            <br>
+            <br>
+            Number of Cells<br>
+            If you do not plan to use ADDLIN nor ADDCOL, and plan to set sparse cell values, then you must set NUMLIN and NUMCOL before mapping.
+            <br>
+            <br>
+            Titles<br>
+            A matrix might have titles for lines and columns. Titles are always non scrollable, non editable and presented with a different default background color. <br>
+            A matrix will have a line of titles if an attribute of the "L:0" type is defined, where L is a line number, or if the HEIGHT0 attribute is defined. <br>
+            It will have a column of titles if an attribute of the "0:C" type is defined, where C is a column number, or if the WIDTH0 attribute is defined.
+            <br>
+            <br>
+            When allowed the width of a column can be changed by holding and dragging its title right border, see RESIZEMATRIX.
+            <br>
+            <br>
+            Any cell can have more than one text line, just use the \n control character. Multiple text lines will be considered when calculating the title cell size based on its contents. <br>
+            The contents of ordinary cells (not a title) do not affect the cell size.
+            <br>
+            <br>
+            Natural Size<br>
+            The Natural size is calculated using only the title cells size plus the size of NUMCOL_VISIBLE and NUMLIN_VISIBLE cells, but it is also affected if SCROLBAR is enabled. <br>
+            The natural height is the sum of the line heights from line 0 to NUMLIN_VISIBLE (inclusive). <br>
+            The natural width is the sum of the column width from column 0 to NUMCOL_VISIBLE (inclusive). <br>
+            Notice that since NUMCOL_VISIBLE and NUMLIN_VISIBLE do not include the titles then NUMCOL_VISIBLE+1 columns and NUMLIN_VISIBLE+1 lines are included in the sum.
+            <br>
+            <br>
+            The height of a line L depends on several attributes, first it checks the HEIGHTL attribute, then checks RASTERHEIGHTL, then when USETITLESIZE=YES or not in callback mode <br>
+            the height of the title text for the line or if L=0 it searches for the highest column title, if still could not define a height then if L!=0 it will use HEIGHTDEF, if L=0 then height will be 0.
+            <br>
+            <br>
+            A similar approach is valid for the column width. The width of a column C first checks the WIDTHC attribute, then checks RASTERWIDTHC, then when USETITLESIZE=YES or not in callback mode <br>
+            the width of the title text for the column or if C=0 it searches for the widest line title, if still could not define a width then if C!=0 it will use WIDTHDEF, if C=0 then height will be 0.
+            <br>
+            <br>
+            Virtual Size<br>
+            When the scrollbars are enabled if the matrix area is greater than the visible area then scrollbars will be displayed so the cells can be scrolled to be visible area. <br>
+            When dragging the scrollbar the position of cells is free, when clicking on its buttons it will move in cell steps, aligning to the left border of the cell.
+            <br>
+            <br>
+            By default EXPAND=Yes, so matrix will be automatically resized when the dialog is resized. So more columns and lines will be displayed. <br>
+            But the matrix Natural size will be used as minimum size. To remove the minimum size limitation set NUMCOL_VISIBLE and NUMLIN_VISIBLE to 0 after showing it for the first time.
+            <br>
+            <br>
+            Edition Mode<br>
+            When READONLY=NO and there is no EDITION_CB callback or the callback return is IUP_DEFAULT, the matrix cell values can be edited. 
+            <br>
+            <br>
+            Editing starts automatically when the user press a character key when the focus is at a cell, then the old cell value is replaced by the new one being typed. <br>
+            If F2, Enter or Space is pressed, the current cell enters the edition mode with the current text of the cell. <br>
+            And double-clicking a cell enters the edition mode (in Motif the user must click again to the edit control get the focus).
+            <br>
+            <br>
+            The new value will be accepted if the user press Enter during edition mode. Pressing Esc will cancel the editing and the the old value remains. <br>
+            The cell will also leave the edition mode if the user clicked in another cell or in another control, then the new value will be automatically accepted. <br>
+            But the value confirmation still depends on the EDITION_CB callback return code.
+            <br>
+            <br>
+            Keyboard Navigation<br>
+            Keyboard navigation through the matrix cells outside the edition mode is done by using the following keys:
+            <br>
+            <br>
+            Arrows: Moves the focus to the next cell, according to the arrows direction. <br>
+            Page Up and Page Down: Moves a visible page up or down. <br>
+            Home: Moves the focus to the fist column in the line. <br>
+            Home Home: Moves the focus to the upper left corner of the visible page. <br>
+            Home Home Home: Moves the focus to the upper left corner of the first page of the matrix. <br>
+            End: Moves the focus to the last column in the line. <br>
+            End End: Moves the focus to the lower right corner of the visible page. <br>
+            End End End: Moves the focus to the lower right corner of the last page in the matrix. <br>
+            <br>
+            When using the keyboard to change the focus cell if the limit of the visible area is reached then the cells are automatically scrolled. <br>
+            Also if a cell partially visible is edited then first it is scrolled to the visible area. <br>
+            Also while pressing together the Shift key and marks are enabled with MARKMULTIPLE=Yes then a continuous area will be selected (since 3.9).
+            <br>
+            <br>
+            Inside the edition mode, the following keys are used for a text field:
+            <br>
+            <br>
+            Left, Right, Up and Down arrows: if the caret is at the extremes of the text being edited then leave the edition mode and moves the focus accordingly. The value is confirmed. <br>
+            Ctrl + arrows: leave the edition mode and moves the focus accordingly independent of caret position. The value is confirmed. <br>
+            Enter: leave the edition mode. The value is confirmed. Moves the focus to the cell below. <br>
+            Esc: leave the edition mode. The new value is ignored and the old value remains. <br>
+            <br>
+            When pressing Enter to confirm the value the focus goes to the cell below the current cell, if at the last line then the focus goes to the cell on the left. <br>
+            This can be controlled using the EDITNEXT attribute.
+            <br>
+            <br>
+            Marks (Selected Cells)<br>
+            When a mark mode is set the cells can be marked using mouse.
+            <br>
+            <br>
+            A marked cell will have its background attenuated to indicate that it is marked. A title cell appears marked only when MARKMODE=LIN, COL or LINCOL.
+            <br>
+            <br>
+            Cells can be selected individually or can be restricted to lines or columns. Also multiple cells can be marked simultaneously in continuous or in segmented areas. <br>
+            Lines and columns are marked only when the user clicks in their respective titles, if MARKMODE=CELL then all the cells of the line or column will be marked. <br>
+            Continuous areas are marked holding and dragging the mouse or holding the Shift key when clicking at the end of the area. <br>
+            Segmented areas are marked or unmarked holding the Ctrl key, the mark state is inverted. Clicking on the cell 0:0 will select all the items depending on MARKMODE, except for LINCOL.
+            <br>
+            <br>
+            When there are cells marked, pressing the Del key remove the selected cells contents.
+            <br>
+            <br>
+            IupMatrixEx<br>
+            For more features, like Import/Export, Clipboard, Undo/Redo, Search, Sort, Column Visibility, Numeric Columns, Numeric, Context Menu and others, see the IupMatrixEx extension library.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>General Attributes</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CURSOR
+         </td>
+         <td>
+            Default cursor used by the matrix. The default cursor is a symbol that looks like a cross. If you need to refer to this default cursor, use the name "IupMatrixCrossCursor".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DROPIMAGE
+         </td>
+         <td>
+            drop image name. Use IupSetHandle or IupSetAttributeHandle to associate an image to a name. See also IupImage. By default an internal image will be used. (since 3.16) 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FOCUSCELL
+         </td>
+         <td>
+            Defines the current cell. Two numbers in the "L:C" format,  (L>0 and C>0, a title cell can NOT be the current cell). Default: "1:1".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            HIDEFOCUS
+         </td>
+         <td>
+            do not show the focus mark when drawing the matrix. Default is NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            HIDDENTEXTMARKS
+         </td>
+         <td>
+            when text is greater than cell space, it is normally cropped, but when set to YES a "..." mark will be added at the crop point to indicate that there is more text not visible. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            HLCOLOR
+         </td>
+         <td>
+            (non inheritable) the overlay color for the selected cells. Default: TXTHLCOLOR global attribute. If set to "" will only use the attenuation process. 
+            The color is composited using HLCOLORALPHA attribute as alpha value (default is 128). (since 3.16)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            ORIGIN
+         </td>
+         <td>
+            Scroll the visible area to the given cell. Returns the cell at the upper left corner. To scroll to a line or a column, use a value such as "L:*" or "*:C" (where L>0 and C>0). <br>
+            L and C can not be a non scrollable cell either.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            ORIGINOFFSET
+         </td>
+         <td>
+            complements the ORIGIN attribute by specifying the drag offset of the top left cell. <br>
+            Returns the current value. <br>
+            Has the format "X:Y" or "%d:%d" in C. <br>
+            When changing this attribute must change also ORIGIN right after. (since 3.5)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            READONLY
+         </td>
+         <td>
+            disables the editing of all cells. EDITION_CB and VALUE_EDIT_CB will not be called anymore. <br>
+            The L:C attribute will still be able to change the cell value. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SHOWFILLVALUE
+         </td>
+         <td>
+            enable the display of the numeric percentage in the cell when TYPE* is FILL. Default: NO. (since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TOGGLECENTERED
+         </td>
+         <td>
+            center the toggle and use the cell value in place of TOGGLEVALUEL:C. No text will be drawn. (since 3.16)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TOGGLEIMAGEON
+         </td>
+         <td>
+            sort sign image name. Use IupSetHandle or IupSetAttributeHandle to associate an image to a name. See also IupImage. By default an internal image will be used. (since 3.16) 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TOGGLEIMAGEOFF
+         </td>
+         <td>
+            ""
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also
+         </td>
+         <td>
+            <a href="iupattr.htm#ACTIVE">ACTIVE</a>, 
+            <a href="iupattr.htm#EXPAND">EXPAND</a>, 
+            <a href="iupattr.htm#FONT">FONT</a>, 
+            <a href="iupattr.htm#SCREENPOSITION">SCREENPOSITION</a>, 
+            <a href="iupattr.htm#POSITION">POSITION</a>, 
+            MINSIZE, MAXSIZE, WID, TIP, 
+            <a href="iupattr.htm#SIZE">SIZE</a>,
+            RASTERSIZE, ZORDER, VISIBLE: also accepted.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Cell Attributes</b>
+         </td>
+         <td>
+            (no redraw) (These attributes are only updated in the display when you set the REDRAW attribute.)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            L:C
+         </td>
+         <td>
+            Text of the cell located in line L and column C, where L and C are integer numbers. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            L:0
+         </td>
+         <td>
+            Title of line L.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            0:C
+         </td>
+         <td>
+            Title of column C.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            0:0
+         </td>
+         <td>
+            Title of the area between the line and column titles.
+            <br>
+            <br>
+            These are valid only in normal mode.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            ALIGNL:C
+         </td>
+         <td>
+            Alignment of the cell value in line L and column C. <br>
+            Values are in the format "linalign:colalign", where linalign can be "ATOP", "ACENTER" or "ABOTTOM", and colalign can be "ALEFT", "ACENTER" or "ARIGHT". <br>
+            Default will use ALIGNMENT* and LINEALIGMENT*. (Since 3.16)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TYPEL:C
+         </td>
+         <td>
+            Type of the cell value in line L and column C.  (Since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TYPE*:C
+         </td>
+         <td>
+            Type of column C.   (Since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TYPEL:*
+         </td>
+         <td>
+            Type of line L.  (Since 3.9)
+            <br>
+            <br>
+            Can be TEXT, COLOR, FILL, or IMAGE. <br>
+            When type is COLOR the cell value is interpreted as a color and a rectangle with the color is drawn inside the cell instead of the text (the FGCOLOR of the cell is ignored). <br>
+            When type is FILL the cell value is interpreted as percentage and a rectangle showing the percentage in the FGCOLOR is drawn like in IupGauge and IupProgressBar. <br>
+            When type is IMAGE the cell value is interpreted as an image name, and if an image exist with that name is drawn (the name can NOT be of a Windows resource or GTK stock image). <br>
+            Only TEXT and IMAGE are affected by alignment attributes. Default: TEXT. (Since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BGCOLOR
+         </td>
+         <td>
+            Background color of the matrix. (inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BGCOLOR*:C
+         </td>
+         <td>
+            Background color of column C.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BGCOLORL:*
+         </td>
+         <td>
+            Background color of line L.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BGCOLORL:C
+         </td>
+         <td>
+            Background color of the cell in line L and column C.
+            <br>
+            <br>
+            When more than one attribute are defined, the background color will be selected following this priority: BGCOLORL:C, BGCOLORL:*, BGCOLOR*:C, and last BGCOLOR. (L or C >= 0) <br>
+            Default BGCOLOR is the global attribute TXTBGCOLOR for cells and the parent's BGCOLOR for titles.<br>
+            Since the matrix control can be larger than the matrix itself, the empty area will always be filled with the parent's BGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FGCOLOR
+         </td>
+         <td>
+            Text color. (inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FGCOLOR*:C
+         </td>
+         <td>
+            Text color of column C.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FGCOLORL:*
+         </td>
+         <td>
+            Text color of line L.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FGCOLORL:C
+         </td>
+         <td>
+            Text color of the cell in line L and column C.
+            <br>
+            <br>
+            When more than one attribute are define, the text color of a cell will be selected following this priority: FGCOLORL:C, FGCOLORL:*, FGCOLOR*:C, and last FGCOLOR. (L or C >= 0)<br>
+            Default FGCOLOR is the global attribute TXTFGCOLOR for cells or the global attribute DLGFGCOLOR for titles.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FONT
+         </td>
+         <td>
+            Character font of the text. (inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FONTL:*
+         </td>
+         <td>
+            Text font of the cells in line L.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FONT*:C
+         </td>
+         <td>
+            Text font of the cells in column C.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FONTL:C
+         </td>
+         <td>
+            Text font of the cell in line L and column C.
+            <br>
+            <br>
+            This attribute must be set before the control is shown. <br>
+            It affects the calculation of the size of all the matrix cells. <br>
+            The cell size is always calculated from the base FONT attribute.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FRAMECOLOR
+         </td>
+         <td>
+            Sets the color to be used in the frame lines. (inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FRAMEVERTCOLORL:C
+         </td>
+         <td>
+            Color of the vertical right frame line of the cell. When not defined the FRAMECOLOR is used. <br>
+            For a title column cell (col=0) defines right and left frames. If value is "BGCOLOR" the frame line is not drawn.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FRAMEVERTCOLOR*:C
+         </td>
+         <td>
+            same as FRAMEVERTCOLORL:C but for all the cells of the column C. (since 3.5)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FRAMEHORIZCOLORL:C
+         </td>
+         <td>
+            Color of the horizontal bottom frame line of the cell. When not defined the FRAMECOLOR is used. <br>
+            For a title line cell (lin=0) defines bottom and top frames. If value is "BGCOLOR" the frame line is not drawn.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FRAMEHORIZCOLORL:*
+         </td>
+         <td>
+            same as FRAMEHORIZCOLORL:C but for all the cells of the line L. (since 3.5)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FRAMETITLEHIGHLIGHT
+         </td>
+         <td>
+            by default the title cells will have a bright line at left and top to configure a raise appearance. Can be Yes or No. Default: Yes. (since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            RESIZEMATRIXCOLOR
+         </td>
+         <td>
+            color used by the column resize feedback. Default: "102 102 102". (Since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TOGGLEVALUEL:C 
+         </td>
+         <td>
+            value of the toggle inside the cell. The toggle is shown only if the DROPCHECK_CB returns IUP_CONTINUE for the cell. <br>
+            When the toggle is interactively change the TOGGLEVALUE_CB callback is called. (Since 3.9) 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            VALUE
+         </td>
+         <td>
+            Allows setting or verifying the value of the current cell. <br>
+            Is the same as obtaining the current cell line and column from FOCUSCELL attribute, and then using them to access the "L:C" attribute. <br>
+            But when updated or retrieved during cell editing, the edit control will be updated or consulted instead of the matrix cell. <br>
+            When retrieved inside the EDITION_CB callback when mode is 0, then the return value is the new value that will be updated in the cell.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CELLL:C
+         </td>
+         <td>
+            (read-only) Returns the displayed cell value. Returns NULL if the cell does not exists, or it is not visible, or the element is not mapped. (since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CELLBGCOLORL:C
+         </td>
+         <td>
+            (read-only) Returns the actual cell background color, including mark and active state modifications. <br>
+            Returns NULL if the cell does not exists, or it is not visible, or the element is not mapped. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CELLFGCOLORL:C
+         </td>
+         <td>
+            (read-only) Returns the actual cell foreground color, including mark state modifications. <br>
+            Returns NULL if the cell does not exists, or it is not visible, or the element is not mapped. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CELLOFFSETL:C
+         </td>
+         <td>
+            (read-only) Returns the cell computed offset in pixels from the top-left corner of the matrix, in the format "XxY" or "%dx%d" in C. <br>
+            Returns NULL if the cell does not exists, or it is not visible, or the element is not mapped. <br>
+            It will only return a valid result if the cell has already been displayed. <br>
+            They are similar to the parameters of the DRAW_CB callback but they do NOT include the decorations. (since 3.5)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CELLSIZEL:C
+         </td>
+         <td>
+            (read-only) Returns the cell computed size in pixels, in the format "WxH" or "%dx%d" in C. <br>
+            Returns NULL if the cell does not exists, or the element is not mapped. <br>
+            It will only return a valid result if the cell has already been displayed. <br>
+            They are similar to the parameters of the DRAW_CB callback but they do NOT include the decorations. (since 3.5)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Column/Line Only Attributes</b>
+         </td>
+         <td>
+            (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            ALIGNMENTC
+         </td>
+         <td>
+            Horizontal alignment of the cells in column C (C >= 0) for lines>0. <br>
+            Can be: "ALEFT", "ACENTER" or "ARIGHT". Default: "ALEFT" for C=0 and "ACENTER" for C>0. <br>
+            Before checking the default value it will check the "ALIGNMENT" attribute value. <br>
+            If the text does not fit in the cell then the alignment is changed to ALEFT.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            ALIGNMENTLIN0
+         </td>
+         <td>
+            Horizontal alignment of all the cells in line 0. Default is "ACENTER". (since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LINEALIGNMENTL
+         </td>
+         <td>
+            Vertical alignment of the cells in line L (L >= 0) for all columns. <br>
+            Can be: "ATOP", "ACENTER" or "ABOTTOM". Default is "ACENTER". (since 3.16)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SORTSIGNC
+         </td>
+         <td>
+            Shows a sort sign (up or down arrow) in the column C (C >= 0) title. <br>
+            Possible values: "UP", "DOWN" and "NO". Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SORTIMAGEDOWN
+         </td>
+         <td>
+            sort sign image name. Use IupSetHandle or IupSetAttributeHandle to associate an image to a name. See also IupImage. By default an internal image will be used. (since 3.16) 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SORTIMAGEUP
+         </td>
+         <td>
+            ""
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Size Attributes</b>
+         </td>
+         <td>
+            (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LIMITEXPAND
+         </td>
+         <td>
+            limit expansion to the maximum size that shows all cells. <br>
+            This will set the MAXSIZE attribute to match the natural size of the matrix when all cells are visible. <br>
+            When the scrollbars have *AUTOHIDE=Yes, the maximum size will not include the scrollbars (since 3.9). (since 3.5) 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            RESIZEMATRIX
+         </td>
+         <td>
+            Defines if the width of a column can be interactively changed. <br>
+            When this is possible, the user can change the size of a column by dragging the column title right border. <br>
+            Possible values: "YES" or "NO". Default: "NO" (does not allow interactive width change).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            USETITLESIZE
+         </td>
+         <td>
+            Use the title size to define the cell size if necessary. See WIDTHn and HEIGHTn. Default: NO. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Column Size Attributes</b>
+         </td>
+         <td>
+            For all columns if WIDTHn is not defined, then RASTERWIDTHn is used, otherwise the following logic is used:<br>
+            If it is the title column (n=0), then if USETITLESIZE=YES or not in callback mode, it searches for the maximum width among the titles of all lines.<br>
+            Finally if the conditions are not true or the maximum width of the column is 0, then the column of line titles is hidden.
+            <br>
+            <br>
+            If it is a regular column (n>0), then if USETITLESIZE=YES, then it will use the width of the title of the column. <br>
+            Finally if the condition is not true or the width of the title of the column is 0, then the default value WIDTHDEF is used.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            RASTERWIDTHn
+         </td>
+         <td>
+            Same as WIDTHn but in pixels. Has lower priority than WIDTHn. The returned value is the actual computed size.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            WIDTHn
+         </td>
+         <td>
+            Width of column n in <a href="iupattr.htm#SIZE">SIZE</a> units, where n is the number of the column (n>=0). <br>
+            If the width value is 0, the column will not be shown on the screen. <br>
+            It does not includes the decoration size occupied by the frame lines. <br>
+            The returned value is the actual computed size.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            WIDTHDEF
+         </td>
+         <td>
+            Default column width in <a href="iupattr.htm#SIZE">SIZE</a> units. Not used for the title column. Default: 80 (width corresponding to 20 characters).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Line Size Attributes</b>
+         </td>
+         <td>
+            For all lines if HEIGHTn is not defined, then RASTERHEIGHTn is used. If also not defined, then depending on the circumstances a logic is used to find the line height.
+            <br>
+            <br>
+            If it is the title line (n=0), then if USETITLESIZE=YES or not in callback mode, it will search for the maximum height among the titles of all columns. <br>
+            Finally if the conditions are not true or the maximum height of the line is 0, then the line of column titles is hidden.
+            <br>
+            <br>
+            If it is a regular line (n>0), then if USETITLESIZE=YES, then it will use the height of the title of the line. <br>
+            Finally if the condition is not true or the height of the title of the line is 0, then the default value HEIGHTDEF is used.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            HEIGHTn
+         </td>
+         <td>
+            Height of line n in <a href="iupattr.htm#SIZE">SIZE</a> units, where n is the number of the line (n>=0). <br>
+            If the height value is 0, the line will not be shown on the screen. <br>
+            It does not includes the decoration size occupied by the frame lines. <br>
+            The returned value is the actual computed size.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            HEIGHTDEF
+         </td>
+         <td>
+            Default line height in <a href="iupattr.htm#SIZE">SIZE</a> units. Not used for the title line. Default: 8 (height corresponding to 1 line).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            RASTERHEIGHTn
+         </td>
+         <td>
+            Same as HEIGHTn but in pixels. Has lower priority than HEIGHTn. The returned value is the actual computed size.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Number of Cells Attributes</b>
+         </td>
+         <td>
+            When lines or columns are added or removed the existing cell, line and column attributes are preserved, except custom application attributes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            ADDCOL
+         </td>
+         <td>
+            (write-only) Adds a new column to the matrix after the specified column. <br>
+            To insert a column at the top of the spreadsheet, value 0 must be used. <br>
+            To add more than one column, use format "C-C", where the first number corresponds to the base column and the second number corresponds to the number of columns to be added. <br>
+            It can be used in normal operation mode or in callback mode, but in callback mode will not update cell values this must be done by the application. <br>
+            Can NOT add a title column. Ignored if set before map. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            ADDLIN
+         </td>
+         <td>
+            (write-only) Adds a new line to the matrix after the specified line. <br>
+            To insert a line at the top of the spreadsheet, value 0 must be used. <br>
+            To add more than one line, use format "L-L", where the first number corresponds to the base line and the second number corresponds to the number of lines to be added. <br>
+            It can be used in normal operation mode or in callback mode, but in callback mode will not update cell values this must be done by the application. <br>
+            Can NOT add a title line. Ignored if set before map. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DELCOL
+         </td>
+         <td>
+            (write-only) Removes the given column from the matrix. <br>
+            To remove more than one column, use format "C-C", where the first number corresponds to the base column and the second number corresponds to the number of columns to be removed. <br>
+            It can be used in normal operation mode or in callback mode, but in callback mode will not update cell values this must be done by the application. <br>
+            Can NOT remove a title column, C>0. Ignored if set before map. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DELLIN
+         </td>
+         <td>
+            (write-only) Removes the given line from the matrix. <br>
+            To remove more than one line, use format "L-L", where the first number corresponds to the base line and the second number corresponds to the number of lines to be removed. <br>
+            It can be used in normal operation mode or in callback mode, but in callback mode will not update cell values this must be done by the application. <br>
+            Can NOT remove a title line, L>0. Ignored if set before map. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            NUMCOL
+         </td>
+         <td>
+            Defines the number of columns in the matrix. <br>
+            Must be an integer number. Default: "0". <br>
+            It does not include the title column. <br>
+            If changed after map will add empty cells or discard cells at the end.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            NUMCOL_VISIBLE
+         </td>
+         <td>
+            When set defines the number of visible columns to be counted when calculating the Natural size, not counting the title column. Not used elsewhere. <br>
+            The Natural size will always include the title column if any. <br>
+            Can be greater than the actual number of columns, so room will be reserved for adding new columns without the need to resize the matrix. <br>
+            Also it will always use the first columns of the matrix, except if NUMCOL_VISIBLE_LAST=YES then it will use the last columns. <br>
+            The remaining columns will be accessible only by using the scrollbar. <br>
+            IMPORTANT: When retrieved returns the current number of visible columns, not including the non scrollable columns. Default: "4".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            NUMCOL_NOSCROLL
+         </td>
+         <td>
+            Number of columns that are non scrollable, not counting the title column. Default: "0". <br>
+            It does not affect the NUMCOL_VISIBLE attribute behavior nor Natural size computation. <br>
+            It will always use the first columns of the matrix. <br>
+            The cells appearance will be the same of ordinary cells, and they can also receive the focus and be edited. <br>
+            Must be less than the total number of columns. (since 3.5)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            NUMLIN
+         </td>
+         <td>
+            Defines the number of lines in the matrix. Must be an integer number. Default: "0". <br>
+            It does not include the title line. If changed after map will add empty cells or discard cells at the end.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            NUMLIN_VISIBLE
+         </td>
+         <td>
+            When set defines the number of visible lines to be counted when calculating the Natural size, not counting the title line. <br>
+            Not used elsewhere. The Natural size will always include the title line if any. <br>
+            Can be greater than the actual number of lines, so room will be reserved for adding new lines without the need to resize the matrix. <br>
+            Also it will always use the first lines of the matrix, except if NUMLIN_VISIBLE_LAST=YES then it will use the last lines. <br>
+            The remaining lines will be accessible only by using the scrollbar. <br>
+            IMPORTANT: When retrieved returns the current number of visible lines, not including the non scrollable lines. Default: "3".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            NUMLIN_NOSCROLL
+         </td>
+         <td>
+            Number of lines that are non scrollable, not counting the title line. Default: "0". <br>
+            It does not affect the NUMLIN_VISIBLE attribute behavior nor Natural size computation. <br>
+            It will always use the first lines of the matrix. <br>
+            The cells appearance will be the same of ordinary cells, and they can also receive the focus and be edited.  <br>
+            Must be less than the total number of lines. (since 3.5)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Mark Attributes</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MARKAREA
+         </td>
+         <td>
+            Defines if the area to be interactively marked by the user must be continuous or not, valid only if MARKMULTIPLE=YES. <br>
+            Possible values: "CONTINUOUS" or "NOT_CONTINUOUS". Default: "CONTINUOUS".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MARKATTITLE
+         </td>
+         <td>
+            a click at a title will mark a full line or a full column if they can be marked. Default: "Yes". (since 3.16)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MARKMODE
+         </td>
+         <td>
+            Defines the entity that can be marked: none, lines, columns, (lines or columns), and cells. Possible values: "NO", "LIN", "COL", "LINCOL" or "CELL". Default: "NO" (no mark).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MARKL:C
+         </td>
+         <td>
+            (no redraw) marks a cell, a line or a column depending on MARKMODE, and returns cell, line or column mark state also according to MARKMODE. Can be "1" or "0". <br>
+            If MARKMODE=LIN,COL,LINCOL use 0 to mark only the other element (ex: "0:3" set/get for column 3). Even when MARKMODE=LIN,COL,LINCOL you can specify a single cell address. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MARKED
+         </td>
+         <td>
+            String of '0' or '1' characters, informing which cells are marked (indicated by value '1'). Use NULL to clear all marks, returns NULL if no marks. <br>
+            The format of this character vector depends on the value of the MARKMODE attribute: <br>
+            if its value is CELL, the vector will have NUMLIN x NUMCOL positions, <br>
+            corresponding to all the cells in the matrix starting with all the cells of the first line, then the second line and so on. <br>
+            If its value is LIN, the vector will begin with letter 'L' and will have further NUMLIN positions, each one corresponding to a line in the matrix. <br>
+            If its value is COL, the vector will begin with letter 'C' and will have further NUMCOL positions, each one corresponding to a column in the matrix. <br>
+            If its value is LINCOL, the first letter, which can be either 'L' or 'C', will indicate which of the above formats is being used. <br>
+            If you change the other mark attributes the marked cells are cleared. <br>
+            When setting the attribute the LIN and COL notation can be used even if MARKMODE=CELL. <br>
+            MULTIPLE and AREA are NOT considered when setting MARKED or MARKL:C.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MARKMULTIPLE
+         </td>
+         <td>
+            Defines if more than one entity defined by MARKMODE can be interactively marked. Possible values: "YES" or "NO". Default: "NO".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Action Attributes</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEARATTRIB
+         </td>
+         <td>
+            (write-only) Clear all cell attributes if ALL, all attributes except titles if CONTENTS, and all selected cell attributes if MARKED. <br>
+            When ALL is specified, all lines and column attributes are also cleared. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEARATTRIBL:C
+         </td>
+         <td>
+            (write-only) Clear all cell attributes in an interval starting at the specified cell. <br>
+            Its value defines the end cell in the "L:C" format, the default is the last cell. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEARATTRIBL:*
+         </td>
+         <td>
+            (write-only) the cell attributes in line L. Its value defines a column inclusive interval in the "C1-C2" format. The default is 0 and the last column. <br>
+            When a full line is specified, all line attributes are also cleared. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEARATTRIB*:C
+         </td>
+         <td>
+            (write-only) the cell attributes in column C. Its value defines a line inclusive interval in the "L1-L2" format. The default is 0 and the last line. <br>
+            When a full column is specified, all column attributes are also cleared, including ALIGNMENT and SORTSIGN. (since 3.6)
+            <br>
+            <br>
+            In all cases, attributes are set to NULL. <br>
+            Only the attributes FONT*, BGCOLOR*, FGCOLOR*, FRAMEHORIZCOLOR*, FRAMEHORIZCOLOR*,  ALIGNMENT* and SORTSIGN* are affected. <br>
+            In callback mode will not call the user callbacks.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEARVALUE
+         </td>
+         <td>
+            (write-only) Clear all values if ALL, all values except titles if CONTENTS, and all selected cell values if MARKED. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEARVALUEL:C
+         </td>
+         <td>
+            (write-only) Clear all values in an interval starting at the specified cell. Its value defines the end cell in the "L:C" format, the default is the last cell. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEARVALUEL:*
+         </td>
+         <td>
+            (write-only) the values in line L. Its value defines a column inclusive interval in the "C1-C2" format. The default is 0 and the last column. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEARVALUE*:C
+         </td>
+         <td>
+            (write-only) the values in column C. Its value defines a line inclusive interval in the "L1-L2" format. The default is 0 and the last line. (since 3.6)
+            <br>
+            <br>
+            In all cases, values are set to NULL. Works also in callback mode.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            COPYCOLC
+         </td>
+         <td>
+            (write-only) copy the values and attributes from column C to the given column (value is the number of a column). (Since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            COPYLINL
+         </td>
+         <td>
+            (write-only) copy the values and attributes from line L to the given line (value is the number of a line). (Since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FITTOSIZE
+         </td>
+         <td>
+            (write-only) Force lines and/or columns sizes so the matrix visible size fit in its current size. <br>
+            NUMCOL_VISIBLE and NUMLIN_VISIBLE are considered when fitting and they are not changed, only the RASTERWIDTHn and RASTERHEIGHTn attributes are changed. <br>
+            But if any of the RASTERWIDTHn and RASTERHEIGHTn attributes where already set, then they will not be changed. <br>
+            If the matrix is resized then it must be set again to obtain the same result, but before doing that <br>
+            set to NULL all the RASTERWIDTHn and RASTERHEIGHTn attributes that you want to be changed. <br>
+            Can be LINES, COLUMNS or YES (meaning both). (since 3.3)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FITTOTEXT
+         </td>
+         <td>
+            (write-only) Fit the RASTERWIDTHn or the RASTERHEIGHTn attribute for the given column or line, so that it will fit the largest text in the column or the highest text in the line. <br>
+            The number of the column or line must be preceded by a character identifying its type, "C" for columns and "L" for lines. <br>
+            For example "C5"=column 5 or "L3"=line 3. If FITMAXWIDTHn or FITMAXHEIGHTn are set for the column or line they are used as maximum limit for the size. (since 3.4)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MOVECOLC
+         </td>
+         <td>
+            (write-only) move the values and attributes from column C to the given column (value is the number of a column). <br>
+            Internally will use ADDCOL+COPYCOL+DELCOL to perform the move so it is limited to those attributes restrictions. <br>
+            It can be used in normal operation mode or in callback mode, but in callback mode will not update cell values, this must be done by the application.  (Since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MOVELINL
+         </td>
+         <td>
+            (write-only) move the values and attributes from line L to the given line (value is the number of a line). <br>
+            Internally will use ADDLIN+COPYLIN+DELLIN to perform the move so it is limited to those attributes restrictions. <br>
+            It can be used in normal operation mode or in callback mode, but in callback mode will not update cell values, this must be done by the application. (Since 3.9)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            REDRAW
+         </td>
+         <td>
+            (write-only) The user can inform the matrix that the data has changed, and it must be redrawn. Values:<br>
+            <br>
+            "ALL": Redraws the whole matrix.<br>
+            "L%d": Redraws the given line (e. g.: "L3" redraws line 3)<br>
+            "L%d-%d": Redraws the lines in the given region (e.g.: "L2-4" redraws lines 2, 3 and 4)<br>
+            "C%d": Redraws the given column (e.g.: "C3" redraws column 3)<br>
+            "C%d-%d": Redraws the columns in the given region (e.g: "C2-4" redraws columns 2, 3 and 4)<br>
+            <br>
+            No redraw is done when the application sets the attributes: L:C, ALIGNMENTc, BGCOLOR*, FGCOLOR*, FONT*, VALUE, FRAME*COLOR, MARKL:C. <br>
+            Global and size attributes always automatically redraw the matrix.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SHOW
+         </td>
+         <td>
+            (write-only) If necessary scroll the visible area to make the given cell visible. <br>
+            To scroll to a line or a column, use a value such as "L:*" or "*:C" (where L>0 and C>0). (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Editing Attributes</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITMODE
+         </td>
+         <td>
+            When set to YES, programmatically puts the current cell in edition mode, allowing the user to modify its value. <br>
+            When consulted informs if the editing control is visible (text or dropdown). Possible values: "YES" or "NO".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITALIGN
+         </td>
+         <td>
+            sets the text box alignment to the column alignment when editing a cell value. Default: No. (since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITCELL
+         </td>
+         <td>
+            (read-only) returns the current cell being edited ("L:C"), or NULL if none. <br>
+            Can also be used during interaction while editing is being performed and EDITHIDEONFOCUS=NO. (since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITFITVALUE
+         </td>
+         <td>
+            enable a text box larger than the cell size of necessary, according to the cell font and cell current value. <br>
+            While editing if more room is necessary it will grow to the right. (since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITHIDEONFOCUS
+         </td>
+         <td>
+            when editing a cell if text box loses its focus, then editing ends. Default: Yes. <br>
+            When set to NO editing will continue and the matrix can be scrolled, also when pressing Esc or Enter if the focus is at the matrix 
+            it has the same effect as if pressed at the text box. (since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITING
+         </td>
+         <td>
+            (read-only) returns Yes if the editing process is active for text or dropdown. <br>
+            It is set to Yes after EDITION_CB, after MENUDROP_CB,  before DROP_CB and before the editing control is made visible. <br>
+            Set to NO when editing is about to end, after EDITION_CB and after the value has been updated, but before the editing control is made invisible. (since 3.13)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITNEXT
+         </td>
+         <td>
+            controls how the next cell after editing is chosen. <br>
+            Can be LIN, COL, LINCR, COLCR. Default: LIN. (since 3.4)<br>
+            <br>
+            LIN      - go to the next line, if at last line then go to the next column at the same line;<br>
+            LINCR  - go to the next line, if at last line then go to the next column at the first line;<br>
+            COL     - go to the next column, if at last column then go to the next line at the same column;<br>
+            COLCR - go to the next column, if at last column then go to the next line at the first column;<br>
+            NONE   - stay in the same cell. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITTEXT
+         </td>
+         <td>
+            (read-only) returns Yes if the editing is being done by a text box. (since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            EDITVALUE
+         </td>
+         <td>
+            (read-only) returns Yes if the display cell value being consulted will be used for a text box initial value. <br>
+            Useful for being consulted inside the translate and numeric callbacks. (since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Text Editing Attributes</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CARET
+         </td>
+         <td>
+            Allows specifying and verifying the caret position of the text box in edition mode.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            INSERT
+         </td>
+         <td>
+            inserts a text at the caret position of the text box in edition mode. (since 3.14)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MASKL:C
+         </td>
+         <td>
+            Defines a mask that will filter text input. The MASK auxiliary attributes are also available by adding the line and column at the end of the attribute name.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MULTILINE
+         </td>
+         <td>
+            allows the edition of multiple lines. Use Shift+Enter to add lines. Enter will end the editing.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SELECTION
+         </td>
+         <td>
+            Allows specifying and verifying selection interval of the text box in edition mode.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Canvas Attributes</b>
+         </td>
+         <td>
+            (inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BORDER
+         </td>
+         <td>
+            Changed to NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SCROLLBAR
+         </td>
+         <td>
+            Changed to YES.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Interaction</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ACTION_CB
+         </td>
+         <td>
+            Action generated when a keyboard event occurs.
+            <br>
+            <br>
+            int function(Ihandle *ih, int key, int lin, int col, int edition, char* value)<br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            key: Identifier of the typed key. Please refer to the Keyboard Codes table for a list of possible values.<br>
+            lin, col: Coordinates of the selected cell.<br>
+            edition: 1 if the cell is in edition mode, and 0 if it is not.<br>
+            value: When EDITMODE=NO is the cell current value, but if the type key is a valid character then contains a string with that character. <br>
+            When EDITMODE=Yes depends on the editing field type. <br>
+            If a dropdown, then it is an empty string (""). <br>
+            If a text, and the type key is a valid character then it is the future value of the text field, if not a valid character then it is the cell current value. <br>
+            Notice that this value can be NULL if the cell does not have a value and the key pressed is not a character.
+            <br>
+            <br>
+            Returns: IUP_DEFAULT validates the key, IUP_IGNORE ignores the key, IUP_CONTINUE forwards the key to IUPs conventional processing, or the identifier of the key to be treated by the matrix.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CLICK_CB
+         </td>
+         <td>
+            Action generated when any mouse button is pressed over a cell.
+            Action generated when any mouse button is pressed over a cell. <br>
+            This callback is always called after other callbacks. <br>
+            When EDITHIDEONFOCUS=NO and editing is on going the callback EDITCLICK_CB with the same parameters will also be called right before this one (since 3.14).
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, char *status)<br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell where the mouse button was pressed.<br>
+            status: Status of the mouse buttons and some keyboard keys at the moment the event is generated. <br>
+            The same macros used for <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a> can be used for this status.
+            <br>
+            <br>
+            Returns: To avoid the display update return IUP_IGNORE.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          COLRESIZE_CB
+         </td>
+         <td>
+            Action generated when a column is interactively resized. 
+            <br>
+            <br>
+            int function(Ihandle *ih, int col)<br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            col: Column that had its size changed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          RELEASE_CB
+         </td>
+         <td>
+            Action generated when any mouse button is released over a cell. <br>
+            This callback is always called after other callbacks. <br>
+            When EDITHIDEONFOCUS=NO and editing is on going the callback EDITRELEASE_CB with the same parameters will also be called right before this one (since 3.14).
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, char *status)<br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell where the mouse button was pressed. <br>
+            status: Status of the mouse buttons and some keyboard keys at the moment the event is generated. <br>
+            The same macros used for <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a> can be used for this status. 
+            <br>
+            <br>
+            Returns: To avoid the display update return IUP_IGNORE.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          RESIZEMATRIX_CB
+         </td>
+         <td>
+            Action generated after the element size has been updated but before the cells have been actually refreshed. 
+            <br>
+            <br>
+            int function(Ihandle *ih, int width, int height)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            width: the width of the internal element size in pixels not considering the BORDER size (client size)<br>
+            height: the height of the internal element size in pixels not considering the BORDER size (client size)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          TOGGLEVALUE_CB
+         </td>
+         <td>
+            Action generated when a toggle button is pressed.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, int status)<br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell where the mouse button was pressed.<br>
+            status: Value of the toggle. Can be 1 or 0.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VALUECHANGED_CB
+         </td>
+         <td>
+            Called after the value was interactively changed by the user or after a group of values where programmatically changed in a single operation.<br>
+            When it was interactively changed the temporary attribute CELL_EDITED will be set to Yes during the callback (since 3.13).
+            <br>
+            <br>
+            int function(Ihandle *ih)<br>
+            <br>
+            ih: identifier of the element that activated the event.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MOUSEMOVE_CB
+         </td>
+         <td>
+            Action generated to notify the application that the mouse has moved over the matrix.<br>
+            When EDITHIDEONFOCUS=NO and editing is on going the callback EDITMOUSEMOVE_CB with the same parameters will also be called right before this one (since 3.14).
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell that the mouse cursor is currently on.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ENTERITEM_CB
+         </td>
+         <td>
+            Action generated when a matrix cell is selected, becoming the current cell.<br>
+            Also called when matrix is getting focus. Also called when focus is changed because lines or columns were added or removed (since 3.9).
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the selected cell.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          LEAVEITEM_CB
+         </td>
+         <td>
+            Action generated when a cell is no longer the current cell. <br>
+            Also called when the matrix is losing focus.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell which is no longer the current cell.
+            <br>
+            <br>
+            Returns: IUP_IGNORE prevents the current cell from changing, but this will not work when the matrix is losing focus.  <br>
+            If you try to move to beyond matrix borders the cell will lose focus and then get it again, so leaveitem_cb and enteritem_cb will be called.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SCROLLTOP_CB
+         </td>
+         <td>
+            Action generated when the matrix is scrolled with the scrollbars or with the keyboard. <br>
+            Can be used together with the ORIGIN and ORIGINOFFSET attributes to synchronize the movement of two or more matrices.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col)<br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell currently in the upper left corner of the matrix.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Drawing</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BGCOLOR_CB
+         </td>
+         <td>
+            Action generated to retrieve the background color of a cell when it needs to be redrawn. 
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, int *red, int *green, int *blue)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.<br>
+            red, green, blue: the cell background color.
+            <br>
+            <br>
+            Returns: If IUP_IGNORE, the values are ignored and the attribute defined background color will be used. <br>
+            If returns IUP_DEFAULT the returned values will be used as the background color.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FGCOLOR_CB
+         </td>
+         <td>
+            Action generated to retrieve the foreground color of a cell when it needs to be redrawn. 
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, int *red, int *green, int *blue)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.<br>
+            red, green, blue: the cell foreground color.
+            <br>
+            <br>
+            Returns: If IUP_IGNORE, the values are ignored and the attribute defined foreground color will be used. <br>
+            If returns IUP_DEFAULT the returned values will be used as the foreground color.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FONT_CB
+         </td>
+         <td>
+            Action generated to retrieve the font of a cell when it needs to be redrawn. <br>
+            Called both for common cells and for line and column titles. (since 3.0)
+            <br>
+            <br>
+            char* function(Ihandle* ih, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.
+            <br>
+            <br>
+            Returns: Must return a font or NULL to use the the attribute defined font. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          TYPE_CB
+         </td>
+         <td>
+            Action generated to retrieve the type of a cell value. <br>
+            Called both for common cells and for line and column titles. (since 3.9)
+            <br>
+            <br>
+            char* function(Ihandle* ih, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.
+            <br>
+            <br>
+            Returns: Must return "TEXT", "COLOR", "FILL" or "IMAGE". 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DRAW_CB
+         </td>
+         <td>
+            Action generated before a cell is drawn. Allows the drawing of custom cell contents. <br>
+            You must use the CD library primitives.  The clipping is set for the bounding rectangle. <br>
+            The callback is called after the cell background has been filled with the background color. <br>
+            The focus feedback area is not included in the decoration size.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, int x1, int x2, int y1, int y2, cdCanvas* cnv)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the current cell.<br>
+            x1, x2, y1, y2: Bounding rectangle of the current cell in pixels, excluding the decorations.<br>
+            cnv: internal canvas CD used to draw the matrix.
+            <br>
+            <br>
+            Returns: If IUP_IGNORE the normal text drawing will take place.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPCHECK_CB
+         </td>
+         <td>
+            Action generated before the current cell is redrawn to determine if a dropdown/popup menu feedback or a toggle should be shown. <br>
+            If this action is not registered, no feedback will be shown. <br>
+            If the callback is defined and return IUP_DEFAULT for a cell, to show the dropdown/popup menu the user can simply do a single click in the drop feedback area of that cell.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.
+            <br>
+            <br>
+            Returns: IUP_DEFAULT will show a drop feedback, IUP_CONTINUE will show and enable the toggle button, or IUP_IGNORE to draw nothing.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          TRANSLATEVALUE_CB
+         </td>
+         <td>
+            Action generated to translate the value of a cell during display and size computation. <br>
+            Called both for common cells and for line and column titles. (since 3.13)
+            <br>
+            <br>
+            char* function(Ihandle* ih, int lin, int col, char* value)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.<br>
+            value: original cell value
+            <br>
+            <br>
+            Returns: the string to be drawn. 
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Editing</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROP_CB
+         </td>
+         <td>
+            Action generated before the current cell enters edition mode to determine if a text field or a dropdown list will be shown. <br>
+            It is called after EDITION_CB. If this action is not registered, a text field will be shown. <br>
+            Its return determines what type of element will be used in the edition mode. <br>
+            If the selected type is a dropdown, the values appearing in the dropdown must be fulfilled in this callback, just like elements are added <br>
+            to any list (the drop parameter is the handle of the dropdown list to be shown). <br>
+            You should also set the lists current value ("VALUE"), the default is always "1". <br>
+            The previously cell value can be verified from the given drop Ihandle via the "PREVIOUSVALUE" attribute.
+            <br>
+            <br>
+            int function(Ihandle *ih, Ihandle *drop, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            drop: Identifier of the dropdown list which will be shown to the user.<br>
+            lin, col: Coordinates of the current cell.
+            <br>
+            <br>
+            Returns: IUP_IGNORE to show a text-edition field, or IUP_DEFAULT to show a dropdown field.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MENUDROP_CB
+         </td>
+         <td>
+            Action generated before the current cell enters edition mode to determine if a popup menu will be shown instead of a text field or a dropdown. <br>
+            If this action is registered and retunr IUP_DEFAULT the DROP_CB callback is not called, and the popup menu is shown. <br>
+            Like DROP_CB, it is called after EDITION_CB. <br>
+            The values appearing as menu items in the popup menu must be fulfilled in this callback, like elements are added to a list <br>
+            (the drop parameter is the handle of the popup menu to be shown, but the actual items will be added later by the internal processing). <br>
+            You could also set the "VALUE" attribute that will add a mark to the menu item with the same number. <br>
+            If IMAGEid is set then an IMAGE attribute will be set at the correspondent menu item. <br>
+            The previously cell value can be verified from the given drop Ihandle via the "PREVIOUSVALUE" attribute. (since 3.6)
+            <br>
+            <br>
+            int function(Ihandle *ih, Ihandle *drop, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            drop: Identifier of the popup menu which will be shown to the user.<br>
+            lin, col: Coordinates of the current cell.
+            <br>
+            <br>
+            Returns: IUP_IGNORE to not show the menu for the given cell, DROP_CB will then be called.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DROPSELECT_CB
+         </td>
+         <td>
+            Action generated when an element in the dropdown list or the popup menu is selected. <br>
+            For the dropdown, if returns IUP_CONTINUE the value is accepted as a new value and the matrix leaves edition mode, <br>
+            else the item is selected and editing remains. For the popup menu the returned value is ignored.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, Ihandle *drop, char *t, int i, int v)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the current cell.<br>
+            drop: Identifier of the dropdown list or the popup menu shown to the user.<br>
+            t: Text of the item whose state was changed.<br>
+            i: Number of the item whose state was changed.<br>
+            v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup menu.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EDITION_CB
+         </td>
+         <td>
+            Action generated when the current cell enters or leaves the edition mode. Not called if READONLY=YES.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, int mode, int update)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the current cell.<br>
+            mode: 1 if the cell has entered the edition mode, or 0 if the cell has left the edition mode.<br>
+            update: used when mode=0 to identify if the value will be updated when the callback returns with IUP_DEFAULT. (since 3.0)
+            <br>
+            <br>
+            Returns: can be IUP_DEFAULT, IUP_IGNORE or IUP_CONTINUE.
+            <br>
+            <br>
+            If the callback does not exists the cell can always be edited and the new value is always accepted.
+            <br>
+            <br>
+            When editing is started, mode=1 and update=0. Editing is allowed if the callback returns IUP_DEFAULT, so to make the cell read-only return IUP_IGNORE.
+            <br>
+            <br>
+            When editing ends, mode=0 and update can be 0 or 1. The new value is accepted only if the callback returns IUP_DEFAULT. <br>
+            The VALUE attribute when consulted inside the callback returns the new value that will be updated to the cell. <br>
+            update=0 only when the user cancel the editing by pressing the Esc key. <br>
+            If the callback returns IUP_CONTINUE the edit mode is ended and the new value will not be updated, <br>
+            so the application can set a different value during the callback (useful to format the new value). <br>
+            If the callback returns IUP_IGNORE the editing is not ended, with several exceptions: <br>
+            the Esc key was used; <br>
+            the matrix size, scroll or visibility was changed during edition mode; <br>
+            a click in another cell; or <br>
+            the edit control loses its focus.
+            <br>
+            <br>
+            This callback is also called when the user press Del to clear the cell contents or other multiple cell editing. <br>
+            The callback will simply validate the operation for each cell been cleared by checking if the matrix is read-only or if the cell is read-only. <br>
+            In this situation it is called with mode=1 and update=1. When in normal mode (not callback mode) the new value can not be refused, <br>
+            but you can use the VALUE_EDIT_CB to reset a new value or use the VALUECHANGED_CB to check all the new values after they where changed.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Callback Mode</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=VALUE_CB></a>
+          VALUE_CB
+         </td>
+         <td>
+            Action generated to retrieve the value of a cell. Called both for common cells and for line and column titles.
+            <br>
+            <br>
+            IMPORTANT: The existence of this callback defines the callback operation mode of the matrix when it is mapped.
+            <br>
+            <br>
+            function(Ihandle ih, integer lin, integer col)  -- returns an atom (aka char*)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.
+            <br>
+            <br>
+            Returns: a pointer to memory containing the string to be drawn. <br>
+            <b>NOTE</b>: the return value must outlive the callback. See <a href="IupRawStringPtr.htm">IupRawStringPtr</a> for an example.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VALUE_EDIT_CB
+         </td>
+         <td>
+            Action generated to notify the application that the value of a cell was changed. <br>
+            Never called when READONLY=YES. <br>
+            This callback is usually set in callback mode, but also works in normal mode. <br>
+            When in normal mode, it is called after the new value has been internally stored, so to refuse the new value simply reset the cell to the desired value. <br>
+            When it was interactively changed the temporary attribute CELL_EDITED will be set to Yes during the callback (since 3.13).
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, char* newval)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.<br>
+            newval: String containing the new cell value
+            <br>
+            <br>
+            IMPORTANT: if VALUE_CB is defined and VALUE_EDIT_CB is not defined when the matrix is mapped it will be read-only.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MARK_CB
+         </td>
+         <td>
+            Action generated to retrieve the selection state of a cell. Called only for common cells, only when MARKMODE=CELL and only in callback mode.
+            <br>
+            <br>
+            int function(Ihandle* ih, int lin, int col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.
+            <br>
+            <br>
+            Returns: the selection state (marked=1, not marked 0). If not defined the attribute "MARKL:C" will be returned.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MARKEDIT_CB
+         </td>
+         <td>
+            Action generated to notify the application that the selection state of a cell was changed. <br>
+            Since it is a notification, it cannot refuse the mark modification. Called only for common cells, only when MARKMODE=CELL and only in callback mode.
+            <br>
+            <br>
+            int function(Ihandle *ih, int lin, int col, int marked)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell.<br>
+            marked: selection state (marked=1, not marked 0).
+            <br>
+            <br>
+            If not defined the attribute "MARKL:C" will be updated. <br>
+            So if you define the MARKEDIT_CB the "MARKL:C" will NOT be updated and the callback MARK_CB must return the selection state of the cell. <br>
+            If you do not want to implement the MARK_CB callback then set the "MARKL:C" attribute inside the MARKEDIT_CB callback.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also
+         </td>
+         <td>
+            MAP_CB, UNMAP_CB, DESTROY_CB, GETFOCUS_CB, KILLFOCUS_CB, ENTERWINDOW_CB, LEAVEWINDOW_CB, K_ANY, HELP_CB: All common callbacks are supported.
+            <br>
+            <br>
+            The IupCanvas callbacks <a href="IupCanvas.htm#ACTION">ACTION</a>, <wbr>SCROLL_CB, <wbr>KEYPRESS_CB, <wbr>MOTION_CB, <wbr>FOCUS_CB, <wbr>
+            <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> 
+            and <wbr><a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a> can be changed <br>
+            but you should save and call the original definition from inside your own callback, or the matrix will not work correctly. 
+            <br>
+            <br>
+            Use IupConvertXYToPos to convert (x,y) coordinates in the cell position, then use IupTextConvertPosToLinCol to convert pos into (lin,col), <br>
+            or use the formula "pos=lin*(NUMCOL+1) + col". Here lin and col starts at 0, pos starts at 0.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupImage.htm">IupCanvas</a>,
+          <a href="IupMatrixEx.htm">IupMatrixEx</a>
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

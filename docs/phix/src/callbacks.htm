@@ -64,9 +64,10 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
         Only some callbacks support the last 3 return values. Check each callback documentation. When nothing is documented then only IUP_DEFAULT is supported.
         <br>
         <br>
-        Note: Avoid using IUP_IGNORE (etc) unless it is specifically documented for that callback. For example, if an IupButton ACTION callback returns IUP_IGNORE, it effectively 
-        disables the button. Removing the callback is in fact the documented behaviour for IDLE_ACTION and doing so on an IupButton is quite probably unintended - but such is the
-        reality of undocumented behaviour.
+        Note: Avoid using IUP_IGNORE (etc) unless it is specifically documented for that callback. <br>
+        For example, if an IupButton ACTION callback returns IUP_IGNORE, it effectively disables the button. <br>
+        Removing the callback is in fact the documented behaviour for IDLE_ACTION and doing so on an IupButton might be - but such is 
+        the reality of undocumented behaviour. (I double checked that particular one, to be told that behaviour was as expected and not going to be changed.)
         <br>
         <br>
         An important detail when using callbacks is that they are only called when the user actually executes an action over an element. <br>
@@ -74,7 +75,7 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
         <br>
         <br>
         The order of callback calling is system dependent. <br>
-        For instance, the RESIZE_CB and the SHOW_CB are called in different order in Win32 and in X-Windows when the dialog is shown for the first time.
+        For instance, the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> and the SHOW_CB are called in different order in Win32 and in X-Windows when the dialog is shown for the first time.
         <br>
         <br>
         As well as its normal duty of verifying parameters, the cbfunc type can be used to declare variables suitable for storing callbacks.<br>
@@ -96,6 +97,115 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
         &nbsp;
        <br>
 -->
+        The following callbacks are common to several controls/interface elements:
+       <br>
+       <br>
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <a name=BUTTON_CB></a>
+          BUTTON_CB
+         </td>
+         <td>
+            Action generated when any mouse button is pressed or released.
+            <br>
+            <br>
+            function(Ihandle ih, integer button, integer pressed, integer x, integer y, atom pStatus)<br>
+            ih: identifies the element that activated the event.<br>
+            button: identifies the activated mouse button:<br>
+            <br>
+            IUP_BUTTON1 - left mouse button (button 1);<br>
+            IUP_BUTTON2 - middle mouse button (button 2);<br>
+            IUP_BUTTON3 - right mouse button (button 3).<br>
+            <br>
+            pressed: indicates the state of the button:<br>
+            <br>
+            0 - mouse button was released;<br>
+            1 - mouse button was pressed.<br>
+            <br>
+            x, y: position in the canvas where the event has occurred, in pixels.<br>
+            pStatus: status of the mouse buttons and some keyboard keys at the moment the event is generated (a char*). <br>
+            <br>
+            The following macros must be used for verification:
+            <br>
+            iup_isshift(status)<br>
+            iup_iscontrol(status)<br>
+            iup_isbutton1(status)<br>
+            iup_isbutton2(status)<br>
+            iup_isbutton3(status)<br>
+            iup_isbutton4(status)<br>
+            iup_isbutton5(status)<br>
+            iup_isdouble(status)<br>
+            iup_isalt(status)<br>
+            iup_issys(status)<br>
+            <br>
+            They return 1 if the respective key or button is pressed, and 0 otherwise.
+            <br>
+            <br>
+            Returns: IUP_CLOSE will be processed. On some controls if IUP_IGNORE is returned the action is ignored (this is system dependent).
+            <br>
+            <br>
+            Notes<br>
+            This callback can be used to customize a button behavior. For a standard button behavior use the ACTION callback of the IupButton.
+            <br>
+            <br>
+            For a single click the callback is called twice, one for pressed=1 and one for pressed=0. <br>
+            The ACTION callback is only invoked after both calls.<br>
+            In Windows, if a dialog is shown or popup in any situation there could be unpredictable results because the native system still has processing to be done even after the callback is called.
+            <br>
+            <br>
+            A double click is preceded by two single clicks, one for pressed=1 and one for pressed=0, and followed by a pressed=0, all three without the double click flag set. <br>
+            In GTK, it is preceded by an additional two single clicks sequence. For example, for one double click all the following calls are made:
+ <pre>
+BUTTON_CB(but=1 (1), x=154, y=83 [  1       ])
+BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
+    BUTTON_CB(but=1 (1), x=154, y=83 [  1       ])     (in GTK only)
+    BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])     (in GTK only)
+BUTTON_CB(but=1 (1), x=154, y=83 [  1  D    ])
+BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
+ </pre>
+            Affects: IupCanvas, IupButton, IupText, IupList, IupGLCanvas
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=RESIZE_CB></a>
+          RESIZE_CB
+         </td>
+         <td>
+            Action generated when the canvas or dialog size is changed.
+            <br>
+            <br>
+            function(Ihandle ih, integer width, integer height)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            width: the width of the internal element size in pixels not considering the decorations (client size)<br>
+            height: the height of the internal element size in pixels not considering the decorations (client size)
+            <br>
+            <br>
+            For the dialog, this action is also generated when the dialog is mapped, after the map and before the show.
+            <br>
+            <br>
+            When XAUTOHIDE=Yes or YAUTOHIDE=Yes, if the canvas scrollbar is hidden/shown after changing the DX or DY attributes from inside the callback, 
+            the size of the drawing area will immediately change, so the parameters with and height will be invalid. <br>
+            To update the parameters consult the DRAWSIZE attribute. Also activate the drawing toolkit only after updating the DX or DY attributes.
+            <br>
+            <br>
+            Affects: IupCanvas, IupGLCanvas, IupDialog
+        <tr>
+         <td valign=top>
+          also [DEV]
+         </td>
+         <td>
+            MAP_CB, UNMAP_CB, DESTROY_CB, GETFOCUS_CB, KILLFOCUS_CB, ENTERWINDOW_CB, LEAVEWINDOW_CB, K_ANY, HELP_CB: All common callbacks are supported.
+         </td>
+        </tr>
+       </table>
+       <br>
+        &nbsp;
+       <br>
       </div>
      </stripped>
     </get>

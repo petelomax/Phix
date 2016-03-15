@@ -1,7 +1,8 @@
 --
 -- simple_notepad.exw
 --
---DEV: redo IupMenuItem items...
+--  NB not yet very well tested.
+--
 
 include pGUI.e
 
@@ -345,7 +346,7 @@ Ihandle goto_dlg, box, bt_ok, bt_cancel, txt, lbl;
 integer line_count = IupGetInt(multitext, "LINECOUNT");
 
     lbl = IupLabel()
-    IupSetAttribute(lbl, "TITLE=Line Number [1-%d]:", {line_count});
+    IupSetStrAttribute(lbl, "TITLE", "Line Number [1-%d]:", {line_count});
     txt = IupText();
     IupSetAttribute(txt, "MASK", IUP_MASK_UINT);    /* unsigned integer numbers only */
     IupSetAttribute(txt, "NAME", "LINE_TEXT");
@@ -360,10 +361,10 @@ integer line_count = IupGetInt(multitext, "LINECOUNT");
 
     box = IupVbox({lbl,
                    txt,
-                   IupSetAttributesf(IupHbox({IupFill(),
-                                              bt_ok,
-                                              bt_cancel}),
-                                     "NORMALIZESIZE=HORIZONTAL")});
+                   IupHbox({IupFill(),
+                            bt_ok,
+                            bt_cancel},
+                           "NORMALIZESIZE=HORIZONTAL")});
     IupSetAttribute(box, "MARGIN", "10x10");
     IupSetAttribute(box, "GAP", "5");
 
@@ -390,7 +391,7 @@ end function
 
 function find_next_action_cb(Ihandle ih)
 /* this callback can be called from the main dialog also */
-Ihandle find_dlg = IupGetInt(ih, "FIND_DIALOG");
+Ihandln find_dlg = IupGetInt(ih, "FIND_DIALOG");
     if find_dlg!=NULL then
         string str;
         integer pos;
@@ -497,14 +498,14 @@ Ihandle txt_replace, bt_replace;
 
     box = IupVbox({IupLabel("Find What:"),
                    txt,
-                   IupSetAttributesf(IupLabel("Replace with:"), "NAME=REPLACE_LABEL"),
+                   IupLabel("Replace with:", "NAME=REPLACE_LABEL"),
                    txt_replace,
                    find_case,
-                   IupSetAttributesf(IupHbox({IupFill(),
-                                              bt_next,
-                                              bt_replace,
-                                              bt_close}),
-                                     "NORMALIZESIZE=HORIZONTAL")});
+                   IupHbox({IupFill(),
+                            bt_next,
+                            bt_replace,
+                            bt_close},
+                           "NORMALIZESIZE=HORIZONTAL")});
     IupSetAttribute(box, "MARGIN", "10x10");
     IupSetAttribute(box, "GAP", "5");
 
@@ -527,7 +528,7 @@ Ihandle txt_replace, bt_replace;
 end function
 
 function item_find_action_cb(Ihandle item_find)
-Ihandle find_dlg = IupGetInt(item_find, "FIND_DIALOG");
+Ihandln find_dlg = IupGetInt(item_find, "FIND_DIALOG");
 Ihandle multitext = IupGetDialogChild(item_find, "MULTITEXT");
 Ihandle config = IupGetInt(multitext, "CONFIG");
 string str;
@@ -550,7 +551,7 @@ string str;
 end function
 
 function item_replace_action_cb(Ihandle item_replace)
-Ihandle find_dlg = IupGetInt(item_replace, "FIND_DIALOG");
+Ihandln find_dlg = IupGetInt(item_replace, "FIND_DIALOG");
 Ihandle multitext = IupGetDialogChild(item_replace, "MULTITEXT");
 Ihandle config = IupGetInt(multitext, "CONFIG");
 string str;
@@ -578,7 +579,7 @@ Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
 string str = IupGetAttribute(multitext, "SELECTEDTEXT");
     if length(str)!=0 then
         Ihandle txt;
-        Ihandle find_dlg = IupGetInt(ih, "FIND_DIALOG");
+        Ihandln find_dlg = IupGetInt(ih, "FIND_DIALOG");
 
         if find_dlg=NULL then
             find_dlg = create_find_dialog(multitext);
@@ -713,6 +714,7 @@ string font;
     IupSetAttribute(lbl_statusbar, "EXPAND", "HORIZONTAL");
     IupSetAttribute(lbl_statusbar, "PADDING", "10x5");
 
+    -- You could probably make several of these IupMenuItems one-liners (but why bother).
     item_new = IupMenuItem("&New\tCtrl+N");
     IupSetAttribute(item_new, "IMAGE", "IUP_FileNew");
     IupSetCallback(item_new, "ACTION", Icallback("item_new_action_cb"));
@@ -878,11 +880,11 @@ string font;
     toolbar_hb = IupHbox({btn_new,
                           btn_open,
                           btn_save,
-                          IupSetAttributesf(IupLabel(), "SEPARATOR=VERTICAL"),
+                          IupLabel(NULL, "SEPARATOR=VERTICAL"),
                           btn_cut,
                           btn_copy,
                           btn_paste,
-                          IupSetAttributesf(IupLabel(), "SEPARATOR=VERTICAL"),
+                          IupLabel(NULL, "SEPARATOR=VERTICAL"),
                           btn_find});
 
     IupSetAttribute(toolbar_hb, "MARGIN", "5x5");
@@ -921,14 +923,14 @@ string font;
         IupSetStrAttribute(multitext, "FONT", font);
     end if
 
-    if not IupConfigGetVariableIntDef(config, "MainWindow", "Toolbar", 1) then
+    if not IupConfigGetVariableInt(config, "MainWindow", "Toolbar", 1) then
         IupSetAttribute(item_toolbar, "VALUE", "OFF");
 
         IupSetAttribute(toolbar_hb, "FLOATING", "YES");
         IupSetAttribute(toolbar_hb, "VISIBLE", "NO");
     end if
 
-    if not IupConfigGetVariableIntDef(config, "MainWindow", "Statusbar", 1) then
+    if not IupConfigGetVariableInt(config, "MainWindow", "Statusbar", 1) then
         IupSetAttribute(item_statusbar, "VALUE", "OFF");
 
         IupSetAttribute(lbl_statusbar, "FLOATING", "YES");

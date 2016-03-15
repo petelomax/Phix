@@ -14632,7 +14632,9 @@ if not newEmit then ?9/0 end if
                 for lblidx=1 to length(glblused) do
                     if and_bits(glblused[lblidx],G_init) then
 --                      x86 &= {call_rel32,isJmpG,0,0,lblidx}
+if PE=0 or X64=0 or glblname[lblidx]!=">initFEH" then
                         emitHex5callG(0,lblidx)
+end if
 --                      tt[aatidx[opInit]+EQ] = lblidx
 --                      emitHex5callG(opInit)
                     end if

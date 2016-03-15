@@ -5,23 +5,21 @@
 include pGUI.e
 
 Ihandle text, dlg, pwd
-sequence password
+string password
 
 function k_any(Ihandle /*self*/, integer c)
     switch (c) do
 
         case K_BS then
 
-            integer size = length(password)
-            if size=0 then
+            if length(password)=0 then
                 return IUP_IGNORE
             end if
-            password[size-1] = 0
+            password = password[1..$-1]
             IupSetAttribute(pwd, "VALUE", password)
             return IUP_DEFAULT
 
         case K_CR then
-        case K_SP then
         case K_ESC then
             return IUP_CLOSE
         case K_INS then
@@ -45,18 +43,15 @@ end function
 
 function action(Ihandle /*self*/, integer c, integer /*after*/)
     if (c) then
-        integer size = length(password)
-        password[size-1] = c
-        password[size] = 0
+        password &= c
         IupSetAttribute(pwd, "VALUE", password)
     end if
-
     return K_asterisk
 end function
 
     IupOpen()
 
-    password = repeat('\0',100)
+    password = ""
 
     text = IupText()
     IupSetAttribute(text, "SIZE",  "200x")

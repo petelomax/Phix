@@ -31,8 +31,9 @@ integer finit = 0
 
 #ilASM{ jmp :!opCallOnceYeNot
 
-  :>initFEH
-    [PE32,ELF]
+  :>initFEH                         -- same as :<exch64 on PE64, and /not/ called at startup in that case
+                                    -- (I needed "" in the optable, but it only exists on PE64)
+    [PE32,ELF32,ELF64]
         cmp [finit],0
         jne :dont_do_everything_twice
         mov [finit],1
@@ -81,7 +82,7 @@ integer finit = 0
 -- got it!: http://syprog.blogspot.co.uk/2011/10/iterfacing-linux-signals.html (saved in edita14)
     [ELF64]
         pop al
-    [PE32,ELF]
+    [PE32,ELF32,ELF64]
       ::dont_do_everything_twice
         ret
 
@@ -195,15 +196,23 @@ integer finit = 0
 
     [PE64]
   :<exch64
---DEV you should be able to debug this with fdbg no problem... (Ctrl F12 to pass exception to handler?)
+--DEV you should be able to debug this with fdbg no problem... (trap and use Ctrl F12 to pass exception to handler)
 --  qword[r8+248] == context.Rip
+--typedef EXCEPTION_DISPOSITION
+--(*PEXCEPTION_ROUTINE)(
+--  IN PEXCEPTION_RECORD ExceptionRecord,           -- rcx
+--  IN ULONG64 EstablisherFrame,                    -- rdx
+--  IN OUT PCONTEXT ContextRecord,                  -- r8
+--  IN OUT PDISPATCHER_CONTEXT DispatcherContext);  -- r9
 
         xor rbx,rbx -- important!!
 
         mov [rsp+8],rcx             -- copy actual param into shadow space!
+        mov [rsp+24],r8
         call :lowlevel              -- (temp) [DEV]
         mov rcx,[rsp+8]             --   ""
 
+--/*
 --      mov rsi,[rsp+8]             -- EXCEPTION_POINTERS
 --      mov rdi,[rsi]               -- EXCEPTION_RECORD
         mov rdi,[rcx]               -- EXCEPTION_RECORD
@@ -244,6 +253,7 @@ integer finit = 0
 --      call :!opClosem9
 --      add rsp,8
 --      push dword[errcode]         -- uExitCode
+--*/
         sub rsp,8*5
         mov rcx,1
         call "kernel32","ExitProcess"
@@ -252,16 +262,33 @@ integer finit = 0
 
         mov rdi,[ecode]             -- "exception code #"
         call :%puts1
---/*
-        mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
-        mov rdi,[rsi]               -- EXCEPTION_RECORD
-        mov edx,[rdi]               -- exception_code (DWORD)
+--      mov edx,[rcx]               -- exception_code (DWORD)
+        mov rcx,[rsp+16]
+        mov rdx,[rcx]               -- exception_code (DWORD)
         push 0                      -- no cr
         call :%puthex32
         mov rdi,[eat]               -- " at #"
         call :%puts1
-        mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
-        mov rcx,[rsi+8]             -- CONTEXT_RECORD
+        mov rcx,[rsp+16]
+        mov rdx,[rcx+16]            -- exception address
+        push 0                      -- no cr
+        call :%puthex32
+--/*
+typedef struct _EXCEPTION_RECORD {
+  DWORD                    ExceptionCode;
+  DWORD                    ExceptionFlags;
+  struct _EXCEPTION_RECORD  *ExceptionRecord;
+  PVOID                    ExceptionAddress;
+
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rdi,[rsi]               -- EXCEPTION_RECORD
+--      mov edx,[rdi]               -- exception_code (DWORD)
+--      push 0                      -- no cr
+--      call :%puthex32
+--      mov rdi,[eat]               -- " at #"
+--      call :%puts1
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
         mov rdx,[rcx+248]           -- DWORD64 Rip
         push 1
         call :%puthex32
@@ -319,12 +346,12 @@ integer finit = 0
 --*/
         ret
 
-    [ELF]
-      ::my_signal_handler
     [ELF32]
+      ::my_signal_handler
         pop al
 
     [ELF64]
+      ::my_signal_handler
         pop al
     []
 

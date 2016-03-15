@@ -14,7 +14,7 @@
          </td>
          <td>
           <font face = "Arial, Helvetica">
-            sequence params = scanf(string s, string fmt)
+            sequence paramsets = scanf(string s, string fmt)
           </font>
          </td>
         </tr>
@@ -23,7 +23,7 @@
           <b>Description:</b>
          </td>
          <td>
-            Attempt to find sequence params for which <a href="sprintf.htm">sprintf</a>(fmt,params) could have produced s.
+            Attempt to find a sequence for which <a href="sprintf.htm">sprintf</a>(fmt,params) could have produced s.
          </td>
         </tr>
         <tr>
@@ -47,20 +47,18 @@
             Theoretically it might be possible to write a scanf that yields {{1,23},{12,3}} from scanf("123","%d%d") but I 
             for one cannot think of a single practical use, and getting {{"","AB"},{"A","B"},{"AB",""}} from scanf("AB","%s%s") 
             is also of highly questionable worth. Likewise it is deemed completely unnecessary to be able to get {"hello",12} 
-            from "hello12", which is hard, as opposed to getting that same result from "hello 12", which is trivial.
+            from "hello12", which proves hard, as opposed to getting that same result from "hello 12", which is trivial.
             <br>
             <br>
             Any width/precision/justify/zerofill details are for the most part quietly ignored: you may get the same results
-            from %d/%d/%d as %02d/%02d/%04d, but obviously the latter might make the intent clearer, re-use something that 
-            actually needs those qualifiers, or just be brain on autopilot: any error or warning here would hinder rather 
-            than help. If scanf is about to return several possibilities, it tests the results of sprintf and trims the 
-            result set down to those with an exact character-by-character match, as long as that does not trim the result 
-            set down to zero, and, as in the example above, that last pass may in fact trim nothing.
+            from %d/%d/%d as %02d/%02d/%04d, but obviously the latter might make the intent clearer. If scanf is about to 
+            return several possibilities, it tests the results of sprintf and trims the result set down to those with an 
+            exact character-by-character match, as long as that last pass does not trim the result set down to zero.
             <br>
             <br>
-            Internally scanf only cares for d/f/s formats; (x/o/b)/(e/g)/(c) are treated as respective aliases, up to but 
-            not including the afore-mentioned final printf trimming stage that is. For more details regarding format strings 
-            refer to <a href="printf.htm">printf</a>. All characters not part of a %-group are treated as literal.
+            Internally scanf only cares for d/f/s formats; (x/o/b)/(e/g)/(c) are treated as respective aliases, apart from
+            the afore-mentioned final printf trimming stage that is. For more details regarding format strings please refer 
+            to <a href="printf.htm">printf</a>. All characters not part of a %-group are treated as literal.
             <br>
             <br>
             There is no way to suggest, let alone force, that say scanf("#FF","%d") should fail but scanf("255","%d") should 
@@ -74,7 +72,7 @@
             is indicated by length(res)=1.
             <br>
             <br>
-            If you are confident of success, and if more than one result set is returned are happy to take the first, then
+            If you are confident of success, and happy to take the first should more than one result set be returned, then
 <!--eucode>
     {{x,y}} = scanf(line,"%d %d")
 </eucode-->
@@ -82,15 +80,16 @@
 <font color="#000000"></font><font color="#0000FF">    {</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#5E005E"> scanf</font><font color="#0000FF">(</font><font color="#000000">line</font><font color="#0000FF">,</font><font color="#008000">"%d %d"</font><font color="#0000FF">)</font>
 </pre>
             <br>
-            is the typical syntax. The double braces are needed to select the first of several possible result sets. Of course
+            is the typical syntax. The double braces are needed to select the first of several possible result sets (not that
+            I can imagine any case where "%d %d" would generate more than one result, but other formats might). Of course
 <!--eucode>
     sequence res = scanf(line,"%d %d")
-    if length(res)=0 (or !=1) then return/exit end if
+    if length(res)=0 (or !=1) then return/exit/error end if
     {{x,y}} = res
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#004080">    sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> scanf</font><font color="#0000FF">(</font><font color="#000000">line</font><font color="#0000FF">,</font><font color="#008000">"%d %d"</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)=</font><font color="#000000">0</font><font color="#0000FF"> (</font><font color="#008080">or</font><font color="#0000FF"> !=</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#008080"> then return</font><font color="#0000FF">/</font><font color="#008080">exit end if
+</font><font color="#008080">    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)=</font><font color="#000000">0</font><font color="#0000FF"> (</font><font color="#008080">or</font><font color="#0000FF"> !=</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#008080"> then return</font><font color="#0000FF">/</font><font color="#008080">exit</font><font color="#0000FF">/</font><font color="#000000">error</font><font color="#008080"> end if
 </font><font color="#0000FF">    {</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#000000"> res</font>
 </pre>
             <br>
@@ -154,7 +153,10 @@ end function
           </a>
          </td>
          <td>
-            The C routine scanf reads from stdin; this is much closer to the C routine scanf, but is not particularly based on either.
+            The C routine scanf reads from stdin; this is much closer to the C routine sscanf, but is not particularly based on either.
+            <br>
+            <br>
+            The full implementation details can be found in builtins\scanf.e (an autoinclude).
          </td>
         </tr>
        </table>

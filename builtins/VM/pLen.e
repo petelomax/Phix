@@ -29,8 +29,8 @@
         jnz @f
           ::e36loaaind
             pop edx
-            sub edx,1
             mov al,36   -- e36loaaind
+            sub edx,1
             jmp :!iDiag
             int3
       @@:

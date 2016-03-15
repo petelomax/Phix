@@ -1,0 +1,1183 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupMatrixEx</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pGUI.e
+            <br>
+            <br>
+            Ihandln ih = IupMatrixEx()
+            <br>
+            <i>-- or --</i>
+            <br>
+            IupMatrixExInit(Ihandle ih)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            An extension library for IupMatrix. <br>
+            This library adds new features to the IupMatrix in order to extend the current features. <br>
+            Adds support for Import/Export, Clipboard, Undo/Redo, Find, Sort, Column Visibility, Numeric Columns, Numeric Units, Context Menu and others. 
+            <br>
+            <br>
+            The extension can be used in two different ways: using a new control called IupMatrixEx, or by calling IupMatrixExInit for an existing IupMatrix control.
+            <br>
+            <br>
+            It can be used in callback mode or in standard more.
+            <br>
+            <br>
+            Based on the DMatrix library created by Bruno Kassar and Luiz Cristóvão Gomez Coelho.
+            <br>
+            <br>
+            Returns the identifier of the created editing component.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Initialization and Usage<br>
+            The IupMatrixExOpen() procedure must be called after an IupOpen, so that the control can be used.<br>
+            The pGUI library invokes this routine automatically as needed, so if you inherit some C code (or any other language with a binding) that invokes it,
+            it will make no difference whether you leave the call in or delete it.
+            <br>
+            <br>
+            Auxiliary Functions<br>
+            IupMatrixExInit registers the new attributes and callbacks in a regular IupMatrix control.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Context Menu</b>
+         </td>
+         <td>
+            The library adds a context menu where the user can execute the new features. If the matrix is read-only some of the features are not shown.
+            <br>
+            <br>
+            The FILEDIRECTORY attribute can be used to control the initial directory in Export and Import file dialogs (since 3.12). <br>
+            The LASTFILENAME attribute can be consulted after the file dialogs were successfully closed (since 3.12).
+            <br>
+            <br>
+            The CELLBYTITLE attribute controls how the "Go To..." dialog and the "Copy To - Interval" dialog interpret line and column values. <br>
+            If set to Yes, then the title lines/columns are used as indices to locate the cell. (since 3.13)
+            <br>
+ <pre>Settings...        =&gt; Shows the Settings Dialog
+----------------
+Export
+        Txt...       =&gt; Shows a file selection dialog and saves the cells to a file.
+        LaTeX...     =&gt; ( &quot; )
+        Html...      =&gt; ( &quot; )
+Import
+        Txt...       =&gt; Shows a file selection dialog and loads the cells from a file.(not <strong>read-only</strong>)
+----------------
+Undo                =&gt; Undo 1 level (not <strong>read-only</strong>)
+Redo                =&gt; R<span class="style13">e</span>do 1 level (not <strong>read-only</strong>)
+Undo List...        =&gt; Show the Undo Dialog (not <strong>read-only</strong>)
+----------------
+Cut                 =&gt; Copy + Clear Cell Values (not <strong>read-only</strong>)
+Copy                =&gt; Copy to Clipboard (marked cells)
+Paste               =&gt; Paste from Clipboard (start at focus cell) (not <strong>read-only</strong>)
+Erase               =&gt; Clear Cell Values (not <strong>read-only</strong>)
+Select All          =&gt; Select All Cells
+----------------
+Find...             =&gt; Show the Find Dialog
+Go To...            =&gt; Show the Go To Cell Dialog
+----------------
+Sort...             =&gt; Show the Sort Dialog
+Freeze/UnFreeze     =&gt; Makes the current cell a non scrollable point / Reset to default
+Visibility
+        Hide Column
+        Show Hidden Columns
+        Hide Line
+        Show Hidden Lines
+Column Units... / Column Decimals...   =&gt; Show Column Units Dialog or Column Decimals Dialog
+----------------
+Copy To (Same Column)    Copy cell value to other lines in the same column (not <strong>read-only</strong>)
+        All Lines       =&gt; Copy To All Lines
+        Here to Top     =&gt; Copy From the Current Cell to L=0
+        Here to Bottom  =&gt; Copy From the Current Cell to L=NUMLIN
+        Interval...     =&gt; Show &quot;Copy To - Interval&quot; Dialog
+        Selected Lines  =&gt; Copy to the Selected Cells</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Shortcuts:</b>
+         </td>
+         <td>
+            The library adds some shortcut keys to the already implemented in IupMatrix:
+            <br>
+ <pre>Ctrl+A (English)   =&gt; Select All
+Ctrl+T (Portuguese) =&gt; Select All
+Ctrl+X              =&gt; Cut (Copy + Clear Cell Values)
+Ctrl+C              =&gt; Copy to Clipboard (marked cells)
+Ctrl+V              =&gt; Paste from Clipboard (start at focus cell)
+Ctrl+Z              =&gt; Undo 1 level
+Ctrl+Y (English)    =&gt; Redo 1 level
+Ctrl+R (Portuguese) =&gt; Redo 1 level
+Ctrl+F (English)    =&gt; Show the Find Dialog
+Ctrl+L (Portuguese) =&gt; Show the Find Dialog
+Alt+F3              =&gt; Show the Find Dialog
+Esc                 =&gt; Hide the Find Dialog
+F3                  =&gt; Find Next
+Shift+F3            =&gt; Find Previous
+Ctrl+G              =&gt; Show the Go To Cell Dialog</pre>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            The IupMatrixEx element handle all attributes defined for a IupMatrix control.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BUSY
+         </td>
+         <td>
+            returns Yes if the library is changing the matrix contents internally as a result of an operation such as paste or duplicate. <br>
+            Can be canceled setting to No. See the BUSY_CB callback for more information.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BUSYPROGRESS
+         </td>
+         <td>
+            flag to display a progress dialog while data is being changed. Can be Yes or No. Default: No.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          LASTERROR
+         </td>
+         <td>
+            (read-only) set when an error occurred during an operation. It is reset to NULL at the start of every operation that sets its value.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Import/Export and Clipboard</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          COPY
+         </td>
+         <td>
+            (write-only) copies the selected cells to the clipboard in TEXT format. <br>
+            If value is ALL then all cells are copied regardless if there is a selection. <br>
+            If value is MARKED then the MARKED attribute is used to define the selection. <br>
+            Value can also be a range of cells in the format "L1:C1-L2:C2". <br>
+            Title cells are not copied, even when a line or column is fully selected. <br>
+            If the column or line is invisible (its size=0) it is not copied. <br>
+            The TEXTSEPARATOR attribute can used to define a column separator (default is tab '\t') and line separator will be line feeds ('\n'). 
+            <br>
+            <br>
+            When MARKMODE=CELLS and sparse cells are selected there are two options for copy according to the COPYKEEPSTRUCT attribute, <br>
+            if "Yes" the copied data will fit a rectangular region that contains all the selected cells and the non selected cells inside the region will be copied as empty spaces (' '), <br>
+            if "No" only the selected cells will be copied but they must contain a matrix consistent structure, in other words the selected column pattern must be consistent along lines.<br>
+            LASTERROR can be set to "NOMARKED" (no selected cells) or "MARKEDCONSISTENCY" (when COPYKEEPSTRUCT=NO and inconsistent selection).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          COPYDATA
+         </td>
+         <td>
+            Use the same parameters of the COPY attributes but will copy to an internal buffer. <br>
+            To retrieve the buffer get the attribute value after setting it. To clear the internal buffer set it to NULL.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          COPYFILE
+         </td>
+         <td>
+            (write-only) copies all visible cells to a given file. Value is the file name to be saved. <br>
+            LASTERROR can also be set to "INVALIDFILENAME" (failed to open). <br>
+            Data will be in plain text format, but the file format will be defined by the FILEFORMAT attribute, can be "TXT" (default), "HTML" or "LaTeX". <br>
+            The COPYCAPTION attribute can be used to define a caption that will be added to the file before the data, depending on the file format.
+            <br>
+            <br>
+            When using TXT format, the TEXTSEPARATOR attribute can used to define a column separator (default is tab '\t') and line separator will be line feeds ('\n'). <br>
+            When using LaTeX format, the LATEXLABEL attribute can used to define a label for the table.<br>
+            When using HTML format, the attributes "HTML&lt;TABLE&gt;", <wbr>"HTML&lt;TR&gt;", <wbr>"HTML&lt;TH&gt;", <wbr>"HTML&lt;TD&gt;", <wbr>"HTML&lt;CAPTION&gt;" can use used to define 
+            a complement to be inserted in the respective tag definition, so a " style=.." or a " class=.." complements can be added. <br>
+            The HTMLADDFORMAT can be used to add the attributes ALIGNMENT?, BGCOLOR?:?, FGCOLOR?:? and FONT?:? to the "style" complement of the "TD" tag.
+            <br>
+            <br>
+            For all formats use:<br>
+            SKIPLINES: number of lines to skip at start when exporting the matrix to a file, not counting the title line if any. (since 3.12)<br>
+            SKIPCOLUMNS: number of columns to skip at start when exporting the matrix to a file, not counting the title columns if any. (since 3.12)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          PASTE
+         </td>
+         <td>
+            (write-only) paste data from the clipboard. <br>
+            Data is obtained from the clipboard in TEXT format. <br>
+            Value is the insert position, it can be "FOCUS" to use the FOCUS_CELL attribute, can be "MARKED" to use the start of the selected groups of cells (top-left selected cell), 
+            or can be a cell address "L:C".
+            <br>
+            <br>
+            Data must be in plain text format. Lines can be separated in DOS, UNIX or MAC format. <br>
+            Columns can be separated with a tab ('\t'), or with a semicolon (';'), or with a space (' ') or with a custom value defined by the TEXTSEPARATOR attribute. <br>
+            Data must contain an exact matrix organization. <br>
+            Use the attribute TEXTSKIPLINES to skip a number of lines in the beginning of the data. <br>
+            If data at the insert position will have more lines or columns than the current matrix, then the PASTESIZE_CB callback is called, 
+            if the callback does not exist the matrix size is not changed, and the exceeding data will be discarded. <br>
+            If defined the EDITION_CB callback will be called before the cell value is set. <br>
+            LASTERROR can be set to "NOTEXT" (data is empty or NULL), "INVALIDMATRIX" (not a matrix data). <br>
+            BUSY will be set to Yes during the operation. Only visible cells will receive data. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          PASTEDATA
+         </td>
+         <td>
+            (write-only) paste data from a memory buffer. Value is the data. Insert position is obtained from the FOCUS_CELL attribute. See PASTE for more details.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          PASTEFILE
+         </td>
+         <td>
+            (write-only) paste data from a file. Value is the file name to be loaded. <br>
+            Insert position is always "0:0". See PASTE for more details. LASTERROR can also be set to "INVALIDFILENAME" (failed to open).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Find</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FIND
+         </td>
+         <td>
+            searches for the given text in the matrix cells. <br>
+            The search will start at the FOCUS_CELL cell, if found the FOCUS_CELL will be changed to the cell where the text were found and the cell will also be marked. <br>
+            If not visible the cell will the scrolled to the visible area. Returns the last text searched.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FINDDIRECTION
+         </td>
+         <td>
+            direction of the find. Default RIGHTBOTTOM.
+            <br>
+            <br>
+            if RIGHTBOTTOM will search from left to right, then top to bottom; (search for columns then change line)<br>
+            if LEFTTOP will search from right to left, then bottom to top; <br>
+            if BOTTOMRIGHT will search from top to bottom, then left to right; (search for lines then change column) <br>
+            if TOPLEFT will search from bottom to top, then right to left; 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FINDMATCHCASE
+         </td>
+         <td>
+            defines if the text comparison is case sensitive when using FIND. Can be Yes or No. Default: Yes. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FINDMATCHWHOLECELL
+         </td>
+         <td>
+            defines if the whole cell will be used for comparison or it will search for the first occurrence of the text inside the cell. Can be Yes or No. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FINDMATCHSELECTION
+         </td>
+         <td>
+            defines if the whole matrix will be searched or just the selected cells. Can be Yes or No. Default: No.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Undo/Redo</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          UNDOREDO
+         </td>
+         <td>
+            Enable or disable the Undo/Redo support. Can be Yes or No. Default: No. <br>
+            Undo/Redo support is available only for cell values, interactively or programmatically changed. Attributes are not saved/restored.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          UNDOCOUNT
+         </td>
+         <td>
+            (read-only) Returns the total number of stored undo levels.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          UNDONAMEid
+         </td>
+         <td>
+            (read-only) Returns a name for the given undo level. It represents the operation that was performed. <br>
+            Uses descriptive strings based on the names "PASTECLIP", <wbr>"PASTEDATA", <wbr>"PASTEFILE", <wbr>"COPYCOLTO:ALL", <wbr>
+            "COPYCOLTO:TOP", <wbr>"COPYCOLTO:BOTTOM", <wbr>"COPYCOLTO:MARKED", <wbr>"COPYCOLTO:INTERVAL", <wbr>"CLEARVALUE", <wbr>"SETCELL" and 
+            "EDITCELL", <wbr>that are language dependent.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          UNDO
+         </td>
+         <td>
+            Sets the number of undo levels to be performed. If value is NULL will undo 1 level. <br>
+            When retrieved returns Yes or No indicating if it has Undo to be performed. BUSY will be set to Yes during the operation.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          REDO
+         </td>
+         <td>
+            Sets the number of redo levels to be performed. If value is NULL will redo 1 level. <br>
+            When retrieved returns Yes or No indicating if it has Redo to be performed. BUSY will be set to Yes during the operation.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          UNDOCLEAR
+         </td>
+         <td>
+            (write-only) clears all Undo/Redo information.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Sort</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SORTCOLUMNid
+         </td>
+         <td>
+            (write-only) sort the specified lines of the matrix based on the values of the given column (id). <br>
+            Can be ALL (1-NUMLIN), an interval in the format "L1-L2", INVERT (invert the order in the current interval of the current column, id is ignored) or RESET (remove any ordering). <br>
+            The SORTSIGNid attribute will be updated to reflect the ordering. 
+            <br>
+            <br>
+            When the SORTCOLUMNCOMPARE_CB callback is NOT defined, and the column in NOT numeric, then the text is sorted using an Alphanumeric Algorithm. <br>
+            This means that numbers and text in the same value are sorted separately (for ex: A1 A2 A11 A30 B1). <br>
+            Also natural alphabetic order is used: 123...aAáÁ...bBcC... <br>
+            The internal comparison will work only for Latin-1 characters, even if UTF8MODE is Yes.<br>
+            <br>
+            IMPORTANT: The sort will not affect the original data, only how it is displayed from the original data and how it is updated to the original data. <br>
+            The line and cell attributes of the sorted will NOT be affected. <br>
+            This means that colors and fonts will NOT follow the sort order, also means that cell address in FOCUS_CELL, <wbr>MARKED, <wbr>ORIGIN, <wbr>SHOW, <wbr>HEIGHTn, <wbr>and others, 
+            are all relative to the displayed cells and they do NOT follow the sort order. <br>
+            <a href="IupMatrix.htm#VALUE_CB">VALUE_CB</a>, <wbr>EDITION_CB and VALUE_EDIT_CB will be called with the correct index following the sort order, all other callbacks won't.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SORTCOLUMNORDER
+         </td>
+         <td>
+            defines if the number or text comparison is in ASCENDING or DESCENDING order. Default: ASCENDING. <br>
+            Used during SORTCOLUMNid and when the SORTCOLUMNCOMPARE_CB callback is NOT defined. <br>
+            Used to update the SORTSIGNid attribute when the SORTCOLUMNCOMPARE_CB callback is defined. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SORTCOLUMNCASESENSITIVE
+         </td>
+         <td>
+            defines if the text comparison is case sensitive. Can be Yes or No. Default: Yes. <br>
+            Used only during SORTCOLUMNid and when the SORTCOLUMNCOMPARE_CB callback is not defined.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SORTCOLUMNINTERVAL
+         </td>
+         <td>
+            (read-only) Returns the last sorted interval, in the format "L1,L2".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SORTLINEINDEXid
+         </td>
+         <td>
+            (read-only) Returns the sorted line index given a line in regular order. To be used inside other callbacks. (since 3.16)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Column Visibility</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FREEZE
+         </td>
+         <td>
+            freezes the scroll of columns and lines up to the given cell. <br>
+            Can be: "Yes" - uses the value of the FOCUS_CELL attribute, "L:C" where L and C are the line and column, or "No" clear the freeze state. <br>
+            Internally will set the NUMLIN_NOSCROLL and NUMCOL_NOSCROLL, and change the FRAMEHORIZCOLOR of the line and the FRAMEVERTCOLOR of the column to the color defined by FREEZECOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FREEZECOLOR
+         </td>
+         <td>
+            color used for the freeze lines. Default: "0 0 255". Used only by the FREEZE attribute.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VISIBLECOLid
+         </td>
+         <td>
+            returns if the column is visible ("Yes" or "No"). <br>
+            Actually checks for WIDTHid and RASTERWIDTHid if they are defined and non zero, but more complex logic when id=0. <br>
+            When changed will simply set those attributes to zero or NULL <br>
+            (when setting to NULL and col=0 not necessarily the column will became visible because of the internal matrix logic for titles). 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VISIBLELINid
+         </td>
+         <td>
+            returns if the line is visible ("Yes" or "No"). <br>
+            Actually checks for HEIGHTid and RASTERHEIGHTid if they are defined and non zero, but more complex logic when id=0. <br>
+            When changed will simply set those attributes to zero or NULL <br>
+            (when setting to NULL and lin=0 not necessarily the line will became visible because of the internal matrix logic for titles). 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Context Menu</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MENUCONTEXT
+         </td>
+         <td>
+            enable the context menu. Can be Yes or No. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHOWCONTEXTMENUL:C
+         </td>
+         <td>
+            (write-only) shows the context menu using the L:C cell as reference and its value as screen position in the format "x:y". (since 3.12)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHOWMENUCONTEXT
+         </td>
+         <td>
+            (write-only) show the context menu in the given cel. Value has the "L:C" format.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHOWDIALOG
+         </td>
+         <td>
+            (write-only) show the dialog used in the context menus. <br>
+            Can be: SETTINGS, <wbr>EXPORT_TXT, <wbr>EXPORT_LATEX, <wbr>EXPORT_HTML, <wbr>IMPORT_TXT, <wbr>UNDOLIST, <wbr>FIND, <wbr>GOTO, <wbr>SORT and COPYCOLTO_INTERVAL. <br>
+            Some dialog are not show if the matrix is read-only.(since 3.16)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Copy Cells</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          COPYCOLTOL:C
+         </td>
+         <td>
+            (write-only) copies the value of the given cell to a specified range of cells in the same column. <br>
+            Value can be "ALL" (for all lines), <wbr>TOP (for all lines before the given line), <wbr>BOTTOM (for all lines after the given line), 
+            MARKED (for all lines where the cell is marked), or a series of intervals in the format "L1-L2,L3-L4,L5,L6-L7,...". <br>
+            BUSY will be set to Yes during the operation.  Only visible cells will receive data. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Numeric Columns</b>
+         </td>
+         <td>
+            Numeric columns are enabled when the NUMERICQUANTITYid  attribute is set. <br>
+            To define a numeric column without using units simply set NUMERICQUANTITYid  to "None".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICDECIMALSYMBOL
+         </td>
+         <td>
+            symbol used for decimal separator in numeric values. <br>
+            Can be "." or "," only. <br>
+            If not defined will try the DEFAULTDECIMALSYMBOL global attribute. (since 3.12)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICFORMATid
+         </td>
+         <td>
+            format to convert the numeric data into strings at the given column (id). <br>
+            If not defined the NUMERICFORMATDEF attribute will be used. <br>
+            Uses the same format specification of the sprintf function in C, but only one value will be processed, can not contain other strings. (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICFORMATPRECISIONid
+         </td>
+         <td>
+            will set the sprintf "precision" field in the NUMERICFORMATid attribute string if the format "%.<precision>f" . <br>
+            If the NUMERICFORMATid attribute is not defined returns NULL. It is just a simple form to set the format attribute. <br>
+            If id is not used it will affect the NUMERICFORMATDEF attribute. (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICFORMATDEF
+         </td>
+         <td>
+            default value used when NUMERICFORMATid is not specified. <br>
+            If not defined it will used the DEFAULTPRECISION global attribute to build one (for intance "%.2f" if the DEFAULTPRECISION is 2).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICFORMATTITLEid
+         </td>
+         <td>
+            format of the title at the given column (id). <br>
+            Uses the same format specification of the sprintf function in C. <br>
+            It can contain other strings, and will receive two parameters the current column title string ("0:C") and the current column unit shown. <br>
+            If the current title is NULL, then only the unit parameter is passed. <br>
+            If not specified then only the title string ("0:C") is used.  (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Numeric Units</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICQUANTITYid
+         </td>
+         <td>
+            Quantity used to define units for the numeric data at the given column (id). <br>
+            Must set this attribute for the other NUMERIC* attributes to work. <br>
+            For the available option see Available Quantity and Units table bellow. <br>
+            To improve the precision consider using the NUMERICGETVALUE_CB and NUMERICSETVALUE_CB callbacks. <br>
+            The returned value is always the name of the quantity in the table, regardless the value that was set. <br>
+            To use the numeric attributes and callbacks without using units, simply set quantity to "None". <br>
+            To disable all numeric support set quantity to NULL. (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICUNITCOUNTid
+         </td>
+         <td>
+            (read-only) Returns the number of units for the current quantity at the given column (id).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICUNITid
+         </td>
+         <td>
+            Unit of the numbers set into the matrix at the given column (id) using the unit name as value. <br>
+            Must be in the same category of the NUMERICQUANTITYid attribute. <br>
+            For the available options see Available Quantity and Units table bellow. <br>
+            The application must process numbers for the column only in this unit, when getting or setting attributes. <br>
+            But the values passed to the DROP_CB and MENUDROP_CB callbacks will not be processed because they can contain strings. <br>
+            The returned value is always the name of the unit in the table, regardless the value that was set. <br>
+            Default value is the first unit on the table bellow. (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICUNITSHOWNid
+         </td>
+         <td>
+            Unit to be displayed at the given column (id). <br>
+            Must be in the same category of the NUMERICFORMAT attribute. <br>
+            The library will automatically convert the numeric data to and from the shown and data units when the data is displayed or modified. <br>
+            The returned value is always the name of the unit in the table, regardless the value that was set.  <br>
+            Default value is the first unit on the table. (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICUNITSYMBOLid
+         </td>
+         <td>
+            same as NUMERICUNIT* but using the units symbol as value. (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICUNITSYMBOLSHOWNid
+         </td>
+         <td>
+            same as NUMERICUNIT* but using the units symbol as value. (no redraw)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICUNITSEARCH
+         </td>
+         <td>
+            (write-only) Searches for a unit name. <br>
+            Set the result in the NUMERICFOUNDQUANTITY, NUMERICFOUNDUNIT and NUMERICFOUNDUNITSYMBOL attributes. <br>
+            For the available options see Available Quantity and Units table bellow. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICUNITSYMBOLSEARCH
+         </td>
+         <td>
+            (write-only) same as NUMERICUNITSEARCH, but searches for a unit symbol. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICFOUNDQUANTITY
+         </td>
+         <td>
+            (read-only) Returns the quantity found after a NUMERICUNITSEARCH* set. Returns NULL if not found.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICFOUNDUNIT
+         </td>
+         <td>
+            (read-only) Returns the unit name found after a NUMERICUNITSEARCH* set. Returns NULL if not found.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICFOUNDUNITSYMBOL
+         </td>
+         <td>
+            (read-only) Returns the unit symbol found after a NUMERICUNITSEARCH* set. Returns NULL if not found.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Numeric Units Database</b>
+         </td>
+         <td>
+            The following attributes will affect all IupMatrixEx controls. <br>
+            So the application can register new quantities and all IupMatrixEx elements will benefit. <br>
+            All strings must be constant strings. <br>
+            All attributes are Write-Only and non inheritable. <br>
+            They all can be set without the element being mapped to the native system.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICUNITSPELL
+         </td>
+         <td>
+            spelling used for Unit names. <br>
+            The default "INTERNATIONAL" uses the International Bureau of Weights and Measures standards: metre and litre. <br>
+            Set to "AMERICAN" To use the American spelling: "meter" and "liter". 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICADDQUANTITY
+         </td>
+         <td>
+            adds a new quantity given its name. Can have up to 25 new names. If the name exists, simply prepare to add new units to that quantity.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICADDUNIT
+         </td>
+         <td>
+            adds a new unit given its name for the last quantity added. Can have up to 25 total names. <br>
+            The first unit added will be the reference unit and its factor will be automatically set to 1.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICADDUNITSYMBOL
+         </td>
+         <td>
+            sets the symbol name of the last unit added.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICADDUNITFACTOR
+         </td>
+         <td>
+            sets the factor number in double precision of the last unit added. <br>
+            Use "%.18g" in IupSetStrf or sprintf for maximum double precision. <br>
+            The factor is the reference multiplier to obtain the unit, or how much you multiply a value in the reference unit to obtain a new value in this unit. <br>
+            For example, 1 km = 1000 m, then for the "km" unit factor=1000 considering that the reference unit is "m".
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+            The IupMatrixEx element understands all callbacks defined for a IupMatrix control.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BUSY_CB
+         </td>
+         <td>
+            Action generated when the library is changing the matrix contents as a result of an operation such as paste or copy. 
+            <br>
+            <br>
+            int function(Ihandle* ih, int status, int count, char* name);<br>
+            ih: identifier of the element that activated the event.<br>
+            status: can be 1=process started, 2=iteration, 0=process finished.<br>
+            count: when status=1 is the total number of iterations. when status=2 is the current iteration. ignored when status=0.<br>
+            name: valid only when status=1, otherwise is NULL. Can be "PASTECLIP", <wbr>"PASTEDATA", <wbr>"PASTEFILE", <wbr>"COPYCOLTO:ALL", <wbr>"COPYCOLTO:TOP", <wbr>
+            "COPYCOLTO:BOTTOM", <wbr>"COPYCOLTO:MARKED", <wbr>"COPYCOLTO:INTERVAL", <wbr>"UNDO" or "REDO".
+            <br>
+            <br>
+            Returns: When status=2 and IUP_IGNORE is returned the processing is aborted. When process is aborted the callback will be called once more with status=0.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICGETVALUE_CB
+         </td>
+         <td>
+            Action generated when a cell value is being retrieved from a numeric column. <br>
+            It is only called if the cell value is NULL in normal mode, or the <a href="IupMatrix.htm#VALUE_CB">VALUE_CB</a> returned value is NULL in callback mode, 
+            and the column has NUMERICQUANTITYid defined. Not called for lin=0.
+            <br>
+            <br>
+            double function(Ihandle* ih, int lin, int col)<br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: coordinates of the cell.
+            <br>
+            <br>
+            Returns: the number to be drawn. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMERICSETVALUE_CB
+         </td>
+         <td>
+            Action generated when a cell value is being modified at a numeric column. <br>
+            It is only called if the column has NUMERICQUANTITYid defined. Not called for lin=0. <br>
+            If defined the value will not be updated as string in normal mode and  VALUE_EDIT_CB will not be called in callback mode.
+            <br>
+            <br>
+            int function(Ihandle* ih, int lin, int col, double value)<br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: coordinates of the cell.<br>
+            value: new value of the cell.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MENUCONTEXT_CB
+         </td>
+         <td>
+            Action generated after the context menu is created but before it is displayed, so the application can add or removed items from the menu. <br>
+            Only shown if MENUCONTEXT=Yes.
+            <br>
+            <br>
+            int function(Ihandle* ih, Ihandle* menu, int lin, int col);<br>
+            ih: identifier of the element that activated the event.<br>
+            menu: identifier of the menu that will be shown to the user.<br>
+            lin, col: coordinates of the cell.
+            <br>
+            <br>
+            Returns: if returns IUP_IGNORE the action will be aborted and the context menu will not be shown. (since 3.13)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MENUCONTEXTCLOSE_CB
+         </td>
+         <td>
+            Same as MENUCONTEXT_CB, but called after the context menu is closed. Only shown if MENUCONTEXT=Yes. (since 3.12)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          PASTESIZE_CB
+         </td>
+         <td>
+            Action generated when pasting and importing data at the insert position will have more lines or columns than the current matrix. <br>
+            The application can change the NUMLIN and NUMCOL attributes to receive the new data.
+            <br>
+            <br>
+            int function(Ihandle* ih, int num_lin, int num_col);<br>
+            ih: identifier of the element that activated the event.<br>
+            status: can be 1=process started, 2=iteration, 0=process finished.<br>
+            count: when status=1 is the total number of iterations. when status=2 is the current iteration. ignored when status=0.<br>
+            name: valid only when status=1, otherwise is NULL. Can be "PASTE", <wbr>"PASTEDATA", <wbr>"PASTEFILE".
+            <br>
+            <br>
+            Returns: if returns IUP_IGNORE the process will be aborted. <br>
+            if returns IUP_CONTINUE, the NUMLIN and NUMCOL attributes will be automatically changed to the given values. <br>
+            Otherwise and if the callback does not exist the matrix size is not changed, and the exceeding data will be discarded. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SORTCOLUMNCOMPARE_CB
+         </td>
+         <td>
+            Action generated when sorting data in a column to compare two cell values.
+            <br>
+            <br>
+            int function(Ihandle* ih, int col, int lin1, int lin2);<br>
+            ih: identifier of the element that activated the event.<br>
+            col: column being sorted.<br>
+            lin1, lin2: the line numbers of the two cells being compared.
+            <br>
+            <br>
+            Returns: must return 0 if "col:lin1==col:lin2", -1 if "col:lin1<col:lin2", and 1 if "col:lin1>col:lin2".
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Units:</b>
+         </td>
+         <td>
+            Unit names, symbols and conversion factors were almost all based on:
+            <br>
+            <br>
+            <a id="ext357" style="color:#9B5565" href="javascript:ExternalLink('ext357','http://en.wikipedia.org/wiki/Conversion_of_units');">
+            http://en.wikipedia.org/wiki/Conversion_of_units</a>
+            <br>
+            <br>
+            By definition, unit names and symbols follow the case displayed in the table. <br>
+            When setting the NUMERICQUANTITY and NUMERICUNIT attributes use English names, the case is insensitive and spaces are ignored. <br>
+            Some Quantities have alternative names, once used the returned values in the attribute will be the same alternative name. <br>
+            For example, you can use "Specific Weight" or "SPECIFICWEIGHT", and you can use "Speed" or "Velocity".
+            <br>
+            <br>
+            All numeric attributes can be set without the element being mapped to the native system, so the IupMatrixEx element can also be used as a Quantity Units database.
+            <br>
+            <br>
+            The unit used as a reference for conversion is always the first unit listed, and it is the unit defined by the International System of Units (SI). 
+            The American spelling can be used setting NUMERICUNITSPELL=AMERICAN. 
+            <br>
+            <br>
+            NOTICE: These are only a small set of commonly used units. If you need other units, please let us know so we can include them.
+            <br>
+            <br>
+            Obs: "g" in Comments is the standard gravity. All Quantity and Unit names are described in English. <br>
+            The symbols that have extended characters will work in ISO8859-1 and in UTF-8, according to the UTF8MODE global attribute. <br>
+            The cell background colors are just for clarity and do not imply in any standard classification.
+            <br>
+            <br>
+<table align="center">
+        <tr>
+                <th>Quantity<br><span class="style6">NUMERICQUANTITY</span></th>
+                <th>Units<br><span class="style6">NUMERICUNIT</span></th>
+                <th>Symbol<br><span class="style6">NUMERICUNITSYMBOL</span></th>
+                <th>Comments</th>
+        </tr>
+        <tr>
+                <td class="style8">Time</td>
+                <td class="style8" valign="top">second<br>minute<br>hour <br>day <br>week 
+                <br>millisecond <br>microsecond </td>
+                <td class="style8" valign="top">s <br>min<br>h <br>d <br>wk <br>ms <br>
+                µs </td>
+                <td class="style8" valign="top">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style8">Mass</td>
+                <td class="style8" valign="top">kilogram<br>gram <br>tonne <br>pound <br>ounce </td>
+                <td class="style8" valign="top">kg <br>g <br>t<br>lb <br>oz </td>
+                <td class="style8" valign="top"><br>- (CGS Unit)<br>- metric ton <br>- (international avoirdupois) <br>
+                - oz = lb / 16 </td>
+        </tr>
+        <tr>
+                <td class="style8">Temperature</td>
+                <td class="style8" valign="top">Kelvin <br>degree Celsius <br>degree Fahrenheit<br>degree 
+                Rankine </td>
+                <td class="style8" valign="top">K <br>°C <br>°F <br>°Ra</td>
+                <td class="style8" valign="top">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style8">Length</td>
+                <td class="style8" valign="top">metre <br>millimetre <br>centimetre<br>kilometre 
+                <br>nanometre<br>angstrom <br>micron<br>inch
+                <br>foot <br>yard        
+<br>mile <br>nautical mile        
+</td>
+                <td class="style8" valign="top">m <br>mm<br>cm<br>km<br>nm<br>Å <br>µ<br>in<br>ft<br>yd<br>
+                mi<br>NM </td>
+                <td class="style8" valign="top"><br><br>- (CGS Unit)<br><br><br><br>- 
+                micrometre<br>- in = 25.4 mm 
+                (international) <br>- ft = 12 in (international) <br>- 
+                yd = 3 ft (international) <br>- mi = 1760 yd (international) <br>- NM = 
+                6080 ft (Admiralty)&nbsp; </td>
+        </tr>
+        <tr>
+                <td class="style8">Area</td>
+                <td class="style8" valign="top">square metre <br>square centimetre<br>square millimetre<br>square inch <br>square foot <br>
+                square kilometre<br>square yard <br>square mile <br>acre <br>hectare <br>
+                </td>
+                <td class="style8" valign="top">m²<br>cm²<br>mm² <br>sq in<br>sq ft<br>km² <br>sq yd<br>sq mi<br>ac
+                <br>ha <br></td>
+                <td class="style8" valign="top"><br>- (CGS Unit)<br><br><br><br>&nbsp;<br>
+                &nbsp; 
+                <br><br>- ac = 4840 sq yd<br> <br> </td>
+        </tr>
+        <tr>
+                <td class="style8">Volume</td>
+                <td class="style8" valign="top">cubic metre <br>cubic centimetre <br>
+                cubic millimetre <br>cubic kilometre<br>cubic inch <br>cubic foot <br>cubic mile <br>cubic yard <br>litre <br>gallon <br>barrel
+                </td>
+                <td class="style8" valign="top">m³ <br>cm³<br>mm³<br>km³ <br>cu in<br>cu ft<br>cu mi<br>cu yd<br>L <br>gal <br>bl </td>
+                <td class="style8" valign="top"><br>- (CGS Unit)<br><br><br><br><br><br>
+                <br><br>- gal = 231 cu in (US fluid; Wine)&nbsp; <br>- 
+                bl = 42 gal (petroleum)<br></td>
+        </tr>
+        <tr>
+                <td class="style8">Angle</td>
+                <td class="style8">radian<br>degree<br>gradian</td>
+                <td class="style8">rad<br>° <br>grad</td>
+                <td class="style8">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style9">Speed<br><span class="style7">(or Velocity)</span></td>
+                <td class="style9">metre per second <br>inch per second <br>foot per second <br>
+                kilometre per hour<br>centimetre per second <br>mile per hour <br>knot </td>
+                <td class="style9">m/s <br>in/s <br>ft/s <br>km/h<br>cm/s<br>mph <br>kn </td>
+                <td class="style9" valign="top"><br><br><br><br>- (CGS Unit)<br><br>- kn = NM/h </td>
+        </tr>
+        <tr>
+                <td class="style9">Angular Speed<br><span class="style7">(or Angular 
+                Frequency)</span></td>
+                <td class="style9">radian per second <br>radian per minute <br>degree per second
+                <br>degree per minute 
+                <br>Hertz <br>revolution per minute<br> </td>
+                <td class="style9">rad/s <br>rad/min<br>deg/s <br>deg/min<br>Hz <br>rpm <br></td>
+                <td class="style9"><br><br><br><br>- revolution per second (frequency)<br><br></td>
+        </tr>
+        <tr>
+                <td class="style9">Acceleration</td>
+                <td class="style9">metre per second squared<br>inch per second squared <br>knot 
+                per second<br>mile per second squared <br>standard gravity </td>
+                <td class="style9">m/s²<br>in/s²<br>kn/s<br>mi/s² <br>g</td>
+                <td class="style9">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style9">Kinematic Viscosity</td>
+                <td class="style9">square metre per second<br>square foot per second<br>
+                stokes </td>
+                <td class="style9">m²/s <br>ft²/s <br>St</td>
+                <td class="style9"><br><br>- (CGS Unit)</td>
+        </tr>
+        <tr>
+                <td class="style9">Dynamic Viscosity</td>
+                <td class="style9">pascal second <br>poise <br>pound per foot hour <br>
+                pound per foot second </td>
+                <td class="style9">Pa·s <br>P <br>lb/(ft·h) <br>lb/(ft·s) </td>
+                <td class="style9">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style9">Flow</td>
+                <td class="style9">cubic metre per second<br>cubic inch per second<br>cubic foot per second
+</td>
+                <td class="style9">m³/s<br>in³/s<br>ft³/s
+</td>
+                <td class="style9">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style11">Force</td>
+                <td valign="top" class="style11">Newton <br>Kilonewton <br> dyne<br>kilogram-force<br>pound-force <br>kip-force 
+                <br>ton-force </td>
+                <td valign="top" class="style11">N <br>kN <br>dyn<br>kgf<br>lbf<br>kip<br>tnf</td>
+                <td valign="top" class="style11">= kg·m/s²<br><br>= g·cm/s² (CGS Unit)<br><br>- lbf = g · lb <br>- kip = g · 1000 lb 
+                <br>- tnf = g · 2000 
+                lb <br> </td>
+        </tr>
+        <tr>
+                <td class="style11">Pressure<br><span class="style7">(or Mechanical Stress)</span></td>
+                <td valign="top" class="style11">Pascal <br>kilopascal <br>atmosphere <br>millimetre of 
+                mercury<br>bar <br>torr <br>pound per square inch <br>kip per square 
+                inch </td>
+                <td valign="top" class="style11">Pa <br>kPa <br>atm <br>mmHg<br>bar <br>torr<br>psi<br>ksi</td>
+                <td valign="top" class="style11">- Pa = N/m² = kg/(m·s²) <br><br>- (standard) <br>
+                = mmHg =13595.1 kg/m³·mm·g <br><br><br>- psi = lbf/sq in <br>- ksi = 
+                kip/sq in <br></td>
+        </tr>
+        
+        <tr>
+                <td class="style11">Force per length<br><span class="style7">(or Linear Weight)</span></td>
+                <td valign="top" class="style11">Newton per metre <br>Kilonewton per metre <br>kilogram-force per 
+                metre<br>ton-force per metre </td>
+                <td valign="top" class="style11">N/m <br>kN/m <br>kgf/m<br>tnf/m</td>
+                <td valign="top" class="style11">= kg/s²<br><br><br></td>
+        </tr>
+        <tr>
+                <td class="style11">Torque<br><span class="style7">(or Moment of Force)</span></td>
+                <td valign="top" class="style11">Newton metre <br>kilogram-force metre <br>ton-force metre <br>
+                Newton centimetre <br>kilogram-force centimetre<br>ton-force centimetre <br>Kilonewton-metre<br>
+                metre kilogram </td>
+                <td valign="top" class="style11">N·m <br>kgf·m <br>tnf·m <br>N·cm <br>kgf·cm<br>tnf·cm<br>
+                kN·m<br>m·kg </td>
+                <td valign="top" class="style11">= kg·m²/s²<br><br><br><br><br><br><br></td>
+        </tr>
+        <tr>
+                <td class="style11">Specific Mass<br><span class="style7">(or Density)</span></td>
+                <td class="style11">kilogram per cubic metre<br>gram per cubic 
+                centimetre <br>gram per millilitre&nbsp; <br>kilogram 
+                per litre <br>pound per 
+                cubic foot<br>pound per cubic inch <br>pound per gallon</td>
+                <td class="style11">kg/m³ <br>g/cm³ <br>g/mL <br>kg/L <br>lb/ft³ <br>
+                lb/in³ <br>lb/gal </td>
+                <td class="style11">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style11">Specific Weight</td>
+                <td class="style11">Newton per cubic metre <br>Kilonewton per cubic 
+                metre <br>kilogram-force per cubic metre<br>ton-force per cubic metre <br>
+                kilogram-force per litre <br>pound-force per cubic foot </td>
+                <td class="style11">N/m³ <br>kN/m³ <br>kgf/m³<br>tnf/m³<br>kgf/L <br>lbf/ft³ </td>
+                <td class="style11">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style10">Energy</td>
+                <td class="style10">Joule <br>Kilojoule <br>calorie <br>kilocalorie <br>British Thermal 
+                Unit <br>Kilowatt-hour
+                <br>horsepower-hour</td>
+                <td class="style10">J <br>kJ <br>cal <br>kcal<br>BTU <br>kW.h<br>hp.h</td>
+                <td class="style10">= m·N = kg·m²/s²<br><br>- (International Table) <br> <br>- (International 
+                Table)<br><br><br></td>
+        </tr>
+        <tr>
+                <td class="style10">Power<br><span class="style7">(or &nbsp;Heat Flow Rate)</span></td>
+                <td class="style10" valign="top">Watt <br>Kilowatt <br>calorie per second<br>horsepower </td>
+                <td class="style10" valign="top">W <br>kW <br>cal/s<br>hp</td>
+                <td class="style10" valign="top">= J/s = N·m/s = kg·m²/s³ <br><br>- (International Table) <br>
+                - hp = 550 ft lbf/s (imperial mechanical) </td>
+        </tr>
+        <tr>
+                <td class="style12">Electric Charge</td>
+                <td class="style12">Coulomb<br>Faraday<br>milliampere hour</td>
+                <td class="style12">C<br>F<br>mA·h</td>
+                <td class="style12">= A·s<br><br><br></td>
+        </tr>
+        <tr>
+                <td class="style12">Illuminance</td>
+                <td class="style12">lux<br>footcandle<br>lumen per square inch<br>phot</td>
+                <td class="style12">lx<br>fc<br>lm/in²<br>ph</td>
+                <td class="style12">- lm/m² <br>- lumen per square foot <br><br><br></td>
+        </tr>
+        <tr>
+                <td class="style12">Fraction</td>
+                <td class="style12">percentage <br>per one <br>per ten <br>per thousand</td>
+                <td class="style12">% <br>/1 <br>/10 <br>/1000</td>
+                <td class="style12">&nbsp;</td>
+        </tr>
+        <tr>
+                <td class="style12">None</td>
+                <td class="style12">&nbsp;</td>
+                <td class="style12">&nbsp;</td>
+                <td class="style12">Use numeric values <br>but without using units.</td>
+        </tr>
+</table>
+
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupMatrix.htm">IupMatrix</a>
+         </td>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -318,6 +318,7 @@ end procedure -- (for Edita/CtrlQ)
 --*/
 :>initStack
 -----------
+    [PE32,ELF32,ELF64]  -- (not PE64) [DEV try without this...]
         call :>initFEH
 --      -- first, create a dummy vsb_root (vsb_next,vsb_prev@=0) on the stack
     [32]
@@ -505,7 +506,7 @@ je @f
         -- On Exit, rax is h4,
         --          rbx is 0, (as usual)
         --          rcx is 0,
---?         edx is threadstack (==[ebp+28]) 
+        --          rdx is still routineNo
         --          rsi is rbp-N*8 or thereabouts
         --          rdi is prev_ebp (==[rbp+40])
         --          rbp is the new frame, such that [rbp+8] is N, 
@@ -577,8 +578,8 @@ je @f
         mov [rsi+32],rax            -- return address (see note above)
         mov [rsi+40],rbp            -- prev_ebp
         mov [esi+48],rdi            -- vsb_root
---DEV test:
-lea rdx,[rdi+11240]
+--DEV test: (removed 6/3/16 - NB callback error handling now relies on rdx being preserved)
+--lea rdx,[rdi+11240]
         mov rax,h4
         mov rdi,rsi
         std
@@ -586,10 +587,10 @@ lea rdx,[rdi+11240]
         cld
         mov rdi,rbp
         mov rbp,rsi
-cmp qword[rdx],#3C565342
-je @f
-    int3
-@@:
+--cmp qword[rdx],#3C565342
+--je @f
+--  int3
+--@@:
 --      mov qword[rax+11240],#3C565342  -- magic ("<VSB")
     []
         ret
@@ -1120,9 +1121,12 @@ end procedure -- (for Edita/CtrlQ)
 --DEV:
 --          mov [ep1],rcx   -- var no (just leave it in rcx)
 --          mov [era],rax   -- (just leave in on the stack)
+            pop rdx
             mov al,1
 --DEV pdiag?
 --          jmp :enumbset
+            sub edx,1
+            jmp :!iDiag
             int3 
       @@:
         ret

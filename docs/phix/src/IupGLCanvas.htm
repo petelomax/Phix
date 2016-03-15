@@ -1,0 +1,343 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupGLCanvas</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pGUI.e
+            <br>
+            <br>
+            Ihandle ih = IupGLCanvas([[nullable_string action=NULL,] cbfunc func=NULL,] string attributes="", sequence data={})
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates an OpenGL canvas (drawing area for OpenGL). It inherits from IupCanvas.
+            <br>
+            <br>
+            <a name=IupGLCanvasOpen></a>
+            The IupGLCanvasOpen() procedure must be called after a IupOpen, so that the control can be used, however pGUI does this automatically.
+            <br>
+            action: Name of the action specified by func, defaults to "ACTION", ignored if func is NULL.<br>
+            func: a callback address, usually specified as Icallback(<i>"name"</i>).<br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.<br>
+            This is a <a href="paranormal.htm">paranormalised function</a>.<br>
+            NOTE: The C function IupGLCanvas(char* action) apparently allows the name of the "ACTION" callback to be overridden, which I see no benefit to.
+            The pGUI wrapper prohibits said, also note that as a paranormalised function, IupGLCanvas("MYACTION") would in fact be misinterpreted
+            as IupGLCanvas(attributes:="MYACTION"), however IupGLCanvas(NULL) does no harm and is equivalent to IupGLCanvas().
+            <br>
+            <br>
+            Returns the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            In Windows XP, if the COMPOSITE attribute is enabled then the hardware acceleration will be disabled.
+            <br>
+            <br>
+            The IupGLCanvas works with the GTK base driver in Windows and in UNIX (X-Windows).
+            <br>
+            <br>
+            Not available in our SunOS510x86 pre-compiled binaries just because we were not able to compile OpenGL code in our installation.
+            <br>
+            <br>
+            Possible ERROR strings during IupMap:
+            <br>
+            <br>
+            "X server has no OpenGL GLX extension." - OpenGL not supported (UNIX Only)<br>
+            "No appropriate visual." - Failed to choose a Visual (UNIX Only) <br>
+            "No appropriate pixel format." - Failed to choose a Pixel Format (Windows Only)<br>
+            "Could not create a rendering context." - Failed to create the OpenGL context. (Windows and UNIX)<br>
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Auxiliary Functions</b>
+         </td>
+         <td>
+            These are auxiliary functions based on the WGL and XGL extensions. <br>
+            Check the respective documentations for more information. <br>
+            ERROR attribute will be set to "Failed to set new current context." if the call failed. <br>
+            It will reset ERROR to NULL if successful.
+            <br>
+            <br>
+            <a name=IupGLMakeCurrent></a>
+            IupGLMakeCurrent(Ihandle ih)<br>
+            Activates the given canvas as the current OpenGL context. <br>
+            All subsequent OpenGL commands are directed to such canvas. <br>
+            The first call will set the global attributes GL_VERSION, GL_VENDOR and GL_RENDERER (since 3.16).
+            <br>
+            <br>
+            <a name=IupGLIsCurrent></a>
+            bool status = IupGLIsCurrent(Ihandle ih)<br>
+            Returns a non zero value if the given canvas is the current OpenGL context.
+            <br>
+            <br>
+            <a name=IupGLSwapBuffers></a>
+            IupGLSwapBuffers(Ihandle ih)<br>
+            Makes the BACK buffer visible. This function is necessary when a double buffer is used.
+            <br>
+            <br>
+            <a name=IupGLPalette></a>
+            IupGLPalette(Ihandle ih, integer index, r, g, b)<br>
+            Defines a color in the color palette. This function is necessary when INDEX color is used.
+            <br>
+            <br>
+            <a name=IupGLUseFont></a>
+            IupGLUseFont(Ihandle ih, integer first, count, list_base)<br>
+            Creates a bitmap display list from the current FONT attribute. See the documentation of the wglUseFontBitmaps and glXUseXFont functions. (since 3.0)
+            <br>
+            <br>
+            <a name=IupGLWait></a>
+            IupGLWait(integer gl)<br>
+            If gl is non zero it will call glFinish or glXWaitGL, else will call GdiFlush or glXWaitX. (since 3.0)
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            The IupGLCanvas element handle all attributes defined for a conventional canvas, see IupCanvas.
+            <br>
+            <br>
+            Apart from these attributes, IupGLCanvas handle specific attributes used to define the kind of buffer to be instanced. <br>
+            Such attributes are all creation only attributes and must be set before the element is mapped on the native system. <br>
+            After the mapping, specifying these special attributes has no effect.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ACCUM_XXX_SIZE
+         </td>
+         <td>
+            ACCUM_RED_SIZE, ACCUM_GREEN_SIZE, ACCUM_BLUE_SIZE and ACCUM_ALPHA_SIZE: Indicate the number of bits for representing the color components in the accumulation buffer. <br>
+            Value 0 means the accumulation buffer is not necessary. Default is 0.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ALPHA_SIZE
+         </td>
+         <td>
+            Indicates the number of bits for representing each colors alpha component (valid only for RGBA and for hardware that store the alpha component). Default is "0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ARBCONTEXT
+         </td>
+         <td>
+            (non inheritable) enable the usage of ARB extension contexts. <br>
+            If during map the ARB extensions could not be loaded the attribute will be set to NO and the standard context creation will be used. Default: NO. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BUFFER
+         </td>
+         <td>
+            Indicates if the buffer will be single "SINGLE" or double "DOUBLE". Default is "SINGLE".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          BUFFER_SIZE
+         </td>
+         <td>
+            Indicates the number of bits for representing the color indices (valid only for INDEX). The system default is 8 (256-color palette).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          COLOR
+         </td>
+         <td>
+            Indicates the color model to be adopted: "INDEX" or "RGBA". Default is "RGBA".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          COLORMAP
+         </td>
+         <td>
+            (read-only) Returns "Colormap" in UNIX and "HPALETTE" in Win32, if COLOR=INDEX.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CONTEXT
+         </td>
+         <td>
+            (read-only) Returns "GLXContext" in UNIX and "HGLRC" in Win32.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CONTEXTFLAGS
+         </td>
+         <td>
+            (non inheritable) Context flags. Can be DEBUG, FORWARDCOMPATIBLE or DEBUGFORWARDCOMPATIBLE. Used only when ARBCONTEXT=Yes. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CONTEXTPROFILE
+         </td>
+         <td>
+            (non inheritable) Context profile mask. Can be CORE, COMPATIBILITY or CORECOMPATIBILITY. Used only when ARBCONTEXT=Yes. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CONTEXTVERSION
+         </td>
+         <td>
+            (non inheritable) Context version number in the format "major.minor". Used only when ARBCONTEXT=Yes. (since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DEPTH_SIZE
+         </td>
+         <td>
+            Indicates the number of bits for representing the z coordinate in the z-buffer. Value 0 means the z-buffer is not necessary. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ERROR
+         </td>
+         <td>
+            (read-only) If an error is found during IupMap and IupGLMakeCurrent, returns a string containing a description of the error in English. See notes bellow.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          LASTERROR
+         </td>
+         <td>
+            (read-only) [Windows Only] If an error is found, returns a string with the system error description. (Since 3.6)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          XXX_SIZE
+         </td>
+         <td>
+            RED_SIZE, GREEN_SIZE and BLUE_SIZE: Indicate the number of bits for representing each color component (valid only for RGBA). <br>
+            The system default is usually 8 for each component (True Color support).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          REFRESHCONTEXT
+         </td>
+         <td>
+            (write-only) [Windows Only] action attribute to refresh the internal device context when it is not owned by the window class. <br>
+            The IupCanvas of the Win32 driver will always create a window with an owned DC, but GTK in Windows will not. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          STENCIL_SIZE
+         </td>
+         <td>
+            Indicates the number of bits in the stencil buffer. Value 0 means the stencil buffer is not necessary. Default is 0.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          STEREO
+         </td>
+         <td>
+            Creates a stereo GL canvas (special glasses are required to visualize it correctly). Possible values: "YES" or "NO". Default: "NO". <br>
+            When this flag is set to Yes but the OpenGL driver does not support it, the map will be successful and STEREO will be set to NO and ERROR will not be set (since 3.9).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SHAREDCONTEXT
+         </td>
+         <td>
+            name of another IupGLCanvas that will share its display lists and textures. That canvas must be mapped before this canvas.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VISUAL
+         </td>
+         <td>
+            (read-only) Returns "XVisualInfo*" in UNIX and "HDC" in Win32.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+            The IupGLCanvas element understands all callbacks defined for a conventional canvas, see IupCanvas.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a>
+         </td>
+         <td>
+            By default the resize callback sets:
+            <br>
+            <br>
+            glViewport(0,0,width,height);
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SWAPBUFFERS_CB
+         </td>
+         <td>
+            action generated when IupGLSwapBuffers is called. (since 3.11)
+            <br>
+            <br>
+            int function(Ihandle* ih);
+            <br>
+            ih: identifier of the element that activated the event.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupCanvas.htm">IupCanvas</a>
+         </td>
+        </tr>
+       </table>
+       <p></p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>
