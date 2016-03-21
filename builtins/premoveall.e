@@ -6,12 +6,11 @@
 -- This is an auto-include file; there is no need to manually include
 --  it, unless you want a namespace.
 --
---DEV document this.
 
 global function remove_all(object needle, sequence haystack)
 integer ts, te, ss, se
 
--- See if we have to do anything at all.
+    -- See if we have to do anything at all.
     se = find(needle, haystack)
     if se=0 then
         return haystack
@@ -47,8 +46,7 @@ integer ts, te, ss, se
 
     end while
 
-    -- Check to see if there is anything after the final needle
-    -- and move it.
+    -- Check to see if there is anything after the final needle and move it.
     if ss<=length(haystack) then
         te = ts+length(haystack)-ss
         haystack[ts..te] = haystack[ss..$]

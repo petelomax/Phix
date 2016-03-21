@@ -2305,11 +2305,9 @@ else
 end if
     initialAutoEntry("day_of_week",     S_Func,"FIII",  "pdate.e",0,E_none)
     initialAutoEntry("day_of_year",     S_Func,"FIII",  "pdate.e",0,E_none)
---DEV document this:
     initialAutoEntry("find_any",        S_Func,"FPPI",  "pfindany.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("is_leap_year",    S_Func,"FI",    "pdate.e",0,E_none)
---DEV document these*2:
     initialAutoEntry("islower",         S_Func,"FI",    "pcase.e",0,E_none)
     initialAutoEntry("isupper",         S_Func,"FI",    "pcase.e",0,E_none)
 if newEmit then --DEV (temp) (T_find/T_match will be rqd once the asm conversion is completed)
@@ -2359,7 +2357,6 @@ end if
     -- the following return an atom
     IAEType = T_atom
 
---DEV document
     initialAutoEntry("abs",             S_Func,"FN",    "pmaths.e",0,E_none)
 --if newEmit then
 ----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pHeap.e",0,E_none)
@@ -2369,7 +2366,10 @@ end if
 ----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
 ----    initialAutoEntry("allocate_data",   S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
 --end if
-    initialAutoEntry("allocate_data",   S_Func,"FII",   "allocate_data.e",0,E_none)
+--DEV 18/3/16:
+--  initialAutoEntry("allocate_data",   S_Func,"FII",   "allocate_data.e",0,E_none)
+--DEV doc
+    initialAutoEntry("allocate_data",   S_Func,"FII",   "pAlloc.e",0,E_none)
 --  initialAutoEntry("allocate_string", S_Func,"FP",    "machine.e",0,E_none)
     initialAutoEntry("allocate_string", S_Func,"FPI",   "pAlloc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
@@ -2388,7 +2388,6 @@ if newEmit then
     initialAutoEntry("open_dll",        S_Func,"FP",    "VM\\pcfuncN.e",0,E_none)
     initialAutoEntry("float32_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("float64_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
---DEV document
     initialAutoEntry("float80_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
 else
     initialAutoEntry("float80_to_atom", S_Func,"FP",    "pfloat.e",0,E_none)
@@ -2400,7 +2399,6 @@ end if
     initialAutoEntry("factorial",       S_Func,"FN",    "factorial.e",0,E_none)
     initialAutoEntry("gcd",             S_Func,"FON",   "gcd.e",0,E_none)
     initialAutoEntry("log10",           S_Func,"FN",    "log10.e",0,E_none)
---DEV document*2
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
     initialAutoEntry("mod",             S_Func,"FNN",   "pmaths.e",0,E_none)
@@ -2425,10 +2423,8 @@ end if
 
     initialAutoEntry("current_dir",     S_Func,"F",     "pcurrdir.e",0,E_none)
 --  initialAutoEntry("current_dirN",    S_Func,"F",     "VM\\pcurrdirN.e",0,E_none)
---DEV document
     initialAutoEntry("decode_flags",    S_Func,"FPNS",  "pdecodeflags.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
---DEV document*2
     initialAutoEntry("elapsed",         S_Func,"FN",    "pelapsed.e",0,E_none)
     initialAutoEntry("elapsed_short",   S_Func,"FN",    "pelapsed.e",0,E_none)
 --if newEmit then
@@ -2442,7 +2438,6 @@ end if
     symtab[symlimit][S_ParmN] = 1
 --end if
     initialAutoEntry("prompt_string",   S_Func,"FS",    "get.e",0,E_other)
---DEV document
     initialAutoEntry("peek_string",     S_Func,"FN",    "peekstr.e",0,E_none)
 if newEmit then
     initialAutoEntry("sprintf",         S_Func,"FPO",   "VM\\pprntfN.e",0,E_none)
@@ -2454,7 +2449,6 @@ if newEmit then
     initialAutoEntry("substitute_all",  S_Func,"FSPP",  "substitute.e",0,E_none)
     initialAutoEntry("atom_to_float32", S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("atom_to_float64", S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
---DEV document
     initialAutoEntry("atom_to_float80", S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
 else
     initialAutoEntry("atom_to_float80", S_Func,"FN",    "pfloat.e",0,E_none)
@@ -2478,7 +2472,6 @@ end if
     initialAutoEntry("db_table_list",   S_Func,"F",     "database.e",0,E_none)
     initialAutoEntry("factors",         S_Func,"FNI",   "pfactors.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
---DEV not documented:
     initialAutoEntry("find_replace",    S_Func,"FOPOI", "findrepl.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
     initialAutoEntry("flatten",         S_Func,"FP",    "pflatten.e",0,E_none)
@@ -2491,7 +2484,6 @@ elsif hllfileio then
 end if
     initialAutoEntry("get",             S_Func,"FI",    "get.e",0,E_other)
     initialAutoEntry("get_bytes",       S_Func,"FII",   "get.e",0,E_other)
---DEV document
     initialAutoEntry("head",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
 if newEmit then
@@ -2501,25 +2493,16 @@ else
     initialAutoEntry("include_paths",   S_Func,"FI",    "pincpath.e",0,E_none)
     symtab[symlimit][S_ParmN] = 0
 end if
---DEV document
     initialAutoEntry("insert",          S_Func,"FPOI",  "pseqc.e",0,E_none)
     initialAutoEntry("int_to_bytes",    S_Func,"FN",    "machine.e",0,E_none)
     initialAutoEntry("int_to_bits",     S_Func,"FNI",   "machine.e",0,E_none)
---DEV document
     initialAutoEntry("match_replace",   S_Func,"FOPOI", "matchrepl.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
---DEV document
     initialAutoEntry("permute",         S_Func,"FIP",   "permute.e",0,E_none)
     initialAutoEntry("prime_factors",   S_Func,"FN",    "pfactors.e",0,E_none)
---DEV document
     initialAutoEntry("remove",          S_Func,"FPNN",  "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
---DEV document
     initialAutoEntry("remove_all",      S_Func,"FOP",   "premoveall.e",0,E_none)
---if newEmit then
---  initialAutoEntry("repeat",          S_Func,"FOI",   "VM/pRepeatN.e",0,E_none)
---end if
---DEV document
     initialAutoEntry("replace",         S_Func,"FPONN", "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
 --  initialAutoEntry("reverse",         S_Func,"FP",    "misc.e",0,E_none)
@@ -2528,26 +2511,18 @@ end if
     initialAutoEntry("scanf",           S_Func,"FSS",   "scanf.e",0,E_none)
     initialAutoEntry("shuffle",         S_Func,"FP",    "shuffle.e",0,E_none)
     initialAutoEntry("sort",            S_Func,"FP",    "sort.e",0,E_none)
---DEV document
     initialAutoEntry("splice",          S_Func,"FPOI",  "pseqc.e",0,E_none)
---DEV document
     initialAutoEntry("split",           S_Func,"FPOII", "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
---DEV document
     initialAutoEntry("split_any",       S_Func,"FPOII", "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("tagset",          S_Func,"FN",    "ptagset.e",0,E_none)
---DEV document
     initialAutoEntry("tail",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
 --DEV Eu4 has another 2 optional params..
     initialAutoEntry("custom_sort",     S_Func,"FIP",   "sort.e",0,E_none)
---DEV document*2
     initialAutoEntry("ppf",             S_Func,"FO",    "ppp.e",0,E_other)
---DEV
---  initialAutoEntry("ppfN",            S_Func,"FO",    "VM\\pppN.e",0,E_other)
     initialAutoEntry("ppExf",           S_Func,"FOP",   "ppp.e",0,E_other)
---  initialAutoEntry("ppExfN",          S_Func,"FOP",   "VM\\pppN.e",0,E_other)
     initialAutoEntry("value",           S_Func,"FP",    "get.e",0,E_other)
     initialAutoEntry("video_config",    S_Func,"F",     "pscreen.e",0,E_none)
     initialAutoEntry("get_screen_char", S_Func,"FII",   "pscreen.e",0,E_other)
@@ -2587,9 +2562,6 @@ end if
 --  initialAutoEntry("round",           S_Func,"FOO",   "pmaths.e",0,E_none)
 --  symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("save_text_image", S_Func,"FPP",   "pscreen.e",0,E_none)
---DEV document
---  initialAutoEntry("sign",            S_Func,"FO",    "psign.e",0,E_none)
---DEV document
     initialAutoEntry("TlsGetValue",     S_Func,"FI",    "ptls.ew",0,E_none)
 
     initialAutoEntry("upper",           S_Func,"FO",    "pcase.e",0,E_none)
@@ -2611,10 +2583,8 @@ else
 end if
 --end if
     initialAutoEntry("read_lines",      S_Func,"FO",    "read_lines.e",0,E_none)
---DEV document
     initialAutoEntry("series",          S_Func,"FOOII", "pseries.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
---DEV document
     initialAutoEntry("smallest",        S_Func,"FPI",   "psmall.e",0,E_none)
 
     --DEV 23/3 we do /not/ want these 10 auto-converted to sq_xxx()...
@@ -2663,21 +2633,18 @@ end if
     initialAutoEntry("sq_arcsin",       S_Func,"FO",    "psqop.e",0,E_none) -- no implicts
     initialAutoEntry("sq_arctan",       S_Func,"FO",    "psqop.e",opArcTan,E_none)
     initialAutoEntry("sq_log",          S_Func,"FO",    "psqop.e",opLog,E_none)
+    initialAutoEntry("sq_log10",        S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_power",        S_Func,"FOO",   "psqop.e",opPow,E_none)
     initialAutoEntry("sq_sqrt",         S_Func,"FO",    "psqop.e",opSqrt,E_none)
     initialAutoEntry("sq_upper",        S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_lower",        S_Func,"FO",    "psqop.e",0,E_none)
 
---DEV document
     initialAutoEntry("trim",            S_Func,"FOOI",  "ptrim.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
---DEV document
     initialAutoEntry("trim_head",       S_Func,"FOOI",  "ptrim.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
---DEV document
     initialAutoEntry("trim_tail",       S_Func,"FOOI",  "ptrim.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
---DEV document
     initialAutoEntry("vlookup",         S_Func,"FOPIIO","pvlookup.e",0,E_none)
     symtab[symlimit][S_ParmN] = 4
 
@@ -2704,7 +2671,6 @@ if newEmit then
 --  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcfuncN.e",0,E_all)
 --  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)
 --  initialAutoEntry("call_procN",          S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)
---DEV document
     initialAutoEntry("crash",               S_Proc,"PPO",   "pCrashN.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("crash_file",          S_Proc,"PO",    "VM\\pdiagN.e",0,E_other)
@@ -2718,16 +2684,12 @@ else
 end if
     initialAutoEntry("cursor",              S_Proc,"PI",    "pscreen.e",0,E_other)
     initialAutoEntry("db_dump",             S_Proc,"PII",   "database.e",0,E_other)
---DEV document
     initialAutoEntry("check_free_list",     S_Proc,"P",     "database.e",0,E_other)
     initialAutoEntry("db_close",            S_Proc,"P",     "database.e",0,E_other)
     initialAutoEntry("db_delete_table",     S_Proc,"PS",    "database.e",0,E_other)
---DEV document
     initialAutoEntry("db_rename_table",     S_Proc,"PSS",   "database.e",0,E_other)
     initialAutoEntry("db_delete_record",    S_Proc,"PI",    "database.e",0,E_other)
     initialAutoEntry("db_replace_data",     S_Proc,"PIO",   "database.e",0,E_other)
---DEV document
-    initialAutoEntry("db_set_fatal_id",     S_Proc,"PI",    "database.e",0,E_other)
 if newEmit then
 --  initialAutoEntry("delete",              S_Proc,"PO",    "VM\\pDeleteN.e",0,E_other)
 else
@@ -2771,13 +2733,13 @@ else
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("print",               S_Proc,"PIO",   "psprint.e",0,E_other)              T_print = symlimit
 end if
---DEV document*3
     initialAutoEntry("pp",                  S_Proc,"PO",    "ppp.e",0,E_other)
     initialAutoEntry("ppOpt",               S_Proc,"PP",    "ppp.e",0,E_other)
     initialAutoEntry("ppEx",                S_Proc,"POP",   "ppp.e",0,E_other)
 
     initialAutoEntry("resume_thread",       S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("suspend_thread",      S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
+    initialAutoEntry("set_system_doevents", S_Proc,"PIO",   "syswait.ew",0,E_other)
     initialAutoEntry("system",              S_Proc,"PSI",   "syswait.ew",0,E_other)
     symtab[symlimit][S_ParmN] = 1
 --  initialAutoEntry("sysproc",             S_Proc,"PS",    "syswait.ew",0,E_other)

@@ -23,7 +23,17 @@
 --7/2/16:
 --      nop -- (DEV force :%opLen not :!opLene36or92 in list.asm...)
         cmp esi,h4
-        jle :e36loaaind
+--      jle :e36loaaind
+        jg @f
+            -- I surrender! I give up!! Please don't shoot me!!!
+            mov ecx,edx
+            jne e36loaaind
+            pop edx
+            mov al,91   -- e91vhnbaav(ecx)
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
       :!opLene36or92
         test byte[ebx+esi*4-1],0x80     -- all strings/sequences have bit #80 set...
         jnz @f
@@ -52,7 +62,17 @@
         mov r15,h4
 --7/2/16:
         cmp rsi,r15
-        jle :e36loaaind
+--      jle :e36loaaind
+        jg @f
+            -- I surrender! I give up!! Please don't shoot me!!!
+            mov rcx,rdx
+            jne :e36loaaind
+            pop rdx
+            mov al,91   -- e91vhnbaav(rcx)
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
       :!opLene36or92
         test byte[rbx+rsi*4-1],0x80     -- all strings/sequences have bit #80 set...
         jnz @f

@@ -1,12 +1,11 @@
 --
 -- pelapsed.e
 --
---  Phix implementation of the elapsed() builtin (autoinclude)
+--  Phix implementation of elapsed() and elapsed_short() (autoinclude)
 --
 --  This is probably best kept simple: if you want more elaborate or flexible
 --  results/formatting, leave this be, crib what you like, and start afresh.
 --
---DEV not documented
 
 function elapzd(integer v, string d)
 -- private helper function. formats v and pluralises d by adding an "s", or not.
@@ -20,32 +19,48 @@ global function elapsed(atom s)
 -- convert s (in seconds) into an elapsed time string suitable for display.
 -- limits: a type check error occurs if s exceeds approx 100 billion years.
 atom m,h,d,y
-string minus = ""
+string minus = "", secs, mins
     if s<0 then
         minus = "minus "
         s = 0-s
     end if
-    if s<60 then
-        return sprintf("%s%3.2fs",{minus,s})
-    end if
     m = floor(s/60)
     s = remainder(s,60)
-    if m<60 then
-        return sprintf("%s%s and %3.2fs",{minus,elapzd(m,"minute"),s})
+    if integer(s) then
+        secs = sprintf("%ds",s)
+    else
+        secs = sprintf("%3.2fs",s)
+    end if
+    if m=0 then
+        return sprintf("%s%s",{minus,secs})
+    end if
+    s = round(s)
+    if s=0 then
+        secs = ""
+    else
+        secs = sprintf(" and %02ds",s)
     end if
     h = floor(m/60)
     m = remainder(m,60)
+    if h=0 then
+        return sprintf("%s%s%s",{minus,elapzd(m,"minute"),secs})
+    end if
+    if m=0 then
+        mins = ""
+    else
+        mins = ", "&elapzd(m,"minute")
+    end if
     if h<24 then
-        return sprintf("%s%s, %s and %02ds",{minus,elapzd(h,"hour"),elapzd(m,"minute"),s})
+        return sprintf("%s%s%s%s",{minus,elapzd(h,"hour"),mins,secs})
     end if
     d = floor(h/24)
     h = remainder(h,24)
     if d<365 then
-        return sprintf("%s%s, %s, %s and %02ds",{minus,elapzd(d,"day"),elapzd(h,"hour"),elapzd(m,"minute"),s})
+        return sprintf("%s%s, %s%s%s",{minus,elapzd(d,"day"),elapzd(h,"hour"),mins,secs})
     end if
     y = floor(d/365)
     d = remainder(d,365)
-    return sprintf("%s%s, %s, %s, %s and %02ds",{minus,elapzd(y,"year"),elapzd(d,"day"),elapzd(h,"hour"),elapzd(m,"minute"),s})
+    return sprintf("%s%s, %s, %s%s%s",{minus,elapzd(y,"year"),elapzd(d,"day"),elapzd(h,"hour"),mins,secs})
 end function
 
 global function elapsed_short(atom s)

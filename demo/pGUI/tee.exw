@@ -62,14 +62,6 @@ end function
 --/**/include builtins\scanf.e
 --/**/global function to_integer(string s) return to_number(s) end function
 --/**/forward function add_tab(sequence title = "Untitled", sequence text = "")
---/**/forward procedure apply_lexer(atom sci, sequence path = "")
---/**/forward function get_image(sequence image)
---/**/forward function confirm_close(sequence name)
---/**/forward function popup_menu()
---/**/forward procedure toggle_item(sequence handle, object v)
---/**/forward function get_cursor_pos()
---/**/forward function wildcard_any(sequence list, sequence text)
-
 
 --include std/machine.e
 include pGUI.e
@@ -294,6 +286,165 @@ end ifdef
 end function
 
 --**
+-- Load our own custom image from disk.
+--
+function get_image(sequence image)
+
+    if length(image)=0 then
+        return NULL
+    end if
+
+    -- replace IUP prefix
+    if equal(image[1..4], "IUP_") then
+        image = "PNG_" & image[5..$]
+    end if
+
+    -- check if the icon is already loaded
+    atom handle = IupGetHandle(image)
+    if handle!=NULL then
+        return image
+    end if
+
+    -- build the image path
+    sequence path = join({"icons",image[5..$]&".png"}, SLASH)
+--?path
+    if not file_exists(path) then
+        path = ".." & SLASH & path
+--?{path}
+    end if
+
+ifdef WINDOWS then
+
+    -- use IM library to load image
+    handle =  IupLoadImage(path)
+--?handle
+    if handle=NULL then return NULL end if
+
+    -- store the image handle
+    IupSetHandle(image, handle)
+--?image
+    return image
+
+elsedef
+
+    -- natively supports PNG images
+    return path
+
+end ifdef
+
+end function
+
+--**
+-- Match any of a list of wildcards.
+--
+function wildcard_any(sequence list, sequence text)
+
+    for i=1 to length(list) do
+        if is_match(list[i], text) then
+            return 1
+        end if
+    end for
+
+    return 0
+end function
+
+
+ifdef WINDOWS then
+constant DEFAULT_FONT = "Consolas"
+elsedef
+constant DEFAULT_FONT = "Monospace"
+end ifdef
+
+--constant KEYWORDS0 = allocate_string(join(keywords, " "), 1)
+--constant KEYWORDS1 = allocate_string(join(builtins, " "), 1)
+
+--**
+-- Apply Scintilla lexer configuration based on extension.
+--
+procedure apply_lexer(atom sci, sequence path = "")
+
+ifdef WINDOWS then
+    IupSetAttribute(sci, "LOADLEXERLIBRARY", sprintf("win%d\\LexerEuphoria.dll",{machine_bits()}))
+elsifdef LINUX then
+    IupSetAttribute(sci, "LOADLEXERLIBRARY", "LexerEuphoria.so")
+end ifdef
+
+    IupSetAttribute(sci, "CLEARDOCUMENTSTYLE", "YES")
+    IupSetAttribute(sci, "STYLEFONT32", DEFAULT_FONT)
+    IupSetAttribute(sci, "STYLEFONTSIZE32", "10")
+    IupSetAttribute(sci, "STYLECLEARALL", "")
+
+    sequence list = {"*.e", "*.ew", "*.ex", "*.exw"}
+    if length(path)=0 or wildcard_any(list, path) then
+
+        IupSetAttribute(sci, "LEXERLANGUAGE", "euphoria")
+
+        -- apply Euphoria keyword style
+--      IupSetAttribute(sci, "KEYWORDS0", KEYWORDS0)
+        IupSetAttribute(sci, "KEYWORDS0", join(keywords, " "))
+
+        IupSetAttribute(sci, "STYLEFGCOLOR5", "0 0 255") -- blue
+
+        -- apply Euphoria builtin style
+--      IupSetAttribute(sci, "KEYWORDS1", KEYWORDS1)
+        IupSetAttribute(sci, "KEYWORDS1", join(builtins, " "))
+        IupSetAttribute(sci, "STYLEFGCOLOR13", "255 0 255") -- magenta
+
+        -- apply Euphoria comment style
+        IupSetAttribute(sci, "STYLEFGCOLOR1", "255 0 0") -- red (comment block)
+        IupSetAttribute(sci, "STYLEFGCOLOR2", "255 0 0") -- red (comment line)
+        IupSetAttribute(sci, "STYLEFGCOLOR3", "255 0 0") -- red (comment doc)
+
+        -- apply Euphoria string style
+        IupSetAttribute(sci, "STYLEFGCOLOR6",   "0 128 0") -- green (double quote)
+        IupSetAttribute(sci, "STYLEFGCOLOR7",   "0 128 0") -- green (single quote)
+        IupSetAttribute(sci, "STYLEFGCOLOR8",   "0 128 0") -- green (triple quote)
+        IupSetAttribute(sci, "STYLEFGCOLOR22", "0 128 0") -- green (backquote)
+        IupSetAttribute(sci, "STYLEFGCOLOR27", "0 128 0") -- green (binary string)
+        IupSetAttribute(sci, "STYLEFGCOLOR28", "0 128 0") -- green (hex string)
+
+        -- apply Euphoria number style
+        IupSetAttribute(sci, "STYLEFGCOLOR4",   "0 0 255")  -- blue (normal number)
+        IupSetAttribute(sci, "STYLEFGCOLOR23", "128 128 128") -- gray (binary number)
+        IupSetAttribute(sci, "STYLEFGCOLOR24", "128 128 128") -- gray (octal number)
+        IupSetAttribute(sci, "STYLEFGCOLOR25", "128 128 128") -- gray (decimal number)
+        IupSetAttribute(sci, "STYLEFGCOLOR26", "128 128 128") -- gray (hex number)
+
+        -- apply folding to the document
+        IupSetAttribute(sci, "PROPERTY", "fold=1")
+        IupSetAttribute(sci, "PROPERTY", "fold.compact=0")
+        IupSetAttribute(sci, "PROPERTY", "fold.comment=1")
+        IupSetAttribute(sci, "MARGINWIDTH1", "20")
+        IupSetAttribute(sci, "MARGINTYPE1",  "SYMBOL")
+        IupSetAttribute(sci, "MARGINMASKFOLDERS1", "YES")
+        IupSetAttribute(sci, "MARKERHIGHLIGHT", "YES")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDER=BOXPLUS")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPEN=BOXMINUS")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEREND=BOXPLUSCONNECTED")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERMIDTAIL=TCORNER")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPENMID=BOXMINUSCONNECTED")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERSUB=VLINE")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERTAIL=LCORNER")
+        IupSetAttribute(sci, "MARGINSENSITIVE1", "YES")
+
+        for id=25 to 32 do
+            IupSetAttributeId(sci, "MARKERFGCOLOR", id, "128 128 128")
+            IupSetAttributeId(sci, "MARKERBGCOLOR", id, "255 255 255")
+        end for
+
+        -- apply the style to the document
+        IupSetAttribute(sci, "MARGINWIDTH0", "50")
+        IupSetAttribute(sci, "STARTSTYLING", "1")
+        IupSetAttribute(sci, "STYLING32", "0")
+        IupSetAttribute(sci, "INDENTATIONGUIDES", "REAL")
+        IupSetAttribute(sci, "WHITESPACEFGCOLOR", "192 192 192")
+        IupSetAttribute(sci, "WHITESPACEVIEW", "VISIBLEALWAYS")
+
+    end if
+
+end procedure
+
+--**
 -- Create a new empty document.
 --
 
@@ -357,7 +508,7 @@ function open_cb(atom self)
     end if
 
     atom sci = add_tab(name, text)
-    IupSetAttribute(sci, "PATH", path)
+    IupSetStrAttribute(sci, "PATH", path)
     apply_lexer(sci, path)
 
     atom pos = IupGetChildPos(tabs, sci)
@@ -410,7 +561,7 @@ function save_cb(atom self)
         end if
 
         path = IupGetAttribute(dlg, "VALUE")
-        IupSetAttribute(sci, "PATH", path)
+        IupSetStrAttribute(sci, "PATH", path)
         IupSetStrAttributeId(tabs, "TABIMAGE", pos, get_image("IUP_FileSave"))
         apply_lexer(sci)
 
@@ -458,7 +609,7 @@ function saveas_cb(atom self)
     atom sci = IupGetAttributeHandle(tabs, "VALUE")
 
     sequence path = IupGetAttribute(dlg, "VALUE")
-    IupSetAttribute(sci, "PATH", path)
+    IupSetStrAttribute(sci, "PATH", path)
     IupSetStrAttributeId(tabs, "TABIMAGE", pos, get_image("IUP_FileSave"))
     apply_lexer(sci)
 
@@ -471,6 +622,28 @@ function saveas_cb(atom self)
     IupRefresh(tabs)
 
     return IUP_IGNORE
+end function
+
+--**
+-- Confirm the user wants to close.
+--
+--DEV does not seem to be called from File/Exit (but is from Alt-F4)
+function confirm_close(sequence name)
+
+sequence message = sprintf("Save changes to '%s'?", {name})
+
+atom dlg = IupMessageDlg()
+    IupSetAttribute(dlg, "TITLE", "Close")
+    IupSetAttribute(dlg, "VALUE", message)
+    IupSetAttribute(dlg, "BUTTONS", "YESNOCANCEL")
+    IupSetAttribute(dlg, "DIALOGTYPE", "QUESTION")
+
+    IupPopup(dlg, IUP_CURRENT, IUP_CURRENT)
+    atom response = IupGetInt(dlg, "BUTTONRESPONSE")
+
+    IupDetach(dlg)
+
+    return response
 end function
 
 --**
@@ -865,11 +1038,12 @@ function bind_cb(atom self)
 
     atom sci = IupGetChild(tabs, pos)
     sequence path = IupGetAttribute(sci, "PATH")
+?path
 
 ifdef WINDOWS then
     sequence eubind = "eubind.exe"
 --              sequence backend = locate_file( "eub.exe" )
-    sequence backend = {9/0}
+    sequence backend = "{9/0}"
 elsedef
     sequence eubind = "eubind"
 --              sequence backend = locate_file( "eub" )
@@ -880,6 +1054,7 @@ end ifdef
     sequence input  = get_file_path(path) & SLASH & get_file_name(path)
     sequence output = get_file_path(path) & SLASH & get_file_base(path)
 ifdef WINDOWS then output &= ".exe" end ifdef
+?{input,output}
 
 --DEV not that this does for Phix..
 --/*
@@ -1115,6 +1290,44 @@ atom count = IupGetChildCount(tabs)
 end function
 
 --**
+-- Toggle item state based on an attribute value.
+--
+procedure toggle_item(sequence handle, object v)
+
+    if sequence(v) then
+        v = length(v)>0
+                and equal(v, "NO")=0
+                and equal(v,  "0")=0
+    end if
+
+    atom item = IupGetHandle(handle)
+    atom state = IupGetInt(item, "ACTIVE")
+
+    if state!=v  then
+        IupSetInt(item, "ACTIVE", v)
+    end if
+
+end procedure
+
+--**
+-- Create the popup menu.
+--
+function popup_menu()
+atom menu = IupGetAttributeHandle(NULL,"popup_menu")
+    if menu=NULL then
+        menu = IupMenu({
+                        menu_item("popup_new",    "&New\t\tCtrl+N",   "IUP_FileNew",      Icallback("new_cb"),    1),
+                        menu_item("popup_open",   "&Open...\tCtrl+O", "IUP_FileOpen",     Icallback("open_cb"),   1),
+                        menu_item("popup_save",   "&Save\t\tCtrl+S",  "IUP_FileSave",     Icallback("save_cb"),   0),
+                        menu_item("popup_saveas", "Save &As..",    "IUP_FileSaveAs",  Icallback("saveas_cb"), 1),
+                        menu_item("popup_close",  "C&lose\t\tCtrl+W", "IUP_FileClose",   Icallback("close_cb"),  1)
+                       })
+        IupSetAttributeHandle(NULL,"popup_menu", menu)
+    end if
+    return menu
+end function
+
+--**
 -- Show popup menu when tab is right clicked.
 --
 function rightclick_cb(atom self, atom pos)
@@ -1126,7 +1339,7 @@ atom sci = IupGetChild(self, pos)
     atom popup = popup_menu()
     toggle_item("popup_save", IupGetAttribute(sci, "SAVEDSTATE"))
 
-    sequence curpos = get_cursor_pos()
+    sequence curpos = IupGetIntInt(NULL,"CURSORPOS")
     IupPopup(popup, curpos[1], curpos[2])
 
     IupDestroy(popup)
@@ -1285,15 +1498,6 @@ end ifdef
     return IUP_DEFAULT
 end function
 
-ifdef WINDOWS then
-constant DEFAULT_FONT = "Consolas"
-elsedef
-constant DEFAULT_FONT = "Monospace"
-end ifdef
-
---constant KEYWORDS0 = allocate_string(join(keywords, " "), 1)
---constant KEYWORDS1 = allocate_string(join(builtins, " "), 1)
-
 --**
 -- Add a new tab.
 --
@@ -1321,210 +1525,6 @@ atom sci = IupScintilla()
 
     return sci
 end function
-
---**
--- Apply Scintilla lexer configuration based on extension.
---
-procedure apply_lexer(atom sci, sequence path = "")
-
-ifdef WINDOWS then
-    IupSetAttribute(sci, "LOADLEXERLIBRARY", sprintf("win%d\\LexerEuphoria.dll",{machine_bits()}))
-elsifdef LINUX then
-    IupSetAttribute(sci, "LOADLEXERLIBRARY", "LexerEuphoria.so")
-end ifdef
-
-    IupSetAttribute(sci, "CLEARDOCUMENTSTYLE", "YES")
-    IupSetAttribute(sci, "STYLEFONT32", DEFAULT_FONT)
-    IupSetAttribute(sci, "STYLEFONTSIZE32", "10")
-    IupSetAttribute(sci, "STYLECLEARALL", "")
-
-    sequence list = {"*.e", "*.ew", "*.ex", "*.exw"}
-    if length(path)=0 or wildcard_any(list, path) then
-
-        IupSetAttribute(sci, "LEXERLANGUAGE", "euphoria")
-
-        -- apply Euphoria keyword style
---      IupSetAttribute(sci, "KEYWORDS0", KEYWORDS0)
-        IupSetAttribute(sci, "KEYWORDS0", join(keywords, " "))
-
-        IupSetAttribute(sci, "STYLEFGCOLOR5", "0 0 255") -- blue
-
-        -- apply Euphoria builtin style
---      IupSetAttribute(sci, "KEYWORDS1", KEYWORDS1)
-        IupSetAttribute(sci, "KEYWORDS1", join(builtins, " "))
-        IupSetAttribute(sci, "STYLEFGCOLOR13", "255 0 255") -- magenta
-
-        -- apply Euphoria comment style
-        IupSetAttribute(sci, "STYLEFGCOLOR1", "255 0 0") -- red (comment block)
-        IupSetAttribute(sci, "STYLEFGCOLOR2", "255 0 0") -- red (comment line)
-        IupSetAttribute(sci, "STYLEFGCOLOR3", "255 0 0") -- red (comment doc)
-
-        -- apply Euphoria string style
-        IupSetAttribute(sci, "STYLEFGCOLOR6",   "0 128 0") -- green (double quote)
-        IupSetAttribute(sci, "STYLEFGCOLOR7",   "0 128 0") -- green (single quote)
-        IupSetAttribute(sci, "STYLEFGCOLOR8",   "0 128 0") -- green (triple quote)
-        IupSetAttribute(sci, "STYLEFGCOLOR22", "0 128 0") -- green (backquote)
-        IupSetAttribute(sci, "STYLEFGCOLOR27", "0 128 0") -- green (binary string)
-        IupSetAttribute(sci, "STYLEFGCOLOR28", "0 128 0") -- green (hex string)
-
-        -- apply Euphoria number style
-        IupSetAttribute(sci, "STYLEFGCOLOR4",   "0 0 255")  -- blue (normal number)
-        IupSetAttribute(sci, "STYLEFGCOLOR23", "128 128 128") -- gray (binary number)
-        IupSetAttribute(sci, "STYLEFGCOLOR24", "128 128 128") -- gray (octal number)
-        IupSetAttribute(sci, "STYLEFGCOLOR25", "128 128 128") -- gray (decimal number)
-        IupSetAttribute(sci, "STYLEFGCOLOR26", "128 128 128") -- gray (hex number)
-
-        -- apply folding to the document
-        IupSetAttribute(sci, "PROPERTY", "fold=1")
-        IupSetAttribute(sci, "PROPERTY", "fold.compact=0")
-        IupSetAttribute(sci, "PROPERTY", "fold.comment=1")
-        IupSetAttribute(sci, "MARGINWIDTH1", "20")
-        IupSetAttribute(sci, "MARGINTYPE1",  "SYMBOL")
-        IupSetAttribute(sci, "MARGINMASKFOLDERS1", "YES")
-        IupSetAttribute(sci, "MARKERHIGHLIGHT", "YES")
-        IupSetAttribute(sci, "MARKERDEFINE", "FOLDER=BOXPLUS")
-        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPEN=BOXMINUS")
-        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEREND=BOXPLUSCONNECTED")
-        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERMIDTAIL=TCORNER")
-        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPENMID=BOXMINUSCONNECTED")
-        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERSUB=VLINE")
-        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERTAIL=LCORNER")
-        IupSetAttribute(sci, "MARGINSENSITIVE1", "YES")
-
-        for id=25 to 32 do
-            IupSetAttributeId(sci, "MARKERFGCOLOR", id, "128 128 128")
-            IupSetAttributeId(sci, "MARKERBGCOLOR", id, "255 255 255")
-        end for
-
-        -- apply the style to the document
-        IupSetAttribute(sci, "MARGINWIDTH0", "50")
-        IupSetAttribute(sci, "STARTSTYLING", "1")
-        IupSetAttribute(sci, "STYLING32", "0")
-        IupSetAttribute(sci, "INDENTATIONGUIDES", "REAL")
-        IupSetAttribute(sci, "WHITESPACEFGCOLOR", "192 192 192")
-        IupSetAttribute(sci, "WHITESPACEVIEW", "VISIBLEALWAYS")
-
-    end if
-
-end procedure
-
---**
--- Confirm the user wants to close.
---
-function confirm_close(sequence name)
-
-sequence message = sprintf("Save changes to '%s'?", {name})
-
-atom dlg = IupMessageDlg()
-    IupSetAttribute(dlg, "TITLE", "Close")
-    IupSetAttribute(dlg, "VALUE", message)
-    IupSetAttribute(dlg, "BUTTONS", "YESNOCANCEL")
-    IupSetAttribute(dlg, "DIALOGTYPE", "QUESTION")
-
-    IupPopup(dlg, IUP_CURRENT, IUP_CURRENT)
-    atom response = IupGetInt(dlg, "BUTTONRESPONSE")
-
-    IupDetach(dlg)
-
-    return response
-end function
-
---**
--- Load our own custom image from disk.
---
-function get_image(sequence image)
-
-    if length(image)=0 then
-        return NULL
-    end if
-
-    -- replace IUP prefix
-    if equal(image[1..4], "IUP_") then
-        image = "PNG_" & image[5..$]
-    end if
-
-    -- check if the icon is already loaded
-    atom handle = IupGetHandle(image)
-    if handle!=NULL then
-        return image
-    end if
-
-    -- build the image path
-    sequence path = join({"icons",image[5..$]&".png"}, SLASH)
---?path
-    if not file_exists(path) then
-        path = ".." & SLASH & path
---?{path}
-    end if
-
-ifdef WINDOWS then
-
-    -- use IM library to load image
-    handle =  IupLoadImage(path)
---?handle
-    if handle=NULL then return NULL end if
-
-    -- store the image handle
-    IupSetHandle(image, handle)
---?image
-    return image
-
-elsedef
-
-    -- natively supports PNG images
-    return path
-
-end ifdef
-
-end function
-
---**
--- Match any of a list of wildcards.
---
-function wildcard_any(sequence list, sequence text)
-
-    for i=1 to length(list) do
-        if is_match(list[i], text) then
-            return 1
-        end if
-    end for
-
-    return 0
-end function
-
---**
--- Get the global cursor position.
---
-function get_cursor_pos()
-
-sequence pos = IupGetGlobal("CURSORPOS")
-    pos = split(pos, "x")
-
-    atom x = to_integer(pos[1])
-    atom y = to_integer(pos[2])
-
-    return {x,y}
-end function
-
---**
--- Toggle item state based on an attribute value.
---
-procedure toggle_item(sequence handle, object v)
-
-    if sequence(v) then
-        v = length(v)>0
-                and equal(v, "NO")=0
-                and equal(v,  "0")=0
-    end if
-
-    atom item = IupGetHandle(handle)
-    atom state = IupGetInt(item, "ACTIVE")
-
-    if state!=v  then
-        IupSetInt(item, "ACTIVE", v)
-    end if
-
-end procedure
 
 --**
 -- Register hotkey commands.
@@ -1616,23 +1616,6 @@ end function
 --
 function toolbar_separator()
     return IupSetAttributesf(IupLabel(), "SEPARATOR=VERTICAL")
-end function
-
---**
--- Create the popup menu.
---
-function popup_menu()
-
-atom menu = IupMenu({
-                     menu_item("popup_new",    "&New\t\tCtrl+N",   "IUP_FileNew",     Icallback("new_cb"),    1),
-                     menu_item("popup_open",   "&Open...\tCtrl+O", "IUP_FileOpen",    Icallback("open_cb"),   1),
-                     menu_item("popup_save",   "&Save\t\tCtrl+S",  "IUP_FileSave",    Icallback("save_cb"),   0),
-                     menu_item("popup_saveas", "Save &As..",       "IUP_FileSaveAs",  Icallback("saveas_cb"), 1),
-                     menu_item("popup_close",  "C&lose\t\tCtrl+W", "IUP_FileClose",   Icallback("close_cb"),  1)
-                    })
-    IupSetHandle("popup_menu", menu)
-
-    return menu
 end function
 
 --**
@@ -1963,6 +1946,7 @@ end ifdef
 
     IupOpen()
     IupImageLibOpen()
+--DEV doc
     IupScintillaOpen()
 
     atom config = IupConfig()
@@ -2002,7 +1986,7 @@ end ifdef
             sequence text = read_file(path)
 
             atom sci = add_tab(name, text)
-            IupSetAttribute(sci, "PATH", path)
+            IupSetStrAttribute(sci, "PATH", path)
             apply_lexer(sci, path)
 
             atom pos = IupGetChildPos(tabs, sci)

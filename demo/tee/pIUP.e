@@ -145,7 +145,7 @@ constant
          I  = C_INT,
          L  = C_LONG,
          P  = C_POINTER, 
---       UC = C_UCHAR,
+         UC = C_UCHAR,
          UL = C_ULONG,
          $
 
@@ -1355,7 +1355,14 @@ constant
     xcdContextIup = define_c_func(hCdIup, "cdContextIup", {},P),
     xcdContextPrinter = define_c_func(hCd, "cdContextPrinter", {},P),
     xcdContextPS = define_c_func(hCd, "cdContextPS", {},P),
-    xcdContextPicture = define_c_func(hCd, "cdContextPicture", {},P)
+    xcdContextPicture = define_c_func(hCd, "cdContextPicture", {},P),
+    xcdEncodeColor = define_c_func(hCd, "cdEncodeColor", {UC,UC,UC},L),
+    xcdCanvasPixel = define_c_proc(hCd, "cdCanvasPixel", {P,I,I,I})
+
+global function cdEncodeColor(integer red, integer green, integer blue)
+    integer color = c_func(xcdEncodeColor, {red, green, blue})
+    return color
+end function
 
 global constant
     CD_IUP = c_func(xcdContextIup, {}),
@@ -1780,6 +1787,10 @@ sequence mmdx_mmdy
     free(pmm_dx)
     return mmdx_mmdy
 end function
+
+global procedure cdCanvasPixel(cdCanvas hCdCanvas, atom x, atom y, atom color)
+    c_proc(xcdCanvasPixel, {hCdCanvas, x, y, color})
+end procedure
 
 global function cdGetScreenSize()
 ifdef WINDOWS then

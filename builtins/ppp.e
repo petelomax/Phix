@@ -242,7 +242,7 @@ integer ppp_File
 sequence ppp_result         -- print result if ppp_File is 0
 --!*/
 
---/* Not required for Phix (see psym.e routine loadBuiltins)
+--/* Not required for Phix (see psym.e routine syminit)
 global constant pp_File     = 1,
                 pp_Maxlen   = 2,
                 pp_Indent   = 11,
@@ -683,17 +683,11 @@ global procedure ppEx(object o, sequence options)
     options = setOpt(options) -- restore
 end procedure
 
-global procedure pp(object o)
+global procedure pp(object o, sequence options={})
 -- pretty print
 -- For options see ppEx, ppOpt, and ppExf
-    ppEx(o,{})
+    ppEx(o,options)
 end procedure
-
-global function ppf(object o)
--- return object pretty printed (with embedded \n), no trailing \n
-    ppEx(o,{pp_File,0,pp_Nest,-1})
-    return ppp_result
-end function
 
 global function ppExf(object o, sequence options)
 -- return object pretty printed, with options (as per ppOpt)
@@ -706,6 +700,11 @@ global function ppExf(object o, sequence options)
     end for
     ppEx(o,options&{pp_File,0,pp_Nest,-1})
     return ppp_result
+end function
+
+global function ppf(object o, sequence options={})
+-- return object pretty printed (with embedded \n), no trailing \n
+    return ppExf(o,options)
 end function
 
 --sequence s 

@@ -705,6 +705,14 @@ global function sq_log(object a)
     return a
 end function
 
+global function sq_log10(object a)
+    if atom(a) then return log10(a) end if
+    for i=1 to length(a) do
+        a[i] = sq_log10(a[i])
+    end for
+    return a
+end function
+
 global function sq_power(object a, object b)
     if atom(a) then
         if atom(b) then return power(a,b) end if

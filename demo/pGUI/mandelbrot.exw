@@ -1,9 +1,18 @@
 --
 -- mandelbrot.exw
 --  translated from a scriptbasic sample
+--  http://www.allbasic.info/forum/index.php?topic=184.msg2414#msg2414
 --
 -- BUG: clears itself... (on focus change) [try using IDLE_ACTION or a timer]
+--  Update: EXPAND=NO helps lots: on reflection it is quite reasonable that
+--  stretching/shrinking the canvas clears it. But even with a fixed size,
+--  resize still (partially) clears the canvas outside the clipped region...
+--  Maybe it just absolutely has to be double-buffered or something...
+-- It might be nice to have a key toggle bw/colour ("" methinks).
 --
+
+--#withtype Ihandle
+--#withtype cdCanvas
 
 include pGUI.e
 
@@ -12,60 +21,85 @@ function esc_close(Ihandle /*ih*/, atom c)
     return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
 end function
 
-IupOpen()
+Ihandle hDialog, hIupCanvas, hCdCanvas, hTimer
 
-Ihandle ican = IupCanvas()
-IupSetAttribute(ican, "RASTERSIZE", "800x600")
-IupSetAttribute(ican, "BORDER", "NO")
+constant BW=0   -- 0 = colour, 1 = black and white
 
-Ihandle dlg = IupDialog(IupVbox({ican}))
-IupSetAttribute(dlg, "TITLE", "Mandelbrot Set")
-IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+integer x = 1
 
-IupMap(dlg)
-
-cdCanvas ccan = cdCreateCanvas(cdContextIup(), ican)
-
-IupShow(dlg)
-
-atom przelx = 3 / 800
-atom przely = 2 / 600
+function timer_cb(Ihandle /*ih*/)
+atom przelx = 3/800
+atom przely = 2/600
 
 atom a, b, c, x2, y2, a2, b2, z, pixclr, g
 
-for x = 1 to 800 do
-  for y = 1 to 600 do
-    a = 0
-    b = 0
-    c = 0
-    x2 = (przelx * x) - 2
-    y2 = (przely * y) - 1
-    while 1 do
-        a2 = a * a - b * b
-        b2 = 2 * a * b
-        a = a2 + x2
-        b = b2 + y2
-        z = a * a + b * b
-        if z < 4 and c < 255 then
-          c = c + 1
-        else
+    -- aside: the value of 40 (vertical lines) is quite arbitrary: 1 is ok but slightly slower,
+    --        whereas values of 100 and above are noticeably less responsive (to keying escape).
+    --        I cannot really tell any difference between 10 and 40, but you might be able to.
+    for xt=1 to 40 do
+        for y=1 to 600 do
+            a = 0
+            b = 0
+            c = 0
+            x2 = (przelx*x)-2
+            y2 = (przely*y)-1
+            while 1 do
+                a2 = a*a-b*b
+                b2 = 2*a*b
+                a = a2+x2
+                b = b2+y2
+                z = a*a+b*b
+                if z<4 and c<255 then
+                    c = c+1
+                else
+                    exit
+                end if
+            end while
+            if c=255 then
+                pixclr = cdEncodeColor(0, 0, 0)
+            else
+                g = 255-c
+                if BW then  -- monochrome
+                    pixclr = cdEncodeColor(g, g, g)
+                else        -- colour
+                    pixclr = (g+64) * g * (g+16)
+                end if
+            end if
+            cdCanvasPixel(hCdCanvas, x, y, pixclr)
+        end for
+        x += 1
+        if x>800 then
+            IupStoreAttribute(hTimer, "RUN", "NO")
+            IupStoreAttribute(hDialog, "TITLE", "Mandelbrot Set (%s)", {iff(BW?"monchrome":"colour")})
             exit
         end if
-    end while
-    if c = 255 then
-      pixclr = cdEncodeColor(0, 0, 0)
-    else
-      g = 255 - c
-      pixclr = cdEncodeColor(g, g, g)
-      -- Color version
---    pixclr = (g+64) * g * (g+16)
+        IupSetStrAttribute(hDialog, "TITLE", "Mandelbrot Set [%d/800]",{x})
+    end for
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    hIupCanvas = IupCanvas("RASTERSIZE=800x600, BORDER=NO")
+--  IupSetAttribute(hIupCanvas, "DRAWSIZE", "800x600")  -- no effect
+--  IupSetAttribute(hIupCanvas, "BGCOLOR", "255 255 255") -- ""
+--  IupSetAttribute(hIupCanvas, "SCROLLBAR", "YES") -- no help
+    IupSetAttribute(hIupCanvas, "EXPAND", "NO") -- helps a lot!
+    hDialog = IupDialog(hIupCanvas)
+    IupStoreAttribute(hDialog, "TITLE", "Mandelbrot Set")
+    IupSetCallback(hDialog, "K_ANY", Icallback("esc_close"));
+    IupShowXY(hDialog, IUP_CENTER, IUP_CENTER)
+    hCdCanvas = cdCreateCanvas(CD_IUP, hIupCanvas)
+    if not hCdCanvas then
+        puts(1, "cdCreateCanvas() failed\n")
+        IupClose()
+        abort(1)
     end if
-    cdCanvasPixel(ccan, x, y, pixclr)
-  end for
-end for
+    hTimer = IupTimer(Icallback("timer_cb"), 10)
+    IupMainLoop()
+    cdKillCanvas(hCdCanvas)
+    IupClose()
+end procedure
 
---?1    -- BUG!
-
-IupMainLoop()
-IupClose()
+main()
 

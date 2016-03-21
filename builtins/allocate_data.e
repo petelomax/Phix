@@ -1,3 +1,4 @@
+DEAD
 --
 -- allocate_data.e
 --

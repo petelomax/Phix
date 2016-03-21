@@ -4653,17 +4653,18 @@ object dbg -- DEV (temp)
                         and opcode!=opDeleteCS
                         and opcode!=opCrashMsg
                         and opcode!=opAbort
-                        and opcode!=opWrap then
+                        and opcode!=opWrap
+                        and opcode!=opProfile then
                             ?9/0
                         end if
                     end if
 --DEV I think we need similar (not bind) handling for opProfile! (also, unsure about that 6/12/09 change... elsif??)
-if opcode=opProfile and not bind then
-    -- (it does not really matter as long as opLnp/opLnpt are not invoked, btw,
-    --  which may explain why this has never been a problem in the past... and
-    --  likewise that suspect 6/12/09 change may be ok if without any opLnt.)
-    puts(1,"pmain.e line 4341: warning: opProfile handling suspect\n")  --DEV
-end if
+--if opcode=opProfile and not bind then
+--  -- (it does not really matter as long as opLnp/opLnpt are not invoked, btw,
+--  --  which may explain why this has never been a problem in the past... and
+--  --  likewise that suspect 6/12/09 change may be ok if without any opLnt.)
+--  puts(1,"pmain.e line 4341: warning: opProfile handling suspect\n")  --DEV
+--end if
                     if opcode=opTrace then
 -- 6/12/09:
 --                      if not bind and optset[OptTrace] then
@@ -4692,7 +4693,8 @@ end if
                                 apnds5({opcode,p1})
                             end if
                         end if
-                    else -- (not opTrace)
+--                  else -- (not opTrace)
+                    elsif opcode!=opProfile or not bind then
 --                      if not integer(opcode) then ?9/0 end if
                         if opcode<1 or opcode>maxVop then ?9/0 end if   -- (added 19/11/14)
 if newEBP then

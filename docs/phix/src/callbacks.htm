@@ -194,6 +194,58 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             <br>
             Affects: IupCanvas, IupGLCanvas, IupDialog
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=IDLE_ACTION></a>
+          IDLE_ACTION
+         </td>
+         <td>
+            Predefined IUP action, generated when there are no events or messages to be processed. Often used to perform background operations.
+            <br>
+            <br>
+            int function(void)<br>
+            Returns: if IUP_CLOSE is returned the current loop will be closed and the callback will be removed. <br>
+            If IUP_IGNORE is returned the callback is removed and normal processing continues.
+            <br>
+            <br>
+            Notes<br>
+            The Idle callback will be called whenever there are no messages left to be processed. <br>
+            But this occurs more frequent than expected, for example if you move the mouse over the application the idle callback will be called
+            many times because the mouse move message is processed so fast that the Idle will be called before another mouse move message is schedule to processing.
+            <br>
+            <br>
+            So this callback changes the message loop to a more CPU consuming one. <br>
+            It is important it be set NULL when not used, otherwise the application consumes CPU even if the callback is doing nothing.
+            <br>
+            <br>
+            It can only be set using IupSetFunction(name, func).
+            <br>
+            <br>
+            Long Time Operations<br>
+            If you create a loop or an operation that takes a long time to complete inside a callback of your application then 
+            the user interface message loop processing is interrupted until the callback returns, so the user can not click on 
+            any control of the application. But there are ways to handle that:
+            <br>
+            <br>
+            call IupLoopStep or IupFlush inside the application callback when it is performing long time operations. <br>
+            This will allow the user to click on a cancel button for instance, because the user interface message loop will be processed.
+            <br>
+            <br>
+            split the operation in several parts that are processed by the Idle function when no messages are left to be processed for the user interface message loop. <br>
+            This will make a heavy use of the CPU, even if the callback is doing nothing. 
+            <br>
+            <br>
+            split the operation in several parts but use a Timer to process each part. <br>
+            If you just want to do something simple as a background redraw of an IupCanvas, then a better idea is to handle the "idle" state yourself. <br>
+            For example, register a timer for a small time like 500ms, and reset the timer in all the mouse and keyboard callbacks of the IupCanvas. <br>
+            If the timer is trigged then you are in idle state. If the IupCanvas loses its focus then stop the timer.
+            <br>
+            <br>
+            See Also: IupSetFunction, IupTimer.
+         </td>
+        </tr>
         <tr>
          <td valign=top>
           also [DEV]

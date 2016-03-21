@@ -20,52 +20,40 @@
 --  NO: there is a single splice() call in t24slice.exw, nowt else.
 --
 
-global function insert(sequence target, object what, integer index)
+global function insert(sequence src, object what, integer index)
 -- insert 1 element
-    target = target[1..index-1] & '0' & target[index..length(target)]
-    target[index] = what
-    return target
---or: (untested) [erm, would spanner strings]
---  target[index..index-1] = {what}
---  return target
+    src = src[1..index-1] & '0' & src[index..length(src)]
+    src[index] = what
+    return src
 end function
 
-global function splice(sequence target, object what, integer index)
--- insert m elements
-    target = target[1..index-1] & what & target[index..length(target)]
-    return target
--- or: (untested)
---  if atom(what) then what = {what} end if --(??)
---  target[index..index-1] = what
---  return target
+global function splice(sequence src, object what, integer index)
+    return src[1..index-1] & what & src[index..length(src)]
 end function
 
-global function head(sequence target, atom size=1)
+global function head(sequence src, integer size=1)
 -- if size not specified, returns target[1..1]
-    if size>=length(target) then return target end if
-    return target[1..size]
+    if size>=length(src) then return src end if
+    return src[1..size]
 end function
 
-global function tail(sequence target, atom size=-1)
--- if size not specified, returns target[2..$]
-integer l = length(target)
+global function tail(sequence src, integer size=-1)
+-- if size not specified, returns src[2..$]
+integer l = length(src)
     if size<0 then size += l end if
-    if size>=l then return target end if
-    return target[l-size+1..l]
+    if size>=l then return src end if
+    return src[l-size+1..l]
 end function
 
-global function remove(sequence target, atom start, atom stop=start)
-    target[start..stop] = ""
---  target = target[1..start-1] & target[stop+1..length(target)]
-    return target
+global function remove(sequence src, integer start, integer stop=start)
+    src[start..stop] = ""
+--  src = src[1..start-1] & src[stop+1..length(src)]
+    return src
 end function
 
-global function replace(sequence target, object replacement, atom start, atom stop=start)
--- replace n elements with m elements
---  target = target[1..start-1] & replacement & target[stop+1..length(target)]
---  if atom(replacement) then replacement = {replacement} end if
-    if atom(replacement) and stop!=start then target[start+1..stop] = ""; stop = start end if
-    target[start..stop] = replacement
-    return target
+global function replace(sequence src, object replacement, integer start, integer stop=start)
+    if atom(replacement) and stop!=start then src[start+1..stop] = ""; stop = start end if
+    src[start..stop] = replacement
+    return src
 end function
 

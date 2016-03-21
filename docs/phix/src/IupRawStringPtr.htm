@@ -34,7 +34,7 @@
          </td>
          <td>
             The result is only valid as long as the argument still exists. In effect it creates a non-reference-counted reference, and that requires it to
-            be carefully managed. In particular the result of sprint[f]() should not normally be used directly, and callbacks must make a semi-permanent copy 
+            be carefully managed. In particular the result of sprint[f] should not be used directly, and callbacks must make a semi-permanent copy 
             somewhere other than locals/temps. It is in fact callbacks that have the most obvious need for such a function.
             <br>
             <br>
@@ -43,6 +43,11 @@
             return IupRawStringPtr(data[l][c]), that is assuming data persists when value_cb returns. There may be some cases where the fact that semiperm is 
             clobbered on the very next call of value_cb may cause issues (in which case a more complex stack of allocate_string()s may need to be kept), but 
             offhand I cannot think of any (at least any that would be used with pGUI).
+            <br>
+            <br>
+            You should probably also take time to understand the differences between
+            <a href="IupSetAttribute.htm">IupSetAttribute</a> (where these kinds of problems may well arise) and 
+            <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a> (where they are hopefully far less likely).
             <br>
             <br>
             I should also note that using the optional automatic memory management flag of <a href="allocate_string.htm">allocate_string</a> is equally incorrect 
@@ -64,10 +69,14 @@ sequence data = {{1,11.17},
 string semiperm -- (return of value_cb must outlive the call)
 
 function value_cb(Ihandle self, integer l, integer c)
-    &lt;if l or c out of range then return NULL end if&gt;
-    semiperm = sprint(data[l][c])
+    -- (if l or c out of range then return NULL end if)
+    semiperm = sprint(data[l][c])  -- or expr using &, [..], etc
     return IupRawStringPtr(semiperm)
 end function
+
+    ...
+    IupSetCallback(mat,"VALUE_CB",Icallback("value_cb"))
+    ...
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pGUI.e
@@ -79,10 +88,14 @@ end function
 </font><font color="#004080">string</font><font color="#000000"> semiperm</font><font color="#000080"><i> -- (return of value_cb must outlive the call)
 
 </i></font><font color="#008080">function</font><font color="#000000"> value_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> self</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> l</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)
-    &amp;</font><font color="#000000">lt</font><font color="#0000FF">;</font><font color="#008080">if</font><font color="#000000"> l</font><font color="#008080"> or</font><font color="#000000"> c out of range</font><font color="#008080"> then return</font><font color="#004600"> NULL</font><font color="#008080"> end if</font><font color="#0000FF">&amp;</font><font color="#000000">gt</font><font color="#0000FF">;
-</font><font color="#000000">    semiperm</font><font color="#0000FF"> =</font><font color="#5E005E"> sprint</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">l</font><font color="#800000">][</font><font color="#000000">c</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#008080">    return</font><font color="#5E005E"> IupRawStringPtr</font><font color="#0000FF">(</font><font color="#000000">semiperm</font><font color="#0000FF">)
-</font><font color="#008080">end function</font>
+</font><font color="#000080"><i>    -- (if l or c out of range then return NULL end if)
+</i></font><font color="#000000">    semiperm</font><font color="#0000FF"> =</font><font color="#5E005E"> sprint</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">l</font><font color="#800000">][</font><font color="#000000">c</font><font color="#800000">]</font><font color="#0000FF">) </font><font color="#000080"><i> -- or expr using &amp;, [..], etc
+</i></font><font color="#008080">    return</font><font color="#5E005E"> IupRawStringPtr</font><font color="#0000FF">(</font><font color="#000000">semiperm</font><font color="#0000FF">)
+</font><font color="#008080">end function
+
+</font><font color="#0000FF">    ..</font><font color="#FF0000">.
+</font><font color="#5E005E">    IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">mat</font><font color="#0000FF">,</font><font color="#008000">"VALUE_CB"</font><font color="#0000FF">,</font><font color="#5E005E">Icallback</font><font color="#800000">(</font><font color="#008000">"value_cb"</font><font color="#800000">)</font><font color="#0000FF">)
+    ..</font><font color="#FF0000">.</font>
 </pre>
          </td>
         </tr>
@@ -91,11 +104,16 @@ end function
           <b>See Also:</b>
          </td>
          <td>
-          <a href="allocate_string.htm">allocate_string</a>
+          <a href="allocate_string.htm">allocate_string</a>,
+          <a href="IupSetAttribute.htm">IupSetAttribute</a>,
+          <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>,
+          <a href="IupSetCallback.htm">IupSetCallback</a>,
+          <a href="Icallback.htm">Icallback</a>
          </td>
         </tr>
        </table>
-       <p></p>
+       <br>
+       <br>
       </div>
      </stripped>
     </get>

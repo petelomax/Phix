@@ -47,7 +47,7 @@ constant
 -- See Also:
 --              [[:crash_file]], [[:crash_message]], [[:printf]]
 
---/* Not required for Phix (defined in pdiag.e)
+--/* Not required for Phix (defined in pCrashN.e)
 public procedure crash(sequence fmt, object data={})
 object msg
         msg = sprintf(fmt, data)
