@@ -58,8 +58,8 @@ atom stdin, stdout, stderr
 
 integer Sinit
         Sinit = 0
-integer stdin_redirected
-        stdin_redirected = 0
+--integer stdin_redirected
+--      stdin_redirected = 0
 
 procedure initScroll()
     kernel32 = open_dll("kernel32.dll")
@@ -104,10 +104,10 @@ procedure initScroll()
     stdin = c_func(xGetStdHandle,{STD_INPUT_HANDLE})
     stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
     stderr = c_func(xGetStdHandle,{STD_ERROR_HANDLE})
-    -- nb following is not ENABLE_LINE_INPUT and not ENABLE_ECHO_INPUT
-    if not c_func(xSetConsoleMode,{stdin,ENABLE_PROCESSED_INPUT}) then
-        stdin_redirected = 1
-    end if
+--  -- nb following is not ENABLE_LINE_INPUT and not ENABLE_ECHO_INPUT
+--  if not c_func(xSetConsoleMode,{stdin,ENABLE_PROCESSED_INPUT}) then
+--      stdin_redirected = 1
+--  end if
     
     Sinit = 1
 end procedure
@@ -120,6 +120,13 @@ atom dest
 atom origin
 atom pDword, pCSBI, pSMALLRECT, pCHARINFO
 
+#ilASM{
+    [ELF32]
+        pop al
+    [ELF64]
+        pop al
+    []
+      }
     if not Sinit then initScroll() end if
     pDword = allocate(4)
     pCSBI = allocate(sizeof_CSBI)

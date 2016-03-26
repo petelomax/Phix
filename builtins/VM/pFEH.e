@@ -22,6 +22,7 @@ include builtins\VM\pUnassigned.e   -- opCallOnceYeNot etc
 --constant econtext = "exception context is #"
 
 constant ecode = "exception code #"
+constant sigsegv = "SIGSEGV"
 constant eat = " at #"
 constant eaxis = "eax: ", ebxis = "ebx: ", ecxis = "ecx: ", edxis = "edx: ", esiis = "esi: ", ediis = "edi: "
 --          (the above constants are rudely patched to rax..rdi under 64-bit, but later restored, btw.)
@@ -69,6 +70,16 @@ integer finit = 0
         mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 --*/
     [ELF32]
+        push 0
+        push 4  -- SA_SIGINFO
+        push 0
+        push :my_signal_handler
+        mov eax, 67 -- SYSCALL_SIGACTION 
+        mov ebx, 11 -- SIGSEGV 
+        mov ecx,esp
+        xor edx, edx 
+        int 0x80 
+        add esp,16
 -- nah, methinks we want sigaction...
 --      --; install signal handler 
 --      mov eax,48  -- SYSCALL_SIGNAL ( syscall to function signal() )
@@ -81,7 +92,19 @@ integer finit = 0
 --see also SYSCALL_SIGNAL below (best bet?)
 -- got it!: http://syprog.blogspot.co.uk/2011/10/iterfacing-linux-signals.html (saved in edita14)
     [ELF64]
-        pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--13        sys_rt_sigaction        int sig                 const struct sigaction *act     struct sigaction *oact  size_t sigsetsize
+        -- (untested: may need more space: 8 qw (of 0) for the mask, restore function, and "push 0x04000004 -- SA_SIGINFO or SA_RESTORER", see example64.asm)
+        push 4  -- SA_SIGINFO
+        push :my_signal_handler
+        xor r10,r10     -- (may need to be 8)
+        xor rcx,rcx     -- (copy "", in case it /is/ rcx not r10 for system calls)
+        xor rdx,rdx
+        mov rsi,rsp
+        mov rdi,11  -- SIGSEGV
+        mov rax,13  -- sys_rt_sigaction
+        syscall
+        add rsp,16
     [PE32,ELF32,ELF64]
       ::dont_do_everything_twice
         ret
@@ -208,9 +231,11 @@ integer finit = 0
         xor rbx,rbx -- important!!
 
         mov [rsp+8],rcx             -- copy actual param into shadow space!
-        mov [rsp+24],r8
+        mov [rsp+24],r8             -- (neither of these are temp!)
+
         call :lowlevel              -- (temp) [DEV]
         mov rcx,[rsp+8]             --   ""
+        mov r8,[rsp+24]             --   ""
 
 --/*
 --      mov rsi,[rsp+8]             -- EXCEPTION_POINTERS
@@ -238,6 +263,13 @@ integer finit = 0
             pop rsi
             pop rdi
       @@:
+--*/
+        mov rdx,[r8+248]            -- DWORD64 context.Rip
+        mov ecx,[rcx]               -- exception_code (DWORD)
+        mov rbp,[r8+160]            -- DWORD64 context.Rbp (restore)
+        mov rdi,rsp                 -- (in case :!fehDiag not called)
+        mov rsp,[r8+152]            -- DWORD64 context.Rsp (restore)
+        mov rsi,r8
 
         --  rsi is context record (save everything once we get into :!fehDiag)
         --  rdx is exception address
@@ -253,32 +285,32 @@ integer finit = 0
 --      call :!opClosem9
 --      add rsp,8
 --      push dword[errcode]         -- uExitCode
---*/
+
         sub rsp,8*5
-        mov rcx,1
+        mov rcx,1                   -- uExitCode
         call "kernel32","ExitProcess"
 
       ::lowlevel
 
         mov rdi,[ecode]             -- "exception code #"
         call :%puts1
---      mov edx,[rcx]               -- exception_code (DWORD)
         mov rcx,[rsp+16]
-        mov rdx,[rcx]               -- exception_code (DWORD)
+        mov edx,[rcx]               -- exception_code (DWORD)
+--      mov rdx,[rcx]               -- exception_code (DWORD)
         push 0                      -- no cr
         call :%puthex32
         mov rdi,[eat]               -- " at #"
         call :%puts1
         mov rcx,[rsp+16]
         mov rdx,[rcx+16]            -- exception address
-        push 0                      -- no cr
-        call :%puthex32
---/*
-typedef struct _EXCEPTION_RECORD {
-  DWORD                    ExceptionCode;
-  DWORD                    ExceptionFlags;
-  struct _EXCEPTION_RECORD  *ExceptionRecord;
-  PVOID                    ExceptionAddress;
+        push 1                      -- cr
+        call :%puthex64
+--!/*
+--typedef struct _EXCEPTION_RECORD {
+--  DWORD                  ExceptionCode;
+--  DWORD                  ExceptionFlags;
+--  struct _EXCEPTION_RECORD    *ExceptionRecord;
+--  PVOID                  ExceptionAddress;
 
 --      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
 --      mov rdi,[rsi]               -- EXCEPTION_RECORD
@@ -289,50 +321,66 @@ typedef struct _EXCEPTION_RECORD {
 --      call :%puts1
 --      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
 --      mov rcx,[rsi+8]             -- CONTEXT_RECORD
-        mov rdx,[rcx+248]           -- DWORD64 Rip
-        push 1
-        call :%puthex32
+--      mov rdx,[rcx+248]           -- DWORD64 Rip
+
+-- good, matches:
+--      mov r8,[rsp+32]
+--      mov rdx,[r8+248]            -- DWORD64 context.Rip
+--      push 1
+--      call :%puthex64
 
         mov rdi,[eaxis]             -- "rax: "
         call :puts1r
-        mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
-        mov rcx,[rsi+8]             -- CONTEXT_RECORD
-        mov rdx,[rcx+120]           -- DWORD64 Rax
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+120]           -- DWORD64 Rax
+        mov r8,[rsp+32]
+        mov rdx,[r8+120]            -- DWORD64 context.Rax
         push 1                      -- cr
         call :%puthex64
         mov rdi,[ebxis]             -- "rbx: "
         call :puts1r
-        mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
-        mov rcx,[rsi+8]             -- CONTEXT_RECORD
-        mov rdx,[rcx+144]           -- DWORD64 Rbx
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+144]           -- DWORD64 Rbx
+        mov r8,[rsp+32]
+        mov rdx,[r8+144]            -- DWORD64 context.Rbx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[ecxis]             -- "rcx: "
         call :puts1r
-        mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
-        mov rcx,[rsi+8]             -- CONTEXT_RECORD
-        mov rdx,[rcx+128]           -- DWORD64 Rcx
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+128]           -- DWORD64 Rcx
+        mov r8,[rsp+32]
+        mov rdx,[r8+128]            -- DWORD64 context.Rcx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[edxis]             -- "rdx: "
         call :puts1r
-        mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
-        mov rcx,[rsi+8]             -- CONTEXT_RECORD
-        mov rdx,[rcx+136]           -- DWORD64 Rdx
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+136]           -- DWORD64 Rdx
+        mov r8,[rsp+32]
+        mov rdx,[r8+136]            -- DWORD64 context.Rdx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[esiis]             -- "rsi: "
         call :puts1r
-        mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
-        mov rcx,[rsi+8]             -- CONTEXT_RECORD
-        mov rdx,[rcx+168]           -- DWORD64 Rsi
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+168]           -- DWORD64 Rsi
+        mov r8,[rsp+32]
+        mov rdx,[r8+168]            -- DWORD64 context.Rsi
         push 1                      -- cr
         call :%puthex64
         mov rdi,[ediis]             -- "rdi: "
         call :puts1r
-        mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
-        mov rcx,[rsi+8]             -- CONTEXT_RECORD
-        mov rdx,[rcx+176]           -- DWORD64 Rdi
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+176]           -- DWORD64 Rdi
+        mov r8,[rsp+32]
+        mov rdx,[r8+176]            -- DWORD64 context.Rdi
         push 1                      -- cr
         call :%puthex64
         ret
@@ -343,16 +391,254 @@ typedef struct _EXCEPTION_RECORD {
         call :%puts1
         pop rdi
         mov byte[rbx+rdi*4],'e'     -- restore (in case values are shared)
---*/
+--!*/
         ret
 
     [ELF32]
       ::my_signal_handler
-        pop al
+        xor ebx,ebx -- important!!
+
+        call :lowlevel              -- (temp)
+
+--      mov esi,[esp+4]             -- EXCEPTION_POINTERS
+--      mov edi,[esi]               -- EXCEPTION_RECORD
+--      mov esi,[esi+4]             -- CONTEXT_RECORD
+--      mov ecx,[edi]               -- exception_code
+--      mov edx,[esi+184]           -- or_eip (exception_addr)
+--      mov ebp,[esi+180]           -- or_ebp (restore)
+--      mov edi,esp                 -- (in case :!fehDiag not called)
+--      mov esp,[esi+196]           -- or_esp
+--
+--      -- special cases:
+--      cmp edx,:!blockfound
+--      jne @f
+--          -- heap corruption: zero pTCB.pFree[idx] to minimise knock-on effects
+--          push edi
+--          push esi
+--          mov edi,[esi+156]   -- or_edi
+--          mov esi,[esi+160]   -- or_esi
+--          mov [esi*4+edi+20],ebx  -- pTCB.pFree[idx]:=0 (see pHeap.e)
+--          pop esi
+--          pop edi
+--    @@:
+--
+--      --  esi is context record (save everything once we get into :!fehDiag)
+--      --  edx is exception address
+--      --  ecx is exception code
+--      --  ebx, ebp, and esp have been reset
+--      call :!fehDiag              -- pdiagN.e, if loaded
+--      -- (control does not return if called, unless looping)
+----        add esp,4
+--      mov esp,edi
+--
+--      call :lowlevel              -- (not temp)
+
+--      call :%opClosem9
+
+        xor     ebx, ebx 
+        mov     eax, 1  -- SYSCALL_EXIT 
+        int     0x80 
+
+      ::lowlevel
+
+        mov edi,[sigsegv]           -- "SIGSEGV"
+        call :%puts1
+        mov edi,[eat]               -- " at #"
+        call :%puts1
+        mov eax,[esp+12]            -- 3rd param
+        mov edx,[eax+76]            -- eip
+        push 1                      -- cr
+        call :%puthex32
+
+        mov edi,[eaxis]             -- "eax: "
+        call :%puts1
+        mov eax,[esp+12]            -- 3rd param
+        mov edx,[eax+64]            -- eax
+        push 1                      -- cr
+        call :%puthex32
+        mov edi,[ebxis]             -- "ebx: "
+        call :%puts1
+        mov eax,[esp+12]            -- 3rd param
+        mov edx,[eax+52]            -- ebx
+        push 1                      -- cr
+        call :%puthex32
+        mov edi,[ecxis]             -- "ecx: "
+        call :%puts1
+        mov eax,[esp+12]            -- 3rd param
+        mov edx,[eax+60]            -- ecx
+        push 1                      -- cr
+        call :%puthex32
+        mov edi,[edxis]             -- "edx: "
+        call :%puts1
+        mov eax,[esp+12]            -- 3rd param
+        mov edx,[eax+56]            -- edx
+        push 1                      -- cr
+        call :%puthex32
+        mov edi,[esiis]             -- "esi: "
+        call :%puts1
+        mov eax,[esp+12]            -- 3rd param
+        mov edx,[eax+40]            -- esi
+        push 1                      -- cr
+        call :%puthex32
+        mov edi,[ediis]             -- "edi: "
+        call :%puts1
+        mov eax,[esp+12]            -- 3rd param
+        mov edx,[eax+36]            -- edi
+        push 1                      -- cr
+        call :%puthex32
+
+        ret
+
+--      .edi           rd 1     ;36
+--      .esi           rd 1     ;40
+--      .ebp           rd 1     ;44
+--      .esp           rd 1     ;48
+--      .ebx           rd 1     ;52
+--      .edx           rd 1     ;56
+--      .ecx           rd 1     ;60
+--      .eax           rd 1     ;64
+--      .trapno        rd 1     ;68
+--      .err           rd 1     ;72
+--      .eip           rd 1     ;76 (correct)
+--      .cs            rw 1     ;80
+--      .__csh         rw 1     ;82
+--      .eflags        rd 1     ;84
+--      .esp_at_signal rd 1     ;88
 
     [ELF64]
       ::my_signal_handler
-        pop al
+
+        xor rbx,rbx -- important!!
+
+        mov [rsp+16],rdx            -- copy actual param into shadow space!
+
+        call :lowlevel              -- (temp)
+
+--      mov esi,[esp+4]             -- EXCEPTION_POINTERS
+--      mov edi,[esi]               -- EXCEPTION_RECORD
+--      mov esi,[esi+4]             -- CONTEXT_RECORD
+--      mov ecx,[edi]               -- exception_code
+--      mov edx,[esi+184]           -- or_eip (exception_addr)
+--      mov ebp,[esi+180]           -- or_ebp (restore)
+--      mov edi,esp                 -- (in case :!fehDiag not called)
+--      mov esp,[esi+196]           -- or_esp
+--
+--      -- special cases:
+--      cmp edx,:!blockfound
+--      jne @f
+--          -- heap corruption: zero pTCB.pFree[idx] to minimise knock-on effects
+--          push edi
+--          push esi
+--          mov edi,[esi+156]   -- or_edi
+--          mov esi,[esi+160]   -- or_esi
+--          mov [esi*4+edi+20],ebx  -- pTCB.pFree[idx]:=0 (see pHeap.e)
+--          pop esi
+--          pop edi
+--    @@:
+--
+--      --  esi is context record (save everything once we get into :!fehDiag)
+--      --  edx is exception address
+--      --  ecx is exception code
+--      --  ebx, ebp, and esp have been reset
+--      call :!fehDiag              -- pdiagN.e, if loaded
+--      -- (control does not return if called, unless looping)
+----        add esp,4
+--      mov esp,edi
+--
+--      call :lowlevel              -- (not temp)
+
+--      call :%opClosem9
+
+        mov rax,60  -- sys_exit
+        xor rdi,rdi
+        syscall
+
+      ::lowlevel
+
+        mov rdi,[sigsegv]           -- "SIGSEGV"
+        call :%puts1
+        mov rdi,[eat]               -- " at #"
+        call :%puts1
+        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rdx+0xA8]          -- rip
+        push 1                      -- cr
+        call :%puthex64
+
+        mov rdi,[eaxis]             -- "eax: "
+        call :%puts1r
+        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rdx+0x90]          -- rax
+        push 1                      -- cr
+        call :%puthex64
+        mov rdi,[ebxis]             -- "ebx: "
+        call :%puts1r
+        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rdx+0x80]          -- rbx
+        push 1                      -- cr
+        call :%puthex64
+        mov rdi,[ecxis]             -- "ecx: "
+        call :%puts1r
+        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rdx+0x98]          -- rcx
+        push 1                      -- cr
+        call :%puthex64
+        mov rdi,[edxis]             -- "edx: "
+        call :%puts1r
+        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rdx+0x88]          -- rdx
+        push 1                      -- cr
+        call :%puthex64
+        mov rdi,[esiis]             -- "esi: "
+        call :%puts1r
+        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rdx+0x70]          -- rsi
+        push 1                      -- cr
+        call :%puthex64
+        mov edi,[ediis]             -- "edi: "
+        call :%puts1r
+        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rdx+0x68]          -- rdi
+        push 1                      -- cr
+        call :%puthex64
+
+        ret
+
+--  .r8             dq  ?   ;0x28
+--  .r9             dq  ?   ;0x30
+--  .r10            dq  ?   ;0x38
+--  .r11            dq  ?   ;0x40
+--  .r12            dq  ?   ;0x48
+--  .r13            dq  ?   ;0x50
+--  .r14            dq  ?   ;0x58
+--  .r15            dq  ?   ;0x60
+--  .rdi            dq  ?   ;0x68
+--  .rsi            dq  ?   ;0x70
+--  .rbp            dq  ?   ;0x78
+--  .rbx            dq  ?   ;0x80
+--  .rdx            dq  ?   ;0x88
+--  .rax            dq  ?   ;0x90
+--  .rcx            dq  ?   ;0x98
+--  .rsp            dq  ?   ;0xA0
+--  .rip            dq  ?   ;0xA8
+--  .eflags         dq  ?   ;0xB0
+--  .cs             dw  ?   ;0xB8
+--  .gs             dw  ?   ;0xBA
+--  .fs             dw  ?   ;0xBC
+--  .__pad0         dw  ?   ;0xBE
+--  .err            dq  ?   ;0xC0
+--  .trapno         dq  ?   ;0xC8
+--  .oldmask        dq  ?   ;0xD0
+--  .cr2            dq  ?   ;0xD8
+--  .fpstate        dq  ?   ;0xE0
+--  .reserved       rq  8   ;0xE8
+
+      ::puts1r
+        push rdi
+        mov byte[rbx+rdi*4],'r'     -- eax->rax etc
+        call :%puts1
+        pop rdi
+        mov byte[rbx+rdi*4],'e'     -- restore (in case values are shared)
+        ret
     []
 
 --::fin

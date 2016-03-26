@@ -29,8 +29,10 @@ constant pathslast = 0  -- (broken/never got working)
                         -- (the idea was that moving an app from one directory or machine to
                         --  another, should not suddenly make it stop (or start) working.)
 
+--global -- now needed in pbinary.e (23/3/16)
 constant mapsymtab = 01 -- (implies newEmit) [expected to be 1 in all releases][DEV] [DEV broken]
 integer symtabmax
+--global -- now needed in pbinary.e (23/3/16)
 sequence symtabmap
 --constant mapgvars = 0
 --sequence gvarmap (we are assigning them here anyway...)
@@ -4909,6 +4911,13 @@ end if
     if bind then
 --if newEmit then
 --      relink()
+--23/3/16:
+        if gexch!=0 then
+            glboffset[gexch] += symtab[glblabel[gexch]][S_il]
+--      section = SetField(section,#10,DWORD,BaseOfCode+glboffset[gexch]+symtab[glblabel[gexch]][S_il])
+-->             offset = glboffset[vno]
+--              offset += symtab[glblabel[vno]][S_il]
+        end if
         flatsym2 = symtab
         if not listing then
             symtab = {}

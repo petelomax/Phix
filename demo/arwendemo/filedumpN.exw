@@ -211,9 +211,9 @@ constant
 --        IMAGE_SCN_MEM_PRELOAD             = 0x00080000,   -- Reserved for future use.
 --        IMAGE_SCN_ALIGN_1BYTES            = 0x00100000,   -- Valid only for object files
 --        IMAGE_SCN_ALIGN_2BYTES            = 0x00200000,   -- ""
---        IMAGE_SCN_ALIGN_4BYTES            = 0x00300000,   -- ""
+          IMAGE_SCN_ALIGN_4BYTES            = 0x00300000,   -- ""
 --        IMAGE_SCN_ALIGN_8BYTES            = 0x00400000,   -- ""
---        IMAGE_SCN_ALIGN_16BYTES           = 0x00500000,   -- "" Default alignment if no others are specified.
+          IMAGE_SCN_ALIGN_16BYTES           = 0x00500000,   -- "" Default alignment if no others are specified.
 --        IMAGE_SCN_ALIGN_32BYTES           = 0x00600000,   -- ""
 --        IMAGE_SCN_ALIGN_64BYTES           = 0x00700000,   -- ""
 --        IMAGE_SCN_ALIGN_128BYTES          = 0x00800000,   -- ""
@@ -243,6 +243,8 @@ constant
         { IMAGE_SCN_CNT_INITIALIZED_DATA,   "init"},
         { IMAGE_SCN_CNT_UNINITIALIZED_DATA, "uninit"},
         { IMAGE_SCN_MEM_DISCARDABLE,        "discardable"},
+        { IMAGE_SCN_ALIGN_4BYTES,           "align4"},
+        { IMAGE_SCN_ALIGN_16BYTES,          "align16"},
         { IMAGE_SCN_MEM_NOT_PAGED,          "not paged"}}
 
 constant
@@ -2193,7 +2195,14 @@ integer supported
 --      end if
         SectionCharacteristics = decode("Characteristics","h4","")
         res[tabidx][$][R_NOTES] = decode_flags(SectionCharacteristicSet,SectionCharacteristics)
-        if SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ and desc="" then
+--      if SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ and desc="" then
+        if and_bits(SectionCharacteristics,IMAGE_SCN_ALIGN_16BYTES) then
+            SectionCharacteristics -= IMAGE_SCN_ALIGN_16BYTES
+        elsif and_bits(SectionCharacteristics,IMAGE_SCN_ALIGN_4BYTES) then
+            SectionCharacteristics -= IMAGE_SCN_ALIGN_4BYTES
+        end if
+        if SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ 
+        and (desc="" or Name=".text\\0\0\\0") then
             sCodeSections = append(sCodeSections,i)
             if length(sCodeSections)=1 then
                 desc = " (see \"Code Section\" tab)"
@@ -8047,7 +8056,7 @@ procedure main()
 --  load_file("C:\\Edita14\\rayv3\\ex.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\p7.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\pth.exe")
-    load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
+--  load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\e03.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\e09.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\test\\t00.exe")
@@ -8070,6 +8079,7 @@ procedure main()
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\a00.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\l00")
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\e00")
+    load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\brainkrieg.exe")
 
     WinMain(Main,SW_NORMAL)
 end procedure

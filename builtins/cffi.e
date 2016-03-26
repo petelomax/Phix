@@ -289,6 +289,8 @@ global constant S32=1, S64=2
 -- a "long" is 32 bits on Windows64, but 64 bits on Linux64 (!!)
 integer L = 4
 if platform()=LINUX then
+--DEV (temp)
+--if 1 then
     L = 8
 end if
 
@@ -312,6 +314,7 @@ sequence SizeNames,SizeSigns,Sizes
 --                                                {"longdouble",1,{8,8}},       -- ambiguous!!!, see below
 --                                                {"flt80",     1,{10,10}},     -- maybe?
                                                   {"ptr",       0,{4,8}},       -- (no point having ptr/uptr that I can think of)
+                                                  {"size_t",    0,{4,8}},
                                                   $})
 
 

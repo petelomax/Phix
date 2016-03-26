@@ -36,7 +36,7 @@ global type nullable_string(object o)
     return string(o) or o=NULL
 end type
 
--- only used by IupSetAttribute and cdCreateCanvas:
+-- only used by IupSetAttribute, IupSetGlobal, and cdCreateCanvas:
 type atom_string(object o)
     return string(o) 
         or (integer(o) and o>=NULL) 
@@ -1387,7 +1387,7 @@ atom b = rgb+2
     return peek({rgb, 3})
 end function
 
-global procedure IupSetGlobal(string name, nullable_string v)
+global procedure IupSetGlobal(string name, atom_string v)
     c_proc(xIupSetGlobal, {name, v})
 end procedure
 
@@ -2130,10 +2130,13 @@ global function IupRadio(Ihandle pChild)
     return ih
 end function
 
-global function IupNormalizer(sequence ih_list)
+global function IupNormalizer(sequence ih_list, string attributes = "", sequence data = {})
     atom p_ih_list = iup_ptr_array(ih_list)
     Ihandle ih = c_func(xIupNormalizerv, {p_ih_list})
     free(p_ih_list)
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
@@ -2582,8 +2585,9 @@ global function IupFrame(Ihandle child, string attributes="", sequence data={})
     return ih
 end function
 
---DEV paranormalise
-global function IupLabel(nullable_string title=NULL, string attributes="", sequence data={})
+--global function IupLabel(nullable_string title=NULL, string attributes="", sequence data={})
+global function IupLabel(object title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupLabel, {title})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)

@@ -222,6 +222,9 @@ integer tmp
         return "-"
     end if
     tmp = d[1]
+    if tmp<1900 then
+        tmp += 1900
+    end if
     d[1] = d[3]
 --  d[3] = 1900+tmp
     d[3] = tmp
@@ -283,58 +286,59 @@ integer resumeOn
 integer resumeOnFocus
         resumeOnFocus = 0
 
-constant htxt = "This program automates error testing for Phix. Short code snippets are run under\n"&
-                "\"-batch\", and ex.err is checked to ensure that it contains the expected content.\n"&
-                "Note that \"success testing\" is performed by \"p -test\".\n\n"& 
+constant htxt = """
+This program automates error testing for Phix. Short code snippets are run under
+"-batch", and ex.err is checked to ensure that it contains the expected content.
+Note that "success testing" is performed by "p -test".
 
-                "While you can edit and insert records, in no way is this program meant to\n"&
-                "implement a \"slick\" edit/run cycle. You should normally create tests externally.\n"&
-                "File/Export creates a plain text file, terror.txt, which is shipped with Phix and\n"&
-                "is automatically loaded into terror.edb on creation. Should you create a bunch of\n"&
-                "new tests you think may be useful, just send me that file and I'll happily merge it.\n"&
-                "(More often, of course, I expect individual tests/bugs to arrive one at a time.)\n"&
-                "File/Import can be run after modifying that file, or you can just delete terror.edb.\n\n"&
-                
-                "Help/Instructions (F1) displays this text.\n"&
-                "Press F2 to rename an entry.\n"&
-                "Press Insert to add an entry (copy/paste from your usual development setup).\n"&
-                "Run One (F5) runs the currently selected item.\n"&
-                " If the result is not as expected a confirmation screen is shown; you should always\n"&
-                " press Cancel if there is any problem with the error, rather than Save bad 'uns.\n"&
-                " Put \"[etc]\" in the results to only check the first few lines.\n"&
-                " Obviously, things like \"variable ???-1??? has not been assigned a value\", and\n"&
-                " \"error in myfile.exw line -1\" are what this (terror.exw) should guard against.\n"&
---              "Run All (F6) runs all tests (as Filtered, see below).\n"&
-                "Run All (F6) runs all tests (unfiltered, name order). Ctrl F6 can be used (again with\n"&
-                " no filters and in name order) to run from a particular test to the end.\n"&
-                "Edit (Enter) displays the source and expected result. Note that when editing,\n"&
-                " Return inserts a new line, while Escape and Alt-F4 effect a cancel, so you have to\n"&
-                " click on OK or press Alt-O (or ctrl-tab to the OK button) to save any changes,\n"&
-                " or you can just press F5 to save and run (and maybe cancel if needed).\n"&
-                "While you can edit the Filter directly, you can also press any graphical key or\n"&
-                " Delete while the focus is elsewhere to change it. Since the Delete key acts on the\n"&
-                " filter, you must use Ctrl or Shift Delete to remove a record.\n"&
-                "File/Exit, Close, and Escape terminate the program.\n\n"&
-                
-                "Some tests may appear to be redundant duplicates. If intrigued you could always\n"&
-                "try comparing \"-d\" and/or \"-d!\" listings. Note that file-level and global variables\n"&
-                "live at a single fixed address, whereas parameters and local variables live at\n"&
-                "[ebp-N], hence some errors (esp unassigned var) need several similar tests.\n\n"&
+While you can edit and insert records, in no way is this program meant to
+implement a "slick" edit/run cycle. You should normally create tests externally.
+File/Export creates a plain text file, terror.txt, which is shipped with Phix and
+is automatically loaded into terror.edb on creation. Should you create a bunch of
+new tests you think may be useful, just send me that file and I'll happily merge it.
+(More often, of course, I expect individual tests/bugs to arrive one at a time.)
+File/Import can be run after modifying that file, or you can just delete terror.edb.
 
-                "NB: There is no inherent problem with getting a (slightly) different error message\n"&
-                "    from interpretation and compilation, as long as both make sense. In fact if any\n"&
-                "    of pdiag.e, pprntf.e, pgetpath.e, pcurrdir.e, or ppp.e have their \"without debug\"\n"&
-                "    removed, then the ex.err will be different, at least for run-time errors. Also,\n"&
-                "    values from say allocate() change on interpreted/compiled/Phix version.\n"&
-                "    Create a copy and set the run flags, or do interpretation first and plant an\n"&
-                "    \"[etc]\", which limits how far it checks, and then switch compilation back on.\n"&
-                "    Also be aware of the existence and effects of Edita/Options/Reformat ex.err,\n"&
-                "    which of course does /not/ apply to the expected results you see here.\n\n"&
+Help/Instructions (F1) displays this text.
+Press F2 to rename an entry.
+Press Insert to add an entry (copy/paste from your usual development setup).
+Run One (F5) runs the currently selected item.
+ If the result is not as expected a confirmation screen is shown; you should always
+ press Cancel if there is any problem with the error, rather than Save bad 'uns.
+ Put "[etc]" in the results to only check the first few lines.
+ Obviously, things like "variable ???-1??? has not been assigned a value", and
+ "error in myfile.exw line -1" are what this (terror.exw) should guard against.
+Run All (F6) runs all tests (as Filtered, see below).
+Run All (F6) runs all tests (unfiltered, name order). Ctrl F6 can be used (again with
+ no filters and in name order) to run from a particular test to the end.
+Edit (Enter) displays the source and expected result. Note that when editing,
+ Return inserts a new line, while Escape and Alt-F4 effect a cancel, so you have to
+ click on OK or press Alt-O (or ctrl-tab to the OK button) to save any changes,
+ or you can just press F5 to save and run (and maybe cancel if needed).
+While you can edit the Filter directly, you can also press any graphical key or
+ Delete while the focus is elsewhere to change it. Since the Delete key acts on the
+ filter, you must use Ctrl or Shift Delete to remove a record.
+File/Exit, Close, and Escape terminate the program.
 
-                "Lastly, this (specifically F6) can be quite slow. Trust me: You do not care either.\n"&
-                "When interpreting Phix defers whatever it can until an error, and performs extra\n"&
-                "analysis during compilation, all to improve normal/success performance. Also, an\n"&
-                "antivirus program can get real busy (and effectively hog the cpu) when this runs."
+Some tests may appear to be redundant duplicates. If intrigued you could always
+try comparing "-d" and/or "-d!" listings. Note that file-level and global variables
+live at a single fixed address, whereas parameters and local variables live at
+[ebp-N], hence some errors (esp unassigned var) need several similar tests.
+
+NB: There is no inherent problem with getting a (slightly) different error message
+    from interpretation and compilation, as long as both make sense. In fact if any
+    of pdiag.e, pprntf.e, pgetpath.e, pcurrdir.e, or ppp.e have their "without debug"
+    removed, then the ex.err will be different, at least for run-time errors. Also,
+    values from say allocate() change on interpreted/compiled/Phix version.
+    Create a copy and set the run flags, or do interpretation first and plant an
+    "[etc]", which limits how far it checks, and then switch compilation back on.
+    Also be aware of the existence and effects of Edita/Options/Reformat ex.err,
+    which of course does /not/ apply to the expected results you see here.
+
+Lastly, this (specifically F6) can be quite slow. Trust me: You do not care either.
+When interpreting Phix defers whatever it can until an error, and performs extra
+analysis during compilation, all to improve normal/success performance. Also, an
+antivirus program can get real busy (and effectively hog the cpu) when this runs."""
         
 procedure help()
     void = messageBox("Instructions",htxt,MB_OK)

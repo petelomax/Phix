@@ -496,6 +496,7 @@ integer ImageBase
         integer ln
         integer SizeOfRawData
 atom v
+--integer symidx
 --object tmp
 
 --puts(1,"peHeader: entry\n")
@@ -1091,8 +1092,19 @@ if and_bits(length(section),1) then section &= 0 end if
         section = SetField(section,#0,DWORD,BaseOfCode)
         section = SetField(section,#4,DWORD,BaseOfCode+codelen)
         section = SetField(section,#08,DWORD,xbase+#0C)
-        section = SetField(section,#10,DWORD,BaseOfCode+glboffset[gexch]+symtab[glblabel[gexch]][S_il])
-
+--object dbg = glboffset[gexch]
+--dbg = glblabel[gexch]
+--dbg = symtab[dbg]
+--      section = SetField(section,#10,DWORD,BaseOfCode+glboffset[gexch]+symtab[glblabel[gexch]][S_il])
+        section = SetField(section,#10,DWORD,BaseOfCode+glboffset[gexch])
+--      k = glblabel[gexch]
+--      if bind and mapsymtab then
+--          symidx = symtabmap[k]
+--      else
+--          symidx = k
+--      end if
+----        section = SetField(section,#10,DWORD,BaseOfCode+glboffset[gexch]+symtab[symidx][S_il])
+--      section = SetField(section,#10,DWORD,BaseOfCode+glboffset[gexch]+flatsym2[symidx][S_il])
         res &= section
         padding = RoundToFileAlignment(length(res))-length(res)
         if padding then
