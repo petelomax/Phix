@@ -27,11 +27,16 @@ object ch
     end for
     return res
 end function
-
+--DEV offs! (or just say(doc) that chdir accepts string only!)
+if "abc"="def" then
+    {} = toString("abc")
+end if
 
 --global function chdir(string newdir)
 global function chdir(sequence newdir)
 -- Changes the current directory. Returns 1 - success, 0 - fail.
+--DEV NO!! (must fix this sometime... [any #ilASM storing in a hll var must set the type to object, or a flag on symtab to that effect])
+--integer res = 0
 integer res
     if not string(newdir) then newdir = toString(newdir) end if
     #ilASM{
@@ -58,11 +63,35 @@ integer res
 --          pop rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         [ELF32]
-            pop al  -- DEV not started
---12        sys_chdir                   0x0c    const char *filename    -                       -                       -                       -               fs/open.c:361
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--12    sys_chdir                   0x0c    const char *filename    -                       -                       -                       -               fs/open.c:361
+            mov ebx,[newdir]
+            mov eax,12          -- sys_chdir
+            shl ebx,2
+            int 0x80
+            xor ebx,ebx
+            test eax,eax
+            mov eax,ebx
+--DEV tryme: (will need pilasm.e mods, is this even the right syntax?)
+--          setz al
+            jnz @f
+                mov eax,1
+          @@:
+            mov [res],eax
         [ELF64]
-            pop al  -- ""
---80        sys_chdir               const char *filename
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--80    sys_chdir               const char *filename
+            mov rbx,[newdir]
+            mov rax,80          -- sys_chdir
+            shl rbx,2
+            syscall
+            test rax,rax
+            mov rax,rbx
+            jnz @f
+                mov rax,1
+          @@:
+            mov [res],rax
           }
     return res
 end function

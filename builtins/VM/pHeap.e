@@ -41,7 +41,7 @@
 --  :%pAlloc, :%pFree, :%pDealloc[0], :%pInitCS, :%pDeleteCS, :%pEnterCS, :%pLeaveCS,
 --  plus :%pGetPool and :%pFreePool, but they should really only be used by pStack.e,
 --  and pApnd.e (:%pFreePool only)
---  The trivial :%pGetpGtcb is also available should you need/want it. [DEV]
+--  The trivial :%pGetpGtcb is also available should you need/want it.
 --DEV
 --  There may also need to be a :%pTerminateThread entry point for orphan handling.
 --
@@ -520,7 +520,7 @@
 --  Maybe at some point the required code could be repackaged into a single "check_memory()" 
 --  call that can be invoked from the very last line of an application (and when interpreted 
 --  it would effectively all get done twice), so that we can (optionally) have some form of
---  this checking in a compiled program, but that is left as an exercise for the reader. [DEV did I say that better somewhere else? opposite/create a new stack to run the analysis is...]
+--  this checking in a compiled program, but that is left as an exercise for the reader. [DEV did I say that better somewhere else? opposite/create a new stack to run the analysis in...]
 --
 --  Because existing libraries such as win32lib and arwen contain non-released memory allocations
 --  such as constant lf = allocate(SIZEOF_LOGFONT), and things like call_back() allocate memory 
@@ -646,7 +646,7 @@
 --      limits as 400 million characters or 100 million elements, triple-able if allocated up front.)
 --      64-bit Phix has (or more accurately is expected to have) such ludicrously high limits they are hardly 
 --      worth mentioning. Oh go on then, around 5.5EB, by which I mean 5 million TB, which in 2014 is over a 
---      /billion/ quids worth of RAM (based on a 256GB SSD for £75), and presumably a leccy bill that would 
+--      /billion/ quids worth of RAM (based on a 256GB SSD for 75UKP), and presumably a leccy bill that would 
 --      put the LHC to shame. Another potential practical issue is the sheer weight of all that RAM (plus 
 --      substrate) might tear a hole in the earth's crust, unless spread out a bit. I recently (May 2014) 
 --      read that x86-64 is limited to 256TB, and Windows 7, according to wikipedia, is limited to 192GB. 
@@ -920,10 +920,12 @@ end procedure
             -- arguments in ebx,ecx,edx,esi,edi[,ebp?] (so assume *all* regs damaged)
             -- (may need brandelf -t Linux filename on freeBSD, unless we can figure out how to do that as part of "p -c")
             -- *NB*: ELF32 often requires "xor ebx,ebx" after an int 0x80, whereas PE32/PE64/ELF64 preserve ebx/rbx
+            -- In the case of C library calls (eg call "libc.so.6","printf"), eax/ecx/edx are damaged,
+            --  but ebx/esi/edi/ebp are preserved. No floating point registers are preserved.
             push eax            -- save size
             -- call sys_brk(0) to find the current location of the program break
             xor ebx,ebx
-            mov eax,45          -- sys_brk(ebx=long brk)
+            mov eax,45          -- sys_brk(0)
             int 0x80
             cmp eax,-4096
             ja :error_brk
@@ -933,16 +935,17 @@ end procedure
             push eax
             mov eax,45          -- sys_brk(ebx=long brk)
             int 0x80
+            xor ebx,ebx         -- (NB: common requirement after an int 0x80)
             pop ecx             -- prev
             cmp eax,-4096
             jbe @f
           ::error_brk
+                xor ebx,ebx     -- (covers the case when that ja triggers)
                 xor ecx,ecx
           @@:
             -- return previous program break (or 0)
             mov eax,ecx
             add esp,4           -- discard size
-            xor ebx,ebx         -- (common requirement after an int 0x80)
 
         [ELF64]
             -- standard (kernel) calling convention applies: 
@@ -950,6 +953,8 @@ end procedure
             -- first 6 parameters are passed in rdi/rsi/rdx/rcx(or r10 for system calls)/r8/r9 (or xmm0..7).
             -- rax/rcx/rdx/rsi/rdi/r8/r9/r10/r11 are damaged, as are xmm0..15 and st0..7
             -- rbx/rbp/r12/r13/r14/r15 are preserved
+            -- In the case of C library calls (eg call "libc.so.6","printf"), rax/rcx/rdx/rsi/rdi/r8..r11 
+            --  are damaged, but rbx/ebp/r12..r15 are preserved. No floating point registers are preserved.
             push rax                -- save length
 --          mov r14,rax             -- save length
             -- call sys_brk(0) to find the current location of the program break
@@ -988,7 +993,8 @@ end procedure -- (for Edita/CtrlQ)
             call "kernel32.dll","GetCurrentThreadId"
         [ELF32]
             mov eax,20              -- sys_getpid()
-            int 0x80 
+            int 0x80
+            xor ebx,ebx
         [PE64]
             mov rax,rsp -- put 2 copies of rsp onto the stack...
             push rsp
@@ -2963,6 +2969,10 @@ end procedure -- (for Edita/CtrlQ)
     [32]
         -- release ecx bytes of memory at eax, using edx as <era>.
         -- (no specific result, trashes eax/ecx/edx/esi/edi)
+--DEV (temp, see if we can get a consistent diff in edi)
+mov edi,[pGtcb]
+shl edi,2
+sub edi,eax
         push edx
         mov esi,[eax-4]             -- pRoot
         xor ebx,ebx -- (save some grief)

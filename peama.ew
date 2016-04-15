@@ -38,21 +38,22 @@ constant
     CD_ISENS = #20130505,   -- intellisense ready/still active
     WM_COPYDATA = 74,
     WM_GETTEXT = 13,
-    WM_GETTEXTLENGTH = 14,
-    user32 = open_dll("user32.dll")
+    WM_GETTEXTLENGTH = 14
+atom user32=0, xSendMessage, xEnumWindows
 
+procedure uinit()   -- platform()=WINDOWS only
+    user32 = open_dll("user32.dll")
     if user32 = NULL then
         puts(1,"Error opening user32")
         if getc(0) then end if abort(0)
     end if
 
-constant 
     xSendMessage = define_c_func(user32, "SendMessageA",
         {C_POINTER, --  HWND  hwnd, // handle of destination window
          C_UINT,    --  UINT  uMsg, // message to send
          C_UINT,    --  WPARAM  wParam, // first message parameter
          C_UINT},   --  LPARAM  lParam  // second message parameter
-        C_LONG),    -- LRESULT (depends on whatever processes the message, so use object)
+        C_LONG)     -- LRESULT (depends on whatever processes the message, so use object)
     xEnumWindows = define_c_func(user32, "EnumWindows",
         {C_POINTER, --  WNDENUMPROC  lpEnumFunc,    // address of callback function
          C_LONG},   --  LPARAM  lParam  // application-defined value
@@ -66,6 +67,7 @@ constant
         puts(1,"Error defining EnumWindows")
         if getc(0) then end if abort(0)
     end if
+end procedure
 
 atom mainHwnd
      mainHwnd = 0
@@ -76,12 +78,14 @@ constant Edita = "Edita",
          minlength = length(Edita)
 
 function EnumWindowsProc(atom hwnd, atom lParam)
+-- (platform()=WINDOWS only)
 atom mem
 integer len
 sequence text
 atom CDS
 integer isEdita
     if lParam then end if   -- suppress warnings
+--  if user32=0 then uinit() end if
     len = c_func(xSendMessage, {hwnd, WM_GETTEXTLENGTH, 0, 0})
     if len>=minlength then
         len += 1
@@ -102,7 +106,7 @@ integer isEdita
     end if  
     return 1    -- continue enumeration
 end function
-constant cb_EnumWindowsProc = call_back(routine_id("EnumWindowsProc"))
+--constant cb_EnumWindowsProc = call_back(routine_id("EnumWindowsProc"))
 
 function stringify(object o)
 object c
@@ -143,7 +147,11 @@ function setmainHwnd()
         --  want to try this once, that is instead of pause/hang for
         --  15-30 seconds between each one...)
         mainHwnd = -1
-        void = c_func(xEnumWindows,{cb_EnumWindowsProc,NULL})   -- set mainHwnd
+        if platform()=WINDOWS then
+            if user32=0 then uinit() end if
+--          void = c_func(xEnumWindows,{cb_EnumWindowsProc,NULL})   -- set mainHwnd
+            void = c_func(xEnumWindows,{call_back(routine_id("EnumWindowsProc")),NULL}) -- set mainHwnd
+        end if
     end if
     if mainHwnd=-1 then
 --      puts(1,"Edita not running?")
@@ -157,19 +165,24 @@ global function eamsg(object text)
 -- returns 1 on success, 0 on failure.
 integer res, lt
 atom mem, CDS
-    if not setmainHwnd() then return 0 end if
-    text = stringify(text)
-    lt = length(text)
-    mem = allocate(lt+1)
-    if not mem then return 0 end if
-    poke(mem, text)
-    poke(mem+lt, 0)
-    CDS = allocate(12)
-    poke4(CDS,{CD_CONS,lt+1,mem})
-    res = (c_func(xSendMessage, {mainHwnd, WM_COPYDATA, NULL, CDS}) = CD_EDITA)
-    free(CDS)
-    free(mem)
-    return res
+    if platform()=WINDOWS then
+        if not setmainHwnd() then return 0 end if
+        text = stringify(text)
+        lt = length(text)
+        mem = allocate(lt+1)
+        if not mem then return 0 end if
+        poke(mem, text)
+        poke(mem+lt, 0)
+        CDS = allocate(12)
+        poke4(CDS,{CD_CONS,lt+1,mem})
+        res = (c_func(xSendMessage, {mainHwnd, WM_COPYDATA, NULL, CDS}) = CD_EDITA)
+        free(CDS)
+        free(mem)
+        return res
+    elsif platform()=LINUX then
+        --DEV (do this as part of Edix)
+        return 0
+    end if
 end function
 
 global function getEditaHwnd() -- (for pgui.exw)
@@ -179,10 +192,12 @@ end function
 
 global procedure sendCDISENS()
 atom CDS
-    if setmainHwnd() then
-        CDS = allocate(12)
-        poke4(CDS,{CD_ISENS,0,0})
-        void = c_func(xSendMessage,{mainHwnd, WM_COPYDATA, NULL, CDS})
-        free(CDS)
+    if platform()=WINDOWS then
+        if setmainHwnd() then
+            CDS = allocate(12)
+            poke4(CDS,{CD_ISENS,0,0})
+            void = c_func(xSendMessage,{mainHwnd, WM_COPYDATA, NULL, CDS})
+            free(CDS)
+        end if
     end if
 end procedure

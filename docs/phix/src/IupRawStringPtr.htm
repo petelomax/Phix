@@ -25,7 +25,7 @@
          <td valign=top>
           <b>Description:</b>
          </td>
-         <td>Utility function. Returns a raw pointer to a string, like <a href="allocate_string.htm">allocate_string</a>() but using the existing memory.
+         <td>Utility function. Returns a raw pointer to a string, like <code><a href="allocate_string.htm">allocate_string</a>()</code> but using the existing memory.
          </td>
         </tr>
         <tr>
@@ -34,24 +34,28 @@
          </td>
          <td>
             The result is only valid as long as the argument still exists. In effect it creates a non-reference-counted reference, and that requires it to
-            be carefully managed. In particular the result of sprint[f] should not be used directly, and callbacks must make a semi-permanent copy 
-            somewhere other than locals/temps. It is in fact callbacks that have the most obvious need for such a function.
+            be carefully managed. In particular the result of sprint[f] should not be used directly, and callbacks must make a semi-permanent copy somewhere 
+            other than locals/temps. It is in fact callbacks that have the most obvious need for such a function.
             <br>
             <br>
             In the example below, if semiperm were local to the value_cb routine, it would be freed (and the first few bytes clobbered) by the return statement, 
-            before the caller had a chance to inspect it. Likewise any hidden unnamed temp. Obviously if data[l][c] was a string, then it would be fine to 
-            return IupRawStringPtr(data[l][c]), that is assuming data persists when value_cb returns. There may be some cases where the fact that semiperm is 
-            clobbered on the very next call of value_cb may cause issues (in which case a more complex stack of allocate_string()s may need to be kept), but 
-            offhand I cannot think of any (at least any that would be used with pGUI).
+            before the caller had a chance to inspect it. Likewise any hidden unnamed temp (of the sole reference variety). Obviously if data[l][c] is a string, 
+            then it is fine to return IupRawStringPtr(data[l][c]), that is assuming data persists when value_cb returns. There may be some cases where the fact 
+            that semiperm is clobbered on the very next call of value_cb may cause issues, in which case a more complex stack of 
+            <code><a href="allocate_string.htm">allocate_string</a>()</code> may need to be kept, but offhand I cannot think of any, or at least any that would 
+            be used with pGUI.
             <br>
             <br>
-            You should probably also take time to understand the differences between
+            It may help to understand the differences between
             <a href="IupSetAttribute.htm">IupSetAttribute</a> (where these kinds of problems may well arise) and 
             <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a> (where they are hopefully far less likely).
             <br>
             <br>
             I should also note that using the optional automatic memory management flag of <a href="allocate_string.htm">allocate_string</a> is equally incorrect 
             and inappropriate for callback returns, for exactly the same reason, unless you use something like atom semiperm in a similar fashion to that below.
+            Apart from that, should you experience any problems with IupRawStringPtr, such as semiperm being non-thread-safe, then instead by all means try using
+            <code><a href="allocate_string.htm">allocate_string</a>()</code> with a manual <code><a href="free.htm">free</a>()</code> at some appropriately later 
+            time.
          </td>
         </tr>
         <tr>

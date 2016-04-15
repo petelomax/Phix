@@ -59,7 +59,6 @@
 --    compact form. All allocated blocks have, stored just before the 
 --    address, the size of the block in bytes.
 --
---/**/include builtins\platform.e
 --/* Not required for Phix
 include builtins\machine.e
 include builtins\file.e

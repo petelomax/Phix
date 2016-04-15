@@ -31,7 +31,6 @@ For more information, see File System Redirector.
 --*/
 
 --/**/-- not strictly necessary, but reduces opCallOnce/fwd calls/onDeclaration
---/**/include builtins\platform.e   -- platform()
 include builtins\wildcard.e -- wildcard_file()
 
 constant
@@ -72,7 +71,10 @@ atom xFindFirstFile, xFindNextFile, xFindClose,
 sequence attrbits
 sequence attrchar
 
-procedure initD()
+procedure initD() -- (platform()=WINDOWS only)
+--if platform()!=WINDOWS then
+--  puts(1,"pdir.e not linux\n")
+--end if
 --DEV locking as per pprntf
     kernel32 = open_dll("kernel32.dll")
 
@@ -205,11 +207,11 @@ integer slash, rslash
 atom lpPath, h, size
 sequence res, this, attr
 object pattern
-atom xSystemTime, xLocalFileTime,
-     xFindData = allocate(FDsize)
+atom xSystemTime, xLocalFileTime, xFindData
 
-    if not dinit then initD() end if
     if platform()=WINDOWS then
+        xFindData = allocate(FDsize)
+        if not dinit then initD() end if
         slash = '\\'
         rslash = '/'
     elsif platform()=LINUX then
@@ -235,63 +237,135 @@ atom xSystemTime, xLocalFileTime,
     end for
 --DEV root=path[1..pattern-1]
     pattern = path[k..lp]
---    if length(path) and path[-1]=slash then
-    if lp and path[lp]=slash then
-        path &= "*.*"
-        pattern = "*.*"
-    elsif not find('*',path) and not find('?',path) then
-        --
-        -- Check if the passed path is a directory
-        --
---DEV:  if list_directory then
-        lpPath = allocate_string(path)
-        h = c_func(xFindFirstFile,{lpPath,xFindData})
-        if h!=INVALID_HANDLE_VALUE then
-            if and_bits(peek(xFindData+FDwFileAttributes),#10) then
-                path &= slash&"*.*"
-                pattern = "*.*"
+    if platform()=WINDOWS then
+        if lp and path[lp]=slash then
+            path &= "*.*"
+            pattern = "*.*"
+        elsif not find('*',path) and not find('?',path) then
+            --
+            -- Check if the passed path is a directory
+            --
+--DEV:      if list_directory then
+            lpPath = allocate_string(path)
+            h = c_func(xFindFirstFile,{lpPath,xFindData})
+            if h!=INVALID_HANDLE_VALUE then
+                if and_bits(peek(xFindData+FDwFileAttributes),#10) then
+                    path &= slash&"*.*"
+                    pattern = "*.*"
+                end if
+                if c_func(xFindClose,{h}) then end if
             end if
-            if c_func(xFindClose,{h}) then end if
+            free(lpPath)
+--          end if
         end if
-        free(lpPath)
---      end if
-    end if
 --DEV 
 --"argument to dir must be string\n",   -- e68atcdmbs
-    lpPath = allocate_string(path)
-    h = c_func(xFindFirstFile,{lpPath,xFindData})
-    free(lpPath)
-    if h=INVALID_HANDLE_VALUE then
-        free(xFindData)
-        return -1
-    end if
-    res = {}
-    xSystemTime = allocate(STsize)
-    xLocalFileTime = allocate(8)
-    while 1 do
-        this = peek_string(xFindData+FDcFileName)
-        if wildcard_file(pattern,this) then
-            if c_func(xFileTimeToLocalFileTime,{xFindData+FDtLastWriteTime,xLocalFileTime}) then end if
-            if c_func(xFileTimeToSystemTime,{xLocalFileTime,xSystemTime}) then end if
-            size = peek4s(xFindData+FDnFileSizeHigh)*#100000000+peek4u(xFindData+FDnFileSizeLow)
-            attr = ConvertAttributes(peek4u(xFindData+FDwFileAttributes))
---DEV root&this?
-            res = append(res,{this,                                 -- D_NAME = 1,
-                              attr,                                 -- D_ATTRIBUTES = 2,
-                              size,                                 -- D_SIZE = 3,
-                              peek2uX(xSystemTime+STwYear),         -- D_YEAR = 4,
-                              peek2uX(xSystemTime+STwMonth),        -- D_MONTH = 5,
-                              peek2uX(xSystemTime+STwDay),          -- D_DAY = 6,
-                              peek2uX(xSystemTime+STwHour),         -- D_HOUR = 7,
-                              peek2uX(xSystemTime+STwMinute),       -- D_MINUTE = 8,
-                              peek2uX(xSystemTime+STwSecond)})      -- D_SECOND = 9
+        lpPath = allocate_string(path)
+        h = c_func(xFindFirstFile,{lpPath,xFindData})
+        free(lpPath)
+        if h=INVALID_HANDLE_VALUE then
+            free(xFindData)
+            return -1
         end if
-        if not c_func(xFindNextFile,{h,xFindData}) then exit end if
-    end while
-    if c_func(xFindClose,{h}) then end if
-    free(xSystemTime)
-    free(xLocalFileTime)
-    free(xFindData)
+        res = {}
+        xSystemTime = allocate(STsize)
+        xLocalFileTime = allocate(8)
+        while 1 do
+            this = peek_string(xFindData+FDcFileName)
+            if wildcard_file(pattern,this) then
+                if c_func(xFileTimeToLocalFileTime,{xFindData+FDtLastWriteTime,xLocalFileTime}) then end if
+                if c_func(xFileTimeToSystemTime,{xLocalFileTime,xSystemTime}) then end if
+                size = peek4s(xFindData+FDnFileSizeHigh)*#100000000+peek4u(xFindData+FDnFileSizeLow)
+                attr = ConvertAttributes(peek4u(xFindData+FDwFileAttributes))
+--DEV root&this?
+                res = append(res,{this,                                 -- D_NAME = 1,
+                                  attr,                                 -- D_ATTRIBUTES = 2,
+                                  size,                                 -- D_SIZE = 3,
+                                  peek2uX(xSystemTime+STwYear),         -- D_YEAR = 4,
+                                  peek2uX(xSystemTime+STwMonth),        -- D_MONTH = 5,
+                                  peek2uX(xSystemTime+STwDay),          -- D_DAY = 6,
+                                  peek2uX(xSystemTime+STwHour),         -- D_HOUR = 7,
+                                  peek2uX(xSystemTime+STwMinute),       -- D_MINUTE = 8,
+                                  peek2uX(xSystemTime+STwSecond)})      -- D_SECOND = 9
+            end if
+            if not c_func(xFindNextFile,{h,xFindData}) then exit end if
+        end while
+        if c_func(xFindClose,{h}) then end if
+        free(xSystemTime)
+        free(xLocalFileTime)
+        free(xFindData)
+    elsif platform()=LINUX then
+--/*
+struc dirent
+{
+.d_ino           rd 1 
+.d_off           rd 1 
+.d_reclen        rw 1 
+.d_name          rb 256
+} 
+
+        mov     eax, SYS_OPEN                                   ; open a direcory located one level up    
+        mov     ebx, filename_s
+        xor     ecx, ecx
+        mov     edx, S_IRWXU
+        int     0x80
+        ccall   error_chk, <"SYS_OPEN has failed: ">, exit
+
+        mov     ebx, eax                                        ; read available directories
+        mov     eax, SYS_GETDENTS
+        mov     ecx, _dirent
+        mov     edx, sizeof.dirent                              ; try to read at least one directory entry
+        int     0x80
+        ccall   error_chk, <"SYS_GETDENTS has failed: ">, exit
+        test    eax, eax
+        je      exit
+        mov     [bytes_read], eax
+
+        mov     esi,  _dirent                                   ; parse through dir enries and print their names 
+
+print_dir:
+        lea     edi, [esi+dirent.d_name]
+
+        xor     edx, edx
+        xor     eax, eax
+@@:     inc     edx
+        scasb
+        jne     @b
+        mov     [edi-1], byte 0xa
+
+        mov     eax, SYS_WRITE
+        mov     ebx, STDOUT
+        lea     ecx, [esi+dirent.d_name]
+        int     0x80
+   
+        add     si, [esi+dirent.d_reclen]                       ; get offset of the next entry
+
+        mov     eax, esi
+        sub     eax, _dirent
+        cmp     eax, [bytes_read]                               ; make sure we are in bounds
+        jb      print_dir
+                    
+exit:   mov     eax, SYS_EXIT
+        xor     ebx, ebx
+        int     0x80
+
+section '.data' writeable
+
+filename_s  db "../",0
+
+bytes_read      rd 1
+_dirent         dirent
+--*/    
+        if lp and path[lp]=slash then
+--          path &= "*.*"
+            pattern = "*.*"
+        else
+            --DEV temp (for return type)
+            return -1
+        end if
+--          if wildcard_file(pattern,this) then
+        ?9/0    
+    end if
     return res
 end function
 

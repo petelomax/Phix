@@ -226,6 +226,7 @@ atom xGetConsoleScreenBufferInfo,
      pMode
 
 procedure dinit()
+-- platform()=WINDOWS only
 atom xKernel32,
      xUser32,
      xGetStdHandle,
@@ -233,6 +234,7 @@ atom xKernel32,
 object dScreen
 
     puts(1,"") -- ensure console exists
+--puts(1,"pTrace.e not linux\n")
     xKernel32 = open_dll("kernel32.dll")
     xUser32 = open_dll("user32.dll")
     xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
@@ -653,12 +655,14 @@ integer lo, itemlen, padding
 integer varline
 object o
 
-    if not c_func(xGetConsoleMode,{stdout,pMode}) then ?9/0 end if
-    WrapMode = peek4u(pMode)
-    if and_bits(WrapMode,ENABLE_WRAP_AT_EOL_OUTPUT) then
-        -- (This is only needed for the last line. Alternately we could limit
-        --  that to 79 chars (using (80-(i=vararea)) instead of 80, I guess).)
-        if not c_func(xSetConsoleMode,{stdout,WrapMode-ENABLE_WRAP_AT_EOL_OUTPUT}) then ?9/0 end if
+    if platform()=WINDOWS then
+        if not c_func(xGetConsoleMode,{stdout,pMode}) then ?9/0 end if
+        WrapMode = peek4u(pMode)
+        if and_bits(WrapMode,ENABLE_WRAP_AT_EOL_OUTPUT) then
+            -- (This is only needed for the last line. Alternately we could limit
+            --  that to 79 chars (using (80-(i=vararea)) instead of 80, I guess).)
+            if not c_func(xSetConsoleMode,{stdout,WrapMode-ENABLE_WRAP_AT_EOL_OUTPUT}) then ?9/0 end if
+        end if
     end if
 
     varline = 1
@@ -734,8 +738,10 @@ object o
         blatpos(1,screenLines-vararea+i,oneline)
     end for
     vars_shown = varline-1
-    if and_bits(WrapMode,ENABLE_WRAP_AT_EOL_OUTPUT) then
-        if not c_func(xSetConsoleMode,{stdout,WrapMode}) then ?9/0 end if
+    if platform()=WINDOWS then
+        if and_bits(WrapMode,ENABLE_WRAP_AT_EOL_OUTPUT) then
+            if not c_func(xSetConsoleMode,{stdout,WrapMode}) then ?9/0 end if
+        end if
     end if
 end procedure
 
@@ -1043,12 +1049,14 @@ integer key
 --DEV (2 lines 24/3/2013)
 --  r = c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI})
 integer y
-    if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then ?9/0 end if
-    y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
-    if y!=screenLines then
-        --DEV force full redisplay here...
-        screenLines = y
---      vars_shown = vararea
+    if platform()=WINDOWS then
+        if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then ?9/0 end if
+        y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
+        if y!=screenLines then
+            --DEV force full redisplay here...
+            screenLines = y
+--          vars_shown = vararea
+        end if
     end if
     x = screenLines-vararea
     position(x,1)
@@ -1164,11 +1172,13 @@ constant DOWN = +1, UP = -1
 function move(integer line, object direction)
 integer pageful, newline
 integer y
-    if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then ?9/0 end if
-    y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
-    if y!=screenLines then
-        --DEV force full redisplay here...
-        screenLines = y
+    if platform()=WINDOWS then
+        if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then ?9/0 end if
+        y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
+        if y!=screenLines then
+            --DEV force full redisplay here...
+            screenLines = y
+        end if
     end if
 
     if sequence(direction) then
@@ -1196,7 +1206,12 @@ constant VK_SHIFT = 16
 procedure Tab()
 -- note that wait_key() returns TAB('\t') whether shift is held down or not.
 integer shift
-    shift = (floor(c_func(xGetKeyState,{VK_SHIFT})/2)!=0)
+    if platform()=WINDOWS then
+        shift = (floor(c_func(xGetKeyState,{VK_SHIFT})/2)!=0)
+    else
+        --DEV
+        shift = 0
+    end if
     if shift then
         if column>=5 then
             column -= 4
@@ -1399,7 +1414,13 @@ integer fileno
 --  tracelevel = trclvl
 
     needclr = 0
-    if not initD then dinit() end if
+    if platform()=WINDOWS then
+        if not initD then dinit() end if
+    else
+        --DEV more...
+        screenLines = 25
+        blankScreen = {}
+    end if
 --puts(1,"debug called...\n")
 --?{fileno,line,tracelevel}
 

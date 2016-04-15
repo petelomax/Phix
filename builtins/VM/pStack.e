@@ -87,7 +87,9 @@
 include builtins\VM\pFEH.e
 include builtins\VM\pHeap.e     -- :%pDealloc, :%pGetPool
 
-integer pArg = 0 -- [ELF] save of r|esp/4 (for command_line) at load
+integer pArg = 0    -- [ELF] save of r|esp/4 (for command_line) at load
+                    -- (when non-null) [pArg*w+w] is argc, where w=machine_word()
+                    -- see syswait.ew for more details/environment handling
 
 integer nocleanup = 0   -- set to 1 if (eg) :!iDiag has been called,
                         -- so abort proper like, rather than try and
@@ -364,17 +366,17 @@ end procedure -- (for Edita/CtrlQ)
 procedure :%opGetArg(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
---/* DEV
+:%opGetArgELF       -- (meaningless/same as opFrame on PE/WINDOWS)
+-------------
     [ELF32]
-:%opGetArgELF32
+--:%opGetArgELF32
         mov eax,[pArg]
         ret
     [ELF64]
-:%opGetArgELF64
+--:%opGetArgELF64
         mov rax,[pArg]
         ret
     []
---*/
 
 --makeFrameX:
 --  mov esi,[esp]       -- grab a copy of the "called from" address, for use in debug reporting
@@ -1499,7 +1501,7 @@ end procedure -- (for Edita/CtrlQ)
         mov ebx,eax                     -- error_code (p1)
         mov eax,1                       -- sys_exit(ebx=int error_code)
         int 0x80
---          xor ebx,ebx                     -- (common requirement)
+--      xor ebx,ebx                     -- (common requirement)
     [ELF64]
         mov rdi,rax                     -- error_code (p1)
         mov rax,60                      -- sys_exit(rdi=int error_code)

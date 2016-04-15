@@ -15,7 +15,7 @@
 
 include pprntf.e
 
-constant tnr = "tnr"
+constant tnr = "tnre"
 function allascii(string x)
 -- Phix allows "strings" to hold binary data, so double check 
 -- before printing it as a string.
@@ -23,7 +23,7 @@ integer c
     for i=length(x) to 1 by -1 do
         c = x[i]
         if c<' ' then
-            c = find(c,"\t\n\r")
+            c = find(c,"\t\n\r\e")
             if c then
                 x[i..i] = '\\'&tnr[c]
             else

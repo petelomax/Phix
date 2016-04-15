@@ -84,7 +84,7 @@ include builtins\pcase.e as pcase
 include builtins\peekstr.e as pstr
 
 --/**/-- not strictly necessary, but reduces opCallOnce/fwd calls/onDeclaration
---/**/include builtins\machine.e -- allocate_string()
+--!/!*!*!/!include builtins\machine.e -- allocate_string()
 include builtins\pgetpath.e     -- get_proper_path()
 
 include builtins/VM/pStack.e    -- :%opGetST
@@ -92,7 +92,7 @@ include builtins/VM/pStack.e    -- :%opGetST
 
 function expandPath(sequence filepath)
 --
--- expand filepath to full path/extension
+-- expand filepath to full path/extension (platform()=WINDOWS only)
 --
 atom xPath, xRawStr, xBuffer
 sequence tmp
@@ -175,116 +175,142 @@ global function command_line()
 sequence plainstr,res,tmp
 --object current
 integer chfirst, chlast, l, lr
+integer pArg4,W,N
 
-    if not init then
+    if platform()=WINDOWS then
+        if not init then
 --DEV requires locking as per pprntf.e:
-        xKernel32 = open_dll("kernel32")
-        if xKernel32=0 then xKernel32 = 9/0 end if
+            xKernel32 = open_dll("kernel32")
+            if xKernel32=0 then xKernel32 = 9/0 end if
 --#without reformat
-        xGetCommandLine = define_c_func(xKernel32,"GetCommandLineA",
-            {},
-            C_POINTER)  -- LPTSTR
---      xGetLastError = define_c_func(xKernel32, "GetLastError",
---          {},
---          C_INT)      -- DWORD
-        xSearchPath = define_c_func(xKernel32,"SearchPathA",
-            {C_POINTER, --  LPCTSTR  lpszPath,  // address of search path 
-             C_POINTER, --  LPCTSTR  lpszFile,  // address of filename 
-             C_POINTER, --  LPCTSTR  lpszExtension, // address of extension 
-             C_INT,      -- DWORD  cchReturnBuffer, // size, in characters, of buffer 
-             C_POINTER, --  LPTSTR  lpszReturnBuffer,   // address of buffer for found filename 
-             C_POINTER},--  LPTSTR  *plpszFilePart  // address of pointer to file component 
-            C_INT)      -- DWORD (required) length in buffer
+            xGetCommandLine = define_c_func(xKernel32,"GetCommandLineA",
+                {},
+                C_POINTER)  -- LPTSTR
+--          xGetLastError = define_c_func(xKernel32, "GetLastError",
+--              {},
+--              C_INT)      -- DWORD
+            xSearchPath = define_c_func(xKernel32,"SearchPathA",
+                {C_POINTER, --  LPCTSTR  lpszPath,  // address of search path 
+                 C_POINTER, --  LPCTSTR  lpszFile,  // address of filename 
+                 C_POINTER, --  LPCTSTR  lpszExtension, // address of extension 
+                 C_INT,      -- DWORD  cchReturnBuffer, // size, in characters, of buffer 
+                 C_POINTER, --  LPTSTR  lpszReturnBuffer,   // address of buffer for found filename 
+                 C_POINTER},--  LPTSTR  *plpszFilePart  // address of pointer to file component 
+                C_INT)      -- DWORD (required) length in buffer
 --#with reformat
-        if xGetCommandLine=-1 then xGetCommandLine = 9/0 end if
---      if xGetLastError = -1 then xGetLastError = 9/0 end if
-        if xSearchPath=-1 then xSearchPath = 9/0 end if
---      dotEXE = allocate_string(".exe")
---      pFilePart = allocate(4)
-        init = 1
-    end if
+            if xGetCommandLine=-1 then xGetCommandLine = 9/0 end if
+--          if xGetLastError = -1 then xGetLastError = 9/0 end if
+            if xSearchPath=-1 then xSearchPath = 9/0 end if
+--          dotEXE = allocate_string(".exe")
+--          pFilePart = allocate(4)
+            init = 1
+        end if
 
-    dotEXE = allocate_string(".exe")
-    pFilePart = allocate(4)
-    --
-    -- First, get the basic command string:
-    --
-    plainstr = pstr:peek_string(c_func(xGetCommandLine,{}))
+        dotEXE = allocate_string(".exe")
+        pFilePart = allocate(4)
+        --
+        -- First, get the basic command string:
+        --
+        plainstr = pstr:peek_string(c_func(xGetCommandLine,{}))
 --pp(plainstr)
-    --
-    -- Then parse it into chunks.
-    --
-    res = {}
-    chfirst = 1
-    chlast = length(plainstr)
-    while find(plainstr[chlast]," \t") do
-        chlast -= 1
-    end while
+        --
+        -- Then parse it into chunks.
+        --
+        res = {}
+        chfirst = 1
+        chlast = length(plainstr)
+        while find(plainstr[chlast]," \t") do
+            chlast -= 1
+        end while
 
-    while chfirst<=chlast do
-        if plainstr[chfirst]='\"' then
-            for i=chfirst+1 to chlast+1 do
-                if i>chlast -- closing quote not found, assume one at end...
-                or plainstr[i]='\"' then
-                    chfirst += 1
-                    l = i-1
-                    tmp = plainstr[chfirst..l]
-                    if length(res)=0 then
-                        tmp = get_proper_path(tmp)
-                    end if
-                    res = append(res,tmp)
-                    chfirst = i+1
-                    while chfirst<=chlast and find(plainstr[chfirst]," \t") do
+        while chfirst<=chlast do
+            if plainstr[chfirst]='\"' then
+                for i=chfirst+1 to chlast+1 do
+                    if i>chlast -- closing quote not found, assume one at end...
+                    or plainstr[i]='\"' then
                         chfirst += 1
-                    end while
-                    exit
-                end if
-            end for
-        else
-            tmp = {}
-            for i=chfirst to chlast do
-                if i=chlast then
-                    tmp = plainstr[chfirst..chlast]
-                elsif find(plainstr[i]," \t") then
-                    tmp = plainstr[chfirst..i-1]
-                end if
-                if length(tmp) then
+                        l = i-1
+                        tmp = plainstr[chfirst..l]
+                        if length(res)=0 then
+                            tmp = get_proper_path(tmp)
+                        end if
+                        res = append(res,tmp)
+                        chfirst = i+1
+                        while chfirst<=chlast and find(plainstr[chfirst]," \t") do
+                            chfirst += 1
+                        end while
+                        exit
+                    end if
+                end for
+            else
+                tmp = {}
+                for i=chfirst to chlast do
+                    if i=chlast then
+                        tmp = plainstr[chfirst..chlast]
+                    elsif find(plainstr[i]," \t") then
+                        tmp = plainstr[chfirst..i-1]
+                    end if
+                    if length(tmp) then
 -- 24/4/10:
---                  if length(res)=0 and (length(tmp)<=2 or tmp[2]!=':') then
---                      tmp = expandPath(tmp)
+--                      if length(res)=0 and (length(tmp)<=2 or tmp[2]!=':') then
+--                          tmp = expandPath(tmp)
 ----puts(1,"==> ")
 ----pp(tmp)
---                  end if
+--                      end if
 --puts(1,"tmp(2):\n")
 --pp(tmp)
-                    if length(res)=0 then
-                        if length(tmp)<=2 or tmp[2]!=':' then
-                            tmp = expandPath(tmp)
+                        if length(res)=0 then
+                            if length(tmp)<=2 or tmp[2]!=':' then
+                                tmp = expandPath(tmp)
 --puts(1,"tmp(3):\n")
 --pp(tmp)
-                        else
-                            tmp = get_proper_path(tmp)
+                            else
+                                tmp = get_proper_path(tmp)
 --puts(1,"tmp(4):\n")
 --pp(tmp)
+                            end if
                         end if
-                    end if
 --puts(1,"tmp:\n")
 --pp(tmp)
-                    res = append(res,tmp)
+                        res = append(res,tmp)
 --puts(1,"res(2):\n")
 --pp(res)
-                    chfirst = i+1
-                    while chfirst<=chlast and find(plainstr[chfirst]," \t") do
-                        chfirst += 1
-                    end while
-                    exit
-                end if
-                if i=chlast then chlast = 9/0 end if
-            end for
-        end if
-    end while
+                        chfirst = i+1
+                        while chfirst<=chlast and find(plainstr[chfirst]," \t") do
+                            chfirst += 1
+                        end while
+                        exit
+                    end if
+                    if i=chlast then chlast = 9/0 end if
+                end for
+            end if
+        end while
 --puts(1,"res:\n")
 --pp(res)
+        free(dotEXE)
+        free(pFilePart)
+
+    elsif platform()=LINUX then
+        -- see VM\pStack.e, pArg (probably needs a tweak (ie save/restore) when interpreting)
+        #ilASM{
+            [ELF32]
+                call :%opGetArgELF
+                mov [pArg4],eax
+            [ELF64]
+                call :%opGetArgELF
+                mov [pArg4],rax
+            []
+              }
+--DEV/SUG pArg4 *= 4, {pArg += W}
+        W = machine_word()
+        N = peekNS(pArg4*4+W,W,0)
+--?N
+--if N=0 then ?9/0 end if
+        res = {}
+        for i=1 to N do
+            res = append(res,peek_string(peekNS(pArg4*4+i*W+W,W,0)))
+        end for
+    end if
 
     --
     -- If the first entry is ex[u|w[c]][.exe] (ie sources of Phix being
@@ -318,9 +344,9 @@ integer chfirst, chlast, l, lr
 --pp(res)
 
     l = 0
---
--- Grab a copy of the symtab, where prompted-for filename etc has been stashed.
---
+    --
+    -- Grab a copy of the symtab, where prompted-for filename etc has been stashed.
+    --
 --  current = 1 -- get current/"live" symtab; callstack not rqd
                 -- (pdiag.e wants symtab at error point, which is oft not the
                 --  one pdiag.e is actually executing in, whereas here we are
@@ -374,8 +400,5 @@ integer chfirst, chlast, l, lr
         res = prepend(res,res[1])           -- eg {"t.exe"} ==> {"t.exe","t.exe"}
     end if
 --*/
-    free(dotEXE)
-    free(pFilePart)
-
     return res
 end function

@@ -74,101 +74,80 @@ constant
 --  CSBI_MAXY   = 20,
     sizeof_CSBI = 22
 
-procedure initI()
-atom C_PTR
---DEV locking as per pprntf.e
-    C_PTR = C_POINTER
+-- Linux (DEV)
+--constant MAX_LINES = 100
+--constant MAX_COLS  = 200  -- 300? (see text_point() below)
 
-    xKernel32 = open_dll("kernel32.dll")
+
+procedure initI()
+--atom C_PTR
+--  C_PTR = C_POINTER
+--DEV locking as per pprntf.e
+    if platform()=WINDOWS then
+        xKernel32 = open_dll("kernel32.dll")
 
 --#without reformat
-    xAllocConsole = define_c_func(xKernel32,"AllocConsole",
-        {},         --  no parameters
-        C_INT)      -- BOOL
+        xAllocConsole = define_c_func(xKernel32,"AllocConsole",
+            {},         --  no parameters
+            C_INT)      -- BOOL
 
-    xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
-        {C_UINT},   --  DWORD  nStdHandle   // input, output, or error device
-        C_INT)      -- HANDLE
+        xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
+            {C_UINT},   --  DWORD  nStdHandle   // input, output, or error device
+            C_INT)      -- HANDLE
 
-    xReadConsoleOutput = define_c_func(xKernel32,"ReadConsoleOutputA",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
-         C_PTR,     --  PCHAR_INFO  pchiDestBuffer, // address of buffer that receives data
-         C_UINT,    --  COORD  coordDestBufferSize, // column-row size of destination buffer
-         C_UINT,    --  COORD  coordDestBufferCoord, // upper-left cell to write to
-         C_PTR},    --  PSMALL_RECT  psrctSourceRect // address of rectangle to read from
-        C_INT)      -- BOOL
+        xReadConsoleOutput = define_c_func(xKernel32,"ReadConsoleOutputA",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
+             C_PTR,     --  PCHAR_INFO  pchiDestBuffer, // address of buffer that receives data
+             C_UINT,    --  COORD  coordDestBufferSize, // column-row size of destination buffer
+             C_UINT,    --  COORD  coordDestBufferCoord, // upper-left cell to write to
+             C_PTR},    --  PSMALL_RECT  psrctSourceRect // address of rectangle to read from
+            C_INT)      -- BOOL
 
-    xWriteConsoleOutput = define_c_func(xKernel32,"WriteConsoleOutputA",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
-         C_PTR,     --  PCHAR_INFO  pchiSrcBuffer,  // address of buffer with data to write
-         C_UINT,    --  COORD  coordSrcBufferSize,  // column-row size of source buffer
-         C_UINT,    --  COORD  coordSrcBufferCoord, // upper-left cell to write from
-         C_PTR},    --  PSMALL_RECT  psrctDestRect  // address of rectangle to write to
-        C_INT)      -- BOOL
+        xWriteConsoleOutput = define_c_func(xKernel32,"WriteConsoleOutputA",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
+             C_PTR,     --  PCHAR_INFO  pchiSrcBuffer,  // address of buffer with data to write
+             C_UINT,    --  COORD  coordSrcBufferSize,  // column-row size of source buffer
+             C_UINT,    --  COORD  coordSrcBufferCoord, // upper-left cell to write from
+             C_PTR},    --  PSMALL_RECT  psrctDestRect  // address of rectangle to write to
+            C_INT)      -- BOOL
 
-    xGetConsoleScreenBufferInfo = define_c_func(xKernel32,"GetConsoleScreenBufferInfo",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
-         C_PTR},    --  PCONSOLE_SCREEN_BUFFER_INFO  // address of screen buffer info
-        C_INT)      -- BOOL
+        xGetConsoleScreenBufferInfo = define_c_func(xKernel32,"GetConsoleScreenBufferInfo",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+             C_PTR},    --  PCONSOLE_SCREEN_BUFFER_INFO  // address of screen buffer info
+            C_INT)      -- BOOL
 
-    xSetConsoleCursorInfo = define_c_func(xKernel32,"SetConsoleCursorInfo",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
-         C_PTR},    --  PCONSOLE_CURSOR_INFO  // address of cusrsor information
-        C_INT)      -- BOOL
+        xSetConsoleCursorInfo = define_c_func(xKernel32,"SetConsoleCursorInfo",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+             C_PTR},    --  PCONSOLE_CURSOR_INFO  // address of cusrsor information
+            C_INT)      -- BOOL
 
-    xGetLastError = define_c_func(xKernel32,"GetLastError",
-        {},
-        C_INT)      -- DWORD
+        xGetLastError = define_c_func(xKernel32,"GetLastError",
+            {},
+            C_INT)      -- DWORD
 --#with reformat
 
-    void = c_func(xAllocConsole,{}) -- if we already have one, fail, we don't care.
---  stdin = c_func(xGetStdHandle,{STD_INPUT_HANDLE})
-    stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
---  stderr = c_func(xGetStdHandle,{STD_ERROR_HANDLE})
---  ftable[1] = {stdin,#01}  -- read access
---  ftable[2] = {stdout,#06} -- write+binary
---  ftable[3] = {stderr,#06} -- write+binary
---  -- set initial foreground and background colours
---  getConsoleScreenBufferInfo()
---  fg_colour = peek2u(!xCSBI+CSBI_ATTR)
---  bg_colour = and_bits(fg_colour,#F0)/#10
---  fg_colour = and_bits(fg_colour,#F)
+        void = c_func(xAllocConsole,{}) -- if we already have one, fail, we don't care.
+--      stdin = c_func(xGetStdHandle,{STD_INPUT_HANDLE})
+        stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
+--      stderr = c_func(xGetStdHandle,{STD_ERROR_HANDLE})
+--      ftable[1] = {stdin,#01}  -- read access
+--      ftable[2] = {stdout,#06} -- write+binary
+--      ftable[3] = {stderr,#06} -- write+binary
+--      -- set initial foreground and background colours
+--      getConsoleScreenBufferInfo()
+--      fg_colour = peek2u(!xCSBI+CSBI_ATTR)
+--      bg_colour = and_bits(fg_colour,#F0)/#10
+--      fg_colour = and_bits(fg_colour,#F)
+
+    elsif platform()=LINUX then
+        stdout = 1
+        ?9/0    -- incomplete
+    else
+        ?9/0
+    end if
     iinit = 1
 end procedure
 
---DEV these should become builtins: (probably already are)
-/*
-function peek2u(object addr)
-sequence res
-    if atom(addr) then
-        return peek(addr)+peek(addr+1)*256
-    end if
-    res = repeat(0,addr[2])
-    addr = addr[1]
-    for i=1 to length(res) do
-        res[i] = peek(addr)+peek(addr+1)*256
-        addr += 2
-    end for
-    return res
-end function
-
-procedure poke2(atom addr, object x)
-atom xi
-    if atom(x) then
-        poke(addr, and_bits(x,#FF))
-        poke(addr+1, floor(and_bits(x,#FF00)/256))
-    else -- sequence
-        for i=1 to length(x) do
-            xi = x[i]   -- (helps speedwise, also ensures we don't 
-                        --  blindly poke nested sequences...)
-            poke(addr, and_bits(xi,#FF))
-            addr += 1
-            poke(addr, floor(and_bits(xi,#FF00)/256))
-            addr += 1
-        end for
-    end if
-end procedure
-*/
 -- copied from image.e:
 type positive_atom(atom x)
     return x>=1
@@ -181,20 +160,26 @@ atom lpBuffer
 object res
 atom xRect
     if not iinit then initI() end if
-    xRect = allocate(8)
-    poke2(xRect,{column-1,line-1,column-1,line-1})
+    if platform()=WINDOWS then
+        xRect = allocate(8)
+        poke2(xRect,{column-1,line-1,column-1,line-1})
 
-    lpBuffer = allocate(4)
-    if not c_func(xReadConsoleOutput,{stdout,lpBuffer,#10001,0,xRect}) then
---      dbg = c_func(xGetLastError,{})
-        -- error --
-        res = -1
+        lpBuffer = allocate(4)
+        if not c_func(xReadConsoleOutput,{stdout,lpBuffer,#10001,0,xRect}) then
+--          dbg = c_func(xGetLastError,{})
+            -- error --
+            res = -1
+        else
+            res = peek2u({lpBuffer,2})
+        end if
+
+        free(lpBuffer)
+        free(xRect)
+    elsif platform()=LINUX then
+        ?9/0    --DEV
     else
-        res = peek2u({lpBuffer,2})
+        ?9/0
     end if
-
-    free(lpBuffer)
-    free(xRect)
     return res
 end function
 
@@ -207,22 +192,28 @@ integer x
 atom xRect
 
     if not iinit then initI() end if
-    xRect = allocate(8)
+    if platform()=WINDOWS then
+        xRect = allocate(8)
 
-    x = length(char_attr)
+        x = length(char_attr)
 
-    poke2(xRect,{column-1,line-1,column+x-2,line-1})
+        poke2(xRect,{column-1,line-1,column+x-2,line-1})
 
-    lpBuffer = allocate(x*2)
-    poke2(lpBuffer,char_attr)
+        lpBuffer = allocate(x*2)
+        poke2(lpBuffer,char_attr)
 
-    if not c_func(xWriteConsoleOutput,{stdout,lpBuffer,#10000+floor(x/2),0,xRect}) then
---      dbg = c_func(xGetLastError,{})
-        -- error --
+        if not c_func(xWriteConsoleOutput,{stdout,lpBuffer,#10000+floor(x/2),0,xRect}) then
+--          dbg = c_func(xGetLastError,{})
+            -- error --
+        end if
+
+        free(lpBuffer)
+        free(xRect)
+    elsif platform()=LINUX then
+        ?9/0 -- DEV
+    else
+        ?9/0
     end if
-
-    free(lpBuffer)
-    free(xRect)
 end procedure
 
 -- copied from image.e:
@@ -247,30 +238,36 @@ object res
 atom xRect
     if not iinit then initI() end if
 
-    xRect = allocate(8)
-    topline = top_left[1]-1
-    lastline = bottom_right[1]-1
-    leftcol = top_left[2]-1
-    rightcol = bottom_right[2]-1
-    poke2(xRect,{leftcol,topline,rightcol,lastline})
+    if platform()=WINDOWS then
+        xRect = allocate(8)
+        topline = top_left[1]-1
+        lastline = bottom_right[1]-1
+        leftcol = top_left[2]-1
+        rightcol = bottom_right[2]-1
+        poke2(xRect,{leftcol,topline,rightcol,lastline})
 
-    x = rightcol-leftcol+1
-    y = lastline-topline+1
+        x = rightcol-leftcol+1
+        y = lastline-topline+1
 
-    lpBuffer = allocate(x*y*4)
-    if not c_func(xReadConsoleOutput,{stdout,lpBuffer,x+y*#10000,0,xRect}) then
---      dbg = c_func(xGetLastError,{})
-        -- error --
-        res = -1
+        lpBuffer = allocate(x*y*4)
+        if not c_func(xReadConsoleOutput,{stdout,lpBuffer,x+y*#10000,0,xRect}) then
+--          dbg = c_func(xGetLastError,{})
+            -- error --
+            res = -1
+        else
+            res = repeat(0,y)
+            for i=1 to y do
+                res[i] = peek2u({lpBuffer+(i-1)*x*4,x*2})
+            end for
+        end if
+
+        free(lpBuffer)
+        free(xRect)
+    elsif platform()=LINUX then
+        ?9/0 --DEV
     else
-        res = repeat(0,y)
-        for i=1 to y do
-            res[i] = peek2u({lpBuffer+(i-1)*x*4,x*2})
-        end for
+        ?9/0
     end if
-
-    free(lpBuffer)
-    free(xRect)
     return res
 end function
 
@@ -279,47 +276,59 @@ integer topline, lastline, leftcol, rightcol, x, y
 atom lpBuffer
 atom xRect
     if not iinit then initI() end if
-    xRect = allocate(8)
-    x = length(image[1])/2
-    y = length(image)
-    topline = top_left[1]-1
-    lastline = topline+y-1
-    leftcol = top_left[2]-1
-    rightcol = leftcol+x-1
-    poke2(xRect,{leftcol,topline,rightcol,lastline})
+    if platform()=WINDOWS then
+        xRect = allocate(8)
+        x = length(image[1])/2
+        y = length(image)
+        topline = top_left[1]-1
+        lastline = topline+y-1
+        leftcol = top_left[2]-1
+        rightcol = leftcol+x-1
+        poke2(xRect,{leftcol,topline,rightcol,lastline})
 
-    lpBuffer = allocate(x*y*4)
-    for i=1 to y do
-        poke2(lpBuffer+(i-1)*x*4,image[i])
-    end for
+        lpBuffer = allocate(x*y*4)
+        for i=1 to y do
+            poke2(lpBuffer+(i-1)*x*4,image[i])
+        end for
 --dbg = peek({lpBuffer,x*y*4})
 --trace(1)
 --dbg = peek({xRect,8})
 
-    if not c_func(xWriteConsoleOutput,{stdout,lpBuffer,x+y*#10000,0,xRect}) then
---      dbg = c_func(xGetLastError,{})
-        -- error --
-    end if
+        if not c_func(xWriteConsoleOutput,{stdout,lpBuffer,x+y*#10000,0,xRect}) then
+--          dbg = c_func(xGetLastError,{})
+            -- error --
+        end if
 --dbg = peek({xRect,8})
 
-    free(lpBuffer)
-    free(xRect)
+        free(lpBuffer)
+        free(xRect)
+    elsif platform()=LINUX then
+        ?9/0 -- DEV
+    else
+        ?9/0
+    end if
 end procedure
 
 global procedure cursor(integer style)
 -- choose a cursor style
 atom xCCI
     if not iinit then initI() end if
-    xCCI = allocate(sizeof_CCI)
-    poke4(xCCI+CCI_bVisible,(style!=0x02000))
-    if    style=#0607 then style = 12
-    elsif style=#0507 then style = 25
-    elsif style=#0407 then style = 50
-    else                   style = 100
+    if platform()=WINDOWS then
+        xCCI = allocate(sizeof_CCI)
+        poke4(xCCI+CCI_bVisible,(style!=0x02000))
+        if    style=#0607 then style = 12
+        elsif style=#0507 then style = 25
+        elsif style=#0407 then style = 50
+        else                   style = 100
+        end if
+        poke4(xCCI+CCI_dwSize,style)
+        void = c_func(xSetConsoleCursorInfo,{stdout,xCCI})
+        free(xCCI)
+    elsif platform()=LINUX then
+        ?9/0 -- DEV
+    else
+        ?9/0
     end if
-    poke4(xCCI+CCI_dwSize,style)
-    void = c_func(xSetConsoleCursorInfo,{stdout,xCCI})
-    free(xCCI)
 end procedure
 
 
@@ -330,32 +339,39 @@ sequence res
 atom xCSBI
     puts(1,"")
     if not iinit then initI() end if
-    xCSBI = allocate(sizeof_CSBI)
-    if c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then
+    if platform()=WINDOWS then
+        xCSBI = allocate(sizeof_CSBI)
+        if c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then
 
-        -- nb this is the display size; the buffer size is CSBI_SIZEX,CSBI_SIZEY
-        x = peek2u(xCSBI+CSBI_WINX2)-peek2u(xCSBI+CSBI_WINX1)+1
-        y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
-        mx = peek2u(xCSBI+CSBI_SIZEX)
-        my = peek2u(xCSBI+CSBI_SIZEY)
-        res = {1,       -- VC_COLOR, always assumed true
-               3,       -- VC_MODE, text mode always assued
-               my,      -- VC_LINES     \ (these are the only reason why
-               mx,      -- VC_COLUMNS   /  I bothered to support this)
-               0,       -- VC_XPIXELS, text mode always assumed
-               0,       -- VC_YPIXELS, text mode always assumed
-               32,      -- VC_NCOLORS, ("" [??])
-               1,       -- VC_PAGES, assume 1. Although more can be present, 
-                        --  the only way to switch is by passing the handles 
-                        --  returned from CreateConsoleScreenBuffer to 
-                        --  SetConsoleActiveScreenBuffer, as opposed to say
-                        --  the DOS-only set_display_page(n).
-               y,       -- VC_SCRNLINES
-               x}       -- VC_SCRNCOLS
+            -- nb this is the display size; the buffer size is CSBI_SIZEX,CSBI_SIZEY
+            x = peek2u(xCSBI+CSBI_WINX2)-peek2u(xCSBI+CSBI_WINX1)+1
+            y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
+            mx = peek2u(xCSBI+CSBI_SIZEX)
+            my = peek2u(xCSBI+CSBI_SIZEY)
+            res = {1,       -- VC_COLOR, always assumed true
+                   3,       -- VC_MODE, text mode always assued
+                   my,      -- VC_LINES     \ (these are the only reason why
+                   mx,      -- VC_COLUMNS   /  I bothered to support this)
+                   0,       -- VC_XPIXELS, text mode always assumed
+                   0,       -- VC_YPIXELS, text mode always assumed
+                   32,      -- VC_NCOLORS, ("" [??])
+                   1,       -- VC_PAGES, assume 1. Although more can be present, 
+                            --  the only way to switch is by passing the handles 
+                            --  returned from CreateConsoleScreenBuffer to 
+                            --  SetConsoleActiveScreenBuffer, as opposed to say
+                            --  the DOS-only set_display_page(n).
+                   y,       -- VC_SCRNLINES
+                   x}       -- VC_SCRNCOLS
+        else
+            res = {c_func(xGetLastError,{})}
+        end if
+        free(xCSBI)
+    elsif platform()=LINUX then
+        ?9/0 --DEV
+--      res = {line_max,col_max}
     else
-        res = {c_func(xGetLastError,{})}
+        ?9/0
     end if
-    free(xCSBI)
     return res
 end function
 

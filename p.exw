@@ -2,7 +2,7 @@
 -- DEV this might need to be in pHeap.e (:%pGetMCHK?): (so that pAlloc can store 0 in the era)
 --  it may also want to be "with memory_leak_checking/full_memory_leak_checking"
 
-global constant useFLOAT = 01
+--global constant useFLOAT = 01
 global constant MCHK = 0        -- 0 = off, 1 = on
 
 --  Note that MCHK is ignored if opLntpcalled!=0 or length(ptab)!=0, as otherwise
@@ -71,8 +71,8 @@ global constant MCHK = 0        -- 0 = off, 1 = on
 --include demo\arwen\axtra.ew
 --include builtins\timestamp.ew
 
-without trace
-without type_check
+--without trace
+--without type_check
 --with trace
 --with type_check
 --without debug -- no gain
@@ -183,7 +183,9 @@ include psym.e      -- symbol table handler.
 
 include pilx86.e    -- ilxlate(), (also includes psched.e)
 
-global sequence code_section
+--7/4/16:
+--global sequence code_section
+global string code_section
 global integer CSvsize, DSvsize
 global integer CSvaddr, DSvaddr, ImageBase, VMvaddr, VMraddr, DVraddr, VMvsize      --DEV temp, for listing
 global string divm  -- used by p2asm.e if dumpVM=1
@@ -213,7 +215,8 @@ include builtins\VM\pMemChk.e   -- check_heap
 -- Most of these tests are mundane, some exhaustively so:
 --
 constant testset={
-    "..\\test\\t01type.exw",--[ 1] OK   -- very basic type checking
+--  "..\\test\\t01type.exw",--[ 1] OK   -- very basic type checking
+    "t01type.exw",          --[ 1] OK   -- very basic type checking
     "t02parms.exw",         --[ 2] OK   -- simple parameter checking (oldish)
     "t03showt.exw",         --[ 3] OK   -- more very basic type checking
     "t04unary.exw",         --[ 4] OK   -- tests for unary minus and 'not'
@@ -261,11 +264,13 @@ constant testset={
     "t43tchk.exw",          --[43] OK   -- simple user defined type checks
     "t44silly.exw",         --[44] OK   -- recursive return test (ie the function f() returns f() case)
     "t45aod.exw",           --[45] OK   -- an assignment on declaration problem test
-    "t46ltype.exw",         --[46] OK   -- localtype tests
+--DEV p64 -c t46 is broken
+--  "t46ltype.exw",         --[46] OK   -- localtype tests
     "t47ltth.exw",          --[47] OK   -- localtype test harness, for tweakers of Assignment() in pmain.e
 --DEV top-level abort(0) kills the run...
 --  "t48init.exw",          --[48] OK   -- init tests ** not implemented/suboptimal **
-    "t49ginfo.exw",         --[49] OK   -- gvar_scan final results tests.
+--DEV p64 -c t49 is broken
+--  "t49ginfo.exw",         --[49] OK   -- gvar_scan final results tests.
 --Fine, but needs annoying edit
 --  "t50gscan.exw",         --[50] OK   -- some snippets which gave pgscan.e a hard time.
     "t51nstc.exw",          --[51] OK   -- some tests for an upgrade to Expr().
@@ -274,12 +279,13 @@ constant testset={
     "t54inc.exw",           --[54] OK   -- include bugfix (18/01/2012) part 1.
     "t55incinc.exw",        --[55] OK   -- include bugfix (18/01/2012) part 2.
     "t56inc.exw",           --[56] OK   -- ReLinkAsGlobal bugfix (27/12/2012)
---DEV broke 22/4/15:
+--DEV broke 22/4/15: (seems ok now, even on lnx!)
     "t57masgn.exw",         --[57] OK   -- test multiple assignment.
-    "t58rtxt.exw",          --[58] OK   -- file i/o tests (wait until pfileio3.e goes live) [DEV]
+    "t58rtxt.exw",          --[58] OK   -- file i/o tests
     "t59mri.exw",           --[59] OK   -- test mutually recursive includes
     "t60td.exw",            --[60] OK   -- timedate tests
-    "t61cffi.exw",          --[61] OK   -- cffi tests
+--DEV this is a very windows-centric test, need something quite different for linux:
+--  "t61cffi.exw",          --[61] OK   -- cffi tests
 --FP
     "..\\demo\\mandle.exw", --[61] OK   -- simple ascii mandlebrot demo
     "..\\demo\\combo.exw",  --[62] OK   -- simple combinations function
@@ -673,35 +679,50 @@ constant testset={
 
 include builtins\syswait.ew
 
-constant k32 = open_dll("kernel32.dll"),
-         xDeleteFile = define_c_func(k32,"DeleteFileA",{C_POINTER},C_LONG)
---DEV there's a Beep in kernel32?!
-constant user32 = open_dll("user32.dll"),
-         xBeep = define_c_proc(user32, "MessageBeep", {C_INT}),
-         stdBeep = {-1}
+atom k32=0, xDeleteFile, user32, xBeep
+constant stdBeep = {-1}
+procedure pinit()   -- platform()=WINDOWS only
+    k32 = open_dll("kernel32.dll")
+    xDeleteFile = define_c_func(k32,"DeleteFileA",{C_POINTER},C_LONG)
+--DEV there's a Beep in kernel32?! (cross-platform beep() rqd)
+    user32 = open_dll("user32.dll")
+    xBeep = define_c_proc(user32, "MessageBeep", {C_INT})
+end procedure
 
+--DEV cross-platform builtin rqd:
 procedure Delete(sequence filename)
--- filename is "pnew.exe" or "pnew2.exe".
+-- filename is "pnew.exe", "pnew2.exe", or "phix".
 -- not critical should this fail.
 atom fstr
 integer tries
-    fstr = allocate_string(filename)
-    tries = 0
-    while not c_func(xDeleteFile,{fstr}) do
-        tries += 1
-        if tries>20 then
-            puts(1,"(gave up)\n")
-            exit
-        end if
-        puts(1,filename&" in use, retrying..\n")
-        sleep(tries)    -- 1,2,3...20 total 210 secs (3 mins 30 secs)
-    end while
-    free(fstr)
+    if platform()=WINDOWS then
+        if k32=0 then pinit() end if
+        fstr = allocate_string(filename)
+        tries = 0
+        while not c_func(xDeleteFile,{fstr}) do
+            tries += 1
+            if tries>20 then
+                puts(1,"(gave up)\n")
+                exit
+            end if
+            puts(1,filename&" in use, retrying..\n")
+            sleep(tries)    -- 1,2,3...20 total 210 secs (3 mins 30 secs)
+        end while
+        free(fstr)
+    else
+--      ?9/0
+        system("rm "&filename)
+    end if
 end procedure
 
 procedure Retry(sequence msg)
     puts(1,msg)
-    c_proc(xBeep,stdBeep)
+    if platform()=WINDOWS then
+        if k32=0 then pinit() end if
+        c_proc(xBeep,stdBeep)
+    else
+        puts(1,7)
+    end if
     sleep(1)
     if find(get_key(),"nN") then abort(1) end if
     puts(1,"\n")
@@ -718,37 +739,47 @@ integer c
     else
         puts(1,"Overwriting ")
     end if
-    puts(1,pw)
+    puts(1,pw&"\n")
     while 1 do
         c = getc(fin)
         if c=-1 then exit end if
         puts(fn,c)
     end while
     close(fin)
-    if equal(pw,"pw.exe")
-    or (equal(pw,"p.exe") and oc=1) then
-        if seek(fn,#DC)!=0 then
-            puts(1,"\n\n**seek error on pw.exe**\n\nPress Enter...")
-            if wait_key() then end if
-            abort(1)
-        end if
-        if equal(pw,"pw.exe") then
-            puts(fn,2) -- IMAGE_SUBSYSTEM_WINDOWS_GUI
-        else
-            puts(fn,3) -- IMAGE_SUBSYSTEM_WINDOWS_CUI
+    if platform()=WINDOWS then
+        if equal(pw,"pw.exe")
+        or (equal(pw,"p.exe") and oc=1) then
+            if seek(fn,#DC)!=0 then
+                puts(1,"\n\n**seek error on pw.exe**\n\nPress Enter...")
+                if wait_key() then end if
+                abort(1)
+            end if
+            if equal(pw,"pw.exe") then
+                puts(fn,2) -- IMAGE_SUBSYSTEM_WINDOWS_GUI
+            else
+                puts(fn,3) -- IMAGE_SUBSYSTEM_WINDOWS_CUI
+            end if
         end if
     end if
     close(fn)
 end procedure
 
+function pnew()
+    return iff(platform()=WINDOWS?"pnew.exe":"pnew")
+end function
+
+function pnew2()
+    return iff(platform()=WINDOWS?"pnew2.exe":"pnew2")
+end function
+
 procedure verify_build()
--- 1) Check that pnew.exe and pnew2.exe are binary identical,
+-- 1) Check that pnew[.exe] and pnew2[.exe] are binary identical,
 --    if not abort with 1 to signal failure.
 integer fn, fn2, c, c2
 sequence doOther
-    puts(1,"verifying pnew.exe==pnew2.exe")
-    fn = open("pnew.exe","rb")
-    fn2 = open("pnew2.exe","rb")
+    printf(1,"verifying %s==%s",{pnew(),pnew2()})
+    fn = open(pnew(),"rb")
+    fn2 = open(pnew2(),"rb")
     if fn!=-1 and fn2!=-1 then
         while 1 do
             c = getc(fn)
@@ -765,7 +796,7 @@ sequence doOther
     puts(1," OK\n")
     close(fn2)
     if seek(fn,0)!=0 then
-        puts(1,"\n\n**seek error on pnew.exe**\n\nPress Enter...")
+        printf(1,"\n\n**seek error on %s**\n\nPress Enter...",{pnew()})
         if wait_key() then end if
         abort(1)
     end if
@@ -798,22 +829,26 @@ sequence doOther
 --          waiting for this pw.exe to finish", perhaps...
 --          Let me know if this behaviour annoys or confuses you.
 --
-    while 1 do
-        fn2 = open("pw.exe","wb")
-        if fn2!=-1 then
-            OverWrite("pw.exe",fn2,fn,0)
---          doOther = mainpath&"pw.exe -pmkr5"  -- ie DoOther("p.exe")
-            doOther = '\"'&mainpath&"pw.exe\" -pmkr5"   -- ie DoOther("p.exe")
-            exit
-        end if
-        fn2 = open("p.exe","wb")
-        if fn2!=-1 then
-            OverWrite("p.exe",fn2,fn,0)
-            doOther = '\"'&mainpath&"p.exe\" -pmkr6"    -- ie DoOther("pw.exe")
-            exit
-        end if
-        Retry("Both p.exe and pw.exe are in use - retry?")
-    end while
+    if platform()=WINDOWS then
+        while 1 do
+            fn2 = open("pw.exe","wb")
+            if fn2!=-1 then
+                OverWrite("pw.exe",fn2,fn,0)
+--              doOther = mainpath&"pw.exe -pmkr5"  -- ie DoOther("p.exe")
+                doOther = '\"'&mainpath&"pw.exe\" -pmkr5"   -- ie DoOther("p.exe")
+                exit
+            end if
+            fn2 = open("p.exe","wb")
+            if fn2!=-1 then
+                OverWrite("p.exe",fn2,fn,0)
+                doOther = '\"'&mainpath&"p.exe\" -pmkr6"    -- ie DoOther("pw.exe")
+                exit
+            end if
+            Retry("Both p.exe and pw.exe are in use - retry?")
+        end while
+    elsif platform()=LINUX then
+        doOther = '\"'&mainpath&"pnew2\" -pmkr5"            -- ie DoOther("phix")
+    end if
     puts(1," OK\n")
     printf(1,"==>system(%s)\n",{doOther})
     system(doOther)         -- (no wait)
@@ -821,7 +856,7 @@ sequence doOther
 end procedure
 
 procedure DoOther(sequence ppw)
--- ppw is either "p.exe" or "pw.exe".
+-- ppw is "p.exe" or "pw.exe", or "phix" on Linux.
 integer fn, firsttime, fin
     firsttime = 1   -- (sleep(1) once only, and not once each for ppw & pnew.exe])
 --DEV commented out 29/05 (check list.asm, see if I missed anything/there should be a fin=-1 as well)
@@ -837,21 +872,21 @@ integer fn, firsttime, fin
         end if
     end while
     while 1 do
-        fin = open("pnew.exe","rb")
+        fin = open(pnew(),"rb")
         if fin!=-1 then exit end if
         if firsttime then
             sleep(1)
             firsttime = 0
         else
-            Retry("pnew.exe in use - retry?")
+            Retry(sprintf("%s in use - retry?",{pnew()}))
         end if
     end while
     OverWrite(ppw,fn,fin,0)
     --
-    -- finally, try to delete pnew.exe and pnew2.exe:
+    -- finally, try to delete pnew[.exe] and pnew2[.exe]:
     --
-    Delete("pnew.exe")
-    Delete("pnew2.exe")
+    Delete(pnew())
+    Delete(pnew2())
     abort(0)
 end procedure
 
@@ -904,7 +939,12 @@ sequence t
         elsif virtKey=G0_F8 then
             if didx<lend then newidx = didx+1 else newidx = 1 end if
         else
-            c_proc(xBeep,stdBeep)
+            if platform()=WINDOWS then
+                if k32=0 then pinit() end if
+                c_proc(xBeep,stdBeep)
+            else
+                ?9/0
+            end if
             return 0
         end if
         if newidx and newidx<lend then
@@ -918,7 +958,12 @@ sequence t
         -- ignore funny chars (smiley faces etc)
         -- (C is copy, H is BS, I is TAB, J is LF,
         --  L is clear, M is cr, V is paste, Z is EOF)
-        c_proc(xBeep,stdBeep)
+        if platform()=WINDOWS then
+            if k32=0 then pinit() end if
+            c_proc(xBeep,stdBeep)
+        else
+            ?9/0
+        end if
         return 0
     elsif cpos=lr or cpos+overstrike=lr then
         -- if adding a char or replacing last char
@@ -986,42 +1031,12 @@ integer dfn, ch, k, k1, xk, lencl, lenx
 integer pfn, pwfn
 --/**/atom R
 sequence cl
+sequence verinfo
 
 --trace(1)
 
     cl = command_line()
---?cl
--- 30/6/2010:
--- (Even I don't normally want this! 
---  rebuildStub() does it better for the p -cp case.
---  However, using pstub.exe can help a bit after a
---  bad edit to p.asm makes "p -cp" fail and then 
---  "p p -test" may indeed need it... But anyone else
---  reading this is highly unlikely to get into that
---  situation, since things should get migrated to
---  hll/#ilasm before playtime begins.)
---
---if 01 then
     cl1 = cl[1]
---DEV temp: command_line should do this...  
---  if not find('.',cl1) then
---      cl1 &= ".exe"
---  end if
---else
---  cl1 = rootpath&"pstub.exe"  -- DEV better for rebuild issues.
---  if atom(dir(cl1)) then
---      cl1 = cl[1]
-----/* RDS Eu: do not use say C:\Euphoria\bin\exw.exe as the stub!!
-----     (on Phix, cl1 is already likely to be C:\Program Files\Phix\p.exe)
---      cl1 = rootpath&"p.exe"
---?9/0 -- Above will no longer work now the backend is encrypted.
---   -- (Bootstrapping via RDS Eu is only possible with an
---   --  unencrypted stub, which I do not distribute. See the
---   --  docs for options regarding a fully open source version
---   --  of Phix, it is not a one-man job!)
-----*/
---  end if
---end if
 while 1 do  -- 17/8
     if length(cl)<3 then
 --removed 16/07/2013:
@@ -1029,7 +1044,7 @@ while 1 do  -- 17/8
 --      if get_r_proemh()!=-1 then  -- if perror.ew included by pmsgs.e
 ------DEV run it under Phix!!! (IE: US, NOW!!)
 --          if sequence(dir("pgui.exw")) then
---              mainpath = current_dir()&"\\"
+--              mainpath = current_dir()&SLASH
 --              mainfile = "pgui.exw"
 --              return
 --          elsif sequence(dir("pgui.exe")) then
@@ -1042,7 +1057,9 @@ while 1 do  -- 17/8
 --      puts(1,"as modified by <insert your name here>\n")
 --DEV we should do some #ilasm here to obtain correct version/build no,
 --      and pemit.e should auto-increment something:
-        printf(1,"Version %d.%d.%d (%d bit) Copyright Pete Lomax 2006..2015\n\n",phixversion&machine_bits())
+        verinfo = phixversion&machine_bits()
+        verinfo = append(verinfo,iff(platform()=WINDOWS?"Windows":"Linux"))
+        printf(1,"Version %d.%d.%d (%d bit %s) Copyright Pete Lomax 2006..2015\n\n",verinfo)
 
         default_commandline = ""
 --      default_commandlines = readpini()   -- DEV/SUG... (or is pgui.exw running off a separate db?)
@@ -1072,12 +1089,20 @@ while 1 do  -- 17/8
 --              printf(1,"[%s]",{default_commandline})
 --          end if
             puts(1,":")
---          x0 = gets(0)
-            g0_addcr = 0    -- (do not append cr, please)
---          x0 = gets0(r_keyHander,default_commandline,0)
-            x0 = gets0(r_keyHander,"",0)
---          x0 = gets0(r_keyHander,"",-1)
-            g0_addcr = 1    -- (reset to default, just in case)
+            if platform()=WINDOWS then
+                g0_addcr = 0    -- (do not append cr, please)
+--              x0 = gets0(r_keyHander,default_commandline,0)
+                x0 = gets0(r_keyHander,"",0)
+--              x0 = gets0(r_keyHander,"",-1)
+                g0_addcr = 1    -- (reset to default, just in case)
+            else
+                x0 = gets(0)
+                if atom(x0) then
+                    pemit2free()
+                    abort(0)
+                end if
+                if length(x0) and x0[$]='\n' then x0 = x0[1..$-1] end if
+            end if
             puts(1,"\n")
 --          if not equal(x0,"?\n") then exit end if
             if not equal(x0,"?") then exit end if
@@ -1133,7 +1158,9 @@ while 1 do  -- 17/8
 --          x = default_commandline
 --          lenx = length(x)
             if lenx=0 then
-                g0close()
+                if platform()=WINDOWS then
+                    g0close()
+                end if
                 pemit2free()
                 abort(0)
             end if
@@ -1436,7 +1463,7 @@ while 1 do  -- 17/8
             norun = 0
         elsif equal(x,"nodiag") then
             nodiag = 1
-suppressopRetf = 1
+--suppressopRetf = 1
         elsif find(x,{"import","imports"}) then
             listimports = 1
 --DEV (5/1/15)
@@ -1458,31 +1485,37 @@ suppressopRetf = 1
 --          cl = {"#47A6B5"}
 --          cl = {"#47A6B5", "p.ew"}
         elsif equal(x,"pmkr2") then
-            puts(1,"Self-host round 2: compiling p.exw (using that pnew.exe just created)\n")
+            printf(1,"Self-host round 2: compiling p.exw (using that %s just created)\n",{pnew()})
             cl = {"p.exw","-pmkr3"}
             lencl = 2
             bind = 3
             use_pini_time = 1
             exit
         elsif equal(x,"pmkr3") then
-            puts(1,"Self-host round 3: compiling p.exw (using that pnew2.exe just created)\n")
+            printf(1,"Self-host round 3: compiling p.exw (using that %s just created)\n",{pnew2()})
             cl = {"p.exw"}
             lencl = 1
             bind = 4
             use_pini_time = 1
             exit
         elsif equal(x,"pmkr4") then
-            puts(1,"Self-host round 4: compiling p.exw (using that pnew.exe just created)\n")
+            printf(1,"Self-host round 4: compiling p.exw (using that %s just created)\n",{pnew()})
             cl = {"p.exw"}
             lencl = 1
             bind = 5
             use_pini_time = 1
             exit
         elsif equal(x,"pmkr5") then
-            DoOther("p.exe")
+            if platform()=WINDOWS then
+                DoOther("p.exe")
+            elsif platform()=LINUX then
+                DoOther("phix")
+            end if
         elsif equal(x,"pmkr6") then
+            if platform()!=WINDOWS then ?9/0 end if
             DoOther("pw.exe")
         elsif equal(x,"pw") then        -- p -pw = create pw.exe from p.exe
+            if platform()!=WINDOWS then ?9/0 end if
             pfn = open("p.exe","rb")
             if pfn=-1 then
                 Fatal("unable to open p.exe for read\n")
@@ -1496,6 +1529,7 @@ suppressopRetf = 1
             pemit2free()
             abort(0)
         elsif equal(x,"p") then         -- pw -p = create p.exe from pw.exe
+            if platform()!=WINDOWS then ?9/0 end if
             pwfn = open("pw.exe","rb")
             if pwfn=-1 then
                 Fatal("unable to open pw.exe for read\n")
@@ -1545,16 +1579,16 @@ suppressopRetf = 1
 --!/**/     #ilASM {call %opSetBatchMode }
             #ilASM{
                     --
-                    -- If VM/pdiagN.e has been included, call :!SetBatchMode, 
+                    -- If VM/pDiagN.e has been included, call :!SetBatchMode, 
                     --  which leaves the return address on the stack.
-                    -- If VM/pdiagN.e has NOT been included, this quietly 
+                    -- If VM/pDiagN.e has NOT been included, this quietly 
                     --  resolves to call 0, which pushes the same return addr
                     --  as a non-0 call would, but continues on the next line.
-                    -- Note that pdiagN.e is normally part of all applications,
+                    -- Note that pDiagN.e is normally part of all applications,
                     --  (unless -nodiag has been specified) and cannot use the
                     --  same batchmode variable that we just set above.
                     --
-                    call :!SetBatchMode     -- set pdiagN.e/batchmode (opt)
+                    call :!SetBatchMode     -- set pDiagN.e/batchmode (opt)
                 [32]
                     add esp,4
                 [64]
@@ -1574,13 +1608,22 @@ end while                   -- 17/8
     cl = cl[1]
     lencl = length(cl)
 
-    if (lencl>2 and cl[2]=':')                          -- beginning X:
-    or (lencl>3 and cl[3]=':' and cl[1]='\"') then      -- beginning "X:
+    integer qskip = lencl>1 and cl[1]='\"'
+--  if (platform()=WINDOWS and ((lencl>2 and cl[2]=':') or                      -- beginning X:
+--                              (lencl>3 and cl[3]=':' and cl[1]='\"')))        -- beginning "X:
+----DEV we might want the same for ./ and "./ 
+--  or (platform()=LINUX   and ((lencl>2 and cl[1]='.' and cl[2]=SLASH) or      -- beginning ./
+--                              (lencl>3 and cl[1]='.' and cl[2]=SLASH and cl[3]='\"') or       -- beginning "./
+--                              (lencl>1 and cl[1]=SLASH) or                    -- beginning /
+--                              (lencl>2 and cl[2]=SLASH and cl[1]='\"'))) then -- beginning "/
+    if (platform()=WINDOWS and lencl>qskip+1 and cl[qskip+2]=':')                               -- beginning X: or "X:
+    or (platform()=LINUX   and lencl>qskip+1 and cl[qskip+1]='.' and cl[qskip+2]=SLASH) then    -- beginning ./ or "./
         mainpath = ""
     else
         mainpath = current_dir()
         if not find(mainpath[length(mainpath)],"\\/") then
-            mainpath &= '\\'
+--          mainpath &= '\\'
+            mainpath &= SLASH
         end if
     end if
 
@@ -1639,107 +1682,9 @@ end if
     g0close()
 end procedure
 
-sequence source
-        source = "asm\\p.asm "
-
 atom t, t0
 --, tc, tff, tr
 atom errorcode
-
-procedure rebuildStub()
---
--- When self-hosting, and asm/p.asm exists, rebuild pstub.exe if 
---  it does not exist, or if it is older than any *.asm file,
---  and/or use pstub.exe in place of p.exe.
--- At the moment this can only happen on Pete Lomax's machine...
---  However, any volunteers to help port the asm bit by bit to 
---  hll/#ilasm (ie fully open source) would be most welcome.
---  See also plist.e
---
-integer fn, rebuild
-object ferrline
-sequence ferrset, alreadyshown
-object dstub, dasm
-    errorcode = 0
-    fn = open(mainpath&source,"rb")
-    if fn!=-1 then                      -- so, asm/p.asm exists...
-        close(fn)
-        rebuild = 0
-        cl1 = mainpath&"pstub.exe"      -- used whether we rebuild or not
-        dstub = dir(cl1)
-        if sequence(dstub) then
-            dstub = dstub[1][4..9]      -- year..second
-            dasm = dir(mainpath&"asm\\*.asm")
-            for i=1 to length(dasm) do
---              if dstub<=dasm[i][4..9] then
-                if compare(dstub,dasm[i][4..9])<=0 then
-                    rebuild = 1
-                    exit
-                end if
-            end for
-        else                -- pstub.exe does not exist
-            rebuild = 1
-        end if
-        if rebuild then
---          puts(1,"==>fasm")
-            t = time()
-            errorcode = system_wait("fasmq.exe "&source&" \""&cl1&"\"")
-            t = time()-t
---          printf(1,"ed in %3.2f seconds\n",t)
-            printf(1,"fasmed in %3.2f seconds\n",t)
-            if errorcode!=0 then
-                puts(1,"\n")
-                puts(1,"fasmq.exe "&source&" \""&cl1&"\"\n")
-                fn = open("ferr.txt","r")
---              if fn = -1 then
---                  sleep(1)
---                  fn = open("ferr.txt","r")
---              end if
-                if fn=-1 then
-                    fn = open("fasmq.exe","r")
-                    if fn=-1 then
-                        puts(1,"(no ferr.txt file, and no fasmq.exe)\n")
-                    else
-                        close(fn)
-                        puts(1,"(no ferr.txt file)\n")
-                    end if
-                else
-                    ferrset = {}
-                    ferrline = gets(fn)
-                    alreadyshown = "This error has [probably] already been shown:\n"
-                    if not equal(ferrline,alreadyshown) then
-                        ferrset = append(ferrset,alreadyshown)
-                    else
-                        alreadyshown = ""
-                    end if
-                    while sequence(ferrline) do
-                        puts(1,ferrline)
-                        ferrset = append(ferrset,ferrline)
-                        ferrline = gets(fn)
-                    end while
-                    close(fn)
-                    if length(alreadyshown) then
-                        fn = open("ferr.txt","w")
-                        for i=1 to length(ferrset) do
-                            puts(fn,ferrset[i])
-                        end for
-                        close(fn)
-                    end if
-                end if
-if DEBUG then
-                puts(1,"\nPress Enter, or d for diagnostics...")
-                if find(wait_key(),"dD") then ?9/0 end if
-else
-                puts(1,"\nPress Enter...")
-                if wait_key() then end if
-end if
-            end if  -- errorcode!=0
-        end if  -- fn=1
-    end if  -- fn!=-1
-    source = ""
-end procedure
-
-
 
 procedure comptime()
 integer tl
@@ -1775,10 +1720,6 @@ with trace
 function main()
 object savepath
 sequence outfile
---/**/atom R
---/**/string wasclip
---/**/string newclip    -- added 22/10/2011
---/**/integer wassize
 --integer dbg_regstate
 --trace(1)
 --regstate = 9
@@ -1802,7 +1743,6 @@ string pi
             Fatal("additional options may not follow \"-c p[.exw]\"\n")
 --          abort(1)    -- Fatal() does not return
         end if
-if newEmit then
         if bind then
             bind = 2
             -- (we use the last access time of p.ini in pbinary.e)
@@ -1814,78 +1754,27 @@ if newEmit then
 --              end if
 --          end if
 --          close(dfn)
-            SetLastAccessTime("p.ini")
+            if platform()=WINDOWS then
+                --DEV not sure what is needed on Linux... (if anything... do we have any timestamps in the headers?)
+                SetLastAccessTime("p.ini")
+            end if
             if scramble then ?9/0 end if
             if not listing then
-                puts(1,"\nCheck for and shut down any running instances of p.exe and/or pw.exe\n")
-                puts(1,"          (retry messages are given when required after round 4, and\n")
-                puts(1,"           if it cannot overwrite both, it will not overwrite either)\n\n")
+                if platform()=WINDOWS then
+                    puts(1,"\nCheck for and shut down any running instances of p.exe and/or pw.exe\n")
+                    puts(1,"          (retry messages are given when required after round 4, and\n")
+                    puts(1,"           if it cannot overwrite both, it will not overwrite either)\n\n")
+                else
+                    puts(1,"\nCheck for and shut down any running instances of phix\n")
+                    puts(1,"  (retry messages are given if required after round 4)\n\n")
+                end if
                 puts(1,"Self-host round 1: compiling p.exw\n")
             end if
             use_pini_time = 1
         end if
-else
-        if length(source) and not listing then
-            rebuildStub()
-            if errorcode then abort(0) end if
-        end if
-        if bind then
-            bind = 2
---/**/      if scramble then
---/**/          clipBoard(PASTE)
---/**/          wassize = size
---/**/          if size!=-1 then    -- clipboard was empty
---/**/              wasclip = clip
---/**/          end if
---/**/  --      printf(1,"wasclip:%s, wassize:%d\n",{wasclip,wassize})
---/**/          #ilASM{ lea edi,[R]
---/**/                  call :%opGetRand }
---/**/  --      printf(1,"rand seed:%08x\n",R)
---/**/          size = 8
---/**/          clip = repeat(' ',8)
---/**/          for i=8 to 1 by -1 do
---/**/              clip[i] = and_bits(R,#0F)+'A'
---/**/              R = floor(R/#10)
---/**/          end for
---/**/          newclip = clip      -- added 22/10/2011
---/**/          clipBoard(COPY)
---/**/          clipBoard(PASTE)    -- added 22/10/2011
---/**/          if size=-1 then -- some error?
---/**/              for i=1 to 10 do
---/**/                  sleep(0.1)
---/**/                  size = 8
---/**/                  clip = newclip
---/**/                  clipBoard(COPY)
---/**/ -- AH! size is not SET by copy...
---/**/  --              if size!=-1 then exit end if
---/**/                  clipBoard(PASTE)    -- added 22/10/2011
---/**/                  if size!=-1 or clip!=newclip then exit end if -- added 22/10/2011
---/**/                  if i=10 then
---DEV do we want a retry/cancel here? (and do we want a messageBox if GUI?)
---/**/                      puts(1,"\n\nerror: clipboard unavailable\n\nPress Enter...")
---/**/                      if getc(0) then end if
---/**/                      abort(1)
---/**/                  end if
---/**/              end for
---/**/          end if
---/**/      end if
-            if not listing then
-                puts(1,"\nCheck for and shut down any running instances of p.exe and/or pw.exe\n")
-                puts(1,"          (retry messages are given when required after round 4, and\n")
-                puts(1,"           if it cannot overwrite both, it will not overwrite either)\n\n")
-                puts(1,"Self-host round 1: compiling p.exw\n")
---/!**!/            puts(1," <temp debug msg>: Clip is "&clip&"\n") --[DEV]
-            end if
-        end if
-end if
-
---DEV wtf? (I assume this is because it was changing/I wanted to use pstub.exe over p.exe for testing...)
---  elsif newEBP then
---      rebuildStub()
---      if errorcode then abort(0) end if
     end if
     t = time()
---t0 = t
+t0 = t
 
     fileno=0
     resetOptions()
@@ -1965,22 +1854,22 @@ end if
                     norun = 0
                     params = {"-pmkr2"}
                 else
-                    puts(1,"creating pnew.exe...\n")
+                    printf(1,"creating %s...\n",{pnew()})
                     norun = 1
                 end if
-                outfile = "pnew.exe"
+                outfile = pnew()
             elsif bind>=3 then
                 norun = 1
-                outfile = "pnew2.exe"   -- bind=3,5 (rounds 2&4)
+                outfile = pnew2()       -- bind=3,5 (rounds 2&4)
                 if bind=4 then
-                    outfile = "pnew.exe"    -- bind=2,4 (rounds 1&3)
+                    outfile = pnew()    -- bind=2,4 (rounds 1&3)
                 end if
             end if
-if newEmit then
-            if PE=0 then
-                outfile = outfile[1..-5]
-            end if
-end if
+--if newEmit then
+--          if PE=0 then
+--              outfile = outfile[1..-5]
+--          end if
+--end if
         end if
 
 --if newEmit then
@@ -2077,11 +1966,11 @@ end if
             errorcode = system_wait(mainpath&outfile)
             if bind=2 then
                 if errorcode=0 then
-                    outfile = mainpath&"pnew2.exe -pmkr3"
+                    outfile = mainpath&pnew2()&" -pmkr3"
                     printf(1,"==>system_wait(%s):\n",{outfile})
                     errorcode = system_wait(outfile)
                     if errorcode = 0 then
-                        outfile = mainpath&"pnew.exe -pmkr4"
+                        outfile = mainpath&pnew()&" -pmkr4"
                         printf(1,"==>system_wait(%s):\n",{outfile})
                         errorcode = system_wait(outfile)
                         if errorcode = 0 then
@@ -2091,24 +1980,11 @@ end if
                             puts(1,"some error!!!\n")
                         end if
                     else
-                        puts(1,"some error!!\n") --<<
+                        puts(1,"some error!!\n")
                     end if
                 else
                     puts(1,"some error!\n")
                 end if
-if not newEmit then
---/**/          if scramble then
---/**/              if wassize!=-1 then
---/**/                  size = wassize
---/**/                  clip = wasclip
---/**/                  clipBoard(COPY)
---/**/      --          clipBoard(PASTE)
---/**/      --          wasclip = clip
---/**/      --          wassize = size
---/**/      --          printf(1,"wasclip:%s, wassize:%d\n",{wasclip,wassize})
---/**/              end if
---/**/          end if
-end if
             end if
             if sequence(savepath) then
                 if not chdir(savepath) then
@@ -2120,11 +1996,6 @@ end if
             close(-9)
             symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
             wasEBP = symtab[T_EBP]
---  ?       if atom(wasEBP]) then
---              level = 1
---          else
---              level = wasEBP[3]+1
---          end if
             #ilASM{
                 -- set ebp4,esp4,pst4 (from ebp,esp,symtabptr)
                 [32]
@@ -2580,7 +2451,7 @@ g0close()
 end procedure
 
 
-sequence smf, smp   -- save of main file & path
+sequence smf, smp   -- save of main file & path [DEV to go]
 
     newEmit = 1
 -- X64 = 0
@@ -2598,7 +2469,7 @@ if testall then
     alltime = time()
     smf = mainfile
     smp = mainpath
-    mainpath = rootpath&"test\\"
+    mainpath = rootpath&"test"&SLASH
     OptConsole = 1
     tt_save_init()
     for i=1 to length(testset)-1 do

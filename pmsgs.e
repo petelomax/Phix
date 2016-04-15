@@ -252,7 +252,7 @@ end function
 --      pr = 0
 
 --with trace
---DEV call from pdiagN.e??
+--DEV call from pDiagN.e??
 global procedure Warnings(integer fn)
 object wi, buttons
 sequence 

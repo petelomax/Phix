@@ -30,6 +30,7 @@ atom kernel32,
     xGetLastError
 
 procedure t_init()
+puts(1,"pThreadN.e not linux\n")
     kernel32 = open_dll("kernel32.dll")
 
     xCreateEvent = define_c_func(kernel32,"CreateEventA",

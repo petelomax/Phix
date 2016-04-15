@@ -1,4 +1,220 @@
 --
+-- terror2.exw
+--
+--DEV incomplete: use the win32/arwen version to edit/insert/import/export etc,
+--  this is really only suitable for 64bit/lnx testing, for now...
+-- (but of course I made sure it can run the tests on win32 first!)
+
+include ..\demo\pGUI\pGUI.e
+include ..\builtins\sort.e      -- (not strictly necessary)
+include ..\builtins\database.e  -- ("")
+
+--#withtype Ihandle
+
+constant mainTitle = "Test Phix error and warning handling"
+
+constant t00 = "t00.exw",
+         err = "ex.err",
+         $
+
+string cinterpret, crun
+
+procedure setc()
+sequence cl = command_line()
+    if equal(cl[1],cl[2]) then
+        cl = "..\\pw"   -- (assume we are running Phix\test\terror.exe)
+    else
+        cl = cl[1]
+    end if
+    if find(' ',cl) then
+        cl = '\"' & cl & '\"'
+    end if
+    cinterpret = cl & " -batch " & t00
+    crun = cl & " -batch -c " & t00
+end procedure
+setc()
+
+Ihandle dlg, matrix, filtertxt, source, expected, statusbar
+
+constant titles = {"Name", "Last Modified", "Last Run", "Flags"},
+         twidth = {100,     120,             120,       30}
+
+-- tests[i] is {name,lastmod,lastrun,src,err,flags}, 
+--  but on the database key is name, and 
+--  data is {lastmod,lastrun,src,err,flags}, 
+--  ie one less than these constants
+constant T_name = 1,
+         T_lastmod = 2,
+         T_lastrun = 3,
+         T_src = 4,
+         T_err = 5,
+         T_flags = 6
+
+-- a T_flags value of 0 means "everything".
+constant NOCOMPILE  = #01,
+         NOINTERP   = #02
+
+sequence tests,
+         tags,
+--       fmap = {}, -- 'real' indexes after filtering effects
+         $
+
+--DEV builtins/pdelete_file.e?
+atom lib = 0,
+     xDeleteFile
+
+procedure delete_file(string filename)
+    if lib=0 then
+        if platform()=WINDOWS then
+            lib = open_dll("kernel32.dll")
+            xDeleteFile = define_c_proc(lib,"DeleteFileA",{C_PTR})
+        elsif platform()=LINUX then
+            -- completely untested:
+            lib = open_dll("")
+            xDeleteFile = define_c_proc(lib,"unlink",{C_PTR})
+        else
+            ?9/0
+        end if
+    end if
+    c_proc(xDeleteFile, {filename})
+end procedure
+
+
+procedure Abort(sequence msg)
+    puts(1,msg)
+    ?9/0
+end procedure
+
+function datestring(object d)
+-- d is {y-1900,m,d,...} from the date() function.
+-- d is {y,m,d,...} from the date() function.
+-- return it in dd/mm/yyyy hh:mm:ss format.
+integer tmp
+    if not sequence(d) then
+        return "-"
+    end if
+    tmp = d[1]
+    if tmp<1900 then
+        tmp += 1900
+    end if
+    d[1] = d[3]
+    d[3] = tmp
+    return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
+end function
+
+string semiperm -- (return value of value_cb must outlive it)
+
+function value_cb(Ihandle /*self*/, integer l, integer c)
+object dlc
+    if c>0 then
+        if c>length(titles) then return NULL end if
+        if l==0 then
+            return IupRawStringPtr(titles[c])   -- column title
+        end if
+        if l>length(tests) then return NULL end if
+        l = tags[l]
+--      l = fmap[l]
+        dlc = tests[l][c]
+        if c=T_lastmod
+        or c=T_lastrun then
+            dlc = datestring(dlc)
+        elsif c=4 then  -- flags
+            semiperm = ""
+            integer flags = tests[l][T_flags]
+            if and_bits(flags,NOINTERP)=0 then semiperm &= 'i' end if
+            if and_bits(flags,NOCOMPILE)=0 then semiperm &= 'c' end if
+            dlc = semiperm
+        end if
+        if string(dlc) then
+            if length(dlc)=0 then return NULL end if
+            return IupRawStringPtr(dlc)
+        end if
+        -- (I don't think we actually use this here)
+        semiperm = sprint(dlc)
+        return IupRawStringPtr(semiperm)
+    end if
+    return NULL
+end function
+
+function enteritem_cb(Ihandle ih, integer lin, integer col)
+    IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
+--DEV doc:
+    IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
+--  IupSetAttributes(ih,"MARK%d:0=Yes",{lin});
+    IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
+    IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col}); -- [1]
+    IupSetAttribute(source, "VALUE", tests[tags[lin]][T_src])
+    IupSetAttribute(expected, "VALUE", tests[tags[lin]][T_err])
+    IupSetAttribute(statusbar, "TITLE", sprint(tests[tags[lin]]))
+    return IUP_DEFAULT;
+end function
+
+integer sortcol = 0
+integer sortdir = 1
+
+function by_column(integer i, integer j)
+    return sortdir*compare(tests[i][sortcol],tests[j][sortcol])
+end function
+
+procedure showselected()
+integer idx = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+string msg = sprint(tests[tags[idx]])
+    IupMessage("Selected", msg)
+end procedure
+
+function click_cb(Ihandle self, integer l, integer c, atom pStatus)
+string sortc
+    if c>0 and c<=length(titles) then
+        if l=0 then -- title clicked, so sort that column
+            atom t = time()
+            if sortcol!=0 and sortcol!=c then
+                sortc = sprintf("SORTSIGN%d",sortcol)
+                IupSetAttribute(self,sortc,"NO")
+            end if
+            sortc = sprintf("SORTSIGN%d",c)
+            sortdir = iff(IupGetAttribute(self,sortc)="DOWN"?-1:1)
+            IupSetAttribute(self,sortc,iff(sortdir=-1?"UP":"DOWN"))
+            sortcol = iff(c=4?6:c)
+            tags = custom_sort(routine_id("by_column"),tags)
+            sortcol = c
+            IupSetAttribute(statusbar, "TITLE", sprintf("sort completed in %3.2f seconds",time()-t))
+            IupSetAttribute(self,"REDRAW","ALL")
+        elsif l<=length(tests)
+          and iup_isdouble(pStatus) then
+            showselected()
+        end if
+    end if
+    return IUP_DEFAULT;
+end function
+
+function resize_cb(Ihandle /*ih*/, integer width, integer /*height*/)
+sequence widths = repeat(0,IupGetInt(matrix,"NUMCOL"))
+integer total_width = 0, new_width
+    for i=1 to length(widths) do
+        widths[i] = IupGetInt(matrix,sprintf("RASTERWIDTH%d",i))
+    end for
+    width -= 65
+    if width<120 then width = 120 end if
+    total_width = sum(widths)
+    IupSetInt(matrix,"RASTERWIDTH0",0)
+    for i=1 to length(widths) do
+        new_width = floor((widths[i]/total_width)*width)
+        if new_width<10 then new_width = 10 end if
+        IupSetInt(matrix,sprintf("RASTERWIDTH%d",i),new_width)
+        widths[i] = new_width
+    end for
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+--?c
+    if c=K_CR then showselected() end if
+    -- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+--/*
+--
 -- terror.exw - test Phix error and warning handling
 --
 -- TODO:
@@ -71,23 +287,23 @@ with trace
 constant p_err = allocate_string(err)
 --*/
 
-sequence cl, cinterpret, crun
---integer k
-    cl = command_line()
-    if equal(cl[1],cl[2]) then
---      void = messageBox("Error","Terror should not be run compiled\n"&
---                                "(it gets p[w].exe from the command line)",MB_OK)
---      abort(0)
-        cl = "..\\pw"
-    else
-        cl = cl[1]
-    end if
-    if find(' ',cl) then
-        cl = '\"' & cl & '\"'
-    end if
-    cinterpret = cl & " -batch " & t00
---?cinterpret
-    crun = cl & " -batch -c " & t00
+--sequence cl, cinterpret, crun
+----integer k
+--  cl = command_line()
+--  if equal(cl[1],cl[2]) then
+----        void = messageBox("Error","Terror should not be run compiled\n"&
+----                                  "(it gets p[w].exe from the command line)",MB_OK)
+----        abort(0)
+--      cl = "..\\pw"
+--  else
+--      cl = cl[1]
+--  end if
+--  if find(' ',cl) then
+--      cl = '\"' & cl & '\"'
+--  end if
+--  cinterpret = cl & " -batch " & t00
+----?cinterpret
+--  crun = cl & " -batch -c " & t00
 
 --constant k32 = open_dll("kernel32.dll"),
 ----         xCopyFile = define_c_func(k32,"CopyFileA",
@@ -101,31 +317,31 @@ sequence cl, cinterpret, crun
 --       xSleep = define_c_proc(k32,"Sleep",
 --          {C_LONG})   --  DWORD cMilliseconds // sleep time in milliseconds
 
-constant mainTitle = "Test Phix error and warning handling"
-constant main = create(Window,mainTitle,0,0,358,0,580,538,0)
-constant mFile = create(Menu,"&File",0,main,12,7,0,0,0)
-constant mExport = create(MenuItem,"Export",0,mFile,0,0,0,0,0)
-constant mImport = create(MenuItem,"Import",0,mFile,0,0,0,0,0)
-constant mExit = create(MenuItem,"Exit",0,mFile,0,0,0,0,0)
-constant mHelp = create(Menu,"&Help",0,main,0,0,0,0,0)
-constant mInstructions = create(MenuItem,"Instructions",0,mHelp,0,0,0,0,0)
-constant mLV = create(ListView,
-                        {{"Name",50},
-                         {"Last Modified",100},
-                         {"Last Run",100},
-                         {"Flags",30}},
-                        0,main,9,9,543,174,
-                        {{LVS_SINGLESEL,LVS_SHOWSELALWAYS,LVS_OWNERDATA},0})
-constant mbOne = create(Button,"Run &One",0,main,14,187,75,30,0)
-constant mbAll = create(Button,"Run &All",0,main,99,187,75,30,0)
-constant mbEdit = create(Button,"&Edit",0,main,181,187,75,28,0)
-constant mlFilter = create(Label,"Fil&ter",0,main,303,196,33,16,0)
-constant mtFilter = create(EditText,"",0,main,342,193,121,22,0)
-constant mbClose = create(Button,"&Close",0,main,476,189,75,30,0)
-constant mlSource = create(Label,"&Source",0,main,9,222,57,17,0)
-constant mtSource = create(ListBox,"Source",0,main,10,237,542,82,0)
-constant mlExpect = create(Label,"E&xpected",0,main,10,328,57,15,0)
-constant mtExpect = create(ListBox,"Expect",0,main,9,345,542,130,0)
+--constant mainTitle = "Test Phix error and warning handling"
+--constant main = create(Window,mainTitle,0,0,358,0,580,538,0)
+--constant mFile = create(Menu,"&File",0,main,12,7,0,0,0)
+--constant mExport = create(MenuItem,"Export",0,mFile,0,0,0,0,0)
+--constant mImport = create(MenuItem,"Import",0,mFile,0,0,0,0,0)
+--constant mExit = create(MenuItem,"Exit",0,mFile,0,0,0,0,0)
+--constant mHelp = create(Menu,"&Help",0,main,0,0,0,0,0)
+--constant mInstructions = create(MenuItem,"Instructions",0,mHelp,0,0,0,0,0)
+--constant mLV = create(ListView,
+--                      {{"Name",50},
+--                       {"Last Modified",100},
+--                       {"Last Run",100},
+--                       {"Flags",30}},
+--                      0,main,9,9,543,174,
+--                      {{LVS_SINGLESEL,LVS_SHOWSELALWAYS,LVS_OWNERDATA},0})
+--constant mbOne = create(Button,"Run &One",0,main,14,187,75,30,0)
+--constant mbAll = create(Button,"Run &All",0,main,99,187,75,30,0)
+--constant mbEdit = create(Button,"&Edit",0,main,181,187,75,28,0)
+--constant mlFilter = create(Label,"Fil&ter",0,main,303,196,33,16,0)
+--constant mtFilter = create(EditText,"",0,main,342,193,121,22,0)
+--constant mbClose = create(Button,"&Close",0,main,476,189,75,30,0)
+--constant mlSource = create(Label,"&Source",0,main,9,222,57,17,0)
+--constant mtSource = create(ListBox,"Source",0,main,10,237,542,82,0)
+--constant mlExpect = create(Label,"E&xpected",0,main,10,328,57,15,0)
+--constant mtExpect = create(ListBox,"Expect",0,main,9,345,542,130,0)
 
 -- The insert/edit window
 constant nwin = create(Window,"",0,main,404,188,574,389,0)
@@ -189,61 +405,63 @@ constant LVxstyle=or_all({LVS_EX_FULLROWSELECT,LVS_EX_HEADERDRAGDROP})
     setFont(mtExpect,"Courier",8,0)
     setFont(etActual,"Courier",8,0)
 
--- tests[i] is {name,lastmod,lastrun,src,err,flags}, but on the database
--- key is name, and 
--- data is {lastmod,lastrun,src,err,flags}, ie one less than these constants
-constant T_name = 1,
-         T_lastmod = 2,
-         T_lastrun = 3,
-         T_src = 4,
-         T_err = 5,
-         T_flags = 6
-
--- a T_flags value of 0 means "everything".
-constant NOCOMPILE  = #01,
-         NOINTERP   = #02
-
-sequence tests
-
-sequence fmap   -- 'real' indexes after filtering effects
-         fmap = {}
-
-procedure Abort(sequence msg)
-    puts(1,msg)
-    ?9/0
-end procedure
-
-function datestring(object d)
--- d is {y-1900,m,d,...} from the date() function.  [DEV]
--- d is {y,m,d,...} from the date() function.
--- return it in dd/mm/yyyy hh:mm:ss format.
-integer tmp
-    if not sequence(d) then
-        return "-"
-    end if
-    tmp = d[1]
-    if tmp<1900 then
-        tmp += 1900
-    end if
-    d[1] = d[3]
---  d[3] = 1900+tmp
-    d[3] = tmp
---  {d[1],d[3]} = {d[3],d[1]}
-    return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
-end function
-
-procedure setFilters(integer clearifempty, object focus)
+---- tests[i] is {name,lastmod,lastrun,src,err,flags}, but on the database
+---- key is name, and 
+---- data is {lastmod,lastrun,src,err,flags}, ie one less than these constants
+--constant T_name = 1,
+--       T_lastmod = 2,
+--       T_lastrun = 3,
+--       T_src = 4,
+--       T_err = 5,
+--       T_flags = 6
+--
+---- a T_flags value of 0 means "everything".
+--constant NOCOMPILE    = #01,
+--       NOINTERP   = #02
+--
+--sequence tests
+--
+--sequence fmap -- 'real' indexes after filtering effects
+--       fmap = {}
+--
+--procedure Abort(sequence msg)
+--  puts(1,msg)
+--  ?9/0
+--end procedure
+--
+--function datestring(object d)
+---- d is {y-1900,m,d,...} from the date() function.    [DEV]
+---- d is {y,m,d,...} from the date() function.
+---- return it in dd/mm/yyyy hh:mm:ss format.
+--integer tmp
+--  if not sequence(d) then
+--      return "-"
+--  end if
+--  tmp = d[1]
+--  d[1] = d[3]
+----    d[3] = 1900+tmp
+--  d[3] = tmp
+----    {d[1],d[3]} = {d[3],d[1]}
+--  return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
+--end function
+--
+--*!/
+--procedure setFilters(integer clearifempty, object focus)
+procedure setFilters(string ftxt, integer clearifempty, object focus)
 -- called whenever the text in mtFilter changes
 -- clearifempty is 1 if filter should be cleared when nowt selected
 -- focus should be 0 if no focus action is required, else a string
 --  to cause focus to be set to the required LVitem.
-sequence ftxt, wasfmap, ti
+--sequence ftxt, wasfmap, ti
+sequence wasfmap, ti
 integer k
 object name
 object tiErr -- bugfix
-    ftxt = lower(getText(mtFilter))
+--  ftxt = lower(getText(mtFilter))
+    ftxt = lower(ftxt)
     wasfmap = fmap
-    fmap = repeat(0,db_table_size())
+--  fmap = repeat(0,db_table_size())
+    fmap = repeat(0,length(tests))
     k = 0
     for i=1 to length(fmap) do
         ti = tests[i]
@@ -265,28 +483,39 @@ object tiErr -- bugfix
         end if
     end for
     if k=0 and clearifempty then
-        setText(mtFilter,"")
+--DEV..
+--      setText(mtFilter,"")
+        IupSetAttribute(filtertxt, "VALUE", "")
         k = length(fmap)
         for i=1 to k do
             fmap[i] = i
         end for
     end if
     if not equal(fmap,wasfmap) then
-        setLVItemCount(mLV,k)
-        deleteItem(mtSource,0)  -- empty list
-        deleteItem(mtExpect,0)  -- empty list
+--      setLVItemCount(mLV,k)
+?{ftxt,head(fmap,10),k}
+        IupSetInt(matrix, "NUMLIN", k)
+--      deleteItem(mtSource,0)  -- empty list
+--      deleteItem(mtExpect,0)  -- empty list
+        IupSetAttribute(source, "VALUE", "")
+        IupSetAttribute(expected, "VALUE", "")
     end if
     if integer(focus) and focus!=0 then
-        setIndex(mLV,focus)
+--      setIndex(mLV,focus)
+        IupSetStrAttribute(matrix,"FOCUSCELL", "%d:%d", {focus,1})
     end if
 end procedure
-
+--/!*
+--*/
+--DEV...
 integer resumeOn
         resumeOn = 0
 integer resumeOnFocus
         resumeOnFocus = 0
 
 constant htxt = """
+**INCOMPLETE** use win32/arwen for edit/insert/import/export etc
+
 This program automates error testing for Phix. Short code snippets are run under
 "-batch", and ex.err is checked to ensure that it contains the expected content.
 Note that "success testing" is performed by "p -test".
@@ -340,10 +569,12 @@ When interpreting Phix defers whatever it can until an error, and performs extra
 analysis during compilation, all to improve normal/success performance. Also, an
 antivirus program can get real busy (and effectively hog the cpu) when this runs."""
         
-procedure help()
-    void = messageBox("Instructions",htxt,MB_OK)
-end procedure
+function help(Ihandln /*ih*/)
+    IupMessage("Instructions",htxt)
+    return IUP_DEFAULT
+end function
 
+--/*
 integer focusOnPaint        -- set focus here on next WM_PAINT (if not zero)
         focusOnPaint = 0
 
@@ -376,7 +607,8 @@ integer k
     elsif msg=WM_COMMAND then
         if id=ebSave then
 --if 0 then
-            k = getIndex(mLV)
+--          k = getIndex(mLV)
+            k = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
 --?k
             k = fmap[k]
 --?k
@@ -388,7 +620,8 @@ integer k
             d = date()
             r = db_find_key(name)
             if r<=0 then
-                void = messageBox("Error","db_find_key failed[1]",MB_OK)
+--              void = messageBox("Error","db_find_key failed[1]",MB_OK)
+                IupMessage("Error","db_find_key failed[1]")
                 resumeOn = 0
             else
                 data = db_record_data(r)
@@ -406,7 +639,7 @@ integer k
 --              setText(mtExpect,error)
                 FillListBox(mtExpect,error)
             end if
-            setFilters(1,name)
+            setFilters(1,name)  -- (save after error)
             void = sendMessage(mLV, LVM_UPDATE, 0, 0)
             setVisible(ewin,False)
             setFocus(mLV)
@@ -422,8 +655,8 @@ integer k
             --  especially if a window has already been seen before.
             -- I can only assume this is a deliberate M$ tactic to make
             --  life frustrating and difficult for non-M$ programmers?
-            -- Delaying the setFocus/xSetFocus to the WM_PAINT is a
-            --  highly recommended standard tactic to employ.
+            -- Delaying the setFocus/xSetFocus to the WM_PAINT is the
+            --  recommended standard tactic to employ.
             setFocus(focusOnPaint)
             focusOnPaint = 0
             resumeOn = resumeOnFocus
@@ -431,7 +664,7 @@ integer k
         end if
     elsif msg=WM_KEYDOWN then
         if wParam=VK_F1 then
-            help()
+            {} = help(NULL)
         elsif wParam=VK_F5 then
             setVisible(ewin,False)
             setFocus(mLV)
@@ -469,7 +702,7 @@ procedure setNameColour(string txt)
     end if
     setEnable(nbOK,nlNameColour=Black)
     setText(mtFilter,txt)
-    setFilters(0,txt)
+    setFilters(0,txt)   -- (in new/edit window)
 end procedure
 
 procedure FillListBox(integer id, sequence text)
@@ -575,7 +808,8 @@ integer flags
                 if r>0 then ?9/0 end if
                 data = {d,0,source,error,flags} -- {lastmod,lastrun,src,err,flags}
                 if db_insert(name,data)!=DB_OK then
-                    void = messageBox("Error","db_insert failed[1]",MB_OK)
+--                  void = messageBox("Error","db_insert failed[1]",MB_OK)
+                    IupMessage("Error","db_insert failed[1]")
                 else
                     data = prepend(data,name)
                     tests = append(tests,data)
@@ -583,7 +817,8 @@ integer flags
                     setLVItemCount(mLV,k)
                 end if
             else                        -- edit
-                k = getIndex(mLV)
+--              k = getIndex(mLV)
+                k = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
 --k = 1
 --DDEV ioob here...
                 k = fmap[k]
@@ -594,7 +829,8 @@ integer flags
 ?{r,name,string(name),length(name)}
     r = db_find_key("opFind02")
 ?r
-                    void = messageBox("Error","db_find_key failed[2]",MB_OK)
+--                  void = messageBox("Error","db_find_key failed[2]",MB_OK)
+                    IupMessage("Error","db_find_key failed[2]")
                 else
                     data = db_record_data(r)    -- {lastmod,lastrun,src,err,flags}
                     -- (-1 because T_name/key not on the front)
@@ -638,7 +874,7 @@ integer flags
         end if
     elsif msg=WM_KEYDOWN then
         if wParam=VK_F1 then
-            help()
+            {} = help(NULL)
         elsif wParam=VK_F5 then
             sendF5=1
             void = sendMessage(nbOK, WM_COMMAND, nbOK, 0)
@@ -704,7 +940,8 @@ object txt
 integer k
 sequence tk
 integer flags
-    k = getIndex(mLV)
+--  k = getIndex(mLV)
+    k = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
     if k then
         wasFilter = getText(mtFilter)
 --printf(1,"wasFilter:=%s\n",{wasFilter})
@@ -731,6 +968,7 @@ integer flags
 --      setFilters(0)   --DEV on close!
     end if
 end procedure
+--*/
 
 function x86match(sequence res, sequence tkerr, integer partial)
 --
@@ -797,10 +1035,12 @@ integer j,k,l,m
 --  return True
 end function
 
+--/*
 object edbg
 --object dbg
 
 --with trace
+--*/
 function run(integer k)
 integer fn, ch, etcidx
 sequence tk, res, rres, tkerr
@@ -809,12 +1049,15 @@ integer r
 integer flags
 object key
 
-    setIndex(mLV,k)
+--  setIndex(mLV,k)
+--integer idx = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+    IupSetStrAttribute(matrix,"FOCUSCELL", "%d:%d", {k,1})
 
     tk = tests[k]
     fn = open(t00,"w")
     if fn=-1 then
-        void = messageBox("Error","Cannot open "&t00&" for write",MB_OK)
+--      void = messageBox("Error","Cannot open "&t00&" for write",MB_OK)
+        IupMessage("Error","Cannot open "&t00&" for write")
         return 0
     end if
 
@@ -825,22 +1068,20 @@ object key
 --DEV if interp:
 flags = tk[T_flags]
 if and_bits(flags,NOINTERP)=0 then
-    DeleteFile(err)
+    delete_file(err)
 
---/**/  void = system_wait(cinterpret)
---/*
-        void = system_exec(cinterpret,0)
---*/
+    {} = system_wait(cinterpret)
 
     fn = open(err,"rb")
 
     if fn=-1 then
-        void = messageBox("Error (interpreted)","Cannot open "&err&" for read",MB_OK)
+--      void = messageBox("Error (interpreted)","Cannot open "&err&" for read",MB_OK)
+        IupMessage("Error (interpreted)","Cannot open "&err&" for read")
         return 0
     end if
-    void = seek(fn,-1)
+    if seek(fn,-1)!=SEEK_OK then ?9/0 end if
     res = repeat(' ',where(fn))
-    void = seek(fn,0)
+    if seek(fn,0)!=SEEK_OK then ?9/0 end if
     for i=1 to length(res) do
         ch = getc(fn)
         res[i] = ch
@@ -856,23 +1097,20 @@ end if
 
 --DEV if run:
 if and_bits(flags,NOCOMPILE)=0 then
-    DeleteFile(err)
+    delete_file(err)
 
---/**/  void = system_wait(crun)
-
---/*
-        void = system_exec(crun,0)
---*/
+    {} = system_wait(crun)
 
     fn = open(err,"rb")
 
     if fn=-1 then
-        void = messageBox("Error (compiled)","Cannot open "&err&" for read",MB_OK)
+--      void = messageBox("Error (compiled)","Cannot open "&err&" for read",MB_OK)
+        IupMessage("Error (compiled)","Cannot open "&err&" for read")
         return 0
     end if
-    void = seek(fn,-1)
+    if seek(fn,-1)!=SEEK_OK then ?9/0 end if
     rres = repeat(' ',where(fn))
-    void = seek(fn,0)
+    if seek(fn,0)!=SEEK_OK then ?9/0 end if
     for i=1 to length(rres) do
         ch = getc(fn)
         rres[i] = ch
@@ -930,8 +1168,10 @@ if and_bits(flags,NOINTERP)=0 then
         if not equal(res,rres) then
 --dbg = {res,rres}
 --?9/0
-            void = messageBox("Error","'Compile' and 'Interpret' results differ\n"&
-                                      "(use \"[etc]\" or the run checkboxes)",MB_OK)
+--          void = messageBox("Error","'Compile' and 'Interpret' results differ\n"&
+--                                    "(use \"[etc]\" or the run checkboxes)",MB_OK)
+            IupMessage("Error","'Compile' and 'Interpret' results differ\n"&
+                               "(use \"[etc]\" or the run checkboxes)")
 --          return 0
             -- ensure ewin gets opened:
             if equal(res,tkerr) then
@@ -943,7 +1183,8 @@ else
     if and_bits(flags,NOCOMPILE)=0 then
         res = rres
     else
-        void = messageBox("Error","Neither 'Compile' nor 'Interpret' checked",MB_OK)
+--      void = messageBox("Error","Neither 'Compile' nor 'Interpret' checked",MB_OK)
+        IupMessage("Error","Neither 'Compile' nor 'Interpret' checked")
         return 0
     end if
 end if
@@ -954,6 +1195,8 @@ end if
 --pp(tkerr)
 
     if not x86match(res,tkerr,False) then
+        ?9/0
+--/*
 edbg = {res,tkerr}
 --      setText(ewin,"Error in test "&)
         setText(elName,tk[T_name])
@@ -963,6 +1206,7 @@ edbg = {res,tkerr}
         openWindow(ewin,SW_NORMAL)
         focusOnPaint = ebSave       -- setFocus(ebSave), delayed
         return -1
+--*/
     end if
     d = date()
     tests[k][T_lastrun] = d
@@ -972,23 +1216,33 @@ edbg = {res,tkerr}
     data[T_lastrun-1] = d
 --?data
     db_replace_data(r,data)
-    void = sendMessage(mLV, LVM_UPDATE, 0, 0)
+--  void = sendMessage(mLV, LVM_UPDATE, 0, 0)
+    IupSetStrAttribute(matrix, "REDRAW", "ALL")
     return 1
 end function
 
 procedure runOne()
 integer i, k
-    i = getIndex(mLV)
+--  i = getIndex(mLV)
+    i = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
     if i then
-        k = fmap[i]
+--      k = fmap[i]
+        k = i
         if run(k)=1 then
-            void = sendMessage(mLV, WM_KEYDOWN, VK_DOWN, 0)
+--          void = sendMessage(mLV, WM_KEYDOWN, VK_DOWN, 0)
+            IupSetStrAttribute(matrix,"FOCUSCELL", "%d:%d", {k+1,1})
+--          IupFlush()
+            {} = enteritem_cb(matrix, k+1, 1)
+--          IupSetFocus(matrix)
+--DEV it really don't like this:
+--          IupSetGlobal("KEY",K_DOWN)
         end if
     end if
 end procedure
 
 procedure setTitle()
-    setText(main,sprintf("%s (%d tests)",{mainTitle,length(tests)}))
+--  setText(main,sprintf("%s (%d tests)",{mainTitle,length(tests)}))
+    IupSetStrAttribute(dlg,"TITLE","%s (%d tests)",{mainTitle,length(tests)})
 end procedure
 
 --DEV this should filter/use the order in the LV
@@ -998,8 +1252,10 @@ integer l
     resumeOn = 0
     l = length(tests)
     for i=from to l do
-        setText(main,sprintf("running test %d/%d [%s]",{i,l,tests[i][T_name]}))
-        doEvents(0)
+--      setText(main,sprintf("running test %d/%d [%s]",{i,l,tests[i][T_name]}))
+        IupSetStrAttribute(dlg,"TITLE","running test %d/%d [%s]",{i,l,tests[i][T_name]})
+--      doEvents(0)
+        IupFlush()
         r = run(i)
         if r<=0 then
             if r=-1 and i<l then
@@ -1010,8 +1266,10 @@ integer l
         end if
     end for
     setTitle()
-    doEvents(0)
+--  doEvents(0)
+    IupFlush()
 end procedure
+
 
 procedure db_load()
 object key
@@ -1026,48 +1284,54 @@ object data
             db_delete_record(i)
         end if
     end for
-    setTitle()
-    fmap = {}       -- (force full redisplay)
-    setFilters(0,0)
+---DEV
+--  setTitle()
+--  fmap = {}       -- (force full redisplay)
+    tags = tagset(length(tests))
+--DEV: (not here)
+--  setFilters("",0,0)
 end procedure
 
-integer SortColumn = 1, Sign = 1
+--/*
 
-function CompareSortColumn(sequence s1,sequence s2)
-    return Sign*compare(s1[SortColumn],s2[SortColumn])
-end function
-constant rCSC = routine_id("CompareSortColumn")
-
+--integer SortColumn = 1, Sign = 1
+--
+--function CompareSortColumn(sequence s1,sequence s2)
+--  return Sign*compare(s1[SortColumn],s2[SortColumn])
+--end function
+--constant rCSC = routine_id("CompareSortColumn")
+--
 integer switchDBfocus
         switchDBfocus = 0
 
-function LVFormat(integer lRow, integer lColumn)
-object d
-integer flags
-
-    if lRow>length(tests) then return "??" end if
-    if lColumn=0 then   -- no icon
-        return 0
-    end if
-    lRow = fmap[lRow]
---DEV
-if lRow=0 then
-    d = "???[lRow=0]"
-else
-    d = tests[lRow][lColumn]
-    if lColumn=T_lastmod
-    or lColumn=T_lastrun then
-        return datestring(d)
-    elsif lColumn=4 then
-        d = ""
-        flags = tests[lRow][T_flags]
-        if and_bits(flags,NOINTERP)=0 then d &= 'i' end if
-        if and_bits(flags,NOCOMPILE)=0 then d &= 'c' end if
-    end if
-end if
-    return d
-end function
-setLVFormatRoutine(mLV,routine_id("LVFormat"))
+--function LVFormat(integer lRow, integer lColumn)
+--object d
+--integer flags
+--
+--  if lRow>length(tests) then return "??" end if
+--  if lColumn=0 then   -- no icon
+--      return 0
+--  end if
+--  lRow = fmap[lRow]
+----DEV
+--if lRow=0 then
+--  d = "???[lRow=0]"
+--else
+--  d = tests[lRow][lColumn]
+--  if lColumn=T_lastmod
+--  or lColumn=T_lastrun then
+--      return datestring(d)
+--  elsif lColumn=4 then
+--      d = ""
+--      flags = tests[lRow][T_flags]
+--      if and_bits(flags,NOINTERP)=0 then d &= 'i' end if
+--      if and_bits(flags,NOCOMPILE)=0 then d &= 'c' end if
+--  end if
+--end if
+--  return d
+--end function
+--setLVFormatRoutine(mLV,routine_id("LVFormat"))
+--*/
 
 integer fn
 sequence line
@@ -1102,8 +1366,29 @@ end procedure
 --constant Itxt = "C:\\Program Files\\Phix\\test\\terror.txt"
 constant Itxt = "terror.txt"
 
+function extractPathAndName(sequence pathname)
+-- extract path & name information from complete pathname (nicked from arwen.ew)
+sequence path, name
+integer len, pos
+
+    len = length(pathname)
+    pos = 0
+
+    for i=len to 1 by -1 do
+        if pathname[i]='\\' then -- delimiter found, must always exist
+            pos = i
+            exit
+        end if
+    end for
+
+    path = pathname[1..pos]
+    name = pathname[pos+1..len]
+
+    return {path, name}
+end function
+
 --with trace
-procedure Import()
+function Import(Ihandln /*ih*/)
 -- error is now optional; and if you change the error but not the source
 -- it will be ignored...
 sequence name, source, error, root
@@ -1112,7 +1397,8 @@ integer flags, r, k
 --trace(1)
     fn = open(Itxt,"r")
     if fn=-1 then
-        void = messageBox("Warning","terror.txt not found",MB_OK)
+--      void = messageBox("Warning","terror.txt not found",MB_OK)
+        IupMessage("Warning","terror.txt not found")
     else
 --C:\Program Files (x86)\Phix\test\terror.txt:1
 --                        9876543210987654321
@@ -1208,17 +1494,21 @@ integer flags, r, k
             end if
         end while
         close(fn)
-        void = messageBox("Success","terror.txt loaded",MB_OK)
+--      void = messageBox("Success","terror.txt loaded",MB_OK)
+        IupMessage("Success","terror.txt loaded")
     end if
     db_load()
-end procedure
+--  setFilters("",0,0)
+    return IUP_DEFAULT
+end function
 
-procedure Export()
+function Export(Ihandln /*ih*/)
 sequence name, source, error, ti
 integer flags
     fn = open(Itxt,"w")
     if fn=-1 then
-        void = messageBox("Error",Itxt&" cannot be opending for writing",MB_OK)
+--      void = messageBox("Error",Itxt&" cannot be opending for writing",MB_OK)
+        IupMessage("Error",Itxt&" cannot be opending for writing")
     else
         for i=1 to length(tests) do
             ti = tests[i]
@@ -1241,10 +1531,13 @@ integer flags
             printf(fn,"%s\n",{error})
         end for
         close(fn)
-        void = messageBox("Success","terror.txt written",MB_OK)
+--      void = messageBox("Success","terror.txt written",MB_OK)
+        IupMessage("Success","terror.txt written")
     end if
-end procedure
+    return IUP_DEFAULT
+end function
 
+--/*
 without trace
 function mainHandler(integer id, integer msg, atom wParam, object lParam)
 sequence rect, rectLV, rectSource, rectExpect
@@ -1306,7 +1599,8 @@ sequence data
                 setFilters(0,0)
                 void = sendMessage(mLV,LVM_UPDATE,0,0)
             elsif wParam=LVN_ITEMCHANGED then
-                lParam = getIndex(id)
+--              lParam = getIndex(id)
+                lParam = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
                 if lParam>0 then
                     lParam = fmap[lParam]
 --                  setText(mtSource,tests[lParam][T_src])
@@ -1446,7 +1740,7 @@ sequence data
            or id=mExit then
             closeWindow(main)
         elsif id=mInstructions then
-            help()
+            {} = help(NULL)
         elsif id=mlSource then
             setFocus(mtSource)
         elsif id=mlExpect then
@@ -1467,10 +1761,11 @@ sequence data
         end if
     elsif msg=WM_KEYDOWN then
         if wParam=VK_F1 then
-            help()
+            {} = help(NULL)
         elsif wParam=VK_F2 then
             addStyle(mLV,LVS_EDITLABELS)
-            k = getIndex(mLV)
+--          k = getIndex(mLV)
+            k = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
             if k then
                 void = sendMessage(mLV,LVM_EDITLABEL,k-1,0)
             end if
@@ -1478,7 +1773,8 @@ sequence data
             runOne()
         elsif wParam=VK_F6 then
             if getKeyState(VK_CONTROL) then
-                k = getIndex(mLV)
+--              k = getIndex(mLV)
+                k = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
                 runAll(k)
             else
                 runAll(1)
@@ -1500,7 +1796,8 @@ sequence data
             or getKeyState(VK_SHIFT) then
 --DEV
 --              void = messageBox("Delete record","Not implemented",MB_OK)
-                i = getIndex(mLV)
+--              i = getIndex(mLV)
+                i = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
                 if i then
                     k = fmap[i]
 --                  if run(k)=1 then
@@ -1540,6 +1837,7 @@ setHandler({main,
             mLV,mbAll,mbOne,mlFilter,mtFilter,mbClose,
             mlSource,mtSource,mlExpect,mtExpect},
             routine_id("mainHandler"))
+--*/
 
 procedure db_init()
 integer create_table
@@ -1568,14 +1866,116 @@ integer eCode, dCode
         if eCode!=DB_OK then
             Abort("Error error creating tests table\n")
         end if
-        Import()
+        {} = Import(NULL)
     end if
     db_load()
 end procedure
-db_init()
 
-switchDBfocus = 1
-WinMain(main,SW_NORMAL)
+function runone_cb(Ihandle /*ih*/)
+    runOne()
+    return IUP_DEFAULT
+end function
+
+function runall_cb(Ihandle /*ih*/)
+    runAll(1)
+    return IUP_DEFAULT
+end function
+
+function exit_cb(Ihandle /*ih*/)
+    return IUP_CLOSE
+end function
+
+--function filter_cb(Ihandle /*ih*/, integer /*c*/, atom pText)
+function filter_cb(Ihandle /*ih*/, integer /*c*/, atom /*pText*/)
+--?{"filter_cb",peek_string(pText)}
+--DEV:
+--  setFilters(peek_string(pText), 0, 0)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen("..\\demo\\pGUI\\")
+
+    Ihandle menu = IupMenu({IupSubmenu("&File",IupMenu({IupMenuItem("Import",Icallback("Import")),
+                                                        IupMenuItem("Export",Icallback("Export")),
+                                                        IupSeparator(),
+                                                        IupMenuItem("E&xit",Icallback("exit_cb"))})),
+                            IupSubmenu("&Help",IupMenu({IupMenuItem("Instructions",Icallback("help"))}))
+                           })
+
+    matrix = IupMatrix()
+    IupSetInt(matrix, "NUMCOL", length(titles))
+    IupSetInt(matrix, "NUMCOL_VISIBLE", length(titles))
+    IupSetInt(matrix, "NUMLIN", length(tests))
+    IupSetInt(matrix, "NUMLIN_VISIBLE", 15)
+    for i=1 to length(twidth) do
+        IupSetInt(matrix, sprintf("RASTERWIDTH%d",{i}), twidth[i])
+        IupSetAttribute(matrix, sprintf("ALIGNMENT%d",{i}), IupRawStringPtr("ALEFT"))
+    end for
+    IupSetInt(matrix, "HEIGHT0", 10);  -- (column titles rqd)
+    IupSetAttribute(matrix, "RESIZEMATRIX", "YES");
+    IupSetAttribute(matrix, "MARKMODE", "LIN");
+    IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS");
+
+    IupSetAttribute(matrix, "HIDEFOCUS", "YES");
+    IupSetAttribute(matrix, "FRAMECOLOR", "220 220 220");
+    IupSetAttribute(matrix, "BORDER", "NO");
+    IupSetAttribute(matrix, "CURSOR", "ARROW");
+    IupSetAttribute(matrix, "FRAMETITLEHIGHLIGHT", "NO");
+
+    IupSetCallback(matrix, "VALUE_CB",      Icallback("value_cb"))
+    IupSetCallback(matrix, "ENTERITEM_CB",  Icallback("enteritem_cb"));
+    IupSetCallback(matrix, "CLICK_CB",      Icallback("click_cb"));
+
+    Ihandle runone = IupButton("Run &One",Icallback("runone_cb"))
+    Ihandle runall = IupButton("Run &All",Icallback("runall_cb"))
+    Ihandle edit = IupButton("&Edit")
+
+    Ihandle filterlbl = IupLabel("Fil&ter")
+    filtertxt = IupText(Icallback("filter_cb"),"EXPAND=HORIZONTAL")
+    IupSetAttribute(edit,"ACTIVE","NO")
+    IupSetAttribute(filterlbl,"ACTIVE","NO")
+    IupSetAttribute(filtertxt,"ACTIVE","NO")
+    Ihandle closebtn = IupButton("&Close",Icallback("exit_cb"))
+
+    IupDestroy(IupNormalizer({edit,filterlbl,filtertxt},"NORMALIZE=VERTICAL"))
+    IupDestroy(IupNormalizer({runone,runall,edit,closebtn},"NORMALIZE=HORIZONTAL"))
+
+    Ihandle buttons = IupHbox({runone,runall,edit,filterlbl,filtertxt,closebtn},"GAP=5")
+
+    source = IupText("MULTILINE=YES, READONLY=YES, SIZE=10x100, EXPAND=HORIZONTAL, FONT=\"Courier,10\"")
+    expected = IupText("MULTILINE=YES, READONLY=YES, SIZE=10x100, EXPAND=HORIZONTAL, FONT=\"Courier,10\"")
+
+    statusbar = IupLabel("");
+    IupSetAttribute(statusbar, "EXPAND", "HORIZONTAL");
+--  IupSetAttribute(statusbar, "PADDING", "5x0");
+
+    Ihandle vbox = IupVbox({matrix,
+                            buttons,
+                            IupLabel("Source"),
+                            source,
+                            IupLabel("Expected"),
+                            expected,
+                            statusbar},
+                            "MARGIN=5, GAP=5");
+
+    dlg = IupDialog(vbox)
+    IupSetAttribute(dlg, "TITLE", mainTitle);
+    IupSetAttributeHandle(dlg, "MENU", menu)
+    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"));
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+--  setFilters("",0,0)
+    IupShow(dlg)
+
+    IupMainLoop()
+    IupClose()
+end procedure
+
+db_init()
+--switchDBfocus = 1
+--WinMain(main,SW_NORMAL)
+main()
+
 db_close()
 
 

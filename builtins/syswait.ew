@@ -28,6 +28,9 @@
 --           system_open(), and system_wait(), plus set_system_doevents()).
 --          doing so would of course break alot of legacy code.
 
+--DEV drop all pretence of Eu(2.4) compatibility: all the linux stuff is in #ilASM...
+
+--!/**/include builtins\VM\pSleep.e
 --/* Not required for Phix:
 include builtins\dll.e
 include builtins\machine.e
@@ -41,6 +44,7 @@ constant
     SW_NORMAL = 1,
 --  INFINITE = #FFFFFFFF,    -- Infinite timeout
     FORTYMS = 40,            -- Forty milliseconds, 1/25th of a second
+--  ONE32TH = 0.03125        -- 1/32 second (31.25 ms) (for linux)
 --  STARTF_USESHOWWINDOW = 1,
 --  STARTF_USESTDHANDLES = 256,
 --  STD_OUTPUT_HANDLE   = -11,  -- #FFFFFFF5
@@ -109,84 +113,87 @@ atom kernel32,xCreateProcess,xWaitForSingleObject,xGetExitCodeProcess,
 --*/
 
 procedure initsw()
+--puts(1,"syswait.e not linux\n")
 --DEV locking as per pprntf
-    kernel32 = open_dll("kernel32.dll")
+    if platform()=WINDOWS then
+        kernel32 = open_dll("kernel32.dll")
 
 --#without reformat
-    xCreateProcess = define_c_func(kernel32, "CreateProcessA",
-        {C_POINTER, --  LPCTSTR lpApplicationName, // pointer to name of executable module
-         C_POINTER, --  LPTSTR lpCommandLine, // pointer to command line string
-         C_POINTER, --  LPSECURITY_ATTRIBUTES lpProcessAttributes, // pointer to process security attributes
-         C_POINTER, --  LPSECURITY_ATTRIBUTES   lpThreadAttributes, // pointer to thread security attributes
-         C_LONG,    --  BOOL  bInheritHandles, // handle inheritance flag 
-         C_ULONG,   --  DWORD   dwCreationFlags, // creation flags
-         C_POINTER, --  LPVOID lpEnvironment, // pointer to new environment block
-         C_POINTER, --  LPCTSTR  lpCurrentDirectory, // pointer to current directory name
-         C_POINTER, --  LPSTARTUPINFO   lpStartupInfo, // pointer to STARTUPINFO
-         C_POINTER},--  LPPROCESS_INFORMATION lpProcessInformation // pointer to PROCESS_INFORMATION
-        C_LONG)     -- BOOL 
+        xCreateProcess = define_c_func(kernel32, "CreateProcessA",
+            {C_POINTER, --  LPCTSTR lpApplicationName, // pointer to name of executable module
+             C_POINTER, --  LPTSTR lpCommandLine, // pointer to command line string
+             C_POINTER, --  LPSECURITY_ATTRIBUTES lpProcessAttributes, // pointer to process security attributes
+             C_POINTER, --  LPSECURITY_ATTRIBUTES   lpThreadAttributes, // pointer to thread security attributes
+             C_LONG,    --  BOOL  bInheritHandles, // handle inheritance flag 
+             C_ULONG,   --  DWORD   dwCreationFlags, // creation flags
+             C_POINTER, --  LPVOID lpEnvironment, // pointer to new environment block
+             C_POINTER, --  LPCTSTR  lpCurrentDirectory, // pointer to current directory name
+             C_POINTER, --  LPSTARTUPINFO   lpStartupInfo, // pointer to STARTUPINFO
+             C_POINTER},--  LPPROCESS_INFORMATION lpProcessInformation // pointer to PROCESS_INFORMATION
+            C_LONG)     -- BOOL 
 
-    xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
-        {C_ULONG,   --  HANDLE hObject, // handle of object to wait for
-         C_ULONG},  --  DWORD   dwTimeout // time-out interval in milliseconds
-        C_ULONG)    -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
+        xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
+            {C_ULONG,   --  HANDLE hObject, // handle of object to wait for
+             C_ULONG},  --  DWORD   dwTimeout // time-out interval in milliseconds
+            C_ULONG)    -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
 
-    xGetExitCodeProcess = define_c_func(kernel32, "GetExitCodeProcess",
-        {C_ULONG,   --  HANDLE hProcess, // handle to the process
-         C_ULONG},  --  LPDWORD  lpExitCode // address to receive termination status
-        C_ULONG)    -- BOOL
+        xGetExitCodeProcess = define_c_func(kernel32, "GetExitCodeProcess",
+            {C_ULONG,   --  HANDLE hProcess, // handle to the process
+             C_ULONG},  --  LPDWORD  lpExitCode // address to receive termination status
+            C_ULONG)    -- BOOL
 
---  xGetProcessTimes = define_c_func(kernel32,"GetProcessTimes",
---      {C_POINTER, --  HANDLE  hProcess,   // specifies the process of interest
---       C_POINTER, --  LPFILETIME  lpCreationTime, // when the process was created
---       C_POINTER, --  LPFILETIME  lpExitTime, // when the process exited
---       C_POINTER, --  LPFILETIME  lpKernelTime,   // time the process has spent in kernel mode
---       C_POINTER},--  LPFILETIME  lpUserTime  // time the process has spent in user mode
---      C_LONG)     -- BOOL
+--      xGetProcessTimes = define_c_func(kernel32,"GetProcessTimes",
+--          {C_POINTER, --  HANDLE  hProcess,   // specifies the process of interest
+--           C_POINTER, --  LPFILETIME  lpCreationTime, // when the process was created
+--           C_POINTER, --  LPFILETIME  lpExitTime, // when the process exited
+--           C_POINTER, --  LPFILETIME  lpKernelTime,   // time the process has spent in kernel mode
+--           C_POINTER},--  LPFILETIME  lpUserTime  // time the process has spent in user mode
+--          C_LONG)     -- BOOL
 
---  user32 = open_dll("user32.dll")
+--      user32 = open_dll("user32.dll")
 --
---  xWaitForInputIdle = define_c_func(user32, "WaitForInputIdle",
---      {C_ULONG,   --  HANDLE hObject, // handle of object to wait for
---       C_ULONG},  --  DWORD   dwTimeout // time-out interval in milliseconds
---      C_LONG)     -- DWORD -- 0, WAIT_TIMEOUT, or 0xFFFFFFFF
+--      xWaitForInputIdle = define_c_func(user32, "WaitForInputIdle",
+--          {C_ULONG,   --  HANDLE hObject, // handle of object to wait for
+--           C_ULONG},  --  DWORD   dwTimeout // time-out interval in milliseconds
+--          C_LONG)     -- DWORD -- 0, WAIT_TIMEOUT, or 0xFFFFFFFF
 
-    shell32 = open_dll("shell32.dll")
+        shell32 = open_dll("shell32.dll")
 
-    xShellExecute = define_c_func(shell32, "ShellExecuteA",
-        {C_LONG,    --  HWND  hwnd, // handle to parent window
-         C_POINTER, --  LPCTSTR  lpOperation,   // pointer to string that specifies operation to perform
-         C_POINTER, --  LPCTSTR  lpFile,    // pointer to filename string
-         C_POINTER, --  LPTSTR  lpParameters,   // pointer to string that specifies executable-file parameters
-         C_POINTER, --  LPCTSTR  lpDirectory,   // pointer to string that specifies default directory
-         C_LONG},   --  INT  nShowCmd   // whether file is shown when opened
-        C_POINTER)  -- HINSTANCE
+        xShellExecute = define_c_func(shell32, "ShellExecuteA",
+            {C_LONG,    --  HWND  hwnd, // handle to parent window
+             C_POINTER, --  LPCTSTR  lpOperation,   // pointer to string that specifies operation to perform
+             C_POINTER, --  LPCTSTR  lpFile,    // pointer to filename string
+             C_POINTER, --  LPTSTR  lpParameters,   // pointer to string that specifies executable-file parameters
+             C_POINTER, --  LPCTSTR  lpDirectory,   // pointer to string that specifies default directory
+             C_LONG},   --  INT  nShowCmd   // whether file is shown when opened
+            C_POINTER)  -- HINSTANCE
 
---  xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
---      {C_UINT},   --  DWORD  nStdHandle   // input, output, or error device
---      C_INT)      -- HANDLE
+--      xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
+--          {C_UINT},   --  DWORD  nStdHandle   // input, output, or error device
+--          C_INT)      -- HANDLE
 
---  xCloseHandle = define_c_func(kernel32, "CloseHandle",
---      {C_POINTER},--  HANDLE  hObject // handle of object to close
---      C_LONG)     -- BOOL
+--      xCloseHandle = define_c_func(kernel32, "CloseHandle",
+--          {C_POINTER},--  HANDLE  hObject // handle of object to close
+--          C_LONG)     -- BOOL
 
---  xGetLastError = define_c_func(kernel32, "GetLastError",
---      {},
---      C_INT)      -- DWORD
+--      xGetLastError = define_c_func(kernel32, "GetLastError",
+--          {},
+--          C_INT)      -- DWORD
 
 --#with reformat
 
 --DEV allocate one block and split by hand? (si/pi/ec as well)
 
---  lpCreationTime = allocate(8)
---  lpExitTime = allocate(8)
---  lpKernelTime = allocate(8)
---  lpUserTime = allocate(8)
+--      lpCreationTime = allocate(8)
+--      lpExitTime = allocate(8)
+--      lpKernelTime = allocate(8)
+--      lpUserTime = allocate(8)
 
 --/*
-    xOpen = allocate(5)
-    poke(xOpen,"open"&0)
+        xOpen = allocate(5)
+        poke(xOpen,"open"&0)
 --*/
+    end if
 
     swinit = 1
 end procedure
@@ -253,23 +260,24 @@ atom ret, void, hProc
 --integer doevents
 atom si, pi, ec
 
-    si = allocate(SIZEOF_STARTUPINFO)
-    mem_set(si,0,SIZEOF_STARTUPINFO)
-    poke4(si, SIZEOF_STARTUPINFO)       -- cb
---  poke4(si+dwFlags,or_bits(STARTF_USESTDHANDLES,STARTF_USESHOWWINDOW))
+    if platform()=WINDOWS then
+        si = allocate(SIZEOF_STARTUPINFO)
+        mem_set(si,0,SIZEOF_STARTUPINFO)
+        poke4(si, SIZEOF_STARTUPINFO)       -- cb
+--      poke4(si+dwFlags,or_bits(STARTF_USESTDHANDLES,STARTF_USESHOWWINDOW))
 
-    pi = allocate(SIZEOF_PROCESS_INFORMATION)
-    mem_set(pi,0,SIZEOF_PROCESS_INFORMATION)
+        pi = allocate(SIZEOF_PROCESS_INFORMATION)
+        mem_set(pi,0,SIZEOF_PROCESS_INFORMATION)
 
-    if not swinit then initsw() end if
+        if not swinit then initsw() end if
 
 --/*
-    child = allocate_string(child_process)
+        child = allocate_string(child_process)
 --*/
 --DEV clutching at straws here...
---  mem_set(si,0,SIZEOF_STARTUPINFO)
---  poke4(si, SIZEOF_STARTUPINFO)       -- cb
---  mem_set(pi,0,SIZEOF_PROCESS_INFORMATION)
+--      mem_set(si,0,SIZEOF_STARTUPINFO)
+--      poke4(si, SIZEOF_STARTUPINFO)       -- cb
+--      mem_set(pi,0,SIZEOF_PROCESS_INFORMATION)
 
 --5/3/10:
 --         pCmdLine = allocate_string(CommandLine)
@@ -291,18 +299,18 @@ atom si, pi, ec
 --  poke4(si+hStdError,stderr)
 --end if
 
-    -- Start the child process.
-    ret = c_func(xCreateProcess,
-                 {NULL,     -- No module name (use command line).
---/**/            child_process,                --/*    -- Phix
-                  child,    -- Command line.    --*/    -- RDS Eu
-                  NULL,     -- Process handle not inheritable.
+        -- Start the child process.
+        ret = c_func(xCreateProcess,
+                     {NULL,     -- No module name (use command line).
+--/**/                child_process,                --/*    -- Phix
+                      child,    -- Command line.    --*/    -- RDS Eu
+                      NULL,     -- Process handle not inheritable.
 --instance(),
-                  NULL,     -- Thread handle not inheritable.
-                  FALSE,    -- Set handle inheritance to FALSE.
+                      NULL,     -- Thread handle not inheritable.
+                      FALSE,    -- Set handle inheritance to FALSE.
 --1,--TRUE,
---                PROCESS_QUERY_INFORMATION,        -- No creation flags.
-                  NULL,
+--                    PROCESS_QUERY_INFORMATION,        -- No creation flags.
+                      NULL,
 --#10,
 --#4000208,
 --#8000210,
@@ -324,76 +332,448 @@ atom si, pi, ec
 --   CREATE_DEFAULT_ERROR_MODE  = &H4000000
 --   CREATE_NO_WINDOW         = &H8000000
 
-                  NULL,     -- Use parent's environment block.
-                  NULL,     -- Use parent's starting directory.
-                  si,       -- Pointer to STARTUPINFO structure.
-                  pi})      -- Pointer to PROCESS_INFORMATION structure.
-    if ret=0 then
---      kutime = c_func(xGetLastError,{})
-        free(si)
-        free(pi)
+                      NULL,     -- Use parent's environment block.
+                      NULL,     -- Use parent's starting directory.
+                      si,       -- Pointer to STARTUPINFO structure.
+                      pi})      -- Pointer to PROCESS_INFORMATION structure.
+        if ret=0 then
+--          kutime = c_func(xGetLastError,{})
+            free(si)
+            free(pi)
 --/*
-        free(child)
+            free(child)
 --*/
-        return -1       -- error
-    end if
+            return -1       -- error
+        end if
 --printf(1,"system_wait: ret is %d\n",ret)
 
 --/*
-    free(child)
+        free(child)
 --*/
---  if not Wait then return 0 end if
-    ret = 0
+--      if not Wait then return 0 end if
+        ret = 0
 
---  if Wait then
-    hProc = peek4u(pi+hProcess)
+--      if Wait then
+        hProc = peek4u(pi+hProcess)
 --      hThr  = peek4u(pi+hThread)
 
---  void = c_func(xWaitForInputIdle,{hProc,INFINITE})
---  void = c_func(xWaitForInputIdle,{hProc,FORTYMS})
+--      void = c_func(xWaitForInputIdle,{hProc,INFINITE})
+--      void = c_func(xWaitForInputIdle,{hProc,FORTYMS})
 
---  if Wait then
+--      if Wait then
 
         -- Wait until child process exits.
 --      ret = c_func(xWaitForSingleObject, {hProc, INFINITE})
 --      ec=allocate(4)
 --      doevents=routine_id("doEvents") -- if available
-    ec = allocate(4)
+        ec = allocate(4)
 
-    while 1 do
-        void = c_func(xGetExitCodeProcess, {hProc, ec})
-        ret = peek4u(ec)
-        if ret!=STILL_ACTIVE then exit end if
-        if doevents!=-1 then call_proc(doevents,doeventparams) end if
-        void = c_func(xWaitForSingleObject, {hProc, FORTYMS})
-        if Wait<0 then Wait += 1 end if
-        if Wait=0 then exit end if
-    end while
-    free(ec)
-    free(si)
-    free(pi)
+        while 1 do
+            void = c_func(xGetExitCodeProcess, {hProc, ec})
+            ret = peek4u(ec)
+            if ret!=STILL_ACTIVE then exit end if
+            if doevents!=-1 then call_proc(doevents,doeventparams) end if
+            void = c_func(xWaitForSingleObject, {hProc, FORTYMS})
+            if Wait<0 then Wait += 1 end if
+            if Wait=0 then exit end if
+        end while
+        free(ec)
+        free(si)
+        free(pi)
 --      if not c_func(xGetProcessTimes,{hProc,lpCreationTime,lpExitTime,lpKernelTime,lpUserTime}) then
 --          kutime = -c_func(xGetLastError,{})
 --      else
 --          kutime = peek4s(lpKernelTime+4)*(#100000000/1000000000)+peek4u(lpKernelTime)/1000000000
 --                 + peek4s(lpUserTime+4)*(#100000000/1000000000)+peek4u(lpUserTime)/1000000000
 --      end if
---  end if
+--      end if
 
         -- Close process and thread handles.
 --      void = c_func(xCloseHandle, {hProc})
 --      void = c_func(xCloseHandle, {hThr})
---  end if
+--      end if
 
---  free(si)
---  free(pi)
---  if not Wait then return 0 end if
+--      free(si)
+--      free(pi)
+--      if not Wait then return 0 end if
+    elsif platform()=LINUX then
+
+        if not string(child_process) then ?9/0 end if   -- placeholder for more code../!/?
+
+        if Wait<=0 then
+            #ilASM{
+                [ELF32]
+                    call "libc.so.6","fork"
+                    test eax,eax
+                    jnz :parent_ret0
+                        mov eax,[child_process]
+                        shl eax,2
+                        push eax
+                        call "libc.so.6","system"
+                        add esp,4
+                        mov ebx,eax 
+                        mov eax,1                   -- sys_exit
+                        int 0x80 
+                  ::parent_ret0
+                    mov eax,ebx
+                    lea edi,[ret]
+                    call :%pStoreMint
+                [ELF64]
+                    call "libc.so.6","fork"
+                    test rax,rax
+                    jnz :parent_ret0
+                        mov rax,[child_process]
+                        shl rax,2
+                        push rax
+                        call "libc.so.6","system"
+                        add rsp,8
+                        mov rdi,rax
+                        mov rax,60                  -- sys_exit
+                        syscall
+                  ::parent_ret0
+                    mov rax,rbx
+                    lea rdi,[ret]
+                    call :%pStoreMint
+                []
+                  }
+--          ret = 0     -- (GAH! must fix that compiler bug)
+            sleep(0.4)  -- give libc:system a chance to get going (before we free(child_process))
+        else
+            #ilASM{
+                [ELF32]
+                    mov eax,[child_process]
+                    shl eax,2
+                    push eax
+                    call "libc.so.6","system"
+                    add esp,4
+                    lea edi,[ret]
+                    call :%pStoreMint
+                [ELF64]
+                    mov rax,[child_process]
+                    shl rax,2
+                    push rax
+                    call "libc.so.6","system"
+                    add rsp,8
+                    lea rdi,[ret]
+                    call :%pStoreMint
+                []
+                  }
+        end if
+--DEV:
+        --
+        --  split child_process into filename and param array (argv4) here, in hll...
+        --  also do the same with env4
+        --
+--      ?9/0
+--/*
+sequence semi-perm      -- (not thread safe)
+-- (locals)
+sequence args           -- (semi-permanent)
+integer pArg4=0,        -- (semi-permanent)
+        max_args=0      -- sizeof pArgs
+string path             -- (semi-permanent)
+        --
+        -- Then parse it into chunks.
+        --
+        args = {}
+        chfirst = 1
+        chlast = length(child_process)
+--trim? omit?
+        while find(child_process[chlast]," \t") do
+            chlast -= 1
+        end while
+
+        while chfirst<=chlast do
+            if child_process[chfirst]='\"' then
+                chfirst += 1
+                for i=chfirst to chlast+1 do
+                    if i>chlast then ?9/0 end if -- closing quote not found...
+                    if child_process[i]='\"' then
+                        tmp = child_process[chfirst..i-1]
+                        args = append(args,tmp)
+                        chfirst = i+1
+                        exit
+                    end if
+                end for
+            else
+                tmp = {}
+                for i=chfirst to chlast do
+                    if i=chlast then
+                        tmp = child_process[chfirst..chlast]
+                    elsif find(child_process[i]," \t") then
+                        tmp = child_process[chfirst..i-1]
+                    end if
+                    if length(tmp) then
+                        args = append(args,tmp)
+                        chfirst = i+1
+                        exit
+                    end if
+                    if i=chlast then chlast = 9/0 end if
+                end for
+            end if
+            while chfirst<=chlast and find(child_process[chfirst]," \t") do
+                chfirst += 1
+            end while
+        end while
+        if length(args)>=max_args then
+            if pArg4!=0 then
+                free(pArg4*4)
+            end if
+            max_args = length(args)+1
+            pArg4 = floor(allocate(max_args*machine_word())/4)
+        end if
+        for i=1 to length(args) do
+            path = args[1]
+            #ilASM{
+                [ELF32]
+                    mov edi,[pArg4]
+                    mov eax,[path]
+                    mov ecx,[i]
+                    shl eax,2           -- raw address
+                    shl edi,2           -- ""(pArg4*4)
+                    mov [edi+ecx*4],eax
+                [ELF64]
+                    mov rdi,[pArg4]
+                    mov rax,[path]
+                    mov rcx,[i]
+                    shl rax,2           -- raw address
+                    shl rdi,2           -- ""(pArg4*4)
+                    mov [rdi+rcx*8],rax
+                []
+                  }
+        end for
+        pokeN(pArg4*4+length(args)*machine_word(),0,machine_word())
+        path = args[1]
+
+--integer pArg4
+--      #ilASM{
+--          [ELF32]
+--              call :%opGetArgELF
+--              mov [pArg4],eax
+--          [ELF64]
+--              call :%opGetArgELF
+--              mov [pArg4],rax
+--          []
+--            }
+
+--*/
+
+--DEV (not yet done:)
+        -- The following logic is used:
+        --  if wait<=0 then
+        --      sys_fork
+        --      test eax,eax
+        --      jnz :exit       -- parent resumes
+        --      sys_fork
+        --      jnz :wait0      -- sub-parent waits
+        --      sys_execv
+        --      sys_exit
+        --    ::wait0
+        --      sys_wait4
+        --      sys_exit
+        --    ::exit
+        --  else
+--DEV (for now it's just this:)
+        --      sys_fork
+        --      test eax,eax
+        --      jnz :wait       -- parent waits
+        --      sys_execv
+        --      sys_exit
+        --    ::wait
+        --      sys_wait4
+        --  end if
+        --  ie in the no-wait case we create a dummy sub-process (wait0) whose only job is 
+        --      to wait4 and terminate, thus preventing zombification of the child process.
+        --
+--or (I think I like this better):
+        --      sys_fork
+        --      test eax,eax
+        --      jnz :wait
+        --          if wait<=0 then
+        --              -- sys_sigaction(SIGCHLD,SIG_IGN,0,SA_NOCLDSTOP,0):
+        --              sub esp,16              -- sizeof(sigaction)
+        --              mov dword[esp],1        -- SIG_IGN
+        --              mov dword[esp+4],ebx    -- mask(0)
+        --              mov dword[esp+8],1      -- SA_NOCLDSTOP
+        --              mov dword[esp+12],ebx   -- restorer(0)
+        --              mov eax,67              -- sys_sigaction
+        --              mov ebx,17              -- SIGCHLD
+        --              mov ecx,esp             -- sigact struct
+        --              xor edx,edx             -- oact not rqd
+        --              int 0x80
+        --              add esp,16
+        --          end if
+        --          sys_execv
+        --          sys_exit
+        --    ::wait
+        --      if wait>0 then
+        --          sys_wait4
+        --      end if
+        --
+--/*
+        #ilASM{
+            [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--2     sys_fork                    0x02    struct pt_regs *        -                       -                       -                       -               arch/alpha/kernel/entry.S:716
+--190   sys_vfork                   0xbe    struct pt_regs *        -                       -                       -                       -                       arch/alpha/kernel/entry.S:746
+--11    sys_execve                  0x0b    char *                  char **                 char **                 struct pt_regs *        -               arch/alpha/kernel/entry.S:925
+--284   sys_waitid                  0x11c   int which               pid_t pid               struct siginfo *infop   int options             struct rusage *ru                       kernel/exit.c:1655
+--114   sys_wait4                   0x72    pid_t pid               int *stat_addr          int options             struct rusage *ru       -                       kernel/exit.c:1726
+--120   sys_clone                   0x78    unsigned long           unsigned long           unsigned long           unsigned long           struct pt_regs *        arch/alpha/kernel/entry.S:733
+--1     sys_exit                    0x01    int error_code          -                       -                       -                       -               kernel/exit.c:1046
+--67    sys_sigaction               0x43    int sig                 const struct old_sigaction *act struct old_sigaction *oact  -           -               arch/mips/kernel/signal.c:300
+
+                mov eax,2               -- sys_fork
+                int 0x80 
+                -- check if child or parent 
+                test eax, eax 
+                jnz :parent_wait
+                    -- child process 
+--DEV assume no parameters for now
+                    mov eax,11          -- sys_execve
+--                  mov ebx,[filename]
+                    mov ebx,[child_process]
+--                  mov ecx,[argv4]
+                    xor ecx,ecx
+                    shl ebx,2           -- raw ptr
+                    shl ecx,2           -- raw ptr
+                    xor edx,edx 
+                    int 0x80
+...
+                call "libc.so.6","fork"
+                test eax,eax
+                jnz :parent_wait
+                    test [wait],0
+                    jg @f
+--or fork/terminate?:
+                        sub esp,16              -- sizeof(sigaction)
+                        mov dword[esp],1        -- SIG_IGN
+                        mov dword[esp+4],ebx    -- mask(0)
+                        mov dword[esp+8],1      -- SA_NOCLDSTOP
+                        mov dword[esp+12],ebx   -- restorer(0)
+                        mov esi,esp
+                        push esi                -- oldact
+                        push esi                -- act
+                        push 17                 -- signum (SIGCHLD)
+                        call "libc.so.6","sigaction"
+                        add esp,16+12
+                  @@:
+                    mov eax,[pArg4]
+                    mov esi,[path]
+                    shl eax,2                   -- pArg4*4(->addr)
+                    shl esi,2                   -- raw string ptr
+                    push eax                    -- argv[]
+                    push esi                    -- path
+                    call "libc.so.6","execv"
+                    add esp,8
+--DEV..
+--                  call "libc.so.6","exit"
+                    mov ebx,eax 
+                    mov eax,1                   -- sys_exit
+                    int 0x80 
+
+              ::fork_error
+                    int3
+              ::parent_wait
+                js :fork_error
+                test [wait],0
+                jle @f
+                    sub esp,128             -- reserve space for siginfo
+                    mov esi,esp
+                    mov dword[esi+12],ebx   -- si_pid:=0
+                    push 4                  -- options (WEXITED)
+                    push esi                -- infop
+                    push eax                -- id
+                    push 1                  -- idtype (P_ID)
+                    call "libc.so.6","waitid"
+                    mov eax,[esi+20]        -- si_status
+                    cmp dword[esi+12],ebx
+                    je :m1res
+                    cmp dword[esp+8],1      -- si_code=CLD_EXITED?
+                    je @f
+                      ::m1res
+                        mov eax,-1
+                 @@:
+                    add esp,128+16
+                    lea edi,[ret]
+                    call :%pStoreMint
+                    jmp :done
+              @@:
+                    -- give the execv a chance to get going
+--DEV (see pSleep.e)
+--                  nanosleep(0.4)
+                    mov [ret],ebx
+              ::done
+
+ -- typedef struct siginfo {
+ --         int si_signo;
+ --         int si_errno;
+ --         int si_code;
+ -- 
+ --         union {
+ --                 int _pad[SI_PAD_SIZE];
+ --                 /* SIGCHLD */
+ --                 struct {
+ --                         __kernel_pid_t _pid;    /* which child */
+ --                         __ARCH_SI_UID_T _uid;   /* sender's uid */
+ --                         int _status;            /* exit code */
+ --                         __ARCH_SI_CLOCK_T _utime;
+ --                         __ARCH_SI_CLOCK_T _stime;
+ --                 } _sigchld;
+
+--!*!/
+                    -- execve returns only if any error occured, 
+                    -- so here we exit child process, with an
+                    -- error code (-1) that should be collected
+                    -- by the following sys_wait4. 
+                    mov ebx,eax 
+                    mov eax,1           -- sys_exit
+                    int 0x80 
+              ::parent_wait
+                sub esp,4
+                mov ebx,eax             -- pid
+                mov ecx,esp             -- exit_status
+                mov edx,2               -- WUNTRACED 
+                xor esi,esi             -- rusage unused
+                mov eax,114             -- sys_wait4
+                int 0x80 
+--probably wants masking/shifting:  (eg #FE00 = 65024)
+                xor ebx,ebx
+                pop eax
+--              shr eax,8       --???
+--              mov [ret],eax
+                lea edi,[ret]
+                call :%pStoreMint
+--maybe:
+--              mov eax,[ONE32TH]
+--              call :%opSleep
+            [ELF64]
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--57    sys_fork
+--58    sys_vfork
+--59    sys_execve              const char *filename    const char *const argv[]        const char *const envp[]
+--247   sys_waitid              int which               pid_t upid                      struct siginfo *infop       int options             struct rusage *ru
+--61    sys_wait4               pid_t upid              int *stat_addr                  int options             struct rusage *ru
+--56    sys_clone               unsigned long clone_flags   unsigned long newsp         void *parent_tid        void *child_tid
+--60    sys_exit                int error_code
+--13    sys_rt_sigaction        int sig                 const struct sigaction *act     struct sigaction *oact  size_t sigsetsize
+
+                pop al
+            []
+              }
+--*/
+    else
+        ?9/0
+    end if
+
     return ret
 end function
 ------------------------------------------------------------------------
 
 global function system_open(sequence filename)
 -- as shellExecute(0,"open",file,0,0,SW_NORMAL)
+if platform()=LINUX then ?9/0 end if --DEV (no known equivalent?...)
 --/**/  if not swinit then initsw() end if                              --\* Phix
 --/**/  return c_func(xShellExecute,{0,"open",filename,0,0,SW_NORMAL})  --/* Phix
 atom lpFile
@@ -420,10 +800,12 @@ end function
 
 global function system_exec(sequence s, integer mode=2)
 integer res -- exit code or -1 on failure
-    if and_bits(mode,4) then
+if platform()=WINDOWS then
+    if and_bits(mode,4) then            -- "new shell" bit is set
         s = getenv("COMSPEC")&" /C "&s
     end if
-    if and_bits(mode,8) then
+end if
+    if and_bits(mode,8) then            -- "no wait" bit is set
         Wait = -10                      -- Max 10 iterations (0.4s)
     end if
     res = system_wait(s)
@@ -438,10 +820,10 @@ global procedure system(sequence s, integer mode=2)
 -- Uses %COMSPEC% /C, which means it has the same features (redirection, wildcards, etc) 
 --  and is subject to the same limitations (eg it was 126 chars on Win98, but has grown 
 --  to 8000 chars on Win7) as manually using an MS-DOS console window.
--- NOTE: Specifying a windows GUI app appears to hang the console, no idea
---  why. If that happens try using sysproc.
--- NOTE2: mode is a bit of a legacy feature and not guaranteed to work exactly as per
---        the documentation. The default value of 2 ("do nothing") should suffice.
+-- NOTE: Specifying a windows GUI app appears to hang the console, typically what has 
+--  actually happened is that the shell has finished, but remains visible and unresponsive 
+--  until the app terminates. In such cases, try using {} = system_exec(s,8) instead. 
+-- NOTE2: mode is a legacy feature and now completely ignored.
 --
 --integer r
 --  Wait = -10                          -- Max 10 iterations (0.4s)
@@ -474,3 +856,241 @@ end procedure
 --  return res
 --end function
 
+--/*
+
+It is important to note that setenv only modifies the environment of the current process, which will apply to any subsequently created child processes.
+To put that into perspective, it is obvious that a statement such as
+<!--eucode>
+setenv("PATH",..)
+</eucode-->
+<pre>
+</pre>
+should <i><b>not</b></i> initiate system-wide disruption of all currently running processes. Neither should it upset the operation of its parent process.
+A program such as
+<!--eucode>
+setenv("PHIXROOT","/home/pete/phix/")
+</eucode-->
+<pre>
+</pre>
+may appear to have no effect: what it actually does is start with a copy of the invoking environment, create a modified copy of that environment, and then
+terminate and discard the modified environment. The statement will have effect on any subsequent calls to getenv in the same process, and on the initial 
+environment of any child processes it subsequently creates. For more permanent changes to environment settings, you need to use batch files (using "source" 
+rather than normal run on Linux), modify system files such as .profile or .bashrc or /etc/profile.d/<appname>.sh, or use operating system provided utilities 
+such as Control Panel or regedit. Those methods will most likely have similar restrictions, such as only affecting the current terminal session, or requiring 
+re-login or re-boot.
+
+In fact, the Linux version of setenv does virtually nothing, except leave a table entry for subsequent calls to getenv and system_exec. The Windows
+version of setenv and getenv is more conventional, relying on the Windows API routines SetEnvironmentVar and GetEnvironmentVar - but the overall
+effect is almost identical. A big difference would occur when using c_func/c_proc to invoke some third party code that relies on the environment 
+settings but does not let you specify them, which I cannot imagine is possible at all on Linux
+
+??
+Note: These routines are not deemed thread-safe. Ideally all process spawning, in partcular system(st) and system_exec(st,<i>&lt;mode with bit 8 set&gt;</i>), 
+which do not wait for a result, should be performed by a single thread. If you need multiple threads to spawn waited-for processes.... UGH!!
+
+format elf executable 
+
+mov eax,11      -- sys_execve
+mov ebx,arg0 
+mov ecx,args 
+mov edx,0 
+int 0x80 
+
+mov eax,1 
+int 0x80 
+
+arg0: db '/bin/ls',0 
+arg1: db '-l',0 
+args: dd arg0,arg1,0 
+
+;this program is designed to have the same effect 
+;as entering "/bin/ls -l" at the terminal 
+
+
+===================
+format ELF executable 
+entry $ 
+
+        ;; create new process 
+        mov     eax, __NR_vfork 
+        int     0x80 
+        ;; check if child or parent 
+        test    eax, eax 
+        jnz     parent_process 
+        ;; child process 
+        ;; start sleep application 
+        mov     eax, __NR_execve 
+        mov     ebx, arg0 
+        mov     ecx, argv 
+        xor     edx, edx 
+        int     0x80 
+        ;; execve returns only if any error occured, 
+        ;; so here we exit child process 
+        mov     ebx, eax 
+        mov     eax, __NR_exit 
+        int     0x80 
+
+        ;; parent process 
+parent_process: 
+        ;; wait for child process to complete 
+        mov     ebx, eax 
+        mov     ecx, exit_status 
+        mov     edx, WUNTRACED 
+        xor     esi, esi 
+        mov     eax, __NR_wait4 
+        int     0x80 
+        ;; print "Thread completed" message 
+        mov     eax, __NR_write 
+        mov     ebx, STDOUT_FILENO 
+        mov     ecx, msg 
+        mov     edx, msg_size 
+        int     0x80 
+        mov     eax, __NR_write 
+        mov     ecx, status_ok 
+        mov     edx, status_ok_size 
+        ;; only the least 8 bits of the exit status 
+        cmp     byte [exit_status + 1], 0 
+        jz      ok 
+        mov     ecx, status_fail 
+        mov     edx, status_fail_size 
+ok: 
+        int     0x80 
+        ;; exit 
+        xor     ebx, ebx 
+        mov     eax, __NR_exit 
+        int     0x80 
+
+msg: 
+        db      "Thread completed! Exit status: " 
+msg_size = $ - msg 
+
+status_ok: 
+        db      "Succeeded", 0xa 
+status_ok_size = $ - status_ok 
+
+status_fail: 
+        db      "Failed", 0xa 
+status_fail_size = $ - status_fail 
+
+arg0: 
+        db      "/usr/bin/sleep", 0 
+;;         db      "/bin/true", 0 
+;;         db      "/bin/false", 0 
+arg1: 
+        db      "1", 0 
+argv: 
+        dd      arg0, arg1, 0 
+
+        segment readable writeable 
+         
+exit_status: 
+        dd      -1
+
+================
+
+struc pt_regs 
+{ 
+    .ebx            dd 0
+    .ecx            dd 0
+    .edx            dd 0
+    .esi            dd 0
+    .edi            dd 0
+    .ebp            dd 0
+    .eax            dd 0
+    .xds            dd 0
+    .xes            dd 0
+    .orig_eax       dd 0
+    .eip            dd 0
+    .xcs            dd 0
+    .eflags         dd 0
+    .esp            dd 0
+    .xss            dd 0     
+} 
+
+sys_clone 
+        test eax,eax 
+        jnz .L0 
+        ; child 
+        pop rsi rdi 
+        call rsi 
+        sys_exit 0 
+.L0:  ; parent 
+
+=================================
+.section .data
+file_to_run:
+.asciz       "/bin/sh"
+
+.section .text
+.globl main
+
+main:
+    sub esp,8       # array of two pointers. array[0] = file_to_run  array[1] = 0
+
+    mov edi,file_to_run
+    mov dword[esp-8],edi
+    mov dword[esp-4],0
+
+    mov eax, 11                     # sys_execve
+    mov ebx, file_to_run             # file to execute       
+    lea ecx, [ebp-8]                # command line parameters
+    mov edx, 0                      # environment block
+    int 0x80                
+
+    ret
+
+; syscalls kernel
+SYS_EXECVE equ 0x0b
+ 
+_start:
+ 
+    ; execve("/bin//sh", 0, 0);
+    push SYS_EXECVE ; SYS_EXECVE = 11
+    pop eax         ; set SYS_EXECVE to eax
+ 
+    xor esi, esi    ; clean esi
+    push esi        ; esi is zero
+    push 0x68732f2f ; push 'hs//'
+    push 0x6e69622f ; push 'nib/'
+ 
+    ; execve("/bin//sh/", 0, 0);
+    ;             ^
+    ;             |
+    ;            ebx
+    mov ebx, esp
+ 
+    ; execve("/bin//sh/", 0, 0);
+    ;                     ^
+    ;                     |
+    ;                    ecx
+    xor ecx, ecx    ; clean ecx
+ 
+    ; execve("/bin//sh/", 0, 0);
+    ;                        ^
+    ;                        |
+    ;                       edx
+    mov edx, ecx    ; set zero to edx
+    int 0x80        ; syscall execve
+
+DING: [PL] The penny just dropped: if we don't want a return value we could always just fork/(fork|wait|discard)/exec...
+(For now, concentrate on waiting for a result)
+
+DING2: if the parent fork/resumes,
+        the child fork/terminates,
+        the grandchild won't zombify because it's parent is child, so terminated->init->auto killed.
+
+==
+
+SIGCHLD is a signal your program receives if a child process gets terminated. It is ignored by default. 
+Well, why don't we write ourself a little signal handler? A signal handler is a void function with a int as only argument:
+
+void cleanup_child(int signal) {
+    wait();
+}
+Now register your signal handler at the very beginning of your main function and your done:
+
+int main(...){
+    signal(SIGCHLD,cleanup_child);
+    ...
+Now all zombies get cleaned automatically. Please keep in mind that a signal interrupts your current program, calls the specific signal handler and resumes your program.
+--*/

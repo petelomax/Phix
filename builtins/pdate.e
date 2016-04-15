@@ -15,8 +15,10 @@ integer dinit = 0
 procedure initd()
     dinit = 1
     enter_cs()
-    kernel32 = open_dll("kernel32.dll")
-    xGetLocalTime = define_c_proc(kernel32,"GetLocalTime",{C_PTR})
+    if platform()=WINDOWS then
+        kernel32 = open_dll("kernel32.dll")
+        xGetLocalTime = define_c_proc(kernel32,"GetLocalTime",{C_PTR})
+    end if
     dot = {0,31,59,90,120,151,181,212,243,273,304,334}
     t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
     leave_cs()
@@ -121,28 +123,82 @@ global function date()
 --
 
 --integer y, m, d, ys1900, dow
-integer y, m, d, dow
+integer year, diy, month, day, hour, mins, secs, dow
 atom xSystemTime
 sequence res
 
     if not dinit then initd() end if
-    xSystemTime = allocate(STsize)
-    c_proc(xGetLocalTime,{xSystemTime})
-    y = peek2u(xSystemTime+STwYear)
---  ys1900 = y-1900
-    m = peek2u(xSystemTime+STwMonth)
-    d = peek2u(xSystemTime+STwDay)
-    dow = peek2u(xSystemTime+STwDayOfWeek)+1
+    if platform()=WINDOWS then
+        xSystemTime = allocate(STsize)
+        c_proc(xGetLocalTime,{xSystemTime})
+        year = peek2u(xSystemTime+STwYear)
+--      ys1900 = year-1900
+        month = peek2u(xSystemTime+STwMonth)
+        day = peek2u(xSystemTime+STwDay)
+        hour = peek2u(xSystemTime+STwHour)
+        mins = peek2u(xSystemTime+STwMinute)
+        secs = peek2u(xSystemTime+STwSecond)
+        dow = peek2u(xSystemTime+STwDayOfWeek)+1
+        free(xSystemTime)
+    elsif platform()=LINUX then
+        #ilASM{
+            [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+-->13   sys_time                    0x0d    time_t *tloc            -                       -                       -                       -               kernel/posix-timers.c:855
+                xor ebx,ebx
+                mov eax,13      -- sys_time
+                int 0x80
+                xor ebx,ebx
+                push ebx
+                push eax            -- (treat as unsigned, /might/ work after 2038...)
+                fild qword[esp]
+                add esp,8
+                lea edi,[xSystemTime]
+                call :%pStoreFlt
+            [ELF64]
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--201   sys_time                time_t *tloc
+                xor rdi,rdi
+                mov rax,201     -- sys_time
+                syscall
+                push rax
+                fild qword[rsp]
+                add rsp,8
+                lea rdi,[xSystemTime]
+                call :%pStoreFlt    -- (also sets r15 to h4)
+            []
+              }
+        secs = remainder(xSystemTime,60)
+        xSystemTime = floor(xSystemTime/60)
+        mins = remainder(xSystemTime,60)
+        xSystemTime = floor(xSystemTime/60)
+        hour = remainder(xSystemTime,24)
+        xSystemTime = floor(xSystemTime/24)
+        year = 1970
+        while 1 do
+            diy = 365+is_leap_year(year)
+            if xSystemTime<=diy then exit end if
+            year += 1
+            xSystemTime -= diy
+        end while
+        month = 1
+        for i=2 to 12 do
+            if xSystemTime<=dot[i]+(i>2 and is_leap_year(year)) then exit end if
+            month = i
+        end for
+        day = xSystemTime - (dot[month]+(month>2 and is_leap_year(year)))
+        dow = day_of_week(year, month, day)
+    end if
 --  res = {ys1900,
-    res = {y,
-           m,
-           d,
-           peek2u(xSystemTime+STwHour),
-           peek2u(xSystemTime+STwMinute),
-           peek2u(xSystemTime+STwSecond),
+    res = {year,
+           month,
+           day,
+           hour,
+           mins,
+           secs,
            dow,
-           day_of_year(y,m,d)}
-    free(xSystemTime)
+           day_of_year(year,month,day)}
     return res
 end function
 

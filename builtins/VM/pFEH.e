@@ -78,8 +78,9 @@ integer finit = 0
         mov ebx, 11 -- SIGSEGV 
         mov ecx,esp
         xor edx, edx 
-        int 0x80 
+        int 0x80
         add esp,16
+        xor ebx,ebx
 -- nah, methinks we want sigaction...
 --      --; install signal handler 
 --      mov eax,48  -- SYSCALL_SIGNAL ( syscall to function signal() )
@@ -400,6 +401,11 @@ integer finit = 0
 
         call :lowlevel              -- (temp)
 
+        mov esi,[esp+8]             -- 3rd param (siginfo_t)
+        mov edx,[esi+76]            -- eip
+        mov ebp,[esi+44]
+        mov edi,esp                 -- (in case :!fehDiag not called)
+        mov esp,[esi+48]
 --      mov esi,[esp+4]             -- EXCEPTION_POINTERS
 --      mov edi,[esi]               -- EXCEPTION_RECORD
 --      mov esi,[esi+4]             -- CONTEXT_RECORD
@@ -422,16 +428,16 @@ integer finit = 0
 --          pop edi
 --    @@:
 --
---      --  esi is context record (save everything once we get into :!fehDiag)
---      --  edx is exception address
---      --  ecx is exception code
+        --  esi is context record (save everything once we get into :!fehDiag)
+        --  edx is exception address
+--      --  ecx is exception code (would always be SIGSEGV)
 --      --  ebx, ebp, and esp have been reset
---      call :!fehDiag              -- pdiagN.e, if loaded
+        call :!fehDiag              -- pdiagN.e, if loaded
 --      -- (control does not return if called, unless looping)
 ----        add esp,4
---      mov esp,edi
+        mov esp,edi
 --
---      call :lowlevel              -- (not temp)
+        call :lowlevel              -- (not temp)
 
 --      call :%opClosem9
 
@@ -514,6 +520,11 @@ integer finit = 0
 
         call :lowlevel              -- (temp)
 
+        mov rsi,[rsp+16]            -- 3rd param
+        mov rdx,[rsi+0xA8]          -- rip
+        mov rbp,[rsi+0x78]
+        mov rdi,rsp                 -- (in case :!fehDiag not called)
+        mov rsp,[rsi+0xA0]
 --      mov esi,[esp+4]             -- EXCEPTION_POINTERS
 --      mov edi,[esi]               -- EXCEPTION_RECORD
 --      mov esi,[esi+4]             -- CONTEXT_RECORD
@@ -536,16 +547,16 @@ integer finit = 0
 --          pop edi
 --    @@:
 --
---      --  esi is context record (save everything once we get into :!fehDiag)
---      --  edx is exception address
+        --  rsi is context record (save everything once we get into :!fehDiag)
+        --  rdx is exception address
 --      --  ecx is exception code
---      --  ebx, ebp, and esp have been reset
---      call :!fehDiag              -- pdiagN.e, if loaded
+        --  rbx, rbp, and rsp have been reset
+        call :!fehDiag              -- pdiagN.e, if loaded
 --      -- (control does not return if called, unless looping)
 ----        add esp,4
---      mov esp,edi
+        mov rsp,rdi
 --
---      call :lowlevel              -- (not temp)
+        call :lowlevel              -- (not temp)
 
 --      call :%opClosem9
 
@@ -565,37 +576,37 @@ integer finit = 0
         call :%puthex64
 
         mov rdi,[eaxis]             -- "eax: "
-        call :%puts1r
+        call :puts1r
         mov rdx,[rsp+24]            -- 3rd param
         mov rdx,[rdx+0x90]          -- rax
         push 1                      -- cr
         call :%puthex64
         mov rdi,[ebxis]             -- "ebx: "
-        call :%puts1r
+        call :puts1r
         mov rdx,[rsp+24]            -- 3rd param
         mov rdx,[rdx+0x80]          -- rbx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[ecxis]             -- "ecx: "
-        call :%puts1r
+        call :puts1r
         mov rdx,[rsp+24]            -- 3rd param
         mov rdx,[rdx+0x98]          -- rcx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[edxis]             -- "edx: "
-        call :%puts1r
+        call :puts1r
         mov rdx,[rsp+24]            -- 3rd param
         mov rdx,[rdx+0x88]          -- rdx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[esiis]             -- "esi: "
-        call :%puts1r
+        call :puts1r
         mov rdx,[rsp+24]            -- 3rd param
         mov rdx,[rdx+0x70]          -- rsi
         push 1                      -- cr
         call :%puthex64
         mov edi,[ediis]             -- "edi: "
-        call :%puts1r
+        call :puts1r
         mov rdx,[rsp+24]            -- 3rd param
         mov rdx,[rdx+0x68]          -- rdi
         push 1                      -- cr

@@ -675,7 +675,7 @@ if newEmit then
             machine = 64
         end if
 --printf(1,"disassemble(eaddr=%08x,fromoffset=%08x,tooffset=%08x)\n",{eaddr,fromoffset,tooffset})
-        decodeinit(eaddr+fromoffset, eaddr-base+fromoffset,machine)
+        decodeinit(eaddr+fromoffset, eaddr-base+fromoffset,machine,iff(PE?arch_PE:arch_ELF))
 else
         decodeinit(eaddr+fromoffset, eaddr-base+fromoffset)
 end if
@@ -725,7 +725,7 @@ else
 end if
 --23/4/15:
                 elsif si[S_Name]=-1 then
--- added 1/5/15: (for the "call :%opFrame" in pdiagN.e/:!diagFrame, where edx got set in pemit2.e)
+-- added 1/5/15: (for the "call :%opFrame" in pDiagN.e/:!diagFrame, where edx got set in pemit2.e)
 --8/7/15:
 --if trim(tj)="call :%opFrame" then
 if match("call :%opFrame",trim(tj))=1 then
@@ -1016,7 +1016,7 @@ string file1
     -- **DO NOT DELETE** The next line can be extremely useful when diagnosing listing file problems.
     printf(fn,";; ImageBase2=#%08x, BaseOfCode2=#%08x, SizeOfCode2=#%08x, BaseOfData2=#%08x, SizeOfData2=#%08x\n",
               {ImageBase2,BaseOfCode2,SizeOfCode2,BaseOfData2,SizeOfData2})
-    printf(fn,";; X64=%d\n",{X64})
+    printf(fn,";; X64=%d, PE=%d\n",{X64,PE})
 --end if
 
     if listing=-1 then

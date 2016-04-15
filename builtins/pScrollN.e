@@ -62,53 +62,58 @@ integer Sinit
 --      stdin_redirected = 0
 
 procedure initScroll()
-    kernel32 = open_dll("kernel32.dll")
+    if platform()=WINDOWS then
+        kernel32 = open_dll("kernel32.dll")
 --#without reformat
-    xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
-        {C_UINT},   --  DWORD  nStdHandle   // input, output, or error device
-        C_PTR)      -- HANDLE
-    xAllocConsole = define_c_func(kernel32,"AllocConsole",
-        {},         --  no parameters
-        C_INT)      -- BOOL
-    xSetConsoleMode = define_c_func(kernel32,"SetConsoleMode",
-        {C_PTR,     --  HANDLE  hConsole,   // handle of console input or screen buffer
-         C_LONG},   --  DWORD  fdwMode      // input or output mode to set 
-        C_INT)      -- BOOL
-    xGetConsoleScreenBufferInfo = define_c_func(kernel32,"GetConsoleScreenBufferInfo",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
-         C_PTR},    --  PCONSOLE_SCREEN_BUFFER_INFO  // address of screen buffer info
-        C_INT)      -- BOOL
-    xScrollConsoleScreenBuffer = define_c_func(kernel32,"ScrollConsoleScreenBufferA",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
-         C_PTR,     --  PSMALL_RECT  psrctSourceRect, // address of screen buffer rect. to move
-         C_PTR,     --  PSMALL_RECT  psrctClipRect, // address of affected screen buffer rect. 
-         C_INT,     --  COORD  coordDestOrigin, // new location of screen buffer rect.
-         C_PTR},    --  PCHAR_INFO  pchiFill    // address of fill character and color 
-        C_INT)      -- BOOL
-    xFillConsoleOutputCharacter = define_c_func(kernel32,"FillConsoleOutputCharacterA",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of screen buffer
-         C_USHORT,  --  TCHAR  cCharacter,  // character to write
-         C_UINT,    --  DWORD  nLength, // number of character cells to write to
-         C_UINT,    --  COORD  dwWriteCoord,    // x- and y-coordinates of first cell
-         C_PTR},    --  LPDWORD  lpNumberOfCharsWritten     // address of number of cells written to
-        C_INT)      -- BOOL
-    xFillConsoleOutputAttribute = define_c_func(kernel32,"FillConsoleOutputAttribute",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of screen buffer
-         C_USHORT,  --  WORD  wAttribute,   // color attribute to write
-         C_UINT,    --  DWORD  nLength, // number of character cells to write to
-         C_UINT,    --  COORD  dwWriteCoord,    // x- and y-coordinates of first cell
-         C_PTR},    --  LPDWORD  lpNumberOfAttrsWritten     // address of number of cells written to
-        C_INT)      -- BOOL
+        xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
+            {C_UINT},   --  DWORD  nStdHandle   // input, output, or error device
+            C_PTR)      -- HANDLE
+        xAllocConsole = define_c_func(kernel32,"AllocConsole",
+            {},         --  no parameters
+            C_INT)      -- BOOL
+        xSetConsoleMode = define_c_func(kernel32,"SetConsoleMode",
+            {C_PTR,     --  HANDLE  hConsole,   // handle of console input or screen buffer
+             C_LONG},   --  DWORD  fdwMode      // input or output mode to set 
+            C_INT)      -- BOOL
+        xGetConsoleScreenBufferInfo = define_c_func(kernel32,"GetConsoleScreenBufferInfo",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+             C_PTR},    --  PCONSOLE_SCREEN_BUFFER_INFO  // address of screen buffer info
+            C_INT)      -- BOOL
+        xScrollConsoleScreenBuffer = define_c_func(kernel32,"ScrollConsoleScreenBufferA",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+             C_PTR,     --  PSMALL_RECT  psrctSourceRect, // address of screen buffer rect. to move
+             C_PTR,     --  PSMALL_RECT  psrctClipRect, // address of affected screen buffer rect. 
+             C_INT,     --  COORD  coordDestOrigin, // new location of screen buffer rect.
+             C_PTR},    --  PCHAR_INFO  pchiFill    // address of fill character and color 
+            C_INT)      -- BOOL
+        xFillConsoleOutputCharacter = define_c_func(kernel32,"FillConsoleOutputCharacterA",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of screen buffer
+             C_USHORT,  --  TCHAR  cCharacter,  // character to write
+             C_UINT,    --  DWORD  nLength, // number of character cells to write to
+             C_UINT,    --  COORD  dwWriteCoord,    // x- and y-coordinates of first cell
+             C_PTR},    --  LPDWORD  lpNumberOfCharsWritten     // address of number of cells written to
+            C_INT)      -- BOOL
+        xFillConsoleOutputAttribute = define_c_func(kernel32,"FillConsoleOutputAttribute",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of screen buffer
+             C_USHORT,  --  WORD  wAttribute,   // color attribute to write
+             C_UINT,    --  DWORD  nLength, // number of character cells to write to
+             C_UINT,    --  COORD  dwWriteCoord,    // x- and y-coordinates of first cell
+             C_PTR},    --  LPDWORD  lpNumberOfAttrsWritten     // address of number of cells written to
+            C_INT)      -- BOOL
 --#without reformat
-    void = c_func(xAllocConsole,{})
-    stdin = c_func(xGetStdHandle,{STD_INPUT_HANDLE})
-    stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
-    stderr = c_func(xGetStdHandle,{STD_ERROR_HANDLE})
+        void = c_func(xAllocConsole,{})
+        stdin = c_func(xGetStdHandle,{STD_INPUT_HANDLE})
+        stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
+        stderr = c_func(xGetStdHandle,{STD_ERROR_HANDLE})
 --  -- nb following is not ENABLE_LINE_INPUT and not ENABLE_ECHO_INPUT
---  if not c_func(xSetConsoleMode,{stdin,ENABLE_PROCESSED_INPUT}) then
---      stdin_redirected = 1
---  end if
-    
+--      if not c_func(xSetConsoleMode,{stdin,ENABLE_PROCESSED_INPUT}) then
+--          stdin_redirected = 1
+--      end if
+    elsif platform()=LINUX then
+        stdin = 0
+        stdout = 1
+        stderr = 2
+    end if
     Sinit = 1
 end procedure
 

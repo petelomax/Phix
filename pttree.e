@@ -621,6 +621,7 @@ end procedure
 function traverseA(integer node)
 integer nxt, r, j, k
 sequence todo
+--object dbg
 
     if scramble then
         todo = {GT,EQ,LT}
@@ -645,6 +646,7 @@ sequence todo
 --if ttchk[node+CH]!=2 then ttCh=9/0 end if
     nxt = tt[node+LT]               if nxt then r = traverseA(nxt) end if   -- recurse(LT)
     if r then
+--dbg= tt[node+CH]
         r = call_func(rtn_id,{tt[node+CH],node})
         if r then
             nxt = tt[node+GT]       if nxt then r = traverseA(nxt) end if   -- recurse(GT)
@@ -1195,6 +1197,14 @@ global constant T_override      = 4864  tt_stringF("override",T_override)   -- b
 global constant T_iff           = 4872  tt_stringF("iff",T_iff)
 global constant T_iif           = 4884  tt_stringF("iif",T_iif)
 global constant T_EU4_1         = 4904  tt_stringF("EU4_1",T_EU4_1)
+global constant T_fiadd         = 4920  tt_stringF("fiadd",T_fiadd)
+global constant T_fimul         = 4936  tt_stringF("fimul",T_fimul)
+global constant T_ficom         = 4952  tt_stringF("ficom",T_ficom)
+global constant T_ficomp        = 4960  tt_stringF("ficomp",T_ficomp)
+global constant T_fisub         = 4972  tt_stringF("fisub",T_fisub)
+global constant T_fisubr        = 4980  tt_stringF("fisubr",T_fisubr)
+global constant T_fidiv         = 4996  tt_stringF("fidiv",T_fidiv)
+global constant T_fidivr        = 5004  tt_stringF("fidivr",T_fidivr)
 
 --global constant T_movq            = 4912  tt_stringF("movq",T_movq)
 --global constant gtiTestM  = T_ilASM+0     tt_glabel("%opTestM", gtiTestM)

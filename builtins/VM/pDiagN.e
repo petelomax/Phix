@@ -111,6 +111,33 @@ constant show_bad_era = 01
 --include builtins\VM\pfileioN.e
 --include builtins\VM\pAbort.e -- (now in pStack.e)
 
+
+integer edi4
+procedure show_corruption()
+--
+-- If this triggers you should assume a bug in builtins\VM, although it
+-- could be a rogue poke() or possibly some application-specific #ilASM{}.
+-- Such problems usually require OllyDbg/FDBG/edb or similar for analysis.
+--
+-- The idea is that if you can reproduce the error with a consistent diff
+-- then you can trap after pGtcb has been set, and then trap the expected
+-- memory location where you expect the corruption will occur. The actual
+-- location will most likely be different on every run. This may need to
+-- follow the pGtcb chain N steps (see pHeap) to obtain any consistency.
+--
+integer pGtcb
+    #ilASM{
+        call :%pGetpGtcb
+        [32]
+            mov [pGtcb],eax
+        [64]
+            mov [pGtcb],rax
+        []
+          }
+    printf(1,"\n\n**type byte corruption at #%08x(-1), pGtcb=#%08x, *4=#%08x, diff=#%08x\n\n",
+                                            {edi4*4,pGtcb,pGtcb*4,edi4*4-pGtcb*4})
+end procedure
+
 --include pgets0.ew     --DEV removed 16/6/08...
 --include builtins\VM\pppN.e
 include builtins\ppp.e
@@ -195,7 +222,7 @@ function subscr(string prev, string name, integer prst, integer prdx)
     return {prev,name}
 end function
 
-constant tnr = "tnr\\\"\'0"
+constant tnr = "tnr\\\"\'0e"
 function allascii(string x)
 -- Phix allows "strings" to hold binary data, so double check 
 -- before printing it as a string.
@@ -204,7 +231,7 @@ integer c
         c = x[i]
 --      if c<' ' or c>#7E or find(c,"\\\"\'") then
         if c<' ' or c>#FE or find(c,"\\\"\'") then
-            c = find(c,"\t\n\r\\\"\'\0")
+            c = find(c,"\t\n\r\\\"\'\0\e")
             if c then
                 x[i..i] = '\\'&tnr[c]   -- NB does not work on RDS Eu/OpenEuphoria
             else
@@ -284,7 +311,19 @@ integer newprst,                -- Scratch/innner version of prst.
                 cmp cl,#80
                 je @f
                 cmp cl,#82
-                jne :badtypebyte
+--6/4/16:
+--              jne :badtypebyte
+                je @f
+                    [32]
+                        lea edi,[ebx+eax*4]
+                        shr edi,2
+                        mov [edi4],edi
+                    [64]
+                        lea rdi,[rbx+rax*4]
+                        shr rdi,2
+                        mov [edi4],rdi
+                    []
+                jmp :badtypebyte
               @@:
             }
     end if
@@ -415,8 +454,9 @@ integer newprst,                -- Scratch/innner version of prst.
         end if
         addtostack(idii,newprst,name,this)
         return {prdx+1,""}
-    end if
 #ilASM{ ::badtypebyte }
+        show_corruption()
+    end if
     return {prdx,this}
 end function
 
@@ -1275,6 +1315,10 @@ object res
                 je :typebyteok
                     mov [novalue],3 -- corrupt type byte
                     mov [res],0
+--6/4/16:
+                    add edi,1
+                    shr edi,2
+                    mov [edi4],edi
                     jmp :done
               ::typebyteok
                 add dword[ebx+esi*4-8],1
@@ -1325,7 +1369,7 @@ object res
 --              pop rsp     -- restore, equivalent to rsp += (either #08 or #10)
                 mov rsp,[rsp+8*5]   -- equivalent to add/pop
             [ELF64]
-                pop al
+--              pop al  -- (or we could just skip this entirely)
             [64]
                 test rax,rax
                 jz :typeaddrok
@@ -1342,6 +1386,10 @@ object res
                 je :typebyteok
                     mov [novalue],3 -- corrupt type byte
                     mov [res],0
+--6/4/16:
+                    add rdi,1
+                    shr rdi,2
+                    mov [edi4],rdi
                     jmp :done
               ::typebyteok
                 add qword[rbx+rsi*4-16],1
@@ -1351,6 +1399,7 @@ object res
           ::done
           } 
 --  res = sprintf("%s [gidx=%d, ds4=%d]",{sprint(res),gidx,ds4})
+    if novalue=3 then show_corruption() end if
     return {novalue,res}    -- ({0,whatever} or {1\2\3,0})
 end function
 
@@ -1401,6 +1450,10 @@ object res
                 je :typebyteok
                     mov [novalue],3 -- corrupt type byte
                     mov [res],0
+--6/4/16:
+                    add edi,1
+                    shr edi,2
+                    mov [edi4],edi
                     jmp :done
               ::typebyteok
                 add dword[ebx+esi*4-8],1
@@ -1436,15 +1489,15 @@ object res
 --              add rsp,8*5
 --              pop rsp     -- restore, equivalent to rsp += (either #08 or #10)
                 mov rsp,[rsp+8*5]   -- equivalent to add/pop
-            [ELF64]
-                pop al
-            [64]
                 test rax,rax
                 jz :typeaddrok
                     mov [novalue],2 -- invalid ref
                     mov [res],0
                     jmp :done
               ::typeaddrok
+            [ELF64]
+--              pop al
+            [64]
                 mov cl,[rdi]
                 cmp cl,#12
                 je :typebyteok
@@ -1454,6 +1507,10 @@ object res
                 je :typebyteok
                     mov [novalue],3 -- corrupt type byte
                     mov [res],0
+--6/4/16:
+                    add rdi,1
+                    shr rdi,2
+                    mov [edi4],rdi
                     jmp :done
               ::typebyteok
                 add qword[rbx+rsi*4-16],1
@@ -1462,6 +1519,7 @@ object res
         []
           ::done
           } 
+    if novalue=3 then show_corruption() end if
     return {novalue,res}    -- ({0,whatever} or {1,0})
 end function
 
@@ -2618,6 +2676,7 @@ atom gvarptr
             printf(1,"diag.e: oops, rtn[=%d] out of range[1..%d]\n",{rtn,length(symtab)})
 --          exit
 --      end if
+            rtype = 0   -- (added 15/4/16, at the time we had the wrong symtab... then again it was a bug in pTrace.e)
 else
         sr = symtab[rtn]
 --?sr
@@ -3509,9 +3568,91 @@ end procedure -- (for Edita/CtrlQ)
             xor rax,rax
             mov r15,h4
         [ELF32]
-            pop al
+            --  esi is context record (an annoted copy can be found in pFEH.e)
+            --  edx is exception address
+--          --  ecx is exception code (would always be SIGSEGV)
+            -- (ebp already reset, and ebx zeroed)
+--          mov eax,ecx         -- exception code
+            xor eax,eax
+            lea edi,[xceptn]
+            call :%pStoreMint
+            mov eax,edx         -- exception address
+            lea edi,[xcepta]
+            call :%pStoreMint
+            lea edi,[or_era]    -- (may get replaced)
+            call :%pStoreMint
+            mov eax,[esi+60]    -- ecx
+            lea edi,[or_ecx]
+            call :%pStoreMint
+            mov eax,[esi+56]    -- edx
+            lea edi,[or_edx]
+            call :%pStoreMint
+            mov eax,[esi+36]    -- edi
+            lea edi,[or_edi]
+            call :%pStoreMint
+            mov eax,[esi+44]    -- ebp
+            shr eax,2
+            mov [or_ebp],eax
+            mov eax,[esi+48]    -- esp
+            lea edi,[or_esp]
+            call :%pStoreMint
+            mov eax,[esi+40]    -- esi
+            lea edi,[or_esi]
+            call :%pStoreMint
+--      .edi           rd 1     ;36
+--      .esi           rd 1     ;40
+--      .ebp           rd 1     ;44
+--      .esp           rd 1     ;48
+--      .ebx           rd 1     ;52
+--      .edx           rd 1     ;56
+--      .ecx           rd 1     ;60
+--      .eax           rd 1     ;64
+--      .trapno        rd 1     ;68
+--      .err           rd 1     ;72
+--      .eip           rd 1     ;76 (correct)
+--      .cs            rw 1     ;80
+--      .__csh         rw 1     ;82
+--      .eflags        rd 1     ;84
+--      .esp_at_signal rd 1     ;88
+            xor eax,eax
+--          pop al
         [ELF64]
-            pop al
+            --  rsi is context record (an annoted copy can be found in pFEH.e)
+            --  rdx is exception address
+--          --  rcx is exception code (would always be SIGSEGV)
+            -- (rbp already reset, and rbx zeroed)
+--          mov rax,rcx         -- exception code
+            xor rax,rax
+            lea rdi,[xceptn]
+            call :%pStoreMint
+            mov rax,rdx         -- exception address
+            lea rdi,[xcepta]
+            call :%pStoreMint
+            lea rdi,[or_era]    -- (may get replaced)
+            call :%pStoreMint
+
+            mov rax,[rsi+0x98]  -- rcx
+            lea rdi,[or_ecx]
+            call :%pStoreMint
+            mov rax,[rsi+0x88]  -- rdx
+            lea rdi,[or_edx]
+            call :%pStoreMint
+            mov rax,[rsi+0x68]  -- rdi
+            lea rdi,[or_edi]
+            call :%pStoreMint
+            mov rax,[rsi+0x78]  -- rbp
+            shr rax,2
+            mov [or_ebp],rax
+            mov rax,[rsi+0xA0]  -- rsp
+            lea rdi,[or_esp]
+            call :%pStoreMint
+            mov rax,[rsi+0x70]  -- esi
+            lea rdi,[or_esi]
+            call :%pStoreMint
+--          mov rsp,[rsi+0xA0]  -- (already done in pFEH.e)
+--          mov rbp,[rsi+0x78]  -- (already done in pFEH.e)
+            xor rax,rax
+            mov r15,h4
         []
 
 --/*

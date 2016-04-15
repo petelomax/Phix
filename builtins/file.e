@@ -20,29 +20,29 @@ include misc.e
 
 --/* Not required for Phix:
 constant
-     M_SEEK  = 19,
-     M_WHERE = 20,
-     M_DIR   = 22,
-     M_CURRENT_DIR = 23,
-     M_ALLOW_BREAK = 42,
-     M_CHECK_BREAK = 43,
-     M_FLUSH = 60,
-     M_LOCK_FILE = 61,
-     M_UNLOCK_FILE = 62,
-     M_CHDIR = 63
+     M_SEEK         = 19,
+     M_WHERE        = 20,
+     M_DIR          = 22,
+     M_CURRENT_DIR  = 23,
+     M_ALLOW_BREAK  = 42,
+     M_CHECK_BREAK  = 43,
+     M_FLUSH        = 60,
+     M_LOCK_FILE    = 61,
+     M_UNLOCK_FILE  = 62,
+     M_CHDIR        = 63
 --*/
 
 --/* Not required for Phix
 type file_number(integer f)
-    return f >= 0
+    return f>=0
 end type
 
 type file_position(atom p)
-    return p >= -1
+    return p>=-1
 end type
 
 type boolean(integer b)
-    return b = 0 or b = 1
+    return b=0 or b=1
 end type
 --*/
 
@@ -74,25 +74,25 @@ end procedure
 
 --/* Not required for Phix (defined in psym.e)
 global constant LOCK_SHARED = 1, 
-        LOCK_EXCLUSIVE = 2
+                LOCK_EXCLUSIVE = 2
 --*/
 
 --/* Not required for Phix
 type lock_type(integer t)
-    if platform() = LINUX then
-    return t = LOCK_SHARED or t = LOCK_EXCLUSIVE
+    if platform()=LINUX then
+        return t=LOCK_SHARED or t=LOCK_EXCLUSIVE
     else
-    return 1
+        return 1
     end if
 end type
 
 type byte_range(sequence br)
-    if length(br) = 0 then
-    return 1
-    elsif length(br) = 2 and br[1] <= br[2] then
-    return 1
+    if length(br)=0 then
+        return 1
+    elsif length(br)=2 and br[1]<=br[2] then
+        return 1
     else
-    return 0
+        return 0
     end if
 end type
 --*/
@@ -157,13 +157,13 @@ global procedure allow_break(boolean b)
 -- terminate the program. If b is FALSE then don't allow it.
 -- Initially they *will* terminate the program, but only when it
 -- tries to read input from the keyboard.
-      machine_proc(M_ALLOW_BREAK, b)
+    machine_proc(M_ALLOW_BREAK, b)
 end procedure
 
 global function check_break()
 -- returns the number of times that control-c or control-break
 -- were pressed since the last time check_break() was called
-      return machine_func(M_CHECK_BREAK, 0)
+    return machine_func(M_CHECK_BREAK, 0)
 end function
 --*/
 

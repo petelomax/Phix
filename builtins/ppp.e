@@ -503,7 +503,7 @@ object chint
                 txt = sprintf("%d'%s'",{cl,cl})
             end if
         elsif cl<0 then
-            -- we may want eg -£14.99, not £-14.99
+            -- we may want eg -$14.99, not $-14.99
             txt = '-'&sprintf(ppp_IntFmt,-cl)
         else
             txt = sprintf(ppp_IntFmt,cl)
@@ -550,12 +550,16 @@ end procedure
 procedure pp_Init()
     ppp_Nest = 0
     ppp_Ascii = {#20,#FF}
+--DEV/SUG
+--  if platform()=LINUX then
+--      ppp_Ascii = {{#20,#A0},{#7E,#FF}}
+--  end if
     ppp_IntFmt = "%d"
     ppp_FltFmt = "%.10g"
     ppp_Date = ""
     ppp_Br = "{}"
-    escBytes = "\t\n\r\\\"\'"
-    escChars = "tnr\\\"\'"
+    escBytes = "\t\n\r\\\"\'\e\E"
+    escChars = "tnr\\\"\'eE"
 --DEV you should have to explicitly load this sort of thing with a ppOpt() call...
     constants = {-1.295837195871e307,"NOVALUE"}
     setAscii()

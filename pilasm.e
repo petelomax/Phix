@@ -11,7 +11,8 @@
 --   likely slap down an "enter" and "leave", which will cause an error.
 --   My first question will simply be "why?", and I will simply reject
 --   "because that's what I've always done". Not that I will object to 
---   someone else adding (and thoroughly testing) those instructions.
+--   someone else adding (and thoroughly testing) those instructions
+--   (which may afaIac just be "skip and emit no code").
 --
 --  If you have not yet read (and understood) some of the ilASM constructs
 --   in the builtins directory, then there really is no point reading this
@@ -49,7 +50,9 @@
 --
 --   You should NEVER trust that ilasm constructs output the right code;
 --   always carefully inspect the list.asm from a "p -d" and if in doubt
---   use OllyDbg/FDBG or similar and see what that (dis)assembles.
+--   use OllyDbg/FDBG or similar and see what that (dis)assembles. Phix
+--   uses #ilASM as "the last resort" - quite prevalent in builtins/VM,
+--   occasionally in library code, but almost never in application code.
 --
 -- Note: s5 is maintained as "sequence of integer", via a #isginfo
 -- ====  statement in pmain.e; here you must always explicitly use
@@ -88,7 +91,7 @@
 --      lea eax,[p1]    -- OK, maps to [ebp+nn]
 --      mov eax,p1      -- meaningless/impossible in all senses
 --
---   It should be possible to introduce some new syntax to half-
+--   It could be possible to introduce some new syntax to half-
 --   solve(or address, geddit) this such as:
 --
 --      mov eax,$stdin
@@ -1109,7 +1112,13 @@ procedure emit_xrm_sib(integer rm, integer scale, integer idx, integer base, int
 integer sib
 integer xrm
     if not emitON then ?9/0 end if  -- sanity check
-    if rm<0 or rm>7 or idx<0 or idx>8 or base<1 or base>8 then ?9/0 end if -- more rex handling needed?
+
+    -- more rex handling needed? (caller should and_bits(rex,??), idx|base -=8,
+    --  however when rm is out of range it /may/ be a different [non-rex] bug.)
+    -- Tip: start off by looking at the line no in ex.err/pglobals.e (should
+    --      the following ?9/0 actually trigger, that is)
+    if rm<0 or rm>7 or idx<0 or idx>8 or base<1 or base>8 then ?9/0 end if
+
     if idx=0 then
         xrm = rm*8+base-1           -- 0o0rb
         if offset=0                                         -- [base]
@@ -2550,6 +2559,10 @@ end if
                             rex = or_bits(rex,#41)
                             base -= 8
                         end if
+                        if idx>8 then
+                            rex = or_bits(rex,#42)
+                            idx -= 8
+                        end if
                         if p2type=P_REG then
                             if p2details>8 then
                                 rex = or_bits(rex,#44)
@@ -3626,6 +3639,97 @@ end if
                     xrm = 0o330+xrm
                     s5 &= xrm
                     emit_xrm_sib(mod,scale,idx,base,offset)
+                end if
+            elsif ttidx=T_fiadd
+               or ttidx=T_fimul
+               or ttidx=T_ficom
+               or ttidx=T_ficomp
+               or ttidx=T_fisub
+               or ttidx=T_fisubr
+               or ttidx=T_fidiv
+               or ttidx=T_fidivr then
+                mod = find(ttidx,{T_fiadd,T_fimul,T_ficom,T_ficomp,T_fisub,T_fisubr,T_fidiv,T_fidivr})-1
+                {p1type,p1size,p1details} = get_operand(P_MEM)
+                if p1size=8 then
+                    Aborp("16 or 32 bit only (in h/w); use fild/fadd etc")
+                end if
+                if emitON then
+                    if p1type=P_VAR then
+                        {N,sType} = p1details
+--fiadd DA 0 m32, DE 0 m16
+--fimul DA 1 m32, DE 1 m16
+--ficom DA 2 m32, DE 2 m16      
+--ficomp    DA 3 m32, DE 3 m16      
+--fisub DA 4 m32, DE 4 m16      
+--fisubr    DA 5 m32, DE 5 m16      
+--fidiv DA 6 m32, DE 6 m16      
+--fidivr    DA 7 m32, DE 7 m16      
+--              fisub dword[esp]    -- (not supported at the software level)
+-- DA2424
+-- 0o332 0o044 #24
+--0042C0A1   DE2424         FISUB WORD PTR SS:[ESP]
+--0042C09E   DA0424         FIADD DWORD PTR SS:[ESP]
+--              fimul dword[onebillion]
+-- DA0D mem32
+-- 0o332 0o015 mem32
+-- #DE
+-- 0o336
+
+if X64=1 then
+                        ?9/0    -- (should be caught above)
+else
+                        if p1size!=4 then ?9/0 end if -- sanity check
+                        if sType=S_GVar2
+                        or sType=S_Const then
+                            -- 0o332 0o005 mem32                -- fiadd dword[mem32]
+                            -- 0o332 0o015 mem32                -- fimul dword[mem32] (etc)
+                            xrm = 0o005+mod*0o010
+                            s5 &= {0o332,xrm,isVar,0,0,N}
+                        elsif sType=S_TVar then
+                            -- 0o332 0o00r                      -- fiadd dword[reg]
+                            -- 0o332 0o105 00                   -- fiadd dword[ebp]
+                            -- 0o332 0o155 d8                   -- fisub dword[ebp+d8]
+                            -- 0o332 0o205 d32                  -- fiadd dword[ebp+d32]
+                            s5 &= 0o332
+                            emit_ebpN(mod,N)
+                        else
+                            ?9/0
+                        end if
+end if
+                    elsif p1type=P_MEM then
+                        -- 0o336 0o00b          -- fiadd word[base] (not esp)
+                        -- 0o332 0o00b          -- fiadd dword[base]
+                        -- 0o332 0o004 0o044    -- fiadd dword[esp]
+                        -- 0o332 0o10b d8       -- fiadd dword[base+d8]
+                        -- 0o332 0o24b d8       -- fisub dword[base+d32]
+--0042C09E   DA0424         FIADD DWORD PTR SS:[ESP]
+--0042C0A1   DE2424         FISUB WORD PTR SS:[ESP]
+--0042C0A4   DA08           FIMUL DWORD PTR DS:[EAX]
+--0042C0A6   DA09           FIMUL DWORD PTR DS:[ECX]
+--0042C0A8   DA45 00        FIADD DWORD PTR SS:[EBP]
+--0042C0AB   DA45 08        FIADD DWORD PTR SS:[EBP+8]
+--0042C0AE   DA 0o205 88080000  FIADD DWORD PTR SS:[EBP+888]
+--0042C0B4   DA 0o245 88080000  FISUB DWORD PTR SS:[EBP+888]
+--0042C0BA   DE 0o245 88080000  FISUB WORD PTR SS:[EBP+888]
+
+                        {scale,idx,base,offset} = p1details
+                        if p1size=8 then
+                            ?9/0 -- (should be caught above)
+                        elsif p1size=4 then
+                            xrm = 2
+--                          mod = 0
+                        elsif p1size=2 then
+                            xrm = 6
+--                          mod = 0
+                        else
+                            ?9/0    -- should not occur?
+                        end if
+                        xrm = 0o330+xrm
+                        s5 &= xrm
+                        emit_xrm_sib(mod,scale,idx,base,offset)
+                    else
+                        ?9/0 -- sanity check (should never happen)
+                    end if
                 end if
             elsif ttidx=T_faddp
                or ttidx=T_fsubp

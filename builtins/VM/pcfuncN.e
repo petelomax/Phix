@@ -108,7 +108,6 @@ include builtins\VM\pHeap.e     -- :%pStoreFlt etc
 include builtins\VM\pStack.e    -- :%opFrame etc
 --include builtins\VM\pDiagN.e  -- e02atdb0 (DEV/now in pUnassigned)
 --include builtins\VM\pprntfN.e
---include platform.e
 include builtins\VM\pUnassigned.e   -- :%pRTErn (DEV/temp)
 
 --include builtins\VM\pcallfunc.e
@@ -267,9 +266,23 @@ atom res
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             call :%pStoreFlt    -- ([rdi]:=ST0)
         [ELF32]
-            pop al
+            mov eax,[filename]
+            push 1              -- flags (RTLD_LAZY)
+            shl eax,2           -- ref->raw
+            push eax            -- library name
+            call "libdl.so.2", "dlopen"
+            add esp,8
+            lea edi,[res]
+            call :%pStoreMint   -- [edi]:=eax, as float if rqd
         [ELF64]
-            pop al
+            mov rax,[filename]
+            push 1              -- flags (RTLD_LAZY)
+            shl rax,2           -- ref->raw
+            push rax            -- library name
+            call "libdl.so.2", "dlopen"
+            add rsp,16
+            lea rdi,[res]
+            call :%pStoreMint   -- [rdi]:=rax, as float if rqd
         []
           }
     return res
@@ -290,6 +303,97 @@ sequence fi
         end for
     end if
     return res
+end function
+
+global function get_proc_address(atom lib, string name)
+--
+-- Low-level wrapper of kernel32/GetProcAddress and libdl/dlsym.
+-- used by define_c_func/define_c_proc/define_c_var and for
+-- runtime interpretation of inline assembly
+-- Applications would not normally use this directly.
+--
+atom addr
+    #ilASM{
+        [32]
+--          lea edi,[addr]
+            mov eax,[lib]
+            mov edx,[name]
+            --
+            --  If lib is stored as an atom (presumably because it is > 31 bits),
+            --  convert it to 32bits in eax. Likewise convert the string ref to
+            --  a raw address of the string, by shifting it left two bits.
+            --
+            cmp eax,h4  --DEV :%pLoadMint
+            jl @f
+                sub esp,8
+                fld qword[ebx+eax*4]
+                fistp qword[esp]
+                pop eax
+                add esp,4
+          @@:
+            shl edx,2
+        [PE32]
+            push edx                            -- lpProcName
+            push eax                            -- hModule
+            call "kernel32.dll","GetProcAddress"
+        [ELF32]
+            push edx                            -- symbol
+            push eax                            -- handle
+            call "libdl.so.2", "dlsym"
+        [32]
+            push ebx    --(=0, for fild qword)
+            push eax
+            lea edi,[addr]
+            fild qword[esp]
+            add esp,8
+            call :%pStoreFlt                    -- ([edi]:=ST0)
+        [PE64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whatever alignment we started with
+
+            mov rcx,[lib]
+            mov r15,h4
+            sub rsp,8*5                         -- minimum 4 param shadow space, and align
+            mov rdx,[name]
+            --
+            --  If lib is stored as an atom (presumably because it is > 63 bits),
+            --  convert it to 64bits in rax. Likewise convert the string ref to
+            --  a raw address of the string, by shifting it left two bits.
+            --
+            cmp rcx,r15
+            jl @f
+                fld tbyte[rbx+rcx*4]
+                fistp qword[rsp]
+                mov rcx,[rsp]
+          @@:
+            shl rdx,2                           -- lpProcName
+            -- (rcx already set)                -- hModule
+            call "kernel32.dll","GetProcAddress"
+            mov [rsp],rax
+            lea rdi,[addr]
+            fild qword[rsp]
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+            call :%pStoreFlt                    -- ([edi]:=ST0)
+        [ELF64]
+            mov rdx,[name]
+            mov rax,[lib]
+            shl rdx,2
+            call :%pLoadMint
+            push rdx                            -- symbol
+            push rax                            -- handle
+            call "libdl.so.2", "dlsym"
+            lea rdi,[addr]
+            call :%pStoreMint
+        []
+          }
+    return addr
 end function
 
 procedure check(object o, integer level)
@@ -460,76 +564,7 @@ integer level = 2+(return_type=0)
         elsif not string(name) then
             name = toString(name,ASALPHANUM,e74dcfpe,3) --DEV better messsage
         end if
-        #ilASM{
-            [32]
---              lea edi,[addr]
-                mov eax,[lib]
-                mov edx,[name]
-                --
-                --  If lib is stored as an atom (presumably because it is > 31 bits),
-                --  convert it to 32bits in eax. Likewise convert the string ref to
-                --  a raw address of the string, by shifting it left two bits.
-                --
-                cmp eax,h4  --DEV :%pLoadMint
-                jl @f
-                    sub esp,8
-                    fld qword[ebx+eax*4]
-                    fistp qword[esp]
-                    pop eax
-                    add esp,4
-              @@:
-                shl edx,2
-            [PE32]
-                push edx                            -- lpProcName
-                push eax                            -- hModule
-                call "kernel32.dll","GetProcAddress"
-            [ELF32]
-                pop al
-            [32]
-                push ebx    --(=0, for fild qword)
-                push eax
-                lea edi,[addr]
-                fild qword[esp]
-                add esp,8
-                call :%pStoreFlt                    -- ([edi]:=ST0)
-            [PE64]
-                mov rcx,rsp -- put 2 copies of rsp onto the stack...
-                push rsp
-                push rcx
-                or rsp,8    -- [rsp] is now 1st or 2nd copy:
-                            -- if on entry rsp was xxx8: both copies remain on the stack
-                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
-                            -- obviously rsp is now xxx8, whatever alignment we started with
-
-                mov rcx,[lib]
-                mov r15,h4
-                sub rsp,8*5                         -- minimum 4 param shadow space, and align
-                mov rdx,[name]
-                --
-                --  If lib is stored as an atom (presumably because it is > 63 bits),
-                --  convert it to 64bits in rax. Likewise convert the string ref to
-                --  a raw address of the string, by shifting it left two bits.
-                --
-                cmp rcx,r15
-                jl @f
-                    fld tbyte[rbx+rcx*4]
-                    fistp qword[rsp]
-                    mov rcx,[rsp]
-              @@:
-                shl rdx,2                           -- lpProcName
-                -- (rcx already set)                -- hModule
-                call "kernel32.dll","GetProcAddress"
-                mov [rsp],rax
-                lea rdi,[addr]
-                fild qword[rsp]
---              add rsp,8*5
---              pop rsp
-                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-                call :%pStoreFlt                    -- ([edi]:=ST0)
-            [ELF32]
-                pop al
-            []
-              }
+        addr = get_proc_address(lib,name)
         if addr=NULL then return -1 end if
     end if
 
@@ -571,65 +606,7 @@ atom addr
     if not string(name) then
         name = toString(name,ASALPHANUM,e74dcfpe,3)
     end if
-    #ilASM{
-        [32]
---          lea edi,[addr]
-            mov eax,[lib]
-            mov edx,[name]
-            cmp eax,h4 --DEV :%pLoadMint
-            jl @f
-                sub esp,8
-                fld qword[ebx+eax*4]
-                fistp qword[esp]
-                pop eax
-                add esp,4
-          @@:
-            shl edx,2
-        [PE32]
-            push edx
-            push eax
-            call "kernel32.dll","GetProcAddress"
-        [ELF32]
-            pop al
-        [32]
-            push ebx    --(=0, for fild qword)
-            push eax
-            lea edi,[addr]
-            fild qword[esp]
-            add esp,8
-            call :%pStoreFlt                    -- ([edi]:=ST0)
-        [PE64]
-            mov rcx,rsp -- put 2 copies of rsp onto the stack...
-            push rsp
-            push rcx
-            or rsp,8    -- [rsp] is now 1st or 2nd copy:
-                        -- if on entry rsp was xxx8: both copies remain on the stack
-                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
-                        -- obviously rsp is now xxx8, whatever alignment we started with
-            mov rcx,[lib]
-            mov r15,h4
-            sub rsp,8*5                         -- minimum 4 param shadow space, and align
-            mov rdx,[name]
-            cmp rcx,r15
-            jl @f
-                fld tbyte[rbx+rcx*4]
-                fistp qword[rsp]
-                mov rcx,[rsp]
-          @@:
-            shl rdx,2                           -- lpProcName
-            -- (rcx already set)                -- hModule
-            call "kernel32.dll","GetProcAddress"
-            mov [rsp],rax
-            lea rdi,[addr]
-            fild qword[rsp]
---          add rsp,8*5
---          pop rsp
-            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-            call :%pStoreFlt                    -- ([edi]:=ST0)
-        [ELF64]
-            pop al
-        []
-          }
+    addr = get_proc_address(lib,name)
 -- we may want this?:
 --  if addr=0 then return -1 end if
     return addr
@@ -1086,6 +1063,7 @@ pop eax
                 -- rax is routine number
                 -- [rsp] is return address into stdcb clone (ret nnn instruction)
                 -- [rsp+8] another return address [into C code, probably]
+                -- PE64 only, not ELF64:
                 -- [rsp+16] params: shadow space: rcx/[rsp+16]
                 --                                rdx/[rsp+24]
                 --                                r8 /[rsp+32]
@@ -1109,10 +1087,12 @@ push r15
 --              mov [rsp+24],rdx
 --              mov [rsp+32],r8
 --              mov [rsp+40],r9
+            [PE64]
                 mov [rsp+16+64],rcx
                 mov [rsp+24+64],rdx
                 mov [rsp+32+64],r8
                 mov [rsp+40+64],r9
+            [64]
 
                 push rax
                 xor rdx,rdx             -- edx:=0
@@ -1333,8 +1313,8 @@ pop rbx
 --            ::cdecl
 --                  mov byte[rdx+10],#C3
 --            @@:
-            [ELF64]
-                pop al  -- for certain, the above "mov [rsp+16],rcx" etc is wrong...
+--          [ELF64]
+--              pop al  -- for certain, the above "mov [rsp+16+64],rcx" etc is wrong... (as marked)
             []
         }
 --      previd = append(previd,id)  -- done above
@@ -1492,8 +1472,8 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
 --          pop rsp
 --          mov rsp,[rsp+8*5]   -- equivalent to the add/pop
 
-            [ELF64]
-                pop al
+--          [ELF64]
+--              pop al
             []              
               }
     end if

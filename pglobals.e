@@ -70,6 +70,9 @@ global constant sched = 0           -- schedule/peephole optimisations (see psch
 global constant DEBUG = 01          -- It turns out, despite code being completely omitted,
                                     -- this saves less than 1%, so may as well leave it on.
 
+global constant SLASH       = iff(platform()=WINDOWS?'\\':'/')
+global constant WRONGSLASH  = iff(platform()=WINDOWS?'/':'\\')
+
 --DEV str
 --/*
 global type string(object s)
@@ -97,7 +100,7 @@ sequence cl
     cl = command_line()
     rootpath = get_proper_path(cl[1],"")
     for j=length(rootpath) to 0 by -1 do
-        if rootpath[j]='\\' then
+        if find(rootpath[j],"\\/") then
             rootpath = rootpath[1..j]
             exit
         end if
@@ -663,17 +666,20 @@ global integer LIDX
 --  TIDX = -5
 
 --with trace
-------with type_check -- ineffective, need to kill the without in p.exw
+----with type_check -- ineffective, need to kill the without in p.exw
 ----DEV not good on p p t8...
---constant iNNN=334  -- item to monitor
+--constant iNNN=1116  -- item to monitor
 --object sNNN sNNN=0
 --type symt(sequence s)
 --  if length(s)>=iNNN then
 --      if not equal(s[iNNN],sNNN) then
---?1
---          trace(1)
+----?1
+----            trace(1)
 --          sNNN = s[iNNN]
 ----if sNNN=0 then ?9/0 end if
+--if sequence(sNNN) then
+--  ?sNNN
+--end if
 --      end if
 --  end if
 --  return 1
@@ -791,6 +797,7 @@ global integer LastStatementWasAbort -- avoid emitting opCleanUp after an abort.
 -- mergeSets. See pilx86.e (also used in pmain.e)
 global constant scMerge=1, exprMerge=2, exitMerge=3, ifMerge=4, endIfMerge=5
 
+--DEV should these be set to -#FFFFFFFF .. #FFFFFFFF when a 32-bit p.exe is creating a 64-bit exe??
 global constant MININT =-#40000000,                                             -- -1073741824
                 MAXINT = #3FFFFFFF,                                             -- +1073741823
 --              MINATM = float64_to_atom({#FF,#FF,#FF,#FF,#FF,#FF,#EF,#FF}),    -- -1.7976931348623146e308
@@ -980,8 +987,8 @@ end procedure
 --  return 1
 --end type
 global integer PE
-               PE = 1
---             PE = (platform()==WIN32)
+--             PE = 1
+               PE = (platform()==WINDOWS)
 global integer X64
 --             X64 = 0
                X64 = (machine_bits()==64)

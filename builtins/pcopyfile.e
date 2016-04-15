@@ -11,6 +11,7 @@ integer init = 0
 atom xCopyFile
 
 procedure Init()
+puts(1,"pcopyfile.e not linux\n")
 atom kernel32 = open_dll("kernel32")
     xCopyFile = define_c_func(kernel32, "CopyFileA", {C_PTR, C_PTR, C_LONG},C_LONG)
     init = 1

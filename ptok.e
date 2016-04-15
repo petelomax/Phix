@@ -151,12 +151,22 @@ end procedure
 --include builtins\peekstr.e
 --include builtins\pgetpath.e
 
+integer lastPath = 0
 procedure addPath(sequence path)
 --  if not usegpp then
 --      path = lower(path)
 --  end if
-    if not find(path,filepaths) then
+--DEV (temp)
+    if platform()=LINUX then
+        if match("./",path)=1 then
+            path = "/home/pete/phix/"&path[3..$]
+        end if
+    end if
+--  if not find(path,filepaths) then
+    lastPath = find(path,filepaths)
+    if lastPath=0 then
         filepaths = append(filepaths,path)
+        lastPath = length(filepaths)
     end if
 end procedure
 
@@ -193,7 +203,7 @@ integer semicolon, sm1
     incpath = getenv("EUDIR")
     if not atom(incpath) then
 --if usegpp then
-        incpath = get_proper_path(incpath&"\\include\\","")
+        incpath = get_proper_path(incpath&SLASH&"include"&SLASH,"")
 --else
 --      incpath = incpath&"\\include\\"
 --end if
@@ -208,8 +218,8 @@ integer semicolon, sm1
                 -- skip nulls (ie/eg ;;) in EUINC
             elsif semicolon then
                 sm1 = semicolon-1
-                if incpath[sm1]!='\\' then
-                    incpath[semicolon] = '\\'
+                if incpath[sm1]!=SLASH then
+                    incpath[semicolon] = SLASH
                     sm1 = semicolon
                 end if
 --if usegpp then
@@ -218,8 +228,8 @@ integer semicolon, sm1
 --              addPath(incpath[1..sm1])
 --end if
             else
-                if incpath[length(incpath)]!='\\' then
-                    incpath &= '\\'
+                if incpath[length(incpath)]!=SLASH then
+                    incpath &= SLASH
                 end if
 --if usegpp then
                 incpath = get_proper_path(incpath,"")
@@ -232,11 +242,12 @@ integer semicolon, sm1
             if not length(incpath) then exit end if
         end while
     end if
-    addPath(rootpath&"builtins\\")
+    addPath(rootpath&"builtins"&SLASH)
 --DEV
-    addPath(rootpath&"builtins\\VM\\")  -- (added 8/4/15)
+    addPath(rootpath&"builtins"&SLASH&"VM"&SLASH)   -- (added 8/4/15)
 --  vmpath = length(filepaths)
-    vmpath = find(rootpath&"builtins\\VM\\",filepaths)
+--  vmpath = find(rootpath&"builtins"&SLASH&"VM"&SLASH,filepaths)
+    vmpath = lastPath
     addPath(rootpath)
     addPath(mainpath)
     alwaysactive = length(filepaths)
@@ -325,7 +336,7 @@ without trace
 --with trace
 include ppp.e
 
-integer icount = 0
+--integer icount = 0
 
 --with trace
 global procedure includeFile(string file, integer autoInclude, integer emitcol)
@@ -342,27 +353,44 @@ integer wline,wcol
 integer ch
 object version
 --integer dbg
+string thispath2
 
     fn = -1
---puts(1,"includeFile started\n")
---?file
-if file="VM\\pcallfunc.e" then
-    icount += 1
-    if icount>2 then
-        ?9/0
-    end if
-else
-    icount = 0
+if showfileprogress then
+    puts(1,"includeFile started\n")
+    ?file
 end if
+--if file="VM\\pcallfunc.e" then
+--  icount += 1
+--  if icount>2 then
+--      ?9/0
+--  end if
+--else
+--  icount = 0
+--end if
+
     while 1 do
-        k = find('/',file)
+        k = find(WRONGSLASH,file)
         if not k then exit end if
-        file[k] = '\\'
+        file[k] = SLASH
     end while
+--ffs: it works if I debug it!!
+--if file = "./test/t02parms.exw" then
+--  ?"file = \"./test/t02parms.exw\""
+--end if
+
+--DEV (temp)
+    if platform()=LINUX then
+        if match("./",file)=1 then
+            file = "/home/pete/phix/"&file[3..$]
+        end if
+    end if
+
 --dbg = 0
+if platform()=WINDOWS then
     while 1 do
         k = match("\\\\",file)
-        if not k then exit end if
+        if k=0 then exit end if
 --if dbg=0 then
 --  dbg=1
 ---- ?file
@@ -371,11 +399,25 @@ end if
         file = file[1..k]&file[k+2..length(file)]
 --?{file}
     end while
+--elsif platform()=LINUX then
+--  if length(file) and file[$]='\n' then file = file[1..$-1] end if
+elsif platform()=LINUX then
+    while 1 do
+        k = match("//",file)
+        if k=0 then exit end if
+        file = file[1..k]&file[k+2..length(file)]
+    end while
+end if
 --if dbg then
 --puts(1,"match \\\\'d\n")
 --end if
     triedpaths = {}
-    if length(file)>1 and file[2]=':' then
+    if (platform()=WINDOWS and length(file)>1 and file[2]=':')
+    or (platform()=LINUX and length(file)>=1 and file[1]='/')
+    or (platform()=LINUX and length(file)>=2 and file[1..2]="./") then
+if showfileprogress then
+    ?"rooted"
+end if
         fn = open(file,"rb")
         thispath = ""
     else
@@ -399,15 +441,15 @@ end if
                     if semicolon!=1 then -- skip nulls (ie/eg ;;) in path
                         if semicolon then
                             sm1 = semicolon-1
-                            if path[sm1]!='\\' then
-                                path[semicolon] = '\\'
+                            if path[sm1]!=SLASH then
+                                path[semicolon] = SLASH
                                 thispath = path[1..semicolon]
                             else
                                 thispath = path[1..sm1]
                             end if
                         else
-                            if path[length(path)]!='\\' then
-                                path &= '\\'
+                            if path[length(path)]!=SLASH then
+                                path &= SLASH
                             end if
                             thispath = path
                         end if
@@ -425,7 +467,7 @@ end if
                 end while
             end if
         end if
-        if fn=-1 and find('\\',file) then
+        if fn=-1 and find(SLASH,file) then
             thispath = ""
 --          fn = open(file,"r")
             fn = open(file,"rb")
@@ -433,7 +475,9 @@ end if
     end if
     if fn!=-1 then
 --if usegpp then
+--?{thispath,file}
         file = get_proper_path(thispath&file,"")
+--?{{file}}
 --/*
 global integer intellisense = 0
 global sequence trapfile, trapkey
@@ -504,9 +548,9 @@ global integer trapline, trapcol, trapmode, trapns
 --          file = file[1..k-1] & file[k+1..length(file)]   --*/ -- RDS
 --      end while
 --end if
-        if find('\\',file) then
+        if find(SLASH,file) then
             for j=length(file) to 1 by -1 do
-                if file[j]='\\' then
+                if file[j]=SLASH then
                     thispath = file[1..j]
                     file = file[j+1..length(file)]
                     exit
@@ -524,7 +568,22 @@ global integer trapline, trapcol, trapmode, trapns
 --  end if
 --end if
         pathno = find(thispath,filepaths)
+--DEV/kludge
+if platform()=LINUX then
         if pathno=0 then
+            if match(mainpath,thispath)=1 then
+                thispath2 = rootpath&thispath[length(mainpath)+1..$]
+                pathno = find(thispath,filepaths)
+                if pathno!=0 then
+                    thispath = thispath2
+                end if
+            end if
+        end if
+end if
+        if pathno=0 then
+if showfileprogress then
+?{"newpath",thispath}
+end if
             filepaths = append(filepaths,thispath)
             pathno = length(filepaths)
             activepaths = append(activepaths,length(filenames)+1)
@@ -535,6 +594,9 @@ global integer trapline, trapcol, trapmode, trapns
             k = find({pathno,file},filenames)
 --          if fileno then
             if k then
+if showfileprogress then
+?"already included"
+end if
                 close(fn)
                 fn = -1
 --              fileno = -fileno
@@ -544,6 +606,7 @@ global integer trapline, trapcol, trapmode, trapns
                 return -- -fileno
             end if
 --DEV
+--?{pathno,vmpath,file,vmset,find(file,vmset)}
             if pathno=vmpath
             and find(file,vmset) then
                 close(fn)
@@ -561,6 +624,10 @@ global integer trapline, trapcol, trapmode, trapns
 
         wasfileno = fileno
         loadFile()
+if showfileprogress then
+--?text
+?"loadFile"
+end if
         allfiles = append(allfiles,text)
         allpfiles = append(allpfiles,text)
         exptext = append(exptext,0)
@@ -571,6 +638,9 @@ global integer trapline, trapcol, trapmode, trapns
         if length(filenames)=0 then
 --      if length(filenames)=FincMax then
             -- (the testset (p -test) contains some ..\\)
+if showfileprogress then
+?"ptok.e line 583: thispath="&thispath
+end if
             mainpath = thispath
             mainfile = file
         end if
@@ -703,10 +773,10 @@ global integer trapline, trapcol, trapmode, trapns
         and file[kp2]>='0' and file[kp2]<='9'
         and file[kp3]>='0' and file[kp3]<='9'
         and equal(file[k+4..k+7],".exw") then
-            path = dir(mainpath&"test\\"&file[k+1..k+3]&"*.exw")
+            path = dir(mainpath&"test"&SLASH&file[k+1..k+3]&"*.exw")
         elsif length(file)=k+5  -- ie as in "b.exw"
           and equal(file[k+1..k+5],"b.exw") then
-            path = dir(mainpath&"bench\\bench.exw")
+            path = dir(mainpath&"bench"&SLASH&"bench.exw")
         elsif length(file)=k+5  -- ie as in "a.exw"
           and equal(file[k+1..k+5],"a.exw") then
 --DEV -norun?
@@ -723,7 +793,7 @@ global integer trapline, trapcol, trapmode, trapns
             end if
         elsif length(file)=k+6  -- ie as in "bt.exw"
           and equal(file[k+1..k+6],"bt.exw") then
-            path = dir(mainpath&"bench\\benchtst.exw")
+            path = dir(mainpath&"bench"&SLASH&"benchtst.exw")
         elsif length(file)=k+9  -- ie as in "edita.exw"
           and equal(file[k+1..k+9],"edita.exw") then
 --DEV newEmit...
@@ -759,6 +829,9 @@ end if
                 path = dir(file)
                 if sequence(path) and length(path)=1 then
                     OptConsole = 1
+if showfileprogress then
+?"recurse"
+end if
                     includeFile(mainpath&path[1][1],0,emitcol)
                     return
                 end if
@@ -768,13 +841,16 @@ end if
         if sequence(path) and length(path)=1 then
             path = path[1][1]
             OptConsole = 1
-            if not find('\\',path) then
+            if not find(SLASH,path) then
                 if find(path[1],"tT") then
-                    path = mainpath&"test\\"&path
+                    path = mainpath&"test"&SLASH&path
                 elsif find(path[1],"bB") then
-                    path = mainpath&"bench\\"&path
+                    path = mainpath&"bench"&SLASH&path
                 end if
             end if
+if showfileprogress then
+?"recurse2"
+end if
             includeFile(path,0,emitcol)
             return
         end if
@@ -796,7 +872,7 @@ end if
         k = match(file,inpart)
         km1 = k-1
         if k=length(inpart)-length(file)+1
-        and (k=1 or inpart[km1]='\\') then
+        and (k=1 or inpart[km1]=SLASH) then
 --DEV for j=i+1 to length(filenames) do
 --      report ambiguity
             fileno = -i
@@ -910,7 +986,7 @@ integer p, minp, maxp
                             -- (ie/eg name=sort but we have hit EOF (as the file is cropped to cursor line/col) before 
                             --  pmain.e/checkforbuiltins() has had a chance to load/parse builtins\psort.e; eaisense
                             --  will try "sort" again but this time with the full text of rootpath\builtins\psort.e)
-                            printf(ifn,"Defined in psym.e as an autoinclude; %s not yet resolved, see %sbuiltins\\%s\n",
+                            printf(ifn,"Defined in psym.e as an autoinclude; %s not yet resolved, see %sbuiltins"&SLASH&"%s\n",
                                        {name,rootpath,call_func(r_getBuiltinName,{symidx})})
                         else
                             sf = filenames[fno]
@@ -1000,6 +1076,7 @@ integer k
     if intellisense>=3 then
         if trapfileno = fileno then
 --?9/0
+--DEV "/usr/tmp/isense.txt" on lnx(?)
             ifn = open(getenv("TMP")&"\\isense.txt","w")
             if ifn=-1 then
                 puts(1,"error opening isense.txt\n")
@@ -1366,7 +1443,7 @@ integer c
 end function
 
 global function isFLOAT(atom N)
-if useFLOAT then --(DEV/temp)
+--if useFLOAT then --(DEV/temp)
     if machine_bits()=32 then   -- (runtime)
         if X64=0 then           -- (target)
             -- 32 bit compiler -> 32 bit executable
@@ -1385,9 +1462,9 @@ if useFLOAT then --(DEV/temp)
             return N!=floor(N) or N<-#40000000 or N>+#3FFFFFFF
         end if
     end if
-else
-    return not integer(N)
-end if
+--else
+--  return not integer(N)
+--end if
 end function
 
 procedure setFLOAT()
@@ -1398,17 +1475,33 @@ procedure setFLOAT()
 --      setFLOAT() for all the nitty-gritty details.
 -- details:
 --      Technically, when using a 32-bit compiler to create a 64-bit executable, using 64-bit atoms with
---      53 bits of precision, a limit of +/-#2000_0000_0000_0000 would apply (/significant complications
---      would be introduced by using a pair of atoms if we really wanted to go mad) but since the 32-bit
---      runtime has inherent 32-bit limitations (such as and_bits) there seems little point trying harder.
---      In practice (see above) we settle for a limit of +/-#FFFF_FFFF, to keep things reasonably simple.
+--      53 bits of precision, a limit of +/-#20_0000_0000_0000 would apply (/significant complications
+--      could be introduced by using a pair of atoms if we really wanted to go mad) but since the 32-bit
+--      compiler can create a 64-bit compiler without problems, there seems little point trying harder.
+--      (Besides, the harder you try, the more issues you'll get from still being on a 32 bit run-time.)
+--      In practice (see above) we settle for a limit of +/-#FFFF_FFFF, to keep things reasonably simple,
+--      because 32 bit versions of things like and_bits() really are limited to 32 bits, and not 53 bits.
 --      Programs which use (very large) integer values/constants in the uncovered ranges are likely to be
 --      incorrectly cross-compiled. Obviously these are only limits during compilation, not run-time, and
 --      the source code of Phix itself does not use any such values, nor do any of the supplied demos.
+--      (For obvious reasons the compiler itself should only ever contain completely 32-bit safe code.)
 --      The absolute minimum range that we MUST cope with perfectly is (signed) #80000000 (ie -2147483648) 
 --      through to (unsigned) #FFFFFFFF (ie + 4294967295), especially <-#40000000|>+#3FFFFFFF, otherwise
 --      code that works perfectly on 32-bit may well exhibit cryptic mishaps on 64-bit. I am not overly
 --      concerned with 64-bit code failing when compiled to a 32-bit executable, for obvious reasons.
+--
+--      The sources of the compiler have been modified to use isFLOAT() instead of integer(), but there
+--      will inevitably be a few places that I have missed, eg builtins\timestamp.ew currently contains:
+--          --DEV temp/32/64 bit issues:
+--          --  GENERIC_READ =  #80000000
+--              GENERIC_READ =  #8000
+--              GENERIC_READ *= #10000
+--      which is a symptom of such that ought to be properly investigated and fixed, just not right now.
+--
+--      Longer term, I expect to add fatal error messages when encountering any tricky cross-compilation 
+--      issues; inevitably it will not be long before some 64-bit-only code exists, that makes no sense 
+--      to attempt creation of a 32-bit executable from, and I plan to err on the side of caution/blunt 
+--      refusal to entertain cross-compilation (32<->64) whenever there is any doubt that it will work.
 --
 -- This particular routine is concerned with correctly tagging tokens found in the source code; the above
 --  isFLOAT() is factored out to apply the same logic elsewhere, eg/ie as part of constant propagation.
@@ -1509,13 +1602,13 @@ end procedure
 --                  for the same reasons once fixed will stay fixed forever ;-).
 --                  (eg/ie use \x07 for one round of self-hosting the compiler)
 
-constant escchar = "nrtb\"\'\\0#xuU",
-                --  1234 5 6 789012
-         escbyte = "\n\r\t\b\"\'\\"&0
-                --   1 2 3 4 5 6 7  8
+constant escchar = "nrtb\"\'\\0eE#xuU",
+                --  1234 5 6 78901234
+         escbyte = "\n\r\t\b\"\'\\\0\e\E"
+                --   1 2 3 4 5 6 7 8 9 0
 
-constant eschash = 9,
-         eschex  = 10
+constant eschash = 11,
+         eschex  = 12
 
 constant AFaf = "ABCDEFabcdef"
 constant bases = {8,16,2,10}    -- NB: oxbd order
@@ -1916,7 +2009,7 @@ global procedure getToken()
                 col += 1
                 Ch = text[col]
                 Ch = find(Ch,escchar)
-                if not Ch then
+                if Ch=0 then
                     tokcol = col
                     Abort("unrecognised escape character")
                 elsif Ch=eschash or Ch=eschex then -- (ie \# or \x)
@@ -1968,7 +2061,7 @@ global procedure getToken()
 ----                    Ch = and_bits(TokN,#FF)
 --                  Ch = TokN
 --                  col -= 1
-                elsif Ch=11 or Ch=12 then -- (ie \u or \U)
+                elsif Ch=13 or Ch=14 then -- (ie \u or \U)
 --DEV... (of course we could just return a dword-sequence here, which would need a new type
 --        instead of DQUOTE and pmain.e to T_Dseq it instead if T_string it (tiny job), but
 --        much more significantly heavy testing of puts() etc...)

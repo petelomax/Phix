@@ -326,6 +326,8 @@ sequence SizeNames,SizeSigns,Sizes
 --A long double (eight bytes with Visual C++, sixteen bytes with GCC) will be 8-byte aligned with Visual C++ and 16-byte aligned with GCC.
 -- (PL: Note that Windows64 is an LLP64 data model, not LP64 which the above article seems to be writing about.)
 --
+--For more information, be sure to read "calling_conventions.pdf" by Agner Fog, especially table 1 on page 6 ("Data Sizes").
+--
 --And here's another gratuitous link: https://en.wikipedia.org/wiki/Long_double
 --
 --If you ask me, life would be simpler if float/double/longdouble were instead more explicitly named say flt32/flt64/flt80.

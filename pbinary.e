@@ -59,7 +59,8 @@ constant BYTE = 1,
          QWORD = 8
 
 function stringify(sequence s)
-string res, ch
+string res
+integer ch
     if string(s) then
         res = s
     else
@@ -244,6 +245,14 @@ function RoundToSectionAlignment(integer v)
     return floor((v+SectionAlignment-1)/SectionAlignment)*SectionAlignment
 end function
 
+function pad(string s, integer wordsize)
+integer padding = and_bits(length(s),wordsize-1)
+    if padding then
+        s &= stringify(repeat('\0',wordsize-padding))
+    end if
+    return s
+end function
+
 constant
           IMAGE_FILE_RELOCS_STRIPPED         = 0x0001,
           IMAGE_FILE_EXECUTABLE_IMAGE        = 0x0002,
@@ -325,8 +334,8 @@ sequence res
 --string res
 
 --puts(1,"warning: e_magic of ZZ line 312, pbinary.e\n")
-                        --  offset    name     size value       desc
-    res = stringify(
+
+    res = stringify(    --  offset    name     size value       desc
           {'M','Z',     -- 00000000,e_magic,    x2, MZ,     signature (should be "MZ")
 --        {'Z','Z',     -- 00000000,e_magic,    x2, MZ,     signature (should be "MZ")
            #80,#00,     -- 00000002,e_cblp,     h2, 0080h,  Bytes in last block of file
@@ -650,8 +659,8 @@ integer SizeOfImage2 = RVAaddr
     -- Note: The following offsets assume e_lfanew is #80. If you are writing a program which reads
     ---      exe/dll files, then (for example) Subsystem is at (e_lfanew)+#5C rather than #DC.
 
-    if machine=M32 then                 --  offset    name                     size value       desc
-        res &= stringify(
+    if machine=M32 then
+        res &= stringify(               --  offset    name                     size value       desc
                {'P','E',0,0,            -- 00000080,signature,                  x4, PE\0\0,     should be "PE\0\0"
                 #4C,#01,                -- 00000084,machine,                    h2, 014Ch,      i386
                 0,0,                    -- 00000086,sections,                   2,  3,          Number of sections
@@ -733,8 +742,8 @@ integer SizeOfImage2 = RVAaddr
 --      end if
         HeaderCharacteristics += IMAGE_FILE_32BIT_MACHINE
 
-    elsif machine=M64 then              --  offset    name                     size value       desc
-        res &= stringify(
+    elsif machine=M64 then
+        res &= stringify(               --  offset    name                     size value       desc
                {'P','E',0,0,            -- 00000080,signature,                  x4, PE\0\0,     should be "PE\0\0"
                 #64,#86,                -- 00000084,machine,                    h2, 8664h,      amd64
                 3,0,                    -- 00000086,sections,                   2,  3,          Number of sections
@@ -869,8 +878,8 @@ integer SizeOfImage2 = RVAaddr
 --      string name
 --      integer ln
 --      integer SizeOfRawData
-                                        --  offset    name                     size value       desc
-        section = stringify(
+
+        section = stringify(            --  offset    name                 size value       desc
                   {0,0,0,0,0,0,0,0,     -- 00000000,Name[1],                x8,.data\0\0\0,
                    0,0,0,0,             -- 00000008,VirtualSize,h4,0000001Dh,(not really used)
                    0,0,0,0,             -- 0000000C,VirtualAddress,h4,00001000h,
@@ -916,7 +925,7 @@ integer SizeOfImage2 = RVAaddr
         end if
         for i=1 to length(imports)+1 do
 --          sequence section
-            section = stringify(
+            section = stringify(        --  offset    name                     size value       desc
                       {0,0,0,0,         -- 00000000,OriginalFirstThunk,         h4, 00000000h,  Hint Name Array
                        0,0,0,0,         -- 00000004,TimeDateStamp,              h4, 00000000h,
                        0,0,0,0,         -- 00000008,ForwarderChain,             h4, 00000000h,
@@ -987,8 +996,8 @@ if and_bits(length(res),1) then res &= 0 end if
     if length(exports) then
         -- exports is eg  {"errormsg.dll",{"ShowErrorMessage","ShowLastError"},{#0C,#4E}}
 --      sequence section
-                                    --  offset   name                  size value       desc
-        section = stringify(
+
+        section = stringify(        --  offset    name                 size value       desc
                   { 0,0,0,0,        --00000000, ExportCharacteristics,  h4,00000000h,   (should be 0)
                     0,0,0,0,        --00000004, TimeDateStamp,          h4,52EEFA97h,   03 February 2014, 02:10:31 (ish)
                     0,0,            --00000008, MajorVersion,           h2,0000h,       0.0
@@ -1079,8 +1088,8 @@ if and_bits(length(section),1) then section &= 0 end if
 --; *     OPTIONAL ULONG FunctionEntry; 
 --; *   }; 
 --; *   OPTIONAL ULONG ExceptionData[]; */ 
-        section = stringify(
-                  { 0,0,0,0,        --00000000, BeginAddress,   h4,00001000h,   (should be RVA of code section)
+        section = stringify(        --  offset    name                 size value       desc
+                  { 0,0,0,0,        --00000000, BeginAddress,           h4,00001000h,   (should be RVA of code section)
                     0,0,0,0,        --00000004, EndAddress,             h4,000010??h,   (end of code section)
                     0,0,0,0,        --00000008, UnwindData,             h4,000030??h,   (RVA of next byte)
                     0x19,           --0000000C, VersionFlags,           h1,19h,         {1,0b00011}
@@ -1253,7 +1262,7 @@ integer Type, PrevType
 string LabelName
 
     ResourceRVA = {}
-    res = stringify(
+    res = stringify(            --  offset    name                 size value       desc
           { 0,0,0,0,            -- 00000000,ResourceCharacteristics,h4,00000000h,
             0,0,0,0,            -- 00000004,TimeDateStamp,          h4,52E1FC3Ch,   24 January 2014, 05:38:04 (ish)
             0,0,                -- 00000008,MajorVersion,           h2,0000h,       0.0
@@ -1266,7 +1275,7 @@ string LabelName
         {Type,LabelName} = d[i]
         if i>1 and Type<=PrevType then ?9/0 end if
         PrevType = Type
-        chunk = stringify(
+        chunk = stringify(      --  offset    name                 size value       desc
                 {3,0,0,0,       -- 00000010,ID,                     h4,00000003h,   RT_ICON
                  0,0,0,#80})    -- 00000014,DataEntryRVA,           h4,80000030h,   see 0x00000030 (subdirectory)
         chunk = SetField(chunk,#0,DWORD,Type)
@@ -1304,7 +1313,7 @@ sequence seenNames
 
     {res,ResourceRVA} = res
     res = rsLabel(res,LabelName)
-    chunk = stringify(
+    chunk = stringify(          --  offset    name                 size value       desc
             { 0,0,0,0,          -- 00000000,ResourceCharacteristics,h4,00000000h,
               0,0,0,0,          -- 00000004,TimeDateStamp,          h4,52E1FC3Ch,   24 January 2014, 05:38:04 (ish)
               0,0,              -- 00000008,MajorVersion,           h2,0000h,       0.0
@@ -1321,7 +1330,7 @@ sequence seenNames
         seenNames = append(seenNames,dirLabelName)
         if i>1 and ID<=PrevID then ?9/0 end if
         PrevID = ID
-        chunk = stringify(
+        chunk = stringify(      --  offset    name                 size value       desc
                 {0,0,0,0,       -- 00000010,ID,                     h4,00000003h,   (RT_ICON,)2
                  0,0,0,#80})    -- 00000014,DataEntryRVA,           h4,80000030h,   see 0x00000030 (subdirectory)
         chunk = SetField(chunk,#00,DWORD,ID)
@@ -1334,7 +1343,7 @@ sequence seenNames
 --      res = rsLabel(res,dirLabelName&".directory")
         {offset,lang,dirLabelName} = d[i]
         res = SetField(res,offset,DWORD,GetField(res,offset,DWORD)+length(res))
-        chunk = stringify(
+        chunk = stringify(          --  offset    name                 size value       desc
                 { 0,0,0,0,          -- 00000000,ResourceCharacteristics,h4,00000000h,
                   0,0,0,0,          -- 00000004,TimeDateStamp,          h4,52E1FC3Ch,   24 January 2014, 05:38:04 (ish)
                   0,0,              -- 00000008,MajorVersion,           h2,0000h,       0.0
@@ -1394,7 +1403,7 @@ integer icon
         res = rsLabel(res,dirLabelName)
         offset = length(res)
         ResourceRVA = append(ResourceRVA,offset)
-        res &= stringify(
+        res &= stringify(           --  offset    name                 size value       desc
                {0,0,0,0,            -- 000000B0,DataRVA,                h4,0000D0C0h,   see 0x0000D0C0
                 0,0,0,0,            -- 000000B4,Size,                   h4,00000128h,
                 0,0,0,0,            -- 000000B8,Codepage,               h4,00000000h,   (RT_ICON,1,LANG_NEUTRAL)
@@ -1412,7 +1421,7 @@ integer icon
     res = rsLabel(res,LabelName)
     offset = length(res)
     ResourceRVA = append(ResourceRVA,offset)
-    res &= stringify(
+    res &= stringify(           --  offset    name                 size value       desc
            {0,0,0,0,            -- 000000B0,DataRVA,                h4,0000D0C0h,   see 0x0000D0C0
             0,0,0,0,            -- 000000B4,Size,                   h4,00000128h,
             0,0,0,0,            -- 000000B8,Codepage,               h4,00000000h,   (RT_ICON,1,LANG_NEUTRAL)
@@ -1421,7 +1430,7 @@ integer icon
     size = 6+length(d)*14
     res = SetField(res,offset+#04,DWORD,size)
     offset = length(res)
-    res &= stringify(
+    res &= stringify(           --  offset    name                size value        desc
            {0,0,                -- 00000EF0,idReserved,             2,0,            (must be 0) [RT_GROUP_ICON]
             1,0,                -- 00000EF2,idType,                 2,1,            icon
             0,0})               -- 00000EF4,idCount,                2,2,
@@ -1477,7 +1486,7 @@ integer k, size
     res = rsLabel(res,LabelName)
     versionstart = length(res)
     ResourceRVA = append(ResourceRVA,versionstart)
-    chunk = stringify(
+    chunk = stringify(          --  offset    name                 size value       desc
             {0,0,0,0,           -- 00000544,DataRVA,                h4,0000D554h,   see 0x00000554
              0,0,0,0,           -- 00000548,Size,                   h4,0000025Ch,
              0,0,0,0,           -- 0000054C,Codepage,               h4,00000000h,   (RT_VERSION,1,LANG_NEUTRAL)
@@ -1485,12 +1494,12 @@ integer k, size
     res &= chunk
     res = SetField(res,versionstart,DWORD,length(res))
     -- note that Size and VSVERSIONINFO.wLength are set the same (last thing below, using versionstart+4|16)
-    res &= stringify(
+    res &= stringify(           --  offset    name                    size value    desc
            {0,0,                -- 00000554,VSVERSIONINFO.wLength,      2, 604,
             52,0,               -- 00000556,VSVERSIONINFO.wValueLength, 2, 52,      (a VS_FIXEDFILEINFO structure)
             0,0})               -- 00000558,VSVERSIONINFO.wType,        2, 0,       binary
     res &= stringify(unicode("VS_VERSION_INFO")&{0,0})
-    chunk = stringify(
+    chunk = stringify(          --  offset    name                                     size value       desc
             {#BD,#04,#EF,#FE,   -- 0000057C[00],VS_FIXEDFILEINFO.dwSignature,           h4,FEEF04BDh,   (should be #FEEF04BD)
              1,0,               -- 00000580[04],VS_FIXEDFILEINFO.dwStrucVersHi,         h4,0001h,       1.0
              0,0,               -- 00000582[06],VS_FIXEDFILEINFO.dwStrucVersLo,         h4,0000h,
@@ -1529,13 +1538,13 @@ integer k, size
     chunk = SetField(chunk,#28,WORD,filesubtype)
     res &= chunk
     ChildrenLengthOffset = length(res)
-    res &= stringify(
+    res &= stringify(           --  offset    name                    size value desc
            {0,0,                -- 000005B0,Children.wLength,           2,  444 (444=#1BC, +#5B0=#76C)
             0,0,                -- 000005B2,Children.wValueLength,      2,  0,  (should be 0)
             1,0})               -- 000005B4,Children.wType,             2,  1,  text
     res &= stringify(unicode("StringFileInfo"))
     StringTableLengthOffset = length(res)
-    res &= stringify(
+    res &= stringify(           --  offset    name                    size value desc
            {0,0,                -- 000005D4,StringTable.wLength,        2,  408 (408=#198, +#5D4=#76C)
             0,0,                -- 000005D6,StringTable.wValueLength,   2,  0,  (should be 0)
             1,0})               -- 000005D8,StringTable.wType,          2,  1,  text
@@ -1546,7 +1555,7 @@ integer k, size
             res &= stringify(repeat(#90,4-padding))
         end if
         StringLengthOffset = length(res)
-        res &= stringify(
+        res &= stringify(       --  offset    name                    size value desc
                {0,0,            -- 000005EC,String.wLength,             2,  92, (in bytes)
                 0,0,            -- 000005EE,String.wValueLength,        2,  26, (in words)
                 1,0})           -- 000005F0,String.wType,               2,  1,  text
@@ -1569,20 +1578,20 @@ integer k, size
     res = SetField(res,ChildrenLengthOffset,WORD,size)
 
     ChildrenLengthOffset = length(res)
-    res &= stringify(
+    res &= stringify(           --  offset    name                size value desc
            {0,0,                -- 0000076C,Children.wLength,       2,  68,
-            0,0,                -- 0000076E,Children.wValueLength,  2,  0,(should be 0)
-            1,0})               -- 00000770,Children.wType,         2,  1,text
+            0,0,                -- 0000076E,Children.wValueLength,  2,  0,  (should be 0)
+            1,0})               -- 00000770,Children.wType,         2,  1,  text
     res &= stringify(unicode("VarFileInfo"))
     padding = and_bits(length(res),#03)
     if padding then
         res &= stringify(repeat(0,4-padding))
     end if
     StringLengthOffset = length(res)
-    res &= stringify(
-           {36,0,               -- 0000078C,wLength,                2,  36,(in bytes)
-            4,0,                -- 0000078E,wValueLength,           2,  4,(in bytes)
-            0,0})               -- 00000790,wType,                  2,  0,binary
+    res &= stringify(           --  offset    name                size value desc
+           {36,0,               -- 0000078C,wLength,                2,  36, (in bytes)
+            4,0,                -- 0000078E,wValueLength,           2,  4,  (in bytes)
+            0,0})               -- 00000790,wType,                  2,  0,  binary
     res &= stringify(unicode("Translation"))
     padding = and_bits(length(res),#03)
     if padding then
@@ -1664,7 +1673,7 @@ integer padding
     res = rsLabel(res,LabelName)
     manifestRVA = length(res)
     ResourceRVA = append(ResourceRVA,manifestRVA)
-    res &= stringify(
+    res &= stringify(       --  offset    name                 size value       desc
            {0,0,0,0,        -- 000007E0,DataRVA,                h4,0000D7F0h,   see 0x000007F0
             0,0,0,0,        -- 000007E4,Size,                   h4,000001FFh,
             0,0,0,0,        -- 000007E8,Codepage,               h4,00000000h,   (RT_MANIFEST,1,LANG_NEUTRAL)
@@ -2155,9 +2164,53 @@ end procedure
 --constant S_OFFSET=1, S_SIZE=2, S_FLAGS=3
 constant Read = 4, Write= 2, Execute = 1 -- (for S_FLAGS)
 
-function elfHeader(integer machine, atom base, integer datalen, integer codelen)
+--constant interpreter = "/lib/ld-linux.so.2\0\0",  -- (manually padded to whole dwords/DEV)
+string interpreter = "/lib/ld-linux.so.2\0"
+
+constant PT_LOAD = 1,
+         PT_DYNAMIC = 2,
+         PT_INTERP = 3
+
+constant DT_NULL            = 0,
+         DT_NEEDED          = 1,
+--       DT_PLTRELSZ        = 2,
+--       DT_PLTGOT          = 3,
+         DT_HASH            = 4,
+         DT_STRTAB          = 5,
+         DT_SYMTAB          = 6,
+         DT_RELA            = 7,
+         DT_RELASZ          = 8,
+         DT_RELAENT         = 9,
+         DT_STRSZ           = 10,
+         DT_SYMENT          = 11,
+--       DT_INIT            = 12,
+--       DT_FINI            = 13,
+--       DT_SONAME          = 14,
+--       DT_RPATH           = 15,
+--       DT_SYMBOLIC        = 16,
+         DT_REL             = 17,
+         DT_RELSZ           = 18,
+         DT_RELENT          = 19,
+--       DT_PLTREL          = 20,
+--       DT_DEBUG           = 21,
+--       DT_TEXTREL         = 22,
+--       DT_JMPREL          = 23,
+--       DT_BIND_NOW        = 24,
+--       DT_INIT_ARRAY      = 25,
+--       DT_FINI_ARRAY      = 26,
+--       DT_INIT_ARRAYSZ    = 27,
+--       DT_FINI_ARRAYSZ    = 28,
+--       DT_RUNPATH         = 29,
+         $
+
+constant R_386_32 = 1
+
+function elfHeader(integer machine, atom base, sequence imports, integer datalen, integer codelen)
 --
 -- machine should be M32 or M64
+-- imports is eg {{"libdl.so.2",{"dlopen","dlsym"},{28,62}},
+--                {"libc.so.6",{"printf"},{91}}}
+--              ie a list of names and fixup chains for each DT_NEEDED library.
 -- segments should be { {offset,size,flags}, ... } [DEV that there comment is just a wee bit out of date...]
 --  Obviously you need to know quite a bit about what the rest of the file
 --  contents need to be (especially the segment sizes), before you call this.
@@ -2168,14 +2221,15 @@ function elfHeader(integer machine, atom base, integer datalen, integer codelen)
 --
 --DEV string
 sequence res, shdr
---integer phnum = length(segments)
-integer phnum = 2 -- [DEV, only interested in plain executables right now...]
+integer phnum
 atom vaddr
-atom offset, size, flags
+atom offset, shtype, size, flags
 integer e_entry
 integer e_phentsize
+integer p_type
 integer p_offset
 integer p_vaddr
+integer p_paddr
 integer p_filesz
 integer p_memsz
 integer p_flags
@@ -2183,11 +2237,103 @@ integer elfHeaderSize
 sequence segments
 integer dataBase
 integer codeBase
+integer start
+--sequence stringaddrs = imports
+string dt = "", dtentry, st, stentry, ht, rt = "", rtentry
+integer rtidx = 0
+integer dynalen
+string dynstrings = "\0"
+integer padding
+sequence dynfixups = {}
+integer interplen
+integer datapad
 
 --DEV
 ImageBase2 = base
-    if machine=M32 then                 --  offset    name         size value       desc
-        res = stringify(
+    if machine=M32 then                 
+        vaddr = #08048000
+        dtentry = stringify(        --  offset    name         size value       desc
+                  { 1,0,0,0,        -- 00000000,d_tag           h4, 1           DT_NEEDED
+                    0,0,0,0 })      -- 00000004,d_val            4, 1           libc.so.6
+        stentry = stringify(        --  offset    name         size value       desc
+                  { 0,0,0,0,        -- 00000000,st_name         h4, 0           (eg dlopen)
+                    0,0,0,0,        -- 00000004,st_value        h4, 0
+                    0,0,0,0,        -- 00000008,st_size          4, 0
+                    0,              -- 0000000C,st_info         h1, 0           (12h=STB_GLOBAL,STT_FUNC)
+                    0,              -- 0000000D,st_other        h1, 0
+                    0,0 })          -- 0000000E,st_shndx        h2, 0
+        rtentry = stringify(        --  offset    name         size value       desc
+                  { 0,0,0,0,        -- 00000000,r_offset        h4, 0           relocation offset
+                    1,0,0,0 })      -- 00000004,r_info          h4, 0           eg 0201h = R_386_32,symtab[2]
+        st = stentry
+        stentry = SetField(stentry,#C,BYTE,#12) -- STB_GLOBAL, STT_FUNC
+        for i=1 to length(imports) do
+            dtentry = SetField(dtentry,0,DWORD,DT_NEEDED)
+            dtentry = SetField(dtentry,4,DWORD,length(dynstrings))
+            dynstrings &= imports[i][1]&'\0'
+            dt &= dtentry
+            for j=1 to length(imports[i][2]) do
+                stentry = SetField(stentry,0,DWORD,length(dynstrings))
+                dynstrings &= imports[i][2][j]&'\0'
+                st &= stentry                       
+                rtidx += 1
+                -- (r_offset filled in later)
+--              rtentry = SetField(rtentry,5,WORD,rtidx)
+                rtentry = SetField(rtentry,4,DWORD,rtidx*#100+R_386_32) -- might be better
+                rt &= rtentry
+            end for
+        end for
+        -- pad dynstrings to whole dwords:
+        padding = and_bits(length(dynstrings),#03)
+        if padding then
+            dynstrings &= stringify(repeat('\0',4-padding))
+        end if
+        
+--      dt &= 9/0 -- we've only done DT_NEEDED!
+
+        ht = stringify(repeat('\0',16+rtidx*4))
+        ht = SetField(ht,0,DWORD,1)         -- nbucket
+        ht = SetField(ht,4,DWORD,rtidx+1)   -- nchain
+        for i=1 to rtidx do
+            -- chain[0] = 1
+            -- ...
+            -- chain[n-1] = n
+            -- chain[n] = 0
+            ht = SetField(ht,(i+2)*4,DWORD,i)
+        end for
+        
+--      rt &= stringify(repeat('\0',rtidx*4))
+        dynalen = length(st)+length(ht)+length(dynstrings)+length(rt)+rtidx*4
+--      reloc = stringify({0,0,0,0}) --??
+                
+        dtentry = SetField(dtentry,4,DWORD,0)
+--      interpreter = pad(interpreter,iff(machine=32?DWORD:QWORD))
+        interpreter = pad(interpreter,DWORD)
+        interplen = length(interpreter)
+--DEV I think this should be if rtidx=0?? (do we care?)
+        if dynalen=0 then
+            segments = {{PT_INTERP,interplen,Read}}
+        else
+            segments = {{PT_INTERP,interplen,Read},
+                        {PT_DYNAMIC,length(dt)+9*8,Read},
+                        {PT_LOAD,dynalen,Read+Write}}
+            interplen += length(dt)+9*8+dynalen
+        end if
+        elfHeaderSize = #34
+        e_phentsize = 32
+if datab4code then
+        interplen += datalen + (length(segments)+2)*e_phentsize + elfHeaderSize
+        datapad = RoundToSectionAlignment(interplen)-interplen
+        datalen += datapad
+        segments &= {{PT_LOAD,datalen,Read+Write},
+                     {PT_LOAD,codelen,Read+Execute}}
+else
+        ?9/0 --(double padding rqd)
+        segments &= {{PT_LOAD,codelen,Read+Execute},
+                     {PT_LOAD,datalen,Read+Write}}
+end if
+        phnum = length(segments)
+        res = stringify(                --  offset    name         size value       desc
               { #7F, 'E', 'L', 'F',     -- 00000000,ei_magic,       x4, 0x7F&"ELF", ELF signature
                 1,                      -- 00000004,ei_class,       1,  1,          32 bit
                 1,                      -- 00000005,ei_data,        1,  1,          little endian
@@ -2205,11 +2351,10 @@ ImageBase2 = base
                 0,0,0,0,                -- 00000024,e_flags,        h4, 00000000h,
                 #34,0,                  -- 00000028,e_ehsize,       h2, 0034h,      ELF header size (32 bit)
                 32,0,                   -- 0000002A,e_phentsize,    2,  32,         program header table entry size
-                phnum,0,                -- 0000002C,e_phnum,        2,  2,          number of program header entries
+                phnum,0,                -- 0000002C,e_phnum,        2,  4,          number of program header entries (segments)
                 40,0,                   -- 0000002E,e_shentsize,    2,  40,         section header entry size
                 0,0,                    -- 00000030,e_shnum,        2,  0,          number of section header entries
                 0,0 })                  -- 00000032,e_shstrndx,     2,  0,          section name string table index
-        elfHeaderSize = #34
         if length(res)!=elfHeaderSize then ?9/0 end if
         e_entry = #00000018
         e_phentsize = #0000002A
@@ -2219,8 +2364,8 @@ ImageBase2 = base
         if GetField(res,e_phentsize,WORD)!=32 then ?9/0 end if
         e_phentsize = 32
 
-        shdr = stringify(
-               {1,0,0,0,                -- 00000000,p_type,         4,  1,          loadable
+        shdr = stringify(               --  offset    name         size value       desc
+               {1,0,0,0,                -- 00000000,p_type,         4,  1,          loadable                        -- (set below)
                 #80,0,0,0,              -- 00000004,p_offset,       h4, 00000080h,  file offset                     -- (set below)
                 #80,#80,#48,#08,        -- 00000008,p_vaddr,        h4, 08048080h,  virtual address                 -- (set below)
                 0,0,0,0,                -- 0000000C,p_paddr,        h4, 00000000h,  physical addressing(ignored)
@@ -2229,20 +2374,14 @@ ImageBase2 = base
                 #05,0,0,0,              -- 00000018,p_flags,        h4, 00000005h,  Execute+Read                    -- (set below)
                 #00,#10,0,0})           -- 0000001C,p_align,        h4, 00001000h,
         if length(shdr)!=e_phentsize then ?9/0 end if
+        p_type   = #00000000
         p_offset = #00000004
-        p_vaddr = #00000008
+        p_vaddr  = #00000008
+        p_paddr  = #0000000C
         p_filesz = #00000010
-        p_memsz = #00000014
-        p_flags = #00000018
+        p_memsz  = #00000014
+        p_flags  = #00000018
 
-        vaddr = #08048000
-if datab4code then
-        segments = {{0,datalen,Read+Write},
-                    {0,codelen,Read+Execute}}
-else
-        segments = {{0,codelen,Read+Execute},
-                    {0,datalen,Read+Write}}
-end if
         offset = length(res)+phnum*e_phentsize
         for i=1 to phnum do
 --  segments = {{#00000080,#00000024,Read+Execute},
@@ -2250,10 +2389,12 @@ end if
 --             }
 --          {offset,size,flags} = segments[i]
 --          segments[i][1] = offset
+            {shtype,size,flags} = segments[i]
             segments[i][1] = vaddr+offset
-            {{},size,flags} = segments[i]
+            shdr = SetField(shdr,p_type,DWORD,shtype)
             shdr = SetField(shdr,p_offset,DWORD,offset)
             shdr = SetField(shdr,p_vaddr,DWORD,vaddr+offset)
+            shdr = SetField(shdr,p_paddr,DWORD,vaddr+offset)
             shdr = SetField(shdr,p_filesz,DWORD,size)
             shdr = SetField(shdr,p_memsz,DWORD,size)
             shdr = SetField(shdr,p_flags,DWORD,flags)
@@ -2264,10 +2405,141 @@ end if
 --      size = codelen
 --      flags = Read+Execute
 --      codeBase = length(res)
-        res = SetField(res,e_entry,DWORD,base+length(res))
+        res &= interpreter
+
+        dynalen = vaddr+length(res)+length(dt)+9*8
+        dtentry = SetField(dtentry,0,DWORD,DT_SYMTAB)
+        dtentry = SetField(dtentry,4,DWORD,dynalen)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,DWORD,DT_SYMENT)
+        dtentry = SetField(dtentry,4,DWORD,16)
+        dt &= dtentry
+        dynalen += length(st)
+        dtentry = SetField(dtentry,0,DWORD,DT_HASH)
+        dtentry = SetField(dtentry,4,DWORD,dynalen)
+        dt &= dtentry
+        dynalen += length(ht)
+        dtentry = SetField(dtentry,0,DWORD,DT_STRTAB)
+        dtentry = SetField(dtentry,4,DWORD,dynalen)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,DWORD,DT_STRSZ)
+        dtentry = SetField(dtentry,4,DWORD,length(dynstrings))
+        dt &= dtentry
+        dynalen += length(dynstrings)
+        dtentry = SetField(dtentry,0,DWORD,DT_REL)
+        dtentry = SetField(dtentry,4,DWORD,dynalen)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,DWORD,DT_RELSZ)
+        dtentry = SetField(dtentry,4,DWORD,8*rtidx)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,DWORD,DT_RELENT)
+        dtentry = SetField(dtentry,4,DWORD,8)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,DWORD,DT_NULL)
+        dtentry = SetField(dtentry,4,DWORD,0)
+        dt &= dtentry
+
+        dt &= st
+        dt &= ht
+        dt &= dynstrings
+
+        dynalen = vaddr+length(res)+length(dt)+length(rt)
+        for i=1 to rtidx do
+            dynfixups = append(dynfixups,dynalen)
+            rt = SetField(rt,(i-1)*8,DWORD,dynalen) -- r_offset
+            rt &= stringify(repeat('\0',4))
+            dynalen += 4
+        end for
+
+        dt &= rt
+--DEV
+--      if vaddr+length(res)+length(dt)!=dynalen then ?9/0 end if
+        res &= dt
+        start = base+length(res)
+        if datab4code then
+            start += datalen
+        end if
+        res = SetField(res,e_entry,DWORD,start)
 
     elsif machine=M64 then
-        res = stringify(
+        vaddr = #00400000
+        dtentry = stringify(            --  offset    name         size value       desc
+                  { 1,0,0,0,0,0,0,0,    -- 00000000,d_tag           h8, 1           DT_NEEDED
+                    0,0,0,0,0,0,0,0 })  -- 00000008,d_val            8, 1           libc.so.6
+        stentry = stringify(            --  offset    name         size value       desc
+                  { 0,0,0,0,            -- 00000000,st_name         h4, 0           (eg dlopen)
+                    0,                  -- 00000004,st_info         h1, 0           (12h=STB_GLOBAL,STT_FUNC)
+                    0,                  -- 00000005,st_other        h1, 0           (should be 0)
+                    0,0,                -- 0000000E,st_shndx        h2, 0
+                    0,0,0,0,0,0,0,0,    -- 00000004,st_value        h8, 0
+                    0,0,0,0,0,0,0,0})   -- 00000008,st_size          8, 0
+        rtentry = stringify(            --  offset    name         size value       desc
+                  { 0,0,0,0,0,0,0,0,    -- 00000000,r_offset        h8, 0           relocation offset
+                    0,0,0,0,0,0,0,0,    -- 00000008,r_info          h8, 0           eg 0200000001h = R_X86_64_64,symtab[2]
+                    0,0,0,0,0,0,0,0 })  -- 00000008,r_addend        h8, 0
+        st = stentry
+        stentry = SetField(stentry,#4,BYTE,#12) -- STB_GLOBAL, STT_FUNC
+        for i=1 to length(imports) do
+            dtentry = SetField(dtentry,0,QWORD,DT_NEEDED)
+            dtentry = SetField(dtentry,8,QWORD,length(dynstrings))
+            dynstrings &= imports[i][1]&'\0'
+            dt &= dtentry
+            for j=1 to length(imports[i][2]) do
+                stentry = SetField(stentry,0,DWORD,length(dynstrings))
+                dynstrings &= imports[i][2][j]&'\0'
+                st &= stentry                       
+                rtidx += 1
+                -- (r_offset filled in later)
+                rtentry = SetField(rtentry,8,QWORD,rtidx*#100000000+R_386_32)
+                rt &= rtentry
+            end for
+        end for
+        -- pad dynstrings to whole qwords:
+        padding = and_bits(length(dynstrings),#07)
+        if padding then
+            dynstrings &= stringify(repeat('\0',8-padding))
+        end if
+
+        ht = stringify(repeat('\0',16+rtidx*4))
+        ht = SetField(ht,0,DWORD,1)         -- nbucket
+        ht = SetField(ht,4,DWORD,rtidx+1)   -- nchain
+        for i=1 to rtidx do
+            -- chain[0] = 1
+            -- ...
+            -- chain[n-1] = n
+            -- chain[n] = 0
+            ht = SetField(ht,(i+2)*4,DWORD,i)
+        end for
+        
+        dynalen = length(st)+length(ht)+length(dynstrings)+length(rt)+rtidx*8
+                
+        dtentry = SetField(dtentry,8,QWORD,0)
+        interpreter = pad(interpreter,QWORD)
+        interplen = length(interpreter)
+        if dynalen=0 then
+            segments = {{PT_INTERP,interplen,Read}}
+        else
+            segments = {{PT_INTERP,interplen,Read},
+                        {PT_DYNAMIC,length(dt)+9*16,Read},
+                        {PT_LOAD,dynalen,Read+Write}}
+            interplen += length(dt)+9*16+dynalen
+        end if
+        elfHeaderSize = #00000040
+        e_phentsize = 56
+if datab4code then
+        interplen += datalen + (length(segments)+2)*e_phentsize + elfHeaderSize
+        datapad = RoundToSectionAlignment(interplen)-interplen
+        datalen += datapad
+        segments &= {{PT_LOAD,datalen,Read+Write},
+                     {PT_LOAD,codelen,Read+Execute}}
+else
+        ?9/0
+        segments &= {{PT_LOAD,codelen,Read+Execute},
+                     {PT_LOAD,datalen,Read+Write}}
+end if
+        phnum = length(segments)
+
+        res = stringify(                --  offset    name         size value       desc
               { #7F, 'E', 'L', 'F',     -- 00000000,ei_magic,       x4, 0x7F&"ELF", ELF signature
                 2,                      -- 00000004,ei_class,       1,  2,          64 bit
                 1,                      -- 00000005,ei_data,        1,  1,          little endian
@@ -2285,11 +2557,10 @@ end if
                 0,0,0,0,                -- 00000030,e_flags,        h4, 00000000h,
                 #40,0,                  -- 00000034,e_ehsize,       h2, 0040h,      ELF header size (64 bit)
                 56,0,                   -- 00000036,e_phentsize,    2,  56,         program header table entry size
-                phnum,0,                -- 00000038,e_phnum,        2,  2,          number of program header entries
+                phnum,0,                -- 00000038,e_phnum,        2,  4,          number of program header entries (segments)
                 64,0,                   -- 0000003A,e_shentsize,    2,  64,         section header entry size
                 0,0,                    -- 0000003C,e_shnum,        2,  0,          number of section header entries
                 0,0 })                  -- 0000003E,e_shstrndx,     2,  0,          section name string table index
-        elfHeaderSize = #00000040
         if length(res)!=elfHeaderSize then ?9/0 end if
         e_entry = #00000018
         e_phentsize = #00000036
@@ -2299,8 +2570,8 @@ end if
         if GetField(res,e_phentsize,WORD)!=56 then ?9/0 end if
         e_phentsize = 56
 
-        shdr = stringify(
-               {1,0,0,0,                -- 00000000,p_type,         4,  1,          loadable
+        shdr = stringify(               --  offset    name         size value       desc
+               {1,0,0,0,                -- 00000000,p_type,         4,  1,          loadable                        -- (set below)
                 #05,0,0,0,              -- 00000004,p_flags,        h4, 00000005h,  Execute+Read                    -- (set below)
                 #B0,0,0,0,0,0,0,0,      -- 00000008,p_offset,       h8, B0h,        file offset                     -- (set below)
                 #B0,#00,#40,0,0,0,0,0,  -- 00000010,p_vaddr,        h8, 4000B0h,    virtual address                 -- (set below)
@@ -2310,68 +2581,133 @@ end if
                 #21,0,0,0,0,0,0,0,      -- 00000028,p_memsz,        h8, 21h,        bytes in memory image           -- (set below)
                 #00,#10,0,0,0,0,0,0})   -- 00000030,p_align,        h8, 1000h,
         if length(shdr)!=e_phentsize then ?9/0 end if
+        p_type   = #00000000
         p_offset = #00000008
-        p_vaddr = #00000010
+        p_vaddr  = #00000010
+        p_paddr  = #00000018
         p_filesz = #00000020
-        p_memsz = #00000028
-        p_flags = #00000004
+        p_memsz  = #00000028
+        p_flags  = #00000004
 
-        vaddr = #00400000
-if datab4code then
-        segments = {{0,datalen,Read+Write},
-                    {0,codelen,Read+Execute}}
-else
-        segments = {{0,codelen,Read+Execute},
-                    {0,datalen,Read+Write}}
-end if
+        if length(segments)!=phnum then ?9/0 end if
         offset = length(res)+phnum*e_phentsize
         for i=1 to phnum do
 --          {offset,size,flags} = segments[i]
-            {{},size,flags} = segments[i]
+            {shtype,size,flags} = segments[i]
 --          offset = length(res)
 --          segments[i][1] = offset
             segments[i][1] = vaddr+offset
+            shdr = SetField(shdr,p_type,QWORD,shtype)
             shdr = SetField(shdr,p_offset,QWORD,offset)
             shdr = SetField(shdr,p_vaddr,QWORD,vaddr+offset)
+            shdr = SetField(shdr,p_paddr,QWORD,vaddr+offset)
             shdr = SetField(shdr,p_filesz,QWORD,size)
             shdr = SetField(shdr,p_memsz,QWORD,size)
             shdr = SetField(shdr,p_flags,DWORD,flags)
             res &= shdr
             --DEV not entirely sure we need to do this... (or whether we should do the same for 32-bit)
-            vaddr += size+#1000-1
-            vaddr = and_bits(vaddr,#FFFFF000)
+--          vaddr += size+#1000-1
+--          vaddr = and_bits(vaddr,#FFFFF000)
             offset += size
         end for
 
---      codeBase = length(res)
-        res = SetField(res,e_entry,QWORD,base+length(res))
+        res &= interpreter
+
+        vaddr = #00400000
+        dynalen = vaddr+length(res)+length(dt)+9*16
+        dtentry = SetField(dtentry,0,QWORD,DT_SYMTAB)
+        dtentry = SetField(dtentry,8,QWORD,dynalen)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,QWORD,DT_SYMENT)
+        dtentry = SetField(dtentry,8,QWORD,16)
+        dt &= dtentry
+        dynalen += length(st)
+        dtentry = SetField(dtentry,0,QWORD,DT_HASH)
+        dtentry = SetField(dtentry,8,QWORD,dynalen)
+        dt &= dtentry
+        dynalen += length(ht)
+        dtentry = SetField(dtentry,0,QWORD,DT_STRTAB)
+        dtentry = SetField(dtentry,8,QWORD,dynalen)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,QWORD,DT_STRSZ)
+        dtentry = SetField(dtentry,8,QWORD,length(dynstrings))
+        dt &= dtentry
+        dynalen += length(dynstrings)
+        dtentry = SetField(dtentry,0,QWORD,DT_RELA)
+        dtentry = SetField(dtentry,8,QWORD,dynalen)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,QWORD,DT_RELASZ)
+        dtentry = SetField(dtentry,8,QWORD,24*rtidx)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,QWORD,DT_RELAENT)
+        dtentry = SetField(dtentry,8,QWORD,24)
+        dt &= dtentry
+        dtentry = SetField(dtentry,0,QWORD,DT_NULL)
+        dtentry = SetField(dtentry,8,QWORD,0)
+        dt &= dtentry
+
+        dt &= st
+        dt &= ht
+        dt &= dynstrings
+
+        dynalen = vaddr+length(res)+length(dt)+length(rt)
+        for i=1 to rtidx do
+            dynfixups = append(dynfixups,dynalen)
+            rt = SetField(rt,(i-1)*24,QWORD,dynalen) -- r_offset
+            rt &= stringify(repeat('\0',8))
+            dynalen += 8
+        end for
+
+        dt &= rt
+--DEV
+--      if vaddr+length(res)+length(dt)!=dynalen then ?9/0 end if
+        res &= dt
+        start = base+length(res)
+        if datab4code then
+            start += datalen
+        end if
+        res = SetField(res,e_entry,QWORD,start)
     else
         ?9/0
     end if
-    if length(res)!=elfHeaderSize+phnum*e_phentsize then ?9/0 end if
+
+--DEV
+--  if length(res)!=elfHeaderSize+phnum*e_phentsize then ?9/0 end if
+
 --  return res          
 --  return {res,segments}
 --  dataBase = codeBase+codelen
 if datab4code then
-    dataBase = segments[1][1]
-    codeBase = segments[2][1]
+--  dataBase = segments[1][1]
+--  codeBase = segments[2][1]
+    dataBase = segments[-2][1]
+    codeBase = segments[-1][1]
 else
-    codeBase = segments[1][1]
-    dataBase = segments[2][1]
+--  codeBase = segments[1][1]
+--  dataBase = segments[2][1]
+    codeBase = segments[-2][1]
+    dataBase = segments[-1][1]
 end if
 --DEV
 BaseOfData2 = dataBase-ImageBase2
 SizeOfData2 = datalen
 BaseOfCode2 = codeBase-ImageBase2
 SizeOfCode2 = codelen
-    return {res,codeBase,dataBase}
+    return {res,codeBase,dataBase,dynfixups,datapad}
 end function
 
-procedure CreateELF(integer fn, integer machine, integer base, string data, string code, sequence relocations)
+procedure CreateELF(integer fn, integer machine, integer base, sequence imports, sequence exports, sequence relocations, string data, string code)
 --
 -- fn should be an open file handle, created with "wb", closed on exit
 -- machine should be M32 or M64
 -- base is typically #08048000 for 32-bit and #00400000 for 64-bit, afaict both quite arbitrary.
+-- imports is eg {{"libdl.so.2",{"dlopen","dlsym"},{28,62}},
+--                {"libc.so.6",{"printf"},{91}}}
+--              ie a list of names and fixup chains for each DT_NEEDED library.
+--              No attempt is made here to catch attempts to link kernel32.dll from an ELF file, or libc.so.6 from a PE file; instead
+--              such checking is [only] performed in the non-bind and non-norun case in pEmit2.e.
+-- exports must be {}, for now. [DEV: in much the same way that imports are specified via eg #ilASM{call "kernel32","LoadLibrary"},
+--                                      exports are likely to be via "#ilASM{export :name}", rather than "global function name()"]
 --DEV (and datab4code)
 --! relocations should be {} or {{{code_relocations},{data_relocations}},
 --!                              {code_relocations},{data_relocations}}}
@@ -2390,17 +2726,72 @@ procedure CreateELF(integer fn, integer machine, integer base, string data, stri
 --                              There is never a relocation section for M64, 
 --                              since all addressing is RIP-relative, and 
 --                              only one for M32 DLLs (exports!={}).
+--
 -- code and data are raw binary, subject to final fixups once codeBase and dataBase are known.
+--
+-- See cwgtLinux.txt (from mpeforth) for an excellent introduction to low-level elf.
 --
 integer datalen
 integer codelen
 sequence block
 integer dataBase
 integer codeBase
+sequence dynfixups
+integer datapad
+integer didx = 1
+atom thunk
+integer thunkaddr, next
 
+    if exports!={} then ?9/0 end if -- (temp)
     datalen = length(data)
     codelen = length(code)
-    {block,codeBase,dataBase} = elfHeader(machine, base, datalen, codelen)
+    {block,codeBase,dataBase,dynfixups,datapad} = elfHeader(machine, base, imports, datalen, codelen)
+    if datapad!=0 then
+        data &= stringify(repeat('\0',datapad))
+    end if
+
+--DEV apply dynfixups::
+-- (the following is copied from CreatePE, something similar rqd, however I believe dynfixups is "flattened")
+--?imports  -- {{"libdl.so.2",{"dlopen","dlsym"},{28,62}},{"libc.so.6",{"printf"},{91}}}
+--?dynfixups    -- {134513120,134513124,134513128}
+--?dynfixups    -- {#80481E0,#80481E4,#80481E8}
+--DEV fixup thunk (and data?) references?
+    -- note: all thunk references are assumed to be in the code section.
+    for i=1 to length(imports) do
+--DEV temp:
+        sequence ii3 = imports[i][3]
+        for j=1 to length(imports[i][2]) do
+            thunk = dynfixups[didx]
+if newEmit and listing then
+--printf(1,"%s:%08x (%08x,%08x)\n",{imports[i][2][j],thunk+ImageBase,ImageBase,importBase})
+if X64 then
+--DEV? (check litsings carefully)
+            knownAddr = append(knownAddr,thunk)--+ImageBase+importBase)
+else
+--          knownAddr = append(knownAddr,thunk+ImageBase)
+            knownAddr = append(knownAddr,thunk)
+end if
+            knownNames = append(knownNames,imports[i][2][j])
+end if
+--          thunkaddr = imports[i][3][j]
+            thunkaddr = ii3[j]
+            while thunkaddr!=0 do
+                next = GetField(code,thunkaddr,DWORD)
+                if machine=M32 then
+--                  code = SetField(code,thunkaddr,DWORD,thunk+ImageBase)
+                    code = SetField(code,thunkaddr,DWORD,thunk)
+                else -- M64, RIP addressing
+--DEV? (ditto)
+--                  code = SetField(code,thunkaddr,DWORD,thunk-(codeBase-importBase)-(thunkaddr+4))
+                    code = SetField(code,thunkaddr,DWORD,thunk-(codeBase-0)-(thunkaddr+4))
+--                  code = SetField(code,thunkaddr,DWORD,thunk-(thunkaddr+4))
+                end if
+                thunkaddr = next
+            end while
+            didx += 1
+        end for
+    end for
+
 --printf(1,"codeBase=#%08x, dataBase=#%08x\n",{codeBase,dataBase})
 --if getc(0) then end if
     puts(fn,block)
@@ -2525,7 +2916,37 @@ integer subsystem
 --printf(1,"BaseOfData2: %08x\n",{BaseOfData2})
 --printf(1,"ImageBase2: %08x\n",{ImageBase2})
     else -- elf
-        CreateELF(fn, machine, base, data, code, relocations)
+--?{imports, exports, relocations}
+--C:\Program Files (x86)\Phix>p -d -nodiag e03
+--{{{"libdl.so.2",{"dlopen","dlsym"},{28,62}},      -- THERE SHE BLOWS!
+--  {"libc.so.6",{"printf"},{91}}},
+-- {},
+-- {{{3828,4027,4161,4232,4283,4422,4473,4670,4833,4932,5053,8524,8969,9218,9298,9363,9427},
+--   {16,40,51,70,81,97,106,2836,2846,2856,2866,2876,2883,2890,2897,2904,2911,2918,4537,5143,   -- CODE,DATA
+--    5199,5205,5211,5218,5223,5347,5470,5935,5958,5964,6010,6146,6202,6384,7844,7853,7864,
+--    7922,8500,8509,8595,8606,8631,8656,8681,8706,8731,8756,8792,8799,8809,8979,9091,9256,
+--    9413,9437,9450,9572,9583,9600}},
+--  {{2132,2136,2140,2144,2148,2152,2156,2212,2216,2220,2224,2228,2232,2236,2240,2244,2248,
+--    2252,2256,2260,2264,2268,2272,2276,2280,2284,2288,2292,2296,2300,2304,2308,2312,2316,
+--    2320,2324,2328,2332,2336,2340,2344,2348,2352,2356,2360,2364,2388,2392,2396,2400,2404,
+--    2408,2412,2416,2420,2424,2428,2432,2436,2440,2444,2448,2452,2508,2512,2516,2520,2524,
+--    2528,2532,2536,2540,2552,2556,2560,2564,2568,2572,2576,2580,2644,2648,2652,2656,2680,
+--    2852,3032,3500,3688,3928,4684,6012,6156,6592,7428,8380,9048,9344,9624,10152,10324,11252,11784},
+--   {8,44,192,40,148,48,52,56,68,60,64,36,152,184,1044,1048,1052,1324,1240,1376,1244,1432,     -- DATA,DATA
+--    1248,1484,1252,1536,1256,1596,1260,1648,1264,1704,1268,1760,1272,1816,1276,1872,1280,
+--    1924,1284,1980,1288,2032,1292,2084,1296,2856,3036,3504,3692,3932,4688,6016,6160,6596,
+--    7432,8384,9052,9348,9628,10156,10328,11256,11788,304,276,280,292,296,320,324,328,332,
+--    336,340,344,348,352,356,360,364,368,372,376,380,384,388,392,396,400,404,408,412,416,
+--    420,424,428,432,436,440,444,448,452,456,460,464,468,472,476,480,484,488,492,496,500,
+--    504,508,512,516,520,524,528,532,536,540,544,548,552,556,560,564,568,572,576,580,584,
+--    588,592,596,600,604,608,612,616,620,624,628,632,636,7412,6576,8364,11768,11236,10308,
+--    10136,9608,9328,9032,6140,5996,4668,3912,3672,3484,3016,2836,8840,2936,7052,6884,6996,
+--    7220,7164,7108,6940,7276,7388,9776,9944,6440,6496,6272,6328,6384,4196,4252,4308,4084,
+--    4364,4532,4420,6772,6828,6716,4476,6552,8340,4588,10228,11156,7668,6660,8952,10056,
+--    7948,7892,11688,9720,9888,8784,8060,8004,8448,8896,8728,8616,7612,8172,8504,7556,7836,
+--    7780,8116,4140,8672,7724,9832,10000}}}}
+--#1C = 28
+        CreateELF(fn, machine, base, imports, exports, relocations, data, code)
     end if
 end procedure
 

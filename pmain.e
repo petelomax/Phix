@@ -1627,13 +1627,17 @@ end if
                         Unassigned(p1)
                     end if
                     apnds5({scode,N,p1,p2,p3})  -- opPeekNS,addr,size,sign
-                    freeTmp(-2)
+--                  freeTmp(-2)
                 else
                     apnds5({scode,N,p2})
                 end if
 
             end if  -- emitON
-            freeTmp(-1)
+            if scode=opPeekNS then
+                freeTmp(-3)
+            else
+                freeTmp(-1)
+            end if
 
         elsif scode=opLock then
 --if newEmit then ?9/0 end if
@@ -7003,7 +7007,13 @@ string ZZdesc
 constant T_andorxor = {T_and,T_or,T_xor}
 
 
-integer lhsli, rhsli    -- scratch vars to evaluate <literal int><relop><literal int> now.
+--7/4/16 allow values such as #FFFFFFFF when a 32bit p.exe creates a 64-bit exe:
+--integer lhsli, rhsli  -- scratch vars to evaluate <literal int><relop><literal int> now.
+type int3264(atom a)
+    if isFLOAT(a) then ?9/0 end if
+    return 1
+end type
+int3264 lhsli, rhsli    -- scratch vars to evaluate <literal int><relop><literal int> now.
 
 --with trace
 procedure Expr(integer p, integer toBool)
@@ -11607,7 +11617,7 @@ end if
 --DEV newEmit->pdiag2.e? (has invoke SetUnhandledExceptionFilter,finalExceptionHandler etc)
 if newEmit then
                 if not nodiag then
-                    includeFile("VM\\pdiagN.e",0,1)
+                    includeFile("VM\\pDiagN.e",0,1)
                 else
                     includeFile("VM\\pStack.e",0,1)
                 end if

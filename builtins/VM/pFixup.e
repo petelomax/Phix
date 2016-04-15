@@ -63,7 +63,9 @@ include builtins\VM\pFPU.e
             jmp @f
       ::e06not8
     [32]
-            mov edx,[esp+4]
+--5/4/16: (wrong line on linux, from t39rndio/fimage[idx]=ch (line 111), when fimage hosed)
+--          mov edx,[esp+4]
+            mov edx,[esp+8]
     [64]
 --28/8/15:
 --          mov rdx,[rsp+8]

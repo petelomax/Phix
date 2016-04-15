@@ -29,24 +29,57 @@ atom kernel32, xGetCurrentDirectory
 
 global function current_dir()
 integer l
---string res
-sequence res    --DEV
+string res
     if not init then
---DEV requires locking as per pprintf.e?
-        kernel32 = open_dll("kernel32.dll")
+        if platform()=WINDOWS then
 --#without reformat
-        xGetCurrentDirectory = define_c_func(kernel32, "GetCurrentDirectoryA",
-            {C_INT,  -- DWORD nBufferLength // size, in characters, of directory buffer 
-             C_PTR}, -- LPTSTR lpBuffer     // address of buffer for current directory
-            C_INT)   -- DWORD
+            kernel32 = open_dll("kernel32.dll")
+            xGetCurrentDirectory = define_c_func(kernel32, "GetCurrentDirectoryA",
+                {C_INT,  -- DWORD nBufferLength // size, in characters, of directory buffer 
+                 C_PTR}, -- LPTSTR lpBuffer     // address of buffer for current directory
+                C_INT)   -- DWORD
 --#with reformat
+        end if
         init = 1
     end if
-    l = c_func(xGetCurrentDirectory,{0,NULL})
-    if l=0 then return "" end if
-    res = repeat(' ',l-1)
-    l = c_func(xGetCurrentDirectory,{l,res})
-    res = get_proper_path(res)
+    if platform()=WINDOWS then
+        l = c_func(xGetCurrentDirectory,{0,NULL})
+        if l=0 then return "" end if
+        res = repeat(' ',l-1)
+        l = c_func(xGetCurrentDirectory,{l,res})
+        res = get_proper_path(res)
+    elsif platform()=LINUX then
+        res = repeat(' ',512)   -- (or start with 32, double till it fits, and "find_from" the \0)
+        #ilASM {
+            [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--183   sys_getcwd                  0xb7    char *buf               unsigned long size      -                       -                       -                       fs/dcache.c:2104
+                mov ebx,[res]
+                mov eax,183     -- sys_getcwd
+                shl ebx,2
+                mov ecx,512     -- size
+                int 0x80
+                xor ebx,ebx
+                mov [l],eax
+            [ELF64]
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--79    sys_getcwd              char *buf               unsigned long size
+                mov rdi,[res]
+                mov rax,79      -- sys_getcwd
+                shl rdi,2       -- buf
+                mov rsi,512     -- size
+                syscall
+                mov [l],rax
+            []
+               }
+--not as documented (lscr)
+--      if l!=0 then ?9/0 end if
+        if l<0 then ?9/0 end if
+        res = res[1..find('\0',res)-1]
+    else
+        ?9/0
+    end if
     return res
 end function
 

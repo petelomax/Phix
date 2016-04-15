@@ -2,9 +2,6 @@
 -- pfileioN.e  (Phix compatible 0.6.4)
 -- =========
 --
---DEV newsize
---DEV new/64 bit version of open_dll etc
---DEV "" pCritSec.e (which may as well go into pHeap.e)
 
 --DEV need saving/restoring over opInterp: fdtbl/fdmax/freelist/(finit) [use bang labels!]
 --DEV wrap/scroll/text_rows/bk_color/text_color/clear_screen/free_console/position
@@ -382,7 +379,7 @@ BHFI:   BYHANDLEFILEINFO structure
 --  back3,
 --  pHigh
 
-constant
+constant -- Windows
     CREATE_NEW               = 1,
 --  CREATE_ALWAYS            = 2,
     OPEN_EXISTING            = 3,
@@ -417,6 +414,47 @@ constant
 --DEV newsize
 --atom GENERIC_READ,        -- = #80000000,   -- Too big for forward init!
 --   GENERIC_WRITE      -- = #40000000,   -- ""
+
+constant -- Linux
+    -- <aside> there is no valid mode of 5 (=TRUNCATE_EXISTING) </aside>
+    O_RDONLY    = 0,    -- Open the file in read-only mode.
+    O_WRONLY    = 1,    -- Open the file in write-only mode.
+    O_RDWR      = 2,    -- Open the file in read-write mode.
+    O_CREAT     = #40,  -- If the file does not exist it will be created.
+--  O_EXCL      = #80,  -- (must be used with O_CREAT) Fail if file already exists.
+--  O_NOCTTY    = #100,
+    O_TRUNC     = #200, -- truncate to length 0 if write mode
+    O_APPEND    = #400, -- open in append mode
+--  O_NONBLOCK  = #800,
+--  O_NONDELAY  = O_NONBLOCK,
+--  O_SYNC      = #1000,
+--  O_ASYNC     = #2000,
+--  O_DIRECT    = #4000,
+--  O_LARGEFILE = #8000,
+--  O_DIRECTORY = #10000,   -- Fail if not a directory
+--  O_NOFOLLOW  = #20000,   -- Fail if file is a symbolic link
+
+--  S_ISUID     = 0o4000,   -- set user ID on execution
+--  S_ISGID     = 0o2000,   -- set group ID on execution
+--  S_ISVTX     = 0o1000,   -- on directories, restricted deletion flag
+    S_IRWXU     = 0o0700,   -- owner has read, write and execute permission 
+--  S_IRW_U     = 0o0600,   -- owner has read and write permission 
+--  S_IRUSR     = 0o0400,   -- owner has read permission 
+--  S_IWUSR     = 0o0200,   -- owner has write permission 
+--  S_IXUSR     = 0o0100,   -- owner has execute permission
+    S_IRWXG     = 0o0070,   -- group has read, write and execute permission 
+--  S_IRW_G     = 0o0060,   -- group has read and write permission 
+--  S_IRGRP     = 0o0040,   -- group has read permission 
+--  S_IWGRP     = 0o0020,   -- group has write permission 
+--  S_IXGRP     = 0o0010,   -- group has execute permission 
+--  S_IRWXO     = 0o0007,   -- others have read, write and execute permission 
+--  S_IRW_O     = 0o0006,   -- others have read and write permission 
+    S_IRX_O     = 0o0005,   -- others have read and execute permission 
+--  S_IROTH     = 0o0004,   -- others have read permission 
+--  S_IWOTH     = 0o0002,   -- others have write permission 
+--  S_IXOTH     = 0o0001,   -- others have execute permission
+
+    $
 
 include VM\pHeap.e          -- init_cs etc
 include VM\pStack.e
@@ -461,7 +499,7 @@ constant HNDL = 0,
          RPOS64 = 32,
          BUFF64 = 40
 
--- bit settings for fmode:
+-- bit settings for fmode (same on all platforms):
 constant F_CLOSED   = #00,  -- file is closed/available for re-use (see flist)
          F_READ     = #01,  -- file has read permission
          F_WRITE    = #02,  -- file has write permission
@@ -761,7 +799,9 @@ function fopen(sequence filepath, object openmode) -- (see :%opOpen)
 -- Note: open(xxx,'a') is perfectly valid and the same as open(xxx,"a"), but on Phix only.
 --
 integer res, imode, fmode
-integer accessmode, createmode, sharemode
+integer accessmode, 
+        createmode,     -- (Windows only; on Linux O_CREAT (or not) goes in accessmode)
+        sharemode
 atom fhandle
 integer iThis
 --atom frealposn
@@ -809,36 +849,72 @@ integer iThis
         openmode += 'a'-'A'
     end if
     if openmode='r' then        -- read
-        accessmode = GENERIC_READo4
-        sharemode = FILE_SHARE_READ
-        createmode = OPEN_EXISTING
+        if platform()=WINDOWS then
+            accessmode = GENERIC_READo4
+            createmode = OPEN_EXISTING
+            sharemode = FILE_SHARE_READ
+        elsif platform()=LINUX then
+            accessmode = O_RDONLY   -- (and not O_CREAT)
+            sharemode = 0           -- (ignored w/o "")
+        else
+            ?9/0
+        end if
         imode = F_READ
     elsif openmode='w' then     -- write
-        accessmode = GENERIC_WRITEo4
+        if platform()=WINDOWS then
+            accessmode = GENERIC_WRITEo4
+            createmode = TRUNCATE_EXISTING
 --DEV test:
---      sharemode = FILE_SHARE_WRITE
-        if fmode=F_BINARY then
-            sharemode = FILE_SHARE_READ+FILE_SHARE_WRITE
+--          sharemode = FILE_SHARE_WRITE
+            if fmode=F_BINARY then
+                sharemode = FILE_SHARE_READ+FILE_SHARE_WRITE
+            else
+                sharemode = FILE_SHARE_WRITE
+            end if
+        elsif platform()=LINUX then
+            if fmode=F_BINARY then
+                accessmode = O_RDWR+O_CREAT+O_TRUNC
+            else
+                accessmode = O_WRONLY+O_CREAT+O_TRUNC
+            end if
+            sharemode = S_IRWXU+S_IRWXG+S_IRX_O
         else
-            sharemode = FILE_SHARE_WRITE
+            ?9/0
         end if
-        createmode = TRUNCATE_EXISTING
         imode = F_WRITE
     elsif openmode='u' then     -- update
-        accessmode = GENERIC_READo4+GENERIC_WRITEo4
-        sharemode = FILE_SHARE_READ+FILE_SHARE_WRITE
-        createmode = OPEN_EXISTING
+        if platform()=WINDOWS then
+            accessmode = GENERIC_READo4+GENERIC_WRITEo4
+            createmode = OPEN_EXISTING
+            sharemode = FILE_SHARE_READ+FILE_SHARE_WRITE
+        elsif platform()=LINUX then
+            accessmode = O_RDWR     -- (and not O_CREAT)
+            sharemode = 0           -- (ignored w/o "")
+        else
+            ?9/0
+        end if
         imode = F_READ+F_WRITE
     elsif openmode='a' then     -- append
-        accessmode = GENERIC_WRITEo4
+        if platform()=WINDOWS then
+            accessmode = GENERIC_WRITEo4
+            createmode = OPEN_ALWAYS
 --DEV test:
---      sharemode = FILE_SHARE_WRITE
-        if fmode=F_BINARY then
-            sharemode = FILE_SHARE_READ+FILE_SHARE_WRITE
+--          sharemode = FILE_SHARE_WRITE
+            if fmode=F_BINARY then
+                sharemode = FILE_SHARE_READ+FILE_SHARE_WRITE
+            else
+                sharemode = FILE_SHARE_WRITE
+            end if
+        elsif platform()=LINUX then
+            if fmode=F_BINARY then
+                accessmode = O_RDWR+O_CREAT+O_APPEND
+            else
+                accessmode = O_WRONLY+O_CREAT+O_APPEND
+            end if
+            sharemode = S_IRWXU+S_IRWXG+S_IRX_O
         else
-            sharemode = FILE_SHARE_WRITE
+            ?9/0
         end if
-        createmode = OPEN_ALWAYS
         imode = F_WRITE
     else
 --      iofatal(61) -- "invalid open mode"
@@ -862,7 +938,7 @@ integer iThis
     -- If opening for write and the file does not exist, TRUNCATE_EXISTING will
     -- fail, so in that one case retry with CREATE_NEW.
     --
-    while 1 do  -- (max 2 iterations)
+    while 1 do  -- (max 2 iterations, platform()=WINDOWS only)
 -->
 --      fhandle = c_func(xCreateFile,{filepath,accessmode,sharemode,0,createmode,FILE_ATTRIBUTE_NORMAL,0})
 --DEV newsize
@@ -916,20 +992,65 @@ integer iThis
 --              pop rsp
                 mov rsp,[rsp+8*7]   -- equivalent to the add/pop
 --              mov [fhandle],eax
-                lea edi,[fhandle]
-                call :%pStoreMint               -- [edi]:=eax as 31-bit int or float if needed
+                lea rdi,[fhandle]
+                call :%pStoreMint               -- [rdi]:=rax as 63-bit int or float if needed
             [ELF32]
-                pop al
+--sys_write     = 0x4 
+--sys_open    = 0x5 
+--sys_close    = 0x6 
+--io_bytes dd ? 
+--filesize   dd ? 
+--filename db  "XYZ.XYZ",0 
+--buffer     rb 10000h ; This must hold the readed bytes  
+
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--5     sys_open                    0x05    const char *filename    int flags               int mode                -                       -               fs/open.c:900
+                mov eax,5   -- sys_open
+                mov ebx,[filepath]
+                mov ecx,[accessmode]
+                shl ebx,2
+                mov edx,[sharemode]
+                int 0x80
+                cmp eax, -4069 
+                jbe @f
+                    mov eax,INVALID_HANDLE_VALUE
+              @@:
+                lea edi,[fhandle]
+                xor ebx,ebx
+                call :%pStoreMint               -- [edi]:=eax as 31-bit int or float if needed
+--      mov eax,6   -- sys_close
+--      int 0x80
+----        cmp eax, -4069 
+----        ja .error
             [ELF64]
-                pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--2     sys_open                const char *filename    int flags                       int mode
+                mov rax,2   -- sys_open
+                mov rdi,[filepath]
+                mov rsi,[accessmode]
+                shl rdi,2
+                mov rdx,[sharemode]
+                syscall
+                or rax,rax 
+                jns @f
+                    mov rax,INVALID_HANDLE_VALUE
+              @@:
+                lea rdi,[fhandle]
+                call :%pStoreMint               -- [rdi]:=rax as 63-bit int or float if needed
+--              pop al
             []
               }
 --!*/
         if fhandle!=INVALID_HANDLE_VALUE then exit end if                   -- success!
 
-        -- loop once if 'w'/TRUNCATE_EXISTING, retry as CREATE_NEW:
-        if createmode!=TRUNCATE_EXISTING then return -1 end if              -- failure!
-        createmode = CREATE_NEW
+        if platform()=WINDOWS then
+            -- loop once if 'w'/TRUNCATE_EXISTING, retry as CREATE_NEW:
+            if createmode!=TRUNCATE_EXISTING then return -1 end if              -- failure!
+            createmode = CREATE_NEW
+        elsif platform()=LINUX then
+            -- (no retry needed on lnx)
+            return -1
+        end if
     end while
 
     enter_cs(fdcs)
@@ -1004,7 +1125,52 @@ integer iThis
                         int3
               @@:
         [ELF32]
-                pop al
+                -- (actual repositioning done via O_CREAT, just get the size)
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--197   sys_fstat64                 0xc5    unsigned long fd        struct stat64 *statbuf  -                       -                       -                       fs/stat.c:380
+--struc stat64
+--{
+--.st_dev      rq 1     0
+--.__pad0      rb 4     8
+--.__st_ino    rd 1     12
+--.st_mode     rd 1     16
+--.st_nlink    rd 1     20
+--.st_uid      rd 1     24
+--.st_gid      rd 1     28
+--.st_rdev     rq 1     32
+--.__pad3      rb 4     40
+-- <4 bytes more padding here>
+--.st_size     rq 1     48
+--.st_blksize  rd 1     56
+--.st_blocks   rq 1     60
+--.st_atime    rd 1     68
+--.st_atime_nsec rd 1   72
+--.st_mtime    rd 1     76
+--.st_mtime_nsec rd 1   80
+--.st_ctime    rd 1     84
+--.st_ctime_nsec rd 1   88
+--.st_ino      rq 1     96
+--}                 -- 104
+                sub esp,104 -- sizeof(stat64)
+                mov ecx,esp
+                mov ebx,eax
+                mov eax,197 -- sys_fstat64
+                int 0x80
+                xor ebx,ebx
+                cmp eax, -4069 
+                jbe @f
+                    mov al,64               -- e64sfooa: "seek fail on open append"
+                    mov edx,[ebp+12]        -- "called from" address
+                    mov ebp,[ebp+20]        -- prev_ebp
+                    sub edx,1
+                    jmp :!iDiag
+                    int3
+              @@:
+                mov ecx,[esp+44]            -- low dword
+--              mov ecx,[esp+48]            -- low dword
+                mov edx,[esp+48]            -- high dword
+--              mov edx,[esp+52]            -- high dword
+                add esp,104
         [32]
                 pop eax     -- restore
           ::nota
@@ -1032,7 +1198,6 @@ integer iThis
             mov rdi,[openmode]
             cmp rdi,'a'
             jne :nota
---              push rax        -- save
         [PE64]
             mov rcx,rsp -- put 2 copies of rsp onto the stack...
             push rsp
@@ -1064,9 +1229,59 @@ integer iThis
 --          pop rsp
             mov rsp,[rsp+8*7]   -- equivalent to the add/pop
         [ELF64]
-            pop al
+                -- (actual repositioning done via O_CREAT, just get the size)
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--5     sys_fstat               unsigned int fd         struct stat *statbuf
+--struc stat64
+--{                         offset
+--.st_dev           rq 1    0
+--.__pad0           rb 4    8
+--.__st_ino         rd 1    12
+--.st_mode          rd 1    16
+--.st_nlink         rd 1    20
+--.st_uid           rd 1    24
+--.st_gid           rd 1    28
+--.st_rdev          rq 1    32
+--.__pad3           rb 4    40
+--.st_size          rq 1    44 = (hmm, found 48 elsewhere... matches cffi.e)
+--.st_blksize       rd 1    52
+--.st_blocks        rq 1    56
+--.st_atime         rd 1    64
+--.st_atime_nsec    rd 1    68
+--.st_mtime         rd 1    72
+--.st_mtime_nsec    rd 1    76
+--.st_ctime         rd 1    80
+--.st_ctime_nsec    rd 1    84
+--.st_ino           rq 1    88
+--                          96 (144 found elsewhere, 128 according to cffi.e)
+--}
+            push rax
+            -- (untested)
+            -- the values of 144 and 48 were taken from (best I could find)
+            -- https://rosettacode.org/wiki/Execute_Brain****/x86_Assembly
+            -- somewhere else I found "#define sizeof.stat 120"...
+            -- I also found 48 confirmed in a couple of other places
+            sub rsp,144 -- sizeof(stat64)
+            mov rsi,rsp
+            mov rdi,rax
+            mov rax,5 -- sys_fstat
+            syscall
+            or rax,rax 
+            jns @f
+                                                --DEV actually this is fstat fail...
+                mov al,64                       -- e64sfooa: "seek fail on open append"
+                mov rdx,[rbp+24]                -- "called from" address
+                mov rbp,[rbp+40]                -- prev_ebp
+                sub rdx,1
+                jmp :!iDiag
+                int3
+          @@:
+--          cmp rax,-1
+--          je fs_error
+            mov rcx,[rsp+48]
+            add rsp,144
+            pop rax         -- restore
         [64]
---              pop eax     -- restore
           ::nota
             mov rsi,[iThis]
             shl rsi,2
@@ -1189,7 +1404,7 @@ end procedure -- (for Edita/CtrlQ)
           :%n_flush_esiedi
             -- On entry, esi is fdtbl[fn-2] shl 2, and
             --           edi is fmode ([esi+MODE], adjusted)
---resets edi
+            --           resets edi (to [esi_BUFF])
             --           preserves esi, everything else gets trashed
             mov [esi+MODE],edi
           :%n_flush_esi2
@@ -1219,14 +1434,33 @@ end procedure -- (for Edita/CtrlQ)
             test eax,eax
             jnz @f
                 call "kernel32.dll","GetLastError"
-                mov edi,eax                             -- ep1
+        [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--4     sys_write                   0x04    unsigned int fd         const char *buf         size_t count            -                       -               fs/read_write.c:408
+            push edi            -- save
+            push esi            -- save
+            mov eax,4           -- sys_write
+            mov ebx,[esi]       -- fd
+            mov ecx,edi         -- buffer
+--          mov edx,[esi+FEND]  -- (already set [and not 0])
+            int 0x80
+            xor ebx,ebx
+            pop esi             -- restore
+            pop edi             -- restore
+            cmp eax, -4069 
+            jbe @f
+        [32]
+                mov edi,eax                             -- ep1 [DEV testme]
+--              xor esi,esi                             -- ep2 unused
+--              jmp :%pRTErn                            -- fatal error
+                pop edx -- era
                 mov al,98                               -- e98fiofe -- flush error [ep1]
-                xor esi,esi                             -- ep2 unused
-                jmp :%pRTErn                            -- fatal error
+                sub edx,1
+                jmp :!iDiag
+                int3
           @@:
             ret
-        [ELF32]
-            pop al
 --/*
 global procedure :%n_flush_rsirdi(:%)
 end procedure -- (for Edita/CtrlQ)
@@ -1235,7 +1469,7 @@ end procedure -- (for Edita/CtrlQ)
           :%n_flush_rsirdi
             -- On entry, rsi is fdtbl[fn-2] shl 2, and
             --           rdi is fmode ([rsi+MODE64], adjusted)
---resets rdi
+            --           resets rdi (to [RSI+BUFF64])
             --           preserves rsi, everything else gets trashed
             mov [rsi+MODE64],rdi
           :%n_flush_rsi2
@@ -1247,7 +1481,7 @@ end procedure -- (for Edita/CtrlQ)
             mov rax,[rsi+RPOS64]
             add rax,r8 -- frealposn += fend
             mov [rsi+RPOS64],rax
-            lea rdi,[rsi+BUFF64]
+--          lea rdi,[rsi+BUFF64]
         [PE64]
             mov rcx,rsp -- put 2 copies of rsp onto the stack...
             push rsp
@@ -1268,18 +1502,44 @@ end procedure -- (for Edita/CtrlQ)
             jnz @f
                 call "kernel32.dll","GetLastError"
                 mov rdi,rax                             -- ep1
+                mov rdx,[rbp+24]                        -- "called from" address
+                mov rbp,[rbp+40]                        -- prev_ebp
                 mov al,98                               -- e98fiofe -- flush error [ep1]
-                xor rsi,rsi                             -- ep2 unused
-                jmp :%pRTErn                            -- fatal error
+--              xor rsi,rsi                             -- ep2 unused
+--              jmp :%pRTErn                            -- fatal error
+                sub rdx,1
+                jmp :!iDiag
+                int3
           @@:
 --          add rsp,8*5
 --          pop rsp
 --mov r11,rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-          ::flushret
-            ret
         [ELF64]
-            pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--1     sys_write               unsigned int fd         const char *buf                 size_t count
+            push rsi                -- save
+            mov rax,1               -- sys_write
+            mov rdi,[rsi+HNDL64]    -- fd
+            lea rsi,[rsi+BUFF64]    -- buffer
+            mov rdx,r8              -- count
+            syscall
+            pop rsi                 -- restore
+            or rax,rax 
+            jns @f
+                mov rdi,rax                             -- ep1
+                mov rdx,[rbp+24]                        -- "called from" address
+                mov rbp,[rbp+40]                        -- prev_ebp
+                mov al,98                               -- e98fiofe -- flush error [ep1]
+                sub rdx,1
+                jmp :!iDiag
+                int3
+          @@:
+        [64]
+          ::flushret
+--added|resurrected 5/4/16 (spotted in passing)
+            lea rdi,[rsi+BUFF64]
+            ret
         []
           ::fin }
 
@@ -1354,8 +1614,8 @@ integer fidx
                   @@:
                 [PE32]
                     call "kernel32.dll","FlushFileBuffers"
-                [ELF32]
-                    pop al
+--              [ELF32]
+--                  pop al
                 [64]
                     mov rdx,[fidx]
                     shl rdx,3               -- rdx:=(fidx*8) (nb fidx=fn-2)
@@ -1386,8 +1646,8 @@ integer fidx
 --                  add rsp,8*5
 --                  pop rsp
                     mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-                [ELF64]
-                    pop al
+--              [ELF64]
+--                  pop al
                 []
                   }
         end if
@@ -1427,8 +1687,8 @@ integer fidx
             [PE32]
                 push eax                            -- hFile
                 call "kernel32.dll","FlushFileBuffers"
-            [ELF32]
-                pop al
+--          [ELF32]
+--              pop al
             [64]
                 mov rax,[stdout]
                 test rax,rax
@@ -1455,8 +1715,8 @@ integer fidx
 --              add rsp,8*5
 --              pop rsp
                 mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-            [ELF64]
-                pop al
+--          [ELF64]
+--              pop al
             []
               }
     end if
@@ -1546,7 +1806,13 @@ integer iThis
                     push dword[ebx+esi*4+HNDL]      -- hObject
                     call "kernel32.dll","CloseHandle"
                 [ELF32]
-                    pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--6     sys_close                   0x06    unsigned int fd         -                       -                       -                       -               fs/open.c:969
+                    mov eax,6   -- sys_close
+                    mov ebx,[ebx+esi*4+HNDL]
+                    int 0x80
+                    xor ebx,ebx
                 [64]
                     mov rdx,[fidx]
                     shl rdx,3
@@ -1583,7 +1849,11 @@ integer iThis
 --                  pop rsp
                     mov rsp,[rsp+8*5]   -- equivalent to the add/pop
                 [ELF64]
-                    pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--3     sys_close               unsigned int fd
+                    mov rax,3   -- sys_close
+                    mov rdi,[rbx+rsi*4+HNDL64]
+                    syscall
                 []
                   }
             -- and add to freelist
@@ -1784,8 +2054,9 @@ integer iThis
                   }
         end if
         #ilASM{
-            [PE32]
+            [32]
                 mov esi,[iThis]
+            [PE32]
                 push ebx        -- DistanceToMoveHigh (0), and rposn hiword (edx)
                 shl esi,2
                 mov edi,esp
@@ -1807,12 +2078,39 @@ integer iThis
               @@:
                 pop esi     -- restore
                 pop edx     -- rposn hiword
+            [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--140   sys_llseek                  0x8c    unsigned int fd         unsigned long offset_high   unsigned long offset_low    loff_t *result  unsigned int origin     fs/read_write.c:191
+-- (I assume loff_t is a "long long" aka int64)
+--SEEK_SET              =       0
+--SEEK_CUR              =       1
+--SEEK_END              =       2
+                shl esi,2
+                mov eax,140         -- sys_llseek
+                push esi            -- save
+                sub esp,8           -- space for loff_t result
+                mov ebx,[esi]       -- fd
+                xor ecx,ecx         -- offset_high
+                xor edx,edx         -- offset_low
+                mov esi,esp         -- *result
+                mov edi,2           -- SEEK_END
+                int 0x80
+                xor ebx,ebx
+                cmp eax, -4069 
+                jbe @f
+                    -- return 1
+                    mov eax,1
+                    jmp :%opRetf
+              @@:
+                pop ecx             -- offset low
+                pop edx             -- offset high
+                pop esi             -- restore
+            [32]
                 mov [esi+POSN],dword 1
                 mov [esi+FEND],ebx --(0)
                 mov [esi+POSL],ecx
                 mov [esi+POSH],edx
-            [ELF32]
-                pop al
             [PE64]
                 mov rcx,rsp -- put 2 copies of rsp onto the stack...
                 push rsp
@@ -1842,7 +2140,23 @@ integer iThis
                 mov [rbx+rsi*4+FEND64],rbx --(0)
                 mov [rbx+rsi*4+RPOS64],rcx
             [ELF64]
-                pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--8     sys_lseek               unsigned int fd         off_t offset                    unsigned int origin
+                mov r12,[iThis]
+                mov rax,8                           -- sys_lseek
+                xor rsi,rsi
+                mov rdx,2                           -- SEEK_END
+                mov rdi,[rbx+r12*4+HNDL64]          -- hFile
+                syscall
+                cmp rax, -1
+                jne @f
+                    -- return 1
+                    mov eax,1
+                    jmp :%opRetf
+              @@:
+                mov [rbx+r12*4+POSN64],qword 1
+                mov [rbx+r12*4+FEND64],rbx --(0)
+                mov [rbx+r12*4+RPOS64],rax
               }
         return 0                            -- success
     end if
@@ -1939,12 +2253,34 @@ integer iThis
           @@:
             pop esi                                 -- restore
             pop edx                                 -- rposn hiword
+        [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--140   sys_llseek                  0x8c    unsigned int fd         unsigned long offset_high   unsigned long offset_low    loff_t *result  unsigned int origin     fs/read_write.c:191
+            mov edx,ecx         -- offset_low
+            pop ecx             -- offset_high
+            mov eax,140         -- sys_llseek
+            push esi            -- save
+            sub esp,8           -- space for loff_t result
+            mov ebx,[esi+HNDL]  -- fd
+            mov esi,esp         -- *result
+            mov edi,0           -- SEEK_SET
+            int 0x80
+            xor ebx,ebx
+            cmp eax, -4069 
+            jbe @f
+                -- return 1
+                mov eax,1
+                jmp :%opRetf
+          @@:
+            pop ecx             -- offset low
+            pop edx             -- offset high
+            pop esi             -- restore
+        [32]
             mov [esi+POSN],dword 1
             mov [esi+FEND],ebx -- (0)
             mov [esi+POSL],ecx
             mov [esi+POSH],edx
-        [ELF32]
-            pop al
         [64]
             mov rsi,[iThis]
             mov rdx,[pos]
@@ -1984,7 +2320,23 @@ integer iThis
             mov [rbx+rsi*4+FEND64],rbx --(0)
             mov [rbx+rsi*4+RPOS64],rcx
         [ELF64]
-            pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--8     sys_lseek               unsigned int fd         off_t offset                    unsigned int origin
+            mov r12,[iThis]
+            mov rax,8                           -- sys_lseek
+            xor rsi,rsi
+            mov rdx,2                           -- SEEK_END
+            mov rdi,[rbx+r12*4+HNDL64]          -- hFile
+            syscall
+            cmp rax, -1
+            jne @f
+                -- return 1
+                mov eax,1
+                jmp :%opRetf
+          @@:
+            mov [rbx+r12*4+POSN64],qword 1
+            mov [rbx+r12*4+FEND64],rbx --(0)
+            mov [rbx+r12*4+RPOS64],rax
           }
     return 0                                -- success
 end function
@@ -2178,14 +2530,30 @@ end function
             push edi                                        -- lpBuffer
             push [esi+HNDL]                                 -- hFile
             call "kernel32.dll","ReadFile"
-        [ELF32]
-            pop al
-        [32]
             pop esi
             test eax,eax
             jz :retm1
             cmp dword[esi+FEND],0
             je :retm1
+        [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
+            mov eax,3   -- sys_read
+            mov ebx,[esi+HNDL]
+            mov ecx,edi
+            mov edx,BUFFERSIZE32
+            int 0x80
+            xor ebx,ebx
+--          cmp eax, -4069 
+--          jbe @f
+--              mov eax,INVALID_HANDLE_VALUE
+--        @@:
+            pop esi
+            test eax,eax
+            jle :retm1
+            mov dword[esi+FEND],eax
+        [32]
 --DEV replace with proper 64-bit maths:
             fild qword[esi+POSL]
             fild dword[esi+FEND]
@@ -2215,8 +2583,8 @@ end function
       @@:
         mov [esi+POSN],eax
       ::opGetcStoreEcx
-        pop edi
-        pop edx
+        pop edi         -- (result addr)
+        pop edx         -- (prev content)
         cmp edx,h4
         mov [edi],ecx
         jle @f
@@ -2290,11 +2658,20 @@ end function
 --          add rsp,8*5
 --          pop rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-        [ELF64]
-            pop al
-        [64]
             test rax,rax
             jz :retm1
+        [ELF64]
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--0     sys_read                unsigned int fd         char *buf                       size_t count
+            mov rax,0               -- sys_read
+            mov rdi,[rsi+HNDL64]    -- fd
+            lea rsi,[rsi+BUFF64]
+            mov rdx,BUFFERSIZE64
+            syscall
+            test rax,rax
+            jle :retm1
+            mov [rsi+FEND64],rax
+        [64]
             mov rax,[rsi+RPOS64]
             mov rcx,[rsi+FEND64]
             cmp rcx,0
@@ -2377,8 +2754,11 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         pop eax     -- restore
         ret
-    [ELF32]
-        pop al
+    [ELF32,ELF64]
+        mov [stdout],1
+        mov [stderr],2
+        mov [stdin],0
+        ret
     [PE64]
         push rax    -- save [DEV use [rsp+32]?]
         mov rcx,rsp -- put 2 copies of rsp onto the stack...
@@ -2411,8 +2791,8 @@ end procedure -- (for Edita/CtrlQ)
         mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         pop rax     -- restore
         ret
-    [ELF64]
-        pop al
+--  [ELF64]
+--      pop al
     []
 
 --/*
@@ -2430,26 +2810,38 @@ end procedure -- (for Edita/CtrlQ)
         jnz :e59wfmfao
 --DEV clear_debug
 --      #ilASM{ call :%opClrDbg }
-        push ebx            -- reserve space for buffer (1 byte realy)
+    [PE32]
+        push ebx            -- reserve space for buffer (1 byte really)
         mov esi,esp
         push ebx            -- reserve space for NumberOfBytesRead
         mov edi,esp
-    [PE32]
         push ebx                                        -- lpOverlapped
         push edi                                        -- lpNumberOfBytesRead
         push dword 1                                    -- nNumberOfBytesToRead (1)
         push esi                                        -- lbBuffer
         push [stdin]                                    -- hFile
         call "kernel32.dll","ReadFile"
-    [ELF32]
-        pop al
-    [32]
         pop edx         -- NumberOfBytesRead
         pop ecx         -- buffer (1 byte)
         test eax,eax
         jz :retm1
         test edx,edx
         jz :retm1
+    [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
+        push ebx            -- reserve space for buffer (1 byte really)
+        mov eax,3   -- sys_read
+        mov ebx,[stdin]
+        mov ecx,esp
+        mov edx,1
+        int 0x80
+        xor ebx,ebx
+        pop ecx         -- buffer (1 byte)
+        test eax,eax
+        jle :retm1
+    [32]
 --      mov eax,ecx
 --/*
 --DEV still outstanding...::
@@ -2494,13 +2886,22 @@ end procedure -- (for Edita/CtrlQ)
 --      add rsp,8*7
 --      pop rsp
         mov rsp,[rsp+8*7]   -- equivalent to the add/pop
-    [ELF64]
-        pop al
-    [64]
         test rax,rax
         jz :retm1
         test rdx,rdx
         jz :retm1
+    [ELF64]
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--0     sys_read                unsigned int fd         char *buf                       size_t count
+        mov rax,0               -- sys_read
+        mov rdi,[stdin]     -- fd
+        mov rsi,rsp         -- buffer (1 byte)
+        mov rdx,1
+        syscall
+        pop rcx
+        test rax,rax
+        jle :retm1
+    [64]
 --      mov eax,ecx
 --/*
 --DEV still outstanding...::
@@ -2566,15 +2967,27 @@ end function
                 push edi                        -- lpBuffer
                 push dword[esi+HNDL]            -- hFile
                 call "kernel32.dll","ReadFile"
-            [ELF32]
-                pop al
-            [32]
                 test eax,eax
                 jz :exitwhile
                 mov edx,[esi+FEND]
                 cmp edx,0
 --              cmp dword[esi+FEND],0   -- no!!
                 je :exitwhile
+            [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
+                mov eax,3   -- sys_read
+                mov ebx,[esi+HNDL]
+                mov ecx,edi
+                mov edx,BUFFERSIZE32
+                int 0x80
+                xor ebx,ebx
+                test eax,eax
+                jle :exitwhile
+                mov dword[esi+FEND],eax
+                mov edx,eax
+            [32]
 --DEV proper way to do 64-bit math:
 --/*
 ; x86 assembly, Intel syntax
@@ -2783,14 +3196,24 @@ adc ecx, ebx
 --              add rsp,8*5
 --              pop rsp
                 mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-            [ELF64]
-                pop al
-            [64]
                 test eax,eax
                 jz :exitwhile
                 mov rdx,[rsi+FEND64]
                 cmp rdx,0
                 je :exitwhile
+            [ELF64]
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--0     sys_read                unsigned int fd         char *buf                       size_t count
+                mov rax,0               -- sys_read
+                mov rdi,[rsi+HNDL64]    -- fd
+                lea rsi,[rsi+BUFF64]
+                mov rdx,BUFFERSIZE64
+                syscall
+                test rax,rax
+                jle :exitwhile
+                mov [rsi+FEND64],rax
+                mov rdx,rax
+            [64]
                 mov rax,[rsi+RPOS64]
                 add rax,rdx -- frealposn += fend
                 mov rdi,1
@@ -2992,20 +3415,17 @@ end procedure -- (for Edita/CtrlQ)
 --*/
       ::looptop3
 --      while 1 do
-            push ebx        -- reserve space for buffer (1 byte realy)
+        [PE32]
+            push ebx        -- reserve space for buffer (1 byte really)
             mov edi,esp
             push ebx        -- reserve space for NumberOfBytesRead
             mov edx,esp
-        [PE32]
             push ebx                        -- lpOverlapped (NULL)
             push edx                        -- lpNumberOfBytesRead
             push 1                          -- nNumberOfBytesToRead (1)
             push edi                        -- lbBuffer
             push [stdin]                    -- hFile
             call "kernel32.dll","ReadFile"
-        [ELF32]
-            pop al
-        [32]
             pop edx         -- NumberOfBytesRead
             pop ecx         -- buffer
             test eax,eax    -- (0 = fail)
@@ -3016,6 +3436,25 @@ end procedure -- (for Edita/CtrlQ)
           ::set26
                 mov cl,26 -- (Ctrl Z)
           @@:
+        [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
+            push ebx            -- reserve space for buffer (1 byte really)
+            mov eax,3   -- sys_read
+            mov ebx,[stdin]
+            mov ecx,esp
+            mov edx,1
+            int 0x80
+            xor ebx,ebx
+            pop ecx         -- buffer (1 byte)
+            test eax,eax
+            jg @f
+                mov cl,26 -- (Ctrl Z)
+          @@:
+            cmp cl,10
+            je :addlf
+        [32]
 --          mov [ch],ecx
 --DEV what if ch='\n'? (test with various redirected files)
 --          if ch='\r' then         -- CR
@@ -3024,7 +3463,8 @@ end procedure -- (for Edita/CtrlQ)
                 cmp [stdin_redirected],0
                 je :addlf
 --              push ecx        -- save
-                push ebx        --[1] reserve space for buffer (1 byte realy)
+              [PE32]
+                push ebx        --[1] reserve space for buffer (1 byte really)
                 mov edi,esp
                 push ebx                        -- lpOverlapped (NULL)
                 push esp                        -- lpNumberOfBytesRead
@@ -3035,8 +3475,23 @@ end procedure -- (for Edita/CtrlQ)
                 pop eax         --[1] discard
 --              pop ecx         -- restore
 --            @@:
+              [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
+                -- (this may not be required on Lnx)
+                push ebx            -- reserve space for buffer (1 byte really)
+                mov eax,3   -- sys_read
+                mov ebx,[stdin]
+                mov ecx,esp
+                mov edx,1
+                int 0x80
+                xor ebx,ebx
+                pop ecx         -- buffer (1 byte, discard)
+              [32]
                 jmp :addlf
           ::notcr
+            [32]
 --          elsif ch=26 then        -- Ctrl Z
             cmp cl,26   -- CtrlZ
             jne :notcz
@@ -3070,8 +3525,8 @@ end procedure -- (for Edita/CtrlQ)
                 cmp [stdin_redirected],0
                 jne :looptop3
                 push 0x21082008 -- back,space,back (buffer) [with a '!' (#21) that should not be seen/used]
-                mov esi,esp
             [PE32]
+                mov esi,esp
                 push ebx                            -- lpvReserved (NULL)
                 push esp                            -- lpcchWritten
                 push dword 3                        -- cchToWrite (3)
@@ -3079,7 +3534,15 @@ end procedure -- (for Edita/CtrlQ)
                 push [stdout]                       -- hConsoleOutput
                 call "kernel32.dll","WriteConsoleA"
             [ELF32]
-                pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--4     sys_write                   0x04    unsigned int fd         const char *buf         size_t count            -                       -               fs/read_write.c:408
+                mov eax,4           -- sys_write
+                mov ebx,[stdout]    -- fd
+                mov ecx,esp         -- buffer
+                mov edx,3           -- count
+                int 0x80
+                xor ebx,ebx
             [32]
                 pop eax         -- (discard buffer [0x21082008])
 --                  end if
@@ -3123,8 +3586,8 @@ end procedure -- (for Edita/CtrlQ)
 --              mov eax,[ch]
 --              push eax
                 push ecx
-                mov eax,esp
             [PE32]
+                mov eax,esp
                 push ebx                        -- lpvReserved
                 push esp                        -- lpcchWritten
                 push 1                          -- cchToWrite (1)
@@ -3132,7 +3595,14 @@ end procedure -- (for Edita/CtrlQ)
                 push [stdout]                   -- hConsoleOutput
                 call "kernel32.dll","WriteConsoleA"
             [ELF32]
-                pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--4     sys_write                   0x04    unsigned int fd         const char *buf         size_t count            -                       -               fs/read_write.c:408
+                mov eax,4           -- sys_write
+                mov ebx,[stdout]    -- fd
+                mov ecx,esp         -- buffer
+                mov edx,1           -- count
+                int 0x80
             [32]
                 pop eax -- (discard buffer)
 --              end if
@@ -3215,9 +3685,6 @@ end procedure -- (for Edita/CtrlQ)
 --          add rsp,8*7
 --          pop rsp
             mov rsp,[rsp+8*7]   -- equivalent to the add/pop
-        [ELF64]
-            pop al
-        [64]
             test rax,rax
 --          setz dl
             jz :set26
@@ -3226,6 +3693,21 @@ end procedure -- (for Edita/CtrlQ)
           ::set26
                 mov cl,26 -- (Ctrl Z)
           @@:
+        [ELF64]
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--0     sys_read                unsigned int fd         char *buf                       size_t count
+            push rbx                -- buffer (1 byte really)
+            mov rax,0               -- sys_read
+            mov rdi,[stdin]         -- fd
+            mov rsi,rsp             -- buffer
+            mov rdx,1               -- count
+            syscall
+            pop rcx
+            test rax,rax
+            jg @f
+                mov cl,26 -- (Ctrl Z)
+          @@:
+        [64]
 --          mov [ch],ecx
 --DEV what if ch='\n'? (test with various redirected files)
 --          if ch='\r' then         -- CR
@@ -3255,7 +3737,16 @@ end procedure -- (for Edita/CtrlQ)
 --              pop rsp
                 mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             [ELF64]
-                pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--0     sys_read                unsigned int fd         char *buf                       size_t count
+                -- (might not be necessary, **might be horribly wrong!**)
+                push rbx                -- buffer
+                mov rax,0               -- sys_read
+                mov rdi,[stdin]         -- fd
+                mov rsi,rsp             -- buffer
+                mov rdx,1               -- count
+                syscall
+                pop rax                 -- discard
             [64]
                 jmp :addlf
           ::notcr
@@ -3313,7 +3804,15 @@ end procedure -- (for Edita/CtrlQ)
 --              pop rsp
                 mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             [ELF64]
-                pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--1     sys_write               unsigned int fd         const char *buf                 size_t count
+                push 0x21082008 -- back,space,back (buffer) [with a '!' (#21) that should not be seen/used]
+                mov rax,1               -- sys_write
+                mov rdi,[stdout]        -- fd
+                mov rcx,rsp             -- buffer
+                mov rdx,3               -- count
+                syscall
+                pop rax                 -- discard buffer
             [64]
 --                  end if
 --              end if
@@ -3375,7 +3874,15 @@ end procedure -- (for Edita/CtrlQ)
 --              pop rsp
                 mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             [ELF64]
-                pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--1     sys_write               unsigned int fd         const char *buf                 size_t count
+                push rcx
+                mov rax,1               -- sys_write
+                mov rdi,[stdout]        -- fd
+                mov rcx,rsp             -- buffer
+                mov rdx,1               -- count
+                syscall
+                pop rcx                 -- discard
             [64]
 --              end if
 --          end if
@@ -3383,7 +3890,7 @@ end procedure -- (for Edita/CtrlQ)
 --      end while
       ::addlf
 --      r &= '\n'
-        mov rax,[rsp]
+        mov rax,[rsp]               -- (the AllocStr result)
         mov rdx,[rbx+rax*4-24]      -- length
         mov rdi,[rbx+rax*4-32]      -- maxlen
         add rdx,1
@@ -3465,17 +3972,33 @@ end procedure
                 fild qword[esi+POSL]
                 fild dword[esi+FEND]
                 fsubp st1,st0
-                fistp qword[esi+POSL] -- (realpos -= fend)
+                fistp qword[esi+POSL] -- (realpos -= fend) [also sets [esi+POSH]
                 push edx -- save
-                lea ecx,[esi+POSH]
             [PE32]
+                lea ecx,[esi+POSH]
                 push FILE_BEGIN                     -- dwMoveMethod
                 push ecx                            -- lpDistanceToMoveHigh
                 push dword[esi+POSL]                -- lDistanceToMove (0)
                 push dword[esi+HNDL]                -- hFile
                 call "kernel32.dll","SetFilePointer"
             [ELF32]
-                pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--140   sys_llseek                  0x8c    unsigned int fd         unsigned long offset_high   unsigned long offset_low    loff_t *result  unsigned int origin     fs/read_write.c:191
+-- (I assume loff_t is a "long long" aka int64)
+--SEEK_SET              =       0
+--SEEK_CUR              =       1
+--SEEK_END              =       2
+                mov eax,140         -- sys_llseek
+                push esi            -- save
+                mov ebx,[esi+HNDL]  -- fd
+                mov ecx,[esi+POSH]  -- offset_high
+                mov edx,[esi+POSL]  -- offset_low
+                lea esi,[esi+POSL]  -- *result (also targets [esi+POSH])
+                mov edi,0           -- SEEK_SET
+                int 0x80
+                xor ebx,ebx
+                pop esi             -- restore
             [32]
                 pop edx -- restore
                 jmp @f
@@ -3599,7 +4122,23 @@ end procedure
 --              pop rsp
                 mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             [ELF64]
-                pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--8     sys_lseek               unsigned int fd         off_t offset                    unsigned int origin
+                mov r12,rsi
+                mov rax,8                           -- sys_lseek
+                mov rsi,[rsi+RPOS64]                -- offset
+                mov rdx,0                           -- SEEK_SET
+                mov rdi,[r12+HNDL64]                -- hFile
+                syscall
+                cmp rax, -1
+                jne @f
+                    -- return 1
+                    mov eax,1
+                    jmp :%opRetf
+              @@:
+                mov [rbx+r12*4+POSN64],qword 1
+                mov [rbx+r12*4+FEND64],rbx --(0)
+                mov [rbx+r12*4+RPOS64],rax
             [64]
                 jmp @f
           ::clearbuff
@@ -3646,7 +4185,7 @@ end procedure
             mov rax,rcx
             mov [rsi+FEND64],rbx
             add rax,1
-            lea rdi,[rsi+BUFF64]
+--          lea rdi,[rsi+BUFF64]    -- already done by :%n_flush_rsi2
       @@:
         mov rdx,rsi
         mov rsi,rsp
@@ -3721,7 +4260,14 @@ end procedure -- (for Edita/CtrlQ)
                 push eax                        -- hFile,
                 call "kernel32.dll","WriteFile"
             [ELF32]
-                pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--4     sys_write                   0x04    unsigned int fd         const char *buf         size_t count            -                       -               fs/read_write.c:408
+                mov ebx,eax         -- fd
+                mov eax,4           -- sys_write
+                xchg ecx,edx        -- buffer<->count
+                int 0x80
+                xor ebx,ebx
             [32]
                 ret
           ::putstrinbuffer
@@ -3820,7 +4366,23 @@ end procedure -- (for Edita/CtrlQ)
 --              pop rsp
                 mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             [ELF64]
-                pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--1     sys_write               unsigned int fd         const char *buf                 size_t count
+                mov rax,1               -- sys_write
+                mov rdi,[rsi+HNDL64]    -- fd
+                mov rsi,rdx             -- buffer
+                mov rdx,rcx             -- count
+                syscall
+--          or rax,rax 
+--          jns @f
+--              mov rdi,rax                             -- ep1
+--              mov rdx,[rbp+24]                        -- "called from" address
+--              mov rbp,[rbp+40]                        -- prev_ebp
+--              mov al,98                               -- e98fiofe -- flush error [ep1]
+--              sub rdx,1
+--              jmp :!iDiag
+--              int3
+--        @@:
             [64]
                 ret
           ::putstrinbuffer
@@ -4157,10 +4719,18 @@ end procedure -- (for Edita/CtrlQ)
         push edx                    -- lpBuffer
         push eax                    -- hFile,
         call "kernel32.dll","WriteFile"
-        pop edx     -- discard (one byte) buffer
     [ELF32]
-        pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--4     sys_write                   0x04    unsigned int fd         const char *buf         size_t count            -                       -               fs/read_write.c:408
+        mov ebx,eax         -- fd
+        mov eax,4           -- sys_write
+        mov ecx,esp         -- buffer
+        mov edx,1           -- count
+        int 0x80
+        xor ebx,ebx
     [32]
+        pop edx     -- discard (one byte) buffer
         ret
     [64]
         add rax,3 -- (undo sub3 above and test)
@@ -4211,7 +4781,15 @@ end procedure -- (for Edita/CtrlQ)
 --      pop rsp
         mov rsp,[rsp+8*7]   -- equivalent to the add/pop
     [ELF64]
-        pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--1     sys_write               unsigned int fd         const char *buf                 size_t count
+        push rdx
+        mov rdi,rax             -- fd
+        mov rax,1               -- sys_write
+        mov rsi,rsp             -- buffer
+        mov rdx,1               -- count
+        syscall
+        pop rdx                 -- discard
     [64]
         ret
     []
@@ -4260,7 +4838,14 @@ end procedure -- (for Edita/CtrlQ)
 --      test eax,eax
 --      jz :puts1err
     [ELF32]
-        pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--4     sys_write                   0x04    unsigned int fd         const char *buf         size_t count            -                       -               fs/read_write.c:408
+        mov ebx,eax         -- fd
+        mov eax,4           -- sys_write
+        xchg ecx,edx        -- buffer<->count
+        int 0x80
+        xor ebx,ebx
     [64]
         add rsp,8 -- (discard the rdx we pushed above)
         mov rcx,[rbx+rdx*4-24]      -- length
@@ -4305,7 +4890,12 @@ end procedure -- (for Edita/CtrlQ)
 --      test rax,rax
 --      jz :puts1err
     [ELF64]
-        pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--1     sys_write               unsigned int fd         const char *buf                 size_t count
+        mov rdi,rax     -- fd
+        mov rax,1       -- sys_write
+        xchg rcx,rdx    -- buffer<->count
+        syscall
     []
       @@:
         ret
@@ -4355,9 +4945,17 @@ end procedure -- (for Edita/CtrlQ)
         push edi                    -- hFile,
         call "kernel32.dll","WriteFile"
     [ELF32]
-        pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--4     sys_write                   0x04    unsigned int fd         const char *buf         size_t count            -                       -               fs/read_write.c:408
+        mov eax,4       -- sys_write
+        mov ebx,edi     -- fd
+        mov ecx,edx     -- buffer
+        mov edx,1
+        int 0x80
+        xor ebx,ebx
     [32]
-        pop eax         -- discard
+        pop eax         -- discard buffer
         pop ecx         -- restore
         pop esi         -- restore
         pop edi         -- restore
@@ -4412,9 +5010,15 @@ end procedure -- (for Edita/CtrlQ)
 --      mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         mov rsp,[rsp+8*7]   -- equivalent to the add/pop
     [ELF64]
-        pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--1     sys_write               unsigned int fd         const char *buf                 size_t count
+        mov rax,1               -- sys_write
+--      rdi already set         -- fd
+        mov rcx,rsp             -- buffer (==rdx btw)
+        mov rdx,1               -- count
+        syscall
     [64]
-        pop rax         -- discard
+        pop rax         -- discard buffer
         pop rcx         -- restore
         pop rsi         -- restore
         pop rdi         -- restore
@@ -4447,31 +5051,24 @@ end function
             call :%n_initC -- (preserves eax)
       @@:
 --      call clear_debug [DEV]
+    [PE32]
         sub esp,20 -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD])
         mov edi,esp -- (preserved over api calls)
         push ebx    -- DWORD NumberOfEventsRead(:=0)
       @@:
-    [PE32]
         push esp                                -- lpNumberOfEventsRead
         push 1                                  -- nLength
         push edi                                -- lpBuffer
         push [stdin]                            -- hConsoleInput
         call "kernel32.dll","PeekConsoleInputA"
-    [ELF32]
-        pop al
-    [32]
         mov eax,-1
         cmp dword[esp],0
         je @f
-        [PE32]
             push esp                                -- lpNumberOfEventsRead
             push 1                                  -- nLength
             push edi                                -- lpBuffer
             push [stdin]                            -- hConsoleInput
             call "kernel32.dll","ReadConsoleInputA"
-        [ELF32]
-            pop al -- (and very probably all what follows!)
-        [32]
             cmp word[edi],0x0001                    -- lpBuffer.EventType=KEY_EVENT?
             jne @b
             cmp dword[edi+4],0x00000001             -- lpBuffer.keyDown(ignore key up events)
@@ -4503,6 +5100,25 @@ end function
       @@:
         add esp,24  -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD] and DWORD NumberOfEventsRead)
 --      jmp @f
+    [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
+--? sys_poll?
+        -- (this may block...) [DEV testme, ie that get_key() yields -1 and carries on]
+        push ebx            -- reserve space for buffer (1 byte really)
+        mov eax,3           -- sys_read
+        mov ebx,[stdin]     -- fd
+        mov ecx,esp         -- buffer
+        mov edx,1           -- count
+        int 0x80
+        xor ebx,ebx
+        test eax,eax
+        pop eax
+        jg @f
+            mov eax,-1
+      @@:
+    [32]
         pop edi
         mov edx,[edi]
         mov [edi],eax
@@ -4584,7 +5200,18 @@ end function
 --      mov rsp,[rsp+24+8*6]    -- equivalent to the add/pop
         mov rsp,[rsp+24+48] -- equivalent to the add/pop
     [ELF64]
-        pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--0     sys_read                unsigned int fd         char *buf                       size_t count
+        push rbx                -- buffer
+        mov rax,0               -- sys_read
+        mov rdi,[stdin]         -- fd
+        mov rsi,rsp             -- buffer
+        mov rdx,1               -- count
+        syscall
+        test rax,rax
+        jg @f
+            mov rax,-1
+      @@:
     [64]
 --      jmp @f
         pop rdi
@@ -4701,7 +5328,22 @@ end function
       @@:
         add esp,24  -- sizeof(INPUT_RECORD[/KEY_EVENT_RECORD] and DWORD NumberOfEventsRead)
     [ELF32]
-        pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
+        -- DEV either this or get_key() must be wrong... [test this does not return -1!]
+        push ebx            -- reserve space for buffer (1 byte really)
+        mov eax,3           -- sys_read
+        mov ebx,[stdin]     -- fd
+        mov ecx,esp         -- buffer
+        mov edx,1           -- count
+        int 0x80
+        xor ebx,ebx
+        test eax,eax
+        pop eax
+        jg @f
+            mov eax,-1
+      @@:
     [32]
         pop edi
         mov edx,[edi]
@@ -4775,7 +5417,18 @@ end function
 --      pop rsp
         mov rsp,[rsp+24+48] -- equivalent to the add/pop
     [ELF64]
-        pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--0     sys_read                unsigned int fd         char *buf                       size_t count
+        push rbx                -- buffer
+        mov rax,0               -- sys_read
+        mov rdi,[stdin]         -- fd
+        mov rsi,rsp             -- buffer
+        mov rdx,1               -- count
+        syscall
+        test rax,rax
+        jg @f
+            mov rax,-1
+      @@:
     [64]
         pop rdi
         mov r15,h4
@@ -4940,9 +5593,11 @@ integer res
 
     if not finit then initF() end if
     iThis = get_this(fn)
+if platform()=WINDOWS then
     if length(byterange)=0 then
         offset = 0
         #ilASM{
+            -- bytes:=file_size(fn)
             [PE32]
                 mov esi,[iThis]
                 sub esp,sizeof_BHFI
@@ -4958,8 +5613,27 @@ integer res
                 fild qword[esp+BHFI_FSLO]
                 add esp,sizeof_BHFI
                 call :%pStoreFlt
-            [ELF32]
-                pop al
+--          [ELF32]
+-- ugh, we don't use this anyway...
+--              sub esp,104 -- sizeof(stat64)
+--              mov ecx,esp
+--              mov ebx,eax
+--              mov eax,197 -- sys_fstat64
+--              int 0x80
+--              xor ebx,ebx
+----                cmp eax, -4069 
+----                jbe @f
+----                    mov al,64               -- e64sfooa: "seek fail on open append"
+----                    mov edx,[ebp+12]        -- "called from" address
+----                    mov ebp,[ebp+20]        -- prev_ebp
+----                    sub edx,1
+----                    jmp :!iDiag
+----                    int3
+----              @@:
+--              fild qword[esp+44] ??48
+--              add esp,104
+--              lea edi,[bytes]
+--              call :%pStoreFlt
             [PE64]
                 mov rsi,[iThis]
                 sub rsp,sizeof_BHFI64
@@ -4987,14 +5661,42 @@ integer res
                 fild qword[rsp+BHFI_FSLO]
                 add rsp,sizeof_BHFI64
                 call :%pStoreFlt
-            [ELF64]
-                pop al
+--          [ELF64]
+--              sub rsp,144 -- sizeof(stat64)
+--              mov rsi,rsp
+--              mov rdi,rax
+--              mov rax,5 -- sys_fstat
+--              syscall
+----                or rax,rax 
+----                jns @f
+----                                                    --DEV actually this is fstat fail...
+----                    mov al,64                       -- e64sfooa: "seek fail on open append"
+----                    mov rdx,[rbp+24]                -- "called from" address
+----                    mov rbp,[rbp+40]                -- prev_ebp
+----                    sub rdx,1
+----                    jmp :!iDiag
+----                    int3
+----              @@:
+----                cmp rax,-1
+----                je fs_error
+--              fild qword[rsp+48]
+--              add rsp,144
+--              lea edi,[bytes]
+--              call :%pStoreFlt
             []
               }
     else
         offset = byterange[1]
         bytes = byterange[2]-offset
     end if
+else
+    -- UNLOCK/LOCK_SHARED/LOCK_EXCLUSIVE (0/1/2) -> LOCK_UN/LOCK_SH+LOCK_NB/LOCK_EX+LOCK_NB (8/5/6)
+--LOCK_SH = 1;
+--LOCK_EX = 2;
+--LOCK_NB = 4;
+--LOCK_UN = 8;
+    locktype = iff(locktype=0?8:locktype+4)
+end if
     #ilASM{
         [PE32]
             sub esp,sizeof_OVERLAPPED
@@ -5051,7 +5753,22 @@ integer res
             add esp,sizeof_OVERLAPPED
             mov [res],eax
         [ELF32]
-            pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--143   sys_flock                   0x8f    unsigned int fd         unsigned int cmd        -                       -                       -                       fs/locks.c:1569
+--LOCK_SH = 1;
+--LOCK_EX = 2;
+--LOCK_NB = 4;
+--LOCK_UN = 8;
+            mov esi,[iThis]
+            mov eax,143                 -- sys_flock
+            mov ecx,[locktype]          -- (as mapped above)
+            mov ebx,[ebx+esi*4+HNDL]    -- fd
+            int 0x80
+            -- 0=success, -1=error => 1,0
+            add eax,1
+            xor ebx,ebx
+            mov [res],eax
         [PE64]
             sub rsp,sizeof_OVERLAPPED64
             mov r15,h4
@@ -5116,7 +5833,20 @@ integer res
             add rsp,sizeof_OVERLAPPED64
             mov [res],rax
         [ELF64]
-            pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--73    sys_flock               unsigned int fd         unsigned int cmd
+--LOCK_SH = 1;
+--LOCK_EX = 2;
+--LOCK_NB = 4;
+--LOCK_UN = 8;
+            mov rdi,[iThis]
+            mov eax,73                  -- sys_flock
+            mov rsi,[locktype]          -- (as mapped above)
+            mov rdi,[rbx+rdi*4+HNDL]    -- fd
+            syscall
+            -- 0=success, -1=error => 1,0
+            add rax,1
+            mov [res],rax
         []
           }
     return res
@@ -5124,7 +5854,7 @@ end function
 
 --global function lock_file(integer fn, lock_type locktype, byte_range byterange)
 function flock_file(integer fn, lock_type locktype, byte_range byterange)
--- note this has a typecheck on locktype whereas flock does (and should) not.
+-- note this has a typecheck on locktype whereas flock() (which is used for both lock and unlock) does not (and should not).
     return flock(fn,locktype,byterange)
 end function
 
@@ -5433,21 +6163,47 @@ integer iThis
             push dword[ebx+esi*4+HNDL]          -- hFile
             call "kernel32.dll","GetFileSize"
             pop ecx
+        [ELF32]
+            sub esp,104                     -- sizeof(stat64)
+            mov eax,197                     -- sys_fstat64
+            mov ebx,[ebx+esi*4+HNDL]        -- fd
+            mov ecx,esp                     -- stat64
+            int 0x80
+            xor ebx,ebx
+--              cmp eax, -4069 
+--              jbe @f
+--                  mov al,?64              -- ?
+--                  mov edx,[ebp+12]        -- "called from" address
+--                  mov ebp,[ebp+20]        -- prev_ebp
+--                  sub edx,1
+--                  jmp :!iDiag
+--                  int3
+--            @@:
+            mov ecx,[esp+48]                -- high dword
+--          mov ecx,[esp+52]
+            mov eax,[esp+44]                -- low dword
+--          mov eax,[esp+48]
+            add esp,104
+        [32]
             test ecx,ecx
             jnz :highnotzero
             cmp eax,h4
             jb :lowOK
           ::highnotzero
-            -- e78atgtgt1gbf: "attempt to get_text() >1GB file"
-            mov al,78
-            xor edi,edi     -- ep1 unused
-            xor esi,esi     -- ep2 unused
---DEV
-            call :%pRTErn   -- fatal error
+--              -- e78atgtgt1gbf: "attempt to get_text() >1GB file"
+--              mov al,78
+--              xor edi,edi     -- ep1 unused
+--              xor esi,esi     -- ep2 unused
+----DEV
+--              call :%pRTErn   -- fatal error
+                mov al,78               -- e78atgtgt1gbf: "attempt to get_text() >1GB file"
+                mov edx,[ebp+12]        -- "called from" address
+                mov ebp,[ebp+20]        -- prev_ebp
+                sub edx,1
+                jmp :!iDiag
+                int3
           ::lowOK
             mov [filesize],eax
-        [ELF32]
-            pop al
         [64]
             mov rsi,[iThis]
         [PE64]
@@ -5466,9 +6222,30 @@ integer iThis
 --          add rsp,8*7
 --          pop rsp
             mov rsp,[rsp+8*7]   -- equivalent to the add/pop
-            mov [filesize],rcx
         [ELF64]
-            pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--5     sys_fstat               unsigned int fd         struct stat *statbuf
+            sub rsp,144 -- sizeof(stat64)
+            mov rax,5                           -- sys_fstat
+            mov rdi,[rbx+rsi*4+HNDL64]          -- fd
+            mov rsi,rsp                         -- stat64
+            syscall
+--          or rax,rax 
+--          jns @f
+--                                              --DEV actually this is fstat fail...
+--              mov al,64                       -- e64sfooa: "seek fail on open append"
+--              mov rdx,[rbp+24]                -- "called from" address
+--              mov rbp,[rbp+40]                -- prev_ebp
+--              sub rdx,1
+--              jmp :!iDiag
+--              int3
+--        @@:
+--          cmp rax,-1
+--          je fs_error
+            mov rcx,[rsp+48]
+            add rsp,144
+        [64]
+            mov [filesize],rcx
           }
     if filesize=0 then
         if option=-2 then   -- GT_WHOLE_FILE
@@ -5486,13 +6263,13 @@ integer iThis
 --DEV newsize [PE32]
     #ilASM{
         [32]
-            mov esi,[iThis]
             mov edi,[src]
-            push ebx                    -- reserve space for NumberOfBytesRead
-            mov edx,esp
-            mov ecx,[filesize]
+            mov esi,[iThis]
             shl edi,2
         [PE32]
+            push ebx                    -- reserve space for NumberOfBytesRead
+            mov ecx,[filesize]
+            mov edx,esp
             push ebx                                        -- lpOverlapped (NULL)
             push edx                                        -- lpNumberOfBytesRead
             push ecx                                        -- nNumberOfBytesToRead
@@ -5505,7 +6282,21 @@ integer iThis
             test ecx,ecx
             jz :retZ2
         [ELF32]
-            pop al
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
+            mov eax,3                   -- sys_read
+            mov ebx,[ebx+esi*4+HNDL]    -- fd
+            mov ecx,edi                 -- buffer
+            mov edx,[filesize]          -- count
+            int 0x80
+--          cmp eax, -4069 
+--          jbe @f
+--              mov eax,INVALID_HANDLE_VALUE
+--        @@:
+            xor ebx,ebx
+            test eax,eax
+            jle :retZ2
         [64]
             mov rdx,[src]
             mov rsi,[iThis]
@@ -5524,7 +6315,7 @@ integer iThis
             lea r9,[rsp+40]                                 -- lpNumberOfBytesRead
             mov r8,[filesize]                               -- nNumberOfBytesToRead
 --          (rdx already set)                               -- lpBuffer
-            mov rcx,[ebx+esi*4+HNDL]                        -- hFile
+            mov rcx,[rbx+rsi*4+HNDL]                        -- hFile
             call "kernel32.dll","ReadFile"
             mov rcx,[rsp+40]
 --          add rsp,8*7
@@ -5535,7 +6326,15 @@ integer iThis
             test rcx,rcx
             jz :retZ2
         [ELF64]
-            pop al
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--0     sys_read                unsigned int fd         char *buf                       size_t count
+            mov rax,0                   -- sys_read
+            mov rdi,[rbx+rsi*4+HNDL64]  -- fd
+            mov rsi,rdx                 -- buffer
+            mov rdx,[filesize]          -- count
+            syscall
+            test rax,rax
+            jle :retZ2
           }
 
 --DEV as above.. (why bother?)
@@ -5785,7 +6584,9 @@ integer posX,posY
             mov [posY],ecx
             add esp,sizeof_CSBI
         [ELF32]
-            pop al
+            --DEV OpenEuphoria maintains screen_line/col..
+            mov [posX],1
+            mov [posY],1
         [PE64]
             sub rsp,sizeof_CSBI64
             mov rdi,rsp
@@ -5814,7 +6615,9 @@ integer posX,posY
             mov [posY],ecx
             add rsp,sizeof_CSBI64
         [ELF64]
-            pop al
+            --DEV ditto
+            mov [posX],1
+            mov [posY],1
         []
           }
 --  if platform()=WINDOWS then
@@ -5907,9 +6710,10 @@ procedure fwrap(integer flag)
 --          pop rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         [ELF32]
-            pop al
+            --DEV OpenEuphoria has a flag, and uses it manually...
+--          pop al
         [ELF64]
-            pop al
+--          pop al
         []
           }
 end procedure
@@ -6156,8 +6960,6 @@ integer res
             mov ax,[edi+CSBI_SIZEY]
             add esp,sizeof_CSBI
             mov [res],eax
-        [ELF32]
-            pop al
         [PE64]
             sub rsp,sizeof_CSBI64
             mov rdi,rsp
@@ -6192,8 +6994,10 @@ integer res
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             mov [res],rax
             add rsp,sizeof_CSBI64
+        [ELF32]
+--          -- this routine is documented as having no effect on Lnx
         [ELF64]
-            pop al
+--          pop al
           }
     return res
 end function
@@ -6238,8 +7042,6 @@ procedure set_console_color(integer color, integer cmode)
 --          test eax,eax
 --          jz ??? [DEV]
             add esp,sizeof_CSBI
-        [ELF32]
-            pop al
         [PE64]
             sub rsp,sizeof_CSBI64
             mov rdi,rsp
@@ -6280,8 +7082,40 @@ procedure set_console_color(integer color, integer cmode)
 --          test eax,eax
 --          jz ??? [DEV]
             add rsp,sizeof_CSBI64
+        [ELF32]
+            --DEV not attempted...
+--          pop al
+--object SetTColor(object x)
+--#ifdef EUNIX
+--      current_fg_color = c & 15;
+--      if (current_fg_color > 7) {
+--              bold = 1; // BOLD ON (BRIGHT)
+--              c = 30 + (current_fg_color & 7);
+--      }
+--      else {
+--              bold = 22; // BOLD OFF
+--              c = 30 + current_fg_color;
+--      }
+--      snprintf(buff, STC_buflen, "\E[%d;%dm", bold, c);
+--      iputs(buff, stdout);
+--      iflush(stdout);
+--#endif
+--
+--object SetBColor(object x)
+--#ifdef EUNIX
+--      current_bg_color = c & 15;
+--      if (current_bg_color > 7) {
+--              c = 100 + (current_bg_color & 7);
+--      }
+--      else {
+--              c = 40 + current_bg_color;
+--      }
+--      snprintf(buff, SBC_buflen, "\E[%dm", c);
+--      iputs(buff, stdout);
+--      iflush(stdout);
+--#endif
         [ELF64]
-            pop al
+--          pop al
         []
           }
 end procedure
@@ -6340,8 +7174,6 @@ procedure fclear_screen()
             mov [esp],ebx                                   -- dwCursorPosition
             push [stdout]                                   -- hConsoleOutput
             call "kernel32.dll","SetConsoleCursorPosition"
-        [ELF32]
-            pop al
         [PE64]
             sub rsp,sizeof_CSBI64
             mov rdi,rsp
@@ -6388,10 +7220,28 @@ procedure fclear_screen()
 --          pop rsp
             mov rsp,[rsp+8*7]   -- equivalent to the add/pop
             add rsp,sizeof_CSBI64
+        [ELF32]
+            --DEV not attempted
+--          pop al
+--void ClearScreen()
+--{
+--
+--#ifdef EUNIX
+--  // ANSI code
+--  SetTColor(current_fg_color);
+--  SetBColor(current_bg_color);
+--  iputs("\E[2J", stdout);  // clear screen
+--  iflush(stdout);
+--  SetPosition(1,1);
+--  Set_Image(screen_image, ' ', current_fg_color, current_bg_color);
+--#endif
+--
+--  screen_line = 1;
+--  screen_col = 1;
+--}
         [ELF64]
-            pop al
+--          pop al
           }
---  free(pCharsWritten)
 end procedure
 
 --  opName("opFreeCons",opFreeCons,1)
@@ -6416,9 +7266,11 @@ procedure ffree_console()
 --              pop rsp
                 mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             [ELF32]
-                pop al
+                --DEV not attempted yet
+--              pop al
+--  (seems to be just "have_console = FALSE;" and the effects that later has elsewhere)
             [ELF64]
-                pop al
+--              pop al
             []
               }
         stdin = 0
@@ -6452,8 +7304,6 @@ integer coord
             jne @f
                 mov [coord],-1
           @@:
-        [ELF32]
-            pop al
         [PE64]
             mov rcx,rsp -- put 2 copies of rsp onto the stack...
             push rsp
@@ -6473,13 +7323,33 @@ integer coord
             jne @f
                 mov [coord],-1
           @@:
+        [ELF32]
+            --DEV not attepted
+--void SetPosition(int line, int col)
+--{
+--#ifdef EUNIX
+--  snprintf(buff, SP_buflen, "\E[%d;%dH", line, col);
+--  iputs(buff, stdout);
+--  iflush(stdout);
+--#endif
+--
+--  screen_col = col;
+--  screen_line = line;
+--}
+--          pop al
         [ELF64]
-            pop al
+--          pop al
           }
+--DEV does not appear to be setting emitON=0 as I expected...
     if platform()=WINDOWS then
         if coord=-1 then
             #ilASM{
+                [PE32,PE64]
                     call "kernel32.dll","GetLastError"
+                [ELF32]
+                    xor eax,eax
+                [ELF64]
+                    xor rax,rax
                 [32]
                     mov [coord],eax
                 [64]
@@ -6597,7 +7467,7 @@ end procedure -- (for Edita/CtrlQ)
             call :%opFrame
             mov edx,[esp+4]
             pop dword[ebp]                      --[1] fn
-            mov dword[ebp+16],:flushret         -- return address
+            mov dword[ebp+16],:flushret2        -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:fflush
         [64]
@@ -6615,11 +7485,11 @@ end procedure -- (for Edita/CtrlQ)
             call :%opFrame
             mov rdx,[rsp+8]
             pop qword[rbp]                      --[1] fn
-            mov qword[rbp+32],:flushret         -- return address
+            mov qword[rbp+32],:flushret2        -- return address
             mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:fflush
         []
-          ::flushret    
+          ::flushret2
             ret
 
 --/*

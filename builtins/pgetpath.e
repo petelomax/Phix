@@ -41,7 +41,6 @@ include builtins\file.e
 --include builtins\VM\pprntfN.e
 --include builtins\pprntf.e     --DEV
 --include builtins\VM\pHeap.e       -- allocate()
---!/**/include builtins\platform.e
 
 ----/**/    include builtins\pcfunc.e   --DEV
 --include builtins\VM\pcfuncN.e
@@ -52,7 +51,7 @@ include builtins\file.e
 --  filepaths = {"C:\\Program Files (x86)\\Phix\\builtins\\",
 --               "C:\\Program Files (x86)\\Phix\\"}
 --  filenames = {{1, "pgetpath.e"}, {1, "pcurrdir.e"}, {1, "pcfunc.e"},
---               {1, "pprntf.e"}, {1, "platform.e"}, {1, "peekstr.e"}}
+--               {1, "pprntf.e"}, {1, "peekstr.e"}}
 --
 
 function cleanUpPath(sequence filepath, object rootdir)
@@ -166,6 +165,7 @@ atom pFilePath
 --*/
 integer l
 sequence res
+    if platform()=WINDOWS then
         if not gppinit then
             --DEV locking as per pprntf.e
             kernel32 = open_dll("kernel32")
@@ -204,7 +204,10 @@ sequence res
 --pp(peek_string(buffer))
 --      return peek_string(buffer)
         free(buffer)
-        return res
+    else -- linux
+        res = filepath
+    end if
+    return res
 end function
 
 global function get_proper_dir(string filepath)

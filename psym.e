@@ -1637,7 +1637,7 @@ global procedure syminit()
     -- from misc.e:
 --  initialConstant("DOS32", 1)                             -- ex.exe (not supported!)
     initialConstant("WINDOWS", 2)   T_win32 = symlimit      -- exw.exe
-    Alias("WIN32",symlimit)
+    Alias("WIN32",symlimit) -- (deprecated, does not mean 32-bit)
     initialConstant("LINUX", 3)     T_linux = symlimit      -- exu      ("")
 --  initialConstant("FREEBSD", 3)                           -- exu      ("")
     initialConstant("OSX", 5)       -- ??
@@ -2021,9 +2021,9 @@ if newEmit then
     AutoGlabel(opRepe1is,   "%pRepe1is",    "VM\\pRepeN.e")
     AutoGlabel(opReps,      "%pReps",       "VM\\pRepsN.e")
     AutoGlabel(opMkSq,      "%pMkSq",       "VM\\pMkSqN.e")
---  AutoGlabel(opDiv0,      "%e02atdb0",    "VM\\pdiagN.e")
+--  AutoGlabel(opDiv0,      "%e02atdb0",    "VM\\pDiagN.e")
 --dev (TEMP)
---  AutoGlabel(opUnassigned,"%pUnassigned", "VM\\pdiagN.e")
+--  AutoGlabel(opUnassigned,"%pUnassigned", "VM\\pDiagN.e")
     AutoGlabel(opUnassigned,"%pUnassigned", "VM\\pUnassigned.e")
     AutoGlabel(opBadRetf,   "%pBadRetf",    "VM\\pUnassigned.e")
     AutoGlabel(opCallOnceYeNot, "!opCallOnceYeNot", "VM\\pUnassigned.e")
@@ -2378,8 +2378,8 @@ end if
     initialAutoEntry("bytes_to_int",    S_Func,"FP",    "machine.e",0,E_none)       --DEV should really be renamed
     initialAutoEntry("bits_to_int",     S_Func,"FP",    "machine.e",0,E_none)       --              ""
     initialAutoEntry("ceil",            S_Func,"FN",    "pmaths.e",0,E_none)
---DEV or is this an object result?? (eg C:\Program Files\Phix\demo\SUDOKU\EuWinGUI.ew:359)
 if newEmit then
+    --DEV or is c_func an object result?? (eg C:\Program Files\Phix\demo\SUDOKU\EuWinGUI.ew:359)
     initialAutoEntry("c_func",          S_Func,"FIP",   "VM\\pcfuncN.e",0,E_all)
     initialAutoEntry("call_back",       S_Func,"FO",    "VM\\pcfuncN.e",0,E_none)
     initialAutoEntry("create_thread",   S_Func,"FIPI",  "VM\\pThreadN.e",0,E_other)
@@ -2389,6 +2389,7 @@ if newEmit then
     initialAutoEntry("float32_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("float64_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("float80_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
+    initialAutoEntry("get_proc_address",S_Func,"FNS",   "VM\\pcfuncN.e",0,E_none)
 else
     initialAutoEntry("float80_to_atom", S_Func,"FP",    "pfloat.e",0,E_none)
     initialAutoEntry("c_func",          S_Func,"FIP",   "pcfunc.e",0,E_all)
@@ -2673,8 +2674,8 @@ if newEmit then
 --  initialAutoEntry("call_procN",          S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)
     initialAutoEntry("crash",               S_Proc,"PPO",   "pCrashN.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("crash_file",          S_Proc,"PO",    "VM\\pdiagN.e",0,E_other)
---  initialAutoEntry("crash_message",       S_Proc,"PO",    "VM\\pdiagN.e",0,E_other)   -- now opCrashMsg
+    initialAutoEntry("crash_file",          S_Proc,"PO",    "VM\\pDiagN.e",0,E_other)
+--  initialAutoEntry("crash_message",       S_Proc,"PO",    "VM\\pDiagN.e",0,E_other)   -- now opCrashMsg
 else
     initialAutoEntry("c_proc",              S_Proc,"PIP",   "pcfunc.e",0,E_all)
     initialAutoEntry("call",                S_Proc,"PN",    "pcfunc.e",0,E_all)

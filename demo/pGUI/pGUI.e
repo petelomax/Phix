@@ -3868,6 +3868,7 @@ global constant
     CD_GL           = {"CD_GL"},
     CD_IUPDBUFFER   = {"CD_IUPDBUFFER"},
 --  CD_NATIVEWINDOW = {"CD_NATIVEWINDOW"},
+    CD_DBUFFER      = {"CD_DBUFFER"},
     CD_IMIMAGE      = {"CD_IMIMAGE"},
     $
 
@@ -3903,6 +3904,7 @@ atom
     xcdContextPicture,
     xcdContextGL,
     xcdContextIupDBuffer,
+    xcdContextDBuffer,
 
     xcdContextNativeWindow,
     xcdGetScreenSize,
@@ -3915,6 +3917,7 @@ atom
     XCD_GL,
     XCD_IUPDBUFFER,
 --  XCD_NATIVEWINDOW,
+    XCD_DBUFFER,
     XCD_IMIMAGE
 
 sequence XCD_STR = {"CD_IUP",
@@ -3924,6 +3927,7 @@ sequence XCD_STR = {"CD_IUP",
                     "CD_GL",
                     "CD_IUPDBUFFER",
 --                  "CD_NATIVEWINDOW",
+                    "CD_DBUFFER",
                     "CD_IMIMAGE"},
          XCDS
 
@@ -4243,6 +4247,7 @@ procedure iup_init_cd()
         xcdContextPicture       = iup_c_func(hCd, "cdContextPicture", {}, P)
         xcdContextGL            = iup_c_func(hCdGL,"cdContextGL", {}, P)
         xcdContextIupDBuffer    = iup_c_func(hCdIup,"cdContextIupDBuffer", {}, P)
+        xcdContextDBuffer       = iup_c_func(hCd, "cdContextDBuffer", {}, P)
 
 --DEV..
 if platform()=WINDOWS then
@@ -4256,7 +4261,7 @@ end if
 -- Note: The constants CD_IUP etc are initialised with abtruse values: by "abtruse" (not a real word) I mean a value designed to trigger an error 
 --      if used directly, that makes some sense when debugging said error, and is substituted (within the pGUI wrapper) by a proper value, ie/eg 
 --      CD_IUP is {"CD_IUP"}, which is automatically replaced with the result of cdContextIup(). Should you need the proper values outside pGUI,
---      use the corresponding function call (search the source of pGUI.e to determine what that is).
+--      use the corresponding function call (search the source of pGUI.e to determine what that is [try "abtruse"!]).
 
         XCD_IUP          = c_func(xcdContextIup, {})
         XCD_PRINTER      = c_func(xcdContextPrinter, {})
@@ -4265,6 +4270,7 @@ end if
         XCD_GL           = c_func(xcdContextGL, {})
         XCD_IUPDBUFFER   = c_func(xcdContextIupDBuffer, {})
 --      XCD_NATIVEWINDOW = c_func(xcdContextNativeWindow, {})
+        XCD_DBUFFER      = c_func(xcdContextDBuffer, {})
         XCD_IMIMAGE      = c_func(xcdContextImImage,{})
 
         XCDS = {XCD_IUP,
@@ -4274,6 +4280,7 @@ end if
                 XCD_GL,
                 XCD_IUPDBUFFER,
 --              XCD_NATIVEWINDOW,
+                XCD_DBUFFER,
                 XCD_IMIMAGE}
 
         --
@@ -4588,6 +4595,8 @@ global function cdContextIup()
     iup_init_cd()
     return XCD_IUP
 end function
+
+--DEV more of the same...
 
 
 ----ifdef WINDOWS then

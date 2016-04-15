@@ -37,18 +37,24 @@ end function
 procedure initB()
 atom kernel32, xSetConsoleCtrlHandler
 
-    kernel32 = open_dll("kernel32.dll")     -- DEV do something about this?...
+    if platform()=WINDOWS then
+        kernel32 = open_dll("kernel32.dll")     -- DEV do something about this?...
 
 --#without reformat
 
-    xSetConsoleCtrlHandler = define_c_func(kernel32,"SetConsoleCtrlHandler",
-        {C_POINTER, --  PHANDLER_ROUTINE  pHandlerRoutine,  // address of handler function
-         C_INT},    --  BOOL  fAdd  // handler to add or remove
-        C_INT)      -- BOOL
+        xSetConsoleCtrlHandler = define_c_func(kernel32,"SetConsoleCtrlHandler",
+            {C_POINTER, --  PHANDLER_ROUTINE  pHandlerRoutine,  // address of handler function
+             C_INT},    --  BOOL  fAdd  // handler to add or remove
+            C_INT)      -- BOOL
 
 --#with reformat
 
-    if not c_func(xSetConsoleCtrlHandler,{call_back(routine_id("HandlerRoutine")),1}) then ?9/0 end if
+        if not c_func(xSetConsoleCtrlHandler,{call_back(routine_id("HandlerRoutine")),1}) then ?9/0 end if
+
+    elsif platform()=LINUX then
+puts(1,"pbreak.e not linux\n")
+        ?9/0
+    end if
 
     AllowBreak = 0
 

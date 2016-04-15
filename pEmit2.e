@@ -488,9 +488,11 @@ end procedure
 --  end if
 --end procedure
 
---procedure setdsQword(integer i, atom v)
-procedure setdsQword(integer i, integer v)
+--7/4/16 values such as -#FFFFFFFF are now valid for 32-bit p.exe creating 64-bit exe's:
+--procedure setdsQword(integer i, integer v)
+procedure setdsQword(integer i, atom v)
 -- NB: i is 0-based index
+    if isFLOAT(v) then ?9/0 end if
     poke4(m4, and_bits(v,#FFFFFFFF))
     data_section[i+1..i+4] = peek(m44)
     poke4(m4, floor(v/#100000000))
@@ -523,9 +525,11 @@ procedure setds(atom v, integer sethigh=0)
     end if
 end procedure
 
---procedure appenddsDword(atom v)
-procedure appenddsDword(integer v)
+--7/4/16 values such as #40000000 are now valid for 32-bit p.exe creating 64-bit exe's:
+--procedure appenddsDword(integer v)
+procedure appenddsDword(atom v)
 string s
+    if isFLOAT(v) then ?9/0 end if
     poke4(m4, v) -- faster than doing divides etc. (idea from database.e)
     s = peek(m44)
     data_section &= s
@@ -1753,7 +1757,8 @@ end if
 
         if c<isOpCode then          -- ie as-is byte, #00..#FF.
 
-            code_section[cout] = c
+--          code_section[cout] = c
+            code_section[cout] = and_bits(c,#FF)
             if cin=nilte then   -- next interesting linetab entry?
                 LineTab[ltidx] = cout-CSvsize+thisCSsize-1      -- (1-based idx(ie cout) to zero-based offset)
                 nilte = 0
@@ -2145,7 +2150,8 @@ end if
                     end if
                     code_section[cm1] = c-#10
                 end if
-                code_section[cout] = offset
+--              code_section[cout] = offset
+                code_section[cout] = and_bits(offset,#FF)
                 cout += 1               -- .. and this is what it was all about !!
                                         --    (if you can fit 25% more code in the on-chip 
                                         --     cache, it'll run alot more than 25% faster!)
@@ -3280,6 +3286,7 @@ include builtins\VM\optable.e
 --global sequence e2optable
 --with trace
 procedure DumpSymTab()
+integer wrong=0     --DEV temp
 object si
 object lt
 integer siNTyp, lensi
@@ -3292,7 +3299,7 @@ sequence optable
 --integer l, l20
 integer dsidx0
 atom pathaddr, nameaddr
-
+object wassi        --DEV temp?
     if not bind then ?9/0 end if
     for i=T_integer to T_object do
         flatsym2[i] = i
@@ -3341,6 +3348,8 @@ end if
 --  end for
 --  DSvsize += l20
 --end procedure
+wrong=10
+
     flatsym2[T_optable] = s_addr+#80000000
 --  flatsym2[T_ds4] = 0+#80000000
     flatsym2[T_ds4] = 0
@@ -3370,17 +3379,31 @@ elsif bind and and_bits(si[S_State],K_rtn) then
                     symtab[i][S_value] = v
                 end if
 end if
+wrong=21
                 lensi = length(si)
+wrong=22
                 if siNTyp=S_TVar then
+wrong=23
                     if lensi>S_Tidx then
+wrong=24
+wassi = si
                         si = si[1..S_Tidx]  -- discard compile-time cruft [S_ErrV]
+wrong=25
                     end if
                 else
 --DEV discard S_value and S_Clink, needs S_Tidx moved up, I think...
+wrong=26
                     if lensi>S_Clink then
+--if X64 then
+--  ?i
+--  ?si
+--end if
+wrong=27
                         si = si[1..S_Clink] -- discard compile-time cruft [S_ErrV]
+wrong=28
                     end if
                 end if
+wrong=30
                 -- Delete unused entries. Function results depend on    --DEV misplaced comment?!
                 -- the routine entry (i+1), and (may) get deleted in 
                 -- the next iteration, some 55 lines above.
@@ -3407,6 +3430,7 @@ end if
                 flatdump(si,1)
                 flatsym2[i] = s_addr+#80000000
             else -- siNTyp>=S_Nspc
+wrong=35
                 if siNTyp>S_Rsvd then
                     lensi = length(si)
                     if lensi>S_1stl then
@@ -3490,8 +3514,11 @@ if not bind then ?9/0 end if -- 27/2/15 just see
                 end if
 end if
             end if
+wrong=35
         end if
     end for
+wrong=40
+
 --if newEmit then
 --  dsidx = and_bits(getdsDword(9),#7FFFFFFF)+1
 --DEV and this does what?...
@@ -3508,6 +3535,8 @@ end if
     if pathslast then
         dsidx0 = dsidx
     end if
+wrong=60
+
 if bind and mapsymtab then
     for i=1 to length(symtabmap) do
         fi = symtabmap[i]
@@ -3548,8 +3577,11 @@ else
 end if
     end for
 end if
+wrong=100
     DumpSignatures()
+wrong=200
     DumpIds()
+wrong=300
     if pathslast then
         dumpPathSet(filepaths)                      -- specials 1
 -- is this needed for listing or anything?
@@ -3562,14 +3594,18 @@ end if
         setds(pathaddr,1)
         setds(nameaddr,1)
     end if
+wrong=999
 end procedure
 
-constant k32 = open_dll("kernel32.dll"),
-         xLoadLibrary = define_c_func(k32,"LoadLibraryA",{C_PTR},C_PTR),
-         xGetProcAddress = define_c_func(k32,"GetProcAddress",{C_PTR,C_PTR},C_PTR),
-         xVirtualProtect = define_c_func(k32,"VirtualProtect",{C_PTR,C_INT,C_INT,C_PTR},C_INT),
-         PAGE_EXECUTE_READWRITE = #40,
-         pDword = allocate(8)
+--DEV...
+atom k32=0, xVirtualProtect, pDword
+--constant k32 = open_dll("kernel32.dll"),
+----         xLoadLibrary = define_c_func(k32,"LoadLibraryA",{C_PTR},C_PTR),
+----         xGetProcAddress = define_c_func(k32,"GetProcAddress",{C_PTR,C_PTR},C_PTR),
+--       xVirtualProtect = define_c_func(k32,"VirtualProtect",{C_PTR,C_INT,C_INT,C_PTR},C_INT),
+--       PAGE_EXECUTE_READWRITE = #40,
+--       pDword = allocate(8)
+constant PAGE_EXECUTE_READWRITE = #40
 
 --DEV I've hard-coded 4096 here, might instead want to do something like:
 --       xGetSystemInfo = define_c_proc(k32,"GetSystemInfo",{C_POINTER}),
@@ -3711,26 +3747,35 @@ end if
     imports = repeat(0,length(APIlibs))
     for i=1 to length(APIlibs) do
         s = APIlibs[i]
-        lib = c_func(xLoadLibrary,{s})
-        if lib=NULL then
-            APIerritem = APIerrlib
-            APIerror(i, "error loading library")
+        if not norun or not bind then
+--if platform()=LINUX then ?9/0 end if
+--          lib = c_func(xLoadLibrary,{s})
+            lib = open_dll(s)
+            if lib=NULL then
+                APIerritem = APIerrlib
+                APIerror(i, "error loading library")
+            end if
+            APIerrlib[i] = lib
         end if
-        APIerrlib[i] = lib
         imports[i] = {s,{},{}} -- {dll name, entry point names, link chain starts}
     end for
     for i=1 to length(APINames) do
         {libidx,s} = APINames[i]
-        thunk = c_func(xGetProcAddress,{APIerrlib[libidx],s})
-        if thunk=NULL then
-            APIerror(i, "no such function")
+        if not norun or not bind then
+--          thunk = c_func(xGetProcAddress,{APIerrlib[libidx],s})
+            thunk = get_proc_address(APIerrlib[libidx],s)
+            if thunk=NULL then
+                APIerror(i, "no such function")
+            end if
         end if
         if bind then
             imports[libidx][2] = append(imports[libidx][2],s) -- add entry name
             imports[libidx][3] = append(imports[libidx][3],0) -- link chain:=NULL, for now
             APINames[i][2] = length(imports[libidx][3])
         end if
-        APIerritem[i] = thunk
+        if not norun or not bind then
+            APIerritem[i] = thunk
+        end if
     end for
     if not bind then
         --added 19/10/15:
@@ -4073,6 +4118,7 @@ end if
                             xMin = xi[gMin]
                             xMax = xi[gMax]
                             if and_bits(xType,T_atom)!=T_integer
+--DEV isFLOAT?
                             or not integer(xMin)
                             or not integer(xMax)
                             or xMin>xMax
@@ -4683,7 +4729,8 @@ end if
 --  CSvsize = floor((CSvsize+3)/4)*4
 --
 --  code_section = repeat(0,CSvsize)
-    code_section = repeat(0,floor((CSvsize+3)/4)*4)
+--  code_section = repeat(0,floor((CSvsize+3)/4)*4)
+    code_section = repeat('\0',floor((CSvsize+3)/4)*4)
     for i=CSvsize+1 to length(code_section) do
         code_section[i] = #90 -- nop
     end for
@@ -5068,7 +5115,13 @@ end if
             symtab[T_pathset] = filepaths
             symtab[T_fileset] = filenames
         end if
-        if machine_bits()=64 then
+--DEV use allocate_code above instead
+        if platform()=WINDOWS and machine_bits()=64 then
+            if k32=0 then
+                k32 = open_dll("kernel32.dll")
+                xVirtualProtect = define_c_func(k32,"VirtualProtect",{C_PTR,C_INT,C_INT,C_PTR},C_INT)
+                pDword = allocate(8)
+            end if
             poke8(pDword,CSvaddr)
             if c_func(xVirtualProtect,{CSvaddr,CSvsize,PAGE_EXECUTE_READWRITE,pDword})=0 then ?9/0 end if
         end if

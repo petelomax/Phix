@@ -3,6 +3,7 @@
 -- =====================
 --
 --  I suppose that technically this is part of p[w].exe rather than part of the VM.
+--  [this file is also part of filedumpN.exw, purely for get_vm_names()]
 --  The optable is built from scratch when compiling (doh) but copied when interpreting.
 --  In "p p p test", test will be interpreted using a copy of a copy of optable, which
 --  will therefore contain addresses from the (leftmost) p.exe rather than either of
@@ -141,7 +142,7 @@ constant vm_names = {
                                      "%newStack",
 --DEV I think this can/should now go:
                                      ">initStack",
---                                   {"%opGetArgELF32","%opGetArgELF64"} -- not yet used
+                                     "%opGetArgELF",
                                      "%opFrame",
                                      "%opCallOnce",
                                      "%opRetf", 

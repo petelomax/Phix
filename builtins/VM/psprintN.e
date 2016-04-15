@@ -17,7 +17,7 @@ include pprntfN.e
 
 --constant tnr = "tnr"
 --constant tnr = "tnr\\\"\'\0"
-constant tnr = "tnr\\\"\'0"
+constant tnr = "tnr\\\"\'0e"
 function allascii(string x)
 -- Phix allows "strings" to hold binary data, so double check 
 -- before printing it as a string.
@@ -28,7 +28,7 @@ integer c
 --      if c<' ' then
         if c<' ' or c>#7E or find(c,"\\\"\'") then
 --          c = find(c,"\t\n\r")
-            c = find(c,"\t\n\r\\\"\'\0")
+            c = find(c,"\t\n\r\\\"\'\0\e")
             if c then
                 x[i..i] = '\\'&tnr[c]   -- NB does not work on RDS Eu/OpenEuphoria
             else

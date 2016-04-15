@@ -3610,7 +3610,10 @@ constant m_add = #00,   -- 0o000    add
          m_xor = #30,   -- 0o060    xor (bitwise)
          m_cmp = #38    -- 0o070    cmp
 
-procedure regimm365(integer imm)
+--7/4/16. Values such as #7FFFFFFF are now valid for 32bit p.exe creating 64bit exe:
+--procedure regimm365(integer imm)
+procedure regimm365(atom imm)
+    if isFLOAT(imm) then ?9/0 end if
     --
     --  Perform one of the above 8 operations on a register using the specified literal.
     --   (ie add/or/adc/sbb/and/sub/xor/cmp reg,imm8/32)
@@ -3638,7 +3641,9 @@ end procedure
 procedure reg_src2()
 -- perform one of the above 8 operations (m_add..m_cmp) 
 --  on reg using src2 (already getSrc2()'d)
-    if slroot2=T_integer and smin2=smax2 then
+--DEV 6/4/16:
+--  if slroot2=T_integer and smin2=smax2 then
+    if slroot2=T_integer and smin2=smax2 and integer(smin2) then
         -- (dev: trouble here if it's a K_rtn)
         regimm365(smin2)                            -- <op> reg,imm
     else
@@ -4018,7 +4023,10 @@ integer nextop, npc
 --integer tmppc, ttrap
 --              ttrap = 0
 
-procedure transtmpfer(integer val, integer reg)
+--7/4/16: values such as -#80000000 now valid when 32bit p.exe is creating a 64bit exe:
+--procedure transtmpfer(integer val, integer reg)
+procedure transtmpfer(atom val, integer reg)
+    if isFLOAT(val) then ?9/0 end if
 --
 -- See if the next (interesting) instruction can use a temp reg/value
 --  directly, rather than via a back-to-back store/load, or perhaps
@@ -4645,7 +4653,7 @@ atom swmin, swmax   -- scratch vars, not preserved between opCtrls
 
 integer raoffset
 
-integer Tsmin,Tsmax     -- temp/test
+integer Tsmin,Tsmax     -- temp/test [DEV]
 string opName
 
 object dbg
@@ -6998,7 +7006,7 @@ end if
                         --  (ie there is no "dest", and this is instead of typecheck, since src is unassigned)
 
                         if pDefault=2 then  -- divide by zero
-                            emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pdiagN.e)
+                            emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pDiagN.e)
                             -- fatal error, does not return
 --                          opcode = opRTErn -- for opLabel
 -- (DEV almost removed 24/11, but I think more code follows in this case...)
@@ -8510,7 +8518,7 @@ end if
                             -- nb error handling below assumes all [sj OK] are so when all's finished
                         end if
                         if slroot2=T_integer and smin2=0 and smax2=0 then
-                            emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pdiagN.e)
+                            emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pDiagN.e)
                             -- fatal error, does not return
                             opcode = opRTErn -- for opLabel
                         else
@@ -8525,7 +8533,7 @@ if 1 then -- new code 2/11/15
                             emitHex2s(test_ecx_ecx)                             -- test ecx,ecx (check for /0)
                             emitHex6j(jnz_rel32,0)                              -- jnz @f [sj OK]
                             backpatch = length(x86)
-                            emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pdiagN.e)
+                            emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pDiagN.e)
                             x86[backpatch] = length(x86)-backpatch              -- @@:
                             emitHex2s(idiv_ecx)                                 -- idiv ecx [eax:edx/=ecx; eax:=quotient, edx:=remainder]
                             emitHex2s(mov_esi_eax)                              -- mov esi,eax
@@ -9002,7 +9010,7 @@ end if
                         if sched then
                             schend()
                         end if
-                        emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pdiagN.e)
+                        emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pDiagN.e)
                         -- fatal error, does not return
                         opcode = opRTErn -- for opLabel
 --DEV handle */1 here?
@@ -12212,7 +12220,7 @@ end if
                 emitHex6j(jne_rel32,0)                      -- jne @f [sj prolly ok]
                 backpatch = length(x86)
                 movRegVno(esi,src)                          --  mov esi,src (var no/symtab index)
-                emitHex5callG(opUnassigned)                 --  call :%pUnassigned (in pdiagN.e)
+                emitHex5callG(opUnassigned)                 --  call :%pUnassigned (in pDiagN.e)
                 x86[backpatch] = length(x86)-backpatch      -- @@:
             end if
             pc += 2
