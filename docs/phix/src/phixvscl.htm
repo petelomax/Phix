@@ -88,6 +88,22 @@
         (used mainly for validation and debugging).
        <br>
        <br>
+        Arithmetic operations in Phix always generate sensible answers, and terminate 
+        the program with a human readable error message when they go badly out of range.
+        For instance 1/2 is always 0.5, rather than 0 or needing to be coded as 1.0/2.0.
+        Likewise zero minus one is always -1, not (on a 32-bit architecture) +4GB as can
+        happen in C-based languages, and #100_0000 * #10_0000 is #1000_0000_0000 (which 
+        will trigger an error if stored in an integer instead of an atom), whereas 
+        C-based languages silently yield 0, and 1,000,000*100,000 yields a meaningless 
+        1,215,752,192 in C, because it quietly discards the leading #17_0000_0000.
+        If you need to replicate the math behaviour of C (eg in cryptographic routines)
+        then you must explicitly apply the appropriate mask, eg and_bits(x,#FFFFFFFF),
+        floor(x), trunc(x), ceil(x), in those few special cases where it is required.
+        (Note that translating working C code is pretty much always a mugs game: you 
+         are far better off spending that time learning to build a dll/so and invoking 
+         that, and if you hit problems find a better version or a prebuilt one.)
+       <br>
+       <br>
         Issues of dynamic storage allocation and deallocation consume a great deal
         of programmer coding time and debugging time in these other languages, and
         make the resulting programs much harder to understand. Programs that must

@@ -405,14 +405,26 @@ constant integer libidx = iff(platform()=WINDOWS ? 1:
                                                    9/0))
 constant sequence dirs = {"win","lnx"}
 string dll_path
+constant SLASH = iff(platform()=WINDOWS?'\\':'/')
 
 function iup_open_dll(sequence libs)
-string fullpath = dll_path&libs[libidx]
+--string fullpath = dll_path&libs[libidx]
+string path = libs[libidx]
 atom res
-    if chdir(dll_path)=0 then ?9/0 end if
-    res = open_dll(fullpath)
-    if chdir(curr_dir)=0 then ?9/0 end if
-    if res=0 then iup_link_error(fullpath) end if
+    if platform()=WINDOWS then
+        curr_dir = current_dir()
+        if chdir(dll_path)=0 then ?9/0 end if
+--      res = open_dll(fullpath)
+        path = current_dir()&SLASH&path
+    elsif platform()=LINUX then
+        path = dll_path&path
+    end if
+    res = open_dll(path)
+    if platform()=WINDOWS then
+        if chdir(curr_dir)=0 then ?9/0 end if
+    end if
+--  if res=0 then iup_link_error(fullpath) end if
+    if res=0 then iup_link_error(path) end if
     return res
 end function
 
@@ -675,7 +687,8 @@ procedure iup_init1(nullable_string dll_root)
         dll_root = command_line()[2]
     end if
     dll_root = get_proper_dir(dll_root)
-    dll_path = dll_root&sprintf("\\%s%d\\",{dirs[libidx],machine_bits()})
+--  dll_path = dll_root&sprintf("\\%s%d\\",{dirs[libidx],machine_bits()})
+    dll_path = dll_root&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
 
 --DEV:
     if platform()=WINDOWS then

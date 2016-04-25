@@ -33,7 +33,7 @@ include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
 procedure :%opSetRand(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
-  :%opSetRand       -- [edi] := time()
+  :%opSetRand       -- [rseed] := eax
 -------------
     [32]
         --calling convention:

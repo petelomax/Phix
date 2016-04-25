@@ -50,8 +50,8 @@ global procedure putsint(integer i, integer showcr=1)
 --
 -- Display a signed integer on the console in decimal, optionally with a trailing cr
 -- Equivalent to printf(1,"%d%s",{i,iff(showcr,"\n","")})
--- NB it is not meant to display (/work on) anything above 9,999,999,999, or < -that.
---    if you have any issues, use puthex32 instead and do the conversions yourself.
+-- NB it is not meant to display (/work on) anything outside +/-9,999,999,999, if
+--    you have any issues, use puthex32 instead and do the conversions yourself.
 --
     #ilASM{ 
         [32]

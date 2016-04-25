@@ -1715,3 +1715,31 @@ should be good to go. The following list some mods/areas that have proved tricky
         the routine in pfileioN with (local) "function fopen" solved the issue. 
         Make of that what you will. (Phix has big issues with overrides.)
 
+
+opCallOnce and opCallOnceYeNot
+==============================
+When compiling "include inc1.e", there may be top-level code that ought to be 
+executed at that point, therefore the compiler emits an opCallOnce instruction.
+The compiler will also emit opCallOnce instructions when invoking a routine in
+a file that has not already been included. In turn such out-of-order execution
+means that files included more than once need an opCallOnce for each include.
+As the name suggests, opCallOnce checks that the code has not already been run.
+
+Fairly obviously, if it was easy or even at all possible for the compiler, with
+several forward calls to as yet unknown files outstanding, to determine the one
+and only place where some top-level code needs invoking, then I would have just
+used opCall, and opCallOnce would not even exist. But trust me, it ain't.
+
+Since builtins\VM contains at least 45 absolutely necessary files, and builtins\
+another 36, almost all of which have no top-level code of any note, that would 
+be 80 or more pointless calls/tests, hence opCallOnceYeNot was specifically 
+engineered to allow explicit suppression of the call to such top-level routines 
+that contain no code or just an opRetf. There is also a mechanism to trigger a
+fatal run-time error if you accidentally add top-level code to any of those 80
+odd files, and if there really is no other way then you must also replace the
+opCallOnceYeNot with jmp opRetf/:fin.
+
+There is also a lower-level :>init label handler, for example :>initStack in
+builtins\VM\pStack.e needs to be invoked before :%opCallOnce, which is also
+defined in pStack.e, can be invoked.
+

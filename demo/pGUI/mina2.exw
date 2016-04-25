@@ -1,0 +1,672 @@
+--
+-- mina2.exw
+--
+
+constant showprogress = 1
+
+--include pGUI.e
+--
+ -- pGUI.e
+----------
+-- =====
+--
+
+type Ihandle(integer i)
+    return i>0
+end type
+
+type Ihandln(integer i)
+    return i>=0
+end type
+
+type nullable_string(object o)
+    return string(o) or o=NULL
+end type
+
+constant
+    -- Common Flags and Return Values
+    IUP_ERROR       = 1,
+    IUP_NOERROR     = 0,
+    $
+
+
+include builtins\VM\\pcmdlnN.e      -- command_line()
+include builtins\pgetpath.e         -- get_proper_dir()
+
+procedure iup_link_error(sequence name)
+    puts(1,"link error: "&name)
+    ?9/0
+end procedure
+
+function iup_c_func(atom dll, sequence name, sequence args, atom result)
+    integer handle = define_c_func(dll, name, args, result)
+    if handle = -1 then iup_link_error(name) end if
+    return handle
+end function
+
+function iup_c_proc(atom dll, sequence name, sequence args)
+    integer handle = define_c_proc(dll, name, args)
+    if handle = -1 then iup_link_error(name) end if
+    return handle
+end function
+
+constant string curr_dir = current_dir()
+constant integer libidx = iff(platform()=WINDOWS ? 1:
+                          iff(platform()=LINUX   ? 2:
+                                                   9/0))
+constant sequence dirs = {"win","lnx"}
+string dll_path
+constant SLASH = iff(platform()=WINDOWS?'\\':'/')
+
+function iup_open_dll(sequence libs)
+--string fullpath = dll_path&libs[libidx]
+string path = libs[libidx]
+atom res
+    if platform()=WINDOWS then
+        if chdir(dll_path)=0 then ?9/0 end if
+--      res = open_dll(fullpath)
+        path = current_dir()&SLASH&path
+    end if
+    res = open_dll(path)
+    if platform()=WINDOWS then
+        if chdir(curr_dir)=0 then ?9/0 end if
+    end if
+--  if res=0 then iup_link_error(fullpath) end if
+    if res=0 then iup_link_error(path) end if
+    return res
+end function
+
+constant
+         D  = C_DOUBLE, 
+         F  = C_FLOAT,      -- NB: VM/pcfuncN.e may not be up to this.. [edited 25/2/16]
+         I  = C_INT,
+--       L  = C_LONG,
+         P  = C_POINTER, 
+--       U  = C_UINT,
+         UC = C_UCHAR,
+--       UL = C_ULONG,
+         $
+
+atom
+    iup,
+    xIupOpen,
+    xIupClose,
+--  xIupLoad,
+--  xIupLoadBuffer,
+--  xIupSetLanguage,
+--  xIupGetLanguage,
+--DEV these are documented in elements...
+    xIupCreate,
+--  xIupCreatev, -- (deliberately omitted)
+    xIupDestroy,
+    xIupMap,
+    xIupUnmap,
+--DEV attributes? (nah)
+    xIupVersion,
+    xIupVersionDate,
+    xIupVersionNumber,
+
+    xIupMainLoop,
+    xIupMainLoopLevel,
+    xIupLoopStep,
+    xIupLoopStepWait,
+    xIupExitLoop,
+    xIupFlush,
+    xIupRecordInput,
+    xIupPlayInput,
+    xIupGetActionName,
+
+    xIupSetAttribute,
+     xIupSetAttributeId,
+     xIupSetAttributeId2,
+     xIupSetStrAttribute,
+      xIupSetStrAttributeId,
+      xIupSetStrAttributeId2,
+      xIupSetInt,
+      xIupSetIntId,
+      xIupSetIntId2,
+      xIupSetFloat,
+      xIupSetFloatId,
+      xIupSetFloatId2,
+      xIupSetDouble,
+      xIupSetDoubleId,
+      xIupSetDoubleId2,
+      xIupSetRGB,
+      xIupSetRGBId,
+      xIupSetRGBId2,
+      xIupStoreAttribute,
+     xIupSetAttributeHandle,
+      xIupSetHandle,
+    xIupSetAttributes,
+    xIupResetAttribute,
+    xIupGetAttribute,
+     xIupGetAttributeId,
+     xIupGetAttributeId2,
+--   xIupGetAttributes, (deprecated)
+     xIupGetAllAttributes,
+     xIupGetAttributeHandle,
+      xIupGetHandle,
+     xIupGetInt,
+     xIupGetInt2,
+     xIupGetIntInt,
+     xIupGetIntId,
+     xIupGetIntId2,
+     xIupGetFloat,
+     xIupGetFloatId,
+     xIupGetFloatId2,
+     xIupGetDouble,
+     xIupGetDoubleId,
+     xIupGetDoubleId2,
+     xIupGetRGB,
+     xIupGetRGBId,
+     xIupGetRGBId2,
+    xIupSetGlobal,
+     xIupSetStrGlobal,
+     xIupStoreGlobal,
+    xIupGetGlobal,
+    xIupSetCallback,
+     xIupGetCallback,
+    xIupGetClassName,
+     xIupGetAllClasses,
+     xIupGetClassType,
+     xIupGetClassAttributes,
+     xIupGetClassCallbacks,
+     xIupSaveClassAttributes,
+     xIupCopyClassAttributes,
+     xIupSetClassDfltAttribute,
+
+    xIupFill,
+    xIupHboxv,
+    xIupVboxv,
+    xIupZboxv,
+    xIupRadio,
+    xIupNormalizerv,
+    xIupCboxv,
+    xIupSbox,
+    xIupSplit,
+    xIupGridBoxv,
+
+    xIupAppend,
+    xIupDetach,
+    xIupInsert,
+    xIupReparent,
+    xIupGetParent,
+    xIupGetChild,
+    xIupGetChildPos,
+    xIupGetChildCount,
+    xIupGetNextChild,
+    xIupGetBrother,
+    xIupGetDialog,
+    xIupGetDialogChild,
+
+    xIupRefresh,
+    xIupRefreshChildren,
+    xIupUpdate,
+    xIupUpdateChildren,
+    xIupRedraw,
+    xIupConvertXYToPos,
+
+    xIupDialog,
+    xIupPopup,
+    xIupShow,
+    xIupShowXY,
+    xIupHide,
+
+    xIupAlarm,
+    xIupMessage,
+    xIupMessageDlg,
+    xIupColorDlg,
+    xIupFileDlg,
+    xIupFontDlg,
+    xIupGetColor,
+    xIupGetFile,
+    xIupGetParamv,
+    xIupGetText,
+    xIupListDialog,
+    xIupLayoutDialog,
+    xIupProgressDlg,
+
+    xIupButton,
+    xIupCanvas,
+    xIupFrame,
+    xIupLabel,
+    xIupList,
+    xIupProgressBar,
+    xIupSpin,
+    xIupSpinbox,
+    xIupTabsv,
+    xIupText,
+    xIupMultiLine,
+    xIupTextConvertLinColToPos,
+    xIupTextConvertPosToLinCol,
+    xIupToggle,
+    xIupTree,
+    xIupVal,
+
+    xIupConfig,
+    xIupConfigLoad,
+    xIupConfigSave,
+    xIupConfigSetVariableInt,
+    xIupConfigSetVariableIntId,
+    xIupConfigSetVariableDouble,
+    xIupConfigSetVariableDoubleId,
+    xIupConfigSetVariableStr,
+    xIupConfigSetVariableStrId,
+--  xIupConfigGetVariableInt,
+    xIupConfigGetVariableIntDef,
+--  xIupConfigGetVariableIntId,
+    xIupConfigGetVariableIntIdDef,
+--  xIupConfigGetVariableDouble,
+    xIupConfigGetVariableDoubleDef,
+--  xIupConfigGetVariableDoubleId,
+    xIupConfigGetVariableDoubleIdDef,
+--  xIupConfigGetVariableStr,
+    xIupConfigGetVariableStrDef,
+--  xIupConfigGetVariableStrId,
+    xIupConfigGetVariableStrIdDef,
+    xIupConfigRecentInit,
+    xIupConfigRecentUpdate,
+    xIupConfigDialogShow,
+    xIupConfigDialogClosed,
+
+    xIupPreviousField,
+    xIupNextField,
+    xIupSetFocus,
+    xIupGetFocus,
+
+    xIupMenuv,
+    xIupItem,
+    xIupSeparator,
+    xIupSubmenu,
+
+--  xIupSetHandle,
+--  xIupGetHandle,
+    xIupGetName,
+    xIupGetAllNames,
+    xIupGetAllDialogs,
+
+    xIupClipboard,
+    xIupTimer,
+    xIupUser,
+    xIupHelp,
+
+    iupControls,
+    xIupControlsOpen,
+    
+    xIupLoad,
+    xIupLoadBuffer,
+    xIupSetLanguage,
+    xIupGetLanguage,
+    xIupSetLanguageString,
+    xIupStoreLanguageString,
+    xIupGetLanguageString,
+    xIupSetLanguagePack,
+    xIupGetFunction,
+    xIupSetFunction,
+    xIupClassMatch,
+    xIupScrollBox,
+    xIupExpander,
+    xIupDetachBox,
+    xIupBackgroundBox,
+    xIupLink,
+    xIupFlatButton,
+    xIupStoreAttributeId,
+    xIupStoreAttributeId2,
+    xIupTreeSetUserId,
+    xIupTreeGetUserId,
+    xIupTreeGetId,
+    xIupTreeSetAttributeHandle,
+    xIupTreeSetAttribute,
+    xIupTreeStoreAttribute,
+    xIupTreeGetAttribute,
+    xIupTreeGetInt,
+    xIupTreeGetFloat,
+    xIupMapFont,
+    xIupUnMapFont,
+    xIupParamf,
+    xIupParamBox,
+    xIupElementPropertiesDialog,
+    xiupKeyCodeToName,
+
+    $
+
+procedure iup_init1(nullable_string dll_root)
+    if dll_root=NULL then
+        dll_root = command_line()[2]
+    end if
+    dll_root = get_proper_dir(dll_root)
+--  dll_path = dll_root&sprintf("\\%s%d\\",{dirs[libidx],machine_bits()})
+    dll_path = dll_root&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
+
+--DEV:
+    if platform()=WINDOWS then
+        -- Aside: normally I'd expect msvcr120.dll to be loaded from system32/syswow64, 
+        --        but if someone puts copies in pGUI\win32/64, it should be alright.
+        if chdir(dll_path)=0 then ?9/0 end if
+        if open_dll("msvcr120.dll")=0 then
+            puts(1,"fatal error: msvcr120.dll could not be loaded\n")
+            puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2013\n")
+            puts(1," from https://www.microsoft.com/en-us/download/details.aspx?id=40784 \n")
+            -- ( https://www.microsoft.com/en-us/download/details.aspx?id=40784 )
+            {} = wait_key()
+            ?9/0
+        end if
+        if chdir(curr_dir)=0 then ?9/0 end if
+    end if
+
+    iup = iup_open_dll({"iup.dll",
+                        "libiup.so",
+                        "libiup.dylib"})
+
+    -- Control
+    xIupOpen            = iup_c_func(iup, "IupOpen", {I,P}, I)
+    xIupClose           = iup_c_proc(iup, "IupClose", {})
+--  xIupLoad            = iup_c_func(iup, "IupLoad", {P},P)
+--  xIupLoadBuffer      = iup_c_func(iup, "IupLoadBuffer", {P}, P)
+--  xIupSetLanguage     = iup_c_proc(iup, "IupSetLanguage", {P})
+--  xIupGetLanguage     = iup_c_func(iup, "IupGetLanguage", {}, P)
+--DEV these are documented in elements...
+    xIupCreate          = iup_c_func(iup, "IupCreate", {P},P)
+--  xIupCreatev         = iup_c_func(iup, "IupCreatev", {P,P},P) -- (deliberately omitted)
+    xIupDestroy         = iup_c_proc(iup, "IupDestroy", {P})
+    xIupMap             = iup_c_func(iup, "IupMap", {P},I)
+    xIupUnmap           = iup_c_proc(iup, "IupUnmap", {P})
+--DEV attributes? (nah)
+    xIupVersion         = iup_c_func(iup, "IupVersion", {}, P)
+    xIupVersionDate     = iup_c_func(iup, "IupVersionDate", {}, P)
+    xIupVersionNumber   = iup_c_func(iup, "IupVersionNumber", {}, I)
+
+    xIupMainLoop        = iup_c_proc(iup, "IupMainLoop", {})
+    xIupMainLoopLevel   = iup_c_func(iup, "IupMainLoopLevel", {}, I)
+    xIupLoopStep        = iup_c_func(iup, "IupLoopStep", {}, I)
+    xIupLoopStepWait    = iup_c_func(iup, "IupLoopStepWait", {}, I)
+    xIupExitLoop        = iup_c_proc(iup, "IupExitLoop", {})
+    xIupFlush           = iup_c_proc(iup, "IupFlush", {})
+    xIupRecordInput     = iup_c_func(iup, "IupRecordInput", {P,I}, I)
+    xIupPlayInput       = iup_c_proc(iup, "IupPlayInput", {P})
+    xIupGetActionName   = iup_c_func(iup, "IupGetActionName", {}, P)
+
+    xIupSetAttribute            = iup_c_proc(iup, "IupSetAttribute", {P,P,P})
+     xIupSetAttributeId         = iup_c_proc(iup, "IupSetAttributeId", {P,P,I,P})
+     xIupSetAttributeId2        = iup_c_proc(iup, "IupSetAttributeId2", {P,P,I,I,P})
+     xIupSetStrAttribute        = iup_c_proc(iup, "IupSetStrAttribute", {P,P,P})
+      xIupSetStrAttributeId     = iup_c_proc(iup, "IupSetStrAttributeId", {P,P,I,P})
+      xIupSetStrAttributeId2    = iup_c_proc(iup, "IupSetStrAttributeId2", {P,P,I,I,P})
+      xIupSetInt                = iup_c_proc(iup, "IupSetInt", {P,P,I})
+      xIupSetIntId              = iup_c_proc(iup, "IupSetIntId", {P,P,I,I})
+      xIupSetIntId2             = iup_c_proc(iup, "IupSetIntId2", {P,P,I,I,I})
+      xIupSetFloat              = iup_c_proc(iup, "IupSetFloat", {P,P,F})
+      xIupSetFloatId            = iup_c_proc(iup, "IupSetFloatId", {P,P,I,F})
+      xIupSetFloatId2           = iup_c_proc(iup, "IupSetFloatId2", {P,P,I,I,F})
+      xIupSetDouble             = iup_c_proc(iup, "IupSetDouble", {P,P,D})
+      xIupSetDoubleId           = iup_c_proc(iup, "IupSetDoubleId", {P,P,I,D})
+      xIupSetDoubleId2          = iup_c_proc(iup, "IupSetDoubleId2", {P,P,I,I,D})
+      xIupSetRGB                = iup_c_proc(iup, "IupSetRGB", {P,P,UC,UC,UC})
+      xIupSetRGBId              = iup_c_proc(iup, "IupSetRGBId", {P,P,I,UC,UC,UC})
+      xIupSetRGBId2             = iup_c_proc(iup, "IupSetRGBId2", {P,P,I,I,UC,UC,UC})
+      xIupStoreAttribute        = iup_c_proc(iup, "IupStoreAttribute", {P,P,P})
+     xIupSetAttributeHandle     = iup_c_proc(iup, "IupSetAttributeHandle", {P,P,P})
+      xIupSetHandle             = iup_c_proc(iup, "IupSetHandle", {P,P})
+    xIupSetAttributes           = iup_c_proc(iup, "IupSetAttributes", {P,P})
+    xIupResetAttribute          = iup_c_proc(iup, "IupResetAttribute", {P,P})
+    xIupGetAttribute            = iup_c_func(iup, "IupGetAttribute", {P,P}, P)
+     xIupGetAttributeId         = iup_c_func(iup, "IupGetAttributeId", {P,P,I}, P)
+     xIupGetAttributeId2        = iup_c_func(iup, "IupGetAttributeId2", {P,P,I,I}, P)
+--   xIupGetAttributes          = iup_c_func(iup, "IupGetAttributes", {P}, P), (deprecated)
+     xIupGetAllAttributes       = iup_c_func(iup, "IupGetAllAttributes", {P,P,I}, I)
+     xIupGetAttributeHandle     = iup_c_func(iup, "IupGetAttributeHandle", {P,P}, P)
+      xIupGetHandle             = iup_c_func(iup, "IupGetHandle", {P}, P)
+     xIupGetInt                 = iup_c_func(iup, "IupGetInt", {P,P}, I)
+     xIupGetInt2                = iup_c_func(iup, "IupGetInt2", {P,P}, I)
+     xIupGetIntInt              = iup_c_func(iup, "IupGetIntInt", {P,P,P,P}, I)
+     xIupGetIntId               = iup_c_func(iup, "IupGetIntId", {P,P,I}, I)
+     xIupGetIntId2              = iup_c_func(iup, "IupGetIntId2", {P,P,I,I}, I)
+     xIupGetFloat               = iup_c_func(iup, "IupGetFloat", {P,P}, F)
+     xIupGetFloatId             = iup_c_func(iup, "IupGetFloatId", {P,P,I}, F)
+     xIupGetFloatId2            = iup_c_func(iup, "IupGetFloatId2", {P,P,I,I}, F)
+     xIupGetDouble              = iup_c_func(iup, "IupGetDouble", {P,P}, D)
+     xIupGetDoubleId            = iup_c_func(iup, "IupGetDoubleId", {P,P,I}, D)
+     xIupGetDoubleId2           = iup_c_func(iup, "IupGetDoubleId2", {P,P,I,I}, D)
+     xIupGetRGB                 = iup_c_proc(iup, "IupGetRGB", {P,P,P,P,P})
+     xIupGetRGBId               = iup_c_proc(iup, "IupGetRGBId", {P,P,I,P,P,P})
+     xIupGetRGBId2              = iup_c_proc(iup, "IupGetRGBId2", {P,P,I,I,P,P,P})
+    xIupSetGlobal               = iup_c_proc(iup, "IupSetGlobal", {P,P})
+     xIupSetStrGlobal           = iup_c_proc(iup, "IupSetStrGlobal", {P,P})
+     xIupStoreGlobal            = iup_c_proc(iup, "IupStoreGlobal", {P,P})
+    xIupGetGlobal               = iup_c_func(iup, "IupGetGlobal", {P}, P)
+    xIupSetCallback             = iup_c_func(iup, "IupSetCallback", {P,P,P}, P)
+     xIupGetCallback            = iup_c_func(iup, "IupGetCallback", {P,P}, P)
+    xIupGetClassName            = iup_c_func(iup, "IupGetClassName", {P},P)
+     xIupGetAllClasses          = iup_c_func(iup, "IupGetAllClasses", {P,I}, I)
+     xIupGetClassType           = iup_c_func(iup, "IupGetClassType", {P}, P)
+     xIupGetClassAttributes     = iup_c_func(iup, "IupGetClassAttributes", {P,P,I}, I)
+     xIupGetClassCallbacks      = iup_c_func(iup, "IupGetClassCallbacks", {P,P,I}, I)
+     xIupSaveClassAttributes    = iup_c_proc(iup, "IupSaveClassAttributes", {P})
+     xIupCopyClassAttributes    = iup_c_proc(iup, "IupCopyClassAttributes", {P,P})
+     xIupSetClassDfltAttribute  = iup_c_proc(iup, "IupSetClassDefaultAttribute", {P,P,P})
+
+    xIupFill            = iup_c_func(iup, "IupFill", {}, P)
+    xIupHboxv           = iup_c_func(iup, "IupHboxv", {P}, P)
+    xIupVboxv           = iup_c_func(iup, "IupVboxv", {P}, P)
+    xIupZboxv           = iup_c_func(iup, "IupZboxv", {P}, P)
+    xIupRadio           = iup_c_func(iup, "IupRadio", {P}, P)
+    xIupNormalizerv     = iup_c_func(iup, "IupNormalizerv", {P}, P)
+    xIupCboxv           = iup_c_func(iup, "IupCboxv", {P}, P)
+    xIupSbox            = iup_c_func(iup, "IupSbox", {P}, P)
+    xIupSplit           = iup_c_func(iup, "IupSplit", {P,P}, P)
+    xIupGridBoxv        = iup_c_func(iup, "IupGridBoxv", {P}, P)
+
+    xIupAppend          = iup_c_func(iup, "IupAppend", {P,P}, P)
+    xIupDetach          = iup_c_proc(iup, "IupDetach", {P})
+    xIupInsert          = iup_c_func(iup, "IupInsert", {P,P,P}, P)
+    xIupReparent        = iup_c_func(iup, "IupReparent", {P,P,P}, P)
+    xIupGetParent       = iup_c_func(iup, "IupGetParent", {P}, P)
+    xIupGetChild        = iup_c_func(iup, "IupGetChild", {P,I}, P)
+    xIupGetChildPos     = iup_c_func(iup, "IupGetChildPos", {P,P}, I)
+    xIupGetChildCount   = iup_c_func(iup, "IupGetChildCount", {P}, I)
+    xIupGetNextChild    = iup_c_func(iup, "IupGetNextChild", {P,P}, P)
+    xIupGetBrother      = iup_c_func(iup, "IupGetBrother", {P},P)
+    xIupGetDialog       = iup_c_func(iup, "IupGetDialog", {P},P)
+    xIupGetDialogChild  = iup_c_func(iup, "IupGetDialogChild", {P,P},P)
+
+    xIupRefresh         = iup_c_proc(iup, "IupRefresh", {P})
+    xIupRefreshChildren = iup_c_proc(iup, "IupRefreshChildren", {P})
+    xIupUpdate          = iup_c_proc(iup, "IupUpdate", {P})
+    xIupUpdateChildren  = iup_c_proc(iup, "IupUpdate", {P})
+    xIupRedraw          = iup_c_proc(iup, "IupRedraw", {P,I})
+    xIupConvertXYToPos  = iup_c_func(iup, "IupConvertXYToPos", {P,I,I}, I)
+
+    xIupDialog  = iup_c_func(iup, "IupDialog", {P},P)
+    xIupPopup   = iup_c_func(iup, "IupPopup", {P,I,I},I)
+    xIupShow    = iup_c_func(iup, "IupShow", {P},I)
+    xIupShowXY  = iup_c_func(iup, "IupShowXY", {P,I,I},I)
+    xIupHide    = iup_c_proc(iup, "IupHide", {P})
+
+    xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
+    xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P})
+    xIupMessageDlg      = iup_c_func(iup, "IupMessageDlg", {}, P)
+    xIupColorDlg        = iup_c_func(iup, "IupColorDlg", {}, P)
+    xIupFileDlg         = iup_c_func(iup, "IupFileDlg", {}, P)
+    xIupFontDlg         = iup_c_func(iup, "IupFontDlg", {}, P)
+    xIupGetColor        = iup_c_func(iup, "IupGetColor", {I,I,P,P,P}, I)
+    xIupGetFile         = iup_c_func(iup, "IupGetFile", {P}, I)
+    xIupGetParamv       = iup_c_func(iup, "IupGetParamv", {P,P,P,P,I,I,P}, I)
+    xIupGetText         = iup_c_func(iup, "IupGetText", {P,P}, I)
+    xIupListDialog      = iup_c_func(iup, "IupListDialog", {I,P,I,P,I,I,I,P}, I)
+    xIupLayoutDialog    = iup_c_func(iup, "IupLayoutDialog", {P}, P)
+    xIupProgressDlg     = iup_c_func(iup, "+IupProgressDlg", {}, P)
+
+    xIupButton                  = iup_c_func(iup, "IupButton", {P,P}, P)
+    xIupCanvas                  = iup_c_func(iup, "IupCanvas", {P}, P)
+    xIupFrame                   = iup_c_func(iup, "IupFrame", {P}, P)
+    xIupLabel                   = iup_c_func(iup, "IupLabel", {P}, P)
+    xIupList                    = iup_c_func(iup, "IupList", {P}, P)
+    xIupProgressBar             = iup_c_func(iup, "IupProgressBar", {}, P)
+    xIupSpin                    = iup_c_func(iup, "IupSpin", {}, P)
+    xIupSpinbox                 = iup_c_func(iup, "IupSpinbox", {P}, P)
+    xIupTabsv                   = iup_c_func(iup, "IupTabsv", {P}, P)
+    xIupText                    = iup_c_func(iup, "IupText", {P}, P)
+    xIupMultiLine               = iup_c_func(iup, "IupMultiLine", {P},P)
+    xIupTextConvertLinColToPos  = iup_c_proc(iup, "IupTextConvertLinColToPos", {P,I,I,P})
+    xIupTextConvertPosToLinCol  = iup_c_proc(iup, "IupTextConvertPosToLinCol", {P,I,P,P})
+    xIupToggle                  = iup_c_func(iup, "IupToggle", {P,P}, P)
+    xIupTree                    = iup_c_func(iup, "IupTree", {}, P)
+    xIupVal                     = iup_c_func(iup, "IupVal", {P}, P)
+
+    xIupConfig                        = iup_c_func(iup, "IupConfig", {}, P)
+    xIupConfigLoad                    = iup_c_func(iup, "IupConfigLoad", {P}, I)
+    xIupConfigSave                    = iup_c_func(iup, "IupConfigSave", {P}, I)
+    xIupConfigSetVariableInt          = iup_c_proc(iup, "IupConfigSetVariableInt", {P,P,P,I})
+    xIupConfigSetVariableIntId        = iup_c_proc(iup, "IupConfigSetVariableIntId", {P,P,P,I,I})
+    xIupConfigSetVariableDouble       = iup_c_proc(iup, "IupConfigSetVariableDouble", {P,P,P,D})
+    xIupConfigSetVariableDoubleId     = iup_c_proc(iup, "IupConfigSetVariableDoubleId", {P,P,P,I,D})
+    xIupConfigSetVariableStr          = iup_c_proc(iup, "IupConfigSetVariableStr", {P,P,P,P})
+    xIupConfigSetVariableStrId        = iup_c_proc(iup, "IupConfigSetVariableStrId", {P,P,P,I,P})
+--  xIupConfigGetVariableInt          = iup_c_func(iup, "IupConfigGetVariableInt", {P,P,P}, I)
+    xIupConfigGetVariableIntDef       = iup_c_func(iup, "IupConfigGetVariableIntDef", {P,P,P,I}, I)
+--  xIupConfigGetVariableIntId        = iup_c_func(iup, "IupConfigGetVariableIntId", {P,P,P,I}, I)
+    xIupConfigGetVariableIntIdDef     = iup_c_func(iup, "IupConfigGetVariableIntIdDef", {P,P,P,I,I}, I)
+--  xIupConfigGetVariableDouble       = iup_c_func(iup, "IupConfigGetVariableDouble", {P,P,P}, D)
+    xIupConfigGetVariableDoubleDef    = iup_c_func(iup, "IupConfigGetVariableDoubleDef", {P,P,P,D}, D)
+--  xIupConfigGetVariableDoubleId     = iup_c_func(iup, "IupConfigGetVariableDoubleId", {P,P,P,I}, D)
+    xIupConfigGetVariableDoubleIdDef  = iup_c_func(iup, "IupConfigGetVariableDoubleIdDef", {P,P,P,I,D}, D)
+--  xIupConfigGetVariableStr          = iup_c_func(iup, "IupConfigGetVariableStr", {P,P,P}, P)
+    xIupConfigGetVariableStrDef       = iup_c_func(iup, "IupConfigGetVariableStrDef", {P,P,P,P}, P)
+--  xIupConfigGetVariableStrId        = iup_c_func(iup, "IupConfigGetVariableStrId", {P,P,P,I}, P)
+    xIupConfigGetVariableStrIdDef     = iup_c_func(iup, "IupConfigGetVariableStrIdDef", {P,P,P,I,P}, P)
+    xIupConfigRecentInit              = iup_c_proc(iup, "IupConfigRecentInit", {P,P,P,I})
+    xIupConfigRecentUpdate            = iup_c_proc(iup, "IupConfigRecentUpdate", {P,P})
+    xIupConfigDialogShow              = iup_c_proc(iup, "IupConfigDialogShow", {P,P,P})
+    xIupConfigDialogClosed            = iup_c_proc(iup, "IupConfigDialogClosed", {P,P,P})
+
+    xIupPreviousField   = iup_c_func(iup, "IupPreviousField", {P},P)
+    xIupNextField       = iup_c_func(iup, "IupNextField", {P},P)
+    xIupSetFocus        = iup_c_proc(iup, "IupSetFocus", {P})
+    xIupGetFocus        = iup_c_func(iup, "IupGetFocus", {},P)
+
+    xIupMenuv           = iup_c_func(iup, "IupMenuv", {P}, P)
+    xIupItem            = iup_c_func(iup, "IupItem",  {P,P}, P)
+    xIupSeparator       = iup_c_func(iup, "IupSeparator", {}, P)
+    xIupSubmenu         = iup_c_func(iup, "IupSubmenu", {P,P}, P)
+
+--  xIupSetHandle       = iup_c_proc(iup, "IupSetHandle", {P,P})
+--  xIupGetHandle       = iup_c_func(iup, "IupGetHandle", {P},P)
+    xIupGetName         = iup_c_func(iup, "IupGetName", {P},P)
+    xIupGetAllNames     = iup_c_func(iup, "IupGetAllNames", {P,I},I)
+    xIupGetAllDialogs   = iup_c_func(iup, "IupGetAllDialogs", {P,I},I)
+
+    xIupClipboard = iup_c_func(iup, "IupClipboard", {}, P)
+    xIupTimer = iup_c_func(iup, "IupTimer", {}, P)
+    xIupUser = iup_c_func(iup, "IupUser", {}, P)
+    xIupHelp = iup_c_func(iup, "IupHelp", {P}, I)
+
+    iupControls = iup_open_dll({"iupcontrols.dll",
+                                "libiupcontrols.so",
+                                "libiupcontrols.dylib"})
+
+    xIupControlsOpen = iup_c_proc(iupControls, "IupControlsOpen", {})
+
+    xIupLoad                          = iup_c_func(iup, "+IupLoad", {P}, P)
+    xIupLoadBuffer                    = iup_c_func(iup, "+IupLoadBuffer", {P}, P)
+    xIupSetLanguage                   = iup_c_proc(iup, "+IupSetLanguage", {P})
+    xIupGetLanguage                   = iup_c_func(iup, "+IupGetLanguage", {}, P)
+    xIupSetLanguageString             = iup_c_proc(iup, "+IupSetLanguageString", {P,P})
+    xIupStoreLanguageString           = iup_c_proc(iup, "+IupStoreLanguageString", {P,P})
+    xIupGetLanguageString             = iup_c_func(iup, "+IupGetLanguageString", {P}, P)
+    xIupSetLanguagePack               = iup_c_proc(iup, "+IupSetLanguagePack", {P})
+    xIupGetFunction                   = iup_c_func(iup, "+IupGetFunction", {P}, P)
+    xIupSetFunction                   = iup_c_func(iup, "+IupSetFunction", {P,P}, P)
+    xIupClassMatch                    = iup_c_func(iup, "+IupClassMatch", {P,P}, I)
+    xIupScrollBox                     = iup_c_func(iup, "+IupScrollBox", {P}, P)
+    xIupExpander                      = iup_c_func(iup, "+IupExpander", {P}, P)
+    xIupDetachBox                     = iup_c_func(iup, "+IupDetachBox", {P}, P)
+    xIupBackgroundBox                 = iup_c_func(iup, "+IupBackgroundBox", {P}, P)
+    xIupLink                          = iup_c_func(iup, "+IupLink", {P,P}, P)
+    xIupFlatButton                    = iup_c_func(iup, "+IupFlatButton", {P}, P)
+    xIupStoreAttributeId              = iup_c_proc(iup, "+IupStoreAttributeId", {P,P,I,P})
+    xIupStoreAttributeId2             = iup_c_proc(iup, "+IupStoreAttributeId2", {P,P,I,I,P})
+    xIupTreeSetUserId                 = iup_c_func(iup, "+IupTreeSetUserId", {P,I,P}, I)
+    xIupTreeGetUserId                 = iup_c_func(iup, "+IupTreeGetUserId", {P,I}, P)
+    xIupTreeGetId                     = iup_c_func(iup, "+IupTreeGetId", {P,P}, I)
+    xIupTreeSetAttributeHandle        = iup_c_proc(iup, "+IupTreeSetAttributeHandle", {P,P,I,P})
+    xIupTreeSetAttribute              = iup_c_proc(iup, "+IupTreeSetAttribute", {P,P,I,P})
+    xIupTreeStoreAttribute            = iup_c_proc(iup, "+IupTreeStoreAttribute", {P,P,I,P})
+    xIupTreeGetAttribute              = iup_c_func(iup, "+IupTreeGetAttribute", {P,P,I}, P)
+    xIupTreeGetInt                    = iup_c_func(iup, "+IupTreeGetInt", {P,P,I}, I)
+    xIupTreeGetFloat                  = iup_c_func(iup, "+IupTreeGetFloat", {P,P,I}, F)
+    xIupMapFont                       = iup_c_func(iup, "+IupMapFont", {P}, P)
+    xIupUnMapFont                     = iup_c_func(iup, "+IupUnMapFont", {P}, P)
+    xIupParamf                        = iup_c_func(iup, "+IupParamf", {P}, P)
+    xIupParamBox                      = iup_c_func(iup, "+IupParamBox", {P,P,I}, P)
+    xIupElementPropertiesDialog       = iup_c_func(iup, "+IupElementPropertiesDialog", {P}, P)
+    xiupKeyCodeToName                 = iup_c_func(iup, "iupKeyCodeToName", {I},P)
+
+end procedure
+
+procedure IupOpen(nullable_string dll_root=NULL)
+    iup_init1(dll_root)
+    if c_func(xIupOpen, {NULL,NULL})=IUP_ERROR then ?9/0 end if
+end procedure
+
+procedure IupClose()
+    c_proc(xIupClose, {})
+end procedure
+
+--procedure IupSetAttributes(Ihandle ih, string attributes, sequence data = {})
+--  if length(data) then
+--      attributes = sprintf(attributes, data)
+--  end if
+--  c_proc(xIupSetAttributes, {ih, attributes})
+--end procedure
+
+--procedure IupSetCallback(Ihandle ih, string name, cbfunc func)
+--  atom prev = c_func(xIupSetCallback, {ih, name, func})
+--end procedure
+
+--function IupDialog(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+function IupDialog(Ihandln child=NULL)
+--  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    Ihandle ih = c_func(xIupDialog, {child})
+--  if func!=NULL and action!=NULL then
+--      IupSetCallback(ih, action, func)
+--  end if
+--  if length(attributes) then
+--      IupSetAttributes(ih, attributes, data)
+--  end if
+    return ih
+end function
+
+procedure IupShow(Ihandle ih)
+    if c_func(xIupShow, {ih})!=IUP_NOERROR then ?9/0 end if
+end procedure
+
+function IupAlarm(string title, string msg, string b1, nullable_string b2 = NULL, nullable_string b3 = NULL)
+    return c_func(xIupAlarm, {title,msg,b1,b2,b3})
+end function
+
+procedure IupMessage(nullable_string title = NULL, nullable_string msg = NULL)
+    c_proc(xIupMessage, {title,msg})
+end procedure
+
+
+if showprogress then ?"IupOpen" end if
+    IupOpen()
+
+if showprogress then ?"IupDialog" end if
+    Ihandle dlg = IupDialog(NULL)
+
+if showprogress then ?"IupShow" end if
+    IupShow(dlg) -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
+
+if showprogress then ?"IupAlarm" end if
+    switch IupAlarm("Alarm Demo", "Save File?", "Yes", "No", "Cancel") do
+        case 1 then
+            IupMessage("Save file", "File saved successfully - leaving program")
+        case 2 then
+            IupMessage("Save file", "File not saved - leaving program anyway")
+        case 3 then
+            IupMessage("Save file", "Operation canceled")
+    end switch
+
+    IupClose()
+

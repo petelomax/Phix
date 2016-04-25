@@ -6,9 +6,10 @@
 --
 --  These routines exist so that we can output some simple console messages before all of
 --  pHeap.e/pStack.e/pprntfN.e/psprintN.e/pfileioN.e/pMath.e/pSubseN.e/pSubssN.e/pJcc.e
---  pRmdr.e/pRepeN.e/pRepsN.e/pApnd.e etc are working or if they get broken in some way.
+--  pRmdr.e/pRepeN.e/pRepsN.e/pApnd.e etc are working, or if they get broken in any way.
 --
 --  See ..\puts1h.e for hll wrapper routines/hints on invoking these from inline assembly.
+--  This file was made an autoinclude purely because it was an easy one to start off with.
 --  Note that unlike this, ..\puts1h.e requires an explicit include statement before use.
 --  Also note the original version of this file was deliberately split into puts1/puts1h
 --  so that this can be put into the optable (:%labels only) and the latter left out.
@@ -17,10 +18,10 @@
 --      =======         ===========
 --      :%puts1         puts1(s)        equivalent to     puts(1,s)
 --                                                        puts(1,raw(edi|rdi)[1..$])
---      :%puts1ediesi                                     puts(1,*edi[1..esi])  -- (32-bit name)
---      :%puts1rdirsi                                     puts(1,*rdi[1..rsi])  -- (64-bit name)
---      :%puthex32a     puthex32(a)     equivalent to     printf(1,"%08x\n",{a})
---      :%puthex32                                        printf(1,"%08x\n",{edx|and_bits(rdx,#FFFFFFFF)})
+--      :%puts1ediesi                                     puts(1,*edi[1..esi])  -- (32-bit char*)
+--      :%puts1rdirsi                                     puts(1,*rdi[1..rsi])  -- (64-bit char*)
+--      :%puthex32a     puthex32(a)     equivalent to     printf(1,"%08x\n",{a})    -- (atom/int)
+--      :%puthex32                                        printf(1,"%08x\n",{edx|and_bits(rdx,#FFFFFFFF)})  -- 32-bit reg
 --      :%puthex64                                        printf(1,"%08x\n",{edx:eax|rdx})
 --      :%putsint       putsint(i)      equivalent to     printf(1,"%d\n",{i})
 --                                                        printf(1,"%d\n",{edx|and_bits(rdx,#FFFFFFFF)})

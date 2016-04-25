@@ -551,9 +551,10 @@ procedure pp_Init()
     ppp_Nest = 0
     ppp_Ascii = {#20,#FF}
 --DEV/SUG
---  if platform()=LINUX then
+    if platform()=LINUX then
 --      ppp_Ascii = {{#20,#A0},{#7E,#FF}}
---  end if
+        ppp_Ascii = {#20,#7F}
+    end if
     ppp_IntFmt = "%d"
     ppp_FltFmt = "%.10g"
     ppp_Date = ""

@@ -249,18 +249,18 @@ end function
 --  text[12..21] = {116't',109'm',108'l',62'>',60'<',104'h',116't',109'm',108'l',32' '}
 --  text[22753..22762] = {68'D',110'n',111'o',116't',101'e',68'D',62'>',60'<',115's',116't'}
 --  text[22763..22772] = {114'r',111'o',110'n',103'g',62'>',78'N',111'o',116't',101'e',60'<'}
---  text[22773..22782] = {47'/',115's',116't',114'r',111'o',110'n',103'g',62'>',160' ',160' '}
+--  text[22773..22782] = {47'/',115's',116't',114'r',111'o',110'n',103'g',62'>',160' ',160' '}
 --  text[22783..22792] = {73'I',110'n',32' ',87'W',105'i',110'n',100'd',111'o',119'w',115's'}
---  text[22793..22802] = {160' ',56'8',32' ',97'a',110'n',100'd',32' ',108'l',97'a',116't'}
+--  text[22793..22802] = {160' ',56'8',32' ',97'a',110'n',100'd',32' ',108'l',97'a',116't'}
 --  text[22803..22812] = {101'e',114'r',32' ',111'o',112'p',101'e',114'r',97'a',116't',105'i'}
 --Then Edita/reformat ex.err munges it to:
 --  text[1..11] = "<!DOCTYPE h"
 --  text[12..21] = "tml><html "
 --  text[22753..22762] = "DnoteD><st"
 --  text[22763..22772] = "rong>Note<"
---  text[22773..22782] = {47'/',115's',116't',114'r',111'o',110'n',103'g',62'>',160' ',160' '}
+--  text[22773..22782] = {47'/',115's',116't',114'r',111'o',110'n',103'g',62'>',160' ',160' '}
 --  text[22783..22792] = "In Windows"
---  text[22793..22802] = {160' ',56'8',32' ',97'a',110'n',100'd',32' ',108'l',97'a',116't'}
+--  text[22793..22802] = {160' ',56'8',32' ',97'a',110'n',100'd',32' ',108'l',97'a',116't'}
 --  text[22803..22812] = "er operati"
 --a) it looks awful (all scrunched up), b) we could perhaps do better in the first place, here,
 --c) we would still want to leave some dword-sequences, in the same way that eaerr.e does.
@@ -746,6 +746,7 @@ constant msgs =
     -- result is more than +1.7976931348623146e308
  "length of an atom is not defined\n",                          -- e36loaaind
  "argument to allocate() must be positive integer\n",           -- e37atambpi
+--DEV e38 no longer used?
  "argument to free() must be an atom\n",                        -- e38atfmba
  "arguments to mem_copy() must be atoms\n",                     -- e39atmcmba
  "arguments to mem_set() must be atoms\n",                      -- e40atmsmba
@@ -774,7 +775,15 @@ constant msgs =
     -- (program no longer has to do anything useful, btw)
     -- then you can submit it for further investigation.
  "repeat count must be non negative integer\n",                 -- e52rcmbnni
- -1,--"for loop error\n",                                       -- e53fle           --DEV see e120,1
+-- -1,--"for loop error\n",                                     -- e53fle           --DEV see e120,1
+ "memory corruption at #%08x (pGtcb*4=#%08x, diff=#%08x)\n",    -- e53mcat(esi,ecx)
+    -- internal error. If you can reproduce this problem,
+    -- ideally on a compiled program with a listing file,
+    -- and get a consistent diff then it should be fairly
+    -- easy to trap after pGtcb has been set and predict
+    -- the memory location that needs trapping. If you do
+    -- not get a consistent diff, or intermittent errors,
+    -- this will likely be very difficult to track down.
  "attempt to raise negative number to non-integer power\n",     -- e54atrnntnip
     -- mathematically, power(-3,-3) is an imaginary number.
  -1,--"first argument to append() must be sequence\n",              -- e55fatambs
@@ -1932,6 +1941,9 @@ end function
 --DEV this may in fact be pointless...
 integer rbldrqd=1   -- (shadow copy of the one in pemit2.e)
 
+--17/4/16:
+include builtins\puts1h.e
+
 --function diag(atom msg_id)
 procedure diag()
 --
@@ -2523,6 +2535,8 @@ atom gvarptr
     elsif msg_id=80 then        -- e80cbrna(esi)
         rtn = or_esi    -- routine number
         -- (params/locals suppressed below, since they no longer exist)
+    elsif msg_id=53 then        -- e53mcat(esi,ecx)
+        msg = sprintf(msg,{or_esi,or_ecx*4,or_ecx*4-or_esi})
     end if
 --?2
 --/*
@@ -4031,8 +4045,22 @@ end procedure -- (for Edita/CtrlQ)
 --puts(1,"uh0?\n")
     if diagdiag>0 then
         if xceptn=0 then
-            printf(1,"error code %d, or_era=#%08x, or_ebp=#%08x, or_esp=#%08x\n",
-                   {msg_id,or_era,or_ebp*4,or_esp})
+--DEV Equivalent changes should probably be applied elsewhere (in this particular case 
+--      heap corruption meant it crashed in printf before it could display anything).
+--      A related idea could be that pHeap.e invokes :!diagHC (new) to set a flag to
+--      use low-level displays instead of (more readable) printfs, and/or displays the
+--      call stack without any (corrupted) variables that would make pDiagN.e crash.
+--      [or maybe "" if find(msg_id,{31,32,33,53,77})!=0...]
+--          printf(1,"error code %d, or_era=#%08x, or_ebp=#%08x, or_esp=#%08x\n",
+--                 {msg_id,or_era,or_ebp*4,or_esp})
+            puts1("error code ")
+            putsint(msg_id,0)
+            puts1(", or_era=#")
+            puthex32(or_era,0)
+            puts1(", or_ebp=#")
+            puthex32(or_ebp*4,0)
+            puts1(", or_esp=#")
+            puthex32(or_esp,1)
         else
             printf(1,"exception #%08x at #%08x, or_era=#%08x, or_ebp=#%08x, or_esp=#%08x\n",
                    {xceptn,xcepta,or_era,or_ebp*4,or_esp})

@@ -159,7 +159,15 @@ procedure addPath(sequence path)
 --DEV (temp)
     if platform()=LINUX then
         if match("./",path)=1 then
-            path = "/home/pete/phix/"&path[3..$]
+--          path = "/home/pete/phix/"&path[3..$]
+            path = getenv("HOME")&"/phix/"&path[3..$]
+--          path = mainpath&path[3..$]
+--          path = current_dir()&SLASH&path[3..$]
+--          if testall then
+--              path = mainpath[1..-6]&path[3..$]
+--          else
+--              path = mainpath&path[3..$]
+--          end if
         end if
     end if
 --  if not find(path,filepaths) then
@@ -382,7 +390,15 @@ end if
 --DEV (temp)
     if platform()=LINUX then
         if match("./",file)=1 then
-            file = "/home/pete/phix/"&file[3..$]
+--          file = "/home/pete/phix/"&file[3..$]
+            file = getenv("HOME")&"/phix/"&file[3..$]
+--          file = mainpath&file[3..$]
+--          file = current_dir()&SLASH&file[3..$]
+--          if testall then
+--              file = mainpath[1..-6]&file[3..$]
+--          else
+--              file = mainpath&file[3..$]
+--          end if
         end if
     end if
 
@@ -880,6 +896,7 @@ end if
         end if
     end for
 
+?current_dir()
     fatalmsg = "Cannot open "&file
     if autoInclude then
         fatalmsg = "Cannot open autoinclude "&file

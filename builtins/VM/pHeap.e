@@ -824,14 +824,19 @@
 --DEV
 include builtins\VM\pDeleteN.e
 
+-- (suprisingly, these two =0 are all the initialisation we need!)
+
 integer pGtcb = 0       -- the global control block (dwThreadId=0, stored /4)
-                        -- (suprisingly, these 3=0 are all the initialisation we need!)
 
 integer stdcs = 0       -- for very short one-off inits in \builtins (opEnter/LeaveCS).
 
 --integer gt1tcb = 0
 
 --DEV/temp:
+constant memory_corruption = "memory corruption at #"
+constant pGtcb4eq = ", pGtcb*4=#"
+constant diffis = ", diff="
+
 --constant pssebp = "pSetSaveEBP: #"
 --constant psslmh = " <- #"
 --constant psssob = " ("
@@ -922,6 +927,15 @@ end procedure
             -- *NB*: ELF32 often requires "xor ebx,ebx" after an int 0x80, whereas PE32/PE64/ELF64 preserve ebx/rbx
             -- In the case of C library calls (eg call "libc.so.6","printf"), eax/ecx/edx are damaged,
             --  but ebx/esi/edi/ebp are preserved. No floating point registers are preserved.
+--DEV this lot needs replacing: calls to libiup.so routines completely obliterate memory allocated as below,
+--      apparently sys_brk is "old hat" and "mmap with anon mapping" would be better.
+--      See http://man7.org/linux/man-pages/man2/mmap.2.html and builtins\syswait.ew for some examples of [ELF32/64]
+--      inline assembler calling libc funcs directly.
+--      [plain old malloc is also an option, but I read it (sometimes) uses mmap internally anyway, and it does not have the protection
+--       flags that might prove useful, then again it does have mcheck/mprobe... It has also occurred to me that the problem might be 
+--       that libiup.so uses malloc/mmap and whichever it uses assumes it does all the sys_brks, so that may force our hand.]
+
+--!/*
             push eax            -- save size
             -- call sys_brk(0) to find the current location of the program break
             xor ebx,ebx
@@ -946,7 +960,24 @@ end procedure
             -- return previous program break (or 0)
             mov eax,ecx
             add esp,4           -- discard size
+--!*/
 
+--void *mmap(void *addr(NULL), size_t length, int prot, int flags, int fd, off_t offset);
+-- PROT_EXEC=4 | PROT_READ=1 | PROT_WRITE=2; 7=RWX
+--  MAP_SHARED              =       01h             ; Share changes
+--  MAP_PRIVATE             =       02h             ; Changes are private
+--  MAP_ANONYMOUS           =       20h             ; don't use a file
+-- the following broke ./phix -test...
+--/*
+            push 0                  -- offset (ignored)
+            push -1                 -- fd (ignored)
+            push #22                -- MAP_ANONYMOUS | MAP_PRIVATE
+            push 7                  -- RWX
+            push eax                -- size
+            push ebx                -- addr (NULL)
+            call "libc.so.6","mmap"
+            add esp,24
+--*/
         [ELF64]
             -- standard (kernel) calling convention applies: 
             -- syscall number in rax (see docs\lsct64.txt)
@@ -955,6 +986,7 @@ end procedure
             -- rbx/rbp/r12/r13/r14/r15 are preserved
             -- In the case of C library calls (eg call "libc.so.6","printf"), rax/rcx/rdx/rsi/rdi/r8..r11 
             --  are damaged, but rbx/ebp/r12..r15 are preserved. No floating point registers are preserved.
+--!/*
             push rax                -- save length
 --          mov r14,rax             -- save length
             -- call sys_brk(0) to find the current location of the program break
@@ -975,6 +1007,17 @@ end procedure
 --  Function parameter                              4th     3rd     2nd     1st                     5th     6th                                                     N/A
 --  Return register                 1st                     2nd                                                                                                     N/A
 --  Kernel parameter                #NR                     3rd     2nd     1st                     5th     6th     4th                                             N/A
+--!*/
+--/*
+            push 0                  -- offset (ignored)
+            push -1                 -- fd (ignored)
+            push #22                -- MAP_ANONYMOUS | MAP_PRIVATE
+            push 7                  -- RWX
+            push rax                -- size
+            push rbx                -- addr (NULL)
+            call "libc.so.6","mmap"
+            add rsp,48
+--*/
         []
             ret
 
@@ -2778,6 +2821,7 @@ end procedure -- (for Edita/CtrlQ)
         -- If we get an exception here, and as :!blockfound is only invoked 
         --  from one point above, we immediately zero dword[esi*4+edi+20],
         --  in pFEH.e, to minimise any heap corruption knock-on effects.
+--DEV should we not check here that pRoot is sensible first?
         mov esi,[eax+4]             -- pNext
         mov ecx,[eax+8]             -- pPrev
         test ecx,ecx
@@ -2785,6 +2829,9 @@ end procedure -- (for Edita/CtrlQ)
             mov ecx,[esp+8]         -- pTCB/4
             test esi,esi
             jz @f
+--17/4/16:
+--              cmp esi,#10
+--              jbe :mc53clear
               :!blockfoundC0000005
                 mov [esi+8],ebx     -- this.pNext.pPrev:=null(=pPrev)
           @@:
@@ -2796,9 +2843,24 @@ end procedure -- (for Edita/CtrlQ)
             mov [ecx*4+edi+20],esi  -- pTCB[idx]:=this.pNext
             jmp :blockdetached
       :!bf_midchain
+--17/4/16:
+--          cmp ecx,2
+--          jbe :mc53clear
             mov [ecx+4],esi         -- this.pPrev.pNext:=this.pNext
             test esi,esi
             jz :blockdetached
+--17/4/16 trap here (esi is 1)
+                cmp esi,#800            -- may need other values, maybe scan pGtcb chain? [DEV temp, either way]
+                ja @f
+--                  -- zero a few pointers in an attempt to prevent infinite loops reporting the error..
+--                  mov [ecx+4],ebx         -- this.pPrev.pNext:=0
+--                ::mc53clear
+--                  mov ecx,[esp+8]         -- pTCB/4
+--                  mov [eax+4],ebx         -- this.pNext:=0
+--                  mov [eax+8],ebx         -- this.pPrev:=0
+--                  mov [ecx*4+edi+20],ebx  -- pTCB[idx]:=0
+                    jmp :mc53
+              @@:
                 mov [esi+8],ecx     -- this.pNext.pPrev:=this.pPrev
     [64]
       :!blockfound  -- era @ [rsp+80]
@@ -2848,9 +2910,44 @@ end procedure -- (for Edita/CtrlQ)
         mov ecx,[esp+8]             -- pTCB/4
         mov esi,[eax-4]             -- pRoot [+0b01, sometimes]
         and esi,#FFFFFFFE           -- clear 0b01, the free bit
+--17/4/16:
+        cmp esi,#800
+        jbe :mc53
         cmp dword[esi],#00484253    -- dwMagic ("SBH\0")
 --      jne :memorycorruption       -- (now checked in splitdone)
         je @f
+--17/4/16:
+            -- memory corruption at #HHHHHHHH(esi) (pGtcb*4=#HHHHHHHH, diff=#HHHHHHHH)
+          ::mc53
+--          mov edx,[esp+12]
+--          mov al,53               -- e53mcat(esi,ecx)
+--          sub edx,1
+--          mov ecx,[pGtcb]
+--          jmp :!iDiag
+            push eax
+--          push esi
+            mov edi,[memory_corruption]         -- "memory corruption at #"
+            call :%puts1
+            mov edx,[esp]
+            push 0                      -- no cr
+            call :%puthex32
+            mov edi,[pGtcb4eq]          -- ", pGtcb*4=#"
+            call :%puts1
+            mov edx,[pGtcb]
+            shl edx,2
+            push 0
+            call :%puthex32
+            mov edi,[diffis]            -- ", diff="
+            call :%puts1
+            mov ecx,[pGtcb]
+            mov edx,[esp]
+            shl ecx,2
+            push 1
+            sub edx,ecx
+            call :%puthex32
+--          pop esi
+            pop eax
+
             int3
       @@:
         cmp edx,[esp]               -- rqd block size
@@ -4311,7 +4408,7 @@ end procedure -- (for Edita/CtrlQ)
         [PE64]
             lea rcx,[rax+8]             -- lpCriticalSection (p1)
         [ELF64]
-            mov dword[rax+8],ebx        -- (a mutex (int32) of 0 is enough)
+            mov dword[rax+8],ebx        -- (a mutex (int32) of 0 is enough) [yes, on 64-bit]
         [64]
             shr rax,2
             pop rdi

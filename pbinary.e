@@ -419,8 +419,11 @@ string res = ""
 end function
 
 --DEV (for listing)
-global integer BaseOfData2, SizeOfData2
-global integer BaseOfCode2, SizeOfCode2
+--25/4/16 (pHeap using mmap)
+--global integer BaseOfData2, SizeOfData2
+--global integer BaseOfCode2, SizeOfCode2
+global atom BaseOfData2, SizeOfData2
+global atom BaseOfCode2, SizeOfCode2
 --global integer IB
 global integer ImageBase2
 --with trace

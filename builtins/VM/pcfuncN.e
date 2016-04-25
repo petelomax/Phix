@@ -267,7 +267,8 @@ atom res
             call :%pStoreFlt    -- ([rdi]:=ST0)
         [ELF32]
             mov eax,[filename]
-            push 1              -- flags (RTLD_LAZY)
+--          push 1              -- flags (RTLD_LAZY)
+            push 0x00101        -- flags (RTLD_GLOBAL|RTLD_LAZY)
             shl eax,2           -- ref->raw
             push eax            -- library name
             call "libdl.so.2", "dlopen"
@@ -276,7 +277,8 @@ atom res
             call :%pStoreMint   -- [edi]:=eax, as float if rqd
         [ELF64]
             mov rax,[filename]
-            push 1              -- flags (RTLD_LAZY)
+--          push 1              -- flags (RTLD_LAZY)
+            push 0x00101        -- flags (RTLD_GLOBAL|RTLD_LAZY)
             shl rax,2           -- ref->raw
             push rax            -- library name
             call "libdl.so.2", "dlopen"
@@ -340,6 +342,7 @@ atom addr
             push edx                            -- symbol
             push eax                            -- handle
             call "libdl.so.2", "dlsym"
+            add esp,8
         [32]
             push ebx    --(=0, for fild qword)
             push eax
@@ -389,6 +392,7 @@ atom addr
             push rdx                            -- symbol
             push rax                            -- handle
             call "libdl.so.2", "dlsym"
+            add rsp,16
             lea rdi,[addr]
             call :%pStoreMint
         []
@@ -1411,6 +1415,11 @@ end procedure
 
 constant FUNC = 1, PROC = 0
 
+--DEV/temp:
+constant memory_corruption = "pcfunc.e: memory corruption at #"
+constant pGtcb4eq = ", pGtcb*4=#"
+constant diffis = ", diff="
+
 function c_common(integer rid, sequence args, integer flag)
 -- common code for c_func and c_proc (validate and process args)
 --  flag is FUNC or PROC accordingly.
@@ -1430,6 +1439,41 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
     if string(args) then
         args = {args}
     end if
+--DEV (temp, getting e36loaaind on lnx, presumably "table" has been clobbered)
+    #ilASM{
+        [ELF32]
+            mov eax,[table]
+            cmp byte[ebx+eax*4-1],#80
+            je @f
+                lea esi,[ebx+eax*4-4]
+                push esi
+                mov edi,[memory_corruption] -- "pcfunc.e:memory corruption at #"
+                call :%puts1
+                mov edx,[esp]
+                push 0                      -- no cr
+                call :%puthex32
+                mov edi,[pGtcb4eq]          -- ", pGtcb*4=#"
+                call :%puts1
+                call :%pGetpGtcb
+                mov edx,eax
+                shl edx,2
+                push edx
+                push 0
+                call :%puthex32
+                mov edi,[diffis]            -- ", diff="
+                call :%puts1
+                pop ecx
+                mov edx,[esp]
+                push 1
+                sub edx,ecx
+                call :%puthex32
+--              pop esi
+--DEV/SUG (in VM\puts1.e)
+--              jmp :%terminate
+                int3
+          @@:
+        []
+          }
     if tinit=0 or rid<1 or rid>length(table) then
 --      fatal(e72iri,rid)
         fatalN(3,e72iri,rid)
@@ -1866,6 +1910,8 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
     return {return_type,addr,cstrings}
 end function
 
+--DEV clutching at straws... (not thread safe) [did not help]
+--integer static_ebp4 = 0
 
 global function c_func(integer rid, sequence args={})
 --function fc_func(integer rid, sequence args={})
@@ -1953,8 +1999,23 @@ sequence cstrings -- Keeps refcounts>0, of any temps we had to make, over the ca
                     add esp,4
             @@:
 
+--no help:
+--[ELF32]
+--shr ebp,2
+--mov [static_ebp4],ebp
+--xor ebp,ebp
+----push eax
+----xor eax,eax
+--xor ecx,ecx
+--xor edx,edx
+--xor esi,esi
+--xor edi,edi
+--[32]
                 call eax
-
+--[ELF32]
+--mov ebp,[static_ebp4]
+--shl ebp,2
+--[32]
                 mov edx,[c_esp_hi]
                 mov ecx,[c_esp_lo]
                 shl edx,16

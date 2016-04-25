@@ -399,9 +399,11 @@ integer finit = 0
       ::my_signal_handler
         xor ebx,ebx -- important!!
 
+--DEV removed for now (18/4/16):
+--!/*
         call :lowlevel              -- (temp)
 
-        mov esi,[esp+8]             -- 3rd param (siginfo_t)
+        mov esi,[esp+12]            -- 3rd param (siginfo_t)
         mov edx,[esi+76]            -- eip
         mov ebp,[esi+44]
         mov edi,esp                 -- (in case :!fehDiag not called)
@@ -437,6 +439,7 @@ integer finit = 0
 ----        add esp,4
         mov esp,edi
 --
+--!*/
         call :lowlevel              -- (not temp)
 
 --      call :%opClosem9
@@ -451,44 +454,44 @@ integer finit = 0
         call :%puts1
         mov edi,[eat]               -- " at #"
         call :%puts1
-        mov eax,[esp+12]            -- 3rd param
+        mov eax,[esp+16]            -- 3rd param
         mov edx,[eax+76]            -- eip
         push 1                      -- cr
         call :%puthex32
 
         mov edi,[eaxis]             -- "eax: "
         call :%puts1
-        mov eax,[esp+12]            -- 3rd param
+        mov eax,[esp+16]            -- 3rd param
         mov edx,[eax+64]            -- eax
         push 1                      -- cr
         call :%puthex32
         mov edi,[ebxis]             -- "ebx: "
         call :%puts1
-        mov eax,[esp+12]            -- 3rd param
+        mov eax,[esp+16]            -- 3rd param
         mov edx,[eax+52]            -- ebx
         push 1                      -- cr
         call :%puthex32
         mov edi,[ecxis]             -- "ecx: "
         call :%puts1
-        mov eax,[esp+12]            -- 3rd param
+        mov eax,[esp+16]            -- 3rd param
         mov edx,[eax+60]            -- ecx
         push 1                      -- cr
         call :%puthex32
         mov edi,[edxis]             -- "edx: "
         call :%puts1
-        mov eax,[esp+12]            -- 3rd param
+        mov eax,[esp+16]            -- 3rd param
         mov edx,[eax+56]            -- edx
         push 1                      -- cr
         call :%puthex32
         mov edi,[esiis]             -- "esi: "
         call :%puts1
-        mov eax,[esp+12]            -- 3rd param
+        mov eax,[esp+16]            -- 3rd param
         mov edx,[eax+40]            -- esi
         push 1                      -- cr
         call :%puthex32
         mov edi,[ediis]             -- "edi: "
         call :%puts1
-        mov eax,[esp+12]            -- 3rd param
+        mov eax,[esp+16]            -- 3rd param
         mov edx,[eax+36]            -- edi
         push 1                      -- cr
         call :%puthex32
@@ -520,7 +523,7 @@ integer finit = 0
 
         call :lowlevel              -- (temp)
 
-        mov rsi,[rsp+16]            -- 3rd param
+        mov rsi,[rsp+24]            -- 3rd param
         mov rdx,[rsi+0xA8]          -- rip
         mov rbp,[rsi+0x78]
         mov rdi,rsp                 -- (in case :!fehDiag not called)
@@ -570,44 +573,44 @@ integer finit = 0
         call :%puts1
         mov rdi,[eat]               -- " at #"
         call :%puts1
-        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rsp+32]            -- 3rd param
         mov rdx,[rdx+0xA8]          -- rip
         push 1                      -- cr
         call :%puthex64
 
         mov rdi,[eaxis]             -- "eax: "
         call :puts1r
-        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rsp+32]            -- 3rd param
         mov rdx,[rdx+0x90]          -- rax
         push 1                      -- cr
         call :%puthex64
         mov rdi,[ebxis]             -- "ebx: "
         call :puts1r
-        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rsp+32]            -- 3rd param
         mov rdx,[rdx+0x80]          -- rbx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[ecxis]             -- "ecx: "
         call :puts1r
-        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rsp+32]            -- 3rd param
         mov rdx,[rdx+0x98]          -- rcx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[edxis]             -- "edx: "
         call :puts1r
-        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rsp+32]            -- 3rd param
         mov rdx,[rdx+0x88]          -- rdx
         push 1                      -- cr
         call :%puthex64
         mov rdi,[esiis]             -- "esi: "
         call :puts1r
-        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rsp+32]            -- 3rd param
         mov rdx,[rdx+0x70]          -- rsi
         push 1                      -- cr
         call :%puthex64
         mov edi,[ediis]             -- "edi: "
         call :puts1r
-        mov rdx,[rsp+24]            -- 3rd param
+        mov rdx,[rsp+32]            -- 3rd param
         mov rdx,[rdx+0x68]          -- rdi
         push 1                      -- cr
         call :%puthex64

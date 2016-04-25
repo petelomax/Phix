@@ -1,0 +1,167 @@
+--
+-- mina.exw
+--
+--  minimialist version of alarm.exw, for initial testing/debugging
+--
+
+--include pGUI.e
+
+type Ihandle(integer i)
+    return i>0
+end type
+
+type Ihandln(integer i)
+    return i>=0
+end type
+
+type nullable_string(object o)
+    return string(o) or o=NULL
+end type
+
+constant
+    -- Common Flags and Return Values
+    IUP_ERROR       = 1,
+    IUP_NOERROR     = 0,
+    $
+
+include builtins\VM\\pcmdlnN.e      -- command_line()
+include builtins\pgetpath.e         -- get_proper_dir()
+
+procedure iup_link_error(sequence name)
+    puts(1,"link error: "&name)
+    ?9/0
+end procedure
+
+function iup_c_func(atom dll, sequence name, sequence args, atom result)
+    integer handle = define_c_func(dll, name, args, result)
+    if handle = -1 then iup_link_error(name) end if
+    return handle
+end function
+
+function iup_c_proc(atom dll, sequence name, sequence args)
+    integer handle = define_c_proc(dll, name, args)
+    if handle = -1 then iup_link_error(name) end if
+    return handle
+end function
+
+constant string curr_dir = current_dir()
+constant integer libidx = iff(platform()=WINDOWS ? 1:
+                          iff(platform()=LINUX   ? 2:
+                                                   9/0))
+constant sequence dirs = {"win","lnx"}
+string dll_path
+constant SLASH = iff(platform()=WINDOWS?'\\':'/')
+
+function iup_open_dll(sequence libs)
+--string fullpath = dll_path&libs[libidx]
+string path = libs[libidx]
+atom res
+    if platform()=WINDOWS then
+        if chdir(dll_path)=0 then ?9/0 end if
+--      res = open_dll(fullpath)
+        path = current_dir()&SLASH&path
+    elsif platform()=LINUX then
+        path = dll_path&path
+    end if
+    res = open_dll(path)
+    if platform()=WINDOWS then
+        if chdir(curr_dir)=0 then ?9/0 end if
+    end if
+--  if res=0 then iup_link_error(fullpath) end if
+    if res=0 then iup_link_error(path) end if
+    return res
+end function
+
+constant
+         I  = C_INT,
+         P  = C_POINTER, 
+         $
+
+atom
+    iup,
+    xIupOpen,
+    xIupClose,
+    xIupDialog,
+    xIupShow,
+    xIupAlarm,
+    xIupMessage,
+    $
+
+procedure iup_init1(nullable_string dll_root)
+    if dll_root=NULL then
+        dll_root = command_line()[2]
+    end if
+    dll_root = get_proper_dir(dll_root)
+--  dll_path = dll_root&sprintf("\\%s%d\\",{dirs[libidx],machine_bits()})
+    dll_path = dll_root&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
+
+--DEV:
+    if platform()=WINDOWS then
+        -- Aside: normally I'd expect msvcr120.dll to be loaded from system32/syswow64, 
+        --        but if someone puts copies in pGUI\win32/64, it should be alright.
+        if chdir(dll_path)=0 then ?9/0 end if
+        if open_dll("msvcr120.dll")=0 then
+            puts(1,"fatal error: msvcr120.dll could not be loaded\n")
+            puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2013\n")
+            puts(1," from https://www.microsoft.com/en-us/download/details.aspx?id=40784 \n")
+            -- ( https://www.microsoft.com/en-us/download/details.aspx?id=40784 )
+            {} = wait_key()
+            ?9/0
+        end if
+        if chdir(curr_dir)=0 then ?9/0 end if
+    end if
+
+    iup = iup_open_dll({"iup.dll",
+                        "libiup.so",
+                        "libiup.dylib"})
+
+    -- Control
+    xIupOpen            = iup_c_func(iup, "IupOpen", {I,P}, I)
+    xIupClose           = iup_c_proc(iup, "IupClose", {})
+    xIupDialog  = iup_c_func(iup, "IupDialog", {P},P)
+    xIupShow    = iup_c_func(iup, "IupShow", {P},I)
+    xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
+    xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P})
+end procedure
+
+procedure IupOpen(nullable_string dll_root=NULL)
+    iup_init1(dll_root)
+    if c_func(xIupOpen, {NULL,NULL})=IUP_ERROR then ?9/0 end if
+end procedure
+
+procedure IupClose()
+    c_proc(xIupClose, {})
+end procedure
+
+function IupDialog(Ihandln child=NULL)
+    Ihandle ih = c_func(xIupDialog, {child})
+    return ih
+end function
+
+procedure IupShow(Ihandle ih)
+    if c_func(xIupShow, {ih})!=IUP_NOERROR then ?9/0 end if
+end procedure
+
+function IupAlarm(string title, string msg, string b1, nullable_string b2 = NULL, nullable_string b3 = NULL)
+    return c_func(xIupAlarm, {title,msg,b1,b2,b3})
+end function
+
+procedure IupMessage(nullable_string title = NULL, nullable_string msg = NULL)
+    c_proc(xIupMessage, {title,msg})
+end procedure
+
+    IupOpen()
+
+    IupShow(IupDialog(NULL)) -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
+
+    switch IupAlarm("Alarm Demo", "Save File?", "Yes", "No", "Cancel") do
+        case 1 then
+            IupMessage("Save file", "File saved successfully - leaving program")
+        case 2 then
+            IupMessage("Save file", "File not saved - leaving program anyway")
+        case 3 then
+            IupMessage("Save file", "Operation canceled")
+    end switch
+
+    IupClose()
+

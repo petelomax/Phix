@@ -36,7 +36,9 @@ procedure Einit()
     eInit = 1
 end procedure
 
-global function getenv(sequence var)
+--DEV doc/psym:
+--global function getenv(sequence var)
+global function getenv(string var)
 --
 -- Return the specified environment variable setting, eg
 -- getenv("PATH") might return "C:\WINDOWS;C:\WINDOWS\COMMAND"
@@ -61,19 +63,43 @@ object res = -1
 --      ?9/0
         -- there's a getenv in libc, I think...
         --DEV (temp, for return type)
-        if var="abc" then
-            res = {}
-        end if
+--      if var="abc" then
+--          res = {}
+--      end if
 --      lea     rdi,[display_name]
---      call    getenv
+--      call "libc	getenv
 --      lea     r11,[msg00]
 --      or      rax,rax
 --      jz      error_exit
+        #ilASM{
+            [ELF32]
+                mov eax,[var]
+                shl eax,2
+                push eax
+                call "libc.so.6","getenv"
+                add esp,4
+                lea edi,[pRes]
+                call :%pStoreMint
+            [ELF64]
+                mov rax,[var]
+                shl rax,2
+                push rax
+                call "libc.so.6","getenv"
+                add rsp,8
+                lea rdi,[pRes]
+                call :%pStoreMint
+            []
+              }
+        if pRes!=NULL then
+            res = peek_string(pRes)
+        end if
     end if
     return res
 end function
 
-global function setenv(sequence var, object newValue=0)
+--DEV doc/psym:
+--global function setenv(sequence var, object newValue=0)
+global function setenv(string var, object newValue=0)
 --
 -- Set the specified environment variable setting, eg
 --      setenv("PATH","C:\WINDOWS;C:\WINDOWS\COMMAND")
@@ -87,7 +113,58 @@ integer res
         if eInit=0 then Einit() end if
         res = c_func(xSetEnvironmentVar,{var,newValue})
     elsif platform()=LINUX then
-        ?9/0
+--      ?9/0
+        if newValue=NULL then
+            #ilASM{
+                [ELF32]
+                    mov eax,[var]
+                    shl eax,2
+                    push eax                    -- name
+                    call "libc.so.6","unsetenv"
+                    add eax,1 -- (0=success=>1, -1=failure=>0)
+                    add esp,4
+                    mov [res],eax
+                [ELF64]
+                    mov rax,[var]
+                    shl rax,2
+                    push rax                    -- name
+                    call "libc.so.6","unsetenv"
+                    add rax,1 -- (0=success=>1, -1=failure=>0)
+                    add rsp,8
+                    mov [res],rax
+                []
+                  }
+        elsif string(newValue) then
+            #ilASM{
+                [ELF32]
+                    mov eax,[var]
+                    mov esi,[newValue]
+                    shl eax,2
+                    shl esi,2
+                    push 1                      -- overwrite
+                    push esi                    -- value
+                    push eax                    -- name
+                    call "libc.so.6","setenv"
+                    add eax,1 -- (0=success=>1, -1=failure=>0)
+                    add esp,12
+                    mov [res],eax
+                [ELF64]
+                    mov rax,[var]
+                    mov rsi,[newValue]
+                    shl rax,2
+                    shl rsi,2
+                    push 1                      -- overwrite
+                    push rsi                    -- value
+                    push rax                    -- name
+                    call "libc.so.6","setenv"
+                    add rax,1 -- (0=success=>1, -1=failure=>0)
+                    add rsp,12
+                    mov [res],rax
+                []
+                  }
+        else
+            ?9/0
+        end if
     end if
     return res
 end function

@@ -1015,8 +1015,8 @@ integer short52,    -- master counts for entire routine
         oidx,       -- output idx for code packing (phase 2)
         ltj         -- LineTab entry (phase 2)
 
---atom offset       -- offset of the jump currently being examined
-integer offset      -- offset of the jump currently being examined      -- 7/1/09
+integer offset      -- offset of the jump currently being examined
+--atom offset           -- offset of the jump currently being examined
 
 --object symk       -- symtab entry for opFrame patch (phase 1)
 --integer u         -- "" used flag
@@ -1713,8 +1713,9 @@ procedure blurph(integer lineno)
 --  that is now that we know the size of, and hence where, everything will be.
 -- the parameter lineno is just a quick debugging aid
 integer cin, cout, cm1, c, c2, k, klast, s5len
---atom offset
-integer offset  --7/1/09
+--25/4/16 (pHeap using mmap)
+--integer offset    --7/1/09
+atom offset
 integer vno
 
 integer ltidx,  -- LineTab idx
