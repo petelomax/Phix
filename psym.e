@@ -2516,7 +2516,7 @@ end if
     initialAutoEntry("split",           S_Func,"FPOII", "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("split_any",       S_Func,"FPOII", "psplit.e",0,E_none)
-    symtab[symlimit][S_ParmN] = 2
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("tagset",          S_Func,"FN",    "ptagset.e",0,E_none)
     initialAutoEntry("tail",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1

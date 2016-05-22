@@ -2237,8 +2237,11 @@ integer supported
         elsif and_bits(SectionCharacteristics,IMAGE_SCN_ALIGN_4BYTES) then
             SectionCharacteristics -= IMAGE_SCN_ALIGN_4BYTES
         end if
-        if SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ 
-        and (desc="" or Name=".text\\0\0\\0") then
+--      if SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ 
+        if (SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ or
+            SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_READ+IMAGE_SCN_MEM_WRITE)
+--      and (desc="" or Name=".text\\0\0\\0") then
+        and (desc="" or Name=".text\\0\0\\0" or Name=".code\\0\0\\0") then
             sCodeSections = append(sCodeSections,i)
             if length(sCodeSections)=1 then
                 desc = " (see \"Code Section\" tab)"
@@ -5746,6 +5749,7 @@ function dump_ELF_arm(integer idx, string desc)
 --  (erm, it would probably be better to match the output of "arm-linux-objdump -d test.elf")
 -- Sadly, sample arm elf binaries are in pitiful short supply around where I live.
 -- Update: Best reference yet found: http://www.heyrick.co.uk/armwiki/Category:Opcodes
+-- maybe: http://www.peter-cockerell.net/aalp/html/frames.html
 --
 integer size = shsizes[idx]
 atom ins
@@ -5828,9 +5832,15 @@ string asm, err = "", xtra, regs
                 and opcode!=0b1111 then -- mvn
                     asm &= ", "&R[Rn+1]
                 end if
-                asm &= sprintf(", %d",lit8)
-                if rot!=0 then
-                    asm &= sprintf(" (rotate=%04b)",{rot})
+                if rot!=0 and lit8!=0 then
+                    atom tmp = lit8*power(2,32-rot*2)
+                    tmp = and_bits(tmp,#FFFFFFFF)+floor(tmp/#100000000)
+                    asm &= sprintf(", %d",tmp)
+                else
+                    asm &= sprintf(", %d",lit8)
+                    if rot!=0 then
+                        asm &= sprintf(" (rotate=%04b)",{rot})
+                    end if
                 end if
                 res[tabidx][$][R_NOTES] = asm
                 if length(err) then return fatal(err) end if
@@ -9189,8 +9199,9 @@ procedure main()
 --DEV RVA: basereloc#=0/debug#=0,IAT#=0 -> No Code Sections [?]
 -- .text/.rdata/.data/.rsrc/.reloc -> No Code Sections [?]
 --  load_file("C:\\Program Files (x86)\\Edita\\help\\xxhha.dll")    -- imports not recognised (who cares)       -- <some things that OllyDbg cannot decode either>
-    load_file("C:\\Program Files (x86)\\Phix98\\demo\\PE_Stuff\\elf\\test")     -- ARM (should really get F9 to work on this, and write a disassembler)
+--  load_file("C:\\Program Files (x86)\\Phix98\\demo\\PE_Stuff\\elf\\test")     -- ARM (should really get F9 to work on this, and write a disassembler)
 -- ("", see http://www2.onlinedisassembler.com/odaweb/vCs0Rd/0 )
+--  https://www.onlinedisassembler.com/odaweb/2ZhZD4Yl
 --  load_file("C:\\Program Files (x86)\\Phix98\\demo\\PE_Stuff\\elf\\minielf")  -- good [really good!]
 --DEV stop disassembly if enrypoint!=start of code...
 --  load_file("C:\\Users\\Pete\\Desktop\\atratus-v0.11\\bin\\robotfindskitten") -- (has interpreter section) [otherwise/hence good] [should not disassamble, really]
@@ -9353,6 +9364,7 @@ procedure main()
 --  load_file("C:\\Program Files (x86)\\Phix\\test\\t40rtnid")
 --  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\libdl-2.19.so")
 --  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\libc-2.19.so")
+    load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\SHA\\SHA.DLL")
 
     WinMain(Main,SW_NORMAL)
 end procedure

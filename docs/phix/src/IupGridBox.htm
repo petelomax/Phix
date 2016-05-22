@@ -1,0 +1,338 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupGridBox</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pGUI.e
+            <br>
+            <br>
+            Ihandle ih = IupGridBox(sequence children={}, string attributes = "", sequence data = {})
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a void container for composing elements in a regular grid. <br>
+            It is a box that arranges the elements it contains in lines or columns.
+            <br>
+            <br>
+            The child elements are added to the control just like a vbox and hbox, sequentially. <br>
+            Then they are distributed according to the attributes ORIENTATION and NUMDIV. <br>
+            When ORIENTATION=HORIZONTAL children are distributed from left to right on the first line until NUMDIV, then on the second line, and so on. <br>
+            When ORIENTATION=VERTICAL children are distributed from top to bottom on the first column until NUMDIV, then on the second column, and so on. <br>
+            The number of lines and the number of columns can be easily obtained from the combination of these attributes:
+<!--eucode>
+  if IupGetAttribute(grid,"ORIENTATION")=="HORIZONTAL" then
+    num_lin = ceil(child_count/num_div)
+    num_col = num_div
+  else
+    num_lin = num_div
+    num_col = ceil(child_count/num_div)
+  end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">  if</font><font color="#5E005E"> IupGetAttribute</font><font color="#0000FF">(</font><font color="#000000">grid</font><font color="#0000FF">,</font><font color="#008000">"ORIENTATION"</font><font color="#0000FF">)==</font><font color="#008000">"HORIZONTAL"</font><font color="#008080"> then
+</font><font color="#000000">    num_lin</font><font color="#0000FF"> =</font><font color="#5E005E"> ceil</font><font color="#0000FF">(</font><font color="#000000">child_count</font><font color="#0000FF">/</font><font color="#000000">num_div</font><font color="#0000FF">)
+</font><font color="#000000">    num_col</font><font color="#0000FF"> =</font><font color="#000000"> num_div
+</font><font color="#008080">  else
+</font><font color="#000000">    num_lin</font><font color="#0000FF"> =</font><font color="#000000"> num_div
+    num_col</font><font color="#0000FF"> =</font><font color="#5E005E"> ceil</font><font color="#0000FF">(</font><font color="#000000">child_count</font><font color="#0000FF">/</font><font color="#000000">num_div</font><font color="#0000FF">)
+</font><font color="#008080">  end if</font>
+</pre>
+            <br>
+            Notice that the total number of spaces can be larger than the number of actual children, the last line or column can be incomplete, hence the use of <a href="ceil.htm">ceil</a>().
+            <br>
+            <br>
+            The column sizes will be based only on the width of the children of the reference line, usually line 0. <br>
+            The line sizes will be based only on the height of the children of the reference column, usually column 0.
+            <br>
+            <br>
+            It does not have a native representation.
+            <br>
+            <br>
+            children: List of the interface elements that will be arranged. It can be empty.<br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            <br>
+            <br>
+            Returns the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            The box can be created with no elements and be dynamic filled using <a href="IupAppend.htm">IupAppend</a>() or <a href="IupInsert.htm">IupInsert</a>().
+            <br>
+            <br>
+            The box will NOT expand its children, it will allow its children to expand according to the space left in the box parent. <br>
+            So for the expansion to occur, the children must be expandable with EXPAND!=NO, and there must be room in the box parent.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ALIGNMENTLIN
+         </td>
+         <td>
+            (non inheritable) Vertically aligns the elements within each line. <br>
+            Possible values: "ATOP", "ACENTER", "ABOTTOM". Default: "ATOP". <br>
+            The alignment of a single line can also be set using "ALIGNMENTLINL", where "L" is the line index, starting at 0 from top to bottom.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ALIGNMENTCOL
+         </td>
+         <td>
+            (non inheritable) Horizontally aligns the elements within each column.<br>
+            Possible values: "ALEFT", "ACENTER", "ARIGHT". Default: "ALEFT". <br>
+            The alignment of a single column can also be set using "ALIGNMENTCOLC", where "C" is the column index, starting at 0 from left to right.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EXPAND
+         </td>
+         <td>
+            (non inheritable) The default value is "YES". See notes above and the documentation of the attribute for EXPAND inheritance.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EXPANDCHILDREN
+         </td>
+         <td>
+            (non inheritable) forces all children to expand in the given direction and to fully occupy its space available inside the box. <br>
+            Can be YES (both directions), HORIZONTAL, VERTICAL or NO. Default: "NO". This has the same effect as setting EXPAND on each child.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FITTOCHILDREN
+         </td>
+         <td>
+            (write-only) Set the RASTERSIZE attribute of the reference element in the given column or line, so that it will fit the largest 
+            element in the column or the highest element in the line. <br>
+            The number of the column or line must be preceded by a character identifying its type, "C" for columns and "L" for lines. <br>
+            For example "C5"=column 5 or "L3"=line 3. Can only be set after the layout of the dialog has been calculated at least 1 time. <br>
+            If FITMAXWIDTHn or FITMAXHEIGHTn are set for the column or line they are used as maximum limit for the size. (Since 3.10)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          GAPLIN, CGAPLIN
+         </td>
+         <td>
+            Defines a vertical space in pixels between lines, CGAPLIN is in the same units of the SIZE attribute for the height. Default: "0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          GAPCOL, CGAPCOL
+         </td>
+         <td>
+            Defines a horizontal space in pixels between columns, CGAPCOL is in the same units of the SIZE attribute for the height. Default: "0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NGAPLIN, NCGAPLIN, NGAPCOL, NCGAPCOL
+         </td>
+         <td>
+            (non inheritable) Same as *GAP* but are non inheritable.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          HOMOGENEOUSLIN
+         </td>
+         <td>
+            (non inheritable) forces all lines to have the same vertical space, or height. <br>
+            The line height will be based on the highest child of the reference column (See SIZECOL). Default: "NO". <br>
+            Notice that this does not changes the children size, only the available space for each one of them to expand.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          HOMOGENEOUSCOL
+         </td>
+         <td>
+            (non inheritable) forces all columns to have the same horizontal space, or width. <br>
+            The column width will be based on the largest child of the reference line (See SIZELIN). Default: "NO". <br>
+            Notice that this does not changes the children size, only the available space for each one of them to expand.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MARGIN, CMARGIN
+         </td>
+         <td>
+            Defines a margin in pixels, CMARGIN is in the same units of the SIZE attribute. <br>
+            Its value has the format "widthxheight", where width and height are integer values corresponding to the horizontal and vertical margins, respectively. 
+            Default: "0x0" (no margin).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NMARGIN, NCMARGIN
+         </td>
+         <td>
+            (non inheritable) Same as MARGIN but are non inheritable.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMDIV
+         </td>
+         <td>
+            controls the number of divisions along the distribution according to ORIENTATION. <br>
+            When ORIENTATION=HORIZONTAL, NUMDIV is the number of columns, when ORIENTATION=VERTICAL, NUMDIV is the number of lines. <br>
+            When value is AUTO, its actual value will be calculated to fit the maximum number of elements in the orientation direction. Default: AUTO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMCOL
+         </td>
+         <td>
+            (read-only) returns the number of columns.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NUMLIN
+         </td>
+         <td>
+            (read-only) returns the number of lines.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          NORMALIZESIZE
+         </td>
+         <td>
+            (non inheritable) normalizes all children natural size to be the biggest natural size among the reference line and/or the reference column. <br>
+            All natural width will be set to the biggest width, and all natural height will be set to the biggest height according to is value. <br>
+            Can be NO, HORIZONTAL (width only), VERTICAL (height only) or BOTH. Default: "NO". Same as using IupNormalizer. <br>
+            Notice that this is different from the HOMOGENEOUS* attributes in the sense that the children will have their sizes changed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          ORIENTATION
+         </td>
+         <td>
+            (non inheritable) controls the distribution of the children in lines or in columns. <br>
+            Can be: HORIZONTAL or VERTICAL. Default: HORIZONTAL. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SIZECOL
+         </td>
+         <td>
+            (non inheritable) index of the column that will be used as reference when calculating the height of the lines. Default: 0.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SIZELIN
+         </td>
+         <td>
+            (non inheritable) index of the line that will be used as reference when calculating the width of the columns. Default: 0.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          WID
+         </td>
+         <td>
+            (read-only) returns -1 if mapped.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          Also
+         </td>
+         <td>
+            SIZE, RASTERSIZE, FONT, CLIENTSIZE, CLIENTOFFSET, POSITION, MINSIZE, MAXSIZE: also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            (at Children)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          FLOATING
+         </td>
+         <td>
+            (non inheritable) (at children only) If a child has FLOATING=YES then its size and position will be ignored by the layout processing. Default: "NO".
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<div align="center">
+  <center>
+  <table border="0" cellpadding="6" cellspacing="0" style="border-collapse: collapse" bordercolor="#111111">
+    <tr>
+      <td valign="top"><br><img src="Images/iupgridbox.png"></td>
+      <td valign="top">NORMALIZE=BOTH<br>
+        <img src="Images/iupgridbox_normalize.png"></td>
+      <td valign="top">EXPANDCHILDREN=YES<br>
+        <img src="Images/iupgridbox_expandchild.png"></td>
+    </tr>
+  </table>
+  </center>
+</div>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupHbox.htm">IupHbox</a>,
+          <a href="IupVbox.htm">IupVbox</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

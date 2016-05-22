@@ -603,6 +603,7 @@ end function
 -- See Also:
 --  [[:remove_directory]], [[:chdir]]
 
+--/* Nopt Phix (defined in pcreatedir.e)
 public function create_directory(sequence name, integer mode=448, integer mkparent = 1)
 atom pname, ret
 integer pos
@@ -634,6 +635,7 @@ end ifdef
 
     return ret
 end function
+--*/
 
 --**
 -- Delete a file.
@@ -1125,6 +1127,7 @@ end function
 -- See Also:
 --     [[:pathinfo]], [[:filename]], [[:fileext]]
 
+--/* Not Phix (defined in pfile[exists].e)
 public function filebase(sequence path)
 sequence data
 
@@ -1132,6 +1135,7 @@ sequence data
 
     return data[3]
 end function
+--*/
 
 --**
 -- Return the file extension of a fully qualified filename
@@ -1514,6 +1518,7 @@ public enum
 -- end if
 -- </eucode>
 
+--/* not Phix (defined in pfileexists.e)
 public function file_exists(object name)
 atom pName, r
     if atom(name) then
@@ -1539,6 +1544,7 @@ elsedef
     return sequence(dir(name))
 end ifdef
 end function
+--*/
 
 --**
 -- Get the timestamp of the file

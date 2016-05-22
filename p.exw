@@ -1061,7 +1061,7 @@ while 1 do  -- 17/8
 --      and pemit.e should auto-increment something:
         verinfo = phixversion&machine_bits()
         verinfo = append(verinfo,iff(platform()=WINDOWS?"Windows":"Linux"))
-        printf(1,"Version %d.%d.%d (%d bit %s) Copyright Pete Lomax 2006..2015\n\n",verinfo)
+        printf(1,"Version %d.%d.%d (%d bit %s) Copyright Pete Lomax 2006..2016\n\n",verinfo)
 
         default_commandline = ""
 --      default_commandlines = readpini()   -- DEV/SUG... (or is pgui.exw running off a separate db?)
@@ -2348,7 +2348,12 @@ object line
 
     puts(1,"Warning: the repl is brand new, experimental, incomplete, and liable to crash!\n")
     puts(1,"Enter a statement such as \"?remainder(floor(250/8),8)\" or \"puts(1,\"Hi\")\"\n")
-while 1 do  -- main loop
+--SUG: use batchmode and "+>" until we have a block that compiles cleanly, cleanout symtab[21].
+--      allow symtab entries to be overwritten (esp routines)
+--      sequence s ?s should print <no value>... pp(s) should crash, but return to the prompt.
+--      the same should also be true after atom s=1 - re-declaration/overwrite should re-h4 s.
+--      (the help system is tied into Edix, not the repl, but you could easily add "help xxx")
+--      no point sending repl errors to Edita/Edix...
     puts(1,"\n>")
     text = ""
     while 1 do  -- read line loop
@@ -2419,6 +2424,7 @@ while 1 do  -- main loop
 
 --if newEmit then
             ?9/0 -- (repl)  -- crib from main() [again]
+                            -- might be better to rewrite this as main(integer repl)
 --else
 ----if 0 then -- helpful to skip this when profiling the compiler [esp under -test]
 ----/**/        #ilASM{ call :%save_ebp         -- (see pcfunc.e)

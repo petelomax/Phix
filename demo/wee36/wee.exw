@@ -22,47 +22,47 @@
 
 -- Comment from PL: this basically declares the ui_win.e interface (and may need updates for lnx).
 --  It is "The Phix way" of doing that "mutually inclusive recursion"/"circular includes" thing.
+--  Update 7/5/16: replaced with r_xxx = routine_id("xxx") and shuffled things about.
 
---/**/forward global function sci_notify(atom hedit, atom data, atom notification, atom userdata)
---/**/forward global function open_file(sequence file_name, integer reload)
---/**/forward global procedure reinit_all_edits()
+--!/**/forward global function sci_notify(atom hedit, atom data, atom notification, atom userdata)
+--!/**/forward function open_file(sequence file_name, integer reload)
+--!/**/forward global procedure reinit_all_edits()
 --!/**/forward global function get_eu_bin(sequence bin)
 --!/**/forward global function quote_spaces(sequence text)
---/**/forward global procedure reset_ex_err()
---/**/forward global function save_if_modified(integer confirm)
+--!/**/forward global procedure reset_ex_err()
+--!/**/forward global function save_if_modified(integer confirm)
 --!/**/forward global function get_interpreters()
---/**/forward global procedure wee_init()
---/**/forward global procedure open_tabs()
---/**/forward global procedure load_wee_conf(sequence wee_conf_file)
---/**/forward global function get_prev_tab()
---/**/forward global function get_next_tab()
---/**/forward global procedure open_recent(integer idx)
---/**/forward global procedure context_help()
---/**/forward global procedure open_tutorial()
---/**/forward global procedure go_back()
---/**/forward global procedure view_subroutine_arguments()
---/**/forward global procedure view_declaration()
---/**/forward global procedure view_completions()
---/**/forward global function get_selection()
---/**/forward global procedure toggle_comment()
---/**/forward global procedure close_tab()
---/**/forward global function save_file_as()
---/**/forward global procedure new_file()
---/**/forward global procedure check_externally_modified_tabs()
---/**/forward global procedure check_ex_err()
---/**/forward global function save_modified_tabs()
---/**/forward global procedure save_wee_conf(sequence wee_conf_file)
---/**/forward global procedure set_tab_arguments(sequence s)
---/**/forward global function get_tab_arguments()
---/**/forward global function search_replace_all(sequence what, sequence phrase)
---/**/forward global function search_replace(sequence phrase)
---/**/forward global function search_find(sequence phrase, integer backward = 0)
---/**/forward global procedure goto_error(sequence err, integer idx)
---/**/forward global function get_ex_err()
---/**/forward global procedure set_top_line(integer line)
---/**/forward global function get_pos()
---/**/forward global function get_edit_text()
---/**/forward global procedure select_tab(integer tab)
+--!/**/forward global procedure wee_init()
+--!/**/forward global procedure open_tabs()
+--!/**/forward global procedure load_wee_conf(sequence wee_conf_file)
+--!/**/forward global function get_prev_tab()
+--!/**/forward global function get_next_tab()
+--!/**/forward global procedure open_recent(integer idx)
+--!/**/forward global procedure context_help()
+--!/**/forward global procedure open_tutorial()
+--!/**/forward global procedure go_back()
+--!/**/forward global procedure view_subroutine_arguments()
+--!/**/forward global procedure view_declaration()
+--!/**/forward global procedure view_completions()
+--!/**/forward global function get_selection()
+--!/**/forward global procedure toggle_comment()
+--!/**/forward global procedure close_tab()
+--!/**/forward global function save_file_as()
+--!/**/forward global procedure new_file()
+--!/**/forward global procedure check_externally_modified_tabs()
+--!/**/forward global procedure check_ex_err()
+--!/**/forward global function save_modified_tabs()
+--!/**/forward global procedure save_wee_conf(sequence wee_conf_file)
+--!/**/forward global procedure set_tab_arguments(sequence s)
+--!/**/forward global function get_tab_arguments()
+--!/**/forward global function search_replace_all(sequence what, sequence phrase)
+--!/**/forward global function search_replace(sequence phrase)
+--!/**/forward global function search_find(sequence phrase, integer backward = 0)
+--!/**/forward global procedure goto_error(sequence err, integer idx)
+--!/**/forward global function get_ex_err()
+--!/**/forward global procedure set_top_line(integer line)
+--!/**/forward global function get_edit_text()
+--!/**/forward global procedure select_tab(integer tab)
 
 global constant
   window_title = "Wee Euphoria Editor",
@@ -247,7 +247,7 @@ include weeicon.e
 
 -- The ui includes are circular includes: 
 --      wee.exw -> ui_win.e -> wee.exw
--- The ui include is responsible for calling wee_init() and startup.
+-- The ui include is responsible for calling wee_init() and startup. --DEV FALSE!
 --PL
 --/*
 ifdef WINDOWS then
@@ -297,6 +297,29 @@ global sequence find_phrase, replace_phrase, interpreter, wee_path
 --/**/  NOTIFICATION_TEXT =             iff(machine_bits()=64? 40:28),
 --/**/  NOTIFICATION_LENGTH =           iff(machine_bits()=64? 48:32),
 --/**/  NOTIFICATION_UPDATED =          iff(machine_bits()=64?116:88)
+--/*
+ifdef BITS64 then
+constant
+  NOTIFICATION_CODE = 16,
+  NOTIFICATION_POS = 24,
+  NOTIFICATION_CH = 28,
+  NOTIFICATION_MODIFIERS = 32,
+  NOTIFICATION_MODIFICATIONTYPE = 36,
+  NOTIFICATION_TEXT = 40,
+  NOTIFICATION_LENGTH = 48,
+  NOTIFICATION_UPDATED = 116
+elsedef
+constant
+  NOTIFICATION_CODE = 8,
+  NOTIFICATION_POS = 12,
+  NOTIFICATION_CH = 16,
+  NOTIFICATION_MODIFIERS = 20,
+  NOTIFICATION_MODIFICATIONTYPE = 24,
+  NOTIFICATION_TEXT = 28,
+  NOTIFICATION_LENGTH = 32,
+  NOTIFICATION_UPDATED = 88
+end ifdef
+--*/
 
 -------------------------------------------------------------------
 -- eu.cfg handling
@@ -308,13 +331,16 @@ sequence paths, try, exe, bin, result = {}
 --integer index
 
     if find(fileext(file_name), {"ew","exw"}) then
-        bin = {"euiw", "eui", "exw", "ex"}
+--      bin = {"euiw", "eui", "exw", "ex"}
+        bin = {"pw", "p", "exw", "ex"}
     else
-        bin = {"eui", "euiw", "ex", "exw"}
+--      bin = {"eui", "euiw", "ex", "exw"}
+        bin = {"p", "pw", "ex", "exw"}
     end if
-    ifdef UNIX then
-    bin = append(bin, "exu")
-    end ifdef
+    if platform()=LINUX then
+--      bin = append(bin, "exu")
+        bin = append(bin, "phix")
+    end if
     paths = parse_eu_cfg(dirname(file_name) & SLASH & "eu.cfg")
     paths &= include_paths(0) -- fallback to running interpreter
     for i=1 to length(paths) do
@@ -325,9 +351,9 @@ sequence paths, try, exe, bin, result = {}
         for j=1 to length(bin) do
 --/**/      exe = try & "..\\bin\\"&bin[j]                  --/*
             exe = try & join_path({"..", "bin", bin[j]})    --*/
-            ifdef WINDOWS then
-            exe &= ".exe"
-            end ifdef
+            if platform()=WINDOWS then
+                exe &= ".exe"
+            end if
             exe = canonical_path(exe)
             if not find(exe, result) and file_exists(exe) then
                 result = append(result, exe)
@@ -354,13 +380,16 @@ sequence paths, try, exe
             return interpreter
         end if
         if find(fileext(file_name), {"ew","exw"}) then
-            bin = {"euiw", "eui", "exw", "ex"}
+--          bin = {"euiw", "eui", "exw", "ex"}
+            bin = {"pw", "p", "exw", "ex"}
         else
-            bin = {"eui", "euiw", "ex", "exw"}
+--          bin = {"eui", "euiw", "ex", "exw"}
+            bin = {"p", "pw", "ex", "exw"}
         end if
-        ifdef UNIX then
-        bin = append(bin, "exu")
-        end ifdef
+        if platform()=LINUX then
+--          bin = append(bin, "exu")
+            bin = append(bin, "phix")
+        end if
     else
         bin = {bin}
     end if
@@ -379,9 +408,9 @@ sequence paths, try, exe
         for j=1 to length(bin) do
 --/**/      exe = try & "..\\bin\\"&bin[j]                  --/*
             exe = try & join_path({"..", "bin", bin[j]})    --*/
-            ifdef WINDOWS then
-            exe &= ".exe"
-            end ifdef
+            if platform()=WINDOWS then
+                exe &= ".exe"
+            end if
             exe = canonical_path(exe)
             if file_exists(exe) then
                 --printf(1, "Using %s\n", {exe})
@@ -391,9 +420,6 @@ sequence paths, try, exe
     end for
     return bin[1]
 end function
-
---PL
---/**/include ui_win.e
 
 -- local variables
 sequence
@@ -412,6 +438,21 @@ sequence wee_conf_filename
 sequence search_idx, search_dat
 sequence expansions
 
+global integer r_ui_update_status,
+               r_open_file,
+               r_open_tabs,
+               r_save_file_as,
+               r_save_if_modified,
+               r_save_modified_tabs,
+               r_open_recent,
+               r_context_help,
+               r_check_externally_modified_tabs,
+               r_go_back,
+               r_close_tab,
+               r_check_ex_err,
+               r_goto_error,
+               r_select_tab
+integer r_update_tab_name
 
 -- shorthand helper function
 function ssmf(integer m, object w=0, object l=0)
@@ -422,191 +463,838 @@ procedure ssm(integer m, object w=0, object l=0)
     if scintilla_send_message(hedit, m, w, l) then end if
 end procedure
 
-
---/* DEV fixme
-function crash_cleanup(object x)
-    if ui_message_box_error(window_title,
-                            "Houston, Wee've had a problem.\n\n" &
-                            "The editor crashed and is closing now.\n") then end if
-    if save_modified_tabs() then end if
-    if length(wee_conf_filename) then
-        save_wee_conf(wee_conf_filename)
-    end if
-    return 0
+global function get_pos()
+    return ssmf(SCI_GETCURRENTPOS)
 end function
---*/
 
+function get_line_start_position(integer line)
+    if line= -1 then
+        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
+    end if
+    return ssmf(SCI_POSITIONFROMLINE, line)
+end function
 
-constant             -- colors of various syntax classes
-    Black = #000000,
---  Gray = #AAAAAA,
-    DGray = #808080,
-    Green = #00AA00,
---  Yellow = #88FFFF,
-    Magenta = #AA00AA,
---  Cyan = #AAAA00,
---  Red = #0000AA,
-    Blue = #AA0000,
-    LightBlue = #FFFFDD,
-    White = #FFFFFF,
-    BrightRed = #0000FF
+function get_line_end_position(integer line)
+    if line= -1 then
+        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
+    end if
+    return ssmf(SCI_GETLINEENDPOSITION, line)
+end function
 
-global procedure wee_init()
-sequence cmdline
+function get_line_length(integer line)
+    if line= -1 then
+        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
+    end if
+    return ssmf(SCI_LINELENGTH, line)
+end function
 
-    wee_conf_filename = ""
+function get_line(integer line)
+--atom junk
+atom len, buf
+sequence text
+    if line= -1 then
+        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
+    end if
+    len = get_line_length(line)
+    buf = allocate(len+1)
+    ssm(SCI_GETLINE, line, buf)
+    text = peek({buf, len})
+    free(buf)
+    return text
+end function
 
---DEV
---PL
---/*
-    crash_routine(routine_id("crash_cleanup"))
---*/
+function get_modified()
+    return ssmf(SCI_GETMODIFY)
+end function
 
-    recent_files = {}
-    recent_pos = {}
+global function get_selection()
+integer len
+atom buf
+sequence text
 
-    font_name = ""
-    font_height = 10
-    line_numbers = 0
-    sorted_subs = 0
-    line_wrap = 0
+    len = ssmf(SCI_GETSELTEXT)
+    if len<=1 then
+        return ""
+    end if
+    buf = allocate(len)
+    ssm(SCI_GETSELTEXT, 0, buf)
+    text = peek({buf, len-1})
+    free(buf)
+    return text
+end function
 
-    file_name = ""
-    hedit = 0
+global procedure set_top_line(integer line)
+integer fv, los
+    if line= -1 then
+        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
+    end if
+    fv = ssmf(SCI_GETFIRSTVISIBLELINE)
+    los = ssmf(SCI_LINESONSCREEN)
+    if line>=fv and line<fv+los-1 then
+        return -- don't need to scroll
+    end if
+    line = ssmf(SCI_SETFIRSTVISIBLELINE, line)
+end procedure
 
-    run_file_name = ""
-    ex_err_name = "ex.err"
-    ex_err_timestamp = get_timestamp(ex_err_name)
-    interpreter = ""
+-- remove the characters inserted by insert_pair(), won't work for ' " tho
+procedure delete_pair()
+    if length(insert_chars)=0 then
+        return
+    end if
+    if insert_chars[$]=last_deleted_char then
+        insert_chars = insert_chars[1..$-1]
+    elsif (last_deleted_char='(' and insert_chars[$]=')')
+       or (last_deleted_char='[' and insert_chars[$]=']')
+       or (last_deleted_char='{' and insert_chars[$]='}') then
+        ssm(SCI_DELETERANGE, get_pos(), 1)
+        insert_chars = insert_chars[1..$-1]
+    end if
+end procedure
 
-    tab_hedits = {}
-    tab_file_names = {}
-    tab_timestamps = {}
-    tab_arguments = {}
-    tab_pos_stack = {}
+procedure update_subroutine_arguments()
+sequence text
+integer pos, arg, ch
 
-    modified = 0
-    expand_line = -1
-    insert_chars = ""
-    last_deleted_char = 0
+    pos = get_pos()-1
+
+    ch = ssmf(SCI_GETCHARAT, pos, 0)
+    if ch!=',' and ch!=')' and ssmf(SCI_GETCHARAT, pos+1, 0)!=',' then
+        return
+    end if
+    --? {calltip_pos, pos}
+    while 1 do
+
+        while calltip_pos= -1 or pos<calltip_pos do
+            if length(calltip_stack)=0 then
+                calltip_pos = -1
+                return
+            end if
+            calltip_pos = calltip_stack[$-2]
+            calltip_args = calltip_stack[$-1]
+            calltip_text = calltip_stack[$]
+            ssm(SCI_CALLTIPSHOW, calltip_pos, calltip_text)
+            calltip_stack = calltip_stack[1..$-3]
+        end while
+
+        -- get the text from after '(' up to the cursor
+        text = repeat(0, pos-calltip_pos+1)
+        for i=1 to length(text) do
+            text[i] = ssmf(SCI_GETCHARAT, calltip_pos+i-1)
+        end for
+        --puts(1, text&"\n")
+
+        arg = parse_argument_position(text)
+        if arg=0 then
+            -- parsed closing ')'
+            ssm(SCI_CALLTIPCANCEL)
+            calltip_pos = -1
+        elsif arg>length(calltip_args) then
+            -- parsed too many arguments
+            ssm(SCI_CALLTIPSETHLT, 0, 0)
+            exit
+        else
+            -- highlight argument at cursor position
+            ssm(SCI_CALLTIPSETHLT, calltip_args[arg][1], calltip_args[arg][2])
+            exit
+        end if
+
+    end while
+end procedure
+
+global procedure update_status()
+atom pos, line, col
+    pos = get_pos()
+    line = 1+ssmf(SCI_LINEFROMPOSITION, pos)
+    col = 1+ssmf(SCI_GETCOLUMN, pos)
+--  ui_update_status(sprintf("%d:%d ", {line, col}))
+    call_proc(r_ui_update_status,{sprintf("%d:%d ", {line, col})})
+    if line-1!=expand_line then
+        expand_line = -1
+    end if
+end procedure
+
+procedure do_brace_highlight(atom hedit)
+--  integer pos, brace, ch
+integer pos, brace
+    brace = -1
+    pos = get_pos()-1
+--/**/ if hedit then end if -- suppress warnings
+    if find(ssmf(SCI_GETCHARAT, pos, 0), "{}()[]") then
+        brace = ssmf(SCI_BRACEMATCH, pos, 0)
+    end if
+    if brace= -1 then
+        pos += 1
+        if find(ssmf(SCI_GETCHARAT, pos, 0), "{}()[]") then
+            brace = ssmf(SCI_BRACEMATCH, pos, 0)
+        end if
+        if brace= -1 then
+            pos = -1
+        end if
+    end if
+    brace = ssmf(SCI_BRACEHIGHLIGHT, pos, brace)
+end procedure
+-- FIXME: this has a problem with brace chars within strings, for ex: {1, "}{", 2}
+
+global function get_edit_text()
+--atom junk
+atom text_buffer, text_len
+sequence text
+
+    text_len = ssmf(SCI_GETTEXTLENGTH)+1
+    text_buffer = allocate(text_len)
+    ssm(SCI_GETTEXT, text_len, text_buffer)
+    text = peek({text_buffer, text_len-1})
+    free(text_buffer)
+    return text
+end function
+
+-- after typing a word, check to see if it is declared
+procedure check_last_typed()
+sequence text, ast, decls, word, name_space
+integer style, pos, len, declared = 0
+atom t0, t1, t2
+
+    -- only check indentifiers
+    style = ssmf(SCI_GETSTYLEAT, last_typed_pos-1)
+
+    text = get_edit_text()
+    word = word_pos(text, last_typed_pos)
     last_typed_pos = -1
-    auto_namespace = 1
-    auto_complete = 1
-    complete_statements = 1
-    complete_braces = 1
-    auto_arguments = 1
-    auto_indent = 1
-    tab_width = 8
-    indentation_guides = 0
-    caret_width = 2
-    auto_indicator = 0
-    run_testrun = 0
-    run_background = 1
-    run_waitkey = 1
+    if length(word)<4 then return end if
+    pos = word[3]-1
+    len = word[4]-pos
+    name_space = word[2]
+    word = word[1]
 
-    calltip_args = {}
-    calltip_pos = -1
-    calltip_stack = {}
-    calltip_text = ""
-
-    current_tab = 0
-
-    normal_color = Black
-    background_color = White
-    comment_color = DGray
-    number_color = Black
-    keyword_color = Green
-    builtin_color = Magenta
-    string_color = Blue
-    bracelight_color = LightBlue
-    linenumber_color = DGray
-    bold_flags = #40
-
-    search_idx = {}
-    search_dat = {}
-
-    find_phrase = ""
-    replace_phrase = ""
-    terminal_program = ""
-
-    reopen_tabs = 1
-    tabs_to_open = {}
-    initial_tab = 1
-
-    cmdline = command_line()
-    wee_path = canonical_path(dirname(cmdline[2]))
-    if length(wee_path) and wee_path[$]=SLASH then
-        wee_path = wee_path[1..$-1]
+    if style!=SCE_LUA_IDENTIFIER then
+        ssm(SCI_INDICATORCLEARRANGE, pos, len)
+        return
     end if
 
-    file_types = {
-                  {
-                   -- extensions
-                   {"ex", "e", "exw", "ew", "exu", "eu"},
-                   -- SCLEX_constant
-                   SCLEX_LUA,
-                   -- identifiers used with SCI_SETIDENTIFIERS
-                   {0,
-                    "procedure function type end and or xor not if then elsif else for to by do while "&
-                    "global constant include with without return exit "&
-                    -- OE4
-                    "public export enum as namespace ifdef elsifdef elsedef "&
-                    "label entry break continue loop until routine switch case fallthru",
-                    1,
-                    get_builtins()
-                   },
-                   -- expansions used with auto_expand()
-                   {{"if", "", " then", "end if"},
-                    {"elsif", "", " then"},
-                    {"while", "", " do", "end while"},
-                    {"for", " =  to ", " do", "end for"},
-                    {"case", "", " then"},
-                    {"loop", "", "do", "end loop"},
-                    {"switch", " do", "end switch"},
-                    {0, "global ", "public ", "export "},
-                    {"procedure", "()", "", "end procedure"},
-                    {"function", "()", "", "end function"},
-                    {"type", "()", "", "end type"}
-                   },
-                   interpreter
-                  },
-                  {
-                   -- extensions
-                   {"c", "h", "cpp", "hpp"},
-                   -- SCLEX_constant
-                   SCLEX_CPP,
-                   -- identifiers used with SCI_SETKEYWORDS
-                   {0,
-                    "if else for do while switch case default "&
-                    "return break continue "&
-                    "enum typedef struct union static const ",
-                    1,
-                    "void int char unsigned long sizeof"
-                   },
-                   -- expansions used with auto_expand()
-                   {{"if", "()", " {", "}"},
-                    {"} else if", "()", " { "},
-                    {"while", "()", " {", "}"},
-                    {"for", "(;;)", " {", "}"},
-                    {"switch", "()", " {", "}"},
-                    {"case", "", ":", "break;"}
-                   }
-                  },
-                  {
-                   -- extensions
-                   {"htm", "html"},
-                   -- SCLEX_constant
-                   SCLEX_HTML,
-                   -- identifiers used with SCI_SETKEYWORDS
-                   {},
-                   -- expansions used with auto_expand()
-                   {}
-                  }
-                 }
-    expansions = {}
+    t0 = time()
+    ast = wee_parse(text, file_name)
+    t1 = time()
+    decls = get_declarations(ast, pos, name_space)
+    t2 = time()
+    printf(1, "decls took %g %g\n", {t1-t0, t2-t1})
+    for i=1 to length(decls) do
+        if equal(decls[i][1], word) then
+            declared = 1
+            exit
+        end if
+    end for
+
+    -- underline if not declared
+    if declared then
+        ssm(SCI_INDICATORCLEARRANGE, pos, len)
+    else
+        ssm(SCI_INDICATORFILLRANGE, pos, len)
+    end if
+end procedure
+
+function make_tab_name()
+sequence name
+
+    if length(file_name)=0 then
+        name = "New File"
+    else
+        name = file_name
+        for i=length(name) to 1 by -1 do
+            if find(name[i],"\\/") then
+                name = name[i+1..$]
+                exit
+            end if
+        end for
+    end if
+    return name
+end function
+
+-- show a list of possible words when autocomplete is triggered
+global procedure view_completions()
+sequence text, word, decls, name_space, suggestions
+integer pos, style
+
+    if ssmf(SCI_AUTOCACTIVE) then
+        return -- autocomplete is already active
+    end if
+
+    pos = get_pos()
+
+    style = ssmf(SCI_GETSTYLEAT, pos-2)
+    if style=SCE_LUA_STRING or style=SCE_LUA_COMMENTLINE then
+        return -- no completion in strings or comments
+    end if
+
+    -- use scintilla's code completion
+    text = get_edit_text()
+    word = word_pos(text, pos)
+    if length(word)<4 then
+        return
+    end if
+    --printf(1, "word=%s namespace=%s pos=%d end=%d\n", word)
+    ssm(SCI_SETSEL, word[4], word[4])
+    name_space = word[2]
+    word = word[1]
+
+    decls = get_declarations(wee_parse(text, file_name), pos, name_space)
+    if length(decls)=0 or length(name_space)=0 then
+        suggestions = suggest_includes(word, name_space)
+
+        -- filter duplicate suggestions
+        for i=1 to length(suggestions) do
+            if not find(suggestions[i], decls) then
+                decls = append(decls, suggestions[i])
+            end if
+        end for
+    end if
+
+    if length(decls)=0 then
+        return
+    end if
+    text = ""
+    for i=1 to length(decls) do
+        if length(decls[i][1])>=length(word) and equal(decls[i][1][1..length(word)], word) then
+            if length(text) then
+                text &= "\n"
+            end if
+            text &= decls[i][1] & sprintf("?%d", {decls[i][3]})
+        end if
+    end for
+    if length(text) then
+        ssm(SCI_AUTOCSHOW, length(word), text)
+    end if
+end procedure
+
+function ltrim(sequence s)
+    for i=1 to length(s) do
+        if not find(s[i], " \t\n\r") then
+            return s[i..$]
+        end if
+    end for
+    return ""
+end function
+
+
+function rtrim(sequence s)
+    for i=length(s) to 1 by -1 do
+        if not find(s[i], " \t\n\r") then
+            return s[1..i]
+        end if
+    end for
+    return ""
+end function
+
+function sreplace(sequence text, sequence what, sequence replacement)
+integer i
+    i = match(what, text)
+    if i then
+        return text[1..i-1] & replacement & text[i+length(what)..$]
+    end if
+    return text
+end function
+
+
+-- expand "if " to "if  then\n\nend if", etc.
+procedure auto_expand()
+sequence text, indent, indent_str
+integer pos, end_pos
+--  atom junk
+
+    if length(expansions)=0 then
+        return
+    end if
+
+    -- make sure the current position is at the end of the line
+    pos = get_pos()
+    end_pos = get_line_end_position(-1)
+    if pos!=end_pos then return end if
+
+    -- save the indentation and trim the line
+    indent = get_line(-1)
+    text = ltrim(indent)
+    indent = "\n" & indent[1..$-length(text)]
+    text = rtrim(text)
+
+    -- try the expansions and get the text to insert
+    for i=1 to length(expansions) do
+        if integer(expansions[i][1]) then
+            -- try removing "global", "public", "export"
+            for k=2 to length(expansions[i]) do
+                if match(expansions[i][k], text)=1 then
+                    text = ltrim(text[length(expansions[i][k])..$])
+                    exit
+                end if
+            end for
+        elsif equal(text, expansions[i][1]) then
+            text = expansions[i][2..$]
+            insert_chars = reverse(text[1])
+            exit
+        elsif i=length(expansions) then
+            return
+        end if
+    end for
+
+    indent_str = repeat(' ', ssmf(SCI_GETINDENT))
+    if length(text)>=3 then
+        indent_str &= indent & text[3]
+    end if
+    text = text[1] & text[2] & indent & indent_str
+
+    -- save the line for auto_indent()
+    expand_line = ssmf(SCI_LINEFROMPOSITION, pos)
+
+    -- insert the text and restore cursor position
+    ssm(SCI_INSERTTEXT, pos, text)
+end procedure
+
+procedure do_auto_indent()
+integer line, pos, end_pos
+sequence indent
+
+    -- get the previous line and get the indentation
+    pos = get_pos()
+    line = ssmf(SCI_LINEFROMPOSITION, pos)-1
+    end_pos = get_line_end_position(line)
+
+    if line=expand_line then
+        -- delete the newline character and go to end of the next line
+        ssm(SCI_DELETERANGE, end_pos, pos-end_pos)
+        end_pos = get_line_end_position(line+1)
+        ssm(SCI_GOTOPOS, end_pos)
+        expand_line = -1
+        return
+    end if
+    expand_line = -1
+
+    -- get the indentation of the previous line, and remove newline
+    indent = get_line(line)
+    for i=length(indent)-length(ltrim(indent)) to 0 by -1 do
+        if i=0 or (indent[i]!='\n' and indent[i]!='\r') then
+            indent = indent[1..i]
+            exit
+        end if
+    end for
+
+    -- insert the indentation
+    ssm(SCI_ADDTEXT, length(indent), indent)
+end procedure
+
+-- insert closing character when user types ( [ { ' "
+procedure insert_pair()
+integer pos, style, ch
+
+    if not complete_braces then return end if
+
+    pos = get_pos()-1
+
+    -- avoid inside strings and comments
+    if pos!=get_line_start_position(-1) then
+        style = ssmf(SCI_GETSTYLEAT, pos-1)
+        if style=SCE_LUA_COMMENTLINE or
+        (style=SCE_LUA_STRING and
+           style=ssmf(SCI_GETSTYLEAT, pos+1)) then
+            return
+        end if
+    end if
+
+    -- avoid inside words or numbers
+    for i=pos+1 to get_line_end_position(-1) do
+        ch = ssmf(SCI_GETCHARAT, i)
+        style = ssmf(SCI_GETSTYLEAT, i)
+        --? {ch, style}
+        if find(ch, ",)}]\r\n+-*/=!<>#&\0") or style=SCE_LUA_WORD then
+            exit
+        elsif ch!=' ' and ch!='\t' then
+            return
+        end if
+    end for
+    ch = ssmf(SCI_GETCHARAT, pos, 0)
+    if ch='(' then
+        ch = ')'
+    elsif ch='{' then
+        ch = '}'
+    elsif ch='[' then
+        ch = ']'
+    end if
+    ssm(SCI_INSERTTEXT, pos+1, {ch})
+    insert_chars &= ch
+end procedure
+
+-------------------------------------------------------------------
+-- code syntax routines
+-------------------------------------------------------------------
+
+-- move to the declaration of the word under the cursor
+global procedure view_declaration()
+sequence text, decls, word, name_space
+integer pos
+
+    text = get_edit_text()
+    pos = get_pos()
+    word = word_pos(text, pos)
+    if length(word)<2 then return end if
+    name_space = word[2]
+    word = word[1]
+
+    decls = get_declarations(wee_parse(text, file_name), pos, name_space)
+    for i=1 to length(decls) do
+        if equal(decls[i][1], word) then
+            goto_pos(decls[i][2], length(word))
+            exit
+        end if
+    end for
+end procedure
+
+-- show the subroutine arguments, usually triggered after a pressing '('
+global procedure view_subroutine_arguments()
+sequence text, word, decls, name_space
+--  integer pos, end_pos, junk, calltip_save, style
+integer pos, end_pos, calltip_save, style
+
+    pos = get_pos()
+    style = ssmf(SCI_GETSTYLEAT, pos-2)
+    if style=SCE_LUA_STRING or style=SCE_LUA_COMMENTLINE then
+        return -- no completion in strings or comments
+    end if
+
+    calltip_save = calltip_pos
+    if ssmf(SCI_GETCHARAT, pos-1)='(' then
+        calltip_pos = pos
+        pos -= 1
+    end if
+
+    -- use scintilla's code completion
+    text = get_edit_text()
+    word = word_pos(text, pos)
+    if length(word)<4 then
+        calltip_pos = calltip_save
+        return
+    end if
+    pos = word[3]
+    end_pos = word[4]
+    name_space = word[2]
+    word = word[1]
+
+    decls = get_subroutine_arguments(wee_parse(text, file_name), word, name_space)
+    if length(decls) then
+        decls = decls[$] -- overloaded?  use the last one
+        if calltip_save!= -1 then
+            calltip_stack &= {calltip_save, calltip_args, calltip_text}
+            --? calltip_stack
+        end if
+        text = decls[1] & " " & decls[2] & "("
+        calltip_args = {}
+        for i=3 to length(decls) by 3 do
+            if i!=3 then text &= ", " end if
+            if decls[i+2] then text &= "[" end if
+            calltip_args &= {{length(text), 0}}
+            text &= decls[i] & " " & decls[i+1]
+            calltip_args[$][2] = length(text)
+            if decls[i+2] then text &= "]" end if
+        end for
+        text &= ")"
+        --puts(1, text & "\n")
+        calltip_text = text
+        ssm(SCI_CALLTIPSHOW, pos, text)
+        if length(calltip_args) then
+            ssm(SCI_CALLTIPSETHLT, calltip_args[1][1], calltip_args[1][2])
+        else
+            calltip_pos = -1 -- no arguments, no need to update
+        end if
+        return
+    end if
+
+    -- decl not found, search includes instead
+    decls = suggest_includes(word, name_space)
+    text = ""
+    for i=1 to length(decls) by 2 do
+        if length(decls[i])>=length(word) and equal(decls[i][1..length(word)], word) then
+            if length(text) then
+                text &= '\n'
+            end if
+            text &= sreplace(decls[i], " --", "( --")
+        end if
+    end for
+    if length(text) then
+        ssm(SCI_GOTOPOS, end_pos+1)
+        ssm(SCI_AUTOCSHOW, length(word)+1, text)
+    end if
 end procedure
 
 
+procedure auto_complete_selection(integer pos, sequence text)
+integer inc, len, insert_line, arg
+sequence line
+
+-- insert include statement if completion contains it
+    inc = match(" --include", text)
+    if inc then
+        ssm(SCI_AUTOCCANCEL, 0, 0)
+
+        len = get_pos()-pos
+
+        arg = text[inc-1]='('
+        if arg then
+            -- delete the existing '(' since we are adding another one
+            len -= 1
+            ssm(SCI_DELETERANGE, pos+len, 1)
+        end if
+
+        if len+1<=inc then
+            ssm(SCI_ADDTEXT, inc-1-len, text[len+1..inc])
+        end if
+        text = text[inc+3..$] & "\n"
+
+        -- search first few lines for include statements
+        insert_line = -1
+        for i=0 to 100 do
+            line = ltrim(get_line(i))
+            --printf(1, "%d %d %s\n", insert_line
+            if length(line)>=8 and equal(line[1..8], "include ") then
+                insert_line = i+1
+            elsif insert_line!= -1 then
+                exit
+            end if
+        end for
+        if insert_line= -1 then
+            -- insert after consecutive comment lines
+            insert_line = 0
+            for i=0 to 100 do
+                line = ltrim(get_line(i))
+                if length(line)>=2 and line[1]='-' and line[2]='-' then
+                    insert_line = i+1
+                else
+                    exit
+                end if
+            end for
+        end if
+        inc = ssmf(SCI_POSITIONFROMLINE, insert_line, 0)
+        if inc= -1 or inc>pos then
+            inc = 0
+        end if
+        ssm(SCI_INSERTTEXT, inc, text)
+        if arg then
+            view_subroutine_arguments()
+        end if
+    end if
+end procedure
+
+-- open file(s) from a drag and drop operation
+procedure open_uri(sequence uri)
+    uri = split(uri, "\r\n")
+    for i=1 to length(uri) do
+        if match("file://", uri[i])=1 then
+--          {} = open_file(uri[i][8..$], 0)
+            {} = call_func(r_open_file,{uri[i][8..$], 0})
+        end if
+    end for
+end procedure
+
+-------------------------------------------------------------------
+-- scintilla editor notifications
+-------------------------------------------------------------------
+
+--/* unused
+procedure log_notification(atom notification)
+integer code, pos, ch, modifiers
+  --? peek4u({notification, 24})
+    code = peek4u(notification+8)
+    pos = peek4u(notification+12)
+    if code=SCN_STYLENEEDED then
+        puts(1, "SCN_STYLENEEDED\n")
+    elsif code=SCN_CHARADDED then
+        ch = peek4s(notification+16)
+        printf(1, "SCN_CHARADDED ch=%d '%s'\n", {ch, {ch}})
+    elsif code=SCN_SAVEPOINTREACHED then
+        puts(1, "SCN_SAVEPOINTREACHED\n")
+    elsif code=SCN_SAVEPOINTLEFT then
+        puts(1, "SCN_SAVEPOINTLEFT\n")
+    elsif code=SCN_MODIFYATTEMPTRO then
+        puts(1, "SCN_MODIFYATTEMPTRO\n")
+    elsif code=SCN_KEY then
+        ch = peek4s(notification+16)
+        modifiers = peek4s(notification+20)
+        printf(1, "SCN_KEY ch=%d modifiers=#%x\n", {ch, modifiers})
+    elsif code=SCN_DOUBLECLICK then
+        puts(1, "SCN_DOUBLECLICK\n")
+    elsif code=SCN_UPDATEUI then
+        printf(1, "SCN_UPDATEUI updated=#%x\n", {peek4s(notification+88)})
+    elsif code=SCN_MODIFIED then
+        puts(1, "SCN_MODIFIED\n")
+    elsif code=SCN_MACRORECORD then
+        puts(1, "SCN_MACRORECORD\n")
+    elsif code=SCN_MARGINCLICK then
+        puts(1, "SCN_MARGINCLICK\n")
+    elsif code=SCN_NEEDSHOWN then
+        puts(1, "SCN_NEEDSHOWN\n")
+    elsif code=SCN_PAINTED then
+    --gets sent after each caret blink
+    --puts(1, "SCN_PAINTED\n")
+    elsif code=SCN_USERLISTSELECTION then
+        puts(1, "SCN_USERLISTSELECTION\n")
+    elsif code=SCN_URIDROPPED then
+        puts(1, "SCN_URIDROPPED\n")
+    elsif code=SCN_DWELLSTART then
+        puts(1, "SCN_DWELLSTART\n")
+    elsif code=SCN_DWELLEND then
+        puts(1, "SCN_DWELLEND\n")
+    elsif code=SCN_ZOOM then
+        puts(1, "SCN_ZOOM\n")
+    elsif code=SCN_HOTSPOTCLICK then
+        puts(1, "SCN_HOTSPOTCLICK\n")
+    elsif code=SCN_HOTSPOTDOUBLECLICK then
+        puts(1, "SCN_HOTSPOTDOUBLECLICK\n")
+    elsif code=SCN_HOTSPOTRELEASECLICK then
+        puts(1, "SCN_HOTSPOTRELEASECLICK\n")
+    elsif code=SCN_INDICATORCLICK then
+        puts(1, "SCN_INDICATORCLICK\n")
+    elsif code=SCN_INDICATORRELEASE then
+        puts(1, "SCN_INDICATORRELEASE\n")
+    elsif code=SCN_CALLTIPCLICK then
+        puts(1, "SCN_CALLTIPCLICK\n")
+    elsif code=SCN_AUTOCSELECTION then
+        puts(1, "SCN_AUTOCSELECTION\n")
+    elsif code=SCN_AUTOCCANCELLED then
+        puts(1, "SCN_AUTOCCANCELLED\n")
+    elsif code=SCN_AUTOCCHARDELETED then
+        puts(1, "SCN_AUTOCCHARDELETED\n")
+    elsif code=SCN_FOCUSIN then
+        puts(1, "SCN_FOCUSIN\n")
+    elsif code=SCN_FOCUSOUT then
+        puts(1, "SCN_FOCUSOUT\n")
+    end if
+end procedure
+--*/
+
+function notification_text(atom notification)
+--/**/return peek_string(peekNS(notification+NOTIFICATION_TEXT,machine_word(),0))   --/*
+    ifdef BITS64 then
+        return peek_string(peek8u(notification+NOTIFICATION_TEXT))
+    elsedef
+        return peek_string(peek4u(notification+NOTIFICATION_TEXT))
+    end ifdef                                                                       --*/
+end function
+
+global function sci_notify(atom hedit, atom data, atom notification, atom userdata)
+integer code, pos, ch, modifiers, updated, len
+    if data or userdata then end if -- suppress warnings
+    if notification=0 then return 0 end if
+  --log_notification(notification)
+    code = peek4u(notification+NOTIFICATION_CODE)
+  --? {hedit, data, notification, userdata, code}
+    if code=SCN_UPDATEUI then
+        updated = peek4u(notification+NOTIFICATION_UPDATED)
+        --? {updated, insert_chars, last_deleted_char}
+        if and_bits(updated, SC_UPDATE_SELECTION+SC_UPDATE_CONTENT)=SC_UPDATE_SELECTION then
+            -- selection moved and content was not changed
+            --? {updated, insert_chars}
+            insert_chars = ""
+        elsif last_deleted_char then
+            delete_pair()
+            last_deleted_char = 0
+        end if
+        if ssmf(SCI_CALLTIPACTIVE) then
+            update_subroutine_arguments()
+        end if
+        update_status()
+        do_brace_highlight(hedit)
+        if auto_indicator and last_typed_pos!= -1 and get_pos()!=last_typed_pos then
+            check_last_typed()
+        end if
+
+    elsif code=SCN_SAVEPOINTREACHED or code=SCN_SAVEPOINTLEFT then
+        modified = (code=SCN_SAVEPOINTLEFT)
+--      update_tab_name()
+        call_proc(r_update_tab_name,{})
+
+    elsif code=SCN_KEY then
+        ch = peek4s(notification+NOTIFICATION_CH)
+        modifiers = peek4s(notification+NOTIFICATION_MODIFIERS)
+        -- on OSX X11, META and SHIFT are the only modifiers we receive
+
+        if ch='Z' and and_bits(modifiers, SCMOD_CTRL+SCMOD_META) then
+            if and_bits(modifiers, SCMOD_SHIFT) then
+                ssm(SCI_REDO, 0, 0)
+            else
+                ssm(SCI_UNDO, 0, 0)
+            end if
+
+        elsif ch>='1' and ch<='9' and and_bits(modifiers, SCMOD_ALT+SCMOD_META) then
+--          select_tab(ch-'0')
+            call_proc(r_select_tab,{ch-'0'})
+
+        elsif ch<128 then
+      --printf(1, "SCN_KEY ch=%d '%s' modifiers=%d\n", {ch, {ch}, modifiers})
+        else
+      --printf(1, "SCN_KEY ch=#%x modifiers=%d\n", {ch, modifiers})
+        end if
+
+    elsif code=SCN_CHARADDED then
+        ch = peek4s(notification+NOTIFICATION_CH)
+        --printf(1, "SCN_CHARADDED ch=%d '%s'\n", {ch, {ch}})
+
+        if length(insert_chars) and ch=insert_chars[$] then
+            -- the user retyped the insert character, so delete it
+            ssm(SCI_DELETERANGE, get_pos(), 1)
+            -- the UPDATEUI will remove the insert_chars[$]
+        elsif ch=':' and auto_namespace then
+            view_completions()
+        elsif ch=' ' and complete_statements then
+            auto_expand()
+        elsif ch='\n' and auto_indent then
+            do_auto_indent()
+        elsif ch='(' then
+      -- check for displaying subroutine arguments
+            if complete_braces then
+                insert_pair()
+            end if
+            if auto_arguments then
+                view_subroutine_arguments()
+            end if
+        elsif (ch='{' or ch='[') and complete_braces then
+            insert_pair()
+        elsif (ch='"' or ch='\'') and complete_braces then
+            insert_pair()
+        elsif auto_indicator
+          and ((ch>='a' and ch<='z') or
+               (ch>='A' and ch<='Z') or
+               (ch>='0' and ch<='9') or
+               ch='_') then
+            last_typed_pos = get_pos()
+        end if
+
+    elsif code=SCN_AUTOCSELECTION then
+        -- check for "--include" in selection, then add include statement near top of file
+        --  or after the first non-commented line, or ideally with other includes
+        pos = peek4u(notification+NOTIFICATION_POS)
+        auto_complete_selection(pos, notification_text(notification))
+
+    elsif code=SCN_MODIFIED then
+        modifiers = peek4u(notification+NOTIFICATION_MODIFICATIONTYPE)
+        if and_bits(modifiers, SC_MOD_BEFOREDELETE) then
+            pos = peek4u(notification+NOTIFICATION_POS)
+            len = peek4u(notification+NOTIFICATION_LENGTH)
+            --? {modifiers, pos, len}
+            if len=1 then
+                last_deleted_char = ssmf(SCI_GETCHARAT, pos)
+            end if
+        end if
+
+    elsif code=SCN_URIDROPPED then
+        open_uri(notification_text(notification))
+    elsif code=SCN_PAINTED then
+    -- could run some background processing during painted, every time cursor blinks
+    end if
+    return 0
+end function
+
+global procedure reset_ex_err()
+    if length(run_file_name)=0 then
+        return
+    end if
+    ex_err_name = dirname(run_file_name) & SLASH & "ex.err"
+    ex_err_timestamp = get_timestamp(ex_err_name)
+end procedure
 
 global procedure load_wee_conf(sequence wee_conf_file)
 integer f, eq, int_ok
@@ -744,10 +1432,10 @@ integer f
         for i=1 to length(tab_file_names) do
             if length(tab_file_names[i]) then
                 hedit = tab_hedits[i]
-                printf(f, "open_tab=%s\nopen_tab_pos=%d\nopen_tab_line=%d\n", {
-                                                                               tab_file_names[i],
-                                                                               ssmf(SCI_GETCURRENTPOS),
-                                                                               ssmf(SCI_GETFIRSTVISIBLELINE)})
+                printf(f, "open_tab=%s\nopen_tab_pos=%d\nopen_tab_line=%d\n",
+                       {tab_file_names[i],
+                        ssmf(SCI_GETCURRENTPOS),
+                        ssmf(SCI_GETFIRSTVISIBLELINE)})
             end if
         end for
     end if
@@ -763,48 +1451,19 @@ integer f
     close(f)
 end procedure
 
-
-
-function sreplace(sequence text, sequence what, sequence replacement)
-integer i
-    i = match(what, text)
-    if i then
-        return text[1..i-1] & replacement & text[i+length(what)..$]
-    end if
-    return text
-end function
-
--- update the hedit lexer based on the file extension
-procedure update_lexer()
-sequence ext, keywords
-integer lexer
-
-    if length(tab_file_names[current_tab]) then
-        ext = lower(fileext(tab_file_names[current_tab]))
-    else
-        ext = "ex"
-    end if
-
-    lexer = SCLEX_NULL
-    expansions = {}
-    keywords = {}
-    for i=1 to length(file_types) do
-        if find(ext, file_types[i][1]) then
-            lexer = file_types[i][2]
-            keywords = file_types[i][3]
-            expansions = file_types[i][4]
-            exit
-        end if
-    end for
-    if lexer!=ssmf(SCI_GETLEXER) then
-        ssm(SCI_SETLEXER, lexer)
-        init_edit(hedit)
-        for k=1 to length(keywords) by 2 do
-            ssm(SCI_SETKEYWORDS, keywords[k], keywords[k+1])
-        end for
-    end if
-end procedure
-
+constant             -- colors of various syntax classes
+    Black = #000000,
+--  Gray = #AAAAAA,
+    DGray = #808080,
+    Green = #00AA00,
+--  Yellow = #88FFFF,
+    Magenta = #AA00AA,
+--  Cyan = #AAAA00,
+--  Red = #0000AA,
+    Blue = #AA0000,
+    LightBlue = #FFFFDD,
+    White = #FFFFFF,
+    BrightRed = #0000FF
 
 -- init edit, (or reinit all existing edits when hedit = 0)
 global procedure init_edit(atom edit)
@@ -815,20 +1474,19 @@ integer lexer
 
     --? {hedit, ssm(SCI_GETIDENTIFIER, 0, 0)}
     font = font_name
-    ifdef not WINDOWS then
-    font = sreplace(font, "Medium", "")
-    font = sreplace(font, "Thin", "")
-    font = sreplace(font, "Bold", "")
-    font = sreplace(font, "Italic", "")
-    font = sreplace(font, "Condensed", "")
-    font = rtrim(font)
-    end ifdef
-
+    if platform()!=WINDOWS then
+        font = sreplace(font, "Medium", "")
+        font = sreplace(font, "Thin", "")
+        font = sreplace(font, "Bold", "")
+        font = sreplace(font, "Italic", "")
+        font = sreplace(font, "Condensed", "")
+        font = rtrim(font)
+    end if
     ssm(SCI_STYLESETFONT, STYLE_DEFAULT, font)
-    ifdef not WINDOWS then
-    ssm(SCI_STYLESETBOLD, STYLE_DEFAULT, match(" Bold", font_name))
-    ssm(SCI_STYLESETITALIC, STYLE_DEFAULT, match(" Italic", font_name))
-    end ifdef
+    if platform()!=WINDOWS then
+        ssm(SCI_STYLESETBOLD, STYLE_DEFAULT, match(" Bold", font_name))
+        ssm(SCI_STYLESETITALIC, STYLE_DEFAULT, match(" Italic", font_name))
+    end if
     ssm(SCI_STYLESETSIZE, STYLE_DEFAULT, font_height)
     ssm(SCI_STYLESETFORE, STYLE_DEFAULT, normal_color)
     ssm(SCI_STYLESETBACK, STYLE_DEFAULT, background_color)
@@ -896,11 +1554,11 @@ integer lexer
 
     ssm(SCI_SETWRAPMODE, line_wrap)
 
-    ifdef WINDOWS then
-    ssm(SCI_SETEOLMODE, SC_EOL_CRLF)
-    elsedef
-    ssm(SCI_SETEOLMODE, SC_EOL_LF)
-    end ifdef
+    if platform()=WINDOWS then
+        ssm(SCI_SETEOLMODE, SC_EOL_CRLF)
+    else
+        ssm(SCI_SETEOLMODE, SC_EOL_LF)
+    end if
 
     ssm(SCI_REGISTERIMAGE, DECL_ATOM, a_xpm)
     ssm(SCI_REGISTERIMAGE, DECL_CONSTANT, c_xpm)
@@ -927,318 +1585,6 @@ atom saved_hedit
     hedit = saved_hedit
 end procedure
 
-
-procedure auto_detect_indent(sequence text)
-integer i = 0, indent = 0, last = 0, tabs_used = 0, spaces_used = 0
-sequence indents = repeat(0, 8)
-integer start
-
-    start = 1
-    while i<length(text) do
-        i += 1
-        -- count spaces and tabs
-        if text[i]=' ' then
-            indent += 1
-            if remainder(indent, tab_width)=0 then
-                spaces_used += 1
-            end if
-            continue
-        end if
-        if text[i]='\t' then
-            indent += tab_width-remainder(indent, tab_width)
-            tabs_used += 1
-            continue
-        end if
-
-        -- record positive indents
-        if indent-last>=1 and indent-last<=length(indents) then
-            indents[indent-last] += 1
-        end if
-        last = indent
-        indent = 0
-
-        -- scan to end of line
-        while i<=length(text) do
-            if text[i]='\r' then
-                if i<length(text) and text[i+1]='\n' then
-                    i += 1
-                end if
-                exit
-            elsif text[i]='\n' then
-                if i<length(text) and text[i+1]='\r' then
-                    i += 1
-                end if
-                exit
-            end if
-            i += 1
-        end while
-
-        --printf(1, "%d: %s", {last, text[start..i]})
-        start = i+1
-
-    end while
-
-    -- pick the max used indent size
-    indent = 1
-    for x=2 to length(indents) do
-        if indents[x]>indents[indent] then
-            indent = x
-        end if
-    end for
-
-    ssm(SCI_SETINDENT, indent)
-    ssm(SCI_SETUSETABS, tabs_used>spaces_used)
-
-end procedure
-
-
--- pos is integer position in current tab, or {"filename", pos}
--- note: first character in document is at pos=1
-global procedure goto_pos(object pos, integer len=0)
-sequence prev = {ssmf(SCI_GETCURRENTPOS),
-                 ssmf(SCI_GETFIRSTVISIBLELINE)}
-
-    if sequence(pos) then
-        sequence prev_file = file_name
-        if open_file(pos[1], 0)=0 then
-            return -- file not found
-        end if
-        pos = pos[2]
-        if not equal(file_name, prev_file) then
-            -- open_file probably changed the current_tab
-            prev &= {prev_file}
-        end if
-    end if
-    tab_pos_stack[current_tab] &= {prev}
-    pos -= 1
-    ssm(SCI_SETANCHOR, pos)
-    ssm(SCI_SETCURRENTPOS, pos+len)
-    set_top_line(-1)
-end procedure
-
--- restore the previous cursor and scroll position,
--- or clear the selection or autocompletion if there is one
-global procedure go_back()
-object pos = ssmf(SCI_GETCURRENTPOS)
-
--- clear any active autocomplete, and return
-    if ssmf(SCI_AUTOCACTIVE) then
-        ssm(SCI_AUTOCCANCEL, 0, 0)
-        return
-    end if
-
-    -- clear any selection, and return
-    if pos!=ssmf(SCI_GETANCHOR) then
-        ssm(SCI_SETEMPTYSELECTION, pos)
-        return
-    end if
-
-    if length(tab_pos_stack[current_tab])=0 then
-        return -- empty stack
-    end if
-
-    -- get the last {pos,top_line,[filename]} on stack, and remove it
-    pos = tab_pos_stack[current_tab][$]
-    tab_pos_stack[current_tab] = tab_pos_stack[current_tab][1..$-1]
-
-    if sequence(pos) and length(pos)>=3 then
-        if length(pos[3])=0 then
-            -- fixme: pick first untitled tab
-            integer tab = find("", tab_file_names)
-            if tab=0 then
-                return
-            end if
-            select_tab(tab)
-        elsif open_file(pos[3], 0)=0 then
-            return -- file not found or user cancelled
-        end if
-    end if
-    ssm(SCI_SETEMPTYSELECTION, pos[1])
-    set_top_line(pos[2])
-end procedure
-
-global function get_pos()
-    return ssmf(SCI_GETCURRENTPOS)
-end function
-
-global function get_selection()
-integer len
-atom buf
-sequence text
-
-    len = ssmf(SCI_GETSELTEXT)
-    if len<=1 then
-        return ""
-    end if
-    buf = allocate(len)
-    ssm(SCI_GETSELTEXT, 0, buf)
-    text = peek({buf, len-1})
-    free(buf)
-    return text
-end function
-
-global procedure set_top_line(integer line)
-integer fv, los
-    if line= -1 then
-        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
-    end if
-    fv = ssmf(SCI_GETFIRSTVISIBLELINE)
-    los = ssmf(SCI_LINESONSCREEN)
-    if line>=fv and line<fv+los-1 then
-        return -- don't need to scroll
-    end if
-    line = ssmf(SCI_SETFIRSTVISIBLELINE, line)
-end procedure
-
-global function get_modified()
-    return ssmf(SCI_GETMODIFY)
-end function
-
-global function get_line_length(integer line)
-    if line= -1 then
-        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
-    end if
-    return ssmf(SCI_LINELENGTH, line)
-end function
-
-global function get_line_end_position(integer line)
-    if line= -1 then
-        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
-    end if
-    return ssmf(SCI_GETLINEENDPOSITION, line)
-end function
-
-global function get_line_start_position(integer line)
-    if line= -1 then
-        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
-    end if
-    return ssmf(SCI_POSITIONFROMLINE, line)
-end function
-
-
-global function get_line(integer line)
---atom junk
-atom len, buf
-sequence text
-
-    if line= -1 then
-        line = ssmf(SCI_LINEFROMPOSITION, get_pos())
-    end if
-    len = get_line_length(line)
-    buf = allocate(len+1)
-    ssm(SCI_GETLINE, line, buf)
-    text = peek({buf, len})
-    free(buf)
-    return text
-end function
-
-global function get_edit_text()
---atom junk
-atom text_buffer, text_len
-sequence text
-
-    text_len = ssmf(SCI_GETTEXTLENGTH)+1
-    text_buffer = allocate(text_len)
-    ssm(SCI_GETTEXT, text_len, text_buffer)
-    text = peek({text_buffer, text_len-1})
-    free(text_buffer)
-    return text
-end function
-
-global procedure update_status()
-atom pos, line, col
-    pos = get_pos()
-    line = 1+ssmf(SCI_LINEFROMPOSITION, pos)
-    col = 1+ssmf(SCI_GETCOLUMN, pos)
-    ui_update_status(sprintf("%d:%d ", {line, col}))
-    if line-1!=expand_line then
-        expand_line = -1
-    end if
-end procedure
-
-
---------------------------------------
--- search and replace
---------------------------------------
-
--- search for the phrase (sequence or pointer) and set the editor target
--- returns 1 if found, otherwise 0
-global function search_find(sequence phrase, integer backward = 0)
-    if backward then
-        ssm(SCI_SETTARGETSTART, ssmf(SCI_GETSELECTIONSTART))
-        ssm(SCI_SETTARGETEND, 0)
-    else
-        ssm(SCI_SETTARGETSTART, ssmf(SCI_GETSELECTIONEND))
-        ssm(SCI_SETTARGETEND, ssmf(SCI_GETTEXTLENGTH))
-    end if
-
-    if ssmf(SCI_SEARCHINTARGET, length(phrase), phrase)<0 then
-        -- wrap around and search again
-        if backward then
-            ssm(SCI_SETTARGETSTART, ssmf(SCI_GETTEXTLENGTH))
-        else
-            ssm(SCI_SETTARGETSTART, 0)
-        end if
-        if ssmf(SCI_SEARCHINTARGET, length(phrase), phrase)<0 then
-            -- clear the target so search_replace won't do bad things
-            ssm(SCI_SETTARGETSTART, 0)
-            ssm(SCI_SETTARGETEND, 0)
-            return 0
-        end if
-    end if
-    -- scroll to left side first
-    ssm(SCI_SETXOFFSET, 0)
-    -- set selection from target
-    ssm(SCI_SETSEL, ssmf(SCI_GETTARGETSTART), ssmf(SCI_GETTARGETEND))
-
-    return 1
-end function
-
--- replace the editor target with the phrase (sequence or pointer)
--- returns 1 if replace made, otherwise 0
-global function search_replace(sequence phrase)
-integer pos = ssmf(SCI_GETTARGETSTART)
-    if pos>=ssmf(SCI_GETTARGETEND) then
-        -- target not set
-        if not equal(get_selection(), find_phrase) then
-            return 0
-        end if
-        if SSM(hedit, SCI_TARGETFROMSELECTION) then end if
-    end if
-    -- replace or replace_all
-    ssm(SCI_REPLACETARGET, length(phrase), phrase)
-    -- set the current pos to the end, so that the next
-    -- find doesn't search within the replacement phrase
-    ssm(SCI_SETSEL, pos, pos+length(phrase))
-    return 1
-end function
-
--- replace all in document, saving the cursor position
--- returns count of replacements made
-global function search_replace_all(sequence what, sequence phrase)
-integer
-        pos = ssmf(SCI_GETCURRENTPOS),
-        anchor = ssmf(SCI_GETANCHOR),
-        count = 0
-    -- save the current position to be restored later
-    ssm(SCI_SETANCHOR, 0)
-    ssm(SCI_SETCURRENTPOS, 0)
-    -- search until not found
-    ssm(SCI_BEGINUNDOACTION)
-    while search_find(what, 0) do
-        if search_replace(phrase) then end if
-        count += 1
-    end while
-    ssm(SCI_ENDUNDOACTION)
-    ssm(SCI_SETSEL, anchor, pos)
-    return count
-end function
-
-
---------------------------------------
--- tab management
---------------------------------------
-
 global function get_prev_tab()
     if current_tab<=1 then
         return length(tab_hedits)
@@ -1253,24 +1599,6 @@ global function get_next_tab()
     return current_tab+1
 end function
 
-global function make_tab_name()
-sequence name
-
-    if length(file_name)=0 then
-        name = "New File"
-    else
-        name = file_name
-        for i=length(name) to 1 by -1 do
-            if name[i]='\\' or name[i]='/' then
-                name = name[i+1..$]
-                exit
-            end if
-        end for
-    end if
-    return name
-end function
-
-
 procedure update_tab_timestamp()
     if length(file_name) then
         tab_timestamps[current_tab] = get_timestamp(file_name)
@@ -1279,520 +1607,10 @@ procedure update_tab_timestamp()
     end if
 end procedure
 
-
-global procedure select_tab(integer tab)
-    if tab<1 or tab>length(tab_hedits) or tab=current_tab then
-        return
-    end if
-    current_tab = tab
-    file_name = tab_file_names[tab]
-    hedit = tab_hedits[tab]
-    modified = get_modified()
-
-    expand_line = -1
-    insert_chars = ""
-    calltip_args = {}
-    calltip_pos = -1
-    calltip_stack = {}
-    calltip_text = ""
-    ui_select_tab(tab)
-    ui_update_window_title(make_tab_name())
-    update_status()
-
-    update_lexer()
-end procedure
-
-global procedure update_tab_name()
-sequence name = make_tab_name()
-    ui_update_window_title(name)
-    if modified then name &= "*" end if
-    ui_update_tab_name(current_tab, name)
-end procedure
-
-global procedure new_tab(sequence file_name)
-integer tab
-
-    if equal(tab_file_names, {""}) and modified=0 then
-        -- unmodified new file, just reuse it and update the tab name
-        tab = 1
-        tab_file_names[tab] = file_name
-        update_tab_name()
-        current_tab = 0 -- to force select_tab
-    else
-        hedit = ui_new_tab(make_tab_name())
-
-        tab_hedits = append(tab_hedits, hedit)
-        tab_file_names = append(tab_file_names, file_name)
-        tab_timestamps = append(tab_timestamps, -1)
-        tab_arguments = append(tab_arguments, "")
-        tab_pos_stack = append(tab_pos_stack, {})
-        tab = length(tab_hedits)
-    end if
-    select_tab(tab)
-    init_edit(hedit)
-end procedure
-
-global procedure close_tab()
-integer tab
-
-    if save_if_modified(1)=0 then
-        return -- user cancelled the save
-    end if
-
-    tab = current_tab
-    save_recent_pos()
-    ui_close_tab(tab)
-
-    tab_hedits = tab_hedits[1..tab-1] & tab_hedits[tab+1..$]
-    tab_file_names = tab_file_names[1..tab-1] & tab_file_names[tab+1..$]
-    tab_timestamps = tab_timestamps[1..tab-1] & tab_timestamps[tab+1..$]
-    tab_arguments = tab_arguments[1..tab-1] & tab_arguments[tab+1..$]
-    tab_pos_stack = tab_pos_stack[1..tab-1] & tab_pos_stack[tab+1..$]
-    current_tab = 0
-    if length(tab_hedits)=0 then
-        new_file() -- must always have a edit available
-    elsif tab>length(tab_hedits) then
-        tab = length(tab_hedits)
-    end if
-    select_tab(tab)
-end procedure
-
-global function get_tab_arguments()
-    return tab_arguments[current_tab]
-end function
-
-global procedure set_tab_arguments(sequence s)
-    tab_arguments[current_tab] = s
-end procedure
-
-
-
---------------------------------------
--- file open/save
---------------------------------------
-
--- returns tab index of opened file, or 0 if cancelled
-global function open_file(sequence file_name, integer reload)
-atom result
---, text_buffer
-integer fn, tab, initial_pos = 0, first_visible_line = 0
-object s
-sequence text
-
-    if length(file_name)=0 then
-        file_name = ui_get_open_file_name()
-        if length(file_name)=0 then return 0 end if
-        if sequence(file_name[1]) then
-            -- multiple open
-            for i=1 to length(file_name) do
-                if open_file(file_name[i], reload) then end if
-            end for
-            return 0
-        end if
-    elsif sequence(file_name[1]) then
-        -- filename is {"file_name", initial_pos, first_visible_line}
-        if length(file_name)>=2 and integer(file_name[2]) then
-            initial_pos = file_name[2]
-        end if
-        if length(file_name)>=3 and integer(file_name[3]) then
-            first_visible_line = file_name[3]
-        end if
-        file_name = file_name[1]
-    end if
-
-    file_name = canonical_path(file_name, 0, CORRECT)
-
-    -- check if already existing tab
-    tab = find(file_name, tab_file_names)
-    if tab and reload=0 then
-        select_tab(tab)
-        return tab
-    end if
-
-    text = ""
-    fn = open(file_name, "rb")
-    if fn= -1 then
-      -- file couldn't be opened
-        if ui_message_box_yes_no("Open", "Unable to open "&file_name&"\n\n"&
-                                 "Do you want to create it?")=0 then
-            return 0
-        end if
-    else
-      -- read the contents of the file into text
-        s = gets(fn)
-        while sequence(s) do
-            text &= s
-            s = gets(fn)
-        end while
-        close(fn)
-    end if
-
-    if not tab then
-        new_tab(file_name)
-        tab = current_tab
-    end if
-    update_tab_timestamp()
-
-    result = ssmf(SCI_CLEARALL)
-    result = ssmf(SCI_SETTEXT, 0, text)
-    result = ssmf(SCI_SETSAVEPOINT)
-    modified = 0
-    if tab then
-        update_tab_name()
-    end if
-
-    result = ssmf(SCI_SETFIRSTVISIBLELINE, first_visible_line)
-    result = ssmf(SCI_SETEMPTYSELECTION, initial_pos)
-    result = ssmf(SCI_EMPTYUNDOBUFFER)
-    auto_detect_indent(text)
-
-    add_recent_file(file_name)
-    return tab
-end function
-
--- open files on startup and saved tabs
-global procedure open_tabs()
-sequence cmdline
--- open files from previous session
-    for i=1 to length(tabs_to_open) do
-        if file_exists(tabs_to_open[i][1]) then
-            if open_file(tabs_to_open[i], 0) then end if
-        end if
-    end for
-    -- open files on command line
-    cmdline = command_line()
-    for i=3 to length(cmdline) do
-        if open_file(cmdline[i], 0) then end if
-    end for
-    if length(tab_file_names)=0 and length(cmdline)<3 then
-        new_file()
-    elsif length(cmdline)<3 then
-        -- select initial tab if no files on command line
-        select_tab(initial_tab)
-    end if
-end procedure
-
--- returns 1 if ok, 0 on error
-function save_file()
-atom fn, junk
-sequence text
-
-    ssm(SCI_SETSAVEPOINT, 0, 0)
-    modified = 0
-
-    fn = open(file_name, "wb")
-    if fn= -1 then
-        if ui_message_box_error("Save", "Unable to save file. Please make sure the file location is not read-only.") then end if
-        return 0
-    end if
-    text = get_edit_text()
-    puts(fn, text)
-    junk = where(fn)
-    close(fn)
-
-    if junk!=length(text) then
-        if ui_message_box_error("Save", "The file could not be written completely. Please make sure there is enough free space.") then end if
-        return 0
-    end if
-
-    update_tab_name()
-    update_tab_timestamp()
-    return 1
-end function
-
-global function save_file_as()  -- returns 1 if ok, 0 if cancelled/error
-object temp
-
-    temp = ui_get_save_file_name(file_name)
-    if length(temp)=0 then return 0 end if
-
-    file_name = canonical_path(temp, 0, CORRECT)
-    tab_file_names[current_tab] = file_name
-    if save_file()=0 then
-        return 0
-    end if
-    update_tab_name()
-    update_lexer()
-    return 1
-end function
-
-
-global function save_if_modified(integer confirm)  -- returns 1 if ok, 0 if cancelled/error
-atom result
-sequence text
-
-    if not get_modified() and (length(file_name)!=0 or confirm) then
-        return 1
-    end if
-
-    if confirm then
-        text = ""
-        if length(file_name) then
-            text = " in " & file_name
-        end if
-        text = "The text"&text&" has changed.\n\nDo you want to save the changes?"
-        result = ui_message_box_yes_no_cancel(window_title, text)
-        if result!=1 then -- no or cancel
-            return result+1
-        end if
-    end if
-
-    if length(file_name)=0 then
-        return save_file_as()
-    end if
-    return save_file()
-end function
-
-global function save_modified_tabs()  --returns 1 if ok, 0 if cancelled
-integer idx
-atom saved_hedit
-    saved_hedit = hedit
-    for tab=1 to length(tab_hedits) do
-        hedit = tab_hedits[tab]
-        idx = find(tab_file_names[tab], recent_files)
-        if idx then
-            recent_pos[idx] = get_pos()
-        end if
-        if get_modified() then
-            select_tab(tab)
-            if save_if_modified(1)=0 then
-                return 0 -- cancelled
-            end if
-            saved_hedit = hedit
-        end if
-    end for
-    hedit = saved_hedit
-    return 1
-end function
-
 global procedure new_file()
     new_tab("")
     ssm(SCI_SETTEXT, 0, "")
     ssm(SCI_SETSAVEPOINT, 0, 0)
-end procedure
-
-
-global procedure check_externally_modified_tabs()
-atom ts
-    for i=1 to length(tab_file_names) do
-        if length(tab_file_names[i]) and tab_timestamps[i]!= -1 then
-            ts = get_timestamp(tab_file_names[i])
-            if ts!=tab_timestamps[i] then
-                  --? {ts, tab_timestamps[i]}
-                 -- clear the timestamp here so that don't repeat when the MessageBox retriggers WM_SETFOCUS
-                tab_timestamps[i] = -1
-                if ui_message_box_yes_no(window_title, tab_file_names[i] &
-                                         "\n\nThis file has been modified by another application.  Do you want to reload it?") then
-                    integer pos
-                    select_tab(i)
-                    pos = get_pos()
-                    if open_file(tab_file_names[i], 1) then end if
-                    goto_pos(pos)
-                else
-                    tab_timestamps[i] = ts
-                end if
-            end if
-        end if
-    end for
-end procedure
-
-
-global procedure add_recent_file(sequence filename)
-integer idx
-    idx = find(filename, recent_files)
-    if idx then
-        -- move it to the top of the list
-        recent_files = {recent_files[idx]} & recent_files[1..idx-1] &
-                       recent_files[idx+1..length(recent_files)]
-        recent_pos = {recent_pos[idx]} & recent_pos[1..idx-1] &
-                     recent_pos[idx+1..length(recent_pos)]
-    else
-        idx = length(recent_files)
-        if idx>=max_recent_files then
-            idx -= 1
-        end if
-        recent_files = {filename} & recent_files[1..idx]
-        recent_pos = {0} & recent_pos[1..idx]
-    end if
-    ui_refresh_file_menu(recent_files)
-end procedure
-
-global procedure save_recent_pos()
-integer idx
-    idx = find(file_name, recent_files)
-    if idx then
-        recent_pos[idx] = get_pos()
-    end if
-end procedure
-
-global procedure open_recent(integer idx)
-integer tab
-    if idx>=1 and idx<=length(recent_files) then
-        tab = open_file(recent_files[idx], 0)
-        if tab then
-            ssm(SCI_SETSEL, recent_pos[1], recent_pos[1])
-            set_top_line(-1) -- set the top visible line to the current line
-        end if
-    end if
-end procedure
-
-
---------------------------------------
--- help routines
---------------------------------------
-
-sequence help_dir
-
-global procedure show_help(sequence file, sequence anchor)
-integer ok = 0
-integer f = open(help_dir & file & ".html", "r")
-sequence html = ""
-    if f= -1 then
-        return
-    end if
-    object line = gets(f)
-    while sequence(line) do
-        if match("<a name=", line)=1 then
-            sequence a = ""
-            for i=10 to length(line) do
-                if line[i]='"' then
-                    a = line[10..i-1]
-                    exit
-                end if
-            end for
-            --puts(1, a&"\n")
-            if equal(a, anchor) then
-                ok = 1
-            elsif ok=1 and (
-                match("_comments", a) or
-                            match("_example", a) or
-                            match("_returns", a) or
-                            match("_parameters", a) or
-                            match("_platform", a) or
-                            match("_seealso", a)
-            ) then
-                ok = 1
-            else
-                ok = 0
-            end if
-        end if
-        if ok then
-            html &= line
-        end if
-        line = gets(f)
-    end while
-    close(f)
-    ui_show_help(html)
-end procedure
-
-function tr(sequence s, sequence src, sequence dst)
-    for i=1 to length(s) do
-        integer x = find(s[i], src)
-        if x then
-            s[i] = dst[x]
-        end if
-    end for
-    return s
-end function
-
-global procedure context_help()
-sequence text, decls, word, name_space, path
-integer pos
-object help
-
-    text = get_edit_text()
-    pos = get_pos()
-    word = word_pos(text, pos)
-    if length(word)<2 then
-        name_space = ""
-        word = ""
-    else
-        name_space = word[2]
-        word = word[1]
-    end if
-
-    -- load the search.dat file
-    if length(search_dat)=0 then
-        sequence paths = include_paths(0)
-        for i=1 to length(paths) do
-            path = paths[i]
-            if path[$]=SLASH then
-                path = path[1..$-1]
-            end if
---PL not that we are likely to find it...
---/**/      path &= "..\\docs\\html\\"                          --/*
-            path &= join_path({"..","docs","html"}) & SLASH     --*/
-            --puts(1, path&"\n")
-            integer f = open(path & "js" & SLASH & "search.js","r")
-            if f!= -1 then
-                help_dir = canonical_path(path)
-                if help_dir[$]!=SLASH then
-                    help_dir &= SLASH
-                end if
-                object line = gets(f)
-                while sequence(line) do
-                    integer x = find(':', line)
-                    if x and line[1]='"' then
-                        --puts(1, line[2..x-2]&" "&line[x+1..$]&"\n")
-                        search_idx = append(search_idx, line[2..x-2])
-                        line = tr(line[x+1..$-1], "[]", "{}")
-                        line = value(line)
-                        search_dat = append(search_dat, line[2])
-                    end if
-                    line = gets(f)
-                end while
-                close(f)
-                exit
-            end if
-        end for
-        if length(search_dat)=0 then
-            if ui_message_box_error(window_title, "File not found: euphoria/docs/html/js/search.js") then end if
-            return
-        end if
-    end if
-
-    -- search search.dat for matching entry
-    help = {}
-    for i=1 to length(search_idx) do
-        if equal(search_idx[i], word) then
-            help = search_dat[i]
-            exit
-        end if
-    end for
-    if atom(help) or length(help)=0 then
-        if ui_message_box_error("Help",
-                                "Didn't find any help on the topic: "&word&
-                                "\nPlease put the cursor over an Euphoria identifier"&
-                                "\nor standard library routine and try again.") then end if
-        return
-    end if
-
-    if length(help)>1 then
-        -- multiple help entries
-        path = ""
-        decls = get_declarations(parse(text, file_name), pos, name_space)
-        for j=1 to length(decls) by 2 do
-            if equal(decls[j], word) then
-                if atom(decls[j+1]) then
-                    path = file_name
-                else
-                    path = decls[j+1][1]
-                end if
-
-                for i=1 to length(help) do
-                    if match(sreplace(help[i][1],"_",{SLASH})&".e", path) then
-                        --show_help(help[i][1], help[i][2])
-                        ui_show_uri("file://" & help_dir & help[i][1] & ".html#" & help[i][2])
-                        return
-                    end if
-                end for
-            end if
-        end for
-    end if
-
-    -- only one help entry, just show it
-    --show_help(help[1][1], help[1][2])
-    ui_show_uri("file://" & help_dir & help[1][1] & ".html#" & help[1][2])
 end procedure
 
 global procedure open_tutorial()
@@ -1951,7 +1769,137 @@ for
 `)
 end procedure
 
+-- toggle the comment at the start of each line in selection
+global procedure toggle_comment()
+integer
+        pos = ssmf(SCI_GETCURRENTPOS),
+        anchor = ssmf(SCI_GETANCHOR),
+        line_pos = ssmf(SCI_LINEFROMPOSITION, pos),
+        line_anchor = ssmf(SCI_LINEFROMPOSITION, anchor),
+        col_pos = pos-ssmf(SCI_POSITIONFROMLINE, line_pos),
+        col_anchor = anchor-ssmf(SCI_POSITIONFROMLINE, line_anchor),
+        line_start = ssmf(SCI_LINEFROMPOSITION, ssmf(SCI_GETSELECTIONSTART)),
+        line_end = ssmf(SCI_LINEFROMPOSITION, ssmf(SCI_GETSELECTIONEND)-1)
+integer uncomment = 1
+    if line_end<line_start then
+        line_end = line_start
+    end if
+    -- check to see if all lines are commented
+    for i=line_start to line_end do
+        pos = ssmf(SCI_POSITIONFROMLINE, i)
+        if ssmf(SCI_GETCHARAT, pos)!='-' or
+           ssmf(SCI_GETCHARAT, pos+1)!='-' then
+            uncomment = 0 -- non comment detected
+            exit
+        end if
+    end for
+    -- insert/remove comment markers
+    ssm(SCI_BEGINUNDOACTION)
+    for i=line_start to line_end do
+        pos = ssmf(SCI_POSITIONFROMLINE, i)
+        if uncomment then
+            ssm(SCI_DELETERANGE, pos, 2)
+        else
+            ssm(SCI_INSERTTEXT, pos, "--")
+        end if
+    end for
+    ssm(SCI_ENDUNDOACTION)
+    -- adjust the selection to be the same column as it was before
+    pos = ssmf(SCI_POSITIONFROMLINE, line_pos)+col_pos
+    anchor = ssmf(SCI_POSITIONFROMLINE, line_anchor)+col_anchor
+    if col_pos!=0 then
+        pos -= uncomment*4-2
+    end if
+    if col_anchor!=0 then
+        anchor -= uncomment*4-2
+    end if
+    ssm(SCI_SETSEL, anchor, pos)
+end procedure
 
+global function get_tab_arguments()
+    return tab_arguments[current_tab]
+end function
+
+global procedure set_tab_arguments(sequence s)
+    tab_arguments[current_tab] = s
+end procedure
+
+--------------------------------------
+-- search and replace
+--------------------------------------
+
+-- search for the phrase (sequence or pointer) and set the editor target
+-- returns 1 if found, otherwise 0
+global function search_find(sequence phrase, integer backward = 0)
+    if backward then
+        ssm(SCI_SETTARGETSTART, ssmf(SCI_GETSELECTIONSTART))
+        ssm(SCI_SETTARGETEND, 0)
+    else
+        ssm(SCI_SETTARGETSTART, ssmf(SCI_GETSELECTIONEND))
+        ssm(SCI_SETTARGETEND, ssmf(SCI_GETTEXTLENGTH))
+    end if
+
+    if ssmf(SCI_SEARCHINTARGET, length(phrase), phrase)<0 then
+        -- wrap around and search again
+        if backward then
+            ssm(SCI_SETTARGETSTART, ssmf(SCI_GETTEXTLENGTH))
+        else
+            ssm(SCI_SETTARGETSTART, 0)
+        end if
+        if ssmf(SCI_SEARCHINTARGET, length(phrase), phrase)<0 then
+            -- clear the target so search_replace won't do bad things
+            ssm(SCI_SETTARGETSTART, 0)
+            ssm(SCI_SETTARGETEND, 0)
+            return 0
+        end if
+    end if
+    -- scroll to left side first
+    ssm(SCI_SETXOFFSET, 0)
+    -- set selection from target
+    ssm(SCI_SETSEL, ssmf(SCI_GETTARGETSTART), ssmf(SCI_GETTARGETEND))
+
+    return 1
+end function
+
+-- replace the editor target with the phrase (sequence or pointer)
+-- returns 1 if replace made, otherwise 0
+global function search_replace(sequence phrase)
+integer pos = ssmf(SCI_GETTARGETSTART)
+    if pos>=ssmf(SCI_GETTARGETEND) then
+        -- target not set
+        if not equal(get_selection(), find_phrase) then
+            return 0
+        end if
+        if SSM(hedit, SCI_TARGETFROMSELECTION) then end if
+    end if
+    -- replace or replace_all
+    ssm(SCI_REPLACETARGET, length(phrase), phrase)
+    -- set the current pos to the end, so that the next
+    -- find doesn't search within the replacement phrase
+    ssm(SCI_SETSEL, pos, pos+length(phrase))
+    return 1
+end function
+
+-- replace all in document, saving the cursor position
+-- returns count of replacements made
+global function search_replace_all(sequence what, sequence phrase)
+integer
+        pos = ssmf(SCI_GETCURRENTPOS),
+        anchor = ssmf(SCI_GETANCHOR),
+        count = 0
+    -- save the current position to be restored later
+    ssm(SCI_SETANCHOR, 0)
+    ssm(SCI_SETCURRENTPOS, 0)
+    -- search until not found
+    ssm(SCI_BEGINUNDOACTION)
+    while search_find(what, 0) do
+        if search_replace(phrase) then end if
+        count += 1
+    end while
+    ssm(SCI_ENDUNDOACTION)
+    ssm(SCI_SETSEL, anchor, pos)
+    return count
+end function
 
 -------------------------------------------------------------------
 -- ex.err file handling routines
@@ -1994,6 +1942,855 @@ sequence result, tmp
     return result
 end function
 
+-- update the hedit lexer based on the file extension
+procedure update_lexer()
+sequence ext, keywords
+integer lexer
+
+    if length(tab_file_names[current_tab]) then
+        ext = lower(fileext(tab_file_names[current_tab]))
+    else
+        ext = "ex"
+    end if
+
+    lexer = SCLEX_NULL
+    expansions = {}
+    keywords = {}
+    for i=1 to length(file_types) do
+        if find(ext, file_types[i][1]) then
+            lexer = file_types[i][2]
+            keywords = file_types[i][3]
+            expansions = file_types[i][4]
+            exit
+        end if
+    end for
+    if lexer!=ssmf(SCI_GETLEXER) then
+        ssm(SCI_SETLEXER, lexer)
+        init_edit(hedit)
+        for k=1 to length(keywords) by 2 do
+            ssm(SCI_SETKEYWORDS, keywords[k], keywords[k+1])
+        end for
+    end if
+end procedure
+
+
+--PL
+--/**/include ui_win.e
+
+
+--------------------------------------
+-- tab management
+--------------------------------------
+
+procedure select_tab(integer tab)
+    if tab<1 or tab>length(tab_hedits) or tab=current_tab then
+        return
+    end if
+    current_tab = tab
+    file_name = tab_file_names[tab]
+    hedit = tab_hedits[tab]
+    modified = get_modified()
+
+    expand_line = -1
+    insert_chars = ""
+    calltip_args = {}
+    calltip_pos = -1
+    calltip_stack = {}
+    calltip_text = ""
+    ui_select_tab(tab)
+    ui_update_window_title(make_tab_name())
+    update_status()
+
+    update_lexer()
+end procedure
+r_select_tab = routine_id("select_tab")
+
+global procedure update_tab_name()
+sequence name = make_tab_name()
+    ui_update_window_title(name)
+    if modified then name &= "*" end if
+    ui_update_tab_name(current_tab, name)
+end procedure
+r_update_tab_name = routine_id("update_tab_name")
+
+global procedure new_tab(sequence file_name)
+integer tab
+
+    if equal(tab_file_names, {""}) and modified=0 then
+        -- unmodified new file, just reuse it and update the tab name
+        tab = 1
+        tab_file_names[tab] = file_name
+        update_tab_name()
+        current_tab = 0 -- to force select_tab
+    else
+        hedit = ui_new_tab(make_tab_name())
+
+        tab_hedits = append(tab_hedits, hedit)
+        tab_file_names = append(tab_file_names, file_name)
+        tab_timestamps = append(tab_timestamps, -1)
+        tab_arguments = append(tab_arguments, "")
+        tab_pos_stack = append(tab_pos_stack, {})
+        tab = length(tab_hedits)
+    end if
+    select_tab(tab)
+    init_edit(hedit)
+end procedure
+
+procedure close_tab()
+integer tab
+
+    if save_if_modified(1)=0 then
+        return -- user cancelled the save
+    end if
+
+    tab = current_tab
+    save_recent_pos()
+    ui_close_tab(tab)
+
+    tab_hedits = tab_hedits[1..tab-1] & tab_hedits[tab+1..$]
+    tab_file_names = tab_file_names[1..tab-1] & tab_file_names[tab+1..$]
+    tab_timestamps = tab_timestamps[1..tab-1] & tab_timestamps[tab+1..$]
+    tab_arguments = tab_arguments[1..tab-1] & tab_arguments[tab+1..$]
+    tab_pos_stack = tab_pos_stack[1..tab-1] & tab_pos_stack[tab+1..$]
+    current_tab = 0
+    if length(tab_hedits)=0 then
+        new_file() -- must always have a edit available
+    elsif tab>length(tab_hedits) then
+        tab = length(tab_hedits)
+    end if
+    select_tab(tab)
+end procedure
+r_close_tab = routine_id("close_tab")
+
+--------------------------------------
+-- file open/save
+--------------------------------------
+
+-- returns tab index of opened file, or 0 if cancelled
+function open_file(sequence file_name, integer reload)
+atom result
+--, text_buffer
+integer fn, tab, initial_pos = 0, first_visible_line = 0
+object s
+sequence text
+
+    if length(file_name)=0 then
+        file_name = ui_get_open_file_name()
+        if length(file_name)=0 then return 0 end if
+        if sequence(file_name[1]) then
+            -- multiple open
+            for i=1 to length(file_name) do
+                if open_file(file_name[i], reload) then end if
+            end for
+            return 0
+        end if
+    elsif sequence(file_name[1]) then
+        -- filename is {"file_name", initial_pos, first_visible_line}
+        if length(file_name)>=2 and integer(file_name[2]) then
+            initial_pos = file_name[2]
+        end if
+        if length(file_name)>=3 and integer(file_name[3]) then
+            first_visible_line = file_name[3]
+        end if
+        file_name = file_name[1]
+    end if
+
+    file_name = canonical_path(file_name, 0, CORRECT)
+
+    -- check if already existing tab
+    tab = find(file_name, tab_file_names)
+    if tab and reload=0 then
+        select_tab(tab)
+        return tab
+    end if
+
+    fn = open(file_name, "rb")
+    if fn= -1 then
+        -- file couldn't be opened
+        text = "Unable to open "&file_name&"\n\n"&"Do you want to create it?"
+        if ui_message_box_yes_no("Open", text)=0 then
+            return 0
+        end if
+        text = ""
+    else
+        -- read the contents of the file into text
+        text = ""
+        s = gets(fn)
+        while sequence(s) do
+            text &= s
+            s = gets(fn)
+        end while
+        close(fn)
+    end if
+
+    if not tab then
+        new_tab(file_name)
+        tab = current_tab
+    end if
+    update_tab_timestamp()
+
+    result = ssmf(SCI_CLEARALL)
+    result = ssmf(SCI_SETTEXT, 0, text)
+    result = ssmf(SCI_SETSAVEPOINT)
+    modified = 0
+    if tab then
+        update_tab_name()
+    end if
+
+    result = ssmf(SCI_SETFIRSTVISIBLELINE, first_visible_line)
+    result = ssmf(SCI_SETEMPTYSELECTION, initial_pos)
+    result = ssmf(SCI_EMPTYUNDOBUFFER)
+    auto_detect_indent(text)
+
+    add_recent_file(file_name)
+    return tab
+end function
+r_open_file = routine_id("open_file")
+
+-- open files on startup and saved tabs
+procedure open_tabs()
+sequence cmdline
+-- open files from previous session
+    for i=1 to length(tabs_to_open) do
+        if file_exists(tabs_to_open[i][1]) then
+            if open_file(tabs_to_open[i], 0) then end if
+        end if
+    end for
+    -- open files on command line
+    cmdline = command_line()
+    for i=3 to length(cmdline) do
+        if open_file(cmdline[i], 0) then end if
+    end for
+    if length(tab_file_names)=0 and length(cmdline)<3 then
+        new_file()
+    elsif length(cmdline)<3 then
+        -- select initial tab if no files on command line
+        select_tab(initial_tab)
+    end if
+end procedure
+r_open_tabs = routine_id("open_tabs")
+
+-- returns 1 if ok, 0 on error
+function save_file()
+atom fn, junk
+sequence text
+
+    ssm(SCI_SETSAVEPOINT, 0, 0)
+    modified = 0
+
+    fn = open(file_name, "wb")
+    if fn= -1 then
+        text = "Unable to save file. Please make sure the file location is not read-only."
+        if ui_message_box_error("Save", text) then end if
+        return 0
+    end if
+    text = get_edit_text()
+    puts(fn, text)
+    junk = where(fn)
+    close(fn)
+
+    if junk!=length(text) then
+        text = "The file could not be written completely. Please make sure there is enough free space."
+        if ui_message_box_error("Save", text) then end if
+        return 0
+    end if
+
+    update_tab_name()
+    update_tab_timestamp()
+    return 1
+end function
+
+function save_file_as() -- returns 1 if ok, 0 if cancelled/error
+object temp
+
+    temp = ui_get_save_file_name(file_name)
+    if length(temp)=0 then return 0 end if
+
+    file_name = canonical_path(temp, 0, CORRECT)
+    tab_file_names[current_tab] = file_name
+    if save_file()=0 then
+        return 0
+    end if
+    update_tab_name()
+    update_lexer()
+    return 1
+end function
+r_save_file_as = routine_id("save_fike_as")
+
+
+function save_if_modified(integer confirm)  -- returns 1 if ok, 0 if cancelled/error
+atom result
+sequence text
+
+    if not get_modified() and (length(file_name)!=0 or confirm) then
+        return 1
+    end if
+
+    if confirm then
+        text = ""
+        if length(file_name) then
+            text = " in " & file_name
+        end if
+        text = "The text"&text&" has changed.\n\nDo you want to save the changes?"
+        result = ui_message_box_yes_no_cancel(window_title, text)
+        if result!=1 then -- no or cancel
+            return result+1
+        end if
+    end if
+
+    if length(file_name)=0 then
+        return save_file_as()
+    end if
+    return save_file()
+end function
+r_save_if_modified = routine_id("save_if_modified")
+
+function save_modified_tabs()  --returns 1 if ok, 0 if cancelled
+integer idx
+atom saved_hedit
+    saved_hedit = hedit
+    for tab=1 to length(tab_hedits) do
+        hedit = tab_hedits[tab]
+        idx = find(tab_file_names[tab], recent_files)
+        if idx then
+            recent_pos[idx] = get_pos()
+        end if
+        if get_modified() then
+            select_tab(tab)
+            if save_if_modified(1)=0 then
+                return 0 -- cancelled
+            end if
+            saved_hedit = hedit
+        end if
+    end for
+    hedit = saved_hedit
+    return 1
+end function
+r_save_modified_tabs = routine_id("save_modified_tabs")
+
+--/* DEV fixme
+function crash_cleanup(object x)
+    if ui_message_box_error(window_title,
+                            "Houston, Wee've had a problem.\n\n" &
+                            "The editor crashed and is closing now.\n") then end if
+    if save_modified_tabs() then end if
+    if length(wee_conf_filename) then
+        save_wee_conf(wee_conf_filename)
+    end if
+    return 0
+end function
+--*/
+
+procedure check_externally_modified_tabs()
+atom ts
+    for i=1 to length(tab_file_names) do
+        if length(tab_file_names[i]) and tab_timestamps[i]!= -1 then
+            ts = get_timestamp(tab_file_names[i])
+            if ts!=tab_timestamps[i] then
+                  --? {ts, tab_timestamps[i]}
+                 -- clear the timestamp here so that don't repeat when the MessageBox retriggers WM_SETFOCUS
+                tab_timestamps[i] = -1
+                if ui_message_box_yes_no(window_title, tab_file_names[i] &
+                                         "\n\nThis file has been modified by another application.  Do you want to reload it?") then
+                    integer pos
+                    select_tab(i)
+                    pos = get_pos()
+                    if open_file(tab_file_names[i], 1) then end if
+                    goto_pos(pos)
+                else
+                    tab_timestamps[i] = ts
+                end if
+            end if
+        end if
+    end for
+end procedure
+r_check_externally_modified_tabs = routine_id("check_externally_modified_tabs")
+
+global procedure add_recent_file(sequence filename)
+integer idx
+    idx = find(filename, recent_files)
+    if idx then
+        -- move it to the top of the list
+        recent_files = {recent_files[idx]} & recent_files[1..idx-1] &
+                       recent_files[idx+1..length(recent_files)]
+        recent_pos = {recent_pos[idx]} & recent_pos[1..idx-1] &
+                     recent_pos[idx+1..length(recent_pos)]
+    else
+        idx = length(recent_files)
+        if idx>=max_recent_files then
+            idx -= 1
+        end if
+        recent_files = {filename} & recent_files[1..idx]
+        recent_pos = {0} & recent_pos[1..idx]
+    end if
+    ui_refresh_file_menu(recent_files)
+end procedure
+
+global procedure save_recent_pos()
+integer idx
+    idx = find(file_name, recent_files)
+    if idx then
+        recent_pos[idx] = get_pos()
+    end if
+end procedure
+
+procedure open_recent(integer idx)
+integer tab
+    if idx>=1 and idx<=length(recent_files) then
+        tab = open_file(recent_files[idx], 0)
+        if tab then
+            ssm(SCI_SETSEL, recent_pos[1], recent_pos[1])
+            set_top_line(-1) -- set the top visible line to the current line
+        end if
+    end if
+end procedure
+r_open_recent = routine_id("open_recent")
+
+procedure wee_init()
+sequence cmdline
+
+    wee_conf_filename = ""
+
+--DEV
+--PL
+--/*
+    crash_routine(routine_id("crash_cleanup"))
+--*/
+
+    recent_files = {}
+    recent_pos = {}
+
+    font_name = ""
+    font_height = 10
+    line_numbers = 0
+    sorted_subs = 0
+    line_wrap = 0
+
+    file_name = ""
+    hedit = 0
+
+    run_file_name = ""
+    ex_err_name = "ex.err"
+    ex_err_timestamp = get_timestamp(ex_err_name)
+    interpreter = ""
+
+    tab_hedits = {}
+    tab_file_names = {}
+    tab_timestamps = {}
+    tab_arguments = {}
+    tab_pos_stack = {}
+
+    modified = 0
+    expand_line = -1
+    insert_chars = ""
+    last_deleted_char = 0
+    last_typed_pos = -1
+    auto_namespace = 1
+    auto_complete = 1
+    complete_statements = 1
+    complete_braces = 1
+    auto_arguments = 1
+    auto_indent = 1
+    tab_width = 8
+    indentation_guides = 0
+    caret_width = 2
+    auto_indicator = 0
+    run_testrun = 0
+    run_background = 1
+    run_waitkey = 1
+
+    calltip_args = {}
+    calltip_pos = -1
+    calltip_stack = {}
+    calltip_text = ""
+
+    current_tab = 0
+
+    normal_color = Black
+    background_color = White
+    comment_color = DGray
+    number_color = Black
+    keyword_color = Green
+    builtin_color = Magenta
+    string_color = Blue
+    bracelight_color = LightBlue
+    linenumber_color = DGray
+    bold_flags = #40
+
+    search_idx = {}
+    search_dat = {}
+
+    find_phrase = ""
+    replace_phrase = ""
+    terminal_program = ""
+
+    reopen_tabs = 1
+    tabs_to_open = {}
+    initial_tab = 1
+
+    cmdline = command_line()
+    wee_path = canonical_path(dirname(cmdline[2]))
+    if length(wee_path) and wee_path[$]=SLASH then
+        wee_path = wee_path[1..$-1]
+    end if
+
+    file_types = {
+                  {
+                   -- extensions
+                   {"ex", "e", "exw", "ew", "exu", "eu"},
+                   -- SCLEX_constant
+                   SCLEX_LUA,
+                   -- identifiers used with SCI_SETIDENTIFIERS
+                   {0,
+                    "procedure function type end and or xor not if then elsif else for to by do while "&
+                    "global constant include with without return exit "&
+                    -- OE4
+                    "public export enum as namespace ifdef elsifdef elsedef "&
+                    "label entry break continue loop until routine switch case fallthru",
+                    1,
+                    get_builtins()
+                   },
+                   -- expansions used with auto_expand()
+                   {{"if", "", " then", "end if"},
+                    {"elsif", "", " then"},
+                    {"while", "", " do", "end while"},
+                    {"for", " =  to ", " do", "end for"},
+                    {"case", "", " then"},
+                    {"loop", "", "do", "end loop"},
+                    {"switch", " do", "end switch"},
+                    {0, "global ", "public ", "export "},
+                    {"procedure", "()", "", "end procedure"},
+                    {"function", "()", "", "end function"},
+                    {"type", "()", "", "end type"}
+                   },
+                   interpreter
+                  },
+                  {
+                   -- extensions
+                   {"c", "h", "cpp", "hpp"},
+                   -- SCLEX_constant
+                   SCLEX_CPP,
+                   -- identifiers used with SCI_SETKEYWORDS
+                   {0,
+                    "if else for do while switch case default "&
+                    "return break continue "&
+                    "enum typedef struct union static const ",
+                    1,
+                    "void int char unsigned long sizeof"
+                   },
+                   -- expansions used with auto_expand()
+                   {{"if", "()", " {", "}"},
+                    {"} else if", "()", " { "},
+                    {"while", "()", " {", "}"},
+                    {"for", "(;;)", " {", "}"},
+                    {"switch", "()", " {", "}"},
+                    {"case", "", ":", "break;"}
+                   }
+                  },
+                  {
+                   -- extensions
+                   {"htm", "html"},
+                   -- SCLEX_constant
+                   SCLEX_HTML,
+                   -- identifiers used with SCI_SETKEYWORDS
+                   {},
+                   -- expansions used with auto_expand()
+                   {}
+                  }
+                 }
+    expansions = {}
+end procedure
+
+procedure auto_detect_indent(sequence text)
+integer i = 0, indent = 0, last = 0, tabs_used = 0, spaces_used = 0
+sequence indents = repeat(0, 8)
+integer start
+
+    start = 1
+    while i<length(text) do
+        i += 1
+        -- count spaces and tabs
+        if text[i]=' ' then
+            indent += 1
+            if remainder(indent, tab_width)=0 then
+                spaces_used += 1
+            end if
+            continue
+        end if
+        if text[i]='\t' then
+            indent += tab_width-remainder(indent, tab_width)
+            tabs_used += 1
+            continue
+        end if
+
+        -- record positive indents
+        if indent-last>=1 and indent-last<=length(indents) then
+            indents[indent-last] += 1
+        end if
+        last = indent
+        indent = 0
+
+        -- scan to end of line
+        while i<=length(text) do
+            if text[i]='\r' then
+                if i<length(text) and text[i+1]='\n' then
+                    i += 1
+                end if
+                exit
+            elsif text[i]='\n' then
+                if i<length(text) and text[i+1]='\r' then
+                    i += 1
+                end if
+                exit
+            end if
+            i += 1
+        end while
+
+        --printf(1, "%d: %s", {last, text[start..i]})
+        start = i+1
+
+    end while
+
+    -- pick the max used indent size
+    indent = 1
+    for x=2 to length(indents) do
+        if indents[x]>indents[indent] then
+            indent = x
+        end if
+    end for
+
+    ssm(SCI_SETINDENT, indent)
+    ssm(SCI_SETUSETABS, tabs_used>spaces_used)
+
+end procedure
+
+
+-- pos is integer position in current tab, or {"filename", pos}
+-- note: first character in document is at pos=1
+procedure goto_pos(object pos, integer len=0)
+sequence prev = {ssmf(SCI_GETCURRENTPOS),
+                 ssmf(SCI_GETFIRSTVISIBLELINE)}
+
+    if sequence(pos) then
+        sequence prev_file = file_name
+        if open_file(pos[1], 0)=0 then
+            return -- file not found
+        end if
+        pos = pos[2]
+        if not equal(file_name, prev_file) then
+            -- open_file probably changed the current_tab
+            prev &= {prev_file}
+        end if
+    end if
+    tab_pos_stack[current_tab] &= {prev}
+    pos -= 1
+    ssm(SCI_SETANCHOR, pos)
+    ssm(SCI_SETCURRENTPOS, pos+len)
+    set_top_line(-1)
+end procedure
+
+-- restore the previous cursor and scroll position,
+-- or clear the selection or autocompletion if there is one
+procedure go_back()
+object pos = ssmf(SCI_GETCURRENTPOS)
+
+-- clear any active autocomplete, and return
+    if ssmf(SCI_AUTOCACTIVE) then
+        ssm(SCI_AUTOCCANCEL, 0, 0)
+        return
+    end if
+
+    -- clear any selection, and return
+    if pos!=ssmf(SCI_GETANCHOR) then
+        ssm(SCI_SETEMPTYSELECTION, pos)
+        return
+    end if
+
+    if length(tab_pos_stack[current_tab])=0 then
+        return -- empty stack
+    end if
+
+    -- get the last {pos,top_line,[filename]} on stack, and remove it
+    pos = tab_pos_stack[current_tab][$]
+    tab_pos_stack[current_tab] = tab_pos_stack[current_tab][1..$-1]
+
+    if sequence(pos) and length(pos)>=3 then
+        if length(pos[3])=0 then
+            -- fixme: pick first untitled tab
+            integer tab = find("", tab_file_names)
+            if tab=0 then
+                return
+            end if
+            select_tab(tab)
+        elsif open_file(pos[3], 0)=0 then
+            return -- file not found or user cancelled
+        end if
+    end if
+    ssm(SCI_SETEMPTYSELECTION, pos[1])
+    set_top_line(pos[2])
+end procedure
+r_go_back = routine_id("go_back")
+
+
+--------------------------------------
+-- help routines
+--------------------------------------
+
+sequence help_dir
+
+global procedure show_help(sequence file, sequence anchor)
+integer ok = 0
+integer f = open(help_dir & file & ".html", "r")
+sequence html = ""
+    if f= -1 then
+        return
+    end if
+    object line = gets(f)
+    while sequence(line) do
+        if match("<a name=", line)=1 then
+            sequence a = ""
+            for i=10 to length(line) do
+                if line[i]='"' then
+                    a = line[10..i-1]
+                    exit
+                end if
+            end for
+            --puts(1, a&"\n")
+            if equal(a, anchor) then
+                ok = 1
+            elsif ok=1
+              and (match("_comments", a) or
+                   match("_example", a) or
+                   match("_returns", a) or
+                   match("_parameters", a) or
+                   match("_platform", a) or
+                   match("_seealso", a)) then
+                ok = 1
+            else
+                ok = 0
+            end if
+        end if
+        if ok then
+            html &= line
+        end if
+        line = gets(f)
+    end while
+    close(f)
+    ui_show_help(html)
+end procedure
+
+function tr(sequence s, sequence src, sequence dst)
+    for i=1 to length(s) do
+        integer x = find(s[i], src)
+        if x then
+            s[i] = dst[x]
+        end if
+    end for
+    return s
+end function
+
+procedure context_help()
+sequence text, decls, word, name_space, path
+integer pos
+object help
+
+    text = get_edit_text()
+    pos = get_pos()
+    word = word_pos(text, pos)
+    if length(word)<2 then
+        name_space = ""
+        word = ""
+    else
+        name_space = word[2]
+        word = word[1]
+    end if
+
+    -- load the search.dat file
+    if length(search_dat)=0 then
+        sequence paths = include_paths(0)
+        for i=1 to length(paths) do
+            path = paths[i]
+            if path[$]=SLASH then
+                path = path[1..$-1]
+            end if
+--PL not that we are likely to find it...
+--/**/      path &= "..\\docs\\html\\"                          --/*
+            path &= join_path({"..","docs","html"}) & SLASH     --*/
+            --puts(1, path&"\n")
+            integer f = open(path & "js" & SLASH & "search.js","r")
+            if f!= -1 then
+                help_dir = canonical_path(path)
+                if help_dir[$]!=SLASH then
+                    help_dir &= SLASH
+                end if
+                object line = gets(f)
+                while sequence(line) do
+                    integer x = find(':', line)
+                    if x and line[1]='"' then
+                        --puts(1, line[2..x-2]&" "&line[x+1..$]&"\n")
+                        search_idx = append(search_idx, line[2..x-2])
+                        line = tr(line[x+1..$-1], "[]", "{}")
+                        line = value(line)
+                        search_dat = append(search_dat, line[2])
+                    end if
+                    line = gets(f)
+                end while
+                close(f)
+                exit
+            end if
+        end for
+        if length(search_dat)=0 then
+            if ui_message_box_error(window_title, "File not found: euphoria/docs/html/js/search.js") then end if
+            return
+        end if
+    end if
+
+    -- search search.dat for matching entry
+    help = {}
+    for i=1 to length(search_idx) do
+        if equal(search_idx[i], word) then
+            help = search_dat[i]
+            exit
+        end if
+    end for
+    if atom(help) or length(help)=0 then
+        if ui_message_box_error("Help",
+                                "Didn't find any help on the topic: "&word&
+                                "\nPlease put the cursor over an Euphoria identifier"&
+                                "\nor standard library routine and try again.") then end if
+        return
+    end if
+
+    if length(help)>1 then
+        -- multiple help entries
+        path = ""
+        decls = get_declarations(wee_parse(text, file_name), pos, name_space)
+        for j=1 to length(decls) by 2 do
+            if equal(decls[j], word) then
+                if atom(decls[j+1]) then
+                    path = file_name
+                else
+                    path = decls[j+1][1]
+                end if
+
+                for i=1 to length(help) do
+                    if match(sreplace(help[i][1],"_",{SLASH})&".e", path) then
+                        --show_help(help[i][1], help[i][2])
+                        ui_show_uri("file://" & help_dir & help[i][1] & ".html#" & help[i][2])
+                        return
+                    end if
+                end for
+            end if
+        end for
+    end if
+
+    -- only one help entry, just show it
+    --show_help(help[1][1], help[1][2])
+    ui_show_uri("file://" & help_dir & help[1][1] & ".html#" & help[1][2])
+end procedure
+r_context_help = routine_id("context_help")
+
+
 -- get the text between two delimeters, searching from end of text
 function text_between(sequence text, integer delim1, integer delim2)
     for i=length(text) to 1 by -1 do
@@ -2009,7 +2806,7 @@ function text_between(sequence text, integer delim1, integer delim2)
     return ""
 end function
 
-global procedure goto_error(sequence err, integer idx)
+procedure goto_error(sequence err, integer idx)
 integer a, b, c, line, tab, col
 sequence val, file, item, text
 
@@ -2059,8 +2856,11 @@ sequence val, file, item, text
         set_top_line(line)
     end if
 end procedure
+r_goto_error = routine_id("goto_error")
 
-global procedure view_error()
+--unused??
+--/*
+procedure view_error()
 atom fn, result
 object s
 integer line, colon, caret, tab
@@ -2124,16 +2924,9 @@ sequence file, message
     set_top_line(-1)
     result = ui_message_box_error("Goto Error", message)
 end procedure
+--*/
 
-global procedure reset_ex_err()
-    if length(run_file_name)=0 then
-        return
-    end if
-    ex_err_name = dirname(run_file_name) & SLASH & "ex.err"
-    ex_err_timestamp = get_timestamp(ex_err_name)
-end procedure
-
-global procedure check_ex_err()
+procedure check_ex_err()
 atom ts
 
     if length(run_file_name)=0 then return end if
@@ -2146,788 +2939,8 @@ atom ts
     end if
     ex_err_timestamp = ts
 end procedure
+r_check_ex_err = routine_id("check_ex_err")
 
 
--------------------------------------------------------------------
--- code syntax routines
--------------------------------------------------------------------
-
--- move to the declaration of the word under the cursor
-global procedure view_declaration()
-sequence text, decls, word, name_space
-integer pos
-
-    text = get_edit_text()
-    pos = get_pos()
-    word = word_pos(text, pos)
-    if length(word)<2 then return end if
-    name_space = word[2]
-    word = word[1]
-
-    decls = get_declarations(parse(text, file_name), pos, name_space)
-    for i=1 to length(decls) do
-        if equal(decls[i][1], word) then
-            goto_pos(decls[i][2], length(word))
-            exit
-        end if
-    end for
-end procedure
-
--- after typing a word, check to see if it is declared
-procedure check_last_typed()
-sequence text, ast, decls, word, name_space
-integer style, pos, len, declared = 0
-atom t0, t1, t2
-
-    -- only check indentifiers
-    style = ssmf(SCI_GETSTYLEAT, last_typed_pos-1)
-
-    text = get_edit_text()
-    word = word_pos(text, last_typed_pos)
-    last_typed_pos = -1
-    if length(word)<4 then return end if
-    pos = word[3]-1
-    len = word[4]-pos
-    name_space = word[2]
-    word = word[1]
-
-    if style!=SCE_LUA_IDENTIFIER then
-        ssm(SCI_INDICATORCLEARRANGE, pos, len)
-        return
-    end if
-
-    t0 = time()
-    ast = parse(text, file_name)
-    t1 = time()
-    decls = get_declarations(ast, pos, name_space)
-    t2 = time()
-    printf(1, "decls took %g %g\n", {t1-t0, t2-t1})
-    for i=1 to length(decls) do
-        if equal(decls[i][1], word) then
-            declared = 1
-            exit
-        end if
-    end for
-
-    -- underline if not declared
-    if declared then
-        ssm(SCI_INDICATORCLEARRANGE, pos, len)
-    else
-        ssm(SCI_INDICATORFILLRANGE, pos, len)
-    end if
-end procedure
-
--- show a list of possible words when autocomplete is triggered
-global procedure view_completions()
-sequence text, word, decls, name_space, suggestions
-integer pos, style
-
-    if ssmf(SCI_AUTOCACTIVE) then
-        return -- autocomplete is already active
-    end if
-
-    pos = get_pos()
-
-    style = ssmf(SCI_GETSTYLEAT, pos-2)
-    if style=SCE_LUA_STRING or style=SCE_LUA_COMMENTLINE then
-        return -- no completion in strings or comments
-    end if
-
-    -- use scintilla's code completion
-    text = get_edit_text()
-    word = word_pos(text, pos)
-    if length(word)<4 then
-        return
-    end if
-    --printf(1, "word=%s namespace=%s pos=%d end=%d\n", word)
-    ssm(SCI_SETSEL, word[4], word[4])
-    name_space = word[2]
-    word = word[1]
-
-    decls = get_declarations(parse(text, file_name), pos, name_space)
-    if length(decls)=0 or length(name_space)=0 then
-        suggestions = suggest_includes(word, name_space)
-
-        -- filter duplicate suggestions
-        for i=1 to length(suggestions) do
-            if not find(suggestions[i], decls) then
-                decls = append(decls, suggestions[i])
-            end if
-        end for
-    end if
-
-    if length(decls)=0 then
-        return
-    end if
-    text = ""
-    for i=1 to length(decls) do
-        if length(decls[i][1])>=length(word) and equal(decls[i][1][1..length(word)], word) then
-            if length(text) then
-                text &= "\n"
-            end if
-            text &= decls[i][1] & sprintf("?%d", {decls[i][3]})
-        end if
-    end for
-    if length(text) then
-        ssm(SCI_AUTOCSHOW, length(word), text)
-    end if
-end procedure
-
--- show the subroutine arguments, usually triggered after a pressing '('
-global procedure view_subroutine_arguments()
-sequence text, word, decls, name_space
---  integer pos, end_pos, junk, calltip_save, style
-integer pos, end_pos, calltip_save, style
-
-    pos = get_pos()
-    style = ssmf(SCI_GETSTYLEAT, pos-2)
-    if style=SCE_LUA_STRING or style=SCE_LUA_COMMENTLINE then
-        return -- no completion in strings or comments
-    end if
-
-    calltip_save = calltip_pos
-    if ssmf(SCI_GETCHARAT, pos-1)='(' then
-        calltip_pos = pos
-        pos -= 1
-    end if
-
-    -- use scintilla's code completion
-    text = get_edit_text()
-    word = word_pos(text, pos)
-    if length(word)<4 then
-        calltip_pos = calltip_save
-        return
-    end if
-    pos = word[3]
-    end_pos = word[4]
-    name_space = word[2]
-    word = word[1]
-
-    decls = get_subroutine_arguments(parse(text, file_name), word, name_space)
-    if length(decls) then
-        decls = decls[$] -- overloaded?  use the last one
-        if calltip_save!= -1 then
-            calltip_stack &= {calltip_save, calltip_args, calltip_text}
-            --? calltip_stack
-        end if
-        text = decls[1] & " " & decls[2] & "("
-        calltip_args = {}
-        for i=3 to length(decls) by 3 do
-            if i!=3 then text &= ", " end if
-            if decls[i+2] then text &= "[" end if
-            calltip_args &= {{length(text), 0}}
-            text &= decls[i] & " " & decls[i+1]
-            calltip_args[$][2] = length(text)
-            if decls[i+2] then text &= "]" end if
-        end for
-        text &= ")"
-        --puts(1, text & "\n")
-        calltip_text = text
-        ssm(SCI_CALLTIPSHOW, pos, text)
-        if length(calltip_args) then
-            ssm(SCI_CALLTIPSETHLT, calltip_args[1][1], calltip_args[1][2])
-        else
-            calltip_pos = -1 -- no arguments, no need to update
-        end if
-        return
-    end if
-
-    -- decl not found, search includes instead
-    decls = suggest_includes(word, name_space)
-    text = ""
-    for i=1 to length(decls) by 2 do
-        if length(decls[i])>=length(word) and equal(decls[i][1..length(word)], word) then
-            if length(text) then
-                text &= '\n'
-            end if
-            text &= sreplace(decls[i], " --", "( --")
-        end if
-    end for
-    if length(text) then
-        ssm(SCI_GOTOPOS, end_pos+1)
-        ssm(SCI_AUTOCSHOW, length(word)+1, text)
-    end if
-end procedure
-
-
-procedure update_subroutine_arguments()
-sequence text
-integer pos, arg, ch
-
-    pos = get_pos()-1
-
-    ch = ssmf(SCI_GETCHARAT, pos, 0)
-    if ch!=',' and ch!=')' and ssmf(SCI_GETCHARAT, pos+1, 0)!=',' then
-        return
-    end if
-    --? {calltip_pos, pos}
-    while 1 do
-
-        while calltip_pos= -1 or pos<calltip_pos do
-            if length(calltip_stack)=0 then
-                calltip_pos = -1
-                return
-            end if
-            calltip_pos = calltip_stack[$-2]
-            calltip_args = calltip_stack[$-1]
-            calltip_text = calltip_stack[$]
-            ssm(SCI_CALLTIPSHOW, calltip_pos, calltip_text)
-            calltip_stack = calltip_stack[1..$-3]
-        end while
-
-        -- get the text from after '(' up to the cursor
-        text = repeat(0, pos-calltip_pos+1)
-        for i=1 to length(text) do
-            text[i] = ssmf(SCI_GETCHARAT, calltip_pos+i-1)
-        end for
-        --puts(1, text&"\n")
-
-        arg = parse_argument_position(text)
-        if arg=0 then
-            -- parsed closing ')'
-            ssm(SCI_CALLTIPCANCEL)
-            calltip_pos = -1
-        elsif arg>length(calltip_args) then
-            -- parsed too many arguments
-            ssm(SCI_CALLTIPSETHLT, 0, 0)
-            exit
-        else
-            -- highlight argument at cursor position
-            ssm(SCI_CALLTIPSETHLT, calltip_args[arg][1], calltip_args[arg][2])
-            exit
-        end if
-
-    end while
-end procedure
-
-
-function ltrim(sequence s)
-    for i=1 to length(s) do
-        if not find(s[i], " \t\n\r") then
-            return s[i..$]
-        end if
-    end for
-    return ""
-end function
-
-
-function rtrim(sequence s)
-    for i=length(s) to 1 by -1 do
-        if not find(s[i], " \t\n\r") then
-            return s[1..i]
-        end if
-    end for
-    return ""
-end function
-
-
--- expand "if " to "if  then\n\nend if", etc.
-procedure auto_expand()
-sequence text, indent, indent_str
-integer pos, end_pos
---  atom junk
-
-    if length(expansions)=0 then
-        return
-    end if
-
-    -- make sure the current position is at the end of the line
-    pos = get_pos()
-    end_pos = get_line_end_position(-1)
-    if pos!=end_pos then return end if
-
-    -- save the indentation and trim the line
-    indent = get_line(-1)
-    text = ltrim(indent)
-    indent = "\n" & indent[1..$-length(text)]
-    text = rtrim(text)
-
-    -- try the expansions and get the text to insert
-    for i=1 to length(expansions) do
-        if integer(expansions[i][1]) then
-            -- try removing "global", "public", "export"
-            for k=2 to length(expansions[i]) do
-                if match(expansions[i][k], text)=1 then
-                    text = ltrim(text[length(expansions[i][k])..$])
-                    exit
-                end if
-            end for
-        elsif equal(text, expansions[i][1]) then
-            text = expansions[i][2..$]
-            insert_chars = reverse(text[1])
-            exit
-        elsif i=length(expansions) then
-            return
-        end if
-    end for
-
-    indent_str = repeat(' ', ssmf(SCI_GETINDENT))
-    if length(text)>=3 then
-        indent_str &= indent & text[3]
-    end if
-    text = text[1] & text[2] & indent & indent_str
-
-    -- save the line for auto_indent()
-    expand_line = ssmf(SCI_LINEFROMPOSITION, pos)
-
-    -- insert the text and restore cursor position
-    ssm(SCI_INSERTTEXT, pos, text)
-end procedure
-
-
-procedure do_auto_indent()
-integer line, pos, end_pos
-sequence indent
-
-    -- get the previous line and get the indentation
-    pos = get_pos()
-    line = ssmf(SCI_LINEFROMPOSITION, pos)-1
-    end_pos = get_line_end_position(line)
-
-    if line=expand_line then
-        -- delete the newline character and go to end of the next line
-        ssm(SCI_DELETERANGE, end_pos, pos-end_pos)
-        end_pos = get_line_end_position(line+1)
-        ssm(SCI_GOTOPOS, end_pos)
-        expand_line = -1
-        return
-    end if
-    expand_line = -1
-
-    -- get the indentation of the previous line, and remove newline
-    indent = get_line(line)
-    for i=length(indent)-length(ltrim(indent)) to 0 by -1 do
-        if i=0 or (indent[i]!='\n' and indent[i]!='\r') then
-            indent = indent[1..i]
-            exit
-        end if
-    end for
-
-    -- insert the indentation
-    ssm(SCI_ADDTEXT, length(indent), indent)
-end procedure
-
-
-procedure do_brace_highlight(atom hedit)
---  integer pos, brace, ch
-integer pos, brace
-    brace = -1
-    pos = get_pos()-1
---/**/ if hedit then end if -- suppress warnings
-    if find(ssmf(SCI_GETCHARAT, pos, 0), "{}()[]") then
-        brace = ssmf(SCI_BRACEMATCH, pos, 0)
-    end if
-    if brace= -1 then
-        pos += 1
-        if find(ssmf(SCI_GETCHARAT, pos, 0), "{}()[]") then
-            brace = ssmf(SCI_BRACEMATCH, pos, 0)
-        end if
-        if brace= -1 then
-            pos = -1
-        end if
-    end if
-    brace = ssmf(SCI_BRACEHIGHLIGHT, pos, brace)
-end procedure
--- FIXME: this has a problem with brace chars within strings, for ex: {1, "}{", 2}
-
-
-procedure auto_complete_selection(integer pos, sequence text)
-integer inc, len, insert_line, arg
-sequence line
-
--- insert include statement if completion contains it
-    inc = match(" --include", text)
-    if inc then
-        ssm(SCI_AUTOCCANCEL, 0, 0)
-
-        len = get_pos()-pos
-
-        arg = text[inc-1]='('
-        if arg then
-            -- delete the existing '(' since we are adding another one
-            len -= 1
-            ssm(SCI_DELETERANGE, pos+len, 1)
-        end if
-
-        if len+1<=inc then
-            ssm(SCI_ADDTEXT, inc-1-len, text[len+1..inc])
-        end if
-        text = text[inc+3..$] & "\n"
-
-        -- search first few lines for include statements
-        insert_line = -1
-        for i=0 to 100 do
-            line = ltrim(get_line(i))
-            --printf(1, "%d %d %s\n", insert_line
-            if length(line)>=8 and equal(line[1..8], "include ") then
-                insert_line = i+1
-            elsif insert_line!= -1 then
-                exit
-            end if
-        end for
-        if insert_line= -1 then
-            -- insert after consecutive comment lines
-            insert_line = 0
-            for i=0 to 100 do
-                line = ltrim(get_line(i))
-                if length(line)>=2 and line[1]='-' and line[2]='-' then
-                    insert_line = i+1
-                else
-                    exit
-                end if
-            end for
-        end if
-        inc = ssmf(SCI_POSITIONFROMLINE, insert_line, 0)
-        if inc= -1 or inc>pos then
-            inc = 0
-        end if
-        ssm(SCI_INSERTTEXT, inc, text)
-        if arg then
-            view_subroutine_arguments()
-        end if
-    end if
-end procedure
-
--- insert closing character when user types ( [ { ' "
-procedure insert_pair()
-integer pos, style, ch
-
-    if not complete_braces then return end if
-
-    pos = get_pos()-1
-
-    -- avoid inside strings and comments
-    if pos!=get_line_start_position(-1) then
-        style = ssmf(SCI_GETSTYLEAT, pos-1)
-        if style=SCE_LUA_COMMENTLINE or
-        (style=SCE_LUA_STRING and
-           style=ssmf(SCI_GETSTYLEAT, pos+1)) then
-            return
-        end if
-    end if
-
-    -- avoid inside words or numbers
-    for i=pos+1 to get_line_end_position(-1) do
-        ch = ssmf(SCI_GETCHARAT, i)
-        style = ssmf(SCI_GETSTYLEAT, i)
-        --? {ch, style}
-        if find(ch, ",)}]\r\n+-*/=!<>#&\0") or style=SCE_LUA_WORD then
-            exit
-        elsif ch!=' ' and ch!='\t' then
-            return
-        end if
-    end for
-    ch = ssmf(SCI_GETCHARAT, pos, 0)
-    if ch='(' then
-        ch = ')'
-    elsif ch='{' then
-        ch = '}'
-    elsif ch='[' then
-        ch = ']'
-    end if
-    ssm(SCI_INSERTTEXT, pos+1, {ch})
-    insert_chars &= ch
-end procedure
-
--- remove the characters inserted by insert_pair(), won't work for ' " tho
-procedure delete_pair()
-    if length(insert_chars)=0 then
-        return
-    end if
-    if insert_chars[$]=last_deleted_char then
-        insert_chars = insert_chars[1..$-1]
-    elsif (last_deleted_char='(' and insert_chars[$]=')') or
-    (last_deleted_char='[' and insert_chars[$]=']') or
-    (last_deleted_char='{' and insert_chars[$]='}') then
-        ssm(SCI_DELETERANGE, get_pos(), 1)
-        insert_chars = insert_chars[1..$-1]
-    end if
-end procedure
-
--- open file(s) from a drag and drop operation
-procedure open_uri(sequence uri)
-    uri = split(uri, "\r\n")
-    for i=1 to length(uri) do
-        if match("file://", uri[i])=1 then
-            {} = open_file(uri[i][8..$], 0)
-        end if
-    end for
-end procedure
-
--- toggle the comment at the start of each line in selection
-global procedure toggle_comment()
-integer
-        pos = ssmf(SCI_GETCURRENTPOS),
-        anchor = ssmf(SCI_GETANCHOR),
-        line_pos = ssmf(SCI_LINEFROMPOSITION, pos),
-        line_anchor = ssmf(SCI_LINEFROMPOSITION, anchor),
-        col_pos = pos-ssmf(SCI_POSITIONFROMLINE, line_pos),
-        col_anchor = anchor-ssmf(SCI_POSITIONFROMLINE, line_anchor),
-        line_start = ssmf(SCI_LINEFROMPOSITION, ssmf(SCI_GETSELECTIONSTART)),
-        line_end = ssmf(SCI_LINEFROMPOSITION, ssmf(SCI_GETSELECTIONEND)-1)
-integer uncomment = 1
-    if line_end<line_start then
-        line_end = line_start
-    end if
-    -- check to see if all lines are commented
-    for i=line_start to line_end do
-        pos = ssmf(SCI_POSITIONFROMLINE, i)
-        if ssmf(SCI_GETCHARAT, pos)!='-' or
-           ssmf(SCI_GETCHARAT, pos+1)!='-' then
-            uncomment = 0 -- non comment detected
-            exit
-        end if
-    end for
-    -- insert/remove comment markers
-    ssm(SCI_BEGINUNDOACTION)
-    for i=line_start to line_end do
-        pos = ssmf(SCI_POSITIONFROMLINE, i)
-        if uncomment then
-            ssm(SCI_DELETERANGE, pos, 2)
-        else
-            ssm(SCI_INSERTTEXT, pos, "--")
-        end if
-    end for
-    ssm(SCI_ENDUNDOACTION)
-    -- adjust the selection to be the same column as it was before
-    pos = ssmf(SCI_POSITIONFROMLINE, line_pos)+col_pos
-    anchor = ssmf(SCI_POSITIONFROMLINE, line_anchor)+col_anchor
-    if col_pos!=0 then
-        pos -= uncomment*4-2
-    end if
-    if col_anchor!=0 then
-        anchor -= uncomment*4-2
-    end if
-    ssm(SCI_SETSEL, anchor, pos)
-end procedure
-
--------------------------------------------------------------------
--- scintilla editor notifications
--------------------------------------------------------------------
-
---/* unused
-procedure log_notification(atom notification)
-integer code, pos, ch, modifiers
-  --? peek4u({notification, 24})
-    code = peek4u(notification+8)
-    pos = peek4u(notification+12)
-    if code=SCN_STYLENEEDED then
-        puts(1, "SCN_STYLENEEDED\n")
-    elsif code=SCN_CHARADDED then
-        ch = peek4s(notification+16)
-        printf(1, "SCN_CHARADDED ch=%d '%s'\n", {ch, {ch}})
-    elsif code=SCN_SAVEPOINTREACHED then
-        puts(1, "SCN_SAVEPOINTREACHED\n")
-    elsif code=SCN_SAVEPOINTLEFT then
-        puts(1, "SCN_SAVEPOINTLEFT\n")
-    elsif code=SCN_MODIFYATTEMPTRO then
-        puts(1, "SCN_MODIFYATTEMPTRO\n")
-    elsif code=SCN_KEY then
-        ch = peek4s(notification+16)
-        modifiers = peek4s(notification+20)
-        printf(1, "SCN_KEY ch=%d modifiers=#%x\n", {ch, modifiers})
-    elsif code=SCN_DOUBLECLICK then
-        puts(1, "SCN_DOUBLECLICK\n")
-    elsif code=SCN_UPDATEUI then
-        printf(1, "SCN_UPDATEUI updated=#%x\n", {peek4s(notification+88)})
-    elsif code=SCN_MODIFIED then
-        puts(1, "SCN_MODIFIED\n")
-    elsif code=SCN_MACRORECORD then
-        puts(1, "SCN_MACRORECORD\n")
-    elsif code=SCN_MARGINCLICK then
-        puts(1, "SCN_MARGINCLICK\n")
-    elsif code=SCN_NEEDSHOWN then
-        puts(1, "SCN_NEEDSHOWN\n")
-    elsif code=SCN_PAINTED then
-    --gets sent after each caret blink
-    --puts(1, "SCN_PAINTED\n")
-    elsif code=SCN_USERLISTSELECTION then
-        puts(1, "SCN_USERLISTSELECTION\n")
-    elsif code=SCN_URIDROPPED then
-        puts(1, "SCN_URIDROPPED\n")
-    elsif code=SCN_DWELLSTART then
-        puts(1, "SCN_DWELLSTART\n")
-    elsif code=SCN_DWELLEND then
-        puts(1, "SCN_DWELLEND\n")
-    elsif code=SCN_ZOOM then
-        puts(1, "SCN_ZOOM\n")
-    elsif code=SCN_HOTSPOTCLICK then
-        puts(1, "SCN_HOTSPOTCLICK\n")
-    elsif code=SCN_HOTSPOTDOUBLECLICK then
-        puts(1, "SCN_HOTSPOTDOUBLECLICK\n")
-    elsif code=SCN_HOTSPOTRELEASECLICK then
-        puts(1, "SCN_HOTSPOTRELEASECLICK\n")
-    elsif code=SCN_INDICATORCLICK then
-        puts(1, "SCN_INDICATORCLICK\n")
-    elsif code=SCN_INDICATORRELEASE then
-        puts(1, "SCN_INDICATORRELEASE\n")
-    elsif code=SCN_CALLTIPCLICK then
-        puts(1, "SCN_CALLTIPCLICK\n")
-    elsif code=SCN_AUTOCSELECTION then
-        puts(1, "SCN_AUTOCSELECTION\n")
-    elsif code=SCN_AUTOCCANCELLED then
-        puts(1, "SCN_AUTOCCANCELLED\n")
-    elsif code=SCN_AUTOCCHARDELETED then
-        puts(1, "SCN_AUTOCCHARDELETED\n")
-    elsif code=SCN_FOCUSIN then
-        puts(1, "SCN_FOCUSIN\n")
-    elsif code=SCN_FOCUSOUT then
-        puts(1, "SCN_FOCUSOUT\n")
-    end if
-end procedure
---*/
-
---PL: (moved up)
---!/**/constant
---!/**/  NOTIFICATION_CODE =            iff(machine_bits()=64? 16: 8),
---!/**/  NOTIFICATION_POS =                 iff(machine_bits()=64? 24:12),
---!/**/  NOTIFICATION_CH =              iff(machine_bits()=64? 28:16),
---!/**/  NOTIFICATION_MODIFIERS =       iff(machine_bits()=64? 32:20),
---!/**/  NOTIFICATION_MODIFICATIONTYPE = iff(machine_bits()=64? 36:24),
---!/**/  NOTIFICATION_TEXT =            iff(machine_bits()=64? 40:28),
---!/**/  NOTIFICATION_LENGTH =          iff(machine_bits()=64? 48:32),
---!/**/  NOTIFICATION_UPDATED =             iff(machine_bits()=64?116:88)
---/*
-ifdef BITS64 then
-constant
-  NOTIFICATION_CODE = 16,
-  NOTIFICATION_POS = 24,
-  NOTIFICATION_CH = 28,
-  NOTIFICATION_MODIFIERS = 32,
-  NOTIFICATION_MODIFICATIONTYPE = 36,
-  NOTIFICATION_TEXT = 40,
-  NOTIFICATION_LENGTH = 48,
-  NOTIFICATION_UPDATED = 116
-elsedef
-constant
-  NOTIFICATION_CODE = 8,
-  NOTIFICATION_POS = 12,
-  NOTIFICATION_CH = 16,
-  NOTIFICATION_MODIFIERS = 20,
-  NOTIFICATION_MODIFICATIONTYPE = 24,
-  NOTIFICATION_TEXT = 28,
-  NOTIFICATION_LENGTH = 32,
-  NOTIFICATION_UPDATED = 88
-end ifdef
---*/
-function notification_text(atom notification)
---/**/return peek_string(peekNS(notification+NOTIFICATION_TEXT,machine_word(),0))   --/*
-    ifdef BITS64 then
-        return peek_string(peek8u(notification+NOTIFICATION_TEXT))
-    elsedef
-        return peek_string(peek4u(notification+NOTIFICATION_TEXT))
-    end ifdef                                                                       --*/
-end function
-
-
-
-global function sci_notify(atom hedit, atom data, atom notification, atom userdata)
-integer code, pos, ch, modifiers, updated, len
-    if data or userdata then end if -- suppress warnings
-    if notification=0 then return 0 end if
-  --log_notification(notification)
-    code = peek4u(notification+NOTIFICATION_CODE)
-  --? {hedit, data, notification, userdata, code}
-    if code=SCN_UPDATEUI then
-        updated = peek4u(notification+NOTIFICATION_UPDATED)
-        --? {updated, insert_chars, last_deleted_char}
-        if and_bits(updated, SC_UPDATE_SELECTION+SC_UPDATE_CONTENT)=SC_UPDATE_SELECTION then
-            -- selection moved and content was not changed
-            --? {updated, insert_chars}
-            insert_chars = ""
-        elsif last_deleted_char then
-            delete_pair()
-            last_deleted_char = 0
-        end if
-        if ssmf(SCI_CALLTIPACTIVE) then
-            update_subroutine_arguments()
-        end if
-        update_status()
-        do_brace_highlight(hedit)
-        if auto_indicator and last_typed_pos!= -1 and get_pos()!=last_typed_pos then
-            check_last_typed()
-        end if
-
-    elsif code=SCN_SAVEPOINTREACHED or code=SCN_SAVEPOINTLEFT then
-        modified = (code=SCN_SAVEPOINTLEFT)
-        update_tab_name()
-
-    elsif code=SCN_KEY then
-        ch = peek4s(notification+NOTIFICATION_CH)
-        modifiers = peek4s(notification+NOTIFICATION_MODIFIERS)
-        -- on OSX X11, META and SHIFT are the only modifiers we receive
-
-        if ch='Z' and and_bits(modifiers, SCMOD_CTRL+SCMOD_META) then
-            if and_bits(modifiers, SCMOD_SHIFT) then
-                ssm(SCI_REDO, 0, 0)
-            else
-                ssm(SCI_UNDO, 0, 0)
-            end if
-
-        elsif ch>='1' and ch<='9' and and_bits(modifiers, SCMOD_ALT+SCMOD_META) then
-            select_tab(ch-'0')
-
-        elsif ch<128 then
-      --printf(1, "SCN_KEY ch=%d '%s' modifiers=%d\n", {ch, {ch}, modifiers})
-        else
-      --printf(1, "SCN_KEY ch=#%x modifiers=%d\n", {ch, modifiers})
-        end if
-
-    elsif code=SCN_CHARADDED then
-        ch = peek4s(notification+NOTIFICATION_CH)
-        --printf(1, "SCN_CHARADDED ch=%d '%s'\n", {ch, {ch}})
-
-        if length(insert_chars) and ch=insert_chars[$] then
-            -- the user retyped the insert character, so delete it
-            ssm(SCI_DELETERANGE, get_pos(), 1)
-            -- the UPDATEUI will remove the insert_chars[$]
-        elsif ch=':' and auto_namespace then
-            view_completions()
-        elsif ch=' ' and complete_statements then
-            auto_expand()
-        elsif ch='\n' and auto_indent then
-            do_auto_indent()
-        elsif ch='(' then
-      -- check for displaying subroutine arguments
-            if complete_braces then
-                insert_pair()
-            end if
-            if auto_arguments then
-                view_subroutine_arguments()
-            end if
-        elsif (ch='{' or ch='[') and complete_braces then
-            insert_pair()
-        elsif (ch='"' or ch='\'') and complete_braces then
-            insert_pair()
-        elsif auto_indicator
-          and ((ch>='a' and ch<='z') or
-               (ch>='A' and ch<='Z') or
-               (ch>='0' and ch<='9') or
-               ch='_') then
-            last_typed_pos = get_pos()
-        end if
-
-    elsif code=SCN_AUTOCSELECTION then
-        -- check for "--include" in selection, then add include statement near top of file
-        --  or after the first non-commented line, or ideally with other includes
-        pos = peek4u(notification+NOTIFICATION_POS)
-        auto_complete_selection(pos, notification_text(notification))
-
-    elsif code=SCN_MODIFIED then
-        modifiers = peek4u(notification+NOTIFICATION_MODIFICATIONTYPE)
-        if and_bits(modifiers, SC_MOD_BEFOREDELETE) then
-            pos = peek4u(notification+NOTIFICATION_POS)
-            len = peek4u(notification+NOTIFICATION_LENGTH)
-            --? {modifiers, pos, len}
-            if len=1 then
-                last_deleted_char = ssmf(SCI_GETCHARAT, pos)
-            end if
-        end if
-
-    elsif code=SCN_URIDROPPED then
-        open_uri(notification_text(notification))
-    elsif code=SCN_PAINTED then
-    -- could run some background processing during painted, every time cursor blinks
-    end if
-    return 0
-end function
+wee_init()
+ui_main()

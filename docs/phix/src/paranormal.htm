@@ -6,12 +6,13 @@
      <stripped>
       <h1 class="title">Paranormalised Functions</h1>
       <div id="mainSection">
-        Several routines perform a little trickery that, once you get used to the idea, make them easier to use, eg this document contains
+        Several routines perform a little trickery that, once you get used to the idea, make them easier to use. For example this help contains:
  <pre>
         IupButton(nullable_string title=NULL, [[nullable_string action=NULL,] atom func=NULL,] string attributes="", sequence data={})
+
         IupText([[nullable_string action=NULL,] cbfunc func=NULL,] string attributes="", sequence data={})  </pre>
 
-        the idea being that [action, func] are doubly-optional. Any items before the "[[" are element-specific; this note covers the handling 
+        The idea is that [action, func] are doubly-optional. Any items before the "[[" are element-specific; this note covers the handling 
         of {action,func,attributes,data} [afad]. I made up the term paranormalise as a jokey way to explain that you have more flexibility 
         than normal in how you can provide the parameters. In short you can assume:
  <pre>
@@ -23,11 +24,12 @@
         IupButton(title,func,attributes[,data])
         IupButton(title,action,func,attributes[,data])                                         [ditto: func not optional]</pre>
 
-        are all valid. Note that (unless using named parameters) you cannot change the order [afad], eg:
+        are all valid. You can imagine the same less "title" for IupText. Note that, unless using named parameters, you cannot change the order [afad], eg:
  <pre>
-        IupButton(title,attributes[,data][,action],func)    -- !INVALID!
-        IupButton(title,func,attributes,data,action)        -- !Stop this madness!
-        IupButton(action,attributes,data,func,title)        -- !You're being silly now! </pre>
+        IupButton(title,attributes[,data][,action],func)            -- !INVALID!
+        IupButton(title,func,attributes,data,action)                -- !Stop this madness!
+        IupButton(action,attributes,data,func,title)                -- !You're being silly now!
+        IupButton(attributes:="FLAT=YES",func:=ok_cb,title:="OK")   -- but this is fine </pre>
 
         The action and func parameters are actually declared as object, attributes as sequence, and data as dword_seq,
         but manually and thoroughly verified to be of the documented types, after they have all been repositioned.
@@ -55,13 +57,18 @@
         <br>
         What this mechanism really attacks is the use of nested IupSetCallbackf() and IupSetAttributesf(), with all
         the extra parenthesis and indentation that requires, which can get real ugly real fast.
+<!-- DEV
+It also provides a unified and consistent mechanism for declaring interface elements, which greatly simplifies Edix/Tools/Window Painter.
+-->
         <br>
         <br>
         Technicalia: Most elements have more than one callback, and the action name is used to distinguish them - see 
         the documentation of the specific interface element. pGUI replaces a NULL action name with "ACTION", which is
         suitable for IupButton, IupCanvas, IupList, IupMenuItem(aka IupItem), IupText, and IupToggle, but meaningless
         on most other elements. The C API strongly implies you can override "ACTION" (or "ACTION_CB") with a name of 
-        your choosing on selected interface elements: I cannot see that as useful, and pGUI effectively prohibits it.
+        your choosing on selected interface elements: I cannot see that as useful (in my personal opinion it probably 
+        originates from a pre-<a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> era, when all handles had 
+        to be explicitly named and set via two or even three separate function calls), and pGUI effectively prohibits it.
         <br>
         <br>
       </div>

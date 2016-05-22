@@ -1,0 +1,179 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Switch Statement</h1>
+      <div id="mainSection">
+        The switch statement can be used instead of an if-construct that repeatedly tests the same expression, for example:
+<!--eucode>
+if    ch='a' then   puts(1,"ch is a\n")
+elsif ch='b' then   puts(1,"ch is b\n")
+elsif ch='c' then   puts(1,"ch is c\n")
+  ...
+else                puts(1,"ch is something else\n")
+end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">if   </font><font color="#000000"> ch</font><font color="#0000FF">=</font><font color="#008000">'a'</font><font color="#008080"> then  </font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"ch is a\n"</font><font color="#0000FF">)
+</font><font color="#008080">elsif</font><font color="#000000"> ch</font><font color="#0000FF">=</font><font color="#008000">'b'</font><font color="#008080"> then  </font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"ch is b\n"</font><font color="#0000FF">)
+</font><font color="#008080">elsif</font><font color="#000000"> ch</font><font color="#0000FF">=</font><font color="#008000">'c'</font><font color="#008080"> then  </font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"ch is c\n"</font><font color="#0000FF">)
+  ..</font><font color="#FF0000">.
+</font><font color="#008080">else               </font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"ch is something else\n"</font><font color="#0000FF">)
+</font><font color="#008080">end if</font>
+</pre>
+        Can, if you prefer, and perhaps with some caution as detailed below, be replaced with:
+<!--eucode>
+switch ch
+  case 'a': puts(1,"ch is a\n")
+  case 'b': puts(1,"ch is b\n")
+  case 'c': puts(1,"ch is c\n")
+    ...
+  default:  puts(1,"ch is something else\n")
+end switch
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">switch</font><font color="#000000"> ch
+</font><font color="#008080">  case</font><font color="#008000"> 'a'</font><font color="#0000FF">:</font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"ch is a\n"</font><font color="#0000FF">)
+</font><font color="#008080">  case</font><font color="#008000"> 'b'</font><font color="#0000FF">:</font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"ch is b\n"</font><font color="#0000FF">)
+</font><font color="#008080">  case</font><font color="#008000"> 'c'</font><font color="#0000FF">:</font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"ch is c\n"</font><font color="#0000FF">)
+    ..</font><font color="#FF0000">.
+</font><font color="#008080">  default</font><font color="#0000FF">: </font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"ch is something else\n"</font><font color="#0000FF">)
+</font><font color="#008080">end switch</font>
+</pre>
+        Note that in Phix the choice of which construct to use should be entirely based on personal preference, ease of writing, and ease of future maintenance.
+        <br>
+        <br>
+        For instance one thing that may significantly simplify maintenance, is that it is trivial to change the second branch of the if-construct to 
+<!--eucode>
+elsif ch='b' and ignoreb=0 then
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">elsif</font><font color="#000000"> ch</font><font color="#0000FF">=</font><font color="#008000">'b'</font><font color="#008080"> and</font><font color="#000000"> ignoreb</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then</font>
+</pre>
+        whereas making the equivalent change to the switch-construct, whereby a 'b' ends up in the default case when ignoreb=1, is not quite so easy.<br>
+        Conversely you might want to make it deliberately difficult to thwart the creation of a jump table, for performance reasons.
+        <br>
+        <br>
+        In both the above snippets, it is the back-end that decides whether a jump table is suitable: experiments revealed that branch 
+        misprediction makes &lt;8 branches faster as a daisy-chain of jumps, and &gt;8 branches faster as a jump table, and the implementation 
+        is such that <b><i>both constructs can generate either</i></b>.
+        <br>
+        <br>
+        In particular, not that it happens by default any longer in Phix, a switch true/false using a jump table was woefully slower than a single test/jump. 
+        Also, I saw no reason to waste time converting perfectly valid if-constructs in legacy code to switch statements, especially when doing so could 
+        actually make things slower, and introduce bugs, so instead I decided to make the compiler do all the work for me automatically.
+        <br>
+        <br>
+        A jump table usually causes an AGI stall and almost inevitably incurs a branch misprediction, which flushes the pipeline and 
+        costs at least 8 clocks, on some recent/advanced processors even more. Modern processors are also quite astoundingly good at 
+        branch prediction, including spotting a whole range of loop patterns, but that occurs (in hardware) at the instruction level, 
+        not at jump table entry level. As above, you need about 8 branches to "break even", but the back-end is perfectly happy to 
+        make that decision for you, including whether or not a jump table would be "too sparse" (&lt;5% populated), as well as perform 
+        any necessary preliminary bounds checking.
+        <br>
+        <br>
+        In short, unlike most other languages, performance should <i><b>not</b></i> or at least very rarely be a factor in determining which construct to use.
+        <br>
+        <br>
+        The full syntax of a switch statement is as follows:
+<!--eucode>
+    switch <expr> [("with"|"without") "fallthrough"|"fallthru"|"jump_table"] [do]
+      {"case" <expr>{","<expr>}|"default"|"else") [":"|"then"] [<block>] ["break"|"fallthrough"|"fallthru"]}
+    end switch
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    switch</font><font color="#0000FF"> &lt;</font><font color="#000000">expr</font><font color="#0000FF">&gt; [</font><font color="#800000">(</font><font color="#008000">"with"</font><font color="#0000FF">|</font><font color="#008000">"without"</font><font color="#800000">)</font><font color="#008000"> "fallthrough"</font><font color="#0000FF">|</font><font color="#008000">"fallthru"</font><font color="#0000FF">|</font><font color="#008000">"jump_table"</font><font color="#0000FF">] [</font><font color="#008080">do</font><font color="#0000FF">]
+      {</font><font color="#008000">"case"</font><font color="#0000FF"> &lt;</font><font color="#000000">expr</font><font color="#0000FF">&gt;</font><font color="#800000">{</font><font color="#008000">","</font><font color="#0000FF">&lt;</font><font color="#000000">expr</font><font color="#0000FF">&gt;</font><font color="#800000">}</font><font color="#0000FF">|</font><font color="#008000">"default"</font><font color="#0000FF">|</font><font color="#008000">"else"</font><font color="#0000FF">) [</font><font color="#008000">":"</font><font color="#0000FF">|</font><font color="#008000">"then"</font><font color="#0000FF">] [&lt;</font><font color="#000000">block</font><font color="#0000FF">&gt;] [</font><font color="#008000">"break"</font><font color="#0000FF">|</font><font color="#008000">"fallthrough"</font><font color="#0000FF">|</font><font color="#008000">"fallthru"</font><font color="#0000FF">]</font><font color="#00FFFF">}
+</font><font color="#008080">    end switch</font>
+</pre>
+        Additional "break" statements can also be buried deep inside &lt;block&gt;. Execution resumes at the end switch.
+        <br>
+        <br>
+        Only one default clause is permitted per switch statement, but it can be placed anywhere. If placed anywhere other than at the end, 
+        an error triggers if a jump table cannot be constructed. The else keyword can be used instead of default, and behaves identically.
+        <br>
+        <br>
+        Normally each branch rejoins execution at the end switch statement, but you can change that for individual cases or the 
+        entire switch construct using either spelling of fallthrough (fallthru is allowed for compatibility with OpenEuphoria).
+        The presence of any fallthrough or the more explicit jump_table option forces the use of a jump table, should you incorrectly 
+        care about that. [And please don&rsquo;t bother to complain should "with jump_table case 1,1_000_000_000:" force the compiler 
+        to create, instead of something like 20 bytes of cmp/jmp code, a 4/8GB jump table with only 8/16 bytes actually used in it!]
+        <br>
+        <br>
+        "break" and "fallthough" are effectively polar opposites: in a "switch with fallthrough" you may need the occasional "break";
+        whereas in a "switch [without fallthrough]" you may need the occasional "fallthrough", and in both cases the other will be
+        implicitly assumed when not explicitly present.
+        <br>
+        <br>
+        Duplicate entries in the jump table trigger an error. Note that the same error may also occur on a plain if-construct, as long 
+        as it is detected before anything that prohibits the use of a jump table.
+        <br>
+        <br>
+        So-called "smart switch" processing is supported, in other words "back-to-back" cases do not have the usual implied "break":
+<!--eucode>
+    case 3:
+    case 4: <block>
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    case</font><font color="#000000"> 3</font><font color="#0000FF">:
+</font><font color="#008080">    case</font><font color="#000000"> 4</font><font color="#0000FF">: &lt;</font><font color="#000000">block</font><font color="#0000FF">&gt;</font>
+</pre>
+        behaves identically to
+<!--eucode>
+    case 3,4: <block>
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    case</font><font color="#000000"> 3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">: &lt;</font><font color="#000000">block</font><font color="#0000FF">&gt;</font>
+</pre>
+        Be wary of the hidden gotcha in that commenting out the last line of code between two cases can effectively insert a "fallthrough".
+        <br>
+        <br>
+        It is also possible to write "variable" switch statements (not compatible with OpenEuphoria), eg:
+<!--eucode>
+    procedure dosomething(integer action, stop, start, term)
+      switch action
+        case stop: running=false
+        case start: running=true
+        case term: terminate=true
+      end switch
+    end procedure
+
+    dosomething(i,1,0,-1)
+    ...
+    dosomething(j,1,2,3)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> dosomething</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> action</font><font color="#0000FF">,</font><font color="#000000"> stop</font><font color="#0000FF">,</font><font color="#000000"> start</font><font color="#0000FF">,</font><font color="#000000"> term</font><font color="#0000FF">)
+</font><font color="#008080">      switch</font><font color="#000000"> action
+</font><font color="#008080">        case</font><font color="#000000"> stop</font><font color="#0000FF">:</font><font color="#000000"> running</font><font color="#0000FF">=</font><font color="#000000">false
+</font><font color="#008080">        case</font><font color="#000000"> start</font><font color="#0000FF">:</font><font color="#000000"> running</font><font color="#0000FF">=</font><font color="#000000">true
+</font><font color="#008080">        case</font><font color="#000000"> term</font><font color="#0000FF">:</font><font color="#000000"> terminate</font><font color="#0000FF">=</font><font color="#000000">true
+</font><font color="#008080">      end switch
+    end procedure
+
+</font><font color="#000000">    dosomething</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">)
+    ..</font><font color="#FF0000">.
+</font><font color="#000000">    dosomething</font><font color="#0000FF">(</font><font color="#000000">j</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)</font>
+</pre>
+        Obviously when the branch cases are not fixed, it is not possible to construct a jump table, and attempts to fallthrough
+        will trigger an error (you would need to resort to multiple if-constructs with the required additional "or action=").
+        Likewise for any non-integer cases.
+        <br>
+        <br>
+        Of course the reverse may be true: an if-construct which looks completely variable to the front-end may in fact prove 
+        to consist entirely of known fixed integer values after the detailed analysis phase, so we can emit a jump table for it. 
+        That might be particularly useful for general purpose library code of which your program only exercises a small portion.
+        <br>
+        <br>
+        Unlike OpenEuphoria, Phix does not support "with label" on if/for/while/switch constructs, or the goto or break "label" statements. 
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

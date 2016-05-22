@@ -1384,7 +1384,8 @@ object state
     return ast
 end function
 
-global function parse(sequence source_text, sequence file_name)
+--global function parse(sequence source_text, sequence file_name)
+global function wee_parse(sequence source_text, sequence file_name)
 integer i
 sequence ast
 
@@ -1408,7 +1409,7 @@ object text = read_file(filename)
     if atom(text) then
         return {} -- unable to read file
     end if
-    return parse(text, filename)
+    return wee_parse(text, filename)
 end function
 
 -- during get_decls we might need to reparse a file if its timestamp changed

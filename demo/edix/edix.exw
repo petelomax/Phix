@@ -1,0 +1,1504 @@
+--
+-- edix.exw
+-- ========
+--  Rewrite of Edita from using arwen to pGUI
+-- **INCOMPLETE** this is basically just the raw gui, with no guts.
+--
+--  Obviously now that Phix is cross platform, it needs a cross platform editor.
+--  While both wee and tee are fine, there are several things in the edita codebase
+--  that I simply could not bear to throw away, namely:
+--      * The dynamic syntax colouring and help lookup systems. [1]
+--      * Copy/Copy append/prepend are very rarely found in other editors
+--      * Control structure traversal via Ctrl [ and Ctrl ]
+--      * Tools/File compare - admittedly I might be a bit biased about that one
+--      * Tools/Find in Files (made standalone)
+--      * Tools/Htmlise eucode  ""
+--      * Tools/Reindent source ""
+--      * Tools/Quick jump (especially for builtins\VM)
+--      * Macro record/playback (priceless)
+--  [1] In Edita I can just edit xxx.syn and phix.txt as I document things, and both the 
+--      syntax colouring and F1 help lookup take effect immediately (w/o restart).
+--
+--  My staring point is tee, with scintilla ripped out and replaced with a canvas.
+--
+--  One thing that won't be ported is FTP (I use http://www.net2ftp.com now anyway)
+--  I have felt for a while that the file panel and message area should be separate windows, as
+--  project tree (which is currently broken), and recovery are better off as separate processes
+--  anyway, the directory tree really wants merging with "tabs list" and extending to an "all
+--  files" selector, plus it would probably work better to have an icon, count and the most
+--  recent message from any errors/ex.err in the status bar.
+--  Also save on tab switch (now always = yes) is going and hence save all.
+--  Directory compare would also benefit greatly from being made standalone (esp. the gui)
+--  It is also time to wave goodbyte to options\reformat ex.err
+--
+--  Additions:
+--  * Keyboard mapping (replaces F1/keyboard help)
+--  * Close unused tabs after N sessions
+--  * tabs list (rename as file list) to have "all" option, and probably a directory tree
+--
+--/*
+**filedlg
+listview
+simple_notepad - not tabbed, IupText (stolen)
+simple_paint
+tee - scintilla (with broken highlighting)
+wee - not IUP! (winAPI/gtk, scintilla)
+--generica... (maybe I should port that to pGUI...) [nah]
+--mandelbrot - fix the double buffering as per buffer.exw?? (but we want a resizeable canvas...)
+
+menu, toobar, icon(s)   [DONE]
+statusbar, scrollbars
+pop-up menu/window
+selectfont, zoom in/out, loadfile
+key settings (replacement for key help)
+synload/syncolour
+sort out tab/index handling
+--*/
+/* (from simple_notepad, delete when done:) If instead of using IupText we use IupScintilla, then we can add:
+   - more find/replace options
+   - zoom
+   - show white spaces
+   - margins
+   - word wrap
+   - tab size
+   - auto replace tabs by spaces
+   - undo & redo
+   - markers
+   - line numbers
+   and much more.
+   Hot keys for:
+   - match braces
+   - to lower case
+   - to upper case
+ */
+
+include pGUI.e
+
+global constant SLASH = iff(platform()=WINDOWS?'\\':'/')
+--DEV make this a cross-platform builtin (see filesys.e):
+--!/**/constant lib = open_dll("kernel32")
+--!/**/constant xGetFileAttributes = define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT) -- N.B DWORD return fails this.
+--!/**/function file_exists(string name)
+--!/**/ return c_func(xGetFileAttributes, {name})>0
+--!/**/end function
+
+
+--DEV to go:
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+Ihandle dlg, tabs, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function putx(integer x, integer y, string txt, integer colour)
+--temp/inline?
+    cdCanvasSetForeground(cddbuffer, colour)
+    cdCanvasText(cddbuffer,x,y,txt)
+    {x} = cdCanvasGetTextSize(cddbuffer,txt)
+    return x
+end function
+
+integer charheight
+procedure appUpdateRender()
+integer width, height, x, y
+    cdCanvasActivate(cddbuffer)
+
+    cdCanvasClear(cddbuffer)
+
+--  {width, height} = IupGetIntInt(dlg, "RASTERSIZE")
+    {width, height} = cdCanvasGetSize(cddbuffer)
+--  cdCanvasLine(cddbuffer, 0, 0, width-1, height-1)
+--  cdCanvasLine(cddbuffer, 0, height-1, width-1, 0)
+--cdCanvasText(cddbuffer,1,1,"ABCDEF")
+--cdCanvasText(cddbuffer,1,1,sprint(cdCanvasGetTextBox(cddbuffer,1,1,"ABCDEFG")))   -- {1,64,-2,13}
+--cdCanvasText(cddbuffer,15,16,sprint(cdCanvasGetTextSize(cddbuffer,"ABCDEFG"))) -- {64,16}
+--cdCanvasText(cddbuffer,15,1,sprint(cdCanvasGetSize(cddbuffer)&charheight))
+--cdCanvasText(cddbuffer,15,1,sprint(cdCanvasGetFont(cddbuffer)))
+--  for i=charheight-1 to height+charheight/2-0*charheight*4 by charheight do
+    for i=charheight-1 to height+charheight/2 by charheight do
+        x = 1
+        y = height-i
+        if i>charheight then
+            x += putx(x, y, "The ", CD_BLACK)
+            x += putx(x, y, "quick", CD_BLUE)
+            x += putx(x, y, " brown fox jumped over the lazy dog", CD_BLACK)
+        else
+--          x += putx(x, y, "The quick brown fox jumped over the lazy dog", CD_BLACK)
+            x += putx(x, y, "12345678901234567890123456789012345678901345", CD_BLACK)
+        end if
+    end for
+
+    cdCanvasFlush(cddbuffer)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*x*/, integer /*y*/)
+    appUpdateRender()
+    return IUP_DEFAULT
+end function
+
+function resize_cb(Ihandle /*ih*/)
+--?IupGetAttribute(dlg,"SIZE")
+    appUpdateRender()
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_GRAY)
+    -- (nb "" needs cdCanvasClear() to take effect)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    cdCanvasFont(cddbuffer, "Courier", CD_PLAIN, 10)
+    {?,charheight} = cdCanvasGetTextSize(cddbuffer,"X")
+    return IUP_DEFAULT
+end function
+
+function unmap_cb(Ihandle /*ih*/)
+    cdKillCanvas(cddbuffer)
+    cdKillCanvas(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+--function item_new_action_cb(Ihandle /*item_new*/)
+function new_cb(Ihandle /*item_new*/)
+?"new_cb"
+--  if save_check(item_new) then
+--      newFile("",{""},{1},0)
+--  end if
+    return IUP_DEFAULT;
+end function
+constant cb_new = Icallback("new_cb")
+
+--function item_open_action_cb(Ihandle /*item_open*/)
+function open_cb(Ihandle /*item_open*/)
+--Ihandle filedlg;
+--string d
+--
+--  if save_check(item_open) then
+--      d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory");
+--
+--      filedlg = IupFileDlg();
+--      IupSetAttribute(filedlg, "DIALOGTYPE", "OPEN");
+--      IupSetAttribute(filedlg, "EXTFILTER", "Text Files|*.txt|All Files|*.*|");
+--      IupSetAttributeHandle(filedlg, "PARENTDIALOG", IupGetDialog(item_open));
+--      IupSetStrAttribute(filedlg, "DIRECTORY", d);
+--
+--      IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
+--      if IupGetInt(filedlg, "STATUS")!= -1 then
+--          string filename = IupGetAttribute(filedlg, "VALUE");
+--          open_file(item_open, filename);
+--
+--          d = IupGetAttribute(filedlg, "DIRECTORY");
+--          IupConfigSetVariableStr(config, "MainWindow", "LastDirectory", d);
+--      end if
+--
+--      IupDestroy(filedlg);
+--  end if
+    return IUP_DEFAULT;
+end function
+constant cb_open = Icallback("open_cb")
+
+function saveas_cb(Ihandle /*item_saveas*/)
+--Ihandle multitext = IupGetDialogChild(item_saveas, "MULTITEXT");
+--string d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory");
+--Ihandle filedlg = IupFileDlg();
+--  IupSetAttribute(filedlg, "DIALOGTYPE", "SAVE");
+--  IupSetAttribute(filedlg, "EXTFILTER", "Text Files|*.txt|All Files|*.*|");
+--  IupSetAttributeHandle(filedlg, "PARENTDIALOG", IupGetDialog(item_saveas));
+--  IupSetStrAttribute(filedlg, "FILE", IupGetAttribute(multitext, "FILENAME"));
+--  IupSetStrAttribute(filedlg, "DIRECTORY", d);
+--
+--  IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
+--
+--  if IupGetInt(filedlg, "STATUS")!= -1 then
+--      string filename = IupGetAttribute(filedlg, "VALUE");
+--      saveas_file(multitext, filename);
+--
+--      d = IupGetAttribute(filedlg, "DIRECTORY");
+--      IupConfigSetVariableStr(config, "MainWindow", "LastDirectory", d);
+--  end if
+--
+--  IupDestroy(filedlg);
+    return IUP_DEFAULT;
+end function
+constant cb_saveas = Icallback("saveas_cb")
+
+function save_cb(Ihandle /*item_save*/)
+--Ihandle multitext = IupGetDialogChild(item_save, "MULTITEXT");
+--string filename = IupGetAttribute(multitext, "FILENAME");
+--  if length(filename)=0 then
+--      {} = item_saveas_action_cb(item_save);
+--  else
+--      /* test again because it can be called using the hot key */
+--      if IupGetInt(multitext, "DIRTY") then
+--          save_file(multitext);
+--      end if
+--  end if
+    return IUP_DEFAULT;
+end function
+constant cb_save = Icallback("save_cb")
+
+function close_cb(atom /*self*/)
+--      IupAlarm( "Action", "Close", "OK" )
+
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetAttributeHandle(tabs, "VALUE")
+--  atom modified = IupGetInt(sci, "SAVEDSTATE")
+--
+--  if modified then
+--      -- ask the user to save
+--
+--      sequence name = "Untitled"
+--      sequence path = IupGetAttribute(sci, "PATH")
+--
+--      if length(path) then
+--          name = get_file_name(path)
+--      end if
+--
+--      atom response = confirm_close(name)
+--
+--      if response=1 then
+--          -- user wants to save
+--
+--          {} = save_cb(self)
+--          modified = IupGetInt(sci, "SAVEDSTATE")
+--          if modified then
+--              -- user cancelled save
+--              return IUP_IGNORE
+--          end if
+--
+--      elsif response=3 then
+--          -- user cancelled prompt
+--          return IUP_IGNORE
+--
+--      end if
+--
+--  end if
+--
+--  -- remove the tab
+--  IupDestroy(sci)
+--  IupRefreshChildren(tabs)
+--
+--  atom count = IupGetChildCount(tabs)
+--  if count!=0 then
+--      -- update the tab selection
+--
+----        while pos>=count do
+--      if pos>=count then
+--          -- pos is out of bounds
+----            pos -= 1
+--          pos = count-1
+----        end while
+--      end if
+--
+--      sci = IupGetChild(tabs, pos)
+--      IupSetAttributeHandle(tabs, "VALUE", sci)
+--
+--      IupRefresh(tabs)
+--      IupSetFocus(sci)
+--
+--  end if
+--
+    return IUP_IGNORE
+end function
+constant cb_close = Icallback("close_cb")
+
+function print_cb(atom /*self*/)
+--(Printing should be done as one function with page setup/preview/print buttons, and 
+-- all the rest, such as ->pdf, ->html, ->file, change printer, copies, duplex, ...)
+    return IUP_IGNORE
+end function
+constant cb_print = Icallback("print_cb")
+
+function exit_cb(Ihandle /*item_exit*/)
+--  if not save_check(item_exit) then
+--      return IUP_IGNORE;  /* to abort the CLOSE_CB callback */
+--  end if
+--  IupConfigDialogClosed(config, dlg, "MainWindow");
+--  {} = IupConfigSave(config);
+--  IupDestroy(config);
+    return IUP_CLOSE;
+end function
+constant cb_exit = Icallback("exit_cb")
+
+function cut_cb(atom /*self*/)
+--      IupAlarm( "Action", "Cut", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  IupSetAttribute(sci, "CLIPBOARD", "CUT")
+
+--Ihandle multitext = IupGetDialogChild(item_cut, "MULTITEXT");
+--Ihandle clipboard = IupClipboard();
+--  IupSetAttribute(clipboard, "TEXT", IupGetAttribute(multitext, "SELECTEDTEXT"));
+--  IupSetAttribute(multitext, "SELECTEDTEXT", "");
+--  IupDestroy(clipboard);
+
+    return IUP_IGNORE
+end function
+constant cb_cut = Icallback("cut_cb")
+
+function cuta_cb(atom /*self*/)
+    return IUP_IGNORE
+end function
+constant cb_cuta = Icallback("cuta_cb")
+
+function cutp_cb(atom /*self*/)
+    return IUP_IGNORE
+end function
+constant cb_cutp = Icallback("cutp_cb")
+
+function copy_cb(atom /*self*/)
+--      IupAlarm( "Action", "Copy", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  IupSetAttribute(sci, "CLIPBOARD", "COPY")
+
+--Ihandle multitext = IupGetDialogChild(item_copy, "MULTITEXT");
+--Ihandle clipboard = IupClipboard();
+--  IupSetAttribute(clipboard, "TEXT", IupGetAttribute(multitext, "SELECTEDTEXT"));
+--  IupDestroy(clipboard);
+    return IUP_IGNORE
+end function
+constant cb_copy = Icallback("copy_cb")
+
+function copya_cb(atom /*self*/)
+    return IUP_IGNORE
+end function
+constant cb_copya = Icallback("copya_cb")
+
+function copyp_cb(atom /*self*/)
+    return IUP_IGNORE
+end function
+constant cb_copyp = Icallback("copyp_cb")
+
+function paste_cb(atom /*self*/)
+--      IupAlarm( "Action", "Paste", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  IupSetAttribute(sci, "CLIPBOARD", "PASTE")
+
+--Ihandle multitext = IupGetDialogChild(item_paste, "MULTITEXT");
+--Ihandle clipboard = IupClipboard();
+--  IupSetAttribute(multitext, "INSERT", IupGetAttribute(clipboard, "TEXT"));
+--  IupDestroy(clipboard);
+
+    return IUP_IGNORE
+end function
+constant cb_paste = Icallback("paste_cb")
+
+function delete_cb(Ihandle /*item_delete*/)
+--      IupAlarm( "Action", "Delete", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  IupSetAttribute(sci, "CLIPBOARD", "CLEAR")
+
+--Ihandle multitext = IupGetDialogChild(item_delete, "MULTITEXT");
+--  IupSetAttribute(multitext, "SELECTEDTEXT", "");
+    return IUP_DEFAULT;
+end function
+constant cb_delete = Icallback("delete_cb")
+
+function undo_cb(atom /*self*/)
+--      IupAlarm( "Action", "Undo", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetAttributeHandle(tabs, "VALUE")
+--  if IupGetInt(sci, "UNDO") then
+--      IupSetAttribute(sci, "UNDO", "YES")
+--  end if
+--
+    return IUP_IGNORE
+end function
+constant cb_undo = Icallback("undo_cb")
+
+function redo_cb(atom /*self*/)
+--      IupAlarm( "Action", "Redo", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetAttributeHandle(tabs, "VALUE")
+--  if IupGetInt(sci, "REDO") then
+--      IupSetAttribute(sci, "REDO", "YES")
+--  end if
+
+    return IUP_IGNORE
+end function
+constant cb_redo = Icallback("redo_cb")
+
+function zoomin_cb(atom /*self*/)
+--      IupAlarm( "Action", "Zoom In", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  IupSetAttribute(sci, "ZOOMIN", "YES")
+
+    return IUP_IGNORE
+end function
+constant cb_zoomin = Icallback("zoomin_cb")
+
+function zoomout_cb(atom /*self*/)
+--      IupAlarm( "Action", "Zoom Out", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  IupSetAttribute(sci, "ZOOMOUT", "YES")
+
+    return IUP_IGNORE
+end function
+constant cb_zoomout = Icallback("zoomout_cb")
+
+function run_cb(atom /*self*/)
+--      IupAlarm( "Action", "Run", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  sequence path = IupGetAttribute(sci, "PATH")
+--  sequence name = get_file_name(path)
+--
+--ifdef WINDOWS then
+--  sequence comspec = getenv("ComSpec")
+----                sequence eui = locate_file( "euiw.exe" )
+----                sequence cmd = build_commandline({ comspec, "/C", eui, name })
+--elsedef
+--  sequence xterm = "/usr/bin/x-terminal-emulator"
+----                sequence eui = locate_file( "eui" )
+----                sequence cmd = build_commandline({ xterm, "-e", eui, name })
+--end ifdef
+--
+--  {} = chdir(get_file_path(path))
+--  ?9/0
+--  --      pipeio:exec( cmd, pipeio:create() )
+--
+    return IUP_IGNORE
+end function
+constant cb_run = Icallback("run_cb")
+
+function fif_cb(atom /*self*/)
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  sequence path = IupGetAttribute(sci, "PATH")
+--  sequence name = get_file_name(path)
+--
+--  ? = get_file_path(path)
+-- ...
+    return IUP_IGNORE
+end function
+constant cb_fif = Icallback("fif_cb")
+
+--/*
+constant bind_fmt="""
+Bind     %t
+Input:   %f[OPEN|*.e;*.ew;*.ex;*.exw|CURRENT|NO|NO]
+Output:  %f[SAVE|*.exe|CURRENT|NO|YES]
+Backend: %f[OPEN|*.exe|CURRENT|NO|NO]
+Options  %t
+Icon:    %f[OPEN|*.ico|CURRENT|NO|NO]
+         %b[Include debug symbols,Include debug symbols]
+         %b[Create console application,Create console application]
+"""  
+
+--**
+-- Run the bind utility.
+--
+function bind_cb(atom self)
+--      IupAlarm( "Action", "Bind", "OK" )
+    if self then end if
+    if skip_next_event() then
+        return IUP_IGNORE
+    end if
+
+    atom tabs = IupGetHandle("tabs")
+    atom pos = IupGetInt(tabs, "VALUEPOS")
+    if pos=IUP_INVALID then
+        -- nothing selected
+        return IUP_IGNORE
+    end if
+
+    atom sci = IupGetChild(tabs, pos)
+    sequence path = IupGetAttribute(sci, "PATH")
+?path
+
+ifdef WINDOWS then
+    sequence eubind = "eubind.exe"
+--              sequence backend = locate_file( "eub.exe" )
+    sequence backend = "{9/0}"
+elsedef
+    sequence eubind = "eubind"
+--              sequence backend = locate_file( "eub" )
+    sequence backend = {9/0}
+end ifdef
+
+    -- build the input and output files from the original path
+    sequence input  = get_file_path(path) & SLASH & get_file_name(path)
+    sequence output = get_file_path(path) & SLASH & get_file_base(path)
+ifdef WINDOWS then output &= ".exe" end ifdef
+?{input,output}
+
+--DEV not that this does for Phix..
+--/*
+    -- an empty string to pad memory
+    sequence empty = repeat(0, 255)
+
+    sequence fields = {
+                       "Bind     %t",
+                       "Input:   %f[OPEN|*.e;*.ew;*.ex;*.exw|CURRENT|NO|NO]",
+                       "Output:  %f[SAVE|*.exe|CURRENT|NO|YES]",
+                       "Backend: %f[OPEN|*.exe|CURRENT|NO|NO]",
+                       "Options  %t",
+                       "Icon:    %f[OPEN|*.ico|CURRENT|NO|NO]",
+                       "         %b[Include debug symbols,Include debug symbols]",
+                       "         %b[Create console application,Create console application]"
+                      }
+
+    sequence params = {
+                       allocate_string(empty, 1), -- Input
+                       allocate_string(empty, 1), -- Output
+                       allocate_string(empty, 1), -- Backend
+                       allocate_string(empty, 1), -- Icon
+                       allocate_data(4, 1),       -- Include debug symbols
+                       allocate_data(4, 1)        -- Use current console
+                      }
+
+    poke(params[1], input)
+    poke(params[2], output)
+    poke(params[3], backend)
+    poke4(params[5], 0) -- debug = 0
+    poke4(params[6], 0) -- console = 0
+
+    atom result = IupGetParam("Bind", NULL, NULL, join(fields, "\n"), length(fields), 0, params)
+
+    if result=0 then
+        -- user cancelled
+        return IUP_IGNORE
+    end if
+
+    atom debug, console
+    sequence icon
+    input   = peek_string(params[1])
+    output  = peek_string(params[2])
+    backend = peek_string(params[3])
+    icon    = peek_string(params[4])
+    debug   = peek4u(params[5])
+    console = peek4u(params[6])
+--*/
+    sequence res = IupGetParam("Bind", NULL, 0, bind_fmt,
+                               {input, output, backend, "", 0, 0})
+    if res[$]=0 then
+        return IUP_IGNORE
+    end if
+    atom debug, console
+    sequence icon
+    {input,output,backend,icon,debug,console} = res
+
+    -- build the command line
+    sequence cmd = {eubind, "-batch"}
+    if console!=0    then cmd &= {"-con"}        end if
+    if length(backend) then cmd &= {"-eub", backend} end if
+    if debug!=0      then cmd &= {"-full_debug"}     end if
+    if length(icon)  then cmd &= {"-icon", icon}     end if
+    if length(output)  then cmd &= {"-out", output}  end if
+    cmd &= {get_file_name(input)}
+--      cmd = build_commandline( cmd )
+
+    {} = chdir(get_file_path(input))
+    ?9/0
+    --      pipeio:exec( cmd, pipeio:create() )
+
+    return IUP_IGNORE
+end function
+--*/
+
+function find_cb(Ihandle /*item_find*/)
+--Ihandln find_dlg = IupGetInt(item_find, "FIND_DIALOG");
+--Ihandle multitext = IupGetDialogChild(item_find, "MULTITEXT");
+--string str;
+--
+--  if find_dlg=NULL then
+--      find_dlg = create_find_dialog(multitext);
+--  end if
+--
+--  set_find_replace_visibility(find_dlg, 0);
+--
+--  IupConfigDialogShow(config, find_dlg, "FindDialog");
+--
+--  str = IupGetAttribute(multitext, "SELECTEDTEXT");
+--  if length(str)!=0 then
+--      Ihandle txt = IupGetDialogChild(find_dlg, "FIND_TEXT");
+--      IupSetStrAttribute(txt, "VALUE", str);
+--  end if
+
+    return IUP_DEFAULT;
+end function
+constant cb_find = Icallback("find_cb")
+--DEV
+constant cb_findnext = cb_find
+constant cb_findprev = cb_find
+
+Ihandln goto_dlg=NULL, goto_txt
+
+function goto_ok_action_cb(Ihandle /*bt_ok*/)
+integer line_count = IupGetInt(goto_txt, "TEXT_LINECOUNT");
+integer line = IupGetInt(goto_txt, "VALUE");
+--erm:
+    if line<1 or line>=line_count then
+        IupMessage("Error", "Invalid line number.");
+        return IUP_DEFAULT;
+    end if
+
+    IupSetAttribute(goto_txt, "STATUS", "1");
+    return IUP_CLOSE;
+end function
+
+function goto_cancel_action_cb(Ihandle /*bt_ok*/)
+    IupSetAttribute(goto_txt, "STATUS", "0");
+    return IUP_CLOSE;
+end function
+
+function goto_cb(Ihandle /*item_goto*/)
+Ihandle lbl, buttons, box, bt_ok, bt_cancel
+--DEV
+--integer line_count = IupGetInt(multitext, "LINECOUNT");
+--
+    if goto_dlg=NULL then
+        lbl = IupLabel()
+--DEV
+--      IupSetStrAttribute(lbl, "TITLE", "Line Number [1-%d]:", {line_count});
+        IupSetStrAttribute(lbl, "TITLE", "Line Number [1-%d]:", {752});
+        goto_txt = IupText();
+        IupSetAttribute(goto_txt, "MASK", IUP_MASK_UINT);   /* unsigned integer numbers only */
+        IupSetAttribute(goto_txt, "NAME", "LINE_TEXT");
+        IupSetAttribute(goto_txt, "VISIBLECOLUMNS", "20");
+        bt_ok = IupButton("OK");
+        IupSetInt(goto_txt, "TEXT_LINECOUNT", 752);
+        IupSetAttribute(bt_ok, "PADDING", "10x2");
+        IupSetCallback(bt_ok, "ACTION", Icallback("goto_ok_action_cb"));
+        bt_cancel = IupButton("Cancel");
+        IupSetCallback(bt_cancel, "ACTION", Icallback("goto_cancel_action_cb"));
+        IupSetAttribute(bt_cancel, "PADDING", "10x2");
+        buttons = IupHbox({IupFill(),bt_ok,bt_cancel},"NORMALIZESIZE=HORIZONTAL")
+        box = IupVbox({lbl,
+                       goto_txt,
+                       buttons})
+        IupSetAttribute(box, "MARGIN", "10x10");
+        IupSetAttribute(box, "GAP", "5");
+
+        goto_dlg = IupDialog(box);
+        IupSetAttribute(goto_dlg, "TITLE", "Go To Line");
+        IupSetAttribute(goto_dlg, "DIALOGFRAME", "Yes");
+        IupSetAttributeHandle(goto_dlg, "DEFAULTENTER", bt_ok);
+        IupSetAttributeHandle(goto_dlg, "DEFAULTESC", bt_cancel);
+        IupSetAttributeHandle(goto_dlg, "PARENTDIALOG", dlg);
+    end if
+
+    IupPopup(goto_dlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
+
+    if IupGetInt(goto_txt, "STATUS")==1 then
+        integer line = IupGetInt(goto_txt, "VALUE");
+?line
+--DEV:
+--      integer pos = IupTextConvertLinColToPos(multitext, line, 0);
+--      IupSetInt(multitext, "CARETPOS", pos);
+--      IupSetInt(multitext, "SCROLLTOPOS", pos);
+    end if
+
+--  IupDestroy(goto_dlg);
+--  IupHide(goto_dlg)   -- (not needed)
+
+    return IUP_DEFAULT;
+end function
+constant cb_goto = Icallback("goto_cb")
+
+function selectall_cb(atom /*self*/)
+--      IupAlarm( "Action", "Select All", "OK" )
+--  if self then end if
+--  if skip_next_event() then
+--      return IUP_IGNORE
+--  end if
+--
+--  atom tabs = IupGetHandle("tabs")
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  atom count = IupGetInt(sci, "COUNT")
+--  sequence selection = sprintf("%d:%d", {0,count})
+--  IupSetAttribute(sci, "SELECTIONPOS", selection)
+--
+--Ihandle multitext = IupGetDialogChild(item_select_all, "MULTITEXT");
+--  IupSetFocus(multitext);
+--  IupSetAttribute(multitext, "SELECTION", "ALL");
+--
+    return IUP_IGNORE
+end function
+constant cb_selectall = Icallback("selectall_cb")
+
+
+--DEV
+constant cb_rec6 = cb_goto
+constant cb_play6 = cb_goto
+constant cb_mngmt = cb_goto
+
+function file_menu_open_cb(Ihandle /*ih*/)
+--string filename = filenames[currfile]
+--integer dirty = (actionsave[currfile]!=actionptr[currfile])
+--
+--  if dirty then
+--      IupSetAttribute(item_save, "ACTIVE", "YES");
+--  else
+--      IupSetAttribute(item_save, "ACTIVE", "NO");
+--  end if
+--  if dirty and length(filename)!=0 then
+--      IupSetAttribute(item_revert, "ACTIVE", "YES");
+--  else
+--      IupSetAttribute(item_revert, "ACTIVE", "NO");
+--  end if
+    return IUP_DEFAULT;
+end function
+
+function edit_menu_open_cb(Ihandle /*ih*/)
+--Ihandle clipboard = IupClipboard();
+--Ihandln find_dlg = IupGetInt(ih, "FIND_DIALOG");
+--
+--Ihandle item_paste = IupGetDialogChild(ih, "ITEM_PASTE");
+--Ihandle item_cut = IupGetDialogChild(ih, "ITEM_CUT");
+--Ihandle item_delete = IupGetDialogChild(ih, "ITEM_DELETE");
+--Ihandle item_copy = IupGetDialogChild(ih, "ITEM_COPY");
+--Ihandle item_find_next = IupGetDialogChild(ih, "ITEM_FINDNEXT");
+--Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
+--
+--  if not IupGetInt(clipboard, "TEXTAVAILABLE") then
+--      IupSetAttribute(item_paste, "ACTIVE", "NO");
+--  else
+--      IupSetAttribute(item_paste, "ACTIVE", "YES");
+--  end if
+--  string seltext = IupGetAttribute(multitext, "SELECTEDTEXT")
+--  if length(seltext)=0 then
+--      IupSetAttribute(item_cut, "ACTIVE", "NO");
+--      IupSetAttribute(item_delete, "ACTIVE", "NO");
+--      IupSetAttribute(item_copy, "ACTIVE", "NO");
+--  else
+--      IupSetAttribute(item_cut, "ACTIVE", "YES");
+--      IupSetAttribute(item_delete, "ACTIVE", "YES");
+--      IupSetAttribute(item_copy, "ACTIVE", "YES");
+--  end if
+--
+--  if find_dlg!=0 then
+--      Ihandle txt = IupGetDialogChild(find_dlg, "FIND_TEXT");
+--      string str_to_find = IupGetAttribute(txt, "VALUE");
+--
+--      if length(str_to_find)==0 then
+--          IupSetAttribute(item_find_next, "ACTIVE", "NO");
+--      else
+--          IupSetAttribute(item_find_next, "ACTIVE", "Yes");
+--      end if
+--  else
+--      IupSetAttribute(item_find_next, "ACTIVE", "NO");
+--  end if
+--
+--  IupDestroy(clipboard);
+    return IUP_DEFAULT;
+end function
+
+
+function get_image(string image)
+-- image should be IUP_xxx to use an image from the stock library (see IupImageLibOpen),
+--              or PNG_xxx to use an image from the icons subdirectory (icons/xxx.png).
+--DEV see http://www.iconarchive.com/search?q=go&page=11
+
+    if length(image)=0 then
+        return NULL
+    end if
+
+--  if image[1..4]="IUP_" then
+    if image[1]='I' then    -- (should be enough)
+        return image        -- stock image (see IupImageLibOpen)
+    end if
+
+    -- check if the icon is already loaded
+    if platform()=WINDOWS then
+        if IupGetHandle(image)!=NULL then   -- (already loaded)
+            return image
+        end if
+    end if
+
+    -- build the image path
+--join_path??
+    sequence path = join({"icons",image[5..$]&".png"}, SLASH)
+--  if not file_exists(path) then
+--      path = ".." & SLASH & path
+--  end if
+
+    if platform()=WINDOWS then
+
+        -- use IM library to load image
+        Ihandln handle = IupLoadImage(path)
+        if handle=NULL then return NULL end if
+
+        -- store the image handle
+        IupSetHandle(image, handle)
+        return image
+
+    else -- LINUX
+
+        -- natively supports PNG images
+        return path
+
+    end if
+
+end function
+
+function menu_item(string text, string image, atom action_cb, integer active=1)
+    Ihandle ih = IupMenuItem(text, action_cb)
+    IupSetStrAttribute(ih, "IMAGE", get_image(image))
+--DEV (temp)
+--  IupSetInt(ih, "ACTIVE", active)
+    IupSetInt(ih, "ACTIVE", active=active)
+    return ih
+end function
+
+function create_file_menu()
+--DEV shortcut keys from ini file
+Ihandle file_new    = menu_item("&New\t\tCtrl N",   "PNG_FileNew",    cb_new,    1)
+Ihandle file_open   = menu_item("&Open...\tCtrl O", "PNG_FileOpen",   cb_open,   1)
+Ihandle file_save   = menu_item("&Save\t\tCtrl S",  "PNG_FileSave",   cb_save,   0)
+Ihandle file_saveas = menu_item("Save &As..",       "PNG_FileSaveAs", cb_saveas, 0)
+Ihandle file_close  = menu_item("C&lose\t\tCtrl W", "PNG_FileClose",  cb_close,  0)
+Ihandle file_print  = menu_item("&Print\t\tCtrl P", "PNG_FilePrint",  cb_print,  0)
+--Ihandle file_print  = menu_item("&Print\t\tCtrl P", "IUP_Print",    cb_print,  0)
+Ihandle recent_menu = IupMenu({})
+Ihandle file_recent = IupSubmenu("Recent &Files", recent_menu)
+IupSetStrAttribute(file_recent, "IMAGE", get_image("PNG_FileRecent"))
+Ihandle file_exit   = menu_item("E&xit\t\tAlt F4",  "PNG_FileExit",   cb_exit,   1)
+--DEV paranormalise?
+Ihandle file_menu = IupMenu({file_new,
+                             file_open,
+--reopen
+                             file_save,
+                             file_saveas,
+                             file_close,
+--filelist(nee tabslist)
+--recent
+                             IupSeparator(),
+                             file_print,
+                             IupSeparator(),
+                             file_recent,
+                             file_exit})
+--DEV?
+--  IupSetHandle("file_menu", file_menu)
+    IupSetCallback(file_menu, "OPEN_CB", Icallback("file_menu_open_cb"));
+    return file_menu
+end function
+
+function create_edit_menu()
+--DEV shortcut keys from ini file
+Ihandle edit_undo   = menu_item("Undo\tCtrl Z",             "PNG_EditUndo",     cb_undo,      0)
+Ihandle edit_redo   = menu_item("Redo\tCtrl Y",             "PNG_EditRedo",     cb_redo,      0)
+Ihandle edit_cut    = menu_item("Cu&t\tCtrl X",             "PNG_EditCut",      cb_cut,       0)
+Ihandle edit_cuta   = menu_item("Cut Append\tCtrl Shift X", "PNG_EditCuta",     cb_cuta,      0)
+Ihandle edit_cutp   = menu_item("Cut Prepend\tAlt Shift X", "PNG_EditCutp",     cb_cutp,      0)
+Ihandle edit_copy   = menu_item("&Copy\tCtrl C",            "PNG_EditCopy",     cb_copy,      0)
+Ihandle edit_copya  = menu_item("Copy Append\tCtrl Shift C","PNG_EditCopya",    cb_copya,     0)
+Ihandle edit_copyp  = menu_item("Copy Prepend\tAlt Shift C","PNG_EditCopyp",    cb_copyp,     0)
+Ihandle edit_paste  = menu_item("&Paste\tCtrl V",           "PNG_EditPaste",    cb_paste,     0)
+Ihandle edit_delete = menu_item("&Delete\tDelete",          "PNG_EditErase",    cb_delete,    0)
+Ihandle edit_find   = menu_item("&Find...\tCtrl F",         "PNG_EditFind",     cb_find,      0)
+Ihandle find_next   = menu_item("Find Next\tF3",            "PNG_FindNext",     cb_findnext,  0)
+Ihandle find_prev   = menu_item("Find Prev\tShift F3",      "PNG_FindPrev",     cb_findprev,  0)
+Ihandle edit_goto   = menu_item("&Goto...\tCtrl G",         "PNG_EditGoto",     cb_goto,      0)
+Ihandle edit_selall = menu_item("Select &All\tCtrl A",      "PNG_EditSelectAll",cb_selectall, 0)
+
+--  item_goto = IupMenuItem("&Go To...\tCtrl G");
+--  IupSetCallback(item_goto, "ACTION", Icallback("item_goto_action_cb"));
+
+
+--  Ihandle tool_undo    = toolbar_item(cb_undo,    "PNG_EditUndo",   "Undo (Ctrl Z)",     0)
+--  Ihandle tool_redo    = toolbar_item(cb_redo,    "PNG_EditRedo",   "Redo (Ctrl Y)",     0)
+--  Ihandle tool_zoomin  = toolbar_item(cb_zoomin,  "PNG_ZoomIn",     "Zoom In (Ctrl +)",  0)
+--  Ihandle tool_zoomout = toolbar_item(cb_zoomout, "PNG_ZoomOut",    "Zoom Out (Ctrl -)", 0)
+
+--DEV paranormalise?
+Ihandle edit_menu = IupMenu({edit_undo,
+                             edit_redo,
+                             IupSeparator(),
+                             edit_cut,
+                             edit_cuta,
+                             edit_cutp,
+                             edit_copy,
+                             edit_copya,
+                             edit_copyp,
+                             edit_paste,
+                             edit_delete,
+                             IupSeparator(),
+                             edit_find,
+                             find_next,
+                             find_prev,
+--                           edit_replace,
+                             edit_goto,
+                             IupSeparator(),
+--                           edit_select_all})
+                             edit_selall})
+    IupSetCallback(edit_menu, "OPEN_CB", Icallback("edit_menu_open_cb"));
+    return edit_menu
+end function
+
+function create_tool_menu()
+--DEV shortcut keys from ini file
+Ihandle tool_run   = menu_item("Run\tF5",                       "PNG_ToolRun",          cb_run,    0)
+Ihandle tool_prun  = menu_item("Parameterised Run\tCtrl F5",    "PNG_ToolParamRun",     cb_run,    0)
+Ihandle tool_comp  = menu_item("&Compare",                      "PNG_Compare",          cb_fif,    0)
+Ihandle tool_dcmp  = menu_item("&Directory Compare",            "PNG_DirComp",          cb_fif,    0)
+Ihandle tool_fif   = menu_item("&Find In Files\tCtrl Shift F",  "PNG_FindInFiles",      cb_fif,    0)
+Ihandle tool_html  = menu_item("&Htmlise eucode",               "PNG_ToolsHtmlise",     cb_fif,    0)
+Ihandle tool_rein  = menu_item("Re-&Indent source",             "PNG_Reindent",         cb_fif,    0)
+Ihandle tool_cca   = menu_item("Co&mmon Code Analysis",         "PNG_CommonCode",       cb_fif,    0)
+Ihandle tool_qjmp  = menu_item("&Quick Jump",                   "PNG_QuickJump",        cb_fif,    0)
+Ihandle tool_recvr = menu_item("&Recovery",                     "PNG_Recovery",         cb_fif,    0)
+Ihandle tool_paint = menu_item("&Window Painter",               "PNG_WindowPaint",      cb_fif,    0)
+Ihandle tool_dbvwr = menu_item("Database &Viewer",              "PNG_DatabaseViewer",   cb_fif,    0)
+Ihandle tool_dbvfy = menu_item("Verif&y Database",              "PNG_DatabaseVerify",   cb_fif,    0)
+--DEV should this be on Options?
+Ihandle tool_showf = menu_item("Show Formatting\tCtrl Shift H", "PNG_pilcrow",          cb_fif,    0)
+Ihandle tool_crash = menu_item("Crash",                         "PNG_Crash",            cb_fif,    0)
+
+--DEV paranormalise?
+Ihandle tool_menu = IupMenu({tool_run,
+                             tool_prun,
+                             tool_comp,
+                             tool_dcmp,
+                             tool_fif,
+                             tool_html,
+                             tool_rein,
+                             tool_cca,
+                             tool_qjmp,
+                             tool_recvr,
+                             tool_paint,
+                             tool_dbvwr,
+                             tool_dbvfy,
+                             tool_showf,
+                             IupSeparator(),
+                             tool_crash})
+--  IupSetCallback(tool_menu, "OPEN_CB", Icallback("tool_menu_open_cb"));
+    return tool_menu
+end function
+
+function create_macro_menu()
+--DEV shortcut keys from ini file[??]
+Ihandle macro_rec6  = menu_item("Record F6\tCtrl F6",           "PNG_MacroRecord",  cb_rec6,  0)
+Ihandle macro_rec7  = menu_item("Record F7\tCtrl F7",           "PNG_MacroRecord",  cb_rec6,  0)
+Ihandle macro_rec8  = menu_item("Record F8\tCtrl F8",           "PNG_MacroRecord",  cb_rec6,  0)
+Ihandle macro_rec9  = menu_item("Record F9\tCtrl F9",           "PNG_MacroRecord",  cb_rec6,  0)
+Ihandle macro_play6 = menu_item("Play F6\tF6",                  "PNG_MacroPlay",    cb_play6, 0)
+Ihandle macro_play7 = menu_item("Play F7\tF7",                  "PNG_MacroPlay",    cb_play6, 0)
+Ihandle macro_play8 = menu_item("Play F8\tF8",                  "PNG_MacroPlay",    cb_play6, 0)
+Ihandle macro_play9 = menu_item("Play F9\tF9",                  "PNG_MacroPlay",    cb_play6, 0)
+Ihandle macro_mngmt = menu_item("Macro Management\tShift F8",   "PNG_MacroClap",    cb_mngmt, 0)
+
+--DEV paranormalise?
+Ihandle macro_menu = IupMenu({macro_rec6,
+                              macro_rec7,
+                              macro_rec8,
+                              macro_rec9,
+                              macro_play6,
+                              macro_play7,
+                              macro_play8,
+                              macro_play9,
+                              macro_mngmt})
+--DEV iff(recording?"Stop":"Record") and disable other records and empty playbacks:
+--  IupSetCallback(macro_menu, "OPEN_CB", Icallback("macro_menu_open_cb"));
+    return macro_menu
+end function
+
+function create_options_menu()
+--DEV shortcut keys from ini file
+--DEV should zoom in/out be here?
+--DEV move AutoComplete to Edit options!
+--Ihandle options_autocomplete  = menu_item("&Auto Complete",       "PNG_MacroRecord",  cb_rec6,  0)
+Ihandle options_colours     = menu_item("&Colours",             "PNG_Colours",      cb_rec6,  0)
+Ihandle options_fonts       = menu_item("&Fonts",               "PNG_Fonts",        cb_rec6,  0)
+--SUG put edit/diplay/keyboard/extensions on a tabbed dialog
+Ihandle options_display     = menu_item("&Display Options",     "PNG_DisplayOpt",   cb_rec6,  0)
+Ihandle options_edit        = menu_item("&Edit Options",        "PNG_EditOpt",      cb_play6, 0)
+Ihandle options_keyboard    = menu_item("&Keyboard Settings",   "PNG_KeyboardOpt",  cb_play6, 0)
+Ihandle options_file_extns  = menu_item("File E&xtensions",     "PNG_ExtOpt",       cb_play6, 0)
+--DEV move Wordwrap to Display options!
+--Ihandle options_wordwrap  = menu_item("&Wordwrap",            "PNG_MacroPlay",    cb_play6, 0)
+--SUG: Edit config file (use the FILENAME attribute, see IupConfigLoad)
+--Ihandle options_config    = menu_item("Edit Confi&g File",    "PNG_EditOpt",      cb_edit_config?, 0)
+
+--DEV paranormalise?
+Ihandle options_menu = IupMenu({options_colours,
+                                options_fonts,
+                                options_display,
+                                options_edit,
+                                options_keyboard,
+                                options_file_extns})
+--  IupSetCallback(options_menu, "OPEN_CB", Icallback("options_menu_open_cb")); [probably not rqd]
+    return options_menu
+end function
+
+function create_help_menu()
+--DEV shortcut keys from ini file
+-- ?keyboard help Ctrl F1 (or more likely just rely on options/keyboard)
+Ihandle help_context    = menu_item("&Context Help\tF1",    "PNG_Help",         cb_rec6,  0)
+Ihandle help_phix       = menu_item("Phix.chm",             "PNG_HelpPhixCHM",  cb_rec6,  0)
+Ihandle help_msdn       = menu_item("mini.chm",             "PNG_HelpCHM",      cb_rec6,  0)
+Ihandle help_home       = menu_item("Phix Home Page",       "PNG_helpHome",     cb_rec6,  0)
+Ihandle help_manual     = menu_item("manual",               "PNG_HelpPhixCHM",  cb_rec6,  0)
+Ihandle help_licence    = menu_item("licence",              "PNG_HelpPhixCHM",  cb_rec6,  0)
+Ihandle help_forum      = menu_item("OpenEuphoria Forum",   "PNG_UserGroup",    cb_rec6,  0)
+Ihandle help_upgrades   = menu_item("Check for &Upgrades",  "PNG_AppUpgrade",   cb_rec6,  0)
+Ihandle help_about      = menu_item("&About",               "PNG_HelpAbout",    cb_rec6,  0)
+
+--DEV paranormalise?
+Ihandle help_menu = IupMenu({help_context,
+                             IupSeparator(),
+                             help_phix,
+                             help_msdn,
+                             IupSeparator(),
+                             help_home,
+                             help_manual,
+                             help_licence,
+                             help_forum,
+                             help_upgrades,
+                             help_about})
+--  IupSetCallback(help_menu, "OPEN_CB", Icallback("options_menu_open_cb")); [probably not rqd]
+    return help_menu
+end function
+
+
+function create_menu()
+    Ihandle menu = IupMenu({IupSubmenu("&File",    create_file_menu()),
+                            IupSubmenu("&Edit",    create_edit_menu()),
+                            IupSubmenu("&Tools",   create_tool_menu()),
+                            IupSubmenu("&Macro",   create_macro_menu()),
+                            IupSubmenu("&Options", create_options_menu()),
+                            IupSubmenu("&Help",    create_help_menu()),
+--                          sub_menu_format,
+--                          sub_menu_view,
+--                          sub_menu_help});
+})
+    return menu
+end function
+
+function add_tab(sequence title = "Untitled")--, sequence text = "")
+
+--Ihandle fill = 
+--  IupSetAttribute(fill, "EXPAND", "HORIZONTAL")
+    
+atom tab = IupHbox({IupFill()})----IupScintilla()
+
+    IupSetAttributes(tab, "TABSIZE=4, EXPAND=YES, VISIBLE=YES")
+    IupSetAttribute(tab, "TABTITLE", title)
+    IupSetStrAttribute(tab, "TABIMAGE", get_image("PNG_FileNew"))
+
+--  atom tabs = IupGetHandle("tabs")
+    IupAppend(tabs, tab)
+    IupMap(tab)
+--VALUE_HANDLE??
+    IupSetAttributeHandle(tabs, "VALUE", tab)
+--  IupSetFocus(tab)
+    IupRefresh(tabs)
+
+--  IupSetAttribute(tab, "INSERT0", text)
+--  IupSetAttribute(tab, "UNDO", NULL)
+--  IupSetAttribute(tab, "SAVEDSTATE", NULL)
+--  IupSetCallback(tab, "MARGINCLICK_CB", Icallback("marginclick_cb"))
+--  IupSetCallback(tab, "SAVEPOINT_CB", Icallback("savepoint_cb"))
+
+--  IupSetCallback(tab, "K_cS", Icallback("save_cb"))
+
+    return tab
+end function
+
+function toolbar_item(atom action, string image, string tip, integer active=1)
+Ihandle item = IupButton(NULL, action, "CANFOCUS=NO, FLAT=YES")
+    IupSetStrAttribute(item, "IMAGE", get_image(image))
+    IupSetAttribute(item, "TIP", tip)
+--DEV
+--  IupSetInt(item, "ACTIVE", active)
+    IupSetInt(item, "ACTIVE", active=active)
+--  IupSetCallback(item, "ACTION", action_cb)
+--DEV??
+--  if length(name) and name[1]!='*' then
+--      IupSetHandle(name, item)
+--  end if
+    return item
+end function
+
+--DEV (temp)
+constant actset = {"create",
+                   "edit",
+                   "reload",
+                   "merge",
+                   "create",
+                   "edit",
+                   "merge",
+                   "apply"}
+
+
+function create_toolbar()
+--DEV shortcut keys and content from ini file
+    Ihandle tool_new     = toolbar_item(cb_new,     "PNG_FileNew",    "New (Ctrl N)",      1)
+    Ihandle tool_open    = toolbar_item(cb_open,    "PNG_FileOpen",   "Open (Ctrl O)",     1)
+    Ihandle tool_save    = toolbar_item(cb_save,    "PNG_FileSave",   "Save (Ctrl S)",     0)
+    Ihandle tool_saveas  = toolbar_item(cb_saveas,  "PNG_FileSaveAs", "Save As",           0)
+    Ihandle tool_close   = toolbar_item(cb_close,   "PNG_FileClose",  "Close (Ctrl W)",    0)
+    Ihandle tool_cut     = toolbar_item(cb_cut,     "PNG_EditCut",    "Cut (Ctrl X)",      0)
+    Ihandle tool_copy    = toolbar_item(cb_copy,    "PNG_EditCopy",   "Copy (Ctrl C)",     0)
+    Ihandle tool_paste   = toolbar_item(cb_paste,   "PNG_EditPaste",  "Paste (Ctrl V)",    0)
+    Ihandle tool_undo    = toolbar_item(cb_undo,    "PNG_EditUndo",   "Undo (Ctrl Z)",     0)
+    Ihandle tool_redo    = toolbar_item(cb_redo,    "PNG_EditRedo",   "Redo (Ctrl Y)",     0)
+    Ihandle tool_find    = toolbar_item(cb_find,    "PNG_EditFind",   "Find (Ctrl F)",     0)
+    Ihandle tool_zoomin  = toolbar_item(cb_zoomin,  "PNG_ZoomIn",     "Zoom In (Ctrl +)",  0)
+    Ihandle tool_zoomout = toolbar_item(cb_zoomout, "PNG_ZoomOut",    "Zoom Out (Ctrl -)", 0)
+    Ihandle tool_run     = toolbar_item(cb_run,     "PNG_ToolRun",    "Run (F5)",          0)
+--  Ihandle tool_run     = toolbar_item(cb_run,     "IUP_ActionOk",   "Run (F5)",          0)
+
+--DEV in windows the control will still get the focus when clicked [the DEV part being that we need some extra code to re-focus]
+    Ihandle tool_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
+--DEV this will be more dynamically set:
+if 1 then
+    IupSetInt(tool_rtns, "ACTIVE", 0)
+else
+    IupSetInt(tool_rtns,"VISIBLEITEMS",length(actset)+1)    -- [no idea why it needs the +1]
+    for i=1 to length(actset) do
+        IupSetAttributeId(tool_rtns, "", i, actset[i])
+    end for
+    IupSetInt(tool_rtns,"VALUE",length(actset))
+end if
+
+    Ihandle toolbar = IupHbox({ tool_new,
+                                tool_open,
+                                tool_save,
+                                tool_saveas,
+                                tool_close,
+                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
+-- print/page setup
+                                tool_cut,
+                                tool_copy,
+                                tool_paste,
+                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                                tool_undo,
+                                tool_redo,
+                                tool_find,
+                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                                tool_zoomin,
+                                tool_zoomout,
+                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                                tool_run,
+                                tool_rtns})
+--/*
+atom toolbar = IupHbox({
+                        IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                        toolbar_item("tool_run",  "Run (F5)",  "PNG_ActionRun",  Icallback("run_cb"),  0),
+                        toolbar_item("tool_bind", "Bind (F7)", "PNG_ActionBind", Icallback("bind_cb"), 0),
+                        IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                        toolbar_item("tool_about", "About (F12)", "PNG_MessageInfo", Icallback("about_cb"))
+                       })
+    IupSetHandle("toolbar", toolbar)
+
+--*/
+    IupSetAttributes(toolbar, "GAP=2, MARGIN=2x2")
+--  IupSetAttribute(toolbar, "MARGIN", "5x5");
+--  IupSetAttribute(toolbar, "GAP", "2");
+    return toolbar
+end function
+
+procedure main()
+
+    IupOpen(iff(platform()=WINDOWS?"..\\pGUI\\":"../pGUI/"))
+
+    IupImageLibOpen()
+--/*
+    item_revert = IupMenuItem("&Revert");
+    IupSetAttribute(item_revert, "NAME", "ITEM_REVERT");
+    IupSetCallback(item_revert, "ACTION", Icallback("item_revert_action_cb"));
+
+    item_exit = IupMenuItem("E&xit");
+    IupSetCallback(item_exit, "ACTION", cb_exit);
+
+    btn_find = IupButton()
+    IupSetAttribute(btn_find, "IMAGE", "PNG_EditFind");
+    IupSetAttribute(btn_find, "FLAT", "Yes");
+    IupSetCallback(btn_find, "ACTION", Icallback("item_find_action_cb"));
+    IupSetAttribute(btn_find, "TIP", "Find (Ctrl F)");
+    IupSetAttribute(btn_find, "CANFOCUS", "No");
+
+    item_find_next = IupMenuItem("Find &Next\tF3");
+    IupSetAttribute(item_find_next, "NAME", "ITEM_FINDNEXT");
+    IupSetCallback(item_find_next, "ACTION", Icallback("find_next_action_cb"));
+
+    item_replace = IupMenuItem("&Replace...\tCtrl H");
+    IupSetCallback(item_replace, "ACTION", Icallback("item_replace_action_cb"));
+
+    item_toolbar = IupMenuItem("&Toobar");
+    IupSetCallback(item_toolbar, "ACTION", Icallback("item_toolbar_action_cb"));
+    IupSetAttribute(item_toolbar, "VALUE", "ON");
+
+    item_statusbar = IupMenuItem("&Statusbar");
+    IupSetCallback(item_statusbar, "ACTION", Icallback("item_statusbar_action_cb"));
+    IupSetAttribute(item_statusbar, "VALUE", "ON");
+
+    item_font = IupMenuItem("&Font...");
+    IupSetCallback(item_font, "ACTION", Icallback("item_font_action_cb"));
+
+    item_help = IupMenuItem("&Help...");
+    IupSetCallback(item_help, "ACTION", Icallback("item_help_action_cb"));
+
+    item_about = IupMenuItem("&About...");
+    IupSetCallback(item_about, "ACTION", Icallback("item_about_action_cb"));
+
+    recent_menu = IupMenu({});
+
+    file_menu = IupMenu({item_new,
+                         item_open,
+                         item_save,
+                         item_saveas,
+                         item_revert,
+                         IupSeparator(),
+                         IupSubmenu("Recent &Files", recent_menu),
+                         item_exit});
+    edit_menu = IupMenu({item_cut,
+                         item_copy,
+                         item_paste,
+                         item_delete,
+                         IupSeparator(),
+                         item_find,
+                         item_find_next,
+                         item_replace,
+                         item_goto,
+                         IupSeparator(),
+                         item_select_all});
+    format_menu = IupMenu({item_font});
+    view_menu = IupMenu({item_toolbar,
+                         item_statusbar});
+    help_menu = IupMenu({item_help,
+                         item_about});
+
+    IupSetCallback(file_menu, "OPEN_CB", Icallback("file_menu_open_cb"));
+    IupSetCallback(edit_menu, "OPEN_CB", Icallback("edit_menu_open_cb"));
+
+    sub_menu_file = IupSubmenu("&File", file_menu);
+    sub_menu_edit = IupSubmenu("&Edit", edit_menu);
+    sub_menu_format = IupSubmenu("F&ormat", format_menu);
+    sub_menu_view = IupSubmenu("&View", view_menu);
+    sub_menu_help = IupSubmenu("&Help", help_menu);
+
+    menu = IupMenu({sub_menu_file,
+                    sub_menu_edit,
+                    sub_menu_format,
+                    sub_menu_view,
+                    sub_menu_help});
+
+    toolbar_hb = IupHbox({btn_new,
+                          btn_open,
+                          btn_save,
+                          IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                          btn_cut,
+                          btn_copy,
+                          btn_paste,
+                          IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                          btn_find});
+
+    IupSetAttribute(toolbar_hb, "MARGIN", "5x5");
+    IupSetAttribute(toolbar_hb, "GAP", "2");
+
+    vbox = IupVbox({toolbar_hb,
+                    multitext,
+                    lbl_statusbar});
+
+    dlg = IupDialog(vbox);
+
+--*/
+
+--  Ihandle item_exit = menu_item("item_exit","E&xit", "PNG_FileExit", cb_exit, 1)
+
+--  Ihandle file_menu = IupMenu({item_new,
+--                               item_open,
+--                               item_save,
+--                               item_saveas,
+----                                 item_revert,
+----                                 IupSeparator(),
+----                                 IupSubmenu("Recent &Files", recent_menu),
+--                               item_exit});
+
+    Ihandle toolbar = create_toolbar()
+--  Ihandle toolbar = IupHbox({btn_new,
+--                                btn_open,
+--                                btn_save,
+----                                  IupLabel(NULL, "SEPARATOR=VERTICAL"),
+----                                  btn_cut,
+----                                  btn_copy,
+----                                  btn_paste,
+----                                  IupLabel(NULL, "SEPARATOR=VERTICAL"),
+----                                  btn_find});
+--})
+
+
+    tabs = IupTabs({})
+    IupSetAttribute(tabs, "SHOWCLOSE", "YES")
+    IupSetAttribute(tabs, "MAXSIZE", "x25")
+--  IupSetCallback(tabs, "RIGHTCLICK_CB", Icallback("rightclick_cb"))
+--  IupSetCallback(tabs, "TABCHANGE_CB",  Icallback("tabchange_cb"))
+--  IupSetCallback(tabs, "TABCLOSE_CB",   Icallback("tabclose_cb"))
+--  IupSetHandle("tabs", tabs)
+
+    canvas = IupCanvas(Icallback("redraw_cb"), "RASTERSIZE=200x20, SCROLLBAR=YES")
+--  canvas = IupCanvas(Icallback("redraw_cb"), "RASTERSIZE=200x20, SCROLLBAR=HORIZONTAL")
+--  canvas = IupCanvas(Icallback("redraw_cb"), "RASTERSIZE=200x20, SCROLLBAR=VERTICAL")
+--  canvas = IupCanvas("RASTERSIZE=300x200")
+    IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
+--  IupSetCallback(canvas, "ACTION",    Icallback("redraw_cb"))
+
+--  Ihandle scrollbox = IupScrollBox(canvas)
+
+    Ihandle statusbar = IupLabel("Lin 1, Col 1","NAME=STATUSBAR, EXPAND=HORIZONTAL, PADDING=10x5")
+
+    Ihandle vbox = IupVbox({toolbar,
+                            tabs,
+                            canvas,
+--                          scrollbox,
+                            statusbar});
+
+    dlg = IupDialog(vbox, "TITLE=Edix, SHRINK=YES")
+--  IupSetAttribute(dlg, "MINSIZE", "144x87")   -- 96x46
+--  IupSetAttribute(dlg, "MINSIZE", "216x163")  -- 144x87
+    IupSetAttribute(dlg, "MINSIZE", "462x163")
+    IupSetAttributeHandle(dlg, "MENU", create_menu());
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"))
+    IupSetStrAttribute(dlg, "ICON", "icons/95.ico")
+    -- (above might not be supported by GDK-PixBuf ... in which case:)
+--  IupSetStrAttribute(dlg, "ICON", iff(platform()=WINDOWS?"icons\\95.ico":"icons/95.png"))
+    -- (for some reason, despite the fact they are both 32x32bit identical/lossless images,
+    --  windows does a far better job resizing the .ico to 16x16 than it does with .png)
+
+--DEV previous location/size (IupConfig)
+    IupSetAttribute(dlg, "SIZE", "211x183")
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+
+    {} = add_tab()
+    IupSetFocus(canvas)
+
+    IupMainLoop()
+
+    IupClose()
+end procedure
+
+main()
+

@@ -16,7 +16,8 @@ global constant newBase = 2 -- 0 = old style, with base @ ref*4-20 on seq/str
 
 global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 
-global constant phixversion = {0,6,8}   -- 0.6.8
+--global constant phixversion = {0,6,8} -- 0.6.8
+global constant phixversion = {0,6,9}   -- 0.6.9    -- 25/4/16
 
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...

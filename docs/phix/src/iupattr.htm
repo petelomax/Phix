@@ -292,7 +292,7 @@
             The HORIZONTALFREE and VERTICALFREE values will not behave as normal expansion. <br>
             These values will NOT affect the expansion of the container when set at its children, <br>
             the children will simply expand to the available free space at the container.<br>
-            See the Layout Guide for more details on sizes.<br>
+            See the <a href="iuplayout.htm">Layout Guide</a> for more details on sizes.<br>
             Value: "YES" (both directions), <wbr>"HORIZONTAL", <wbr>"VERTICAL", <wbr>"HORIZONTALFREE", <wbr>"VERTICALFREE" or "NO".<br>
             Default: "NO". For containers the default is "YES".<br>
             Affects: All elements, except menus.
@@ -366,7 +366,7 @@
             On GTK the native handle can be obtained using the "PANGOFONTDESC" attribute.
             <br>
             <br>
-            <h2>Auxiliary Attributes</h2>
+            <h3>Auxiliary Attributes</h3>
             These will change the FONT attribute, and depend on it. <br>
             They are used only to set partial FONT parameters of style and size. <br>
             To do that the FONT attribute is parsed, changed and updated to the new value in the common format definition. <br>
@@ -411,12 +411,222 @@
         </tr>
         <tr>
          <td valign=top>
+          <a name=SCROLLBAR></a>
+          SCROLLBAR
+         </td>
+         <td>
+            (creation only) Associates a horizontal and/or vertical scrollbar to the element.
+            <br>
+            <br>
+            Value: "VERTICAL", "HORIZONTAL", "YES" (both) or "NO" (none). Default: "NO"
+            <br>
+            <br>
+            <h3>Configuration Attributes</h3> (non inheritable)
+            <table>
+             <tr><td>DX</td><td>Size of the thumb in the horizontal scrollbar. Also the horizontal page size. Default: "0.1".</td></tr>
+             <tr><td>DY</td><td>Size of the thumb in the vertical scrollbar. Also the vertical page size. Default: "0.1".</td></tr>
+             <tr><td>POSX</td><td>Position of the thumb in the horizontal scrollbar. Default: "0.0".</td></tr>
+             <tr><td>POSY</td><td>Position of the thumb in the vertical scrollbar. Default: "0.0".</td></tr>
+             <tr><td>XMIN</td><td>Minimum value of the horizontal scrollbar. Default: "0.0".</td></tr>
+             <tr><td>XMAX</td><td>Maximum value of the horizontal scrollbar. Default: "1.0".</td></tr>
+             <tr><td>YMIN</td><td>Minimum value of the vertical scrollbar. Default: "0.0".</td></tr>
+             <tr><td>YMAX</td><td>Maximum value of the vertical scrollbar. Default: "1.0".</td></tr>
+             <tr><td>LINEX</td><td>The amount the thumb moves when an horizontal step is performed. Default: 1/10th of DX. (since 3.0)</td></tr>
+             <tr><td>LINEY</td><td>The amount the thumb moves when a vertical step is performed. Default: 1/10th of DY. (since 3.0)</td></tr>
+             <tr><td>XAUTOHIDE</td><td>When enabled, if DX >= XMAX-XMIN then the horizontal scrollbar is hidden. Default: "YES". (since 3.0)</td></tr>
+             <tr><td>YAUTOHIDE</td><td>When enabled, if DY >= YMAX-YMIN then the vertical scrollbar is hidden. Default: "YES". (since 3.0)</td></tr>
+             <tr><td>XHIDDEN</td><td>returns if the scrollbar is hidden or not when XAUTOHIDE=Yes. (since 3.13)</td></tr>
+             <tr><td>YHIDDEN</td><td>returns if the scrollbar is hidden or not when YAUTOHIDE=Yes. (since 3.13)</td></tr>
+            </table>
+            <br>
+            &nbsp;
+            <br>
+            The scrollbar allows you to create a virtual space associated to the element. <br>
+            In the image below, such space is marked in red, as well as the attributes that affect the composition of this space. <br>
+            In green you can see how these attributes are reflected on the scrollbar.
+            <br>
+            <br>
+            <img src="Images/scrollbar.gif"/>
+            <br>
+            <br>
+            Hence you can clearly deduce that POSX is limited to XMIN and XMAX-DX, or  XMIN&lt;=POSX&lt;=XMAX-DX. 
+            <br>
+            <br>
+            Usually applications configure XMIN and XMAX to a region in World coordinates, and set DX to the canvas visible area in World coordinates. <br>
+            Since the canvas can have scrollbars and borders, its visible area in pixel coordinates can be easily obtained using the DRAWSIZE attribute.
+            <br>
+            <br>
+            IMPORTANT: the LINEX, XMAX and XMIN attributes are only updated in the scrollbar when the DX attribute is updated.
+            <br>
+            <br>
+            IMPORTANT: when working with a virtual space with integer coordinates, set XMAX to the integer size of the virtual space, NOT to "width-1", <br>
+            or the last pixel of the virtual space will never be visible. <br>
+            If you decide to let XMAX with the default value of 1.0 and to control only DX, then use the formula DX=visible_width/width.
+            <br>
+            <br>
+            IMPORTANT: When the virtual space has the same size as the canvas, i.e. when DX &gt;= XMAX-XMIN, the scrollbar is automatically hidden if XAUTOHIDE=Yes. <br>
+            The width of the vertical scrollbar (the same as the height of the horizontal scrollbar) can be obtained using the SCROLLBARSIZE global attribute (since 3.9).
+            <br>
+            <br>
+            The same is valid for YMIN, YMAX, DY and POSY. But remember that the Y axis is oriented from top to bottom in IUP. <br>
+            So if you want to consider YMIN and YMAX as bottom-up oriented, then the actual YPOS must be obtained using YMAX-DY-POSY.
+            <br>
+            <br>
+            IMPORTANT: Changes in the scrollbar parameters do NOT generate ACTION nor SCROLL_CB callback events. <br>
+            If you need to update the canvas contents call your own action callback or call IupUpdate. <br>
+            But a change in the DX attribute may generate a RESIZE_CB callback event if XAUTOHIDE=Yes.
+            <br>
+            <br>
+            If you have to change the properties of the scrollbar (XMIN, XMAX and DX) but you want to keep the thumb still (if possible) in the same relative position, <br>
+            then you have to also recalculate its position (POSX) using the old position as reference to the new one. <br>
+            For example, you can convert it to a 0-1 interval and then scale to the new limits:
+            <br>
+            <br>
+            old_posx_relative = (old_posx - old_xmin)/(old_xmax - old_xmin) <br>
+            posx = (xmax - xmin)*old_posx_relative + xmin
+            <br>
+            <br>
+            IupList, IupTree, and IupText/IupMultiline scrollbars are automatically managed and do NOT have the POS*, *MIN, *MAX and D* attributes.
+            <br>
+            <br>
+            When updating the virtual space size, or when the canvas is resized, if XAUTOHIDE=Yes then calculating the actual DX size can be very tricky. <br>
+            Here is a helpful algorithm:
+
+<!--eucode>
+procedure scrollbar_update(Ihandle ih, integer view_width, integer view_height)
+-- view_width and view_height are the virtual space size
+-- here we assume XMIN=0, XMAX=1, YMIN=0, YMAX=1
+integer {elem_width, elem_height} = IupGetIntInt(ih, "RASTERSIZE")
+integer canvas_width, canvas_height
+integer scrollbar_size = IupGetInt(NULL, "SCROLLBARSIZE")
+integer border = IupGetInt(ih, "BORDER")
+
+    -- if view is greater than canvas in one direction,
+    -- then it has scrollbars,
+    -- but this affects the opposite direction
+    elem_width -= 2 * border;  -- remove BORDER (always size=1)
+    elem_height -= 2 * border;
+    canvas_width = elem_width;
+    canvas_height = elem_height;
+    if view_width>elem_width then -- check for horizontal scrollbar
+        canvas_height -= scrollbar_size  -- affect vertical size
+    end if
+    if view_height>elem_height then
+        canvas_width -= scrollbar_size
+    end if
+    if view_width<=elem_width and view_width>canvas_width then  -- check if still has horizontal scrollbar
+        canvas_height -= scrollbar_size
+    end if
+    if view_height<=elem_height and view_height>canvas_height then
+        canvas_width -= scrollbar_size
+    end if
+    if canvas_width<0 then canvas_width = 0 end if
+    if canvas_height<0 then canvas_height = 0 end if
+
+    IupSetFloat(ih, "DX", canvas_width/view_width)
+    IupSetFloat(ih, "DY", canvas_height/view_height)
+end procedure
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> scrollbar_update</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> view_width</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> view_height</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- view_width and view_height are the virtual space size
+-- here we assume XMIN=0, XMAX=1, YMIN=0, YMAX=1
+</i></font><font color="#004080">integer</font><font color="#0000FF"> {</font><font color="#000000">elem_width</font><font color="#0000FF">,</font><font color="#000000"> elem_height</font><font color="#0000FF">} =</font><font color="#5E005E"> IupGetIntInt</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "RASTERSIZE"</font><font color="#0000FF">)
+</font><font color="#004080">integer</font><font color="#000000"> canvas_width</font><font color="#0000FF">,</font><font color="#000000"> canvas_height
+</font><font color="#004080">integer</font><font color="#000000"> scrollbar_size</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetInt</font><font color="#0000FF">(</font><font color="#004600">NULL</font><font color="#0000FF">,</font><font color="#008000"> "SCROLLBARSIZE"</font><font color="#0000FF">)
+</font><font color="#004080">integer</font><font color="#000000"> border</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetInt</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "BORDER"</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>    -- if view is greater than canvas in one direction,
+    -- then it has scrollbars,
+    -- but this affects the opposite direction
+</i></font><font color="#000000">    elem_width</font><font color="#0000FF"> -=</font><font color="#000000"> 2</font><font color="#0000FF"> *</font><font color="#000000"> border</font><font color="#0000FF">; </font><font color="#000080"><i> -- remove BORDER (always size=1)
+</i></font><font color="#000000">    elem_height</font><font color="#0000FF"> -=</font><font color="#000000"> 2</font><font color="#0000FF"> *</font><font color="#000000"> border</font><font color="#0000FF">;
+</font><font color="#000000">    canvas_width</font><font color="#0000FF"> =</font><font color="#000000"> elem_width</font><font color="#0000FF">;
+</font><font color="#000000">    canvas_height</font><font color="#0000FF"> =</font><font color="#000000"> elem_height</font><font color="#0000FF">;
+</font><font color="#008080">    if</font><font color="#000000"> view_width</font><font color="#0000FF">&gt;</font><font color="#000000">elem_width</font><font color="#008080"> then</font><font color="#000080"><i> -- check for horizontal scrollbar
+</i></font><font color="#000000">        canvas_height</font><font color="#0000FF"> -=</font><font color="#000000"> scrollbar_size </font><font color="#000080"><i> -- affect vertical size
+</i></font><font color="#008080">    end if
+    if</font><font color="#000000"> view_height</font><font color="#0000FF">&gt;</font><font color="#000000">elem_height</font><font color="#008080"> then
+</font><font color="#000000">        canvas_width</font><font color="#0000FF"> -=</font><font color="#000000"> scrollbar_size
+</font><font color="#008080">    end if
+    if</font><font color="#000000"> view_width</font><font color="#0000FF">&lt;=</font><font color="#000000">elem_width</font><font color="#008080"> and</font><font color="#000000"> view_width</font><font color="#0000FF">&gt;</font><font color="#000000">canvas_width</font><font color="#008080"> then </font><font color="#000080"><i> -- check if still has horizontal scrollbar
+</i></font><font color="#000000">        canvas_height</font><font color="#0000FF"> -=</font><font color="#000000"> scrollbar_size
+</font><font color="#008080">    end if
+    if</font><font color="#000000"> view_height</font><font color="#0000FF">&lt;=</font><font color="#000000">elem_height</font><font color="#008080"> and</font><font color="#000000"> view_height</font><font color="#0000FF">&gt;</font><font color="#000000">canvas_height</font><font color="#008080"> then
+</font><font color="#000000">        canvas_width</font><font color="#0000FF"> -=</font><font color="#000000"> scrollbar_size
+</font><font color="#008080">    end if
+    if</font><font color="#000000"> canvas_width</font><font color="#0000FF">&lt;</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#000000"> canvas_width</font><font color="#0000FF"> =</font><font color="#000000"> 0</font><font color="#008080"> end if
+    if</font><font color="#000000"> canvas_height</font><font color="#0000FF">&lt;</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#000000"> canvas_height</font><font color="#0000FF"> =</font><font color="#000000"> 0</font><font color="#008080"> end if
+
+</font><font color="#5E005E">    IupSetFloat</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "DX"</font><font color="#0000FF">,</font><font color="#000000"> canvas_width</font><font color="#0000FF">/</font><font color="#000000">view_width</font><font color="#0000FF">)
+</font><font color="#5E005E">    IupSetFloat</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "DY"</font><font color="#0000FF">,</font><font color="#000000"> canvas_height</font><font color="#0000FF">/</font><font color="#000000">view_height</font><font color="#0000FF">)
+</font><font color="#008080">end procedure</font>
+</pre>
+            <br>
+            Inside the canvas ACTION callback, the (x,y) offset for drawing is calculated as:
+<!--eucode>
+integer x, y, canvas_width, canvas_height
+atom posy = IupGetFloat(ih, "POSY")
+atom posx = IupGetFloat(ih, "POSX")
+
+{canvas_width, canvas_height} = IupGetIntInt(ih, "DRAWSIZE")
+
+if canvas_width<view_width then
+    x = floor(-posx*view_width)
+else
+    x = floor((canvas_width-view_width)/2)  -- for example, center the view
+end if
+if canvas_height<view_height then
+    -- posy is top-bottom, CD and OpenGL are bottom-top.
+    -- invert posy reference (YMAX-DY - POSY)
+    atom dy = IupGetFloat(ih, "DY")
+    posy = 1 - dy - posy
+    y = floor(-posy*view_height)
+else
+    y = floor((canvas_height-view_height)/2)  -- for example, center the view
+end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> canvas_width</font><font color="#0000FF">,</font><font color="#000000"> canvas_height
+</font><font color="#004080">atom</font><font color="#000000"> posy</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetFloat</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "POSY"</font><font color="#0000FF">)
+</font><font color="#004080">atom</font><font color="#000000"> posx</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetFloat</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "POSX"</font><font color="#0000FF">)
+
+{</font><font color="#000000">canvas_width</font><font color="#0000FF">,</font><font color="#000000"> canvas_height</font><font color="#0000FF">} =</font><font color="#5E005E"> IupGetIntInt</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "DRAWSIZE"</font><font color="#0000FF">)
+
+</font><font color="#008080">if</font><font color="#000000"> canvas_width</font><font color="#0000FF">&lt;</font><font color="#000000">view_width</font><font color="#008080"> then
+</font><font color="#000000">    x</font><font color="#0000FF"> =</font><font color="#7060A8"> floor</font><font color="#0000FF">(-</font><font color="#000000">posx</font><font color="#0000FF">*</font><font color="#000000">view_width</font><font color="#0000FF">)
+</font><font color="#008080">else
+</font><font color="#000000">    x</font><font color="#0000FF"> =</font><font color="#7060A8"> floor</font><font color="#0000FF">(</font><font color="#800000">(</font><font color="#000000">canvas_width</font><font color="#0000FF">-</font><font color="#000000">view_width</font><font color="#800000">)</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">) </font><font color="#000080"><i> -- for example, center the view
+</i></font><font color="#008080">end if
+if</font><font color="#000000"> canvas_height</font><font color="#0000FF">&lt;</font><font color="#000000">view_height</font><font color="#008080"> then
+</font><font color="#000080"><i>    -- posy is top-bottom, CD and OpenGL are bottom-top.
+    -- invert posy reference (YMAX-DY - POSY)
+</i></font><font color="#004080">    atom</font><font color="#000000"> dy</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetFloat</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "DY"</font><font color="#0000FF">)
+</font><font color="#000000">    posy</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF"> -</font><font color="#000000"> dy</font><font color="#0000FF"> -</font><font color="#000000"> posy
+    y</font><font color="#0000FF"> =</font><font color="#7060A8"> floor</font><font color="#0000FF">(-</font><font color="#000000">posy</font><font color="#0000FF">*</font><font color="#000000">view_height</font><font color="#0000FF">)
+</font><font color="#008080">else
+</font><font color="#000000">    y</font><font color="#0000FF"> =</font><font color="#7060A8"> floor</font><font color="#0000FF">(</font><font color="#800000">(</font><font color="#000000">canvas_height</font><font color="#0000FF">-</font><font color="#000000">view_height</font><font color="#800000">)</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">) </font><font color="#000080"><i> -- for example, center the view
+</i></font><font color="#008080">end if</font>
+</pre>
+            <br>
+            Call scrollbar_update from the RESIZE_CB callback and when you change the zoom factor that affects view_width or view_height.
+            <br>
+            <br>
+            Affects: IupList, IupMultiline, IupCanvas
+            <br>
+            <br>
+            See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
           <a name=POSITION></a>
           POSITION
          </td>
          <td>
             (non inheritable) The position of the element relative to the origin of the Client area of the native parent. <br>
-            If you add the CLIENTOFFSET attribute of the native parent, you can obtain the coordinates relative to the Window area of the native parent. See the Layout Guide.
+            If you add the CLIENTOFFSET attribute of the native parent, you can obtain the coordinates relative to the Window area of the native parent. 
+            See the <a href="iuplayout.htm">Layout Guide</a>.
             <br>
             <br>
             It will be changed during the layout computation, except when FLOATING=YES or when used inside a concrete layout container.
@@ -440,7 +650,7 @@
             (non inheritable) Specifies the element User size, and returns the Current size, in units proportional to the size of a character.
             <br>
             <br>
-            See the Layout Guide for more details on sizes.
+            See the <a href="iuplayout.htm">Layout Guide</a> for more details on sizes.
             <br>
             <br>
             Value: "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in characters fraction unit (see Notes below). 
@@ -494,7 +704,7 @@
             IupMap also updates the dialog layout even if it is already mapped, so calling it or calling IupShow, IupShowXY or IupPopup (they all call IupMap) will also update the dialog layout.
             <br>
             <br>
-            See the Layout Guide for mode details on sizes.
+            See the <a href="iuplayout.htm">Layout Guide</a> for mode details on sizes.
             <br>
             <br>
             Affects: All, except menus.

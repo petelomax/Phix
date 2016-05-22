@@ -1,0 +1,375 @@
+--
+-- pdemo.exw
+-- =========
+--
+-- Known bugs:
+--  You can drag/resize column 0 [FIXED]
+
+--hitlist:
+-- get popup menus working
+-- load directories
+-- 
+
+--with trace
+
+--include pGUI.e
+include ../demo/pGUI/pGUI.e
+--include builtins\sort.e       -- (not strictly necessary)
+
+--include demo\arwendemo\pgui\pgdb.ew as pgdb
+--include demo\arwendemo\pgui\pgdemo.ew as demo
+--include demo\arwendemo\pgui\pgsetup.ew as setup
+
+--#withtype Ihandle
+
+constant titles = {"Chq#", "Date", "Amount", "Status", "Bank"},
+         twidth = { 40,     60,     100,      50,       50},
+         C = "ACENTER", L = "ALEFT", R = "ARIGHT",
+         talign = { L,      C,      R,        C,        L},
+         MAX = 5000,
+         RSPACE = "R    "
+
+sequence data
+
+sequence tags = tagset(MAX)
+
+function buildDummyData()
+atom t = time()
+    data = repeat(0,MAX)
+    for i=1 to MAX do
+        data[i] = {i,                                                   -- ChqNo
+                   {2014+rand(2),rand(12),rand(28)},                    -- Date
+                   rand(999999)/100,                                    -- Amount,
+                   RSPACE[rand(5)],                                     -- Status,
+                   sprintf("%5d", rand(9999)+10000)}                    -- Bank
+    end for
+    return sprintf("%d records created in %3.2f seconds",{MAX,time()-t})
+end function
+
+Ihandle matrix, ftxt, statusbar, dlg
+
+string semiperm -- (return value of value_cb must outlive it)
+
+function value_cb(Ihandle /*self*/, integer l, integer c)
+object dlc
+    if c>0 then
+        if c>length(titles) then return NULL end if
+        if l==0 then
+            return IupRawStringPtr(titles[c])   -- column title
+        end if
+        if l>length(data) then return NULL end if
+        l = tags[l]
+        dlc = data[l][c]
+        if string(dlc) then
+            if length(dlc)=0 then return NULL end if
+            return IupRawStringPtr(dlc)
+        elsif c=2 then -- date
+            semiperm = sprintf("%02d/%02d/%04d",reverse(dlc))
+        elsif c=3 then  -- amount
+            semiperm = sprintf("%9.2f",dlc)
+        elsif c=4 then  -- status
+            semiperm = sprintf("%c",dlc)
+        else
+            -- (c=1 (ChqNo) and/or c=6 (Bank):)
+            semiperm = sprint(dlc)
+        end if
+        return IupRawStringPtr(semiperm)
+    end if
+    return NULL
+end function
+
+integer eiskip = 1
+
+function enteritem_cb(Ihandle ih, integer lin, integer col)
+    IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
+    IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
+    IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
+    IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col}); -- [1]
+    if eiskip then
+        eiskip -= 1 -- (don't clobber inital buildDummyData() msg) [DEV]
+    else
+        IupSetStrAttribute(statusbar, "TITLE", sprint(data[tags[lin]]))
+    end if
+    return IUP_DEFAULT;
+end function
+
+integer sortcol = 0
+integer sortdir = 1
+
+function by_column(integer i, integer j)
+    return sortdir*compare(data[i][sortcol],data[j][sortcol])
+end function
+
+procedure showselected()
+integer idx = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+string msg = sprint(data[tags[idx]])
+    IupMessage("Selected", msg)
+end procedure
+
+function click_cb(Ihandle self, integer l, integer c, atom pStatus)
+string sortc
+--nullable_string v = IupMatGetAttribute(self, "", l, c);
+--  if v=NULL then v = "NULL" end if
+--  printf(1,"click_cb(%d, %d, %s)\n", {l, c, peek_string(pStatus)})
+--  printf(1,"  VALUE%d:%d = %s\n", {l, c, v})
+    if c>0 and c<=length(titles) then
+        if l=0 then -- title clicked, so sort that column
+            atom t = time()
+            if sortcol!=0 and sortcol!=c then
+                sortc = sprintf("SORTSIGN%d",sortcol)
+                IupSetAttribute(self,sortc,"NO")
+            end if
+            sortc = sprintf("SORTSIGN%d",c)
+            sortdir = iff(IupGetAttribute(self,sortc)="DOWN"?-1:1)
+            IupSetAttribute(self,sortc,iff(sortdir=-1?"UP":"DOWN"))
+            sortcol = c
+            tags = custom_sort(routine_id("by_column"),tags)
+--          IupSetAttribute(statusbar, "TITLE", sprintf("sort completed in %3.2f seconds",time()-t))
+            IupSetAttribute(self,"REDRAW","ALL")
+        elsif l<=length(data)
+          and iup_isdouble(pStatus) then
+            showselected()
+        end if
+    end if
+    return IUP_DEFAULT;
+end function
+
+function resize_cb(Ihandle /*ih*/, integer width, integer /*height*/)
+sequence widths = repeat(0,IupGetInt(matrix,"NUMCOL"))
+integer total_width = 0, new_width
+    for i=1 to length(widths) do
+        widths[i] = IupGetInt(matrix,sprintf("RASTERWIDTH%d",i))
+    end for
+    width -= 65
+    if width<120 then width = 120 end if
+    total_width = sum(widths)
+    IupSetInt(matrix,"RASTERWIDTH0",0)
+    for i=1 to length(widths) do
+        new_width = floor((widths[i]/total_width)*width)
+        if new_width<10 then new_width = 10 end if
+        IupSetInt(matrix,sprintf("RASTERWIDTH%d",i),new_width)
+        widths[i] = new_width
+    end for
+--I used this to set MINSIZE:
+IupSetAttribute(dlg, "TITLE", IupGetAttribute(dlg,"SIZE"))
+    return IUP_DEFAULT
+end function
+
+function colresize_cb(Ihandle /*ih*/, integer col)
+-- thwart attempts to resize column 0 (vertical titles)
+    if col=0 then
+        IupSetInt(matrix, "WIDTH0", NULL)
+    end if
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle ih, atom c)
+    if c=K_CR and ih=matrix then showselected() end if
+--DEV F1, 
+    -- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+function run_cb(Ihandle /*ih*/)
+--?"run_cb" -- OK
+--DEV:
+    return IUP_DEFAULT
+end function
+
+constant actset = {"create undo.reg",
+                   "edit undo.reg",
+                   "reload undo.reg",
+                   "merge undo.reg",
+                   "create setup.reg",
+                   "edit setup.reg",
+                   "merge setup.reg",
+                   "apply (default)"}
+
+procedure main()
+Ihandle runBtn, flbl, helpBtn, closeBtn, rlfhc, pt, tab1, tab2, tabs1, box,
+        lpath, ruser, rmach, radio, lpad1, cpath, path1, path2, path3,
+        lpert, tpert, lper2, tper2, ldefi, tdefi, icon1, lerri, terri, icon2,
+        ledix, tedix, edit1, lrun1, trun1, lrunw, trunw, lpad3, lpad4, lpad5,
+        lpad2, actdd, bOK, bHelp
+
+    IupOpen()
+
+    matrix = IupMatrix()
+    IupSetInt(matrix, "NUMCOL", length(titles))
+    IupSetInt(matrix, "NUMCOL_VISIBLE", length(titles))
+    IupSetInt(matrix, "NUMLIN", MAX)
+--  IupSetInt(matrix, "WIDTHDEF", 40) -- (now completely overidden anyway)
+    for i=1 to length(twidth) do
+        IupSetInt(matrix, sprintf("RASTERWIDTH%d",{i}), twidth[i])
+        IupSetAttribute(matrix, sprintf("ALIGNMENT%d",{i}), IupRawStringPtr(talign[i]))
+    end for
+    --IMPORTANT: HEIGHT0 tells IupMatrix that we are gonna have column titles at line 0
+    IupSetInt(matrix, "HEIGHT0", 10);
+    IupSetAttribute(matrix, "RESIZEMATRIX", "YES");
+    IupSetAttribute(matrix, "MARKMODE", "LIN");
+    IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS");
+--DEV does not seem to work...
+--  IupSetAttribute(matrix, "MULTIPLE", "YES"); -- (or is that "MARKMULTIPLE"? the default is NO anyway)
+
+--  IupSetAttribute(matrix, "READONLY", "YES"); -- with VALUE_CB set, non-setting of VALUE_EDIT_CB (also) makes it read-only
+    IupSetAttribute(matrix, "HIDEFOCUS", "YES");
+    IupSetAttribute(matrix, "FRAMECOLOR", "220 220 220");
+--  IupSetAttribute(matrix, "FRAMEVERTCOLOR*:1", "255 255 255")
+    IupSetAttribute(matrix, "BORDER", "NO");
+    IupSetAttribute(matrix, "CURSOR", "ARROW");
+
+    IupSetCallback(matrix, "VALUE_CB",      Icallback("value_cb"))
+    IupSetCallback(matrix, "ENTERITEM_CB",  Icallback("enteritem_cb"));
+    IupSetCallback(matrix, "CLICK_CB",      Icallback("click_cb"));
+    IupSetCallback(matrix, "COLRESIZE_CB",  Icallback("colresize_cb"));
+    IupSetCallback(matrix, "K_ANY",         Icallback("key_cb"));
+
+    runBtn = IupButton("&Run",Icallback("run_cb"),"PADDING=10x0")
+    flbl = IupLabel("Fil&ter","PADDING=0x4")
+    ftxt = IupText("EXPAND=HORIZONTAL")
+    helpBtn = IupButton("&Help","PADDING=10x0")
+    closeBtn = IupButton("&Close","PADDING=10x0")
+    rlfhc = IupHbox({runBtn,flbl,ftxt,helpBtn,closeBtn})
+    pt = IupMultiLine("EXPAND=YES")
+
+    tab1 = IupVbox({matrix, rlfhc, pt},"TABTITLE=Demos")
+    
+    lpath = IupLabel("PATH:","ALIGNMENT=ARIGHT, PADDING=0x4")
+    ruser = IupToggle("HKEY_CURRENT_USER\\Environment\\Path")
+    rmach = IupToggle("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment\\Path")
+    radio = IupRadio(IupVbox({ruser,rmach}))
+    lpad1 = IupLabel()
+    cpath = IupToggle("cbPath")
+    path1 = IupLabel()
+    path2 = IupLabel()
+    path3 = IupLabel()
+    lpert = IupLabel("Percieved Type","ALIGNMENT=ARIGHT, PADDING=0x2")
+    tpert = IupToggle(".e,.ew,.ex,.exw")
+    lper2 = IupLabel("(of \"text\")","ALIGNMENT=ARIGHT, PADDING=0x2")
+    tper2 = IupToggle(".asm,.bat,.css,.inc,.js")
+    ldefi = IupLabel("Default Icon","ALIGNMENT=ARIGHT, PADDING=0x2")
+    tdefi = IupToggle(".e,.ew,.ex,.exw")
+    lpad3 = IupLabel("","SIZE=4x4")
+    icon1 = IupLabel("C:\\Program Files\\Phix\\Psrc.ico,1")
+    lerri = IupLabel("Error File Icon","ALIGNMENT=ARIGHT, PADDING=0x2")
+    terri = IupToggle(".err")
+    lpad4 = IupLabel("","SIZE=4x4")
+    icon2 = IupLabel("C:\\Windows\\system32\\shell32.dll,78")
+    ledix = IupLabel("Edit with Edix","ALIGNMENT=ARIGHT, PADDING=0x2")
+    tedix = IupToggle(".e,.ew,.ex,.exw")
+    lpad5 = IupLabel("","SIZE=4x4")
+    edit1 = IupLabel("pw edix %1")
+    lrun1 = IupLabel("Run \".ex\" with Phix","ALIGNMENT=ARIGHT, PADDING=0x2")
+    trun1 = IupToggle("p %1")
+    lrunw = IupLabel("Run \".exw\" with Phix","ALIGNMENT=ARIGHT, PADDING=0x2")
+    trunw = IupToggle("pw %1")
+
+    lpad2 = IupLabel()
+    actdd = IupList()
+    IupSetAttribute(actdd,"DROPDOWN","YES")
+    IupSetInt(actdd,"VISIBLEITEMS",length(actset)+1)    -- [no idea why it needs the +1]
+    for i=1 to length(actset) do
+        IupSetAttributeId(actdd, "", i, actset[i])
+    end for
+    IupSetInt(actdd,"VALUE",length(actset))
+    bOK = IupButton("OK","PADDING=10x0")
+    bHelp = IupButton("Help","PADDING=10x0")
+
+    IupDestroy(IupNormalizer({lpath,lpad1,lpert,lper2,ldefi,lerri,ledix,lrun1,lrunw,lpad2},"NORMALIZE=HORIZONTAL"))
+    tab2 = IupHbox({IupFill(),
+                    IupVbox({IupLabel("*** INCOMPLETE ***"),    -- (make this "" when done)
+--                                    iff(platform()=WINDOWS?"":"These settings are Windows only") (and disable OK [etc])
+                             IupHbox({lpath,IupVbox({radio})}),
+                             IupHbox({lpad1,IupVbox({cpath,
+                                                     path1,
+                                                     path2,
+                                                     path3})}),
+                             IupHbox({lpert,IupVbox({tpert})}),
+                             IupHbox({lper2,IupVbox({tper2})}),
+                             IupHbox({ldefi,IupVbox({tdefi,
+                                                     IupHbox({lpad3,icon1})})}),
+                             IupHbox({lerri,IupVbox({terri,
+                                                     IupHbox({lpad4,icon2})})}),
+                             IupHbox({ledix,IupVbox({tedix,
+                                                     IupHbox({lpad5,edit1})})}),
+                             IupHbox({lrun1,IupVbox({trun1})}),
+                             IupHbox({lrunw,IupVbox({trunw})}),
+                             IupHbox({lpad2,IupHbox({actdd,bOK,bHelp})}),
+                            $
+                            }),
+                    IupFill()},"TABTITLE=Settings")
+--/*
+--  psettings = create(TabItem,"Settings",0,TC,0,0,0,0,0),
+--  lPath = create(Label,"PATH:",0,psettings,8,17,109,20,SS_RIGHT),
+--  cHKCU = "HKEY_CURRENT_USER\\Environment\\Path",
+--  cHKLM = "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment\\Path",
+--  rbUser    = create(RadioButton,cHKCU,0,psettings,121,14,559,20,0),
+--  rbMachine = create(RadioButton,cHKLM,0,psettings,121,31,631,20,0),
+--  cbPath = create(CheckBox,"cbPath",0,psettings,119,53,14,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+--  lPath1 = create(Label,"path1",0,psettings,137,56,535,20,SS_OWNERDRAW),
+--  lPath2 = create(Label,"path2",0,psettings,137,75,535,20,SS_OWNERDRAW),
+--  lPath3 = create(Label,"path3",0,psettings,137,94,535,20,SS_OWNERDRAW),
+--  cbPerceivedType = create(CheckBox,"Percieved Type",0,psettings, 8,111,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+--  cbPTOther       = create(CheckBox,"(of \"text\")", 0,psettings,41,130,91,20,{{BS_CENTER,BS_LEFTTEXT},0}),
+--  lType1 = create(Label,".e,.ew,.ex,.exw",        0,psettings,137,114,535,20,SS_OWNERDRAW),
+--  lType2 = create(Label,".asm,.bat,.css,.inc,.js",0,psettings,137,133,535,20,SS_OWNERDRAW),
+--  cbDefaultIcon = create(CheckBox,"Default Icon",0,psettings,8,151,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+--  lIcon  = create(Label,".e,.ew,.ex,.exw",        0,psettings,137,154,535,20,SS_OWNERDRAW),
+--  icon1 = create(Label,"C:\\Program Files\\Phix\\Psrc.ico,1",0,psettings,137,169,535,20,SS_OWNERDRAW),
+--  cbErrorIcon = create(CheckBox,"Error File Icon",0,psettings,8,181,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+--  lEIcon = create(Label,".err",                   0,psettings,137,184,180,20,SS_OWNERDRAW),
+--  icon2 = create(Label,"C:\\Windows\\system32\\shell32.dll,78",0,psettings,137,197,535,20,SS_OWNERDRAW),
+--  cbEdita = create(CheckBox,"Edit with Edita",0,psettings,8,210,124,19,{{BS_LEFTTEXT,BS_RIGHT},0}),
+--  lEdit = create(Label,".e,.ew,.ex,.exw",0,psettings,137,213,196,20,SS_OWNERDRAW),
+--  edit1 = create(Label,"pw edita %1",0,psettings,137,227,535,15,SS_OWNERDRAW),
+--  cbRun = create(CheckBox,"Run \".ex\" with Phix",0,psettings,8,242,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+--  run1 = create(Label,"p %1",0,psettings,137,245,535,13,SS_OWNERDRAW),
+--  cbRunW = create(CheckBox,"Run \".exw\" with Phix",0,psettings,8,264,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
+--  run2 = create(Label,"pw %1",0,psettings,137,267,535,20,SS_OWNERDRAW),
+
+--  cddAct = create(ComboDropDown,"Action", 0,psettings,120, 295, 116,157,0),
+--  sbOK  = create(Button,"OK",         0,psettings, 246,289, 75,30,0),
+--  sbHelp   = create(Button,"Help",            0,psettings,334,289, 75,30,0),
+--*/
+
+    tabs1 = IupTabs({tab1, tab2})
+
+    box = IupHbox({tabs1})
+    IupSetAttribute(box, "MARGIN", "1x2")
+    IupSetAttribute(box, "GAP", "10")
+
+    statusbar = IupLabel(buildDummyData());
+    IupSetAttribute(statusbar, "EXPAND", "HORIZONTAL");
+    IupSetAttribute(statusbar, "PADDING", "10x5");
+
+    Ihandle vbox = IupVbox({box,
+                            statusbar});
+
+    dlg = IupDialog(vbox)
+    IupSetAttribute(dlg, "TITLE", "pdemo")
+    IupSetAttribute(dlg, "SIZE", "800x440")
+-- (see comment in resize_cb)
+--  IupSetAttribute(dlg, "MINSIZE", "220x160")  -- 147x85!!
+--  IupSetAttribute(dlg, "MINSIZE", "290x240")  -- 193x128!!
+--  IupSetAttribute(dlg, "MINSIZE", "440x320")  -- 293x171!!
+--  IupSetAttribute(dlg, "MINSIZE", "370x300")  -- 247x160
+--  IupSetAttribute(dlg, "MINSIZE", "350x300")  -- 233x160
+--  IupSetAttribute(dlg, "MINSIZE", "330x300")  -- 220x160
+-- (above was before Steeings tab had been populated)
+--  IupSetAttribute(dlg, "MINSIZE", "478x354")  -- 319x189
+    IupSetAttribute(dlg, "MINSIZE", "717x664")  -- 478x354
+-- (717=478*330/220; 664=354*300/160 (aka *{1.5,1.875}): I can do the maths but do not understand it..)
+    IupSetAttribute(dlg, "SHRINK", "YES")
+    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"));
+
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+
+    IupShow(dlg)
+    IupSetFocus(matrix)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+
+

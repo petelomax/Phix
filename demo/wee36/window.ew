@@ -133,21 +133,26 @@ end function
 -- When converting Windows struct member types, this may be useful:
 -- https://msdn.microsoft.com/en-us/library/windows/desktop/aa383751(v=vs.85).aspx
 
-function sizeof(sequence pattern)
+function w_sizeof(sequence pattern)
     integer size, x, max_align
     size = 0
     max_align = 1
     for i = 1 to length(pattern) do
         x = pattern[i]
-        if x = 'b' or x = 'c' then
+        if x = 'b' 
+        or x = 'c' then
             x = 1
         elsif x = 'w' then
             x = 2
-        elsif x = 'd' or x = 'i' or x = 'z' then
+        elsif x = 'd' 
+           or x = 'i' 
+           or x = 'z' then
             x = 4
         elsif x = 'q' then
             x = 8
-        elsif x = 'p' or x = 's' or x = 'm' then
+        elsif x = 'p' 
+           or x = 's' 
+           or x = 'm' then
 --/**/      x = machine_word()      --/*
             ifdef BITS64 then
                 x = 8
@@ -183,14 +188,17 @@ global procedure pack(atom ptr, sequence pattern, sequence data)
         elsif sequence(tmp) then
             tmp = or_all(tmp)
         end if
-        if x = 'b' or x = 'c' then
+        if x = 'b' 
+        or x = 'c' then
             poke(ptr, tmp)
             ptr += 1
         elsif x = 'w' then
             ptr = align(ptr, 2)
             poke2(ptr, tmp)
             ptr += 2
-        elsif x = 'd' or x = 'i' or x = 'z' then
+        elsif x = 'd' 
+           or x = 'i' 
+           or x = 'z' then
             ptr = align(ptr, 4)
             poke4(ptr, tmp)
             ptr += 4
@@ -212,7 +220,9 @@ global procedure pack(atom ptr, sequence pattern, sequence data)
             end ifdef
 --*/
             ptr += 8
-        elsif x = 'p' or x = 's' or x = 'm' then
+        elsif x = 'p' 
+           or x = 's' 
+           or x = 'm' then
 --/**/      if machine_bits()=64 then
 --/**/          ptr = align(ptr, 8)
 --/**/          poke8(ptr, tmp)
@@ -243,7 +253,7 @@ end procedure
 global function allocate_pack(sequence pattern, sequence data)
     atom ptr
     integer size
-    size = sizeof(pattern)
+    size = w_sizeof(pattern)
     if pattern[1] = 'z' then
         data = prepend(data, size)
     end if
@@ -1842,7 +1852,7 @@ global constant
     SB_HORZ = 0,
     SB_VERT = 0
 
-global constant SIZE_OF_MESSAGE = sizeof("pdppddd")
+global constant SIZE_OF_MESSAGE = w_sizeof("pdppddd")
 
 
 --constant SIZE_OF_WNDCLASS = 48
@@ -2144,10 +2154,10 @@ global constant
 
 constant 
     struct_FINDREPLACE = "zppdsswwppp",
-    SIZE_OF_FINDREPLACE = sizeof(struct_FINDREPLACE),
-    Flags_offset = sizeof(struct_FINDREPLACE[1..3]),
-    FindWhat_offset = sizeof(struct_FINDREPLACE[1..4]), 
-    ReplaceWith_offset = sizeof(struct_FINDREPLACE[1..5])
+    SIZE_OF_FINDREPLACE = w_sizeof(struct_FINDREPLACE),
+    Flags_offset = w_sizeof(struct_FINDREPLACE[1..3]),
+    FindWhat_offset = w_sizeof(struct_FINDREPLACE[1..4]), 
+    ReplaceWith_offset = w_sizeof(struct_FINDREPLACE[1..5])
     -- 0  DWORD        lStructSize;
     -- 4  HWND         hwndOwner;
     -- 8  HINSTANCE    hInstance;
@@ -2306,7 +2316,7 @@ global function ChooseFont(atom hwndOwner, sequence font_name, integer font_heig
     result = {}
     if c_func(ChooseFont_, {cf}) then
         font_name = peek_string(lf+lf_size-lf_facesize)
-        font_height = floor(peek4u(cf + sizeof("zppp")) / 10)
+        font_height = floor(peek4u(cf + w_sizeof("zppp")) / 10)
         --? font_height
         --printf(1, "height=%d %d width=%d weight=%d facename=%s pointsize=%d\n", {
         --    peek4s(lf),

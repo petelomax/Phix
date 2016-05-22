@@ -60,17 +60,6 @@ object res = -1
             free(pRes)
         end if
     elsif platform()=LINUX then
---      ?9/0
-        -- there's a getenv in libc, I think...
-        --DEV (temp, for return type)
---      if var="abc" then
---          res = {}
---      end if
---      lea     rdi,[display_name]
---      call "libc	getenv
---      lea     r11,[msg00]
---      or      rax,rax
---      jz      error_exit
         #ilASM{
             [ELF32]
                 mov eax,[var]
@@ -99,21 +88,28 @@ end function
 
 --DEV doc/psym:
 --global function setenv(sequence var, object newValue=0)
-global function setenv(string var, object newValue=0)
+global function setenv(string var, object newValue=NULL, integer overwrite=1)
 --
 -- Set the specified environment variable setting, eg
 --      setenv("PATH","C:\WINDOWS;C:\WINDOWS\COMMAND")
 -- The newValue can be 0(NULL) to delete a variable from the
 --  current processes environment, or it can be the address of
 --  a previously allocated memory-string.
--- Returns 1(true) on success, 0(false) on failure.
+-- Returns 1(true) on success, 0(false) on failure, or -1 
+--  if overwrite=0 and var already exists.
 --
 integer res
+    if atom(newValue) and newValue!=NULL then
+        if newValue!=and_bits(newValue,-1) then ?9/0 end if -- verify mint
+        {} = peek(newValue) -- verify it is a readable memory location/ptr
+    end if
+    if overwrite=0 then
+        if getenv(var)!=-1 then return -1 end if
+    end if
     if platform()=WINDOWS then
         if eInit=0 then Einit() end if
         res = c_func(xSetEnvironmentVar,{var,newValue})
     elsif platform()=LINUX then
---      ?9/0
         if newValue=NULL then
             #ilASM{
                 [ELF32]
@@ -162,10 +158,42 @@ integer res
                     mov [res],rax
                 []
                   }
+        elsif atom(newValue) then
+            #ilASM{
+                [ELF32]
+                    mov esi,[var]
+                    mov eax,[newValue]
+                    shl esi,2
+                    call :%pLoadMint
+                    push 1                      -- overwrite
+                    push eax                    -- value
+                    push esi                    -- name
+                    call "libc.so.6","setenv"
+                    add eax,1 -- (0=success=>1, -1=failure=>0)
+                    add esp,12
+                    mov [res],eax
+                [ELF64]
+                    mov rsi,[var]
+                    mov rax,[newValue]
+                    shl rsi,2
+                    call :%pLoadMint
+                    push 1                      -- overwrite
+                    push rax                    -- value
+                    push rsi                    -- name
+                    call "libc.so.6","setenv"
+                    add rax,1 -- (0=success=>1, -1=failure=>0)
+                    add rsp,12
+                    mov [res],rax
+                []
+                  }
         else
             ?9/0
         end if
     end if
     return res
+end function
+
+global function unsetenv(string var)
+    return setenv(var)
 end function
 

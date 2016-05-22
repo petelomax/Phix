@@ -1035,6 +1035,7 @@ end procedure -- (for Edita/CtrlQ)
 --          mov eax,fs:[0x24]
             call "kernel32.dll","GetCurrentThreadId"
         [ELF32]
+--DEV libc/getpid()
             mov eax,20              -- sys_getpid()
             int 0x80
             xor ebx,ebx

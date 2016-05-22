@@ -4971,6 +4971,10 @@ integer iftop, ctrlink, ctrltyp
 --integer scode, wasEmit2
 integer iffvar
 
+--added 18/5/16:
+    if opTopIsOp then PopFactor() end if
+    saveFunctionResultVars(opsidx,INTSTOO)
+
     if exprBP!=0 then ?9/0 end if   -- [we may yet have a problem with "if iff() then" [or "while iff() do"], when enough and/or/() get involved] [DEV]
 
     saveIchain = Ichain
