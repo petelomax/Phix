@@ -100,6 +100,7 @@ global function setenv(string var, object newValue=NULL, integer overwrite=1)
 --
 integer res
     if atom(newValue) and newValue!=NULL then
+        --DEV (spotted in passing) this might come a cropper as in #FFFFFFFF!=-1...
         if newValue!=and_bits(newValue,-1) then ?9/0 end if -- verify mint
         {} = peek(newValue) -- verify it is a readable memory location/ptr
     end if

@@ -1,0 +1,284 @@
+--
+-- vol_fog.exw
+-- ===========
+--
+-- Volumetric fog using EXT_fog_coord extension 
+-- An OpenGL demo by A.P.Gardner 
+--
+-- Euphoria version by Mic, 2003
+-- Phix version by Pete Lomax, 2016. Added: space key toggles the fog on and off,
+--  and up/down/left/right keys (albeit the underlying model is far from complete)
+--
+
+--DEV test this on 64bit
+
+include pGUI.e
+include opengl.e
+include glu.e
+include winbmp.ew
+include tga.e
+
+integer fog_supported   -- 0 = not supported,
+                        -- 1 = supported, on
+                        -- 3 = supported, off
+
+
+-- Make room for two texture id:s
+constant texID = allocate(4+4)  -- DEV machine_word()*2?? [or are they dwords?]
+
+constant NUM_PANELS = 16
+
+
+constant vertices = {
+                     {-15, 10, 0},{-5, 10, 0},{-5, 20, 0},{-15, 20, 0}, -- back wall 
+                     {-5, 10, 0},{5, 10, 0},{5, 20, 0},{-5, 20, 0},
+                     {5, 10, 0},{15, 10, 0},{15, 20, 0},{5, 20, 0},
+                     {-15, 0, 0},{-5, 0, 0},{-5, 10, 0},{-15, 10, 0},
+                     {-5, 0, 0},{5, 0, 0},{5, 10, 0},{-5, 10, 0},
+                     {5, 0, 0},{15, 0, 0},{15, 10, 0},{5, 10, 0},
+
+                     {-5, -10, 0},{5, -10, 0},{5, 0, 0},{-5, 0, 0},     -- foggy bit 
+                     {-5, -10, 10},{-5, -10, 0},{-5, 0, 0},{-5, 0, 10},
+                     {-5, -10, 20},{-5, -10, 10},{-5, 0, 10},{-5, 0, 20},
+                     {5, -10, 0},{5, -10, 10},{5, 0, 10},{5, 0, 0},
+                     {5, -10, 10},{5, -10, 20},{5, 0, 20},{5, 0, 10},
+                     {-5, -10, 10},{5, -10, 10},{5, -10, 0},{-5, -10, 0},
+
+                     {-15, 0, 10},{-5, 0, 10},{-5, 0, 0},{-15, 0, 0},   -- floor 
+                     {5, 0, 10},{15, 0, 10},{15, 0, 0},{5, 0, 0},
+                     {-15, 0, 20},{-5, 0, 20},{-5, 0, 10},{-15, 0, 10},
+                     {5, 0, 20},{15, 0, 20},{15, 0, 10},{5, 0, 10}
+                    }
+
+-- Texture references for the panels 
+constant panel_texture = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0}
+
+-- Area references for the panels 
+constant fog_area = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0}
+
+--------------------------------------------------------------------------------------------------------------
+
+
+
+procedure makeTextureImage(string filename, integer tex_no)
+sequence image
+integer fmt
+
+    if match(".tga",filename) then
+        image = 0&LoadTGA(filename) -- {0,data,width,height,bpp,colorMode}
+        fmt = GL_BGR_EXT
+    else
+        image = load_bmp(filename)  -- {err/bpp,bmpMem,width,height}
+        fmt = GL_RGB
+    end if
+
+    glBindTexture(GL_TEXTURE_2D, peek4u(texID+tex_no*4))
+
+    -- set up wrap & filter params 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+
+    atom {{},data,width,height} = image
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, fmt, GL_UNSIGNED_BYTE, data)
+
+    free(data)
+end procedure
+
+procedure init()
+
+    -- Check for the required extension
+    fog_supported = glSupportsExtension("GL_EXT_fog_coord")
+    if fog_supported=1 then
+--      gl_enableExtension("GL_EXT_fog_coord")
+        enable_GL_EXT_fog_coord()
+    end if
+
+    -- Set background colour 
+    glClearColor(0, 0, 0, 0)
+
+    -- Initialize viewing parameters 
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(50, 1, 0.2, 40)
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+
+    -- Generate texture IDs 
+    glGenTextures(2, texID)
+
+    -- Load textures 
+    makeTextureImage("data/floor.bmp", 0)
+    makeTextureImage("data/mur043.bmp", 1)
+
+    -- Enable texturing & set texturing function 
+    glEnable(GL_TEXTURE_2D)
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+
+    if fog_supported=1 then
+        -- Set up fog params 
+        glEnable(GL_FOG)
+        glFogi(GL_FOG_MODE, GL_LINEAR)
+        glFogfv(GL_FOG_COLOR, {0.62, 0.28, 0.0, 1.0})
+        glFogf(GL_FOG_START, 0.0)
+        glFogf(GL_FOG_END, 10.0)
+        glFogi(GL_FOG_COORDINATE_SOURCE_EXT, GL_FOG_COORDINATE_EXT)
+    end if
+end procedure
+
+-- Function to set fog colour for the current vertex 
+procedure set_fog_colour(integer p, integer v)
+atom z  -- Distance of vertex from edge of fog volume 
+
+    if fog_supported=1 then
+
+        -- Calculate depth through fog 
+
+        if (fog_area[p+1]) then
+            z = 0.0-vertices[v+1][2]
+        else
+            z = 0.0
+        end if
+
+        -- set depth for this coord 
+        glFogCoordfEXT(z)
+
+    end if
+end procedure
+
+
+
+-- Function to draw a panel 
+procedure draw_panel(integer ref)
+integer v
+
+    -- Bind texture 
+    glBindTexture(GL_TEXTURE_2D, peek4u(texID+panel_texture[ref+1]*4))
+
+    -- Draw panel 
+
+    v = ref*4
+    glBegin(GL_QUADS)
+    set_fog_colour(ref, v)
+    glTexCoord2f({0.0, 0.0})
+    glVertex3f(vertices[v+1])
+    v += 1
+    set_fog_colour(ref, v)
+    glTexCoord2f({1.0, 0.0})
+    glVertex3f(vertices[v+1])
+    v += 1
+    set_fog_colour(ref, v)
+    glTexCoord2f({1.0, 1.0})
+    glVertex3f(vertices[v+1])
+    v += 1
+    set_fog_colour(ref, v)
+    glTexCoord2f({0.0, 1.0})
+    glVertex3f(vertices[v+1])
+    glEnd()
+
+end procedure
+
+-- added 30/5/16 PL
+integer tilt = 10
+integer pan = 0
+
+-- Function to draw display 
+procedure display()
+
+    glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT)
+
+    -- Position viewer 
+
+    glLoadIdentity()
+    glTranslate(0, -3, -32)
+--  glRotate(10, 1, 0, 0)
+    glRotate(tilt, 1, 0, 0)
+    glRotate(pan, 0, 1, 0)
+
+    -- Draw the panels 
+
+    for n=0 to NUM_PANELS-1 do
+        draw_panel(n)
+    end for
+
+end procedure
+
+
+function esc_close(Ihandle ih, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=' ' and fog_supported!=0 then
+        fog_supported = xor_bits(fog_supported,2)
+        IupRedraw(ih,1)
+    elsif c=K_UP then
+        tilt += 1
+        IupRedraw(ih,1)
+    elsif c=K_DOWN then
+        tilt -= 1
+        IupRedraw(ih,1)
+    elsif c=K_RIGHT then
+        pan -= 1
+        IupRedraw(ih,1)
+    elsif c=K_LEFT then
+        pan += 1
+        IupRedraw(ih,1)
+    end if
+    return IUP_CONTINUE
+end function
+
+function action(Ihandle ih)
+    IupGLMakeCurrent(ih);
+
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+
+    display()
+
+    IupGLSwapBuffers(ih);
+
+    return IUP_DEFAULT;
+end function
+
+procedure main()
+Ihandle dialog, canvas, box;
+
+    IupOpen();
+    IupGLCanvasOpen();
+
+    box = IupVbox({});
+    IupSetAttribute(box, "MARGIN", "5x5");
+
+    canvas = IupGLCanvas();
+    IupSetCallback(canvas, "ACTION", Icallback("action"));
+    IupSetAttribute(canvas, "BUFFER", "DOUBLE");
+    IupSetAttribute(canvas, "BORDER", "NO");
+    IupSetAttribute(canvas, "RASTERSIZE", "480x432");
+    IupAppend(box, canvas);
+
+    dialog = IupDialog(box);
+    IupSetAttribute(dialog, "TITLE", "Volumetric fog (space toggles fog)")
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+
+    IupMap(dialog);
+
+    IupGLMakeCurrent(canvas);
+    init();
+--  printf(1,"Vendor: %s\n", glGetString(GL_VENDOR));
+--  printf(1,"Renderer: %s\n", glGetString(GL_RENDERER));
+--  printf(1,"Version: %s\n", glGetString(GL_VERSION));
+    IupSetAttribute(canvas, "RASTERSIZE", NULL);
+
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
+
+    if fog_supported=0 then
+        IupMessage("Error","GL_EXT_fog_coord not supported!")
+    end if
+
+    IupMainLoop();
+
+    IupDestroy(dialog);
+
+    IupClose();
+
+end procedure
+main()

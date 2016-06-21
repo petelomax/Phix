@@ -340,6 +340,8 @@ global procedure Finc(string file)
     end if
 end procedure
 
+forward global procedure eof_processing()
+
 without trace
 --with trace
 include ppp.e
@@ -573,7 +575,7 @@ global integer trapline, trapcol, trapmode, trapns
                 end if
             end for
         end if
---**NB** Do not remove (referenced in Qu.htm):
+--**NB** Do not remove (referenced in docs/Qu.htm):
 --pHeapD hack:
 --if 01 then
 --  if find(file,{"pHeap.e","pStack.e"}) then
@@ -1841,6 +1843,8 @@ procedure HexadecimalByteString()
 end procedure
 
 integer preprocactive = 0
+
+forward procedure preprocess()
 
 without trace
 global procedure getToken()

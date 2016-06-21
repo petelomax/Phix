@@ -639,6 +639,138 @@ integer k
     Qdone = prepend(Qdone,0)
 end procedure
 
+integer lc  -- limit counter (set to 500)
+integer showellipse -- set if lc blown
+integer novalue
+
+function getVal(atom addr)
+object  result
+integer vtyp, len
+    novalue = 0         -- control flag, to prevent ppExf of "<no value>" result
+    if machine_bits()=32 then
+        result = peek4s(addr)
+        if result<#40000000 then    -- a 31-bit integer
+            return result
+        end if
+        result -= #40000000
+    else
+        result = peek8s(addr)
+        if result<#4000000000000000 then    -- a 63-bit integer
+            return result
+        end if
+        result -= #4000000000000000
+    end if
+    if result=0 then
+        novalue = 1
+        return "<no value>"
+    end if
+    addr = result*4
+
+    if c_func(xIsBadReadPtr,{addr,1}) then
+        novalue = -1
+        result = sprintf("<**pTrace.e: bad ptr** (#%08x)>\n",addr)
+        return result
+    end if
+
+    vtyp = peek(addr-1)
+    if vtyp=#12 then        -- a 64-bit float
+--DEV 80-bit float
+        if machine_bits()=32 then
+            result = peek({addr,8})
+            return float64_to_atom(result)
+        else
+            result = peek({addr,10})
+            return float80_to_atom(result)
+        end if
+    end if
+    if machine_bits()=32 then
+        len = peek4s(addr-12)
+    else
+        len = peek8s(addr-24)
+    end if
+    if vtyp=#82 then        -- an 8-bit ascii string
+        if len>lc then
+            len = lc
+            lc = 0
+            showellipse = 1
+        end if
+        return peek({addr,len})
+    end if
+    if vtyp!=#80 then       -- sanity check: must be a sequence then.
+        novalue = 1
+        result = sprintf("<**GARBAGE/CORRUPT TYPE BYTE** (#%02x at [#%08x])>\n",{vtyp,addr-1})
+        puts(1,result)
+        return result
+    end if
+    result = {}
+    while len and lc do
+        lc -= 1
+        len -= 1
+        result = append(result,getVal(addr))
+--DEV (untried)
+--      addr += machine_word()
+        if machine_bits()=32 then
+            addr += 4
+        else
+            addr += 8
+        end if
+    end while
+    if len then
+        showellipse = 1
+    end if
+    return result
+end function
+
+function getValueX(integer symidx, integer limit)
+object  o,
+        ss   -- SymTab[symidx]
+object si
+integer nTyp, tidx
+
+    lc = limit
+    showellipse = 0
+    si = SymTab[symidx]
+    -- obviously none of these should ever happen, but if they do then leave
+    --  as many clues as you can in the ex.err to help resolve things.
+    if symidx<0 or symidx>length(SymTab) then
+        return sprintf("pTrace:getValue bad symidx[=%d]",symidx)
+    end if
+    ss = SymTab[symidx]
+    if atom(ss) then
+        return sprintf("pTrace:symtab[symidx[=%d]] is an atom",symidx)
+    end if
+    nTyp = ss[S_NTyp]
+    if nTyp>S_TVar or nTyp<S_Const then
+        return sprintf("pTrace:getValue bad symtab[symidx][S_NTyp]=%d",nTyp)
+    end if
+--DEV 64-bit/see pdiagN.e
+    if nTyp=S_TVar then
+        tidx = ss[S_Tidx]
+--      o = getVal(ebp+tidx*4)
+        o = getVal(ebp4*4+tidx*4)
+    else
+        tidx = ss[S_Slink]
+--      o = getVal(static_base+tidx*4-4)
+--      o = getVal(ds4*4+tidx*4-4)
+        o = getVal(ds4*4+tidx*4+16)
+    end if
+    if not novalue then
+--DEV try that new routine here...?
+        o = ppf(o)
+        if showellipse then
+            lc = find('\n',o)
+            if lc then o = o[1..lc-1] end if
+            lc = length(o)
+            if o[lc]='}' then
+                o[lc..lc] = ",...}"
+            else
+                o &= "..."
+            end if
+        end if
+    end if
+    return o
+end function
+
 integer F3help = 0
 constant helptext = {
 "F3=toggle help, F6=animate, F7/Enter=step into, F8=step over, F9=step out",
@@ -870,138 +1002,6 @@ integer lf  -- length(ff) [scratch var]
         text_color(WHITE)
     end if
 end procedure
-
-integer lc  -- limit counter (set to 500)
-integer showellipse -- set if lc blown
-integer novalue
-
-function getVal(atom addr)
-object  result
-integer vtyp, len
-    novalue = 0         -- control flag, to prevent ppExf of "<no value>" result
-    if machine_bits()=32 then
-        result = peek4s(addr)
-        if result<#40000000 then    -- a 31-bit integer
-            return result
-        end if
-        result -= #40000000
-    else
-        result = peek8s(addr)
-        if result<#4000000000000000 then    -- a 63-bit integer
-            return result
-        end if
-        result -= #4000000000000000
-    end if
-    if result=0 then
-        novalue = 1
-        return "<no value>"
-    end if
-    addr = result*4
-
-    if c_func(xIsBadReadPtr,{addr,1}) then
-        novalue = -1
-        result = sprintf("<**pTrace.e: bad ptr** (#%08x)>\n",addr)
-        return result
-    end if
-
-    vtyp = peek(addr-1)
-    if vtyp=#12 then        -- a 64-bit float
---DEV 80-bit float
-        if machine_bits()=32 then
-            result = peek({addr,8})
-            return float64_to_atom(result)
-        else
-            result = peek({addr,10})
-            return float80_to_atom(result)
-        end if
-    end if
-    if machine_bits()=32 then
-        len = peek4s(addr-12)
-    else
-        len = peek8s(addr-24)
-    end if
-    if vtyp=#82 then        -- an 8-bit ascii string
-        if len>lc then
-            len = lc
-            lc = 0
-            showellipse = 1
-        end if
-        return peek({addr,len})
-    end if
-    if vtyp!=#80 then       -- sanity check: must be a sequence then.
-        novalue = 1
-        result = sprintf("<**GARBAGE/CORRUPT TYPE BYTE** (#%02x at [#%08x])>\n",{vtyp,addr-1})
-        puts(1,result)
-        return result
-    end if
-    result = {}
-    while len and lc do
-        lc -= 1
-        len -= 1
-        result = append(result,getVal(addr))
---DEV (untried)
---      addr += machine_word()
-        if machine_bits()=32 then
-            addr += 4
-        else
-            addr += 8
-        end if
-    end while
-    if len then
-        showellipse = 1
-    end if
-    return result
-end function
-
-function getValueX(integer symidx, integer limit)
-object  o,
-        ss   -- SymTab[symidx]
-object si
-integer nTyp, tidx
-
-    lc = limit
-    showellipse = 0
-    si = SymTab[symidx]
-    -- obviously none of these should ever happen, but if they do then leave
-    --  as many clues as you can in the ex.err to help resolve things.
-    if symidx<0 or symidx>length(SymTab) then
-        return sprintf("pTrace:getValue bad symidx[=%d]",symidx)
-    end if
-    ss = SymTab[symidx]
-    if atom(ss) then
-        return sprintf("pTrace:symtab[symidx[=%d]] is an atom",symidx)
-    end if
-    nTyp = ss[S_NTyp]
-    if nTyp>S_TVar or nTyp<S_Const then
-        return sprintf("pTrace:getValue bad symtab[symidx][S_NTyp]=%d",nTyp)
-    end if
---DEV 64-bit/see pdiagN.e
-    if nTyp=S_TVar then
-        tidx = ss[S_Tidx]
---      o = getVal(ebp+tidx*4)
-        o = getVal(ebp4*4+tidx*4)
-    else
-        tidx = ss[S_Slink]
---      o = getVal(static_base+tidx*4-4)
---      o = getVal(ds4*4+tidx*4-4)
-        o = getVal(ds4*4+tidx*4+16)
-    end if
-    if not novalue then
---DEV try that new routine here...?
-        o = ppf(o)
-        if showellipse then
-            lc = find('\n',o)
-            if lc then o = o[1..lc-1] end if
-            lc = length(o)
-            if o[lc]='}' then
-                o[lc..lc] = ",...}"
-            else
-                o &= "..."
-            end if
-        end if
-    end if
-    return o
-end function
 
 function retD(atom ebp)
 atom era        -- return address

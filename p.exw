@@ -2,6 +2,8 @@
 -- DEV this might need to be in pHeap.e (:%pGetMCHK?): (so that pAlloc can store 0 in the era)
 --  it may also want to be "with memory_leak_checking/full_memory_leak_checking"
 
+global constant FWARN = 01
+
 --global constant useFLOAT = 01
 global constant MCHK = 0        -- 0 = off, 1 = on
 
@@ -2052,7 +2054,7 @@ if MCHK and length(ptab)=0 and opLntpcalled=0 then
 --              call :%pNewGtcbChain        -- (if analysing)
 --              mov [ntcb4],eax             -- temp save
 -->             mov [frst4],ecx             -- temp save
---              <existing call :%newStack still rqd>
+--              <existing call :%pNewStack still rqd>
 --              <existing call(symtab[T_maintls][S_il])>
 --              <existing restore ebp/esp/symtabptr>
 -->             mov ecx,[frst4]
@@ -2083,7 +2085,7 @@ if MCHK and length(ptab)=0 and opLntpcalled=0 then
 --                  mov [ds+8],eax          -- symtabptr
                     call :%pSetSymPtr
                     push ecx
-                    call :%newStack
+                    call :%pNewStack
 --DEV (diagnostics)
 --                  pop ecx
 mov ecx,[esp]
@@ -2130,7 +2132,7 @@ pop ecx
 --                  mov [ds+8],rax          -- symtabptr
                     call :%pSetSymPtr
                     push rcx
-                    call :%newStack
+                    call :%pNewStack
 --DEV (diagnostics)
 --                  pop rcx
 mov rcx,[rsp]
@@ -2175,12 +2177,12 @@ else -- not MCHK
                     shl ecx,2
 --                  mov [ds+8],eax          -- symtabptr
                     call :%pSetSymPtr
---newStack??
+--pNewStack??
 --DEV not safe...
 --push ebp
 --              T_EBP       = 22,   -- spare (DEV T_level/T_EBP) -- compiled=0, interpreted={ebp4,esp4,sym4,gvar4?,level}
                     push ecx
-                    call :%newStack
+                    call :%pNewStack
 --DEV (diagnostics)
 --                  pop ecx
 mov ecx,[esp]
@@ -2225,7 +2227,7 @@ pop ecx
 --                  mov [ds+8],rax              -- symtabptr
                     call :%pSetSymPtr
                     push rcx
-                    call :%newStack
+                    call :%pNewStack
 --DEV (diagnostics)
 --                  pop rcx
 mov rcx,[rsp]
@@ -2272,12 +2274,12 @@ end if
 --  mov [symtabptr],??? ""
     [level]++
 --27/2/15: eax:=symtabptr, ecx:=gvarptr
-    call :%newStack
+    call :%pNewStack
     call ???
 :%opIaborted
     [level]--
 --  pop [symtabptr] ""
-    call :%freeStack
+    call :%pFreeStack
     ret
 --*/
 
@@ -2354,6 +2356,7 @@ object line
 --      the same should also be true after atom s=1 - re-declaration/overwrite should re-h4 s.
 --      (the help system is tied into Edix, not the repl, but you could easily add "help xxx")
 --      no point sending repl errors to Edita/Edix...
+while 1 do  -- main loop
     puts(1,"\n>")
     text = ""
     while 1 do  -- read line loop

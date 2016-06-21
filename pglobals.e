@@ -796,7 +796,7 @@ global integer currRtn
 global integer LastStatementWasAbort -- avoid emitting opCleanUp after an abort.
 
 -- mergeSets. See pilx86.e (also used in pmain.e)
-global constant scMerge=1, exprMerge=2, exitMerge=3, ifMerge=4, endIfMerge=5
+global constant scMerge=1, exprMerge=2, exitMerge=3, ifMerge=4, endIfMerge=5, breakMerge=6
 
 --DEV should these be set to -#FFFFFFFF .. #FFFFFFFF when a 32-bit p.exe is creating a 64-bit exe??
 global constant MININT =-#40000000,                                             -- -1073741824

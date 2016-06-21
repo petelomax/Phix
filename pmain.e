@@ -49,6 +49,171 @@
     --   (for X read "routine" or "parameter" or "[S_il]"...)
     --
 
+sequence opstack, opstype, opsltrl, opsline, opstcol
+         opstack = repeat(0,4) -- var nos [index to symtab] or opcode [see also opTopIsOp]
+         opstype = repeat(0,4) -- eg T_integer, or UDT, -1 for ops/literals, -2 on stack
+         opsltrl = repeat(0,4) -- 0 (No), 1 (Yes), or allowTempReuse(-1) for temps
+         opsline = repeat(0,4) -- for error reporting
+         opstcol = repeat(0,4) --       ""
+
+--procedure validate_opstack()
+--  for i=1 to length(opstack) do
+--      isInt(opstack[i],1)
+--  end for
+--end procedure
+
+
+-- Technical/Linguistic point: The notion of "literal" bears some consideration.
+--  The 1 and "hello" in say puts(1,"hello") are literals; the implicit 2 (ie
+--  number of subscripts) in say s[5][6] is NOT a "literal" in this context,
+--  but rather the same (opstype[]=-1) as opSubse.
+
+-- verify that the compiler is setting these as "sequence of integer":
+--/**/  #isginfo{opstack,0b0100,MIN,MAX,integer,-2}
+--/**/  #isginfo{opstype,0b0100,MIN,MAX,integer,-2}
+--/**/  #isginfo{opsltrl,0b0100,MIN,MAX,integer,-2}
+--/**/  #isginfo{opsline,0b0100,MIN,MAX,integer,-2}
+--/**/  #isginfo{opstcol,0b0100,MIN,MAX,integer,-2}
+--               var,    type,  min,max,etype, len
+-- #isginfo emits no code or otherwise alters compiler behaviour, it 
+--  just verifies the result of gvar_scan. See pemit.e for details.
+
+integer opsidx              -- index to above
+        opsidx = 0
+integer opsidxm1, opsidxm2, opsidxm3
+
+integer isGlobal            -- set when "global" found
+        isGlobal = 0
+
+integer opTopIsOp       -- zero or one of the following groups
+        opTopIsOp = 0
+
+constant UnaryOp        = 1, 
+         MathOp         = 2, 
+         ConcatOp       = 3, 
+         BranchOp       = 4, 
+         LogicOp        = 5,
+         BltinOp        = 6,
+         SubscriptOp    = 7, 
+         SliceOp        = 8, 
+         MkSqOp         = 9, 
+         NotBltinOp     = 16    -- opInt..opSq (opINSP) at least for for now
+--       NotSubscriptOp = 17    -- not actually used, but logically this does exist (search comments).
+
+
+--integer LastStatementWasAbort -- now in pglobals.e, for pilx86.e
+
+integer onDeclaration           -- eg "object x=e" or "object x x=e" forms, no check/dealloc rqd on x. [DEV: BLUFF]
+        onDeclaration = 0       -- also used for "constant y=e", some first ever uses of a var, and
+                                -- all param setup between opFrame and opCall (since opFrame saves 
+                                -- and then clears all params [and local vars and temps]).
+integer exitBP          -- exit back patch link
+        exitBP = -1     -- -1:not valid(not inside a loop) else backpatch chain (0 terminated)
+
+integer breakBP
+        breakBP = -1
+
+integer continueBP
+        continueBP = -1
+
+-- moved to pglobals 1/10/2011:
+--integer returnvar         -- -1: top_level/return illegal, 0: in a proc, +ve: func/type return var (symtab idx)
+--      returnvar = -1      --          - see DoRoutineDef/DoReturn for more details.
+
+integer returntype          -- best guess so far of the return type
+        returntype = -1
+
+integer returnint           -- 1: this is a type, ie a function which should return 0 or 1.
+        returnint = 0
+
+
+--
+-- Probable Logic Errors (ple, aka plausibility tests) are things like:
+-- =====================
+--
+--  integer i
+--      ...
+--      if sequence(i) then
+--                  ^ warning: probable logic error (always false)
+--  object x
+--      if sequence(x) then
+--          ...
+--      elsif atom(x) then
+--                 ^ warning: probable logic error (always true)
+--
+-- All "probable logic errors" are given as warnings.
+-- These messages extend to user defined types and derivatives.
+-- It is also possible to get these messages for subscripts in 
+--  cases where the compiler has proved the sequence only ever 
+--  contains elements of that type, for example in:
+--      string t
+--          t = "fred"
+--          if integer(t[2]) then
+--
+-- Note that "if atom(i) then" and "if not atom(i) then" give
+--  the same (always true) message, ie it is "atom(i)" which
+--  is always true, rather than [say] "not atom(i)".
+--
+-- Also note that should the compiler detect that parameter X is only
+--  ever assigned an integer, an "integer(X)" test (etc) does /NOT/ 
+--  give a ple, otherwise general purpose code in library routines 
+--  would get spannered by small programs that use it "lightly".
+--  Even better, the compiler quietly suppresses code generation for
+--  the bits that would never be executed, ie any code in an always 
+--  false test, as well as any always true or always false tests.
+--
+integer probable_logic_error        -- a "used count".
+        probable_logic_error = 0
+
+sequence plecol, pleline, pletruth
+    plecol = repeat(0,4)
+    pleline = repeat(0,4)
+    pletruth = repeat(0,4)
+
+-- verify compiler gets these right:
+--/**/  #isginfo{plecol,0b0100,MIN,MAX,integer,-2}
+--/**/  #isginfo{pleline,0b0100,MIN,MAX,integer,-2}
+--/**/  #isginfo{pletruth,0b0100,MIN,MAX,integer,-2}
+
+
+procedure add_ple(integer truth)
+    if emitON then -- test added 29/12/2011
+        probable_logic_error += 1
+        if probable_logic_error>length(plecol) then
+            plecol &= repeat(0,4)
+            pleline &= repeat(0,4)
+            pletruth &= repeat(0,4)
+        end if
+        plecol[probable_logic_error] = opstcol[opsidx]
+        pleline[probable_logic_error] = opsline[opsidx]
+        pletruth[probable_logic_error] = truth
+    end if
+end procedure
+
+procedure show_ple()
+sequence tf
+    for i=probable_logic_error to 1 by -1 do
+        if pletruth[i] then
+            tf = "true)"
+        else
+            tf = "false)"
+        end if
+        Warn("probable logic error (always "&tf,pleline[i],plecol[i],0)
+    end for
+    probable_logic_error = 0
+end procedure
+
+global procedure Aborp(sequence msg)
+    if probable_logic_error then show_ple() end if
+    Abort(msg)
+end procedure
+
+procedure Abork(sequence msg, integer k)
+    tokline = opsline[k]
+    tokcol  = opstcol[k]
+    Aborp(msg)
+end procedure
+
 constant WITH=1, WITHOUT=0, FROMROUTINE=1
 procedure DoWithOptions(integer OptOn, integer fromroutine=0)
 integer k
@@ -69,10 +234,14 @@ integer k
                     end if
                     profileon = k
                 end if
-            elsif k=OptWarning then
-                finalOptWarn[fileno] = OptOn
+            elsif testall then
+                if k=OptWarning then
+                    finalOptWarn[fileno] = OptOn
+                end if
+                optset[k] = OptOn
+            elsif k!=OptWarning then
+                optset[k] = OptOn
             end if
-            optset[k] = OptOn
             if k=OptDebug and not OptOn and not fromroutine then
                 clearTLSDebug()
             end if
@@ -173,80 +342,6 @@ integer lhsvar
 --  if integer(o)!=f then ?9/0 end if
 --end procedure
 --isInt("",0)
-
-sequence opstack, opstype, opsltrl, opsline, opstcol
-         opstack = repeat(0,4) -- var nos [index to symtab] or opcode [see also opTopIsOp]
-         opstype = repeat(0,4) -- eg T_integer, or UDT, -1 for ops/literals, -2 on stack
-         opsltrl = repeat(0,4) -- 0 (No), 1 (Yes), or allowTempReuse(-1) for temps
-         opsline = repeat(0,4) -- for error reporting
-         opstcol = repeat(0,4) --       ""
-
---procedure validate_opstack()
---  for i=1 to length(opstack) do
---      isInt(opstack[i],1)
---  end for
---end procedure
-
-
--- Technical/Linguistic point: The notion of "literal" bears some consideration.
---  The 1 and "hello" in say puts(1,"hello") are literals; the implicit 2 (ie
---  number of subscripts) in say s[5][6] is NOT a "literal" in this context,
---  but rather the same (opstype[]=-1) as opSubse.
-
--- verify that the compiler is setting these as "sequence of integer":
---/**/  #isginfo{opstack,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{opstype,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{opsltrl,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{opsline,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{opstcol,0b0100,MIN,MAX,integer,-2}
---               var,    type,  min,max,etype, len
--- #isginfo emits no code or otherwise alters compiler behaviour, it 
---  just verifies the result of gvar_scan. See pemit.e for details.
-
-integer opsidx              -- index to above
-        opsidx = 0
-integer opsidxm1, opsidxm2, opsidxm3
-
-integer isGlobal            -- set when "global" found
-        isGlobal = 0
-
-integer opTopIsOp       -- zero or one of the following groups
-        opTopIsOp = 0
-
-constant UnaryOp        = 1, 
-         MathOp         = 2, 
-         ConcatOp       = 3, 
-         BranchOp       = 4, 
-         LogicOp        = 5,
-         BltinOp        = 6,
-         SubscriptOp    = 7, 
-         SliceOp        = 8, 
-         MkSqOp         = 9, 
-         NotBltinOp     = 16    -- opInt..opSq (opINSP) at least for for now
---       NotSubscriptOp = 17    -- not actually used, but logically this does exist (search comments).
-
-
---integer LastStatementWasAbort -- now in pglobals.e, for pilx86.e
-
-integer onDeclaration           -- eg "object x=e" or "object x x=e" forms, no check/dealloc rqd on x. [DEV: BLUFF]
-        onDeclaration = 0       -- also used for "constant y=e", some first ever uses of a var, and
-                                -- all param setup between opFrame and opCall (since opFrame saves 
-                                -- and then clears all params [and local vars and temps]).
-integer exitBP          -- exit back patch link
-        exitBP = -1     -- -1:not valid(not inside a loop) else backpatch chain (0 terminated)
-
-integer continueBP
-        continueBP = -1
-
--- moved to pglobals 1/10/2011:
---integer returnvar         -- -1: top_level/return illegal, 0: in a proc, +ve: func/type return var (symtab idx)
---      returnvar = -1      --          - see DoRoutineDef/DoReturn for more details.
-
-integer returntype          -- best guess so far of the return type
-        returntype = -1
-
-integer returnint           -- 1: this is a type, ie a function which should return 0 or 1.
-        returnint = 0
 
 -- moved to psym.e 27/8/14:
 ----with trace
@@ -618,92 +713,6 @@ end procedure
 --  end if
 --end procedure
 
---
--- Probable Logic Errors (ple, aka plausibility tests) are things like:
--- =====================
---
---  integer i
---      ...
---      if sequence(i) then
---                  ^ warning: probable logic error (always false)
---  object x
---      if sequence(x) then
---          ...
---      elsif atom(x) then
---                 ^ warning: probable logic error (always true)
---
--- All "probable logic errors" are given as warnings.
--- These messages extend to user defined types and derivatives.
--- It is also possible to get these messages for subscripts in 
---  cases where the compiler has proved the sequence only ever 
---  contains elements of that type, for example in:
---      string t
---          t = "fred"
---          if integer(t[2]) then
---
--- Note that "if atom(i) then" and "if not atom(i) then" give
---  the same (always true) message, ie it is "atom(i)" which
---  is always true, rather than [say] "not atom(i)".
---
--- Also note that should the compiler detect that parameter X is only
---  ever assigned an integer, an "integer(X)" test (etc) does /NOT/ 
---  give a ple, otherwise general purpose code in library routines 
---  would get spannered by small programs that use it "lightly".
---  Even better, the compiler quietly suppresses code generation for
---  the bits that would never be executed, ie any code in an always 
---  false test, as well as any always true or always false tests.
---
-integer probable_logic_error        -- a "used count".
-        probable_logic_error = 0
-
-sequence plecol, pleline, pletruth
-    plecol = repeat(0,4)
-    pleline = repeat(0,4)
-    pletruth = repeat(0,4)
-
--- verify compiler gets these right:
---/**/  #isginfo{plecol,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{pleline,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{pletruth,0b0100,MIN,MAX,integer,-2}
-
-
-procedure add_ple(integer truth)
-    if emitON then -- test added 29/12/2011
-        probable_logic_error += 1
-        if probable_logic_error>length(plecol) then
-            plecol &= repeat(0,4)
-            pleline &= repeat(0,4)
-            pletruth &= repeat(0,4)
-        end if
-        plecol[probable_logic_error] = opstcol[opsidx]
-        pleline[probable_logic_error] = opsline[opsidx]
-        pletruth[probable_logic_error] = truth
-    end if
-end procedure
-
-procedure show_ple()
-sequence tf
-    for i=probable_logic_error to 1 by -1 do
-        if pletruth[i] then
-            tf = "true)"
-        else
-            tf = "false)"
-        end if
-        Warn("probable logic error (always "&tf,pleline[i],plecol[i],0)
-    end for
-    probable_logic_error = 0
-end procedure
-
-global procedure Aborp(sequence msg)
-    if probable_logic_error then show_ple() end if
-    Abort(msg)
-end procedure
-
-procedure Abork(sequence msg, integer k)
-    tokline = opsline[k]
-    tokcol  = opstcol[k]
-    Aborp(msg)
-end procedure
 
 --with trace
 integer forward_call    forward_call = 0 
@@ -2374,6 +2383,7 @@ function Branch(integer invert, integer emitElse,integer mergeSet, integer backp
 --  backpatch is one of exprBP, -- (loosely speaking) innermost fail
 --                      scBP, -- (loosely speaking) innermost success
 --                      exitBP, -- to containing end for/while (or continueBP)
+--                      breakBP, -- to containing end select
 --                      ifBP, -- (loosely speaking) if-level fail (if --> elsif --> else)
 --                      (EndIfBP is unconditional/not passed to this routine)
 --
@@ -2838,6 +2848,7 @@ end if
 end procedure
 
 integer rExpr
+forward procedure Expr(integer p, integer toBool)
 
 -- second parameter for Expr (or 0 if we want sc/exprBP chains):
 constant asBool=1,          -- return 0/1
@@ -3630,6 +3641,8 @@ end if
     return signature
 end function
 
+forward procedure MultipleAssignment(integer isDeclaration, integer Typ)
+
 procedure Locals(integer AllowOnDeclaration)
 -- process local declarations
 --  invoked from DoRoutineDef and Block
@@ -4393,7 +4406,9 @@ end if
 
     if not paramsOnStack then
         if sigidx<=siglen then
-            if (wasRoutineNo=T_find or wasRoutineNo=T_match) -- opFind or opMatch
+--25/5/16 (find is now hll)
+--          if (wasRoutineNo=T_find or wasRoutineNo=T_match) -- opFind or opMatch
+            if 0
             and sigidx=3 then
                 PushFactor(T_const1,1,T_integer)    -- default "find/match from" to 1
                 actsig &= T_integer
@@ -4945,6 +4960,66 @@ dbg = symtab[routineNo]
     calltokline = wascalltokline
 end procedure
 
+procedure clearIchain(integer saveIchain)
+integer tmp
+    while Ichain!=-1 do
+        tmp = symtab[Ichain][S_Init]
+        symtab[Ichain][S_Init] = 0
+        Ichain = tmp
+    end while
+    Ichain = saveIchain
+end procedure
+
+--with trace
+function backpatch(integer bplink, integer bpmin, integer mergeSet)
+--
+-- plant a label and point (some) previous jumps to it.
+--
+-- NB: Should NOT be called if nowt to backpatch!
+--
+integer s5len, bpnext
+
+    s5 &= {opLabel,mergeSet,0,bplink}
+    s5len = length(s5)
+    while 1 do
+--      s5[bplink-2] = mergeSet     -- no! do this in linkup
+        if s5[bplink-2]!=mergeSet then ?9/0 end if
+        s5[bplink-1] = s5len
+        bpnext = s5[bplink]
+--      if bpnext<=bpmin then exit end if
+        if bpnext=bpmin then exit end if
+        bplink = bpnext
+    end while
+    s5[bplink] = 0 -- remember to break the chain!
+
+    if NOLT=0 or bind or lint then
+        ltFlip(s5len-3)
+    end if -- NOLT
+
+    return bpmin
+end function
+
+function bprelink(integer oldchain, integer newchain, integer oldMergeSet, integer newMergeSet)
+-- move exprBP or scBP ==> exitBP, breakBP, or ifBP.
+-- scan down the new chain, replacing the mergeSet.
+-- replace the 0 link at the end of the new chain with the oldchain.
+-- return the newchain start as the start of the merged chains.
+integer this, next
+    if newchain=0 then ?9/0 end if  -- do not call in this case!
+--  if newchain=0 then return oldchain end if   -- [DEV??]
+    this = newchain
+    while 1 do
+        if s5[this-2]!=oldMergeSet then ?9/0 end if
+        s5[this-2] = newMergeSet
+        next = s5[this]
+        if next=0 then exit end if
+        this = next
+    end while
+    s5[this] = oldchain
+    return newchain
+end function
+
+
 integer exprBP      -- expression/short circuit back patch link
         exprBP = 0
 
@@ -5201,9 +5276,10 @@ sequence sig
 end procedure
 
 
-
+--17/6/16:
+constant NO_BREAK = #01
 --integer rBlock
-forward procedure Block()
+forward procedure Block(integer flags=0)
 
 constant R_Proc = 1, 
          R_Func = 2, 
@@ -5219,16 +5295,6 @@ integer CheckForFunctionReturn  -- if 1, there was a return statement somewhere.
 
 include pilasm.e    -- ilasm() and label_fixup()
 --include pilasm2.e -- ilASM() and label_FIXUP()
-
-procedure clearIchain(integer saveIchain)
-integer tmp
-    while Ichain!=-1 do
-        tmp = symtab[Ichain][S_Init]
-        symtab[Ichain][S_Init] = 0
-        Ichain = tmp
-    end while
-    Ichain = saveIchain
-end procedure
 
 constant T_topset = {T_proc,T_func,T_type,T_constant,T_global,T_public,T_export,
                      T_include,T_with,T_without,T_forward,T_namespace,T_enum,
@@ -6699,6 +6765,9 @@ object sig
                     skipSpacesAndComments()
                     if Ch!='(' then Undefined() end if
                 end if
+if FWARN then
+    Warn("forward call assumed",tokline,tokcol,0)
+end if
                 ForwardProc(FUNC)
 --              ForwardProc(FUNC,wasNamespace,nsttidx)
                 etype = T_object
@@ -6851,55 +6920,6 @@ object sig
         DoSubScripts()
     end if
 end procedure
-
---with trace
-function backpatch(integer bplink, integer bpmin, integer mergeSet)
---
--- plant a label and point (some) previous jumps to it.
---
--- NB: Should NOT be called if nowt to backpatch!
---
-integer s5len, bpnext
-
-    s5 &= {opLabel,mergeSet,0,bplink}
-    s5len = length(s5)
-    while 1 do
---      s5[bplink-2] = mergeSet     -- no! do this in linkup
-        if s5[bplink-2]!=mergeSet then ?9/0 end if
-        s5[bplink-1] = s5len
-        bpnext = s5[bplink]
---      if bpnext<=bpmin then exit end if
-        if bpnext=bpmin then exit end if
-        bplink = bpnext
-    end while
-    s5[bplink] = 0 -- remember to break the chain!
-
-    if NOLT=0 or bind or lint then
-        ltFlip(s5len-3)
-    end if -- NOLT
-
-    return bpmin
-end function
-
-function bprelink(integer oldchain, integer newchain, integer oldMergeSet, integer newMergeSet)
--- move exprBP or scBP ==> exitBP or ifBP.
--- scan down the new chain, replacing the mergeSet.
--- replace the 0 link at the end of the new chain with the oldchain.
--- return the newchain start as the start of the merged chains.
-integer this, next
-    if newchain=0 then ?9/0 end if  -- do not call in this case!
---  if newchain=0 then return oldchain end if   -- [DEV??]
-    this = newchain
-    while 1 do
-        if s5[this-2]!=oldMergeSet then ?9/0 end if
-        s5[this-2] = newMergeSet
-        next = s5[this]
-        if next=0 then exit end if
-        this = next
-    end while
-    s5[this] = oldchain
-    return newchain
-end function
 
 
 --DEV re-test this. I thought this was uber-neat now...
@@ -8287,10 +8307,30 @@ procedure DoExit()
 --  LastStatementWasReturn = 0
 --  LastStatementWasExit = 1
 --DEV unreachable code if next token is not T_end??
+    if toktype=';' then
+        getToken()
+    end if
     if toktype!=LETTER or not find(ttidx,T_endelseelsif) then
         --DEV or warning unreachable code, and
         --          emitON = 0
-        Aborp("elsif, else, or end if expected.")
+        Aborp("elsif, else, or end if expected.") -- (no point saying the other five)
+    end if
+end procedure
+
+procedure DoBreak()
+    if breakBP=-1 then Aborp("break statement must be inside a select") end if
+    MatchString(T_break)
+    if emitON then
+        apnds5({opJmp,breakMerge,0,breakBP})
+        breakBP = length(s5)
+    end if
+    if toktype=';' then
+        getToken()
+    end if
+    if toktype!=LETTER or not find(ttidx,{T_end,T_else,T_elsif,T_case,T_default}) then
+        --DEV or warning unreachable code, and
+        --          emitON = 0
+        Aborp("elsif, else, case, default, or end if expected.")
     end if
 end procedure
 
@@ -8304,10 +8344,13 @@ procedure DoContinue()
 --  LastStatementWasReturn = 0
 --  LastStatementWasExit = 1
 --DEV unreachable code if next token is not T_end??
+    if toktype=';' then
+        getToken()
+    end if
     if toktype!=LETTER or not find(ttidx,T_endelseelsif) then
         --DEV or warning unreachable code, and
         --          emitON = 0
-        Aborp("elsif, else, or end if expected.")
+        Aborp("elsif, else, or end if expected.") -- ("")
     end if
 end procedure
 
@@ -8486,7 +8529,7 @@ integer scode, wasEmit2
             exit
         end if -- not "then end" (or "else end")
 
-        if toktype=LETTER and find(ttidx,{T_exit,T_continue}) and elsevalid then
+        if toktype=LETTER and find(ttidx,{T_exit,T_break,T_continue}) and elsevalid then
             if ttidx=T_exit then
                 if exitBP=-1 then Aborp("exit statement must be inside a loop") end if
                 if opsidx then
@@ -8507,6 +8550,26 @@ integer scode, wasEmit2
                 end if
 
                 MatchString(T_exit)
+            elsif ttidx=T_break then
+                if breakBP=-1 then Aborp("break statement must be inside a select") end if
+                if opsidx then
+                    -- tag any scBP entries onto breakBP chain
+                    -- eg/ie: "if a or b then break"
+                    --   --> move jump after a onto break list
+                    if scBP then
+                        breakBP = bprelink(breakBP,scBP,scMerge,breakMerge)
+                        scBP = 0
+                    end if
+                    breakBP = Branch(NoInvert,emitElse,breakMerge,breakBP) -- jump to end select
+
+                elsif emitON then
+--                  if emitElse then ?9/0 end if
+                    -- handles eg "if [not] DEBUG then break end if"
+                    apnds5({opJmp,breakMerge,0,breakBP})
+                    breakBP = length(s5)
+                end if
+
+                MatchString(T_break)
             else -- ttidx=T_continue
                 if continueBP=-1 then Aborp("continue statement must be inside a loop") end if
                 if opsidx then
@@ -9415,6 +9478,7 @@ integer wasExprBP
 integer switchBP, saveIchain
 integer EndSwitchBP
 --, tmp
+integer saveBreakBP
 
 --sequence sytmp
 
@@ -9440,6 +9504,10 @@ integer link
 
     saveIchain = Ichain
     Ichain = -1
+
+--11/6/16:
+    saveBreakBP = breakBP
+    breakBP = 0
 
     MatchString(T_switch)
 
@@ -9682,7 +9750,7 @@ integer link
         end if
         if toktype!=LETTER or not find(ttidx,{T_end,T_else,T_default,T_break}) then
 
-            Block()
+            Block(NO_BREAK)
 
             clearIchain(-1)
             if exprBP!=0 then ?9/0 end if
@@ -9800,6 +9868,12 @@ end if
         EndSwitchBP = backpatch(EndSwitchBP,0,endIfMerge)
         if EndSwitchBP then ?9/0 end if
     end if
+--11/6/16:
+    if breakBP>0 then
+        if backpatch(breakBP,0,breakMerge) then ?9/0 end if
+    end if
+    breakBP = saveBreakBP
+
     if ctrlink then
         s5 &= {opCtrl,END+IF,ctrlink,emitline}
         ctrlink = length(s5)-1
@@ -9913,6 +9987,85 @@ end if
 --      apnds5({opPuts,T_const1,C_cr})
 --14/8/15:
         SideEffects = or_bits(SideEffects,E_other)
+    end if
+end procedure
+
+--with trace
+procedure TopDecls(integer AllowOnDeclaration)
+-- Parse and Translate Data Declarations
+integer N, Name
+integer Typ, rootInt
+--trace(1)
+--if tokline=52 then trace(1) end if
+    while 1 do
+        Typ = tokno
+--      rootInt = (rootType(Typ)=T_integer)
+--      rootInt = rootType(Typ)
+        rootInt = Typ
+        if rootInt>T_object then rootInt = rootType(rootInt) end if
+        rootInt = (rootInt=T_integer)
+        while 1 do
+            emitline = line
+            getToken()
+            if toktype!=LETTER then
+                if mapEndToMinusOne='$' and toktype=DIGIT and TokN=-1 then
+                    mapEndToMinusOne = 0
+                    getToken()
+                    exit
+                elsif toktype='{' then
+                    mapEndToMinusOne = 0
+                    MultipleAssignment(S_GVar2,Typ)
+                    if toktype!=',' then exit end if
+                else
+                    Aborp("a name is expected here")
+                end if
+            else
+                mapEndToMinusOne = 0
+                if InTable(InTop) then Duplicate() end if
+                N = InTable(-InAny)
+                if N>0 then
+                    if symtab[N][S_NTyp]=S_Rsvd then
+                        Aborp("illegal use of a reserved word")
+                    end if
+                end if
+                Name = ttidx
+                N = addSymEntry(Name,isGlobal,S_GVar2,Typ,0,0)
+                getToken()
+                --
+                -- Assignment on declaration:
+                --
+                if  toktype='='
+                or (toktype=LETTER and Name=ttidx) then
+                    if toktype=LETTER then
+                        -- treat integer x x=1 exactly the same as integer x=1.
+                        getToken()
+                    end if
+    --              onDeclaration = rootInt     --DEV or no fwd calls outstanding... (see t45aod.exw)
+--                  onDeclaration = (rootInt or no_of_fwd_calls=0)
+                    onDeclaration = AllowOnDeclaration and (rootInt or no_of_fwd_calls=0)
+--                  fromTopDecls = 1
+                    fromTopDecls = AllowOnDeclaration
+                    Assignment(N,Typ)
+                    fromTopDecls = 0
+                    onDeclaration = 0
+                end if
+                if toktype!=',' then exit end if
+            end if
+            mapEndToMinusOne = -1
+        end while
+--      Semi()
+        if Ch<=0 then exit end if
+        if toktype!=LETTER then exit end if
+        tokno = InTable(InAny)
+        if tokno<=0 then exit end if
+        if symtab[tokno][S_NTyp]!=S_Type then exit end if
+        isGlobal = 0
+    end while
+--DEV this messes up -list?
+--          emitline = tokline
+-- (added 6/1/2013:)
+    if toktype=';' then
+        getToken()
     end if
 end procedure
 
@@ -10494,6 +10647,7 @@ integer wasZformat -- quick restore for trace()/profile() [only!] (DEV: iff we c
     elsif ttidx=T_while then        DoWhile()
 --DEV elsif ttidx=T_try then        DoTry()?
     elsif ttidx=T_exit then         DoExit()
+    elsif ttidx=T_break then        DoBreak()
     elsif ttidx=T_continue then     DoContinue()
     elsif ttidx=T_return then       DoReturn()
     elsif ttidx=T_switch then       DoSwitch()
@@ -10504,6 +10658,9 @@ integer wasZformat -- quick restore for trace()/profile() [only!] (DEV: iff we c
                 skipSpacesAndComments()
                 if Ch!='(' then Undefined() end if
             end if
+if FWARN then
+    Warn("forward call assumed",tokline,tokcol,0)
+end if
             ForwardProc(PROC)
         elsif symtab[N][S_NTyp]=S_Rsvd then
             Aborp("illegal use of reserved word")
@@ -10547,7 +10704,7 @@ end procedure
 
 --without trace
 --with trace
-procedure Block()
+procedure Block(integer flags=0)
 --
 -- Parse and Translate a Block of Statements
 --
@@ -10564,7 +10721,14 @@ integer drop_scope = 0
         if toktype!=LETTER then
             if not find(toktype,{HEXDEC,'?','{'}) then exit end if
         else
-            if find(ttidx,T_endelseelsif) then exit end if
+--          if find(ttidx,T_endelseelsif) then exit end if
+            if find(ttidx,{T_end,T_else,T_elsif,
+                           T_case,T_default,--T_break,
+                           T_fallthru,T_fallthrough}) then exit end if
+            if and_bits(flags,NO_BREAK)
+            and ttidx=T_break then
+                exit
+            end if
             if tokno<=0 then
                 tokno = InTable(InAny)
             end if
@@ -10583,7 +10747,14 @@ integer drop_scope = 0
                 else
                     Locals(0)
                 end if
-                if find(ttidx,T_endelseelsif) then exit end if
+--              if find(ttidx,T_endelseelsif) then exit end if
+                if find(ttidx,{T_end,T_else,T_elsif,
+                               T_case,T_default,--T_break,
+                               T_fallthru,T_fallthrough}) then exit end if
+                if and_bits(flags,NO_BREAK)
+                and ttidx=T_break then
+                    exit
+                end if
             end if
         end if
         Statement()
@@ -10596,86 +10767,6 @@ integer drop_scope = 0
     if probable_logic_error then show_ple() end if
 end procedure
 --rBlock = routine_id("Block")
-
-
---with trace
-procedure TopDecls(integer AllowOnDeclaration)
--- Parse and Translate Data Declarations
-integer N, Name
-integer Typ, rootInt
---trace(1)
---if tokline=52 then trace(1) end if
-    while 1 do
-        Typ = tokno
---      rootInt = (rootType(Typ)=T_integer)
---      rootInt = rootType(Typ)
-        rootInt = Typ
-        if rootInt>T_object then rootInt = rootType(rootInt) end if
-        rootInt = (rootInt=T_integer)
-        while 1 do
-            emitline = line
-            getToken()
-            if toktype!=LETTER then
-                if mapEndToMinusOne='$' and toktype=DIGIT and TokN=-1 then
-                    mapEndToMinusOne = 0
-                    getToken()
-                    exit
-                elsif toktype='{' then
-                    mapEndToMinusOne = 0
-                    MultipleAssignment(S_GVar2,Typ)
-                    if toktype!=',' then exit end if
-                else
-                    Aborp("a name is expected here")
-                end if
-            else
-                mapEndToMinusOne = 0
-                if InTable(InTop) then Duplicate() end if
-                N = InTable(-InAny)
-                if N>0 then
-                    if symtab[N][S_NTyp]=S_Rsvd then
-                        Aborp("illegal use of a reserved word")
-                    end if
-                end if
-                Name = ttidx
-                N = addSymEntry(Name,isGlobal,S_GVar2,Typ,0,0)
-                getToken()
-                --
-                -- Assignment on declaration:
-                --
-                if  toktype='='
-                or (toktype=LETTER and Name=ttidx) then
-                    if toktype=LETTER then
-                        -- treat integer x x=1 exactly the same as integer x=1.
-                        getToken()
-                    end if
-    --              onDeclaration = rootInt     --DEV or no fwd calls outstanding... (see t45aod.exw)
---                  onDeclaration = (rootInt or no_of_fwd_calls=0)
-                    onDeclaration = AllowOnDeclaration and (rootInt or no_of_fwd_calls=0)
---                  fromTopDecls = 1
-                    fromTopDecls = AllowOnDeclaration
-                    Assignment(N,Typ)
-                    fromTopDecls = 0
-                    onDeclaration = 0
-                end if
-                if toktype!=',' then exit end if
-            end if
-            mapEndToMinusOne = -1
-        end while
---      Semi()
-        if Ch<=0 then exit end if
-        if toktype!=LETTER then exit end if
-        tokno = InTable(InAny)
-        if tokno<=0 then exit end if
-        if symtab[tokno][S_NTyp]!=S_Type then exit end if
-        isGlobal = 0
-    end while
---DEV this messes up -list?
---          emitline = tokline
--- (added 6/1/2013:)
-    if toktype=';' then
-        getToken()
-    end if
-end procedure
 
 
 --with trace
@@ -10712,7 +10803,8 @@ integer SNtyp
             end if
         else
             mapEndToMinusOne = 0
-            if InTable(InTop) then Duplicate() end if
+--30/5/16 (moved below)
+--          if InTable(InTop) then Duplicate() end if
             N = InTable(InAny)
             if N>0 then
                 SNtyp = symtab[N][S_NTyp]
@@ -10733,6 +10825,9 @@ integer SNtyp
                     else
                         Warn("variable name assumed, not type",tokline,tokcol,0)
                     end if
+--30/5/16:
+                else
+                    if InTable(InTop) then Duplicate() end if
                 end if
             end if
             if toktype='{' then
@@ -10765,7 +10860,8 @@ integer SNtyp
                     O = opstack[opsidx]
                     symtabO = symtab[O]
                     if Ntype!=T_object
-                    and not and_bits(Ntype,symtabO[S_vtype]) then
+--                  and not and_bits(Ntype,symtabO[S_vtype]) then
+                    and not and_bits(rootType(Ntype),rootType(symtabO[S_vtype])) then
                         tokline = wastokline
                         tokcol  = wastokcol
                         Aborp("type error")
@@ -11122,14 +11218,40 @@ end function
 procedure DoEnum()
 integer nxt
 integer wasttidx, N, O
-integer wastokcol
+integer wastokcol, rtntokcol, rtntokline
 integer slink, glink, scope, state
 sequence symtabN, symtabO   -- copies of symtab[x]
-integer step = 1, mul = 0
+integer step = 1, mul = 0, typeid = 0, tmp, pN, typesetN
+sequence typeset
 
     nxt = 1
     MatchString(T_enum)
---DEV type...
+    if ttidx=T_type then
+        getToken()
+        if toktype!=LETTER then
+            Aborp("a name is expected here")
+        end if
+        N = InTable(InTop)
+        if N=0 and isGlobal then
+            N = InTable(-InAny) -- no errors (namespace rqd etc)
+        end if
+        if N then
+            if N<=T_Asm then
+                Aborp("builtin overide")
+            elsif and_bits(symtab[N][S_State],S_fwd) then
+                Aborp("forward reference")
+            elsif symtab[N][S_NTyp]=S_Rsvd then
+                Aborp("illegal use of a reserved word")
+            else
+                Duplicate()
+            end if
+        end if
+        typeid = ttidx
+        typeset = {}
+        rtntokcol = tokcol
+        rtntokline = tokline
+        getToken()
+    end if
     if ttidx=T_by then
         getToken()
         if toktype='*' then
@@ -11171,6 +11293,7 @@ integer step = 1, mul = 0
             MatchChar('=')
             if mapEndToMinusOne='$' and toktype=DIGIT and TokN=-1 then  -- ...,x=$ case
                 -- (mapEndToMinusOne of '$' used as a flag later on)
+--DEV may need a prev (spotted in passing)
                 O = addUnnamedConstant(nxt-1, T_integer)
                 symtabO = symtab[O]
             else
@@ -11253,6 +11376,20 @@ integer step = 1, mul = 0
             symtab[O] = symtabO
         end if
 
+--no: put duplicates in to yield gaps in the ordinal index result for duplicated values
+--      if typeid!=0
+--      and not find(nxt,typeset) then
+        if typeid!=0 then
+--DEV possibly ttidx based...
+--DEV to support/test floats...
+--          if isFLOAT(nxt) then
+--              v = symtabN[S_Init]+0.5     << from DoSeq, could be symtabN/symtabO/other here...
+--              typeset = append(typeset,v)
+--          else
+                typeset = append(typeset,nxt)
+--          end if
+        end if
+
         if mul then
             nxt *= step
         else
@@ -11271,6 +11408,152 @@ integer step = 1, mul = 0
         mapEndToMinusOne = -2
         MatchChar(',')
     end while
+    if typeid!=0 then
+--      typeset = append(typeset,nxt)
+--DEV...
+--?     PushFactor(N,1,T_Dsq)   -- yep, this is a literal!
+
+        returnvar = newTempVar(T_object,FuncRes)
+        LIDX = 1
+
+        N = addSymEntryAt(typeid,isGlobal,S_Type,0,0,0,rtntokcol)
+--      pN = addSymEntryAt(T_object,0,S_TVar,T_object,0,K_type+S_used,rtntokcol)
+--      pN = addSymEntryAt(T_object,0,S_TVar,0,0,K_type+S_used,rtntokcol)
+--      pN = addSymEntryAt(-1,0,S_TVar,0,0,K_type+S_used,rtntokcol)
+        pN = addSymEntryAt(-1,0,S_TVar,T_integer,0,K_type+S_used,rtntokcol)
+--increaseScope?
+        symtab[symlimit][S_Init] = 1
+        tmp = symtab[symlimit][S_State]
+        tmp = or_bits(tmp,S_set+K_used)
+        symtab[symlimit][S_State] = tmp
+
+        typesetN = addUnnamedConstant(typeset, T_Dsq)
+        if length(symtab[typesetN])<S_gInfo then -- if not a duplicate
+--          symtab[typesetN] = append(symtab[typesetN],{T_Dsq,0,0,etype,len})
+            symtab[typesetN] = append(symtab[typesetN],{T_Dsq,0,0,T_integer,length(typeset)})
+        end if
+
+        -- store frame info:
+        symtab[N][S_Parm1] = pN
+        symtab[N][S_ParmN] = 1
+        symtab[N][S_Ltot] = 1
+
+        symtab[N][S_sig] = {'T',T_object}
+        symtab[N][S_Efct] = E_none
+
+--  emitline = line
+--  if emitline>lastline then
+--      emitline -= 1
+--  end if
+        symtab[N-1][S_vtype] = T_integer
+--DEV opLtyp??
+        symtab[N-1][S_ltype] = T_integer
+
+        if increaseScope(S_Rtn,-1) then end if
+        symtab[N][S_1stl] = rtntokline
+        currRtn = N
+
+        if NOLT=0 or bind or lint then
+            ltclear(N) -- (see above)
+        end if -- NOLT
+
+        PushFactor(pN,1,T_integer)
+        PushFactor(typesetN,1,T_Dsq)
+        Call(T_find,{TYPE,T_integer,T_Dsq},TYPE,1)
+        StoreVar(returnvar,T_integer)
+        returntype = T_integer
+
+if newEmit then
+        agcheckop(opRetf)
+end if
+        apnds5(opRetf)
+
+--
+--opFrame
+--      agcheckop(opFrame)
+--      apnds5({opFrame,T_find})
+--opFrst
+--opMove
+--opCall
+--opMovbi
+--opRetf
+
+        currRtn = dropScope(N,S_Rtn)
+        if NOLT=0 or bind or lint then
+            ltclear(-N)
+        end if -- NOLT
+        returnvar = -1
+        returnint = 0
+
+--/*
+routine 721 (type color() in C:\Program Files (x86)\Phix\e06.exw):
+===========
+   1:  opLn,11,                              --:enum by *2 RED=4, GREEN, BLACK, BLUE, PINK type color(object object) return find(object,{RED, GREEN, BLACK, BLUE, PINK}) end type
+   3:  opFrame,319,                          -- (find)
+   5:  opFrst,725,722,15,1,                  opFrst,dest,src,srctype,pbr
+  10:  opMove,726,723,20744,1,4,             opMove,dest,src,isInit,onDeclaration,ltype
+  16:  opCall,                               opCall
+  17:  opMovbi,720,318,1,                    opMovbi,dest,src,isInit
+  21:  opRetf,
+  22:  opBadRetf,
+
+new:
+routine 721 (type color() in C:\Program Files (x86)\Phix\e06.exw):
+===========
+   1:  opLn,10,                              --:enum type color by *2 RED=4, GREEN, BLACK, BLUE, PINK end type
+   3:  opFrame,319,                          -- (find)
+   5:  opFrst,725,722,0,1,                   opFrst,dest,src,srctype,pbr
+  10:  opMove,726,723,20744,1,4,             opMove,dest,src,isInit,onDeclaration,ltype
+  16:  opCall,                               opCall
+  17:  opMovbi,720,318,1,                    opMovbi,dest,src,isInit
+  21:  opRetf,
+
+
+;    11 enum by *2 RED=4, GREEN, BLACK, BLUE, PINK type color(object object) return find(object,{RED, GREEN, BLACK, BLUE, PINK}) end type
+    mov ecx,7                             ;#0042CE98: 271 07000000               uv 02 00  1   1      
+    mov edx,78                            ;#0042CE9D: 272 4E000000               vu 04 00  1   1      
+    call #0042CC0D (:%opFrame) (find)     ;#0042CEA2: 350 66FDFFFF               v  00 00  1   2      
+    mov edi,[ebp+20] (prevebp)            ;#0042CEA7: 213175 14                  uv 80 20  1   3      
+    mov eax,[edi]                         ;#0042CEAA: 213007                     uv 01 80  1   6 80 *80*
+    mov [ebp] (x),eax                     ;#0042CEAC: 211105 00                  uv 00 21  1   7 01   
+    mov esi,[#004027D8]                   ;#0042CEAF: 213065 D8274000            vu 40 00  1   7      
+    mov [ebp-4] (s),esi                   ;#0042CEB5: 211165 FC                  uv 00 60  1   8      
+    add dword[ebx+esi*4-8],1              ;#0042CEB8: 203104263 F8 01            u  00 48  3  10    *40*
+    mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
+    jmp #00423960 (code:find)             ;#0042CEC4: 351 976AFFFF               v  00 00  1  13      
+    jmp #0042CCAE (:%opRetf)              ;#0042CEC9: 351 E0FDFFFF               v  00 00  1  14      
+
+new:
+;    10 enum type color by *2 RED=4, GREEN, BLACK, BLUE, PINK end type
+    mov ecx,7                             ;#0042CE98: 271 07000000               uv 02 00  1   1      
+    mov edx,78                            ;#0042CE9D: 272 4E000000               vu 04 00  1   1      
+    call #0042CC0D (:%opFrame) (find)     ;#0042CEA2: 350 66FDFFFF               v  00 00  1   2      
+    mov edi,[ebp+20] (prevebp)            ;#0042CEA7: 213175 14                  uv 80 20  1   3      
+    mov eax,[edi]                         ;#0042CEAA: 213007                     uv 01 80  1   6 80 *80*
+    mov [ebp] (x),eax                     ;#0042CEAC: 211105 00                  uv 00 21  1   7 01   
+    mov esi,[#004027D8]                   ;#0042CEAF: 213065 D8274000            vu 40 00  1   7      
+    mov [ebp-4] (s),esi                   ;#0042CEB5: 211165 FC                  uv 00 60  1   8      
+    add dword[ebx+esi*4-8],1              ;#0042CEB8: 203104263 F8 01            u  00 48  3  10    *40*
+    mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
+    jmp #00423960 (code:find)             ;#0042CEC4: 351 976AFFFF               v  00 00  1  13      
+    jmp #0042CCAE (:%opRetf)              ;#0042CEC9: 351 E0FDFFFF               v  00 00  1  14      
+
+symtab[922]:{-1,S_TVar,0,(S_set+K_Fres),0,0,integer,{integer,0,MAXLEN,object,-1},(eax)}
+symtab[923]:{color,S_Type,1,(S_used+K_used+K_wdb),0,926,{84'T',15},924,1,1,#0042CE98}
+symtab[924]:{object,S_TVar,1,(S_used+S_set+K_used+K_wdb+K_type),15,0,object,{integer,4,64,object,-1},[esp]}
+symtab[925]:{-1,S_Const,1,(S_used+S_set+K_sqr+K_noclr+K_lit),0,498/#004027D8,T_Dsq,{4,8,16,32' ',64'@'}}
+
+new:
+symtab[922]:{-1,S_TVar,0,(S_set+K_Fres),0,0,integer,{integer,0,MAXLEN,object,-1},(eax)}
+symtab[923]:{color,S_Type,1,(S_used+K_used+K_wdb),0,926,{84'T',15},924,1,1,#0042CE98}
+>symtab[924]:{-1,S_TVar,1,(S_used+S_set+K_used+K_wdb+K_type),0,923,integer,{integer,4,64,object,-1},[esp]}
+symtab[925]:{-1,S_Const,1,(S_used+S_set+K_sqr+K_noclr+K_lit),0,498/#004027D8,T_Dsq,{4,8,16,32' ',64'@'}}
+
+
+--*/
+        MatchString(T_end)
+        MatchString(T_type)
+    end if
 end procedure
 
 procedure DoFormatHere()

@@ -538,7 +538,7 @@
 --              ...
 --              call :%pNewGtcbChain        -- (if analysing)
 --              mov [ntcb4],eax             -- temp save
---              <existing call :%newStack still rqd>
+--              <existing call :%pNewStack still rqd>
 --              <existing call(symtab[T_maintls][S_il])>
 --              <existing restore ebp/esp/symtabptr>
 --              mov eax,[ntcb4]
@@ -859,7 +859,7 @@ end procedure
         [PE32]
             -- standard (Windows API) calling convention applies: 
             -- eax/ecx/edx are damaged, as are st0..7
-            -- ebx/esi/edi are preserved
+            -- ebx/ebp/esi/edi are preserved
             -- result in eax, eax:edx, or st0
             push eax                                -- dwBytes (for HeapAlloc)
             call "kernel32.dll","GetProcessHeap"
@@ -985,7 +985,7 @@ end procedure
             -- rax/rcx/rdx/rsi/rdi/r8/r9/r10/r11 are damaged, as are xmm0..15 and st0..7
             -- rbx/rbp/r12/r13/r14/r15 are preserved
             -- In the case of C library calls (eg call "libc.so.6","printf"), rax/rcx/rdx/rsi/rdi/r8..r11 
-            --  are damaged, but rbx/ebp/r12..r15 are preserved. No floating point registers are preserved.
+            --  are damaged, but rbx/rbp/r12..r15 are preserved. No floating point registers are preserved.
 --!/*
             push rax                -- save length
 --          mov r14,rax             -- save length
@@ -1127,7 +1127,7 @@ end procedure -- (for Edita/CtrlQ)
 --  code, it has no idea if, when, or in what state things will be in when control gets 
 --  to the callback handler, and it needs some way to restore a bit of sanity. Prior to 
 --  multithreading, this used a local static variable in pcfuncN.e. The local integer(s)
---  local_ebp4, in call, c_func, and c_proc, uses the trick of storing a dword-aligned 
+--  local_ebp4, in call()/c_func()/c_proc(), use the trick of storing a dword-aligned 
 --  value /4 in an integer, and that takes care of any nesting, to any depth. 
 --  Logically, I suppose, pSetSaveEBP belongs in pStack.e - but making pGetTCB global is 
 --  not really justifiable, especially not just for this trivial little thing.
@@ -1762,6 +1762,8 @@ end procedure -- (for Edita/CtrlQ)
             cmp esi,1
 --          ja :memorycorruption
             jbe @f
+--30/5/16:
+                jmp :mc53
                 int3
           @@:
             test edi,1

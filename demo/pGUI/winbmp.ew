@@ -1,0 +1,256 @@
+--
+-- winbmp.ew
+--
+
+--include file.e
+--include machine.e
+--without warning
+
+
+sequence qbfType                        --** 2 bytes (should be "BM") **--
+global atom qbfSize                     --** 4 bytes **--
+global integer qbfResv1,qbfResv2        --** 2 bytes each (=0) **--
+global atom qbfOffsBits                 --** 4 bytes **--
+global atom qbiSize                     --** 4 bytes **--
+global atom qbiW,qbiH                   --** 4 bytes each **--
+global integer qbiPlanes,qbiBitCount    --** 2 bytes each **--
+global atom qbiCompress,qbiSizeImg      --** 4 bytes each **--
+global atom qbiXPelsPerMeter,qbiYPelsPerMeter   --** 4 bytes each **--
+global atom qbiClrsUsed,qbiClrsImportant        --** 4 bytes each **--
+integer crap,diffr
+integer bpr                                     --** bytes per row **--
+global integer numColors,BMPVersion
+
+
+atom bmpFn,bmpMem
+sequence header,bmpImg,pal
+--,buffert
+integer bmpChar
+
+global constant BMPfileError = 1,
+                BMPformatError = 2,
+                BMPbitCountError = 3
+
+global constant BMPErrors = {"Couldn't open file","Uncorrect header in file","Unsupported bitcount in file"}
+
+--constant BMPInfoHdrSize = {0,12,40}
+constant v2 = 2,v3 = 3
+
+
+--** converts a length-4 sequence to a dword **--
+function get_dword(sequence dw)
+atom dwrd
+    dwrd = (dw[1]+(dw[2]*256)+(dw[3]*65536)+(dw[4]*16777216))
+    return dwrd
+end function
+
+
+--** converts a length-2 sequence to a word **--
+function get_word(sequence dw)
+integer wrd
+    wrd = (dw[1]+(dw[2]*256))
+    return wrd
+end function
+
+function dword2seq(atom dwrd)
+sequence dw
+    dw = {0,0,0,0}
+    dw[1] = and_bits(dwrd,#000000FF)
+    dwrd = floor(dwrd/256)
+    dw[2] = and_bits(dwrd,#000000FF)
+    dwrd = floor(dwrd/256)
+    dw[3] = and_bits(dwrd,#000000FF)
+    dwrd = floor(dwrd/256)
+    dw[4] = and_bits(dwrd,#000000FF)
+    return dw
+end function
+
+function word2seq(integer wrd)
+sequence dw
+    dw = {0,0}
+    dw[1] = and_bits(wrd,#00FF)
+    wrd = floor(wrd/256)
+    dw[2] = and_bits(wrd,#00FF)
+    return dw
+end function
+
+--/*
+function peek3(atom src)
+atom ret
+    ret = peek4u(src)
+    return and_bits(src,#00FFFFFF)
+end function
+--*/
+
+
+--** reads a 24-bit BMP into memory **--
+function read24bit()
+    bmpMem = allocate(qbiH*qbiW*3)  --** allocate memory for the image **--
+    crap = seek(bmpFn,qbfOffsBits)  --** jump to start of image data **--
+    diffr = (bpr-(qbiW*3))
+    for i=1 to qbiH do          --** height of bitmap in pixels **--
+        for j=1 to qbiW do          --** width of bitmap in pixels **--
+            for k=1 to 3 do
+                bmpChar = getc(bmpFn)
+                --** BMPs are stored upside down, hence the complex formula **--
+                poke((bmpMem+(qbiH*qbiW*3)-1)-(i*qbiW*3)+((j-1)*3)+(4-k),bmpChar)
+            end for
+        end for
+        if diffr>0 then
+            for k=1 to diffr do
+                bmpChar = getc(bmpFn)
+            end for
+        end if
+    end for
+    bmpImg = {24,bmpMem,qbiW,qbiH}  --** return-data **--
+    return bmpImg
+end function
+
+
+--** reads an 8-bit BMP into memory **--
+global function read8bit()
+    pal = repeat({0,0,0},256)       --** create a palette **--
+    bmpMem = allocate(qbiW*qbiH)
+    diffr = (bpr-qbiW)
+    for j=1 to numColors do     --** number of colors in the palette **--
+        for k=1 to 3 do             --** red, green and blue
+            bmpChar = getc(bmpFn)
+            pal[j][3-(k-1)] = bmpChar       --** get blue, green and red values **--
+        end for
+        if BMPVersion=v3 then       --** is it a v 3.0+ BMP ? **--
+            bmpChar = getc(bmpFn)           --** ...then get the unused value of the RGB_Quad struct **--
+        end if
+    end for
+    for i=1 to qbiH do          --** height of bitmap in pixels **--
+        for j=1 to qbiW do          --** width of bitmap in pixels **--
+            bmpChar = getc(bmpFn)
+            poke((bmpMem+(qbiW*qbiH)-1)-(i*qbiW)+j,bmpChar)
+        end for
+        if diffr>0 then
+            for j=1 to diffr do
+                bmpChar = getc(bmpFn)
+            end for
+        end if
+    end for
+    bmpImg = {8,bmpMem,qbiW,qbiH,pal}
+    return bmpImg
+end function
+
+
+
+--** reads the BMP headers and calls read8bit()/read24bit() **--
+global function load_bmp(sequence filen)
+object retVal
+    header = repeat(0,56)
+    retVal = -1
+    bmpFn = open(filen,"rb")
+    if bmpFn!=-1 then
+        for i=1 to 18 do
+            bmpChar = getc(bmpFn)
+            header[i] = bmpChar
+        end for
+  --** get the BMPFILEHEADER struct **--
+        qbfType = header[1..2]
+        qbfSize = get_dword(header[3..6])
+        qbfResv1 = get_word(header[7..8])
+        qbfResv2 = get_word(header[9..10])
+        qbfOffsBits = get_dword(header[11..14])
+        qbiSize = get_dword(header[15..18])
+        for i=1 to (qbiSize-4) do
+            bmpChar = getc(bmpFn)
+            header[18+i] = bmpChar
+        end for
+        if qbiSize=40 then                  --** is it a BMP v 3.0+ ? **--
+            BMPVersion = v3
+            qbiW = get_dword(header[19..22])
+            qbiH = get_dword(header[23..26])
+            qbiPlanes = get_word(header[27..28])
+            qbiBitCount = get_word(header[29..30])
+            qbiClrsUsed = get_dword(header[47..50])
+            numColors = (qbfOffsBits-qbiSize-14)/4
+        else
+            if qbiSize=12 then                  --** ...or is it a BMP v 2.0 **--
+                BMPVersion = v2
+                qbiW = get_word(header[19..20])
+                qbiH = get_word(header[21..22])
+                qbiPlanes = get_word(header[23..24])
+                qbiBitCount = get_word(header[25..26])
+                numColors = (qbfOffsBits-qbiSize-14)/3
+            else
+                return BMPformatError
+            end if
+        end if
+        bpr = floor(((qbiBitCount*qbiW)+31)/32)*4
+        retVal = BMPformatError
+        if (qbfType[1]='B') and (qbfType[2]='M') then
+            if (qbiBitCount=24) then
+                retVal = read24bit()
+                close(bmpFn)
+                return retVal
+            else
+                if (qbiBitCount=8) then
+                    retVal = read8bit()
+                    close(bmpFn)
+                    return retVal
+                else
+                    close(bmpFn)
+                    return {-1,BMPbitCountError}
+                end if
+            end if
+        else
+            return {-1,BMPformatError}
+        end if
+    else
+        return {-1,BMPfileError}
+    end if
+end function
+
+global function save_bmp(sequence s)
+sequence bmp_pal8,bmp_name
+atom bmp_mem
+atom fn
+    print(1,s)
+    puts(1,"\n\n")
+    if s[1][1]=8 then
+        bmp_pal8 = s[1][5]
+    end if
+    bmp_mem = s[1][2]
+    bmp_name = s[2]
+    qbfType = "BM"
+    qbiW = s[1][3]
+    qbiH = s[1][4]
+    qbiBitCount = s[1][1]
+    bpr = floor(((qbiBitCount*qbiW)+31)/32)*4
+    qbfSize = 54+(bpr*qbiH)
+    qbfResv1 = 0
+    qbfResv2 = 0
+    qbfOffsBits = 54
+    qbiSize = 40
+    qbiPlanes = 1
+    qbiCompress = 0
+    qbiSizeImg = 0
+    qbiXPelsPerMeter = 0
+    qbiYPelsPerMeter = 0
+    qbiClrsUsed = 0
+    qbiClrsImportant = 0
+    fn = open(bmp_name,"wb")
+    puts(fn,qbfType)
+    puts(fn,dword2seq(qbfSize))
+    puts(fn,word2seq(qbfResv1))
+    puts(fn,word2seq(qbfResv2))
+    puts(fn,dword2seq(qbfOffsBits))
+    puts(fn,dword2seq(qbiSize))
+    puts(fn,dword2seq(qbiW))
+    puts(fn,dword2seq(qbiH))
+    puts(fn,word2seq(qbiPlanes))
+    puts(fn,word2seq(qbiBitCount))
+    puts(fn,dword2seq(qbiCompress))
+    puts(fn,dword2seq(qbiSizeImg))
+    puts(fn,dword2seq(qbiXPelsPerMeter))
+    puts(fn,dword2seq(qbiYPelsPerMeter))
+    puts(fn,dword2seq(qbiClrsUsed))
+    puts(fn,dword2seq(qbiClrsImportant))
+
+    close(fn)
+    return 0
+end function

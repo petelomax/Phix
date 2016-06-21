@@ -1,0 +1,401 @@
+--
+-- gears.exw
+-- =========
+--
+-- *
+-- * 3-D gear wheels.  This program is in the public domain.
+-- *
+-- * Command line options:
+-- *    -info      print GL implementation information
+-- *    -exit      automatically exit after 30 seconds
+-- *
+-- *
+-- * Brian Paul
+-- *
+-- *
+-- * Marcus Geelnard:
+-- *   - Conversion to GLFW
+-- *   - Time based rendering (frame rate independent)
+-- *   - Slightly modified camera that should work better for stereo viewing
+-- *
+--  Converted to pGUI by Pete Lomax
+--  Added timer/idle handling for comparison:
+--  Note that performance is a little slower than glfw. When usetimer=0 this
+--  achieves 1000fps compared to the glfw one getting 1500fps. When using a
+--  timer there is little point showing a frame rate, so it does not, but at 
+--  least the CPU usage drops to 0 instead of 100% (aka 25% with 4 cores).
+--  Use up/down/left/right/z/Z to rotate the gears.
+--
+
+constant usetimer = 01
+
+include pGUI.e
+include opengl.e
+
+--#withtype Ihandle
+
+Ihandle dialog, canvas
+
+integer running = 1
+atom t0 = 0
+atom t = 0, dt
+
+integer Frames = 0
+integer autoexit = 0
+
+procedure gear(atom inner_radius, atom outer_radius, atom width, integer teeth, atom tooth_depth)
+--
+--  Draw a gear wheel.  You'll probably want to call this function when
+--  building a display list since we do a lot of trig here.
+--
+--  Input:  inner_radius - radius of hole at center
+--          outer_radius - radius at center of teeth
+--          width - width of gear
+--          teeth - number of teeth
+--          tooth_depth - depth of tooth
+--
+atom r0, r1, r2, angle, da, u, v, len
+
+    r0 = inner_radius
+    r1 = outer_radius-tooth_depth/2
+    r2 = outer_radius+tooth_depth/2
+
+    da = 2*PI/teeth/4
+
+    glShadeModel(GL_FLAT)
+
+    glNormal(0, 0, 1)
+
+    -- draw front face
+    glBegin(GL_QUAD_STRIP)
+    for i=0 to teeth do
+        angle = i*2*PI/teeth
+        glVertex(r0*cos(angle), r0*sin(angle), width*0.5)
+        glVertex(r1*cos(angle), r1*sin(angle), width*0.5)
+        if i<teeth then
+            glVertex(r0*cos(angle), r0*sin(angle), width*0.5)
+            glVertex(r1*cos(angle+3*da), r1*sin(angle+3*da), width*0.5)
+        end if
+    end for
+    glEnd()
+
+    -- draw front sides of teeth
+    glBegin(GL_QUADS)
+    da = 2*PI/teeth/4
+    for i=0 to teeth-1 do
+        angle = i*2*PI/teeth
+
+        glVertex(r1*cos(angle), r1*sin(angle), width*0.5)
+        glVertex(r2*cos(angle+da), r2*sin(angle+da), width*0.5)
+        glVertex(r2*cos(angle+2*da), r2*sin(angle+2*da), width*0.5)
+        glVertex(r1*cos(angle+3*da), r1*sin(angle+3*da), width*0.5)
+    end for
+    glEnd()
+
+    glNormal(0, 0, -1)
+
+    -- draw back face
+    glBegin(GL_QUAD_STRIP)
+    for i=0 to teeth do
+        angle = i*2*PI/teeth
+        glVertex(r1*cos(angle), r1*sin(angle), -width*0.5)
+        glVertex(r0*cos(angle), r0*sin(angle), -width*0.5)
+        if i<teeth then
+            glVertex(r1*cos(angle+3*da), r1*sin(angle+3*da), -width*0.5)
+            glVertex(r0*cos(angle), r0*sin(angle), -width*0.5)
+        end if
+    end for
+    glEnd()
+
+    -- draw back sides of teeth
+    glBegin(GL_QUADS)
+    da = 2*PI/teeth/4
+    for i=0 to teeth-1 do
+        angle = i*2*PI/teeth
+
+        glVertex(r1*cos(angle+3*da), r1*sin(angle+3*da), -width*0.5)
+        glVertex(r2*cos(angle+2*da), r2*sin(angle+2*da), -width*0.5)
+        glVertex(r2*cos(angle+da), r2*sin(angle+da), -width*0.5)
+        glVertex(r1*cos(angle), r1*sin(angle), -width*0.5)
+    end for
+    glEnd()
+
+    -- draw outward faces of teeth
+    glBegin(GL_QUAD_STRIP)
+    for i=0 to teeth-1 do
+        angle = i*2*PI/teeth
+
+        glVertex(r1*cos(angle), r1*sin(angle), width*0.5)
+        glVertex(r1*cos(angle), r1*sin(angle), -width*0.5)
+        u = r2*cos(angle+da)-r1*cos(angle)
+        v = r2*sin(angle+da)-r1*sin(angle)
+        len = sqrt(u*u+v*v)
+        u /= len
+        v /= len
+        glNormal(v, -u, 0)
+        glVertex(r2*cos(angle+da), r2*sin(angle+da), width*0.5)
+        glVertex(r2*cos(angle+da), r2*sin(angle+da), -width*0.5)
+        glNormal(cos(angle), sin(angle), 0)
+        glVertex(r2*cos(angle+2*da), r2*sin(angle+2*da), width*0.5)
+        glVertex(r2*cos(angle+2*da), r2*sin(angle+2*da), -width*0.5)
+        u = r1*cos(angle+3*da)-r2*cos(angle+2*da)
+        v = r1*sin(angle+3*da)-r2*sin(angle+2*da)
+        glNormal(v, -u, 0)
+        glVertex(r1*cos(angle+3*da), r1*sin(angle+3*da), width*0.5)
+        glVertex(r1*cos(angle+3*da), r1*sin(angle+3*da), -width*0.5)
+        glNormal(cos(angle), sin(angle), 0)
+    end for
+
+    glVertex(r1*cos(0), r1*sin(0), width*0.5)
+    glVertex(r1*cos(0), r1*sin(0), -width*0.5)
+
+    glEnd()
+
+    glShadeModel(GL_SMOOTH)
+
+    -- draw inside radius cylinder
+    glBegin(GL_QUAD_STRIP)
+    for i=0 to teeth do
+        angle = i*2*PI/teeth
+        glNormal(-cos(angle), -sin(angle), 0)
+        glVertex(r0*cos(angle), r0*sin(angle), -width*0.5)
+        glVertex(r0*cos(angle), r0*sin(angle), width*0.5)
+    end for
+    glEnd()
+end procedure
+
+atom view_rotx = 20,
+     view_roty = 30,
+     view_rotz = 0
+
+integer gear1,
+        gear2,
+        gear3
+
+atom angle angle = 0
+
+-- OpenGL draw function & timing
+procedure draw()
+atom t_new, seconds, fps
+
+    glClear(or_bits(GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT))
+
+    glPushMatrix()
+    glRotate(view_rotx, 1, 0, 0)
+    glRotate(view_roty, 0, 1, 0)
+    glRotate(view_rotz, 0, 0, 1)
+
+    glPushMatrix()
+    glTranslate(-3, -2, 0)
+    glRotate(angle, 0, 0, 1)
+    glCallList(gear1)
+    glPopMatrix()
+
+    glPushMatrix()
+    glTranslate(3.1, -2, 0)
+    glRotate(-2*angle-9, 0, 0, 1)
+    glCallList(gear2)
+    glPopMatrix()
+
+    glPushMatrix()
+    glTranslate(-3.1, 4.2, 0)
+    glRotate(-2*angle-25, 0, 0, 1)
+    glCallList(gear3)
+    glPopMatrix()
+
+    glPopMatrix()
+
+    Frames += 1
+
+    t_new = time()
+    dt = t_new-t
+    t = t_new
+
+    if t-t0>=5 then
+        if not usetimer then
+            seconds = t-t0
+            fps = Frames/seconds
+            string title = sprintf("%d Frames in %6.3f Seconds = %6.3f FPS\n", {Frames, seconds, fps})
+            IupSetAttribute(dialog,"TITLE",title)
+        end if
+        t0 = t
+        Frames = 0
+        if (t>=0.999*autoexit) and autoexit then
+            running = 0
+        end if
+    end if
+end procedure
+
+-- update animation parameters
+procedure animate()
+    angle += 100*dt
+end procedure
+
+-- new window size
+function resize_cb(Ihandle /*ih*/, integer width, integer height)
+atom xmax, znear, zfar
+atom h = height/width
+
+    znear = 5
+    zfar = 30
+    xmax = znear*0.5
+
+    glViewport(0, 0, width, height)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    glFrustum(-xmax, xmax, -xmax*h, xmax*h, znear, zfar)
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+    glTranslate(0, 0, -20)
+    return 0
+end function
+
+-- program & OpenGL initialization
+procedure init()
+sequence argv = command_line()
+integer argc = length(argv)
+sequence pos, red, green, blue
+
+    pos = {5, 5, 10, 0}
+    red = {0.8, 0.1, 0, 1}
+    green = {0, 0.8, 0.2, 1}
+    blue = {0.2, 0.2, 1, 1}
+
+    glLight(GL_LIGHT0, GL_POSITION, pos)
+    glEnable(GL_CULL_FACE)
+    glEnable(GL_LIGHTING)
+    glEnable(GL_LIGHT0)
+    glEnable(GL_DEPTH_TEST)
+
+    -- make the gears
+    gear1 = glGenLists(1)
+    glNewList(gear1, GL_COMPILE)
+    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, red)
+    gear(1, 4, 1, 20, 0.7)
+    glEndList()
+
+    gear2 = glGenLists(1)
+    glNewList(gear2, GL_COMPILE)
+    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, green)
+    gear(0.5, 2, 2, 10, 0.7)
+    glEndList()
+
+    gear3 = glGenLists(1)
+    glNewList(gear3, GL_COMPILE)
+    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, blue)
+    gear(1.3, 2, 0.5, 10, 0.7)
+    glEndList()
+
+    glEnable(GL_NORMALIZE)
+
+    for i=3 to argc do
+        if equal(argv[i], "-info") then
+            printf(1, "GL_RENDERER   = %s\n", {glGetString(GL_RENDERER)})
+            printf(1, "GL_VERSION    = %s\n", {glGetString(GL_VERSION)})
+            printf(1, "GL_VENDOR     = %s\n", {glGetString(GL_VENDOR)})
+            printf(1, "GL_EXTENSIONS = %s\n", {glGetString(GL_EXTENSIONS)})
+        elsif equal(argv[i], "-exit") then
+            autoexit = 30
+            printf(1, "Auto Exit After %i Seconds.\n", {autoexit})
+        end if
+    end for
+end procedure
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+--  if c=K_ESC then running = 0 end if
+    if c='Z' then
+        view_rotz -= 5
+    elsif c='z' then
+        view_rotz += 5
+    elsif c=K_UP then
+        view_rotx += 5
+    elsif c=K_DOWN then
+        view_rotx -= 5
+    elsif c=K_LEFT then
+        view_roty += 5
+    elsif c=K_RIGHT then
+        view_roty -= 5
+    end if
+    return IUP_CONTINUE
+end function
+
+function action(Ihandle ih)
+
+    IupGLMakeCurrent(ih)
+
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT))
+
+    draw()              -- Draw gears
+
+    animate()           -- Update animation
+
+    IupGLSwapBuffers(ih)
+
+    return IUP_DEFAULT
+end function
+
+function idle_cb()
+    if not running then return IUP_CLOSE end if
+    return action(canvas)
+end function
+constant cb_idle = Icallback("idle_cb")
+
+function timer_cb(Ihandle /*ih*/)
+    return idle_cb()
+end function
+constant cb_timer = Icallback("timer_cb")
+
+procedure main()
+Ihandle box, timer
+
+    IupOpen()
+    IupGLCanvasOpen()
+
+    if usetimer then
+        timer = IupTimer(cb_timer,10)                   -- (~64 fps, 0% CPU)
+    else
+        IupSetGlobalFunction("IDLE_ACTION", cb_idle)    -- (~1000 fps, 100% CPU)
+    end if
+
+    box = IupVbox({})
+    IupSetAttribute(box, "MARGIN", "5x5")
+
+    canvas = IupGLCanvas()
+    IupSetCallback(canvas, "ACTION", Icallback("action"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("resize_cb"))
+    IupSetAttribute(canvas, "BUFFER", "DOUBLE")
+    IupSetAttribute(canvas, "BORDER", "NO")
+    IupSetAttribute(canvas, "RASTERSIZE", "500x500")
+    IupAppend(box, canvas)
+
+    dialog = IupDialog(box)
+    IupSetAttribute(dialog, "TITLE", "Gears")
+
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+
+    IupMap(dialog)
+
+    IupGLMakeCurrent(canvas)
+    init()
+--  printf(1,"Vendor: %s\n", glGetString(GL_VENDOR))
+--  printf(1,"Renderer: %s\n", glGetString(GL_RENDERER))
+--  printf(1,"Version: %s\n", glGetString(GL_VERSION))
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+
+    {} = resize_cb(dialog, 500, 500)
+
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
+
+    IupMainLoop()
+
+    IupDestroy(dialog)
+    if usetimer then
+        IupDestroy(timer)
+    end if
+
+    IupClose()
+
+end procedure
+main()

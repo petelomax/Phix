@@ -111,7 +111,27 @@ Version 0.6.7
             up, as parameter types and defaults could equally be missed.
 15/02/2016  BUGFIX: preserved rbx/rbp/rdi/rsi/r12/r13/r14/r15 over callbacks;
             fileopen/pcom now appear to work on 64-bit!! (YAY!)
-
+30/05/2016  Added bool as a simple alias of integer. It was about time.
+            (one line change to psym.e, plus syntax colour and help link.)
+11/06/2016  BUGFIX: the break statement was only being permitted at the
+            "top level" inside DoSwitch(). Added DoBreak/breakBP/breakMerge
+            modelled after DoExit/exitBP/exitMerge. Took about 30 mins.
+19/06/2016  Added "forward call assumed" warnings to Phix. Initially I was a
+            bit hesitant, but now that it is in place... it's a good thing.
+            Part of me is certain that some people will think it is a crime 
+            against humanity that to get rid of the warnings you have to add 
+            an explicit forward declaration, but... tough. Well, if it really
+            bothers you that much, change FWARN in p.exw to 0 and rebuild.
+            There already was a warning, been there for quite some time now, 
+            when an implicit local got resolved to a global, which has not 
+            caused me any trouble at all, in fact quite the opposite. 
+            (In case you haven't guessed, it is very difficult for me to
+             properly justify any of this beyond a simple gut feeling.)
+            When you get a warning, and it is not something that would just
+            obviously be better off earlier on anyway, simply add an explicit 
+            forward routine definition.
+            The only mention of (explicit) forward declarations in the manual 
+            is in Core/Declarations/Scope. [DEV: updates to manual still rqd]
 
 Version 0.6.6
 =============

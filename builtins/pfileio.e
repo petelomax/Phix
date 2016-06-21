@@ -2,7 +2,7 @@
 -- pfileio.e
 -- =========
 --
---  STATUS: EXPERIMENTAL (now replaced with builtins\VM.pfileioN.e)
+--  STATUS: EXPERIMENTAL (now replaced with builtins\VM\pfileioN.e)
 --
 --  A re-implementation of file I/O in hll, to compare performance with the
 --  asm-coded routines.

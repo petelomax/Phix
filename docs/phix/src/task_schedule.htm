@@ -13,62 +13,68 @@
           <b>Syntax:</b>
          </td>
          <td>
-          <font face = "Arial, Helvetica">task_schedule(a, x)
-          </font>
+            task_schedule(integer task_id, object schedule)
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Description:</b>
          </td>
-         <td>Schedule task a to run using scheduling parameter x. 
+         <td>
+            Schedule task_id to run using the specified scheduling parameter. 
             <br>
-            a must be a task identifier returned by task_create(). 
             <br>
-            If x is a positive atom, then x tells the task scheduler how many times it should run 
-            time-shared task a in one burst before it considers running other tasks. 
+            task_id: a task identifier returned by task_create(), or 1|0 to schedule the main program/scheduler itself. 
             <br>
-            If x is a sequence, it must be a 2-element sequence {min, max}, both values greater than 
-            or equal to 0, where min and max indicate the minimum and maximum times, in seconds, to 
-            wait before running real-time task a. min and max also set the time interval for subsequent 
-            runs of task a, unless overridden by another call to task_schedule() or task_suspend().
+            <br>
+            If schedule is a positive atom, it tells the task scheduler how many times it should run the
+            <b>time-shared</b> task identified by task_id in one burst before it considers running other tasks. 
+            <br>
+            <br>
+            If schedule is a sequence, it must be a 2-element sequence {min, max}, with both values greater than 
+            or equal to 0, which specifies the minimum and maximum times in seconds to wait before running the 
+            <b>real-time</b> task identified by task_id. Also, min and max set the time interval for subsequent 
+            runs of task_id, unless overridden by another call to task_schedule() or task_suspend().
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Comments:</b>
          </td>
-         <td>The task scheduler, built-in to the run-time system, uses the scheduling parameter x as a guide when scheduling this task. 
-            <br>
-            It may not always be possible to achieve the desired number of consecutive runs, or the desired time frame. For instance, 
-            a task might take so long before yielding control, that another task misses it&rsquo;s desired time window. 
+         <td>
+            The task scheduler (see builtins\VM\pTask.e, an auto-include) uses the specified scheduling parameter as a guide when scheduling that task. 
             <br>
             <br>
-            Real-time tasks have a higher priority. Time-shared tasks are run when no real-time task is ready to execute. 
+            It may not always be possible to achieve the desired number of consecutive runs, or the desired time frame. <br>
+            For instance, a task might take so long before yielding control, that another task misses it&rsquo;s desired time window. 
+            <br>
+            <br>
+            Real-time tasks have a higher priority. Time-shared tasks are only run when no real-time task is ready to execute. 
             A task can switch back and forth between real-time and time-shared. It all depends on the last call to task_schedule() for that task. 
-            The scheduler never runs a real-time task before the start of its time frame (min value), and it tries to avoid missing the task&rsquo;s deadline (max value). 
+            The scheduler never runs a real-time task before the start of its time frame (min), and it tries to avoid missing the deadline (max). 
             <br>
             <br>
-            For precise timing, you can specify the same value for min and max. However, by specifying a range of times, you give the scheduler some flexibility. 
-            This allows it to schedule tasks more efficiently, and avoid non-productive delays. When the scheduler must delay, it calls sleep(), unless the required delay is very short. 
-            sleep() lets the operating system run other programs. 
+            For precise timing, you can specify the same value for min and max. However, specifying a range of times gives the scheduler some flexibility,
+            allowing it to schedule tasks more efficiently, and avoid non-productive delays. When the scheduler must delay, it calls sleep() to let the
+            operating system run other programs.
             <br>
             <br>
             The min and max values can be fractional. If the min value is smaller than the resolution of the scheduler&rsquo;s clock 
             (currently 0.01 seconds) then accurate time scheduling cannot be performed, but the scheduler will try to run the task several times 
             in a row to approximate what is desired. For example, if you ask for a min time of 0.002 seconds, then the scheduler will try to run 
             your task .01/.002 = 5 times in a row before waiting for the clock to "click" ahead by .01. During the next 0.01 seconds it will run 
-            your task (up to) another 5 times etc. provided your task can be completed 5 times in one clock period. 
+            your task (up to) another 5 times, provided your task can be completed 5 times in one clock period. 
             <br>
             <br>
-            At program start-up there is a single task running. Its task id is 0, and initially it is a time-shared task allowed 1 run per task_yield(). 
-            No other task can run until task 0 executes a task_yield(). 
+            At program start-up there is a single task running. Its task_id is 1, and initially it is a time-shared task set to 1 run per task_yield(). 
+            For compatibility with OpenEuphoria, task 1 can also be referenced using a task_id of 0.
+            No other task can run until task 1 executes a task_yield(). 
             <br>
             <br>
-            If task 0 (top-level) runs off the end of the main file, the whole program terminates, regardless of what other tasks may still be active. 
+            If task 1 (top-level) runs off the end of the main file, the whole program terminates, regardless of what other tasks may still be active. 
             <br>
             <br>
-            If the scheduler finds that no task is active, i.e. no task will ever run again (not even task 0), it terminates the program with an exit code of 0, similar to abort(0). 
+            If the scheduler finds that no task is active, i.e. no task will ever run again (not even task 1), it terminates the program with an exit code of 0, similar to abort(0). 
          </td>
         </tr>
         <tr>
@@ -83,10 +89,10 @@
 task_schedule(t1, 10) 
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080">-- Task t1 will be executed up to 10 times in a row before
+<font color="#000000"></font><font color="#000080"><i>-- Task t1 will be executed up to 10 times in a row before
 -- other time-shared tasks are given control. If a real-time
 -- task needs control, t1 will lose control to the real-time task.
-</font><font color="#7060A8">task_schedule</font><font color="#0000FF">(</font><font color="#000000">t1</font><font color="#0000FF">,</font><font color="#000000"> 10</font><font color="#0000FF">) </font>
+</i></font><font color="#5E005E">task_schedule</font><font color="#0000FF">(</font><font color="#000000">t1</font><font color="#0000FF">,</font><font color="#000000"> 10</font><font color="#0000FF">) </font>
 </pre>
          </td>
         </tr>
@@ -102,10 +108,10 @@ task_schedule(t1, 10)
 task_schedule(t2, {4, 5})
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080">-- Task t2 will be scheduled to run some time between 4 and 5 seconds
+<font color="#000000"></font><font color="#000080"><i>-- Task t2 will be scheduled to run some time between 4 and 5 seconds
 -- from now. Barring any rescheduling of t2, it will continue to
 -- execute every 4 to 5 seconds thereafter.
-</font><font color="#7060A8">task_schedule</font><font color="#0000FF">(</font><font color="#000000">t2</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000"> 5</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</i></font><font color="#5E005E">task_schedule</font><font color="#0000FF">(</font><font color="#000000">t2</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000"> 5</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>

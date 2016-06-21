@@ -16,7 +16,7 @@
         <br>
         <br>
         The OLD method to associate a function to a callback, the application must employ the IupSetAttribute function, linking the action to a name (passed as a string). <br>
-        From this point on, this name will refer to a callback. By means of function IupSetFunction, the user connects this name to the callback. For example: 
+        From this point on, this name will refer to a callback. By means of function <a href="IupSetGlobalFunction.htm">IupSetFunction</a>, the user connects this name to the callback. For example: 
 <!--eucode>
 function myButton_action(Ihandle self)
 ...
@@ -27,7 +27,7 @@ IupSetFunction("my_button_action", Icallback("myButton_action")
 <font color="#000000"></font><font color="#008080">function</font><font color="#000000"> myButton_action</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> self</font><font color="#0000FF">)
 ..</font><font color="#FF0000">.
 </font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">myButton</font><font color="#0000FF">,</font><font color="#008000"> "ACTION"</font><font color="#0000FF">,</font><font color="#008000"> "my_button_action"</font><font color="#0000FF">);
-</font><font color="#000000">IupSetFunction</font><font color="#0000FF">(</font><font color="#008000">"my_button_action"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"myButton_action"</font><font color="#800000">)</font>
+</font><font color="#FF0000">IupSetFunction</font><font color="#0000FF">(</font><font color="#008000">"my_button_action"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"myButton_action"</font><font color="#800000">)</font>
 </pre>
         <br>
         In the NEW method, the application does not needs a global name, it directly sets the callback using the attribute name using IupSetCallback. For example:
@@ -111,7 +111,7 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
             Action generated when any mouse button is pressed or released.
             <br>
             <br>
-            function(Ihandle ih, integer button, integer pressed, integer x, integer y, atom pStatus)<br>
+            function button_cb(Ihandle ih, integer button, integer pressed, integer x, integer y, atom pStatus)<br>
             ih: identifies the element that activated the event.<br>
             button: identifies the activated mouse button:<br>
             <br>
@@ -170,6 +170,54 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
         </tr>
         <tr>
          <td valign=top>
+          <a name=GETFOCUS_CB></a>
+          GETFOCUS_CB
+         </td>
+         <td>
+            Action generated when an element is given keyboard focus. <br>
+            This callback is called after the <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a> of the element that loosed the focus. <br>
+            The IupGetFocus function during the callback returns the element that loosed the focus.
+            <br>
+            function getfocus_cb(Ihandle ih)
+            <br>
+            <br>
+            ih: identifier of the element that received keyboard focus.
+            <br>
+            <br>
+            Affects: All elements with user interaction, except menus.
+            <br>
+            <br>
+            See Also: <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, IupGetFocus, IupSetFocus 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=KILLFOCUS_CB></a>
+          KILLFOCUS_CB
+         </td>
+         <td>
+            Action generated when an element loses keyboard focus. <br>
+            This callback is called before the GETFOCUS_CB of the element that gets the focus.
+            <br>
+            <br>
+            function killfocus_cb(Ihandle ih)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Affects: All elements with user interaction, except menus.
+            <br>
+            <br>
+            In Windows, there are restrictions when using this callback. <br>
+            From MSDN on WM_KILLFOCUS: "“While processing this message, do not make any function calls that display or activate a window. This causes the thread to yield control and can cause the application to stop responding to messages.” 
+            <br>
+            <br>
+            See Also: GETFOCUS_CB, IupGetFocus, IupSetFocus 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
           <a name=RESIZE_CB></a>
           RESIZE_CB
          </td>
@@ -177,7 +225,7 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             Action generated when the canvas or dialog size is changed.
             <br>
             <br>
-            function(Ihandle ih, integer width, integer height)
+            function resize_cb(Ihandle ih, integer width, integer height)
             <br>
             <br>
             ih: identifier of the element that activated the event.<br>
@@ -205,7 +253,7 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             Predefined IUP action, generated when there are no events or messages to be processed. Often used to perform background operations.
             <br>
             <br>
-            int function(void)<br>
+            function idle_action()<br>
             Returns: if IUP_CLOSE is returned the current loop will be closed and the callback will be removed. <br>
             If IUP_IGNORE is returned the callback is removed and normal processing continues.
             <br>
@@ -248,10 +296,137 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
         </tr>
         <tr>
          <td valign=top>
+          <a name=K_ANY></a>
+          K_ANY
+         </td>
+         <td>
+            Action generated when a keyboard event occurs.
+            <br>
+            <br>
+            function key_cb(Ihandle ih, integer c)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            c: identifier of typed key. Possible values are listed below.
+            <br>
+            <br>
+            IUP defines several hundred key constants, only a selected few of which are available in pGUI:<br>
+            K_ESC, K_CR (or '\r'), K_LF (or '\n'), K_BS (or '\b'), K_TAB (or '\t'), K_INS, K_DEL, 
+            K_HOME, K_UP, K_PGUP, K_LEFT, K_MIDDLE, K_RIGHT, K_END, K_DOWN, K_PGDN, K_PAUSE, K_Print, K_Menu, 
+            K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8, K_F9, K_F10, K_F11, and K_F12.
+<!--DEV??   K_LSHIFT, K_RSHIFT, K_LCTRL, K_RCTRL, K_LALT, K_RALT, K_SCROLL, K_NUM, K_CAPS, -->
+            <br>
+            <br>
+            Standard key identifiers which should/must be replaced with literal constants when using pGUI (specifically when translating C code) include:<br>
+            K_SP (ie/eg use ' ' instead), K_exclam ('!'), K_quotedbl ('\"'), K_numbersign ('#'), K_dollar ('$'), K_percent ('%'),
+            K_ampersand ('&'), K_apostrophe '\'', K_parentleft ('('), K_parentright (')'), K_asterisk ('*'), K_plus ('+'),
+            K_comma (','), K_minus ('-'), K_period ('.'), K_slash ('/'), K_0..K_9 ('0'..'9'), K_colon (':'), K_semicolon (';'),
+            K_less ('&lt;'), K_equal ('='), K_greater ('&gt;'), K_question ('?'), K_at ('@'), K_A..K_Z ('A'..'Z'), K_a..K_z ('a'..'z'),
+            K_bracketleft ('['), K_backslash ('\\'), K_bracketright (']'), K_circum ('^'), K_underscore ('_'), K_grave ('`'),
+            K_braceleft ('{'), K_bar ('|'), K_braceright ('}'), K_tilde ('~'), K_acute ('´'), K_ccedilla ('ç'), and K_diaeresis ('¨').
+            <br>
+            <br>
+            Of course more could easily be added (and tested and syntax-coloured and help-indexed) as needed, but for the most part 
+            I simply don&rsquo;t get it: for example I <i>cannot</i> get '!' wrong, however I could very easily mis-spell K_exclam as 
+            K_exclaim, or K_parentleft as K_parenthleft, K_period as K_dot, K_greater as K_gt, ... Sure the compiler would catch it,
+            but where exactly is the benefit in me or you sitting there going "OK, how <i>do</i> you spell it then?".
+            <br>
+            <br>
+            For some keys, change the prefix to K_s*, K_c*, K_m* and K_y* to add the respective modifier (Shift, Control, Alt and Sys).<br>
+            Sys in Windows is the Windows key and in Mac is the Apple key.<br>
+            Note that very few such keys have made it into pGUI thus far. Only keys that make sense and I get round to testing 
+            will (ever) be added: for instance K_sexclam (heh) makes no sense because you cannot (on my keyboard anyhow) get a '!' 
+            without the shift key being down, and the same for K_sPrint, K_sSCROLL, and K_sPAUSE. And it wasn&rsquo;t me that chose the 
+            capitalisation of K_Print, btw. I can accept K_cC, but then is Control+Shift K_csC or K_scC? In general I have come to the
+            conslusion that using the functions decribed next works better/is easier than hundreds of pre-defined constants.
+            That being said, more and more of the latter are quite likely to appear in dribs and drabs over time.<br>
+            To obtain a key code for a generic combination you can start with a base key and combine it repeated times using 
+            iup_XkeyShift(key), iup_XkeyCtrl(key), iup_XkeyAlt(key) and iup_XkeySys(key).<br>
+            For instance <code>constant control_shift_c = iup_XkeyCtrl(iup_XkeyShift('C'))</code>. Note that, depending on the 
+            driver/firmware for your particular keyboard, iup_XkeyShift('c') might have use when caps lock is on, (now there&rsquo;s 
+            a way to confuse your users) but you are unlikely to get very far with iup_XkeyCtrl(iup_XkeyShift('c')).<br>
+            The function iup_XkeyBase() can be used to obtain the raw keystroke less any modifiers.<br>
+<!-- DEV: (full search rqd, index all of these) -->
+<!--        The functions iupShift, iupCtrl, iupAlt, iupSys, and iupBase are simple aliases of the above functions.<br> -->
+            Also, the global attribute "MODKEYSTATE" can be used to detect the combination of two or more modifiers.
+            <br>
+            <br>
+            Literal string versions of these names may be used to assign callbacks, eg "K_cC", for &lt;Ctrl C&gt;, <i>with</i> the quotes, see below.
+            <br>
+            <br>
+            The above keys are also used in <a href="callbacks.htm#KEYPRESS_CB">KEYPRESS_CB</a> callbacks.
+            <br>
+            <br>
+            The iup_isprint(key) function returns true if a key can be directly used as a printable character.<br>
+<!--            The iup_isXkey(key) macro informs if a given key is an extended code.<br> -->
+            The iup_isShiftXkey(key) function returns true if a given key is an extended code using the Shift modifier.<br>
+            The iup_isCtrlXkey(key) function returns true for the Ctrl modifier.<br>
+            The iup_isAltXkey(key) function returns true for the Alt modifier.<br>
+            The iup_isSysXkey(key) function returns true for the Sys modifier.
+            <br>
+            <br>
+            Note: GTK in Windows does not generate the Win modifier key, the K_Print and the K_Pause keys (up to GTK version 2.8.18).
+            <br>
+            <br>
+            Returns: <br>
+            If IUP_IGNORE is returned the key is ignored and not processed by the control and not propagated. <br>
+            If IUP_CONTINUE is returned the key is processed and the event propagated to the parent of the element receiving it. (default behavior)<br>
+            If IUP_DEFAULT is returned the key is processed but it is not propagated. <br>
+            IUP_CLOSE will be processed. 
+            <br>
+            <br>
+            Notes<br>
+            Keyboard callbacks depend on the keyboard usage of the control with the focus. <br>
+            So if you return IUP_IGNORE the control will usually not process the key. <br>
+            But be aware that sometimes the control processes the key in another event so even when returning IUP_IGNORE the key can still get processed, although it will not be propagated.
+            <br>
+            <br>
+            IMPORTANT: The callbacks "K_*" of the dialog or native containers depend on the IUP_CONTINUE return value to work while the control is in focus.
+            <br>
+            <br>
+            If the callback does not exist it is automatically propagated to the parent of the element.
+            <br>
+            <br>
+            K_* callbacks<br>
+            All defined keys are also callbacks of any element, called when the respective key is activated. <br>
+            For example: "K_cC" is also a callback activated when the user press Ctrl+C, when the focus is at the element or at a children with focus. <br>
+            This is the way an application can create shortcut keys, also called hot keys.
+            <br>
+            <br>
+            Affects: All elements with keyboard interaction.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=KEYPRESS_CB></a>
+          KEYPRESS_CB
+         </td>
+         <td>
+            Action generated when a key is pressed or released. <br>
+            If the key is pressed and held several calls will occur. <br>
+            It is called after the callback K_ANY is processed.
+            <br>
+            <br>
+            function keypress_cb(Ihandle ih, integer c, integer press)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            c: identifier of typed key. See K_ANY above for possible values.<br>
+            press: 1 is the user pressed the key or 0 otherwise.
+            <br>
+            <br>
+            Returns: If IUP_IGNORE is returned the key is ignored by the system. IUP_CLOSE will be processed.
+            <br>
+            <br>
+            Affects: IupCanvas
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
           also [DEV]
          </td>
          <td>
-            MAP_CB, UNMAP_CB, DESTROY_CB, GETFOCUS_CB, KILLFOCUS_CB, ENTERWINDOW_CB, LEAVEWINDOW_CB, K_ANY, HELP_CB: All common callbacks are supported.
+            MAP_CB, UNMAP_CB, DESTROY_CB, ENTERWINDOW_CB, LEAVEWINDOW_CB, HELP_CB: All common callbacks are supported.
          </td>
         </tr>
        </table>

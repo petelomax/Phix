@@ -4158,6 +4158,7 @@ end if
             elsif ttidx=T_cdqe then
                 -- (note: FDBG did not disassemble this correctly, but tests proved #48,#98 does the job)
                 if emitON then
+                    if Z64=0 then ?9/0 end if   -- added 22/5/16 (spotted in passing, untested)
                     s5 &= {#48,0o230}           -- cdqe (eax -> rax)
                 end if
 
@@ -4206,7 +4207,15 @@ end if
 --
 --?9/0
                 end if
-            elsif ttidx=T_neg then
+            elsif ttidx=T_neg
+               or ttidx=T_not then
+                if ttidx=T_neg then
+                    xrm = 0o330
+                elsif ttidx=T_not then
+                    xrm = 0o320
+                else
+                    ?9/0
+                end if
                 -- only doing regs for now...
                 {p1type,p1size,p1details} = get_operand(P_REG)
                 if emitON then
@@ -4223,7 +4232,7 @@ end if
                         if rex then
                             s5 &= rex
                         end if
-                        xrm = 0o330+reg
+                        xrm += reg
                         s5 &= {0o367,xrm}
                     else
                         ?9/0 -- sanity check (should never trigger)[/placeholder for more code]
@@ -4372,6 +4381,29 @@ end if
                 if emitON then
                     -- 0o017 0o061              -- rdtsc (EDX:EAX := Time Stamp Counter)
                     s5 &= {0o017,0o061}
+                end if
+            elsif ttidx=T_bswap then
+                {p1type,p1size,p1details} = get_operand(P_REG)
+                if emitON then
+                    rex = 0
+                    if p1size=8 then
+                        rex = #48
+                    end if
+                    if p1type=P_REG then
+                        reg = p1details-1
+                        if reg>8 then
+                            ?9/0 -- (erm)
+--                          rex = or_bits(rex,?9/0)
+                        end if
+                        if rex then
+                            s5 &= rex
+                        end if
+                        -- 0o017 0o31r          -- bswap reg (#01020304<->#04030201)
+                        xrm = 0o310+reg
+                        s5 &= {0o017,xrm}
+                    else
+                        ?9/0
+                    end if
                 end if
             elsif ttidx=T_cpuid then
                 if emitON then

@@ -1,0 +1,165 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Enum</h1>
+      <div id="mainSection">
+        An enum declaration can be used to define automatically-incrementing constants.<br>
+        The default behaviour is for the first item to be 1 and each subsequent item incremented by 1.<br>
+        As with sequences, enums can also be terminated with a $ for ease of editing enum lists that may change frequently during development.
+<!--eucode>
+enum ONE, TWO, THREE, FOUR
+
+-- ONE is 1, TWO is 2, THREE is 3, FOUR is 4
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum</font><font color="#000000"> ONE</font><font color="#0000FF">,</font><font color="#000000"> TWO</font><font color="#0000FF">,</font><font color="#000000"> THREE</font><font color="#0000FF">,</font><font color="#000000"> FOUR
+
+</font><font color="#000080"><i>-- ONE is 1, TWO is 2, THREE is 3, FOUR is 4</i></font>
+</pre>
+        An explict value may be specified for any item. Enums may currrently only take integer values (see below). <br>
+        Such values must always be numeric literals, as opposed to expressions or other variables or constants. <br>
+        Subsequent values default to the previous value plus one, unless they too are assigned a default value.
+<!--eucode>
+enum ONE, TWO, THREE, ABC=10, DEF, XYZ
+
+-- ONE is 1, TWO is 2, THREE is 3
+-- ABC is 10, DEF is 11, XYZ is 12
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum</font><font color="#000000"> ONE</font><font color="#0000FF">,</font><font color="#000000"> TWO</font><font color="#0000FF">,</font><font color="#000000"> THREE</font><font color="#0000FF">,</font><font color="#000000"> ABC</font><font color="#0000FF">=</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000"> DEF</font><font color="#0000FF">,</font><font color="#000000"> XYZ
+
+</font><font color="#000080"><i>-- ONE is 1, TWO is 2, THREE is 3
+-- ABC is 10, DEF is 11, XYZ is 12</i></font>
+</pre>
+        Sequences use integer indexes, but with enum you may write code like this:
+<!--eucode>
+enum X, Y
+sequence point = { 0,0 }
+point[X] = 3
+point[Y] = 4
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum</font><font color="#000000"> X</font><font color="#0000FF">,</font><font color="#000000"> Y
+</font><font color="#004080">sequence</font><font color="#000000"> point</font><font color="#0000FF"> = {</font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF"> }
+</font><font color="#000000">point</font><font color="#0000FF">[</font><font color="#000000">X</font><font color="#0000FF">] =</font><font color="#000000"> 3
+point</font><font color="#0000FF">[</font><font color="#000000">Y</font><font color="#0000FF">] =</font><font color="#000000"> 4</font>
+</pre>
+        There is also a special form of enum, an enum type. <br>
+        This is a simple way to write a user-defined type based on the set of values in a specific enum group. <br>
+        The type created this way can be used anywhere a normal user-defined type can be used.
+<!--eucode>
+enum type RGBA RED, GREEN, BLUE, ALPHA end type
+
+-- Only allow values of RED, GREEN, BLUE, or ALPHA as parameters
+function xyz(RGBA x, RGBA y)
+    return
+end function
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum type</font><font color="#000000"> RGBA</font><font color="#004600"> RED</font><font color="#0000FF">,</font><font color="#004600"> GREEN</font><font color="#0000FF">,</font><font color="#004600"> BLUE</font><font color="#0000FF">,</font><font color="#000000"> ALPHA</font><font color="#008080"> end type
+
+</font><font color="#000080"><i>-- Only allow values of RED, GREEN, BLUE, or ALPHA as parameters
+</i></font><font color="#008080">function</font><font color="#000000"> xyz</font><font color="#0000FF">(</font><font color="#000000">RGBA x</font><font color="#0000FF">,</font><font color="#000000"> RGBA y</font><font color="#0000FF">)
+</font><font color="#008080">    return
+end function</font>
+</pre>
+        The above enum statement is in fact (apart from the parameter being named "i") equivalent to:
+<!--eucode>
+enum RED, GREEN, BLUE, ALPHA 
+type RGBA(integer i) return find(i,{RED, GREEN, BLUE, ALPHA}) end type
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum</font><font color="#004600"> RED</font><font color="#0000FF">,</font><font color="#004600"> GREEN</font><font color="#0000FF">,</font><font color="#004600"> BLUE</font><font color="#0000FF">,</font><font color="#000000"> ALPHA 
+</font><font color="#008080">type</font><font color="#000000"> RGBA</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#7060A8"> find</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">RED</font><font color="#0000FF">,</font><font color="#004600"> GREEN</font><font color="#0000FF">,</font><font color="#004600"> BLUE</font><font color="#0000FF">,</font><font color="#000000"> ALPHA</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#008080"> end type</font>
+</pre>
+        You may have spotted that there is one significant difference concerning enum types. <br>
+        Normal type functions return either 1 or 0, whereas enum type functions return a positive integer index when the argument is a member, or 0 if not. <br>
+        The value returned is the ordinal number of the member in the enum definition, regardless of what the member value is. <br>
+        Should two enums share the same value, they will share the same ordinal number. <br>
+        The ordinal numbers of enums surrounding these continue to increment as if every enum had a unique ordinal number, causing some numbers to be skipped.<br>
+        Lastly, although only applicable for enum type routines that are likely to be invoked more than 10<sup><small>6</small></sup> times, it would be remiss of me 
+        not to mention that the use of find in enum types may be slower than say <code>i&gt;=RED and i&lt;=ALPHA</code>, however it is no big deal to replace (suitable) 
+        enum types with faster explicit types much as above, should that be a significant concern.
+<!--eucode>
+enum type color RED=4, GREEN=7, BLACK=1, BLUE=3 , PINK=10 end type
+
+? color(RED)   -- 1
+? color(GREEN) -- 2
+? color(BLACK) -- 3
+? color(BLUE)  -- 4
+? color(PINK)  -- 5
+
+constant color_names = {"rouge", "vert", "noir", "bleu", "rose"}
+
+puts(1, color_names[color(BLUE)]) -- bleu
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum type</font><font color="#000000"> color</font><font color="#004600"> RED</font><font color="#0000FF">=</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#004600"> GREEN</font><font color="#0000FF">=</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#004600"> BLACK</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600"> BLUE</font><font color="#0000FF">=</font><font color="#000000">3</font><font color="#0000FF"> ,</font><font color="#000000"> PINK</font><font color="#0000FF">=</font><font color="#000000">10</font><font color="#008080"> end type
+
+</font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#004600">RED</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 1
+</i></font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#004600">GREEN</font><font color="#0000FF">)</font><font color="#000080"><i> -- 2
+</i></font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#004600">BLACK</font><font color="#0000FF">)</font><font color="#000080"><i> -- 3
+</i></font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#004600">BLUE</font><font color="#0000FF">) </font><font color="#000080"><i> -- 4
+</i></font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#000000">PINK</font><font color="#0000FF">) </font><font color="#000080"><i> -- 5
+
+</i></font><font color="#008080">constant</font><font color="#000000"> color_names</font><font color="#0000FF"> = {</font><font color="#008000">"rouge"</font><font color="#0000FF">,</font><font color="#008000"> "vert"</font><font color="#0000FF">,</font><font color="#008000"> "noir"</font><font color="#0000FF">,</font><font color="#008000"> "bleu"</font><font color="#0000FF">,</font><font color="#008000"> "rose"</font><font color="#0000FF">}
+
+</font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> color_names</font><font color="#800000">[</font><font color="#000000">color</font><font color="#800080">(</font><font color="#004600">BLUE</font><font color="#800080">)</font><font color="#800000">]</font><font color="#0000FF">)</font><font color="#000080"><i> -- bleu</i></font>
+</pre>
+        However if RED and BLACK were (for some unknown reason) given the same value:
+<!--eucode>
+enum type color RED, GREEN=7, BLACK=1, BLUE=3 , PINK=10 end type
+? color(RED)   -- 1
+? color(GREEN) -- 2
+? color(BLACK) -- 1
+? color(BLUE)  -- 4
+? color(PINK)  -- 5
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum type</font><font color="#000000"> color</font><font color="#004600"> RED</font><font color="#0000FF">,</font><font color="#004600"> GREEN</font><font color="#0000FF">=</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#004600"> BLACK</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600"> BLUE</font><font color="#0000FF">=</font><font color="#000000">3</font><font color="#0000FF"> ,</font><font color="#000000"> PINK</font><font color="#0000FF">=</font><font color="#000000">10</font><font color="#008080"> end type
+</font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#004600">RED</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 1
+</i></font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#004600">GREEN</font><font color="#0000FF">)</font><font color="#000080"><i> -- 2
+</i></font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#004600">BLACK</font><font color="#0000FF">)</font><font color="#000080"><i> -- 1
+</i></font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#004600">BLUE</font><font color="#0000FF">) </font><font color="#000080"><i> -- 4
+</i></font><font color="#0000FF">?</font><font color="#000000"> color</font><font color="#0000FF">(</font><font color="#000000">PINK</font><font color="#0000FF">) </font><font color="#000080"><i> -- 5</i></font>
+</pre>
+        Note that none of the enums have an ordinal number with a value of 3. This is simply skipped.
+        <br>
+        <br>
+        Unless an enum member is being set to a specific value, it defaults to 1 more than the previous member. <br>
+        This default increment can be overridden. The syntax is:
+<!--eucode>
+enum [type name] by DELTA member1, member2, ... ,memberN
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum</font><font color="#0000FF"> [</font><font color="#008080">type</font><font color="#000000"> name</font><font color="#0000FF">]</font><font color="#008080"> by</font><font color="#000000"> DELTA member1</font><font color="#0000FF">,</font><font color="#000000"> member2</font><font color="#0000FF">, ..</font><font color="#FF0000">.</font><font color="#0000FF"> ,</font><font color="#000000">memberN</font>
+</pre>
+        where 'DELTA' is a literal number with an optional * operator preceding it.<br>
+        Note that Phix only supports "by N" and "by *N": "+,-,/" as supported by OpenEuphoria are not (yet) permitted.<br>
+        [It is probably trivial to modify pmain.e/DoEnum() to add such support, but it would need thorough testing.]<br>
+        Also, and probably a prerequisite to the above, Phix currently only supports integer enums.<br>
+        [Likewise there is an Init+0.5 trick in DoSequence that would need replicating in DoEnum(), and testing.]<br>
+<!--eucode>
+enum by 2 A,B,C=6,D      -- values are 1,3,6,8
+enum by * 2 A,B,C,D,E    -- values are 1,2,4,8,16
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">enum by</font><font color="#000000"> 2 A</font><font color="#0000FF">,</font><font color="#000000">B</font><font color="#0000FF">,</font><font color="#000000">C</font><font color="#0000FF">=</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">D     </font><font color="#000080"><i> -- values are 1,3,6,8
+</i></font><font color="#008080">enum by</font><font color="#0000FF"> *</font><font color="#000000"> 2 A</font><font color="#0000FF">,</font><font color="#000000">B</font><font color="#0000FF">,</font><font color="#000000">C</font><font color="#0000FF">,</font><font color="#000000">D</font><font color="#0000FF">,</font><font color="#000000">E   </font><font color="#000080"><i> -- values are 1,2,4,8,16</i></font>
+</pre>
+        Should both be present, a "by <i>amount</i>" clause must follow rather than precede "type <i>name</i>".
+        <br>
+        <br>
+        Note that C enums start at 0 by default, and you must remember to specify "=0" on the first element when (manually) translating C to Phix.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

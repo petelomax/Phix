@@ -53,6 +53,11 @@ type dword_seq(sequence s)  -- (technically qword_seq on 64-bit)
     return not string(s)
 end type
 
+ifdef not EU4_1 then
+public function sizeof(atom ctype)
+    return and_bits(ctype, #FF)
+end function
+end ifdef
 
 function paranormalise(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 --
@@ -106,7 +111,7 @@ function paranormalise(object action=NULL, object func=NULL, sequence attributes
 
     if not nullable_string(action) then
         -- assume action omitted (and at least one other parameter passed)
-        if atom(action) then    -- (and, of course, action is not NULL)
+        if atom(action) then    -- (and, of course, action is not NULL here)
             -- assume p1[action] is really func (cases 3,5)
             if length(data) then ?9/0 end if
             if length(attributes) then
@@ -172,7 +177,7 @@ function paranormalise(object action=NULL, object func=NULL, sequence attributes
         action = NULL
         func = NULL
 --  else
-        -- assume 3 or 4 parameters were passed (action,func,attributes[,data)
+        -- assume 3 or 4 parameters were passed (action,func,attributes[,data])
     end if
 --  if not dword_seq(data) then ?9/0 end if         -- (ple/autoverified)
     if not string(attributes) then ?9/0 end if
@@ -329,8 +334,8 @@ global constant
     K_TAB = '\t',       -- 9
     K_LF = '\n',        -- 10 (0x0A)
     K_CR = '\r',        -- 13 (0x0D)
-    K_SP = ' ',         -- 32 (0x20)
-    K_asterisk = '*',   -- 42 (0x2A)
+--  K_SP = ' ',         -- 32 (0x20)
+--  K_asterisk = '*',   -- 42 (0x2A)
     K_PAUSE  = 0xFF13,
     K_ESC    = 0xFF1B,
     K_HOME   = 0xFF50,
@@ -358,6 +363,7 @@ global constant
     K_F10    = 0xFFC7,
     K_F11    = 0xFFC8,
     K_F12    = 0xFFC9,
+--  K_LSHIFT, K_RSHIFT, K_LCTRL, K_RCTRL, K_LALT, K_RALT, K_SCROLL, K_NUM, K_CAPS ??
 
     ACTION = "ACTION",
     ACTION_CB = "ACTION_CB",
@@ -967,7 +973,7 @@ procedure iup_init1(nullable_string dll_root)
                                 "libiupcontrols.so",
                                 "libiupcontrols.dylib"})
 
-    xIupControlsOpen = iup_c_proc(iupControls, "IupControlsOpen", {})
+    xIupControlsOpen    = iup_c_proc(iupControls, "IupControlsOpen", {})
 
     xIupLoad                          = iup_c_func(iup, "+IupLoad", {P}, P)
     xIupLoadBuffer                    = iup_c_func(iup, "+IupLoadBuffer", {P}, P)
@@ -1131,7 +1137,7 @@ global procedure IupRecordInput(nullable_string filename, integer mode)
     if c_func(xIupRecordInput, {filename,mode})!=IUP_NOERROR then ?9/0 end if
 end procedure
 
-global procedure IupPlayInput(nullable_string filename = NULL)
+global procedure IupPlayInput(nullable_string filename=NULL)
     c_proc(xIupPlayInput, {filename})
 end procedure
 
@@ -1225,7 +1231,7 @@ global procedure IupSetAttributeId2(Ihandle ih, string name, integer lin, intege
     c_proc(xIupSetAttributeId2, {ih,name,lin,col,v})
 end procedure
 
-global procedure IupSetStrAttribute(Ihandle ih, string name, nullable_string val, sequence data = {})
+global procedure IupSetStrAttribute(Ihandle ih, string name, nullable_string val, sequence data={})
     if name!=upper(name) then ?9/0 end if
     if length(data) then
         val = sprintf(val, data)
@@ -1233,11 +1239,11 @@ global procedure IupSetStrAttribute(Ihandle ih, string name, nullable_string val
     c_proc(xIupSetStrAttribute, {ih, name, val})
 end procedure
 
-global procedure IupSetStrAttributeId(Ihandle ih, string name, integer id, nullable_string v = NULL)
+global procedure IupSetStrAttributeId(Ihandle ih, string name, integer id, nullable_string v=NULL)
     c_proc(xIupSetStrAttributeId, {ih,name,id,v})
 end procedure
 
-global procedure IupSetStrAttributeId2(Ihandle ih, string name, integer lin, integer col, nullable_string v = NULL)
+global procedure IupSetStrAttributeId2(Ihandle ih, string name, integer lin, integer col, nullable_string v=NULL)
     c_proc(xIupSetStrAttributeId2, {ih,name,lin,col,v})
 end procedure
 
@@ -1289,7 +1295,7 @@ global procedure IupSetRGBId2(Ihandle ih, string name, integer lin, integer col,
     c_proc(xIupSetRGBId2, {ih,name,lin,col,r,g,b})
 end procedure
 
-global procedure IupStoreAttribute(Ihandln ih, string name, nullable_string val, sequence data = {})
+global procedure IupStoreAttribute(Ihandln ih, string name, nullable_string val, sequence data={})
     if name!=upper(name) then ?9/0 end if
     if length(data) then
         val = sprintf(val, data)
@@ -1297,19 +1303,20 @@ global procedure IupStoreAttribute(Ihandln ih, string name, nullable_string val,
     c_proc(xIupStoreAttribute, {ih, name, val})
 end procedure
 
-global procedure IupSetAttributes(Ihandle ih, string attributes, sequence data = {})
+global procedure IupSetAttributes(Ihandle ih, string attributes, sequence data={})
     if length(data) then
         attributes = sprintf(attributes, data)
     end if
     c_proc(xIupSetAttributes, {ih, attributes})
 end procedure
 
-global function IupSetAttributesf(Ihandle ih, string attributes, sequence data = {})
+global function IupSetAttributesf(Ihandle ih, string attributes, sequence data={})
     IupSetAttributes(ih, attributes, data)
     return ih
 end function
 
-global procedure IupSetAttributeHandle(Ihandln ih, string name, Ihandle ih_named)
+--DEV (DOC) type changed
+global procedure IupSetAttributeHandle(Ihandln ih, string name, Ihandln ih_named)
 --  if name!=upper(name) then ?9/0 end if
     c_proc(xIupSetAttributeHandle, {ih, name, ih_named})
 end procedure
@@ -1878,12 +1885,13 @@ iup_XkeyShift(key), iup_XkeyCtrl(key), iup_XkeyAlt(key) and iup_XkeySys(key).
 --*/
 
 
-global function iup_isprint(integer c)
+global function iup_isprint(atom c)
     return c>31 and c<127
 end function
 
 /* from 32 to 126, all character sets are equal, the key code is the same as the ASCii character code. */
 --/*
+
 global function iup_isShiftXkey( atom _c )
     return and_bits( _c, 0x10000000 )
 end function
@@ -1903,12 +1911,12 @@ end function
 global function iup_XkeyBase( atom _c )
     return and_bits( _c, 0x0FFFFFFF )
 end function
+--*/
 
-global function iup_XkeyShift( atom _c )
-    return or_bits( _c, 0x10000000 )
+global function iup_XkeyShift(atom c)
+    return or_bits(c, 0x10000000)
 end function
 
---*/
 global function iup_XkeyCtrl(atom c)
     return or_bits(c, 0x20000000)
 end function
@@ -1934,7 +1942,10 @@ global constant K_sDOWN = iup_XkeyShift(K_DOWN )
 global constant K_sPGDN = iup_XkeyShift(K_PGDN )
 global constant K_sINS = iup_XkeyShift(K_INS )
 global constant K_sDEL = iup_XkeyShift(K_DEL )
-global constant K_sSP = iup_XkeyShift(K_SP )
+--*/
+global constant K_sSP = iup_XkeyShift(' ')
+global constant K_scSP = iup_XkeyCtrl(K_sSP)
+--/*
 global constant K_sTAB = iup_XkeyShift(K_TAB )
 global constant K_sCR = iup_XkeyShift(K_CR )
 global constant K_sBS = iup_XkeyShift(K_BS )
@@ -1965,7 +1976,10 @@ global constant K_cDOWN = iup_XkeyCtrl(K_DOWN )
 global constant K_cPGDN = iup_XkeyCtrl(K_PGDN )
 global constant K_cINS = iup_XkeyCtrl(K_INS )
 global constant K_cDEL = iup_XkeyCtrl(K_DEL )
-global constant K_cSP = iup_XkeyCtrl(K_SP )
+--*/
+global constant K_cSP = iup_XkeyCtrl(' ')
+global constant K_csSP = iup_XkeyShift(K_cSP)
+--/*
 global constant K_cTAB = iup_XkeyCtrl(K_TAB )
 global constant K_cCR = iup_XkeyCtrl(K_CR )
 global constant K_cBS = iup_XkeyCtrl(K_BS )
@@ -1999,7 +2013,7 @@ global constant K_mDOWN = iup_XkeyAlt(K_DOWN )
 global constant K_mPGDN = iup_XkeyAlt(K_PGDN )
 global constant K_mINS = iup_XkeyAlt(K_INS )
 global constant K_mDEL = iup_XkeyAlt(K_DEL )
-global constant K_mSP = iup_XkeyAlt(K_SP )
+global constant K_mSP = iup_XkeyAlt(' ')
 global constant K_mTAB = iup_XkeyAlt(K_TAB )
 global constant K_mCR = iup_XkeyAlt(K_CR )
 global constant K_mBS = iup_XkeyAlt(K_BS )
@@ -2031,7 +2045,7 @@ global constant K_yDOWN = iup_XkeySys(K_DOWN )
 global constant K_yPGDN = iup_XkeySys(K_PGDN )
 global constant K_yINS = iup_XkeySys(K_INS )
 global constant K_yDEL = iup_XkeySys(K_DEL )
-global constant K_ySP = iup_XkeySys(K_SP )
+global constant K_ySP = iup_XkeySys(' ')
 global constant K_yTAB = iup_XkeySys(K_TAB )
 global constant K_yCR = iup_XkeySys(K_CR )
 global constant K_yBS = iup_XkeySys(K_BS )
@@ -2058,35 +2072,34 @@ global constant K_sMinus = iup_XkeyShift(K_minus )
 global constant K_sPeriod = iup_XkeyShift(K_period )
 global constant K_sSlash = iup_XkeyShift(K_slash )
 global constant K_sAsterisk = iup_XkeyShift(K_asterisk)
-global constant K_cA = iup_XkeyCtrl(K_A)
-global constant K_cB = iup_XkeyCtrl(K_B)
-global constant K_cC = iup_XkeyCtrl(K_C)
-global constant K_cD = iup_XkeyCtrl(K_D)
-global constant K_cE = iup_XkeyCtrl(K_E)
-global constant K_cF = iup_XkeyCtrl(K_F)
-global constant K_cG = iup_XkeyCtrl(K_G)
-global constant K_cH = iup_XkeyCtrl(K_H)
-global constant K_cI = iup_XkeyCtrl(K_I)
-global constant K_cJ = iup_XkeyCtrl(K_J)
-global constant K_cK = iup_XkeyCtrl(K_K)
-global constant K_cL = iup_XkeyCtrl(K_L)
-global constant K_cM = iup_XkeyCtrl(K_M)
-global constant K_cN = iup_XkeyCtrl(K_N)
-global constant K_cO = iup_XkeyCtrl(K_O)
 --*/
+global constant K_cA = iup_XkeyCtrl('A')
+global constant K_cB = iup_XkeyCtrl('B')
+global constant K_cC = iup_XkeyCtrl('C')
+global constant K_cD = iup_XkeyCtrl('D')
+global constant K_cE = iup_XkeyCtrl('E')
+global constant K_cF = iup_XkeyCtrl('F')
+global constant K_cG = iup_XkeyCtrl('G')
+global constant K_cH = iup_XkeyCtrl('H')
+global constant K_cI = iup_XkeyCtrl('I')
+global constant K_cJ = iup_XkeyCtrl('J')
+global constant K_cK = iup_XkeyCtrl('K')
+global constant K_cL = iup_XkeyCtrl('L')
+global constant K_cM = iup_XkeyCtrl('M')
+global constant K_cN = iup_XkeyCtrl('N')
 global constant K_cO = iup_XkeyCtrl('O')
+global constant K_cP = iup_XkeyCtrl('P')
+global constant K_cQ = iup_XkeyCtrl('Q')
+global constant K_cR = iup_XkeyCtrl('R')
+global constant K_cS = iup_XkeyCtrl('S')
+global constant K_cT = iup_XkeyCtrl('T')
+global constant K_cU = iup_XkeyCtrl('U')
+global constant K_cV = iup_XkeyCtrl('V')
+global constant K_cW = iup_XkeyCtrl('W')
+global constant K_cX = iup_XkeyCtrl('X')
+global constant K_cY = iup_XkeyCtrl('Y')
+global constant K_cZ = iup_XkeyCtrl('Z')
 --/*
-global constant K_cP = iup_XkeyCtrl(K_P)
-global constant K_cQ = iup_XkeyCtrl(K_Q)
-global constant K_cR = iup_XkeyCtrl(K_R)
-global constant K_cS = iup_XkeyCtrl(K_S)
-global constant K_cT = iup_XkeyCtrl(K_T)
-global constant K_cU = iup_XkeyCtrl(K_U)
-global constant K_cV = iup_XkeyCtrl(K_V)
-global constant K_cW = iup_XkeyCtrl(K_W)
-global constant K_cX = iup_XkeyCtrl(K_X)
-global constant K_cY = iup_XkeyCtrl(K_Y)
-global constant K_cZ = iup_XkeyCtrl(K_Z)
 global constant K_c1 = iup_XkeyCtrl(K_1)
 global constant K_c2 = iup_XkeyCtrl(K_2)
 global constant K_c3 = iup_XkeyCtrl(K_3)
@@ -2248,7 +2261,7 @@ global function IupFill()
     return ih
 end function
 
-global function IupHbox(sequence children, string attributes = "", sequence data = {})
+global function IupHbox(sequence children, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupHboxv, {pChildren})
     free(pChildren)
@@ -2258,7 +2271,7 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
-global function IupVbox(sequence children, string attributes = "", sequence data = {})
+global function IupVbox(sequence children, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupVboxv, {pChildren})
     free(pChildren)
@@ -2268,7 +2281,7 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
-global function IupZbox(sequence children, string attributes = "", sequence data = {})
+global function IupZbox(sequence children, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupZboxv, {pChildren})
     free(pChildren)
@@ -2283,7 +2296,7 @@ global function IupRadio(Ihandle pChild)
     return ih
 end function
 
-global function IupNormalizer(sequence ih_list, string attributes = "", sequence data = {})
+global function IupNormalizer(sequence ih_list, string attributes="", sequence data={})
     atom p_ih_list = iup_ptr_array(ih_list)
     Ihandle ih = c_func(xIupNormalizerv, {p_ih_list})
     free(p_ih_list)
@@ -2293,7 +2306,7 @@ global function IupNormalizer(sequence ih_list, string attributes = "", sequence
     return ih
 end function
 
-global function IupCbox(sequence children, string attributes = "", sequence data = {})
+global function IupCbox(sequence children, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupCboxv, {pChildren})
     free(pChildren)
@@ -2318,7 +2331,7 @@ end function
 --global enum IGBOX_HORIZONTAL, 
 --          IGBOX_VERTICAL
 
-global function IupGridBox(sequence children={}, string attributes = "", sequence data = {})
+global function IupGridBox(sequence children={}, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupGridBoxv, {pChildren})
     free(pChildren)
@@ -2366,7 +2379,8 @@ global procedure IupInsert(Ihandle ih, Ihandln ref_child, Ihandle new_child)
 end procedure
 
 global procedure IupReparent(Ihandle child, Ihandle new_parent, Ihandln ref_child)
-    if c_func(xIupReparent, {child, new_parent, ref_child})!=IUP_NOERROR then ?9/0 end if
+integer err = c_func(xIupReparent, {child, new_parent, ref_child})
+    if err!=IUP_NOERROR then ?9/0 end if
 end procedure
 
 global function IupGetParent(Ihandle ih)
@@ -2455,12 +2469,13 @@ end function
 --  xIupShowXY  = iup_c_func(iup, "IupShowXY", {P,I,I},I),
 --  xIupHide    = iup_c_proc(iup, "IupHide", {P})
 
-global function IupDialog(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+--global function IupDialog(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+--  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+global function IupDialog(Ihandln child=NULL, string attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupDialog, {child})
-    if func!=NULL and action!=NULL then
-        IupSetCallback(ih, action, func)
-    end if
+--  if func!=NULL and action!=NULL then
+--      IupSetCallback(ih, action, func)
+--  end if
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
     end if
@@ -2505,11 +2520,14 @@ end procedure
 --  xIupProgressDlg     = iup_c_func(iup, "+IupProgressDlg", {}, P)
 --
 
-global function IupAlarm(string title, string msg, string b1, nullable_string b2 = NULL, nullable_string b3 = NULL)
+global function IupAlarm(string title, string msg, string b1, nullable_string b2=NULL, nullable_string b3=NULL)
     return c_func(xIupAlarm, {title,msg,b1,b2,b3})
 end function
 
-global procedure IupMessage(nullable_string title = NULL, nullable_string msg = NULL)
+global procedure IupMessage(nullable_string title=NULL, nullable_string msg=NULL, dword_seq data={})
+    if length(data) then
+        msg = sprintf(msg, data)
+    end if
     c_proc(xIupMessage, {title,msg})
 end procedure
 
@@ -2551,7 +2569,7 @@ global function IupGetFile(string filefilter)
     return filename
 end function
 
-global function IupGetParam(string title, cbfunc action, atom user_data, string fmt, sequence param_data = {})
+global function IupGetParam(string title, cbfunc action, atom user_data, string fmt, sequence param_data={})
 integer fskip = 0
 integer param_count = 0
 integer param_extra = 0
@@ -2640,7 +2658,7 @@ string fmts = ""
     return vals
 end function
 
-global function IupGetText(string title, string text, integer max_size = 10240)
+global function IupGetText(string title, string text, integer max_size=10240)
 atom pText = allocate(max_size,1)
     mem_set(pText, 0, max_size)
     poke(pText, text)
@@ -3016,6 +3034,7 @@ atom
     xIupMatGetInt,
     xIupMatGetFloat
 
+--DEVsplit off iup_controls_init()
 procedure iup_init_matrix()
 --DEV inline?
     IupControlsOpen()
@@ -3108,7 +3127,7 @@ global procedure IupMatSetAttribute(Ihandle ih, string name, integer lin, intege
     c_proc(xIupMatSetAttribute, {ih, name, lin, col, v})
 end procedure
 
-global procedure IupMatStoreAttribute(Ihandle ih, string name, integer lin, integer col, string val, sequence data = {})
+global procedure IupMatStoreAttribute(Ihandle ih, string name, integer lin, integer col, string val, sequence data={})
     if length(data) then
         val = sprintf(val, data)
     end if
@@ -3130,6 +3149,119 @@ global function mat_get_float(Ihandle ih, string name, integer lin, integer col)
 atom val = c_func(xIupMatGetFloat, {ih, name, lin, col})
     return val
 end function
+
+atom iupGLControls = NULL,
+     xIupGLControlsOpen,
+     xIupGLCanvasBoxv,
+     xIupGLButton,
+     xIupGLExpander,
+     xIupGLFrame,
+     xIupGLLabel,
+     xIupGLLink,
+     xIupGLProgressBar,
+     xIupGLScrollBox,
+     xIupGLSeparator,
+     xIupGLSizeBox,
+     xIupGLToggle,
+     xIupGLVal
+
+procedure iup_gl_controls_init()
+    if iupGLControls=NULL then
+        iupGLControls = iup_open_dll({"iupglcontrols.dll",
+                                      "libiupglcontrols.so",
+                                      "libiupglcontrols.dylib"})
+        xIupGLControlsOpen  = iup_c_proc(iupGLControls, "IupGLControlsOpen", {})
+        xIupGLCanvasBoxv    = iup_c_func(iupGLControls, "IupGLCanvasBoxv", {P}, P)
+        xIupGLButton        = iup_c_func(iupGLControls, "IupGLButton", {P}, P)
+        xIupGLExpander      = iup_c_func(iupGLControls, "IupGLExpander", {P}, P)
+        xIupGLFrame         = iup_c_func(iupGLControls, "IupGLFrame", {P}, P)
+        xIupGLLabel         = iup_c_func(iupGLControls, "IupGLLabel", {P}, P)
+        xIupGLLink          = iup_c_func(iupGLControls, "IupGLLink", {P,P}, P)
+        xIupGLProgressBar   = iup_c_func(iupGLControls, "IupGLProgressBar", {}, P)
+        xIupGLScrollBox     = iup_c_func(iupGLControls, "IupGLScrollBox", {P}, P)
+        xIupGLSeparator     = iup_c_func(iupGLControls, "IupGLSeparator", {}, P)
+        xIupGLSizeBox       = iup_c_func(iupGLControls, "IupGLSizeBox", {P}, P)
+        xIupGLToggle        = iup_c_func(iupGLControls, "IupGLToggle", {P}, P)
+        xIupGLVal           = iup_c_func(iupGLControls, "IupGLVal", {P}, P)
+    end if
+end procedure
+
+global procedure IupGLControlsOpen()
+    iup_gl_controls_init()
+    c_proc(xIupGLControlsOpen, {})
+end procedure
+
+--DEV paranormalised etc the rest of them (I only did this one because I copied IupHbox)
+global function IupGLCanvasBox(sequence children, string attributes="", sequence data={})
+atom pChildren = iup_ptr_array(children)
+    Ihandle ih = c_func(xIupGLCanvasBoxv, {pChildren})
+    free(pChildren)
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupGLButton(nullable_string title)
+Ihandle ih = c_func(xIupGLButton,{title})
+    return ih
+end function
+
+global function IupGLExpander(Ihandln child)
+Ihandle ih = c_func(xIupGLExpander,{child})
+    return ih
+end function
+
+global function IupGLFrame(Ihandln child)
+Ihandle ih = c_func(xIupGLFrame,{child})
+    return ih
+end function
+
+global function IupGLLabel(nullable_string title)
+Ihandle ih = c_func(xIupGLLabel,{title})
+    return ih
+end function
+
+global function IupGLLink(nullable_string url, nullable_string title)
+Ihandle ih = c_func(xIupGLLink,{url,title})
+    return ih
+end function
+
+global function IupGLProgressBar()
+Ihandle ih = c_func(xIupGLProgressBar,{})
+    return ih
+end function
+
+global function IupGLScrollBox(Ihandln child)
+Ihandle ih = c_func(xIupGLScrollBox,{child})
+    return ih
+end function
+
+global function IupGLSeparator()
+Ihandle ih = c_func(xIupGLSeparator,{})
+    return ih
+end function
+
+global function IupGLSizeBox(Ihandln child)
+Ihandle ih = c_func(xIupGLSizeBox,{child})
+    return ih
+end function
+
+global function IupGLToggle(nullable_string title)
+Ihandle ih = c_func(xIupGLToggle,{title})
+    return ih
+end function
+
+global function IupGLVal(nullable_string orientation=NULL)
+Ihandle ih = c_func(xIupGLVal,{orientation})
+    return ih
+end function
+
+global function IupGLValuator(nullable_string orientation=NULL)
+Ihandle ih = c_func(xIupGLVal,{orientation})
+    return ih
+end function
+
 
 --****
 -- === Additional Web
@@ -3730,7 +3862,7 @@ global function IupClipboard()
     return ih
 end function
 
-global function IupTimer(atom func = NULL, integer msecs = 0, integer active = 1)
+global function IupTimer(atom func=NULL, integer msecs=0, integer active=1)
     Ihandle ih = c_func(xIupTimer, {})
     if func!=NULL and msecs!=0 then
         IupSetCallback(ih, ACTION_CB, func)
@@ -3739,7 +3871,7 @@ global function IupTimer(atom func = NULL, integer msecs = 0, integer active = 1
     return ih
 end function
 
---global function IupTimer(integer rid = -2, integer msecs = 0, integer active = 1)
+--global function IupTimer(integer rid = -2, integer msecs=0, integer active=1)
 --Ihandle ih = c_func(xIupTimer, {})
 --  if rid>=0 and msecs!=0 then
 --      IupSetCallback(ih, ACTION_CB, rid)
@@ -3989,22 +4121,24 @@ global constant
     --
     -- These are simply for convenience
     --
-    CD_RED = #FF0000,
-    CD_DARK_RED = #800000,
-    CD_GREEN = #FF00,
-    CD_DARK_GREEN = #8000,
-    CD_BLUE = #FF,
-    CD_DARK_BLUE = #80,
-    CD_YELLOW = #FFFF00,
-    CD_DARK_YELLOW = #808000,
-    CD_MAGENTA = #FF00FF,
+    CD_RED          = #FF0000,
+    CD_DARK_RED     = #800000,
+    CD_GREEN        = #00FF00,
+    CD_DARK_GREEN   = #008000,
+    CD_BLUE         = #0000FF,
+    CD_DARK_BLUE    = #000080,
+    CD_YELLOW       = #FFFF00,
+    CD_DARK_YELLOW  = #808000,
+    CD_MAGENTA      = #FF00FF,
     CD_DARK_MAGENTA = #800080,
-    CD_CYAN = #FFFF,
-    CD_DARK_CYAN = #8080,
-    CD_WHITE = #FFFFFF,
-    CD_BLACK = #0,
-    CD_DARK_GRAY = #808080,
-    CD_GRAY = #C0C0C0,
+    CD_CYAN         = #00FFFF,
+    CD_DARK_CYAN    = #008080,
+    CD_WHITE        = #FFFFFF,
+    CD_BLACK        = #000000,
+    CD_DARK_GRAY    = #808080,
+    CD_GRAY         = #C0C0C0,
+    CD_PARCHMENT    = #FFFFE0,
+
     --
     -- Conversion Factor Constants
     --
@@ -6574,7 +6708,7 @@ procedure pplot_open()
     c_proc(xIupPPlotOpen, {})
 end procedure
 
-global function IupPPlot(sequence attributes = {}, sequence data = {})
+global function IupPPlot(sequence attributes={}, sequence data={})
     if not did_pplot_open then
         pplot_open()
     end if
@@ -6781,7 +6915,7 @@ procedure ole_open()
     c_proc(xIupOleControlOpen, {})
 end procedure
 
-global function control(string prog_id = "", string attributes = "", sequence data = {})
+global function control(string prog_id="", string attributes="", sequence data={})
     if not did_ole_open then
         ole_open()
     end if
@@ -6821,7 +6955,7 @@ procedure tuio_open()
     c_proc(xIupTuioOpen, {})
 end procedure
 
-global function client(integer port = 3333, sequence attributes = {}, sequence data = {})
+global function client(integer port = 3333, sequence attributes={}, sequence data={})
     if not did_tuio_open then
         tuio_open()
     end if
@@ -6846,14 +6980,8 @@ end function
 public constant EXIT_SUCCESS = 0
 public constant EXIT_FAILURE = 1
 
-ifdef not EU4_1 then
-public function sizeof(atom ctype)
-    return and_bits(ctype, #FF)
-end function
-end ifdef
-
 -- allocate an image to memory
-public function allocate_image(sequence data, integer cleanup = 0)
+public function allocate_image(sequence data, integer cleanup=0)
 atom buff = allocate_data(length(data), cleanup)
     poke(buff, data) return buff
 end function
@@ -6861,44 +6989,6 @@ end function
 
 --public include iupkey.e
 /* from 32 to 126, all character sets are equal, the key code is the same as the ASCii character code. */
---/*
-public function iup_isShiftXkey( atom _c )
-        return and_bits( _c, 0x10000000 )
-end function
-
-public function iup_isCtrlXkey( atom _c )
-        return and_bits( _c, 0x20000000 )
-end function
-
-public function iup_isAltXkey( atom _c )
-        return and_bits( _c, 0x40000000 )
-end function
-
-public function iup_isSysXkey( atom _c )
-        return and_bits( _c, 0x80000000 )
-end function
-
-public function iup_XkeyBase( atom _c )
-        return and_bits( _c, 0x0FFFFFFF )
-end function
-
-public function iup_XkeyShift( atom _c )
-        return or_bits( _c, 0x10000000 )
-end function
-
-public function iup_XkeyCtrl( atom _c )
-        return or_bits( _c, 0x20000000 )
-end function
-
-public function iup_XkeyAlt( atom _c )
-        return or_bits( _c, 0x40000000 )
-end function
-
-public function iup_XkeySys( atom _c )
-        return or_bits( _c, 0x80000000 )
-end function
-
---*/
 --/*
 public constant K_sHOME = iup_XkeyShift(K_HOME )
 public constant K_sUP = iup_XkeyShift(K_UP )
@@ -6911,7 +7001,7 @@ public constant K_sDOWN = iup_XkeyShift(K_DOWN )
 public constant K_sPGDN = iup_XkeyShift(K_PGDN )
 public constant K_sINS = iup_XkeyShift(K_INS )
 public constant K_sDEL = iup_XkeyShift(K_DEL )
-public constant K_sSP = iup_XkeyShift(K_SP )
+public constant K_sSP = iup_XkeyShift(' ')
 public constant K_sTAB = iup_XkeyShift(K_TAB )
 public constant K_sCR = iup_XkeyShift(K_CR )
 public constant K_sBS = iup_XkeyShift(K_BS )
@@ -6942,7 +7032,7 @@ public constant K_cDOWN = iup_XkeyCtrl(K_DOWN )
 public constant K_cPGDN = iup_XkeyCtrl(K_PGDN )
 public constant K_cINS = iup_XkeyCtrl(K_INS )
 public constant K_cDEL = iup_XkeyCtrl(K_DEL )
-public constant K_cSP = iup_XkeyCtrl(K_SP )
+public constant K_cSP = iup_XkeyCtrl(' ')
 public constant K_cTAB = iup_XkeyCtrl(K_TAB )
 public constant K_cCR = iup_XkeyCtrl(K_CR )
 public constant K_cBS = iup_XkeyCtrl(K_BS )
@@ -6974,7 +7064,7 @@ public constant K_mDOWN = iup_XkeyAlt(K_DOWN )
 public constant K_mPGDN = iup_XkeyAlt(K_PGDN )
 public constant K_mINS = iup_XkeyAlt(K_INS )
 public constant K_mDEL = iup_XkeyAlt(K_DEL )
-public constant K_mSP = iup_XkeyAlt(K_SP )
+public constant K_mSP = iup_XkeyAlt(' ')
 public constant K_mTAB = iup_XkeyAlt(K_TAB )
 public constant K_mCR = iup_XkeyAlt(K_CR )
 public constant K_mBS = iup_XkeyAlt(K_BS )
@@ -7006,7 +7096,7 @@ public constant K_yDOWN = iup_XkeySys(K_DOWN )
 public constant K_yPGDN = iup_XkeySys(K_PGDN )
 public constant K_yINS = iup_XkeySys(K_INS )
 public constant K_yDEL = iup_XkeySys(K_DEL )
-public constant K_ySP = iup_XkeySys(K_SP )
+public constant K_ySP = iup_XkeySys(' ')
 public constant K_yTAB = iup_XkeySys(K_TAB )
 public constant K_yCR = iup_XkeySys(K_CR )
 public constant K_yBS = iup_XkeySys(K_BS )
@@ -7404,15 +7494,18 @@ public constant IUP_VERSION_DATE = "2015/09/15" /* does not include bug fix rele
 
 ----Icallback IupGetFunction(const char *name);
 --public function IupGetFunction(string name)
---  cbfunc result = c_func(xIupGetFunction, {name})
---  return result
---end function
+global function IupGetGlobalFunction(string name)
+    cbfunc result = c_func(xIupGetFunction, {name})
+    return result
+end function
 --
 ----Icallback IupSetFunction(const char *name, Icallback func);
---public function IupSetFunction(string name, cbfunc func)
---  cbfunc prev = c_func(xIupSetFunction, {name,func})
+--global function IupSetGlobalFunction(string name, cbfunc func)
+global procedure IupSetGlobalFunction(string name, cbfunc func)
+    cbfunc prev = c_func(xIupSetFunction, {name,func})
 --  return prev
 --end function
+end procedure
 
 ----int IupClassMatch(Ihandle* ih, const char* classname);
 global function IupClassMatch(atom ih, string classname)
@@ -7455,7 +7548,7 @@ public function IupLink(nullable_string url=NULL, nullable_string title=NULL)
 end function
 
 --Ihandle* IupFlatButton(const char* title);
-public function IupFlatButton(nullable_string title = NULL)
+public function IupFlatButton(nullable_string title=NULL)
     Ihandle result = c_func(xIupFlatButton, {title})
     return result
 end function
@@ -7465,12 +7558,12 @@ end function
 /************************************************************************/
 
 --void IupStoreAttributeId(Ihandle *ih, const char* name, int id, const char *v);
-public procedure IupStoreAttributeId(Ihandle ih, string name, integer id, nullable_string v = NULL)
+public procedure IupStoreAttributeId(Ihandle ih, string name, integer id, nullable_string v=NULL)
     c_proc(xIupStoreAttributeId, {ih,name,id,v})
 end procedure
 
 --void IupStoreAttributeId2(Ihandle* ih, const char* name, int lin, int col, const char* v);
-public procedure IupStoreAttributeId2(Ihandle ih, string name, atom lin, atom col, nullable_string v = NULL)
+public procedure IupStoreAttributeId2(Ihandle ih, string name, atom lin, atom col, nullable_string v=NULL)
     c_proc(xIupStoreAttributeId2, {ih,name,lin,col,v})
 end procedure
 
@@ -7500,12 +7593,12 @@ end procedure
 
 /* DEPRECATED IupTree utilities, use Iup*AttributeId functions. It will be removed in a future version.  */
 --void IupTreeSetAttribute(Ihandle* ih, const char* name, int id, const char* v);
-public procedure IupTreeSetAttribute(Ihandle ih, string name, integer id, nullable_string v = NULL)
+public procedure IupTreeSetAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
     c_proc(xIupTreeSetAttribute, {ih,name,id,v})
 end procedure
 
 --void IupTreeStoreAttribute(Ihandle* ih, const char* name, int id, const char* v);
-public procedure IupTreeStoreAttribute(Ihandle ih, string name, integer id, nullable_string v = NULL)
+public procedure IupTreeStoreAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
     c_proc(xIupTreeStoreAttribute, {ih,name,id,v})
 end procedure
 
@@ -7531,7 +7624,7 @@ end function
 
 /* DEPRECATED font names. It will be removed in a future version.  */
 --char* IupMapFont(const char *iupfont);
-public function IupMapFont(nullable_string iupfont = NULL)
+public function IupMapFont(nullable_string iupfont=NULL)
     atom ptr = c_func(xIupMapFont, {iupfont})
     string str = ""
     if ptr!=NULL then str = peek_string(ptr) end if
@@ -7539,7 +7632,7 @@ public function IupMapFont(nullable_string iupfont = NULL)
 end function
 
 --char* IupUnMapFont(const char *driverfont);
-public function IupUnMapFont(nullable_string driverfont = NULL)
+public function IupUnMapFont(nullable_string driverfont=NULL)
     atom ptr = c_func(xIupUnMapFont, {driverfont})
     string str = ""
     if ptr!=NULL then str = peek_string(ptr) end if
@@ -7556,7 +7649,7 @@ public function IupProgressDlg()
 end function
 
 --Ihandle* IupParamf(const char* format);
-public function IupParamf(nullable_string fmt = NULL)
+public function IupParamf(nullable_string fmt=NULL)
     Ihandle result = c_func(xIupParamf, {fmt})
     return result
 end function
@@ -7730,7 +7823,7 @@ constant
 
 integer did_pplot_open = 0
 
-global function IupPPlot(string attributes = "", sequence data = {})
+global function IupPPlot(string attributes="", sequence data={})
     if did_pplot_open=0 then
         c_proc(xIupPPlotOpen, {})
         did_pplot_open = 1

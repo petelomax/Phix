@@ -13,8 +13,7 @@
           <b>Syntax:</b>
          </td>
          <td>
-          <font face = "Arial, Helvetica">task_yield()
-          </font>
+          task_yield()
          </td>
         </tr>
         <tr>
@@ -28,18 +27,21 @@
          <td valign=top>
           <b>Comments:</b>
          </td>
-         <td>Tasks should call task_yield() periodically so other tasks will have a chance to run. 
-            Only when task_yield() is called, is there a way for the scheduler to take back control from a task. 
+         <td>
+            Tasks should call task_yield() periodically so other that tasks have a chance to run. <br>
+            Only when task_yield() is called, is there a way for the scheduler to take back control from a task. <br>
             This is known as cooperative multitasking.
             <br>
-            A task can have calls to task_yield() in many different places in it&rsquo;s code, and at any depth of subroutine call. 
+            <br>
+            A task can have calls to task_yield() in many different places in it&rsquo;s code, and at any depth of subroutine call. <br>
+            Note however there are significant restrictions for c_func/call_func/call_back/delete_routine/type-check, see Technicalia.
             <br>
             <br>
-            The scheduler will use the current value of {min, max} or the current number of consecutive runs remaining, in determining when to return to the current task. 
+            The scheduler uses the current value of {min, max} or the current number of consecutive runs remaining, in determining when to return to the current task. 
             <br>
             <br>
-            When control returns, execution will continue with the statement that follows task_yield(). 
-            The call-stack and all private variables will remain as they were when task_yield() was called. 
+            When control returns, execution continues with the statement that follows task_yield(). <br>
+            The call-stack and all private variables remain as they were when task_yield() was called. <br>
             Global and local variables may have changed, due to the execution of other tasks.
             <br>
             <br>
@@ -51,7 +53,7 @@
             A task should avoid calling task_yield() when it is in the middle of a delicate operation that requires exclusive access to some data. 
             Otherwise a race-condition could occur, where one task might interfere with an operation being carried out by another task. 
             In some cases a task might need to mark some data as "locked" or "unlocked" in order to prevent this possibility. 
-            With cooperative multitasking, these concurrency issues are much less of a problem than with preemptive multitasking. [DEV see ??]
+            With cooperative multitasking, these concurrency issues are much less of a problem than with preemptive <a href="mthread.htm">multithreading</a>.
          </td>
         </tr>
         <tr>
@@ -69,12 +71,12 @@ end while
 abort(0)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080">-- this is how the main thread might wait for all tasks to complete
-</font><font color="#000000">terminate_application</font><font color="#0000FF"> =</font><font color="#000000"> 1  </font><font color="#000080"> -- tell threads to start shutting down, if appropriate
-</font><font color="#008080">while</font><font color="#000000"> active_tasks</font><font color="#0000FF">&gt;</font><font color="#000000">0</font><font color="#008080"> do    </font><font color="#000080"> -- (active_tasks is a manually maintained counter)
-</font><font color="#7060A8">    task_yield</font><font color="#0000FF">()
-</font><font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">0.1</font><font color="#0000FF">)             </font><font color="#000080"> -- (recommended if any real-time tasks are in use)
-</font><font color="#008080">end while
+<font color="#000000"></font><font color="#000080"><i>-- this is how the main thread might wait for all tasks to complete
+</i></font><font color="#000000">terminate_application</font><font color="#0000FF"> =</font><font color="#000000"> 1  </font><font color="#000080"><i> -- tell threads to start shutting down, if appropriate
+</i></font><font color="#008080">while</font><font color="#000000"> active_tasks</font><font color="#0000FF">&gt;</font><font color="#000000">0</font><font color="#008080"> do    </font><font color="#000080"><i> -- (active_tasks is a manually maintained counter)
+</i></font><font color="#5E005E">    task_yield</font><font color="#0000FF">()
+</font><font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">0.1</font><font color="#0000FF">)             </font><font color="#000080"><i> -- (recommended if any real-time tasks are in use)
+</i></font><font color="#008080">end while
 </font><font color="#7060A8">abort</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">)</font>
 </pre>
          </td>
@@ -92,11 +94,11 @@ task_yield()
 -- (nb: if no other task invokes task_schedule(main_task_id), control never returns)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080">-- an alternative to the above:
-</font><font color="#000000">main_task_id</font><font color="#0000FF"> =</font><font color="#7060A8"> task_self</font><font color="#0000FF">()
-</font><font color="#7060A8">task_suspend</font><font color="#0000FF">(</font><font color="#000000">main_task_id</font><font color="#0000FF">)
-</font><font color="#7060A8">task_yield</font><font color="#0000FF">()
-</font><font color="#000080">-- (nb: if no other task invokes task_schedule(main_task_id), control never returns)</font>
+<font color="#000000"></font><font color="#000080"><i>-- an alternative to the above:
+</i></font><font color="#000000">main_task_id</font><font color="#0000FF"> =</font><font color="#5E005E"> task_self</font><font color="#0000FF">()
+</font><font color="#5E005E">task_suspend</font><font color="#0000FF">(</font><font color="#000000">main_task_id</font><font color="#0000FF">)
+</font><font color="#5E005E">task_yield</font><font color="#0000FF">()
+</font><font color="#000080"><i>-- (nb: if no other task invokes task_schedule(main_task_id), control never returns)</i></font>
 </pre>
          </td>
         </tr>
@@ -111,7 +113,49 @@ task_yield()
           <a href="task_self.htm">task_self</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            It is important to note that in Phix the call stack is managed on the heap rather than the system stack. Each task has a private call stack, 
+            all of which are actually allocated from a single shared heap, but they could never overlap, and therefore each task also has unique private 
+            working space and unique references to private data. However all tasks share the same system stack (which in general is fairly lightly used 
+            by Phix). Consider the following code:
+<!--eucode>
+#ilASM { push reg }
+task_yield()
+#ilASM { pop reg }
+</eucode-->
+<pre>
+<font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF"> {</font><font color="#000000"> push reg</font><font color="#0000FF"> }
+</font><font color="#5E005E">task_yield</font><font color="#0000FF">()
+</font><font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF"> {</font><font color="#000000"> pop reg</font><font color="#0000FF"> }</font>
+</pre>
+            <br>
+            If multiple tasks attempt that, they will mix up each others values. At most one task gets to play with the system stack - in fact in the
+            taskwire demo, the WM_TIMER handler is messing with the system stack, in the form of return addresses into kernel32.dll, but all the other
+            tasks leave the stack balanced at all times. (I suppose that technically the "WM_TIMER task" does too, except in the other direction.)
+            <br>
+            <br>
+            A simple way to ensure the stack remains balanced is to (only) invoke task_yield at the top level of the main task routine, and avoid calls 
+            to task_yield from (nested) invocations of c_func/proc/call_func/proc, and anything targetted by delete_routine, plus of course explicit 
+            inline assembly like that just shown. Note that it is perfectly valid to invoke task_yield from nested hll function and procedure calls,
+            since they affect the heap stack rather than the system stack, with the exception of from within type-check routines. There is a way to 
+            invoke call_proc and leave the stack balanced, see pTask.e/call_current_task(). A similar trick is not currently available for call_func, 
+            but I suspect it would be mildly tricky as opposed to downright impossible (which I <i>will</i> reserve for call_back and delete_routine).
+            It may be possible to write a thread-based version of VM/pTask.e that uses lock-step to ensure only one thread is actually running, 
+            which might alleviate many of these restrictions, but it may be tricky and I&rsquo;m not particularly motivated at the moment.
+            <br>
+            <br>
+            Generally I would say that the main GUI task always plays with the system stack, and must therefore be the only task allowed to do so, 
+            unless/except when the stack is properly restored prior to the next call to task_yield.
+         </td>
+        </tr>
        </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

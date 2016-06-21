@@ -21,8 +21,10 @@ global procedure set_mb_hwnd(atom hWnd)
     mWnd = hWnd
 end procedure
 
-global function message_box(string msg, string title, integer style=MB_OK, atom hWnd=mWnd)
+global function message_box(sequence msg, sequence title, integer style=MB_OK, atom hWnd=mWnd)
 integer res = 0
+atom pMsg = allocate_string(msg)
+atom pTitle = allocate_string(title)
 
     if user32=0 then
         if platform()!=WIN32 then ?9/0 end if   -- (must use eg IupMessage instead)
@@ -34,7 +36,10 @@ integer res = 0
     if hWnd=NULL then
         style = or_bits(style,MB_TASKMODAL)
     end if
-    res = c_func(xMessageBoxA, {hWnd,msg,title,style})
+--  res = c_func(xMessageBoxA, {hWnd,msg,title,style})
+    res = c_func(xMessageBoxA, {hWnd,pMsg,pTitle,style})
+    free(pMsg)
+    free(pTitle)
     return res
 end function
 

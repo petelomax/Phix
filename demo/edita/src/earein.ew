@@ -2232,6 +2232,10 @@ procedure DoExit()
     Match("exit")
 end procedure
 
+procedure DoBreak()
+    Match("break")
+end procedure
+
 procedure DoContinue()
     Match("continue")
 end procedure
@@ -2333,7 +2337,7 @@ procedure MultiAssignment()
 end procedure
 
 --NB keep Statement() in step with this
-constant ifforwhileetc = {"if","for","while","continue","exit","switch","return","end","?","#i"}
+constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i"}
 
 --with trace
 procedure DoRoutineDef(integer rType)
@@ -2450,8 +2454,8 @@ procedure Statement()
 integer k
     if toktype = LETTER then
         nestAtStatementStart = nest
---constant ifforwhileetc = {"if","for","while","continue","exit","switch","return","end","?","#i"}
---                           1     2      3        4        5       6        7       8    9   10
+--constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i"}
+--                           1     2      3        4        5       6       7        8       9   10   11
         k = find(token,ifforwhileetc)
         if k then
             also = {}
@@ -2461,11 +2465,12 @@ integer k
             elsif k=3 then DoWhile()
             elsif k=4 then DoContinue()
             elsif k=5 then DoExit()
-            elsif k=6 then DoSwitch()
-            elsif k=7 then DoReturn()
-            elsif k=8 then Abort(xl("unexpected"))
-            elsif k=9 then DoQu()
-            elsif k=10 then DoIlasmEtc()
+            elsif k=6 then DoBreak()
+            elsif k=7 then DoSwitch()
+            elsif k=8 then DoReturn()
+            elsif k=9 then Abort(xl("unexpected"))
+            elsif k=10 then DoQu()
+            elsif k=11 then DoIlasmEtc()
             end if
         else
             if parser_tokno=1 then Indent(isTabWidth) end if
@@ -2489,7 +2494,8 @@ procedure Block()
     while 1 do
         if toktype=LETTER then
 --DEV break should probably be a statement... (see exit)
-            if find(token,{"elsif","else","end","case","default","fallthru","fallthrough","break"}) then exit end if
+--          if find(token,{"elsif","else","end","case","default","fallthru","fallthrough","break"}) then exit end if
+            if find(token,{"elsif","else","end","case","default","fallthru","fallthrough"}) then exit end if
 -- 13/2/14 ("declare anywhere")
             while toktype=LETTER do
                 if not find(token,vartypes) then    -- see Note1
@@ -2506,6 +2512,11 @@ procedure Block()
                 if parser_tokno=1 then Indent(0) end if
                 while 1 do
                     getToken()
+-- 18/6/16:
+                    if toktype=SYMBOL and equal(token,"{") then
+                        MultiAssignment()
+                        if Ch!=',' then exit end if
+                    end if
 --23/2/14:
 --                  if Ch='=' then
                     if Ch='=' or Ch=':' then

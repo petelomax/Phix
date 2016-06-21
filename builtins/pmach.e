@@ -145,14 +145,16 @@ constant
 
 include builtins\pdir.e as pdir
 include builtins\pscreen.e as pscreen
---/**/  include builtins\pcfunc.e as cfunc
-include builtins\dll.e as dll
+include builtins\VM\pcfuncN.e as cfunc
+--include builtins\dll.e as dll
 include builtins\pchdir.e as cd
---/**/  include builtins\pcurrdir.e as currdir
---DEV
---include builtins\pfileio.e as pfileio
---include builtins\VM\pfileioN.e as pfileioN
+include builtins\pcurrdir.e as currdir
+include builtins\VM\pfileioN.e
 include builtins\VM\pFloatN.e as pfloat
+include builtins\pAlloc.e as alloc
+include builtins\VM\pInstance.e
+include builtins\VM\pSleep.e
+
 
 global function machine_func(atom a, object x)
 --
@@ -187,20 +189,36 @@ global function machine_func(atom a, object x)
 --
 object res, p1, p2, p3, p4
     if a=M_ALLOC then
-        #ilASM{ lea edi,[res]
-                lea esi,[x]
-                call %opAlloc}      -- [edi] = allocate([esi])
+--      #ilASM{ lea edi,[res]
+--              lea esi,[x]
+--              call %opAlloc}      -- [edi] = allocate([esi])
+        res = alloc:allocate(x)
     elsif a=M_SEEK then
         p1 = x[1]   -- #ilASM cannot do things like subscripts
         p2 = x[2]   --  "
-        #ilASM{ lea edx,[res]
-                lea edi,[p1]        -- mov edi,addr fileno
-                lea esi,[p2]        -- mov esi,addr seek value
-                call %opSeek}       -- [edx] = seek([edi],[esi])
+        #ilASM{ 
+            [32]
+                lea edi,[res]
+                mov eax,[p1]        -- mov eax,fileno
+                mov ecx,[p2]        -- mov ecx,pos
+                call :%opSeek       -- [edi]:=seek(eax,ecx)
+            [64]
+                lea rdi,[res]       -- result location
+                mov rax,[p1]        -- file number (opUnassigned, integer)
+                mov rcx,[p2]        -- position (opUnassigned)
+                call :%opSeek       -- [rdi]:=seek(rax,rcx)
+              }
     elsif a=M_WHERE then
-        #ilASM{ lea ecx,[res]
-                mov eax,[x]         -- mov eax,[fileno]
-                call %opWhere}      -- [ecx] = where(eax)
+        #ilASM{
+            [32]
+                lea edi,[res]
+                mov eax,[x]         -- file number (opUnassigned, integer)
+                call :%opWhere      -- [edi]:=where(eax)
+            [64]
+                lea rdi,[res]       -- result location
+                mov rax,[x]         -- file number (opUnassigned, integer)
+                call :%opWhere      -- [rdi]:=where(rax)
+              }
     elsif a=M_DIR then
         res = pdir:dir(x)
     elsif a=M_CURRENT_DIR then
@@ -208,14 +226,24 @@ object res, p1, p2, p3, p4
 --              call %opCurrDir}    -- [edx] = current_dir()
         res = currdir:current_dir()
     elsif a=M_GET_POSITION then
---DEV newEmit:
---      res = pfileioN:get_position()
-        #ilASM{ lea edx,[res]
-                call %opGetPos}     -- [edx] = get_position()
+        #ilASM{
+            [32]
+                lea edi,[res]       -- result location
+                call :%opGetPos     -- [edi]:=get_position()
+            [64]
+                lea rdi,[res]       -- result location
+                call :%opGetPos     -- [rdi]:=get_position()
+              }
     elsif a=M_WAIT_KEY then
 --DEV edi/:%opWaitKey
-        #ilASM{ lea edx,[res]
-                call %opWaitKey}    -- [edx] = wait_key()
+        #ilASM{
+            [32]
+                lea edi,[res]       -- result location
+                call :%opWaitKey    -- [edi] = wait_key()
+            [64]
+                lea rdi,[res]       -- result location
+                call :%opWaitKey    -- [rdi] = wait_key()
+              }
     elsif a=M_A_TO_F64 then
 --      #ilASM{ lea edi,[res]
 --              lea edx,[x]
@@ -241,7 +269,8 @@ object res, p1, p2, p3, p4
         p1 = x[1]
         res = pfloat:float32_to_atom(p1)
     elsif a=M_OPEN_DLL then
-        res = dll:open_dll(x)
+--      res = dll:open_dll(x)
+        res = cfunc:open_dll(x)
     elsif a=M_DEFINE_C then
         p1 = x[1]   -- #ilasm cannot do things like subscripts
         p2 = x[2]   --  "
@@ -255,8 +284,14 @@ object res, p1, p2, p3, p4
     elsif a=M_CALL_BACK then
         res = cfunc:call_back(x)
     elsif a=M_INSTANCE then
-        #ilASM{ lea edx,[res]
-                call %opInstance}   -- [edx] = instance()
+        #ilASM{
+            [32]
+                lea edi,[res]
+                call :%opInstance   -- [edi] := instance()
+            [64]
+                lea rdi,[res]
+                call :%opInstance   -- [rdi] := instance()
+              }
     elsif a=M_DEFINE_VAR then
         p1 = x[1]   -- #ilasm cannot do things like subscripts
         p2 = x[2]   --  "
@@ -265,11 +300,20 @@ object res, p1, p2, p3, p4
         p1 = x[1]   -- #ilasm cannot do things like subscripts
         p2 = x[2]   --  "
         p3 = x[3]   --  "
-        #ilASM{ lea edx,[res]
-                lea edi,[p1]        -- mov edi,addr fileno
-                lea ecx,[p2]        -- mov ecx,addr locktype
-                lea esi,[p3]        -- mov esi,addr byterange
-                call %opLock}       -- [edx] = lock_file([edi],[ecx],[esi])
+        #ilASM{
+            [32]
+                lea edi,[res]       -- result location
+                mov eax,[p1]        -- file number (opUnassigned, integer)
+                mov ecx,[p2]        -- lock type (opUnassigned, integer)
+                mov esi,[p3]        -- byte range (opUnassigned, sequence)
+                call :%opLock       -- [edi]:=lock_file(eax,ecx,esi)
+            [64]
+                lea rdi,[res]       -- result location
+                mov rax,[p1]        -- file number (opUnassigned, integer)
+                mov rcx,[p2]        -- lock type (opUnassigned, integer)
+                mov rsi,[p3]        -- byte range (opUnassigned, sequence)
+                call :%opLock       -- [rdi]:=lock_file(rax,rcx,rsi)
+              }
     elsif a=M_CHDIR then
 --      #ilASM{ lea ecx,[res]
 --              mov eax,[x]
@@ -301,33 +345,75 @@ object p1, p2, p3
 --      -- do nothing
 --  els
     if a=M_SET_T_COLOR then
-        #ilASM{ lea edx,[x]
-                call %opTxtClr}     -- text_color([edx])
+        #ilASM{
+            [32]
+                mov eax,[x]         -- color (opUnassigned, integer)
+                call :%opTxtClr     -- text_color(eax)
+            [64]
+                mov rax,[x]         -- color (opUnassigned, integer)
+                call :%opTxtClr     -- text_color(rax)
+              }
     elsif a=M_SET_B_COLOR then
---DEV newEmit:
---      pfileioN:bk_color(x)
-        #ilASM{ lea edx,[x]
-                call %opBkClr}      -- bk_color([edx])
+        #ilASM{
+            [32]
+                mov eax,[x]         -- color (opUnassigned, integer)
+                call :%opBkClr      -- bk_color(eax)
+            [64]
+                mov rax,[x]         -- color (opUnassigned, integer)
+                call :%opBkClr      -- bk_color(rax)
+              }
     elsif a=M_FREE then
-        #ilASM{ lea edi,[x]
-                call %opFree}       -- free([edi])
+--      #ilASM{ lea edi,[x]
+--              call %opFree}       -- free([edi])
+        alloc:free(x)
     elsif a=M_SET_RAND then
-        #ilASM{ lea edi,[x]
-                call %opSetRand}    -- set_rand([edi])
+        #ilASM{
+            [32]
+                mov eax,[x]         -- seed value (opUnassigned)
+                call :%opSetRand    -- set_rand(eax)
+            [64]
+                mov rax,[x]         -- seed value (opUnassigned)
+                call :%opSetRand    -- set_rand(rax)
+              }
     elsif a=M_FREE_CONSOLE then
-        #ilASM{ call %opFreeCons}   -- free_console()
+        #ilASM{
+                call :%opFreeCons -- free_console()
+              }
     elsif a=M_FLUSH then
-        #ilASM{ lea edx,[x]
-                call %opFlush}      -- flush([edx])
+        if not integer(x) then ?9/0 end if
+        #ilASM{
+            [32]
+                mov eax,[x]         -- (opUnassigned, should be integer)
+                call :%opFlush      -- flush(eax)
+            [64]
+                mov rax,[x]         -- (opUnassigned)
+                call :%opFlush      -- flush(rax)
+              }
     elsif a=M_UNLOCK_FILE then
         p1 = x[1]   -- #ilasm cannot do things like subscripts
         p2 = x[2]   --  "
-        #ilASM{ lea edi,[p1]        -- mov edi,addr fileno
-                lea esi,[p2]        -- mov esi,addr range
-                call %opUnLock}     -- unlock_file([edi],[esi])
+        if not integer(p1) then ?9/0 end if
+        if not sequence(p2) then ?9/0 end if
+        #ilASM{
+            [32]
+                mov eax,[p1]        -- file number (opUnassigned, integer)
+                mov esi,[p2]        -- byte range (opUnassigned, sequence)
+                call :%opUnLock     -- unlock_file(eax,esi)
+            [64]
+                mov rax,[p1]        -- file number (opUnassigned, integer)
+                mov rsi,[p2]        -- byte range (opUnassigned, sequence)
+                call :%opUnLock     -- [rdi]:=unlock_file(rax,rsi)
+              }
     elsif a=M_SLEEP then
-        #ilASM{ lea edi,[x]
-                call %opSleep}      -- sleep([edi])
+        if not atom(x) then ?9/0 end if
+        #ilASM{
+            [32]
+                mov eax,[x]         -- seconds (opUnassigned)
+                call :%opSleep      -- sleep(eax)
+            [64]
+                mov rax,[x]         -- seconds (opUnassigned)
+                call :%opSleep      -- sleep(eax)
+              }
     elsif a=M_PUT_SCREEN_CHAR then
         p1 = x[1]
         p2 = x[2]

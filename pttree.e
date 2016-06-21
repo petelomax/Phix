@@ -1205,6 +1205,7 @@ global constant T_fisub         = 4972  tt_stringF("fisub",T_fisub)
 global constant T_fisubr        = 4980  tt_stringF("fisubr",T_fisubr)
 global constant T_fidiv         = 4996  tt_stringF("fidiv",T_fidiv)
 global constant T_fidivr        = 5004  tt_stringF("fidivr",T_fidivr)
+global constant T_bswap         = 5024  tt_stringF("bswap",T_bswap)
 
 --global constant T_movq            = 4912  tt_stringF("movq",T_movq)
 --global constant gtiTestM  = T_ilASM+0     tt_glabel("%opTestM", gtiTestM)

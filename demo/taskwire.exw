@@ -1,0 +1,850 @@
+--
+-- === win32/taskwire.exw
+--
+-- 3-D Wire Frame Picture. Windows Multitasking Version
+--
+-- Run in a window or in full screen.
+--
+-- In a window, just close the window to stop it.
+--
+-- When running in Full Screen, press any key to stop.
+--
+
+constant NTASKS = 9 -- number of E's spinning simultaneously.
+                    -- each E is controlled by a separate Euphoria task.
+                    -- Try other numbers!
+
+constant FULL_SCREEN = 0  -- 1 for full screen display
+
+--without type_check
+--/*
+include std/dll.e
+include std/machine.e
+include std/math.e
+include std/wildcard.e
+include std/error.e
+--*/
+
+--DEV
+procedure poke_pointer(atom address, object x)
+    pokeN(address,x,machine_word())
+end procedure
+
+--include winstruct.ew
+
+-- common definitions used by the demos
+
+--/*
+include std/dll.e
+include std/error.e
+include std/math.e
+--*/
+
+constant
+--      C_BYTE = C_UCHAR,
+        C_ATOM = C_USHORT,
+--      C_WORD = C_USHORT,
+--      C_HFILE = C_INT,
+--      C_WNDPROC = C_POINTER,
+        C_LPSTR = C_POINTER,
+        C_LRESULT = C_POINTER,
+--      C_LANGID =  C_WORD,
+        C_COLORREF =  C_DWORD,    --0x00bbggrr
+        $
+
+constant
+        CS_HREDRAW = 2,
+        CS_VREDRAW = 1
+
+constant SW_SHOWNORMAL = 1
+
+constant
+        WM_CREATE  = #0001,
+        WM_DESTROY = #0002,
+        WM_SIZE    = #0005,
+        WM_PAINT   = #000F,
+        WM_CLOSE   = #0010,
+        WM_CHAR    = #0102,
+        WM_TIMER   = #0113
+
+
+constant
+        SND_FILENAME = #00020000,
+        SND_ASYNC    = #00000001
+
+constant
+--      DT_SINGLELINE = #0020,
+--      DT_CENTER     = #0001,
+--      DT_VCENTER    = #0004,
+        DT_WORDBREAK  = #0010
+
+constant
+        WS_OVERLAPPED  = #00000000,
+        WS_CAPTION     = #00C00000,
+        WS_SYSMENU     = #00080000,
+        WS_THICKFRAME  = #00040000,
+        WS_MINIMIZEBOX = #00020000,
+        WS_MAXIMIZEBOX = #00010000
+
+constant
+        IDI_APPLICATION = 32512,
+        IDC_ARROW = 32512,
+        WHITE_BRUSH = 0,
+--      CW_USEDEFAULT = #80000000,
+        WS_OVERLAPPEDWINDOW = or_all({WS_OVERLAPPED, WS_CAPTION, WS_SYSMENU,
+                                      WS_THICKFRAME, WS_MINIMIZEBOX,
+                                      WS_MAXIMIZEBOX})
+
+--DEV:
+--ifdef BITS32 then
+constant cbSize = 0,
+                style  = 4,
+                lpfnWndProc = 8,
+                cbClsExtra = 12,    -- lpfnWndProc+sizeofptr
+                cbWndExtra = 16,
+                hInstance  = 20,
+                hIcon      = 24,
+                hCursor    = 28,
+                hbrBackground = 32,
+                lpszMenuName  = 36,
+                lpszClassName = 40,
+                hIconSm = 44,
+                SIZE_OF_WNDCLASS = 48,
+                SIZE_OF_MESSAGE = 40
+
+--elsedef
+--constant
+--      cbSize           = 0,
+--      style            = 4,
+--      lpfnWndProc      = 8,
+--      cbClsExtra       = 16,
+--      cbWndExtra       = 20,
+--      hInstance        = 24,
+--      hIcon            = 32,
+--      hCursor          = 40,
+--      hbrBackground    = 48,
+--      lpszMenuName     = 56,
+--      lpszClassName    = 64,
+--      hIconSm          = 72,
+--      SIZE_OF_WNDCLASS = 80,
+--      SIZE_OF_MESSAGE = 56
+--
+--end ifdef
+
+integer LoadIcon, LoadCursor, RegisterClassEx,
+        CreateWindow, ShowWindow, UpdateWindow, GetMessage,
+        TranslateMessage, DispatchMessage, PlaySound, BeginPaint,
+        GetClientRect, DrawText, EndPaint, PostQuitMessage, DefWindowProc,
+        SetTimer, KillTimer, ReleaseDC, CreateDC, GetDC, MoveToEx, LineTo,
+        CreatePen, SelectObject, GetStockObject, xSendMessage
+
+procedure not_found(sequence name)
+    crash("Couldn't find " & name)
+end procedure
+
+function link_c_func(atom dll, sequence name, sequence args, atom result)
+-- dynamically link a C routine as a Euphoria function
+integer handle
+
+    handle = define_c_func(dll, name, args, result)
+    if handle= -1 then
+        not_found(name)
+    end if
+    return handle
+end function
+
+function link_c_proc(atom dll, sequence name, sequence args)
+-- dynamically link a C routine as a Euphoria procedure
+integer handle
+
+    handle = define_c_proc(dll, name, args)
+    if handle= -1 then
+        not_found(name)
+    end if
+    return handle
+end function
+
+procedure link_dll_routines()
+-- get handles to all dll routines that we need
+atom user32, gdi32, winmm
+
+-- open the .DLL files
+    user32 = open_dll("user32.dll")
+    if user32=NULL then
+        not_found("user32.dll")
+    end if
+
+    gdi32 = open_dll("gdi32.dll")
+    if gdi32=NULL then
+        not_found("gdi32.dll")
+    end if
+
+    winmm = open_dll("winmm.dll")
+    if winmm=NULL then
+        not_found("winmm.dll")
+    end if
+
+    -- link the C routines
+    --new code would use LoadImage
+    LoadIcon = link_c_func(user32, "LoadIconA", {C_HANDLE, C_LPSTR}, C_HANDLE)
+    LoadCursor = link_c_func(user32, "LoadCursorA", {C_HANDLE, C_LPSTR}, C_HANDLE)
+
+    RegisterClassEx = link_c_func(user32, "RegisterClassExA", {C_POINTER}, C_ATOM)
+    CreateWindow = link_c_func(user32, "CreateWindowExA",
+                               {C_DWORD, C_LPSTR, C_LPSTR,C_DWORD,C_INT,C_INT,C_INT,C_INT,
+                                C_HWND,C_HANDLE,C_HANDLE, C_POINTER},
+                               C_HWND)
+    ShowWindow = link_c_proc(user32, "ShowWindow", {C_HWND, C_INT}) --BOOL
+    UpdateWindow = link_c_proc(user32, "UpdateWindow", {C_HWND}) --BOOL
+    GetMessage = link_c_func(user32, "GetMessageA",
+                             {C_LPSTR, C_HWND, C_UINT, C_UINT}, C_BOOL)
+    TranslateMessage = link_c_proc(user32, "TranslateMessage", {C_LPSTR}) --BOOL
+    DispatchMessage = link_c_proc(user32, "DispatchMessageA", {C_LPSTR}) --LRESULT
+    PlaySound = link_c_proc(winmm, "PlaySound", {C_LPSTR, C_HANDLE, C_DWORD}) --BOOL
+    BeginPaint = link_c_func(user32, "BeginPaint", {C_HWND, C_POINTER}, C_HANDLE)
+    GetClientRect = link_c_proc(user32, "GetClientRect", {C_HWND, C_POINTER}) --BOOL
+    DrawText = link_c_proc(user32, "DrawTextA",
+                           {C_HANDLE, C_LPSTR, C_INT, C_POINTER, C_UINT})  --INT
+    EndPaint = link_c_proc(user32, "EndPaint", {C_HWND, C_POINTER}) --BOOL
+    PostQuitMessage = link_c_proc(user32, "PostQuitMessage", {C_INT})
+    DefWindowProc = link_c_func(user32, "DefWindowProcA",
+                                {C_HWND, C_UINT, C_WPARAM, C_LPARAM}, C_LRESULT)
+
+    SetTimer = link_c_proc(user32, "SetTimer",
+                           {C_POINTER,C_UINT,C_UINT,C_POINTER}) --INT
+    KillTimer = link_c_proc(user32, "KillTimer", {C_POINTER,C_UINT})
+    GetDC = link_c_func(user32, "GetDC", {C_HWND}, C_HANDLE)
+    ReleaseDC = link_c_proc(user32, "ReleaseDC", {C_HWND, C_HANDLE}) --INT
+    CreateDC = link_c_func(gdi32, "CreateDCA",
+                           {C_LPSTR, C_LPSTR, C_LPSTR, C_POINTER},
+                           C_HANDLE)
+
+    MoveToEx = link_c_func(gdi32, "MoveToEx",
+                           {C_HANDLE, C_INT, C_INT, C_POINTER}, C_BOOL)
+
+    LineTo = link_c_func(gdi32, "LineTo",
+                         {C_HANDLE, C_INT, C_INT}, C_BOOL)
+
+    SelectObject = link_c_func(gdi32, "SelectObject",
+                               {C_HANDLE, C_HANDLE}, C_HANDLE)
+
+    CreatePen = link_c_func(gdi32, "CreatePen",
+                            {C_INT, C_INT, C_COLORREF}, C_HANDLE)
+    GetStockObject = link_c_func(gdi32, "GetStockObject", {C_INT}, C_HANDLE)
+    xSendMessage = link_c_func(user32,"SendMessageA",{C_POINTER,C_UINT,C_INT,C_INT},C_INT)
+
+
+end procedure
+
+link_dll_routines()
+
+function register_class(atom wndclass, atom WndProcAddress, atom szAppName)
+    poke4(wndclass+cbSize, SIZE_OF_WNDCLASS)
+    poke4(wndclass+style, or_bits(CS_HREDRAW, CS_VREDRAW))
+    poke_pointer(wndclass+lpfnWndProc, WndProcAddress)
+    poke4(wndclass+cbClsExtra, 0)
+    poke4(wndclass+cbWndExtra, 0)
+    poke_pointer(wndclass+hInstance, 0) --hInstance
+    poke_pointer(wndclass+hIcon, c_func(LoadIcon, {NULL, IDI_APPLICATION}))
+    poke_pointer(wndclass+hCursor, c_func(LoadCursor, {NULL, IDC_ARROW}))
+    poke_pointer(wndclass+hbrBackground, c_func(GetStockObject, {WHITE_BRUSH}))
+    poke_pointer(wndclass+lpszMenuName, NULL)
+    poke_pointer(wndclass+lpszClassName, szAppName)
+    poke_pointer(wndclass+hIconSm, c_func(LoadIcon, {NULL, IDI_APPLICATION}))
+
+    return c_func(RegisterClassEx, {wndclass})
+end function
+
+--without warning
+
+
+
+constant X = 1, Y = 2, Z = 3
+
+constant BLACK = 0,
+         BLUE  = 1,
+         GREEN = 2,
+--       CYAN =  3,
+         RED   = 4,
+         MAGENTA = 5,
+--       BROWN = 6,
+         WHITE = 7,
+--       GRAY  = 8,
+         BRIGHT_BLUE = 9,
+         BRIGHT_GREEN = 10,
+--       BRIGHT_CYAN = 11,
+         BRIGHT_RED = 12,
+--       BRIGHT_MAGENTA = 13,
+         YELLOW = 14,
+--       BRIGHT_WHITE = 15,
+         $
+
+constant BLACK_PEN = 7,
+         WHITE_PEN = 6
+
+constant PS_SOLID = 0
+
+--/*
+-- lines for a block E
+constant E = {
+              {{.2, 1.1, 2}, {.2, -.5, 2}, BLUE},
+              {{.2, -.5, 2}, {.2, -.5, -2}, YELLOW},
+              {{.2, -.5, -2}, {.2, 1.1, -2}, GREEN},
+              {{.2, 1.1, -2}, {.2, 1.2, -1.6}, BRIGHT_RED},
+              {{.2, 1.2, -1.6}, {.2, 1, -1.8}, BRIGHT_RED},
+              {{.2, 1, -1.8}, {.2, 0, -1.8}, MAGENTA},
+              {{.2, 0, -1.8}, {.2, 0, -.1}, BRIGHT_CYAN},
+              {{.2, 0, -.1}, {.2, .5, -.1}, BLUE},
+              {{.2, .5, -.1}, {.2, .6, -.2}, BLUE},
+              {{.2, .6, -.2}, {.2, .6, .2}, BLACK},
+              {{.2, .6, .2}, {.2, .5, .1}, BLUE},
+              {{.2, .5, .1}, {.2, 0, .1}, BRIGHT_BLUE},
+              {{.2, 0, .1}, {.2, 0, 1.8}, BRIGHT_GREEN},
+              {{.2, 0, 1.8}, {.2, 1, 1.8}, BRIGHT_CYAN},
+              {{.2, 1, 1.8}, {.2, 1.2, 1.6}, BRIGHT_CYAN},
+              {{.2, 1.2, 1.6}, {.2, 1.1, 2}, BRIGHT_RED},
+
+-- opposite side:
+              {{-.2, 1.1, 2}, {-.2, -.5, 2}, BLUE},
+              {{-.2, -.5, 2}, {-.2, -.5, -2}, YELLOW},
+              {{-.2, -.5, -2}, {-.2, 1.1, -2}, GREEN},
+              {{-.2, 1.1, -2}, {-.2, 1.2, -1.6}, BRIGHT_RED},
+              {{-.2, 1.2, -1.6}, {-.2, 1, -1.8}, BRIGHT_RED},
+              {{-.2, 1, -1.8}, {-.2, 0, -1.8}, MAGENTA},
+              {{-.2, 0, -1.8}, {-.2, 0, -.1}, BRIGHT_CYAN},
+              {{-.2, 0, -.1}, {-.2, .5, -.1}, BLUE},
+              {{-.2, .5, -.1}, {-.2, .6, -.2}, BLUE},
+              {{-.2, .6, -.2}, {-.2, .6, .2}, BLACK},
+              {{-.2, .6, .2}, {-.2, .5, .1}, BLUE},
+              {{-.2, .5, .1}, {-.2, 0, .1}, BRIGHT_BLUE},
+              {{-.2, 0, .1}, {-.2, 0, 1.8}, BRIGHT_GREEN},
+              {{-.2, 0, 1.8}, {-.2, 1, 1.8}, BRIGHT_CYAN},
+              {{-.2, 1, 1.8}, {-.2, 1.2, 1.6}, BRIGHT_CYAN},
+              {{-.2, 1.2, 1.6}, {-.2, 1.1, 2}, BRIGHT_RED},
+
+-- cross pieces:
+              {{.2, 1.1, 2}, {-.2, 1.1, 2}, BLUE},
+              {{.2, -.5, 2}, {-.2, -.5, 2}, BLUE},
+              {{.2, -.5, -2}, {-.2, -.5, -2}, GREEN},
+              {{.2, 1.1, -2}, {-.2, 1.1, -2}, GREEN},
+              {{.2, 1.2, -1.6}, {-.2, 1.2, -1.6}, BRIGHT_GREEN},
+              {{.2, .6, -.2}, {-.2, .6, -.2}, BLACK},
+              {{.2, .6, .2}, {-.2, .6, .2}, BLACK},
+              {{.2, 1.2, 1.6}, {-.2, 1.2, 1.6}, BRIGHT_GREEN}
+             }
+--*/
+--copied from winwire.e:
+constant P = {
+{{ .2, -.6,-2  }, { .2,  .7,-2  }, BLUE},           -- top long
+{{ .2,  .9,-1.7}, { .2,  .7,-2  }, MAGENTA},        -- right out diag
+{{ .2,  .9,-1.7}, { .2,  .9,-0.2}, BLUE},           -- right out vert
+{{ .2, 0.7, 0.1}, { .2,  .9,-0.2}, MAGENTA},        -- right out diag
+{{ .2, 0.7, 0.1}, { .2, 0  , 0.1}, CYAN},           -- middle out bar
+{{ .2, 0  , 1.9}, { .2, 0  , 0.1}, BLUE},           -- lower vert
+{{ .2, 0  , 1.9}, { .2, 0.1, 2  }, RED},            -- lower serif
+{{ .2, -.6, 2  }, { .2, 0.1, 2  }, GREEN},          -- bottom line
+{{ .2, -.6, 2  }, { .2, -.5, 1.9}, RED},            -- bottom back serif
+{{ .2, -.5,-1.9}, { .2, -.5, 1.9}, YELLOW},         -- back vert
+{{ .2, -.5,-1.9}, { .2, -.6,-2  }, RED},            -- top back serif
+
+{{ .2, 0  ,-1.8}, { .2,  .5,-1.8}, BLUE},           -- inner top horiz
+{{ .2,  .7,-1.5}, { .2,  .5,-1.8}, BLACK},          -- inner top diag
+{{ .2,  .7,-1.5}, { .2,  .7,-0.3}, CYAN},           -- inner right vert
+{{ .2,  .5,-0.1}, { .2,  .7,-0.3}, CYAN},           -- inner lower diag
+{{ .2,  .5,-0.1}, { .2, 0  ,-0.1}, BLUE},           -- inner lower horiz
+{{ .2, 0  ,-1.8}, { .2, 0  ,-0.1}, GREEN},          -- upper vert
+-- opposite side:
+{{-.2, -.6,-2  }, {-.2,  .7,-2  }, BLUE},           -- top long
+{{-.2,  .9,-1.7}, {-.2,  .7,-2  }, MAGENTA},        -- right out diag
+{{-.2,  .9,-1.7}, {-.2,  .9,-0.2}, BLUE},           -- right out vert
+{{-.2, 0.7, 0.1}, {-.2,  .9,-0.2}, MAGENTA},        -- right out diag
+{{-.2, 0.7, 0.1}, {-.2, 0  , 0.1}, CYAN},           -- middle out bar
+{{-.2, 0  , 1.9}, {-.2, 0  , 0.1}, BLUE},           -- lower vert
+{{-.2, 0  , 1.9}, {-.2, 0.1, 2  }, RED},            -- lower serif
+{{-.2, -.6, 2  }, {-.2, 0.1, 2  }, GREEN},          -- bottom line
+{{-.2, -.6, 2  }, {-.2, -.5, 1.9}, RED},            -- bottom back serif
+{{-.2, -.5,-1.9}, {-.2, -.5, 1.9}, YELLOW},         -- back vert
+{{-.2, -.5,-1.9}, {-.2, -.6,-2  }, BROWN},          -- top back serif
+
+{{-.2, 0  ,-1.8}, {-.2,  .5,-1.8}, BLUE},           -- inner top horiz
+{{-.2,  .7,-1.5}, {-.2,  .5,-1.8}, BLACK},          -- inner top diag
+{{-.2,  .7,-1.5}, {-.2,  .7,-0.3}, CYAN},           -- inner right vert
+{{-.2,  .5,-0.1}, {-.2,  .7,-0.3}, BLACK},          -- inner lower diag
+{{-.2,  .5,-0.1}, {-.2, 0  ,-0.1}, BLUE},           -- inner lower horiz
+{{-.2, 0  ,-1.8}, {-.2, 0  ,-0.1}, GREEN},          -- upper vert
+-- cross pieces:
+{{ .2, -.6,-2  }, {-.2, -.6,-2  }, BLUE},
+{{ .2,  .7,-2  }, {-.2,  .7,-2  }, GREEN},
+{{ .2,  .9,-1.7}, {-.2,  .9,-1.7}, BLUE},
+{{ .2,  .9,-0.2}, {-.2,  .9,-0.2}, BLACK},
+{{ .2, 0.7, 0.1}, {-.2, 0.7, 0.1}, MAGENTA},
+{{ .2, 0  , 0.1}, {-.2, 0  , 0.1}, BLACK},
+{{ .2, 0  , 1.9}, {-.2, 0  , 1.9}, RED},
+{{ .2, 0.1, 2  }, {-.2, 0.1, 2  }, BLUE},
+{{ .2, -.6, 2  }, {-.2, -.6, 2  }, GREEN},
+{{ .2, -.5, 1.9}, {-.2, -.5, 1.9}, GRAY},
+{{ .2, -.5,-1.9}, {-.2, -.5,-1.9}, BLUE},
+
+{{ .2, 0  ,-1.8}, {-.2, 0  ,-1.8}, BLUE},
+{{ .2,  .5,-1.8}, {-.2,  .5,-1.8}, GREEN},
+{{ .2,  .7,-1.5}, {-.2,  .7,-1.5}, RED},
+{{ .2,  .7,-0.3}, {-.2,  .7,-0.3}, BLACK},
+{{ .2,  .5,-0.1}, {-.2,  .5,-0.1}, GREEN},
+{{ .2, 0  ,-0.1}, {-.2, 0  ,-0.1}, BLUE}}
+
+
+
+type point(sequence x)
+    return length(x)=3
+end type
+
+type matrix(sequence x)
+    return length(x)=4 and sequence(x[1])
+end type
+
+--type vector(sequence x)
+--  return length(x)=4 and atom(x[1])
+--end type
+
+atom screen_size_x = 400, screen_size_y = 400 -- current screen size
+
+atom black_pen, white_pen, red_pen, green_pen, blue_pen
+atom hdc
+integer axis
+atom sin_angle, cos_angle
+
+function product(sequence factor)
+-- matrix multiply a number of 4-vectors/4x4 matrices
+-- only the first one could be a vector
+sequence a, c
+matrix b
+
+    a = factor[1]
+    for f=2 to length(factor) do
+        b = factor[f]
+        if atom(a[1]) then
+            -- a is a vector
+            c = repeat(0, 4)
+            for j=1 to 4 do
+                c[j] = a[1]*b[1][j]+
+                       a[2]*b[2][j]+
+                       a[3]*b[3][j]+
+                       a[4]*b[4][j]
+            end for
+        else
+            -- a is a matrix
+            c = repeat(repeat(0, 4), 4)
+            for i=1 to 4 do
+                for j=1 to 4 do
+                    for k=1 to 4 do
+                        c[i][j] += a[i][k]*b[k][j]
+                    end for
+                end for
+            end for
+        end if
+        a = c
+    end for
+    return c
+end function
+
+procedure draw_line(integer color, sequence coords)
+-- WIN32 line drawing routine
+atom ok
+
+    if color=WHITE then
+        ok = c_func(SelectObject, {hdc, white_pen})
+    elsif color=RED or color=BRIGHT_RED then
+        ok = c_func(SelectObject, {hdc, red_pen})
+    elsif color=GREEN or color=BRIGHT_GREEN then
+        ok = c_func(SelectObject, {hdc, green_pen})
+    elsif color=BLUE or color=BRIGHT_BLUE then
+        ok = c_func(SelectObject, {hdc, blue_pen})
+    else
+        ok = c_func(SelectObject, {hdc, black_pen})
+    end if
+    if not ok then
+        puts(1, "SelectObject failed!\n")
+    end if
+
+    ok = c_func(MoveToEx, {hdc, coords[1][1], coords[1][2], NULL})
+    if not ok then
+        puts(1, "MoveToEx failed!\n")
+    end if
+
+    ok = c_func(LineTo, {hdc, coords[2][1], coords[2][2]})
+    if not ok then
+        puts(1, "LineTo failed!\n")
+    end if
+end procedure
+
+procedure display(sequence old_coords, sequence coords)
+-- erase the old lines, draw the new ones
+    for i=1 to length(old_coords) do
+        draw_line(WHITE, old_coords[i][1..2])
+    end for
+    for i=1 to length(coords) do
+        draw_line(coords[i][3], coords[i][1..2])
+    end for
+end procedure
+
+function view(point view_point)
+-- compute initial view
+matrix t1, t2, t3, t4, n
+atom cos_theta, sin_theta, hyp, a_b
+
+-- change origin
+    t1 = {{1, 0, 0, 0},
+          {0, 1, 0, 0},
+          {0, 0, 1, 0},
+          sq_uminus(view_point) & 1}
+
+    -- get left-handed coordinate system
+    t2 = {{-1, 0,  0, 0},
+          {0, 0, -1, 0},
+          {0, 1,  0, 0},
+          {0, 0,  0, 1}}
+
+    -- rotate so Ze points properly
+    hyp = sqrt(view_point[1]*view_point[1]+view_point[2]*view_point[2])
+    sin_theta = view_point[1]/hyp
+    cos_theta = view_point[2]/hyp
+    t3 = {{cos_theta, 0, sin_theta, 0},
+          {0, 1,         0, 0},
+          {-sin_theta,0, cos_theta, 0},
+          {0, 0,         0, 1}}
+
+    -- rotate so Ze points at the origin (0, 0, 0)
+    t4 = {{1, 0, 0, 0},
+          {0, cos_theta, -sin_theta, 0},
+          {0, sin_theta, cos_theta, 0},
+          {0, 0, 0, 1}}
+
+    a_b = 2
+
+    n = {{a_b, 0, 0, 0},
+         {0, a_b, 0, 0},
+         {0, 0, 1, 0},
+         {0, 0, 0, 1}}
+
+    return product({t1, t2, t3, t4, n})
+end function
+
+function new_coords(sequence overall, sequence shape,
+                        atom xsize, atom ysize,
+                        atom x0, atom y0)
+-- compute the screen coordinates from the 3-D coordinates
+sequence screen_coords, final
+point p
+
+    screen_coords = repeat({0, 0, 0}, length(shape))
+    for i=1 to length(shape) do
+        for j=1 to 2 do
+            p = shape[i][j]
+            final = product({p & 1, overall})
+            screen_coords[i][j] = {x0+xsize*(final[X]/final[Z]+1),
+                                   y0+ysize*(final[Y]/final[Z]+1)}
+        end for
+        screen_coords[i][3] = shape[i][3]
+    end for
+    return screen_coords
+end function
+
+function x_rotate(point p)
+-- compute x rotation of a point
+    return {p[X],
+            p[Y]*cos_angle+p[Z]*sin_angle,
+            p[Z]*cos_angle-p[Y]*sin_angle}
+end function
+
+function y_rotate(point p)
+-- compute y rotation of a point
+    return {p[X]*cos_angle-p[Z]*sin_angle,
+            p[Y],
+            p[X]*sin_angle+p[Z]*cos_angle}
+end function
+
+function z_rotate(point p)
+-- compute z rotation matrix
+    return {p[X]*cos_angle+p[Y]*sin_angle,
+            p[Y]*cos_angle-p[X]*sin_angle,
+            p[Z]}
+end function
+
+function compute_rotate(integer axis, sequence shape)
+-- rotate a shape
+    for i=1 to length(shape) do
+        for j=1 to 2 do
+            if axis=X then
+                shape[i][j] = x_rotate(shape[i][j])
+            elsif axis=Y then
+                shape[i][j] = y_rotate(shape[i][j])
+            else
+                shape[i][j] = z_rotate(shape[i][j])
+            end if
+        end for
+    end for
+    return shape
+end function
+
+--DEV
+procedure test()
+    task_yield()
+end procedure
+integer r_test = 0
+
+procedure test2()
+sequence args = {}
+    #ilASM{
+        [32]
+            mov eax,[r_test]
+            mov esi,[args]
+            push ebx
+            jmp :%opCallProc    -- call_proc(eax,esi)
+        [64]
+            mov rax,[r_test]
+            mov rsi,[args]
+            push rbx
+            jmp :%opCallProc    -- call_proc(eax,esi)
+        []
+          }
+end procedure
+
+black_pen = c_func(GetStockObject, {BLACK_PEN})
+white_pen = c_func(GetStockObject, {WHITE_PEN})
+
+red_pen = c_func(CreatePen, {PS_SOLID, 1, 255})
+green_pen = c_func(CreatePen, {PS_SOLID, 1, 255*256})
+blue_pen = c_func(CreatePen, {PS_SOLID, 1, 255*256*256})
+
+-- many copies of this task run at the same time:
+
+procedure spin_task(sequence shape, point view_point, atom rot_speed,
+                        atom xpos, atom ypos,
+                        atom xfrac, atom yfrac)
+-- spin a 3-D shape around on the screen in interesting ways
+-- each call makes one slight movement
+sequence history, coords, overall
+integer spread, r
+atom xsize, ysize, x0, y0
+--?"spin_task"
+
+    overall = view(view_point)
+    sin_angle = sin(rot_speed)
+    cos_angle = cos(rot_speed)
+    axis = Z
+    history = {}
+    spread = 0
+
+    while 1 do
+        xsize = screen_size_x*xpos
+        ysize = screen_size_y*ypos
+        x0 = screen_size_x*xfrac
+        y0 = screen_size_y*yfrac
+        coords = new_coords(overall, shape, xsize, ysize, x0, y0)
+        if length(history)>spread then
+            display(history[1], coords)
+            history = history[2..length(history)]
+            if length(history)>spread then
+                display(history[1], {})
+                history = history[2..length(history)]
+            end if
+        else
+            display({}, coords)
+        end if
+        history = append(history, coords)
+
+        r = rand(250)
+        if r=1 then
+            axis = X
+        elsif r=2 then
+            axis = Y
+        elsif r=3 then
+            axis = Z
+        elsif r=4 then
+            spread = 5*rand(25)  -- leave behind many trailing wire images
+        elsif r=5 or r=6 then
+            spread = 0             -- reduce the images back to a sharp picture
+        elsif r=7 then
+            if rand(2)=1 then
+                spread = 0
+            end if
+--          sin_angle = sin(rot_speed)
+--          cos_angle = cos(rot_speed)
+        end if
+
+        shape = compute_rotate(axis, shape)
+--?"spin_task:task_yield()"
+if 1 then
+        task_yield()
+else -- test (fine)
+        if rand(5)<=2 then
+            test()
+        elsif rand(5)<=2 then
+--          call_proc(r_test,{})    -- NO
+            test2()
+        else
+            task_yield()
+        end if
+end if
+--      exit
+    end while
+end procedure
+
+r_test = routine_id("test")
+
+sequence task_ids
+task_ids = {}
+integer rid
+atom tid, scale
+
+    -- create the spin tasks:
+    rid = routine_id("spin_task")
+    for i=1 to NTASKS do
+        scale = sqrt(9/NTASKS)
+--      tid = task_create(rid, {E,
+        tid = task_create(rid, {P,
+                                sq_div({6, 8, 7.5},2.2),
+                                0.005*rand(9),
+                                0.165*scale,
+                                0.165*scale,
+                                .31*scale*remainder(i-1, floor(sqrt(NTASKS))),
+                                .31*scale*floor((i-1)/floor(sqrt(NTASKS)))})
+        task_ids = append(task_ids, tid)
+    end for
+
+    -- schedule them all:
+    for i=1 to NTASKS do
+        task_schedule(task_ids[i], rand(5))
+    end for
+
+sequence big
+atom ps, rect, wav, big_string
+ps = allocate(64)
+rect = allocate(16)
+wav = allocate_string(getenv("windir")&"\\Media\\notify.wav")
+big = ""
+    for i=1 to 300 do
+        big &= sprintf(
+        "%d tasks running. Try resizing the window. Set NTASKS to a different value. ", NTASKS)
+    end for
+    big_string = allocate_string(big)
+
+function WndProc(atom hwnd, atom iMsg, atom wParam, atom lParam)
+-- callback routine to handle Window class
+
+    if iMsg=WM_CREATE then
+        return 0
+
+    elsif iMsg=WM_PAINT then
+        hdc = c_func(BeginPaint, {hwnd, ps})
+        c_proc(GetClientRect, {hwnd, rect})
+        c_proc(DrawText, {hdc, big_string, -1, rect, DT_WORDBREAK})
+        c_proc(EndPaint, {hwnd, ps})
+        c_proc(SetTimer, {hwnd, 1, 10, NULL})
+        return 0
+
+    elsif iMsg=WM_SIZE then
+        c_proc(PlaySound, {wav,
+                           NULL,
+                           or_bits(SND_FILENAME, SND_ASYNC)})
+        screen_size_x = and_bits(lParam, #FFFF)
+        screen_size_y = and_bits(lParam/#10000, #FFFF)
+
+    elsif iMsg=WM_TIMER then
+        hdc = c_func(GetDC, {hwnd})
+
+        task_yield() -- initial task gives up control to the spin tasks
+
+        c_proc(ReleaseDC, {hwnd, hdc})
+        return 0
+
+    elsif iMsg=WM_CHAR then
+        {} = c_func(xSendMessage,{hwnd,WM_CLOSE,0,0})
+
+    elsif iMsg=WM_DESTROY then
+        c_proc(PostQuitMessage, {0})
+        c_proc(KillTimer, {hwnd, 1})
+r_test = 0
+        return 0
+    end if
+
+    return c_func(DefWindowProc, {hwnd, iMsg, wParam, lParam})
+end function
+
+procedure WinMain()
+-- main routine 
+atom szAppName
+atom hwnd
+atom msg
+atom wndclass
+atom WndProcAddress
+atom class
+integer id
+
+    wndclass = allocate(SIZE_OF_WNDCLASS,1)
+    msg = allocate(SIZE_OF_MESSAGE,1)
+    szAppName = allocate_string("HelloWin",1)
+
+    id = routine_id("WndProc")
+    if id= -1 then
+        crash("routine_id failed!")
+    end if
+    WndProcAddress = call_back(id) -- get address for callback
+
+    class = register_class(wndclass, WndProcAddress, szAppName)
+    if class=0 then
+        crash("Couldn't register class")
+    end if
+    hwnd = c_func(CreateWindow, {
+                                 0,                  -- extended style
+                                 szAppName,          -- window class name
+                                 allocate_string("Euphoria Multitasking Demo",1), -- window caption
+                                 WS_OVERLAPPEDWINDOW,    -- window style
+                                 4, --CW_USEDEFAULT,          -- initial x position
+                                 4, --CW_USEDEFAULT,          -- initial y position
+                                 760, --CW_USEDEFAULT,      -- initial x size
+                                 550, --CW_USEDEFAULT,      -- initial y size
+                                 NULL,               -- parent window handle
+                                 NULL,               -- window menu handle
+                                 0 ,                     -- hInstance // program instance handle
+                                 NULL})              -- creation parameters
+    if hwnd=0 then
+        crash("Couldn't CreateWindow")
+    end if
+    c_proc(ShowWindow, {hwnd, SW_SHOWNORMAL})
+    c_proc(UpdateWindow, {hwnd})
+
+    -- message loop
+    while c_func(GetMessage, {msg, NULL, 0, 0}) do
+        c_proc(TranslateMessage, {msg})
+        c_proc(DispatchMessage, {msg})
+    end while
+end procedure
+
+procedure FullMain()
+-- Display graphics using the full screen
+atom t
+
+    puts(1, "\nPress any key to stop.\n")
+    puts(1, "Make a full-screen DOS window\n")
+    puts(1, "to clear the screen (Alt-Enter)...\n")
+    t = time()
+    while time()<t+5 do
+    end while
+    hdc = c_func(CreateDC, {allocate_string("DISPLAY",1), NULL, NULL, NULL})
+    if hdc=NULL then
+        crash("CreateDC failed!")
+    end if
+    while get_key()= -1 do
+        task_yield()
+    end while
+    clear_screen()
+end procedure
+
+-- execution starts here:
+if FULL_SCREEN then
+    FullMain()
+else
+    WinMain()
+end if
+

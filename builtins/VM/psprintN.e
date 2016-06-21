@@ -41,7 +41,7 @@ integer c
 end function
 
 --global function sprint(object x)
-global function sprint(object x, integer l=-1, integer nest=0)
+global function sprint(object x, integer maxlen=-1, integer nest=0)
 -- Return the string representation of any data object. 
 -- This is the same as the output from print(1, x) or '?', 
 --  but returned as a string sequence rather than printed.
@@ -68,10 +68,10 @@ object s, xi
 --      s = allascii(x)
 --      if string(s) then return s end if
 --  end if
-    if l!=-1 and length(x)>l then
-        x = x[1..l]
+    if maxlen!=-1 and length(x)>maxlen then
+        x = x[1..maxlen]
         if string(x) then
-            s = allascii(x[1..l-4])
+            s = allascii(x[1..maxlen-4])
             if string(s) then return s&".." end if
         end if
     elsif string(x) then
@@ -82,18 +82,18 @@ object s, xi
     for i=1 to length(x) do
 --      s &= sprint(x[i])
         xi = x[i]
-        if l=-1 then
+        if maxlen=-1 then
             s &= sprint(xi)
         else
-            if l>length(s) then
-                s &= sprint(xi,l-length(s),nest+1)
+            if maxlen>length(s) then
+                s &= sprint(xi,maxlen-length(s),nest+1)
             end if
-            if length(s)>=l then
+            if length(s)>=maxlen then
                 if nest=0 then
-                    s = s[1..l-2]
+                    s = s[1..maxlen-2]
                     s &= ".."
                 else
-                    s = s[1..l]
+                    s = s[1..maxlen]
                 end if
                 return s
             end if
@@ -107,8 +107,8 @@ object s, xi
 end function
 
 --DEV move this to pfileioN.e:
-global procedure print(integer fn, object x, integer l=-1)
+global procedure print(integer fn, object x, integer maxlen=-1)
 -- Print a string representation of any data object.
 -- Alternative: see ppp.e (pp/ppOpt/ppEx).
-    puts(fn,sprint(x,l))
+    puts(fn,sprint(x,maxlen))
 end procedure

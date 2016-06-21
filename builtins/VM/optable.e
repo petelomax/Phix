@@ -139,7 +139,7 @@ constant vm_names = {
                                      "%pSetSymPtr",
                                      "!opGetST",
                                      "%opGetST",
-                                     "%newStack",
+                                     "%pNewStack",
 --DEV I think this can/should now go:
                                      ">initStack",
                                      "%opGetArgELF",

@@ -120,7 +120,7 @@ atom hThread
             jmp :createthread
 
           ::threadproc
-            call :%newStack                     -- (still has a dummy T_maintls, btw)
+            call :%pNewStack                    -- (still has a dummy T_maintls, btw)
             --
             -- NB: we now have NO ACCESS to /ANY/ params or local variables.
             --  (except for a copy of lpParameter as passed to kernel32:CreateThread)
@@ -164,7 +164,7 @@ atom hThread
             jmp :createthread
 
           ::threadproc
-            call :%newStack                     -- (still has a dummy T_maintls, btw)
+            call :%pNewStack                    -- (still has a dummy T_maintls, btw)
             --
             -- NB: we now have NO ACCESS to /ANY/ params or local variables.
             --  (except for a copy of lpParameter as passed to kernel32:CreateThread)

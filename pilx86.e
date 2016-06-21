@@ -732,6 +732,7 @@ integer thisDbg
 --integer callopTraceFirst = 0
 
 forward procedure emitHex5callG(integer opcode, integer lblidx=0)
+forward procedure movRegImm32(integer reg, atom v)
 
 integer pfileno
 --with trace
@@ -2595,7 +2596,7 @@ end function
 --                  the above load of b were to be moved up two instructions,
 --                  it could get rid of two stalls. </aside>
 --
--- The other four mergesets are as follows:
+-- The other five mergesets are as follows:
 --      exprMerge is the logical counterpart to scMerge, ie this is the
 --                          conditional expression fail, often just moved
 --                          straight into ifMerge, whereas scMerge is the
@@ -2604,6 +2605,8 @@ end function
 --                          a loop. On small loops this will just be the top
 --                          condition; on larger loops any common register
 --                          state is quickly likely to become empty.
+--      breakMerge is practically identical to exitMerge, except that it
+--                          applies to select statements not loops.
 --      ifMerge covers the if/elsif/else chain, ie conditional (fail) jumps
 --                          to try with the next branch of the if construct.
 --      endIfMerge covers branches leading to an "end if", ie the
@@ -2611,10 +2614,10 @@ end function
 --
 --  Note the need to save/restore these sets over nested if statements.
 --  There are matching backpatch chains to all these sets, scBP, exprBP,
---  exitBP, ifBP, and EndIfBP.
+--  exitBP, breakBP, ifBP, and EndIfBP.
 --
 -- Now in pglobals.e:
---global constant scMerge=1, exprMerge=2, exitMerge=3, ifMerge=4, endIfMerge=5
+--global constant scMerge=1, exprMerge=2, exitMerge=3, ifMerge=4, endIfMerge=5, breakMerge=6
 
 constant Mtgt=1, Minfo=2, Mloc=3, Mreg=4
 
@@ -2639,8 +2642,8 @@ sequence tilrs  -- stacked "" "" "" "", one stack "" "" "".
 --   nested, except that this also occurs at a very much lower level/smaller scale.)
 --  tilr[ifMerge] is in fact the reginfo common to all the jumps on that ifBP chain.
 
-    tilr = repeat({-1},5)   -- dummy/non-existent target for each mergeSet
-    tilrs = repeat({},5)    -- empty stacks for each mergeSet
+    tilr = repeat({-1},6)   -- dummy/non-existent target for each mergeSet
+    tilrs = repeat({},6)    -- empty stacks for each mergeSet
 
 --with trace
 --DEV/SUG const RESTORE = -1, MERGE = 0, MERGE_AND_RESTORE = 1
@@ -6106,7 +6109,9 @@ end if
                                     link -= 4
                                     if s5[link-6]!=opLabel then ?9/0 end if
                                 end if
+--17/6/16. triggered in simple_notepad.exw - I added flags[NO_BREAK] to Block() and it went away, so I undid this change
                                 if s5[link-5]!=ifMerge then ?9/0 end if
+--                              if s5[link-5]!=ifMerge then ?"pilx86.e:6113 if s5[link-5]!=ifMerge" end if
 --25/8/2012: BUG!!!
 --DEV 7/12/10 (else not last)
 --if 0 then
@@ -11338,12 +11343,33 @@ else -- not tmpd
                 if sched then
                     schedule(0,0,ecxbit,pUV,0,src2)
                 end if
-                loadToReg(ecx,src2)                             -- mov ecx,[src2]
+--8/6/16:
+--              loadToReg(ecx,src2)                             -- mov ecx,[src2]
+                if slroot2=T_integer and smin2=smax2 then
+                    movRegImm32(ecx,smin2)                      -- mov ecx,imm32
+                else
+                    loadToReg(ecx,src2)                         -- mov ecx,[src2]
+                end if
 end if -- tmpd
                 if sched then
                     schedule(0,0,eaxbit,pUV,0,src)
                 end if
-                loadToReg(eax,src)                              -- mov eax,[src]
+--8/6/16:
+--              loadToReg(eax,src)                              -- mov eax,[src]
+                getSrc()
+                if and_bits(state1,K_rtn+K_Fres) then ?9/0 end if
+                if slroot=T_integer and smin=smax then
+                    if smin=0 then
+                        if newEmit and X64=1 then
+                            emitHex1(#48)
+                        end if
+                        emitHex2s(xor_eax_eax)                  -- xor eax,eax
+                    else
+                        movRegImm32(eax,smin)                   -- mov eax,imm32
+                    end if
+                else
+                    loadToReg(eax,src)                          -- mov eax,[src]
+                end if
                 if sched then
                     schend()
                 end if
@@ -15304,7 +15330,7 @@ global procedure gvar_scan(integer vi)
 end procedure
 
 sequence jdesc
-constant mdesc = {"scMerge", "exprMerge", "exitMerge", "ifMerge", "endIfMerge"}
+constant mdesc = {"scMerge", "exprMerge", "exitMerge", "ifMerge", "endIfMerge", "breakMerge"}
 
 
 

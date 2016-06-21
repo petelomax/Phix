@@ -37,7 +37,7 @@
 --  * tabs list (rename as file list) to have "all" option, and probably a directory tree
 --
 --/*
-**filedlg
+filedlg [DONE, ish]
 listview
 simple_notepad - not tabbed, IupText (stolen)
 simple_paint
@@ -47,12 +47,21 @@ wee - not IUP! (winAPI/gtk, scintilla)
 --mandelbrot - fix the double buffering as per buffer.exw?? (but we want a resizeable canvas...)
 
 menu, toobar, icon(s)   [DONE]
-statusbar, scrollbars
-pop-up menu/window
-selectfont, zoom in/out, loadfile
+statusbar, scrollbars   [DONE]
+loadfile [part DONE]
+sort out tab/index handling [DONE ish]
+intellisense (ctrl space, autocompletion/dropdown, italics/tab) [GUI DONE]
+intellitip (ctrl shift space, floating hint) [GUI DONE]
+pop-up menus (canvas and tab) [GUI DONE]
+pop-up windows:
+keyboard assignment
+zoom in/out
 key settings (replacement for key help)
-synload/syncolour
-sort out tab/index handling
+synload/syncolour [part DONE]
+undo/redo
+colours
+selectfont
+recent files, and other IupConfig stuff
 --*/
 /* (from simple_notepad, delete when done:) If instead of using IupText we use IupScintilla, then we can add:
    - more find/replace options
@@ -72,28 +81,1420 @@ sort out tab/index handling
    - to upper case
  */
 
+-- Known issues:
+--  If you drag the vertical slider left over Project/Directory, they overlap the tabbar until very narrow, at which
+--  point the radio boxes and the tree are auto-hidden. Ideally I'd clip. Using Ctrl L to show/hide is easier anyway.
+--  DEV unicode is not yet supported on linux
+
 include pGUI.e
 
-global constant SLASH = iff(platform()=WINDOWS?'\\':'/')
---DEV make this a cross-platform builtin (see filesys.e):
---!/**/constant lib = open_dll("kernel32")
---!/**/constant xGetFileAttributes = define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT) -- N.B DWORD return fails this.
---!/**/function file_exists(string name)
---!/**/ return c_func(xGetFileAttributes, {name})>0
---!/**/end function
+--#withtype Ihandle
+--#withtype Ihandln
+--#withtype cdCanvas
+
+constant UseNativeDialog = 01   -- DEV option (windows only[?])
+constant RotateBackground = 01  -- development option (verify redraw is kept to a minimum)
+
+include builtins\fileopenN.ew
+
+constant SLASH = iff(platform()=WINDOWS?'\\':'/')
+
+global Ihandle dlg, statusbar
+Ihandle tbox, rtbox, tree, tcbox, tabs, canvas
+cdCanvas cddbuffer, cdcanvas
+integer tip_visible = 0
+integer tpos = 0    -- (if!=0, New/Open use dir from that tab [NB 1-based])
+--integer treewidth,treeheight
+--Ihandle hdlg, hidden -- for stashing hidden element(s)
+integer tboxv = 305
+
+-- The following sequences are managed as follows:              [DEV merge?] 
+--  tab = IupGetAttributeHandle(tabs, "VALUE")  -- current tab
+--  fidx = IupGetInt(tab,"FILEIDX")             -- seqs index
+-- new tabs are always appended; when one is closed, we simply
+--  move seqs[$] into the vacated slot and update one FILEIDX.
+
+global sequence filenames, filepaths, filetext, unicodefile, filelinelengths,
+                filecursel, bCfwds, filedt
+                filenames = {}  filepaths = {}  filetext = {}   unicodefile = {}
+                filelinelengths = {}  filecursel = {}   bCfwds = {}  filedt = {}
+
+global -- for eacomp  DEV: possibly needed for eafif/eacca/eaxutil...
+sequence unpacked       -- 0=just loaded, -1=fully unpacked, +ve=unpacked to line nnn
+         unpacked = {}
+
+global -- for eamenus.ew
+sequence wrapped        -- 0=just loaded or isWordWrapON (aka filecursel[c][11])=0,
+         wrapped = {}    -- -1=fully unpacked, +ve=unpacked to line nnn
 
 
---DEV to go:
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
+global -- for eaedb, saveFolds/loadFolds, also checked by eaopts.ew.
+sequence bookmarks      -- {{{type,start,end}}} sets. Also holds folds and wordwraps.
+         bookmarks = {}
+
+global constant MARK = #01, FOLD = #02, WRAP = #04
+
+global constant bfType = 1,     -- bit #01 indicates a bookmark, 
+                                -- bit #02 a fold,
+                                -- bit #04 a wordwrap.
+                                -- #03 (=MARK+FOLD), #05 (=MARK+WRAP) valid, but #06, #07 not.
+                bfStart = 2,    -- start line (0-based)
+                bfEnd = 3       -- end line (0-based) if #02 set,
+                                -- {col} (0-based) if #04 set,
+                                -- unused on mark-only lines.
+
+global constant rtnNAMES = 1,  rtnSTART = 2,  rtnEND = 3
+global sequence routines
+                routines = {}
+
+global  -- see undo.e
+sequence actions,   -- {sequence}   -- (as above)
+         actionptr, -- {integer}    -- undo/redo point
+         actionsave -- value of actionptr at last save, or -1.
+    actions = {}
+    actionptr = {}
+    actionsave = {}
+
+--!/**/include builtins/read_file.e --DEV rubbish!
+--DEV needs unicode handling:
+function read_file(string filename)
+integer fn = open(filename,"r")
+object line
+sequence text = {}
+sequence linelengths = repeat(0,80)
+integer linelength
+
+    while 1 do
+        line = gets(fn)
+        if atom(line) then exit end if
+        line = trim_tail(line)
+--      line = trim_tail(line,"\r\n")   -- preserve trailing spaces and tabs? (no, methinks)
+        text = append(text,line)
+        linelength = length(line)
+        if linelength>=length(linelengths) then
+            linelengths &= repeat(0,linelength-length(linelengths)+1)
+        end if
+        linelengths[linelength+1] += 1
+    end while
+    close(fn)
+    return {text,linelengths}
 end function
 
-Ihandle dlg, tabs, canvas
-cdCanvas cddbuffer, cdcanvas
+--/**/include builtins/write_file.e -- (better, but probably worth inlining)
 
-function putx(integer x, integer y, string txt, integer colour)
+global integer currfile = 0
+
+global integer
+                isDebug = 0,                -- see eanotes.txt
+--              isWindowMaximised,      -- whether Window is[was] maximised [at shutdown]
+--              isShowFullPath,         -- show full path or just filename in titlebar
+--              isToolBarVIS,           -- toolbar visible
+                isTabBarVIS = 1,            -- tabbar visible
+--              isSingleDir,            -- tabbar shows files from single dir
+--              isMultiLineTab,         -- tab bar has TCS_MULTILINE style
+--              isTabottom,             -- tab bar at bottom
+--              isTabsOwnerDrawn,       -- owner drawn tabs (recommended)
+--              isRaggedRight,          -- use ragged right tabs style
+--              isFilePanelVIS,         -- Directory/Project panel visible
+--              isFilePanelWidth,       -- file panel area width
+--              isMessageVIS,           -- message area visible
+--              isMessageHeight,        -- message box height
+--              isHScrollVIS,           -- horizontal scroll bar
+--              isVScrollVIS,           -- vertical scroll bar
+--              isMoveCursorOnScroll,   -- (cancels selection)
+--              isScrollPerm,           -- always show scrollbars (reduces flicker on tab switch)
+                isFoldMarginPerm = 1,   -- always show fold margin (so mouse click always possible)
+--              isStatusBar,            -- status bar
+                isWordWrapON = 0,       -- wordwrap flag set/saved on a file-by-file basis.
+--              isFormatErr,            -- reformat ex.err
+--              isSingleInstance,       -- single instance handling
+--              isRestoreOnOpen,        -- open previous files
+--              isAutoSaveOnExit,       -- suppress any warnings, just save altered files
+--              isAutoSaveOnTabSwitch,  -- save files on tab switch
+--              isAutoSaveTimer,        -- save files every nnn seconds
+                isAutoBackup = 1,       -- create backups
+--              isLoadErrFileOnError,   -- now jumps to line with summary on statusbar
+                isReplaceTabs = 1,      -- save file with no \t
+--              isLegacyTabHandling,    -- Legacy Tab Character Handling
+                isTabWidth = 4,         -- Tab Width (1..8)
+--              isHomeFirstNonBlank,    -- Home jumps to first non-blank character
+                isLineNumbers = 1,      -- show line numbers?
+                isMarginSpace = 1,      -- space after margin?
+--              mouseWheelScroll,       -- wheelmouse multiplier
+--              isCaretBlinkTime,       -- Caret Blink Time in milliseconds
+----                isLineLengthError,      -- set to 0 to inhibit error messages
+                isAutoComplete = 1,     -- 1 if autocompletion enabled
+--              isBackGround,           -- 1 if background processing enabled
+--              isCurrProject,          -- 0 if no project selected
+                isClearOverStrike = 0,      -- clear overstrike mode
+                isUndoTime = 0,         -- retain undo actions for nn seconds
+                isRetainBackupsFor = 5, -- retain automatic backups for nn days
+--              isCloseLeft             -- close tabs to left?
+                $
+
+-- bits of isClearOverStrike:
+global constant cOVRup      =#01,
+                cOVRdown    =#02,
+                cOVRfile    =#04,   -- default
+                cOVRpage    =#08,   -- default
+                cOVRpaste   =#10,
+                cOVRdupline =#20,
+                cOVRhome    =#40
+
+--global constant string initialcurrentdir = get_proper_dir(command_line()[2])
+
+--DEV make this a builtin: (pfile.e) [also fileext, for OE]
+global function get_file_extension(string filename)
+-- treats eg "libglfw.so.3.1" as "libglfw.so" (nb "file.1" ==> "")  -- DEV test/fix eg .r01
+-- forwardslash and backslash are handled for all platforms.
+-- result is lower case
+string extension = ""
+integer ch
+    for i=length(filename) to 1 by -1 do
+        ch = filename[i]
+        if ch='.' then
+            extension = lower(filename[i+1..$])
+            for j=length(extension) to 1 by -1 do
+                ch = extension[j]
+                if ch<'0' or ch>'9' then exit end if
+                extension = extension[1..j-1]
+            end for
+            if length(extension) then exit end if
+            filename = filename[1..i-1]
+        elsif find(ch,"\\/:") then
+            exit
+        end if
+    end for
+    return extension
+end function
+
+global function get_file_name(string filename)
+    for i=length(filename) to 1 by -1 do
+        if find(filename[i],"\\/:") then
+            filename = filename[i+1..$]
+            exit
+        end if
+    end for
+    return filename
+end function
+
+global object bCfwd -- bracket carry-forward info (see easynclr.e)
+
+global integer paintRqd     -- +ve=line [1..linesPerPage] next requiring display.
+               paintRqd = 0 -- 0 when all lines have been properly displayed
+
+global -- for synclr.e
+integer paintLast           -- if non-zero, last line to be painted
+        paintLast = 0
+
+global -- for easynclr.e (shade in selX,Y to CursorX,Y)
+integer CursorX = 0,    -- 0 for column 1 (ie insert before first character)
+        CursorY = 0,    -- 0 for line 1 (in range 0..length(filetext[currfile])-1)
+        TopLine = 0,    -- line no corresponding to top of screen (0-based)
+        Column  = 0,    -- column (0-based)
+        TopChunk = 0    -- start point for wordwrap of TopLine
+
+global integer isEu -- must be set before calls to ExpandTabs/PackTabs.
+               isEu = 0
+
+global integer selON = 0, -- 1 if selection is active, 2 if column mode, else 0
+               selX = 0,    -- selection anchor, if any (0-based)
+               selY = 0 -- (in range 0..length(filetext[currfile])-1)
+
+-- used (read-only) by easynclr.e, toggled by eaopts.ew, and/or setMarginRqd():
+global integer marginRqd
+--DEV:
+    marginRqd = isFoldMarginPerm
+
+--global -- for eaopts.ew --?? removed 27/3/10
+integer linesPerPage
+        linesPerPage = 0
+
+global -- used by eaerr.e
+integer charsWide
+        charsWide = 0
+
+global function curb(integer low, integer val, integer high)
+-- eg curb(0,y,11) returns y if y>=0 and y<=11, 0 if y<0, or 11 if y>11.
+--  if val<=low then return low elsif val>=high then return high else return val end if
+    return iff(val<=low?low:iff(val>=high?high:val))
+end function
+
+integer landingChunk    -- for showCaret() ONLY; iff CursorY,CursorX *is* on-screen
+integer endChunk
+
+--with trace
+global function distanceFromTopLine(integer cY, integer cX)
+--
+-- calculate the distance of cY,cX from TopLine,TopChunk in terms of screen lines,
+-- accounting for any folds or wordwrapped lines betwixt (inclusive).
+-- Returns a value in the range 0..linesPerPage-1 if cY,cX is on-screen.
+-- As used by forceCursorOnscreen, if the result is -1, scroll up one line,
+-- if the result is linesPerPage, scroll down one line.
+-- The setting of landingChunk is quite specialised and should be used with caution.
+-- (it is 0 or the wrap entry colno that cY,Cx lies on).
+--
+integer d,  -- result var
+    wY, wX, -- working position
+    tY, tX, -- target position
+    dinc,   -- direction flag/increment
+    getNiL, bmistart, nextImportantLine,
+    FW  -- FOLD+WRAP, or just FOLD if isWordWrapON=0
+sequence BookMarkSet
+object SetEntry
+integer prevWW,thisWW
+
+    BookMarkSet = bookmarks[currfile]
+    if cX<0 then  cX = 0  end if
+    if cY<TopLine 
+    or (isWordWrapON and cY=TopLine and cX<TopChunk) then
+        tY=  TopLine   tX = TopChunk   wY = cY   wX = cX   d = -1   dinc = -1
+    else
+        wY = TopLine   wX = TopChunk   tY = cY   tX = cX   d = 0    dinc = 1 
+    end if
+    landingChunk = TopChunk
+    endChunk = 0
+    if isWordWrapON then
+        FW = FOLD+WRAP
+    else
+        FW = FOLD
+    end if
+    getNiL = True
+    bmistart = 0
+    if wY<tY
+    or (isWordWrapON and wY=tY and wX<tX) then
+        while 1 do
+            if getNiL then
+                getNiL = False
+                nextImportantLine = -1
+                for i=bmistart+1 to length(BookMarkSet) do
+                    SetEntry = BookMarkSet[i]
+                    if sequence(SetEntry) then
+                        if SetEntry[bfStart]>=wY 
+                        and and_bits(SetEntry[bfType],FW) then
+                            nextImportantLine = SetEntry[bfStart]
+                            bmistart = i
+                            exit
+                        end if
+                    end if
+                end for
+            end if
+            landingChunk = 0
+            if wY=nextImportantLine then
+                if and_bits(BookMarkSet[bmistart][bfType],FOLD) then
+                    wY += BookMarkSet[bmistart][bfEnd]-nextImportantLine+1
+                    getNiL = True
+                else    -- a wrap
+                    prevWW = 0
+                    for i=1 to length(BookMarkSet[bmistart][bfEnd]) do
+                        thisWW = BookMarkSet[bmistart][bfEnd][i]
+                        if wX<thisWW then
+                            wX += thisWW-prevWW
+                            landingChunk = prevWW
+                            endChunk = thisWW
+                            prevWW = -1
+                            exit
+                        end if
+                        prevWW = thisWW
+                    end for
+                    if prevWW!=-1 then  -- hit end w/o nudge
+                        wY += 1
+                        wX -= thisWW
+                        landingChunk = thisWW
+                        endChunk = 0
+                        getNiL = True
+                    end if
+                end if
+            else
+                wY += 1
+            end if
+            if wY>tY then exit end if
+            if isWordWrapON and wY=tY and wX>tX then exit end if
+            d += dinc
+        end while
+    end if
+    return d
+end function
+
+integer nacX    -- new adjusted cX, the 3rd param of adjustLine()
+                -- note: nacX may be past EOL, callee should use
+                --      pref. checkCursorX() after to fixup.
+
+
+include src/xlate.e
+include src/auto.e
+include src/synld.e
+include src/synclr.e as synclr
+
+--DEV
+global integer isFTP = 0            -- 1 if opened via "Edit with Edita" else 0
+global integer checkProj = 0        -- repaint TVprjl when needed (if it is visible)
+
+include builtins\pfile.e    --(DEV autoinclude?)
+include src/dateadj.e
+include src/eaedb.e
+include src/tabs.e
+
+global integer  insertMode      -- insert/overstrike mode
+                insertMode = 1
+
+integer maxlen
+        maxlen = 0
+
+procedure reCalcMaxLen()
+    maxlen = 0
+    for i=length(filelinelengths[currfile]) to 1 by -1 do
+        if filelinelengths[currfile][i] then
+            maxlen = i
+            exit
+        end if
+    end for
+end procedure
+
+procedure replaceLine(integer idx, sequence newline)
+-- maintain the linelengths array as lines are modified.
+-- note that idx is 1-based (unlike CursorY etc)
+integer len, c
+    len = ExpLength(filetext[currfile][idx]) + 1
+--DEV temp hack (load files as tab8?)
+--  if len>length(filelinelengths[currfile]) then
+--  if not rlle then
+--      void = messageBox("replaceLine Error",
+--              sprintf("replacing length %d, table length %d"&
+--                  "\n\n(let me know if/when this happens)",
+--                  {len,length(filelinelengths[currfile])}),
+--              0)
+--      if isDebug then ?9/0 end if
+--      rlle = 1
+--  end if
+--  return
+--  end if
+
+    c = filelinelengths[currfile][len] - 1
+    filelinelengths[currfile][len] = c
+    len = ExpLength(newline) + 1
+    if len>length(filelinelengths[currfile]) then
+        filelinelengths[currfile] = filelinelengths[currfile] &
+                                    repeat(0,len-length(filelinelengths[currfile])+1)
+    end if
+    filelinelengths[currfile][len] = filelinelengths[currfile][len] + 1
+    if len > maxlen or c = 0 then
+        reCalcMaxLen()
+    end if
+    filetext[currfile][idx] = newline
+end procedure
+
+procedure removeLineLengths(integer ixFrom, integer ixTo)
+-- remove line lengths for a block deletion
+-- note that ixFrom and ixTo are 1-based (unlike CursorY etc)
+integer len, c, recalc
+sequence fci
+    recalc = 0
+    for idx = min(ixFrom,ixTo) to max(ixFrom,ixTo) do
+        fci = filetext[currfile][idx]
+        len = ExpLength(fci) + 1
+--DEV temp hack (load files as tab8?)
+-- 5/5/08 put back in. Compared d.asm with p.asm, deleted first 100 or so lines...
+--22/6/13 put back in..
+    if len>length(filelinelengths[currfile]) then
+        string msg = sprintf("removing length %d, table length %d",
+                             {len,length(filelinelengths[currfile])})
+        IupMessage("removeLineLengths Error",msg)
+        return
+    end if
+        c = filelinelengths[currfile][len] - 1
+        filelinelengths[currfile][len] = c          
+--  for i = length(bookmarks[currfile]) to 1 by -1 do
+--      if bookmarks[currfile][i][bfStart]=idx-1 then
+--      bookmarks[currfile] = bookmarks[currfile][1..i-1]&
+--                  bookmarks[currfile][i+1..length(bookmarks[currfile])]
+--      exit
+--      end if
+--  end for
+        if c = 0 then recalc = 1 end if
+    end for
+    if recalc then reCalcMaxLen() end if
+end procedure
+
+global procedure setRtnList()
+-- load the ComboDropDownList, rtnList and set the index
+?"setRtnList"
+--/*
+    if rtnList then
+        deleteItem(rtnList,0)   -- empty list
+        if currfile and sequence(routines[currfile]) then
+            void = insertItem(rtnList,routines[currfile][rtnNAMES],0)
+            prevRtnIdx = 0
+        end if
+    end if
+    setRtnIndex()
+--*/
+end procedure
+
+global procedure paintCursorY()
+integer line
+--trace(1)
+    line = distanceFromTopLine(CursorY,CursorX)+1
+--?line
+    if line>0 and line<=linesPerPage then
+        if isWordWrapON and landingChunk then
+            line = distanceFromTopLine(CursorY,0)+1
+            if line<=0 then line = 1 end if
+        end if
+        if paintRqd then
+            if paintRqd>line then
+                paintRqd = line
+            elsif paintLast!=0 and paintLast<line then
+                paintLast = line
+            end if
+        else
+            paintRqd = line
+            paintLast = line
+--?"edix line 531: startIdle(250)"
+        end if
+        IupUpdate(canvas)
+    end if
+end procedure
+
+global procedure paintall()
+-- Just set a flag and let idleHander do the work.
+--?"paintall"
+--  if not paintRqd then startIdle(250) end if
+    IupUpdate(canvas)
+    paintRqd = 1
+    paintLast = 0
+end procedure
+
+global procedure setMarginRqd()
+-- sets marginRqd to 1 or 0.
+-- Note that IdleHandler resets marginRqd = 1 to 
+--  length(sprintf("%d",length(filetext[currfile])))
+integer mr
+sequence BookMarkSet
+object bi
+    mr = isLineNumbers or isFoldMarginPerm
+    if not mr then
+        BookMarkSet = bookmarks[currfile]
+        for i=1 to length(BookMarkSet) do
+            bi = BookMarkSet[i]
+            if sequence(bi)
+            and bi[bfType]!=WRAP then   -- not WRAP-only then
+                mr = 1
+                exit
+            end if
+        end for
+    end if
+    if (mr=0)!=(marginRqd=0) then
+        marginRqd = mr
+        paintall()
+    end if
+end procedure
+
+global integer lastFold, lastFoldEnd
+    lastFold = 0
+
+procedure updateQJ(integer cY, integer adjust)--, integer fromwhere)
+sequence BookMarkSet
+object SetEntry
+integer rStart, rEnd, thisStart, L
+object thisEnd
+integer BiT
+    if sequence(routines[currfile]) then
+        L = length(routines[currfile][rtnNAMES])
+        for i=1 to L do
+            rStart = routines[currfile][rtnSTART][i]
+            if rStart>=cY then
+                for j = length(routines[currfile][rtnNAMES]) to i by -1 do
+                    rStart = routines[currfile][rtnSTART][j]
+                    if adjust<0 and rStart < cY-adjust then
+                        routines[currfile][rtnNAMES] = routines[currfile][rtnNAMES][1..j-1]&
+                                                       routines[currfile][rtnNAMES][j+1..L]
+                        routines[currfile][rtnSTART] = routines[currfile][rtnSTART][1..j-1]&
+                                                       routines[currfile][rtnSTART][j+1..L]
+                        routines[currfile][rtnEND  ] = routines[currfile][rtnEND  ][1..j-1]&
+                                                       routines[currfile][rtnEND  ][j+1..L]
+                        L -= 1
+                        setRtnList()
+                    else
+                        routines[currfile][rtnSTART][j] = rStart+adjust
+--DEV should not need this (length check), surely!
+                        if length(routines[currfile][rtnEND]) then
+                            rEnd = routines[currfile][rtnEND][j]
+                            routines[currfile][rtnEND][j] = rEnd+adjust
+                        end if
+                    end if
+                end for
+                exit
+--          elsif length(routines[currfile][rtnEND]) then   --DEV surely always?
+            else
+                rEnd = routines[currfile][rtnEND][i]
+                if rEnd>cY then
+                    routines[currfile][rtnEND][i] = rEnd+adjust
+                end if
+            end if
+        end for
+    end if
+
+    if sequence(bCfwd) then
+        L = length(bCfwd)
+        for i=1 to L do
+            rStart = bCfwd[i][1] -- bCfwd[i][1] is the line number
+            if rStart>cY then
+                --1: discard entries in [deleted] range
+                while adjust<0 and rStart<cY-adjust do
+                    bCfwd = bCfwd[1..i-1]&bCfwd[i+1..L]
+                    L -= 1
+                    if L<i then exit end if -- we trimmed rest of set
+                    rStart = bCfwd[i][1]
+                end while
+                --2: apply adjust to remainder of set
+                for j=i to L do
+                    bCfwd[j][1] = bCfwd[j][1] + adjust
+                end for
+                exit
+            end if
+        end for
+    end if
+    BookMarkSet = bookmarks[currfile]
+    bookmarks[currfile] = 0 -- reduce ref count
+    --
+    -- first, discard any bookmarks and folds lying within a deleted range
+    --
+    if adjust<0 then
+        rStart = cY-1
+        rEnd = rStart-adjust
+        BookMarkSet = BookMarkSet[1..rStart+1]&BookMarkSet[rEnd+2..length(BookMarkSet)]
+        --
+        -- and the lastFold details if in range
+        --
+        if lastFold then
+            if (lastFold>=rStart and lastFold<=rEnd)
+            or (lastFoldEnd>=rStart and lastFoldEnd<=rEnd) then
+                lastFold = 0
+?"edix line 428: call_proc(r_enableMenuToolBar,{})"
+            end if
+        end if
+    else -- adjust>0
+        --  rStart = cY-1
+        --  rEnd = rStart-adjust
+        BookMarkSet = BookMarkSet[1..cY-1]&repeat(0,adjust)&BookMarkSet[cY..length(BookMarkSet)]
+    end if
+    for i=cY+1 to length(BookMarkSet) do
+        SetEntry = BookMarkSet[i]
+        if sequence(SetEntry) then
+            thisStart = SetEntry[bfStart]
+            thisEnd = SetEntry[bfEnd]
+            BiT = SetEntry[bfType]
+            SetEntry = {}
+            BookMarkSet[i][bfStart] = thisStart+adjust
+            if and_bits(BiT,FOLD) then
+                BookMarkSet[i][bfEnd] = thisEnd+adjust
+            end if
+        end if
+    end for
+    bookmarks[currfile] = BookMarkSet
+    setMarginRqd()
+    --
+    -- lastly, adjust the lastFold details, if any
+    --
+    if lastFold then
+        if lastFold >= cY then
+            lastFold += adjust
+            lastFoldEnd += adjust
+        elsif lastFoldEnd >= cY then    --DEV see "if rEnd>cY then" above...
+            lastFoldEnd += adjust
+        end if
+    end if
+end procedure
+
+function adjustLine(integer lineno, integer adjust, integer cX)
+-- 
+-- lineno is 0-based, as per bookmarks, CursorY, and TopLine.
+-- In fact the usual value passed as lineno is either CursorY or TopLine.
+-- adjust is usually +1, -1, linesPerPage, or -linesPerPage.
+-- cX is usually CursorX when lineno is CursorY, and TopChunk with TopLine.
+--
+-- Returns an integer in the range 0..length(filetext[currfile]) [NB over by 1] **DEV-1.
+--
+integer nextImportantLine, foldIdx, lenfiletxtcurrfile
+integer getNIL
+sequence BookMarkSet
+object SetEntry
+object BiE
+integer FW
+    BookMarkSet = bookmarks[currfile]
+    lenfiletxtcurrfile = length(filetext[currfile]) ---1
+    nacX = cX
+    if isWordWrapON then
+        FW = FOLD+WRAP
+    else
+        FW = FOLD
+    end if
+    if adjust>0 then
+        while adjust>0 and lineno<lenfiletxtcurrfile do
+            SetEntry = BookMarkSet[lineno+1]
+            if sequence(SetEntry) then
+                if and_bits(SetEntry[bfType],WRAP) and isWordWrapON then
+                    BiE = SetEntry[bfEnd]
+                    if selON!=2 then
+                        if nacX<BiE[length(BiE)] then
+                            for j=1 to length(BiE) do
+                                if nacX<BiE[j] then
+                                    nacX += BiE[j]
+                                    if j>1 then
+                                        nacX -= BiE[j-1]
+                                    end if
+                                    if j<length(BiE) 
+                                    and nacX>=BiE[j+1] then
+                                        -- cursor down onto shorter line:
+                                        nacX = BiE[j+1]-1
+                                    end if
+                                    exit
+                                end if
+                            end for
+                        else
+                            nacX -= BiE[length(BiE)]
+                            lineno += 1
+                        end if
+                    else
+                        adjust -= length(SetEntry[bfEnd])
+                        lineno += 1
+                    end if
+                elsif and_bits(SetEntry[bfType],FOLD) then
+                    lineno += SetEntry[bfEnd]-SetEntry[bfStart]+1
+                else
+                    lineno += 1
+                end if
+            else
+                lineno += 1
+            end if
+            adjust -= 1
+        end while
+
+    elsif adjust<0 then
+        -- since the array is sorted by start, and therefore not by end,
+        -- when going back the full array must be scanned on each pass.
+        getNIL = True
+        while adjust<0 do
+            if getNIL then
+                nextImportantLine = -1
+                for i = lineno+1 to 1 by -1 do
+                    SetEntry = BookMarkSet[i]
+                    if sequence(SetEntry) then
+                        BiE = SetEntry[bfEnd]
+                        if sequence(BiE) then
+                            BiE = SetEntry[bfStart]
+                        end if
+                        if BiE<=lineno --+1
+                        and BiE+1>nextImportantLine then
+                            if and_bits(SetEntry[bfType],FOLD) then
+                                nextImportantLine = BiE+1
+                                foldIdx = i
+                            elsif isWordWrapON and and_bits(SetEntry[bfType],WRAP) then
+                                nextImportantLine = BiE
+                                foldIdx = i
+                            end if
+                        end if
+                    end if
+                end for
+                getNIL = False
+            end if
+            if lineno=nextImportantLine then
+                SetEntry = BookMarkSet[foldIdx]
+                if and_bits(SetEntry[bfType],WRAP) then
+                    if isWordWrapON then
+                        BiE = SetEntry[bfEnd]
+                        if selON!=2 then
+                            if nacX>=BiE[1] then
+                                for j=length(BiE) to 1 by -1 do
+                                    if nacX>=BiE[j] then
+                                        nacX -= BiE[j]
+                                        if j>1 then
+                                            nacX += BiE[j-1]
+                                        end if
+                                        if nacX>=BiE[j] then
+                                            -- cursor up onto shorter line:
+                                            nacX = BiE[j]-1
+                                        end if
+                                        exit
+                                    end if
+                                end for
+                            else
+                                if lineno=0 then exit end if
+                                lineno -= 1
+                                -- so force jump to lastChunk of prev line below:
+                                nextImportantLine = -1
+                            end if
+                        else
+--DEV this may need some more testing:
+                            adjust += length(SetEntry[bfEnd])
+                            if lineno=0 then exit end if
+                            lineno -= 1
+                        end if
+                    else
+                    -- skip any FOLD entries lying around:
+                    -- (I think we normally get rid asap, but that may change)
+                        if lineno=0 then exit end if
+                        lineno -= 1
+                    end if
+                else
+                        -- we're on the line immediately after a fold then:
+                    lineno -= SetEntry[bfEnd]-SetEntry[bfStart]+1
+                end if
+                getNIL = True
+--DEV not too sure about this "selON=2" here, but it seems to work so I am leaving it alone for now 
+                if selON=2 or nextImportantLine=-1 then
+                    nextImportantLine = -1
+                    for i=lineno+1 to 1 by -1 do
+                        SetEntry = BookMarkSet[i]
+                        if sequence(SetEntry) then
+                            BiE = SetEntry[bfEnd]
+                            if sequence(BiE) then
+                                BiE = SetEntry[bfStart]
+                            end if
+                            if BiE<=lineno
+                            and BiE+1>nextImportantLine then
+                                if and_bits(SetEntry[bfType],FOLD) then
+                                    nextImportantLine = BiE+1
+                                    foldIdx = i
+                                elsif isWordWrapON and and_bits(SetEntry[bfType],WRAP) then
+                                    nextImportantLine = BiE
+                                    foldIdx = i
+                                end if
+                            end if
+                        end if
+                    end for
+                    if selON!=2 and lineno=nextImportantLine
+                    and and_bits(BookMarkSet[foldIdx][bfType],WRAP) then
+                        SetEntry = BookMarkSet[foldIdx][bfEnd]
+                        nacX += SetEntry[length(SetEntry)]
+                    end if
+                end if
+            else
+                if lineno=0 then exit end if
+                lineno -= 1
+                if selON!=2 and lineno=nextImportantLine
+                and and_bits(BookMarkSet[foldIdx][bfType],WRAP) then
+                    SetEntry = BookMarkSet[foldIdx][bfEnd]
+                    nacX += SetEntry[length(SetEntry)]
+                end if
+            end if
+            adjust += 1
+        end while
+    end if
+
+    return lineno
+end function
+
+global procedure ensureVisible(integer eY, bool unfoldTop)
+-- if eY is part of a fold, expand the fold, unless it
+--  it is the first line and unfoldTop is False.
+--  -- unfoldTop should be False for all use except fold
+--     creation, which must avoid fold overlap.
+sequence BookMarkSet
+object SetEntry
+integer bmI
+    BookMarkSet = bookmarks[currfile]
+    bookmarks[currfile] = 0 -- reduce ref count
+    bmI = 1
+    while bmI <= length(BookMarkSet) do
+        SetEntry = BookMarkSet[bmI]
+        if sequence(SetEntry) then
+            if SetEntry[bfStart] > eY then exit end if
+            if and_bits(SetEntry[bfType],FOLD)
+            and SetEntry[bfEnd] >= eY
+            and (unfoldTop or SetEntry[bfStart] != eY) then
+                if and_bits(SetEntry[bfType],MARK) then
+                    BookMarkSet[bmI][bfType] = MARK -- leave the bookmark in place
+                else                                -- else remove entry
+                    BookMarkSet[bmI] = 0
+                end if
+                paintall()
+            end if
+        end if
+        bmI += 1
+    end while
+    bookmarks[currfile] = BookMarkSet
+    setMarginRqd()
+end procedure
+
+-- used by undo.e and eafind.ew:
+global procedure forceCursorOnscreen()
+integer d
+    if not isWordWrapON then
+--(26/3/10)
+        if CursorX<Column then
+--??    if CursorX<Column-marginRqd then
+            Column = CursorX
+            paintall()
+        elsif CursorX>Column+charsWide-marginRqd then
+            Column = CursorX-charsWide+marginRqd
+            paintall()
+        end if
+    else
+        if Column!=0 then
+            Column = 0
+            paintall()
+        end if
+    end if
+
+    ensureVisible(CursorY,False)
+    d = distanceFromTopLine(CursorY,CursorX)
+--?d
+    if d<0 or d>=linesPerPage then
+        if d=linesPerPage then
+?1
+            TopLine = adjustLine(TopLine,1,TopChunk)
+            TopChunk = nacX
+        elsif d=-1 then
+-- BUGFIX: if on "while 1 do"; "a=1"; "end while" and TopLine=="end while", pressing
+--     <Ctrl -> would create the Fold but leave TopLine=="a=1", & mangled display.
+--      TopLine = adjustLine(TopLine,-1,TopChunk)
+--      TopChunk = nacX
+?2
+            TopLine = CursorY
+            TopChunk = landingChunk
+        else
+            TopLine = 0   TopChunk = 0
+            d = distanceFromTopLine(CursorY,CursorX)-floor(linesPerPage/4)
+?3
+            TopLine = adjustLine(0,d,0)
+            TopChunk = nacX
+        end if
+?TopLine
+        paintall()
+    end if
+    if selON then paintCursorY() end if
+end procedure
+
+integer cX -- for Clip()
+
+global -- for undo.e
+constant SEL_COPY = 0,  SEL_DELETE = 1
+
+--with trace
+global function getSelection(integer flag)
+--
+-- Returns the current selection, and deletes it if rqd.
+-- returns 0 if no selection
+-- Note: most calls to getSelection(SEL_DELETE) should be via
+-- deleteSelection() which performs the required addAction.
+-- This is used by UndoRedo() and thus cannot addAction() itself.
+--
+integer filelen, x1, x2
+sequence oneline, twoline
+sequence sel
+object selend
+--integer cX, cY, sX, sY
+integer cY, sX, sY
+    if not selON or (selX=CursorX and selY=CursorY) then return 0 end if
+    filelen = length(filetext[currfile])
+--#without reformat
+    --
+    -- First make cX/Y top left & sX/Y lower right
+    --
+    if selON=2 then -- column mode
+        if selX<CursorX then cX=selX sX=CursorX else cX=CursorX sX=selX end if
+        if selY<CursorY then cY=selY sY=CursorY else cY=CursorY sY=selY end if
+    elsif selY<CursorY or (selY=CursorY and selX<CursorX) then          --flip
+                             cX=selX sX=CursorX
+                             cY=selY sY=CursorY
+    else                                                                --asis
+                                                     cX=CursorX sX=selX
+                                                     cY=CursorY sY=selY
+    end if
+--#with reformat
+
+    oneline = filetext[currfile][cY+1]
+    x1 = MapToByte(oneline,cX)
+    if sY=cY or selON=2 then        -- single line/column Mode
+        x2 = MapToByte(oneline,sX)
+        if x1 then
+            if x2 then
+                sel = {oneline[x1..x2-1]}
+                if flag=SEL_DELETE then
+                    oneline = oneline[1..x1-1]&oneline[x2..length(oneline)]
+                end if
+            else
+                sel = {oneline[x1..length(oneline)]}
+                if flag=SEL_DELETE then
+                    oneline = oneline[1..x1-1]
+                end if
+            end if
+        else
+            if x2 then
+                sel = {oneline[1..x2-1]}
+                if flag=SEL_DELETE then
+                    oneline = oneline[x2..length(oneline)]
+                end if
+            else
+                sel = {{}}
+            end if
+        end if
+    else                    -- multi line
+        twoline = filetext[currfile][sY+1]
+        x2 = MapToByte(twoline,sX)
+        selend = {}
+        if x1 then
+            sel = {oneline[x1..length(oneline)]}
+            if x2 then
+                if flag=SEL_DELETE then
+                    oneline = oneline[1..x1-1]&twoline[x2..length(twoline)]
+                end if
+                selend = twoline[1..x2-1]
+            else
+                if flag=SEL_DELETE then
+                    oneline = oneline[1..x1-1]
+                end if
+                selend = twoline
+            end if
+        else
+            sel = {{}}
+            if x2 then
+                selend = twoline[1..x2-1]
+                if flag=SEL_DELETE then
+                    oneline &= twoline[x2..length(twoline)]
+                end if
+            else
+                selend = twoline
+            end if
+        end if
+        for i=cY+2 to sY do
+            sel = append(sel,filetext[currfile][i])
+        end for
+        if flag=SEL_DELETE then
+            removeLineLengths(cY+2,sY+1)
+            updateQJ(cY+1,cY-sY)--,1)
+            filetext[currfile] = filetext[currfile][1..cY+1]&
+                                 filetext[currfile][sY+2..filelen]
+            if length(bookmarks[currfile])!=length(filetext[currfile]) then ?92/(1-isDebug) end if
+        end if
+        if not atom(selend) then
+            sel = append(sel,selend)
+        end if
+    end if
+    --
+    -- if deleting, move cursor to cX,cY (top left), and remove
+    -- the selection and any highlighting.
+    -- 
+    if flag=SEL_DELETE then
+        replaceLine(cY+1,oneline)
+    end if
+    if selON=2 then
+        for i=cY+1 to sY do -- any remaining lines in column mode
+            oneline = filetext[currfile][i+1]
+            x1 = MapToByte(oneline,cX)
+            x2 = MapToByte(oneline,sX)
+            if x1 then
+                if x2 then
+                    selend = oneline[x1..x2-1]
+                    if flag=SEL_DELETE then
+                        oneline = oneline[1..x1-1]&oneline[x2..length(oneline)]
+                    end if
+                else
+                    selend = oneline[x1..length(oneline)]
+                    if flag=SEL_DELETE then
+                        oneline = oneline[1..x1-1]
+                    end if
+                end if
+            else
+                if x2 then
+                    selend = oneline[1..x2-1]
+                    if flag=SEL_DELETE then
+                        oneline = oneline[x2..length(oneline)]
+                    end if
+                else
+                    selend = {}
+                end if
+            end if
+            sel = append(sel,selend)
+            if flag=SEL_DELETE then
+                replaceLine(i+1,oneline)
+            end if
+        end for
+    end if
+    if flag=SEL_DELETE then
+        CursorX = cX
+        CursorY = cY
+        selON = 0
+        forceCursorOnscreen()
+        if cY=sY then
+            paintCursorY()
+        else
+            paintall()
+        end if
+    end if
+    return sel
+end function
+
+global procedure paintLines(integer linefrom, integer lineto)
+--
+-- Paint all lines between linefrom and lineto inclusive.
+-- Handles linefrom > lineto properly (ie backward selections).
+-- Allows block ops for large selections, partly or even completely off-screen.
+--
+    linefrom = curb(0,distanceFromTopLine(linefrom,0),linesPerPage)+1
+    lineto = curb(0,distanceFromTopLine(lineto,0),linesPerPage)+1
+    if paintRqd then
+        paintRqd = min(paintRqd,min(linefrom,lineto))
+        if paintLast then
+            paintLast = max(paintLast,max(linefrom,lineto))
+        end if
+    else
+        paintRqd = min(linefrom,lineto)
+        paintLast = max(linefrom,lineto)
+?"edix: paintLines line 1117: startIdle(250)"
+    end if
+end procedure
+
+global procedure clearSelection()
+--
+-- Clear the highlit text
+--
+    if selON then
+        if selY>TopLine     -- selection starts on screen
+        and selY<=CursorY then  -- and a forward selection, therefore not off end of screen
+            paintLines(selY,CursorY)
+        else
+            -- just repaint the lot if it might be running off 
+            -- either the top or the bottom of the screen.
+            paintall()
+        end if
+        selON = 0
+    end if
+end procedure
+
+--constant isCurrWhite = 0  --DEV (scrambles display when opening a new tab, sometimes)
+
+global procedure setSaveIcon()--integer c, integer doMenu, integer doEvents0) -- also used by undo.e
+?"setSaveIcon"
+--/*
+integer colour
+    if isTabBarVIS and tabs[c] then
+        if actionsave[c]!=actionptr[c] then
+            colour = #0000FF        -- red
+--      elsif find(getFileExtension(filenames[c]),
+--      elsif find(get_file_extension(filenames[c]),
+--              {"ex","exw","exwc","htm","html","bat"}) then
+        elsif c = currfile and isCurrWhite then
+            colour = #FFFFFF        -- white
+        else
+            colour = #000000        -- black
+        end if
+        if getTextColour(tabs[c])!=colour then
+            --DEV 30/12/09:
+            --if 0 then
+            --29/1/10:
+            if isTabsOwnerDrawn then
+                setTextColour(tabs[c], colour)
+            end if
+--          if not doMenu then      -- no help
+            if not doEvents0 then       -- 10/1/08
+                doEvents(0) --DEV not really sure why this is needed...
+            end if
+        end if
+    end if
+    if doMenu then
+        call_proc(r_enableMenuToolBar,{})
+    end if
+--*/
+end procedure
+
+procedure addLineLengths(sequence lines)
+integer len, recalc
+    recalc = 0
+    for i = 1 to length(lines) do
+        len = ExpLength(lines[i]) + 1
+        if len>length(filelinelengths[currfile]) then
+            filelinelengths[currfile] = filelinelengths[currfile] &
+                                        repeat(0,len-length(filelinelengths[currfile])+1)
+        end if
+        filelinelengths[currfile][len] = filelinelengths[currfile][len] + 1
+        if len > maxlen then recalc = 1 end if
+    end for
+    if recalc then reCalcMaxLen() end if
+end procedure
+
+global procedure InsertBlock(sequence lines)
+-- Note: all calls to InsertBlock should addAction.
+-- This is used by UndoRedo() so cannot addAction() itself.
+-- (this should only be called by Paste and UndoRedo)
+integer k, lengthlines
+sequence oneline, twoline
+
+    lengthlines = length(lines)
+    if lengthlines then
+        oneline = filetext[currfile][CursorY+1]
+        k = MapToByte(oneline,CursorX)
+        if lengthlines=1 then           -- no crlf insertion
+            if k then
+                oneline = oneline[1..k-1] & lines[1] & oneline[k..length(oneline)]
+                CursorX = ExpLength(oneline[1..k-1+length(lines[1])])
+            else    -- at end of line
+                oneline &= lines[1]
+                CursorX = ExpLength(oneline)
+            end if
+            replaceLine(CursorY+1,oneline)
+--void = syntaxColour(oneline,CursorY+1,0,0)
+            paintCursorY()  
+        else                            -- multi lines
+            if k then
+                twoline = oneline[k..length(oneline)]
+                oneline = oneline[1..k-1] & lines[1]
+            else
+                twoline = {}
+                oneline = oneline & lines[1]
+            end if
+            replaceLine(CursorY+1,oneline)
+            addLineLengths(lines[2..lengthlines])
+            updateQJ(CursorY+1,lengthlines-1)--,2)
+            filetext[currfile] = filetext[currfile][1..CursorY+1]&
+                                 lines[2..lengthlines]&
+                                 filetext[currfile][CursorY+2..length(filetext[currfile])]
+--DEV why?? [is it for bcFwd?]
+            for i=CursorY+1 to CursorY+lengthlines do
+                {} = syntaxColour(filetext[currfile][i],i,0,0)
+            end for
+            if length(bookmarks[currfile])!=length(filetext[currfile]) then ?93/(1-isDebug) end if
+
+            oneline = lines[lengthlines]
+            CursorX = ExpLength(oneline)
+            CursorY += lengthlines-1
+            replaceLine(CursorY+1,oneline&twoline)
+            paintall()
+        end if
+        forceCursorOnscreen()
+    end if
+end procedure
+
+procedure InsertChar(integer ch, integer InsertMode)
+-- Note: all calls to InsertChar (except the inner ones in indentWith/unindent) 
+-- should addAction. This is used by UndoRedo() (or at least indirectly by
+-- indentWith/unindent) so cannot addAction() itself.
+-- InsertMode is either insertMode (toggled via Ins), or 0 for indentWith/unindent)
+sequence oneline
+integer k
+    selON = 0
+    oneline = filetext[currfile][CursorY+1]
+    k = MapToByte(oneline,CursorX)
+    if k then
+        if InsertMode then
+            oneline = oneline[1..k-1] & ch & oneline[k..length(oneline)]
+        else
+            oneline[k] = ch
+        end if
+    else    -- at end of line
+        oneline = append(oneline,ch)
+    end if
+    CursorX = CursorRight(oneline,CursorX)
+    replaceLine(CursorY+1,oneline)
+    paintCursorY()
+end procedure
+
+-- used by undo.e
+global function indentoneline(object what)
+sequence thisline
+    if and_bits(isClearOverStrike,cOVRpaste) then
+        insertMode = 1
+    end if
+    CursorX = 0
+    forceCursorOnscreen()
+    if atom(what) then      -- VK_TAB
+        thisline = filetext[currfile][CursorY+1]
+        if length(thisline) = 0 then
+            return 0
+        elsif match("--/**/",thisline)=1 then
+            CursorX = 6
+        end if
+        InsertChar(what,1)
+    else                    -- comment
+        for j=1 to length(what) do
+            InsertChar(what[j],1)
+        end for
+    end if
+    return 1
+end function
+
+global function indentWith(object what)
+-- insert tab or comment seq at start of line
+-- result is an array of 1's, indicating it was 
+-- possible to indent each line (which it always is).
+-- This is needed to keep undo/redo symetrical, since
+-- it is not always possible to unindent.
+integer k
+sequence res
+    if selON then
+        if selY<CursorY then
+            k = selY
+            selY = CursorY
+            CursorY = k
+        end if
+        selON = 0
+        k = CursorY --save
+        res = repeat(1,selY-CursorY+1)
+        for i=CursorY to selY do
+            CursorY = i
+            res[i-k+1] = indentoneline(what)
+        end for
+        selON = 1
+        selY = k
+        selX = 0
+        CursorX = ExpLength(filetext[currfile][CursorY+1])
+--      paintall() -- done via charInput
+--      return res
+    else
+        res = {indentoneline(what)}
+    end if
+    return {what,res}
+end function
+--used by undo.e
+global function unindentoneline(object what)
+sequence oneline
+integer lw, leadcomment
+    if and_bits(isClearOverStrike,cOVRpaste) then
+        insertMode = 1
+    end if
+    CursorX = 0
+    oneline = filetext[currfile][CursorY+1]
+    lw = 0
+    leadcomment = 0
+    if atom(what) then      -- a tab (or other char)
+        if length(oneline) and oneline[1]=what then
+            lw = 1
+        elsif match("--/**/",oneline) and oneline[7]=what then
+            leadcomment = 1
+            lw = 7
+        end if
+    else                -- comment seq
+        if match(what,oneline)=1 then
+            lw = length(what)
+        end if
+    end if
+    if lw then
+        if leadcomment then
+            replaceLine(CursorY+1,oneline[1..6]&oneline[lw+1..length(oneline)])
+        else
+            replaceLine(CursorY+1,oneline[lw+1..length(oneline)])
+        end if
+        paintCursorY()
+        forceCursorOnscreen()
+    end if
+    return lw
+end function
+
+--with trace
+--global object uWith
+global function unindent(object what)
+-- remove tab or comment seq from start of line
+-- result is set of flags indicating which lines could be done.
+integer k
+sequence res
+    if selON then
+        if selY<CursorY then
+            k = selY   selY = CursorY   CursorY = k
+        end if
+    end if
+    if equal(what,"--") 
+    and length(filetext[currfile][CursorY+1])
+    and find(filetext[currfile][CursorY+1][1],"<>") then
+        what = filetext[currfile][CursorY+1][1..1]
+    end if
+--  uWith = what
+    if selON then
+        selON = 0
+        k = CursorY --save
+        res = repeat(0,selY-CursorY+1)
+        for i=1 to length(res) do
+            CursorY = k+i-1
+            res[i] = unindentoneline(what)
+        end for
+        selON = 1
+        selY = k
+        selX = 0
+        CursorX = ExpLength(filetext[currfile][CursorY+1])
+    else
+        res = {unindentoneline(what)}
+    end if
+    return {what,res}
+end function
+
+include src/undo.e
+--DEV (there also be create()...)
+--addAction(INSERTBLOCK,res)
+
+global procedure selectAll()
+    if currfile then
+        selON = 1   selX = 0   selY = 0
+        CursorY = length(filetext[currfile])-1
+        CursorX = ExpLength(filetext[currfile][CursorY+1])
+        paintall()
+    end if
+end procedure
+
+-- used by eafind.ew (replace) and earein.ew (reindent)
+--with trace
+global function deleteSelection()
+object d
+sequence pos
+    pos = DeleteBlockPos()  -- save co-ords
+    d = getSelection(SEL_DELETE)
+    if sequence(d) and not equal(d,{{}}) then
+        addAction(pos,d)
+--      selON = 0 -- cleared by getSelection(SEL_DELETE)
+        return 1
+    end if
+    return 0
+end function
+
+include src/rein.e
+
+function get_image(string image)
+-- image should be IUP_xxx to use an image from the stock library (see IupImageLibOpen),
+--              or PNG_xxx to use an image from the icons subdirectory (icons/xxx.png).
+--DEV see http://www.iconarchive.com/search?q=go&page=11
+
+    if length(image)=0 then
+        return NULL
+    end if
+
+--  if image[1..4]="IUP_" then
+    if image[1]='I' then    -- (should be enough)
+        return image        -- stock image (see IupImageLibOpen)
+    end if
+
+    -- check if the icon is already loaded
+    if platform()=WINDOWS then
+        if IupGetHandle(image)!=NULL then   -- (already loaded)
+            return image
+        end if
+    end if
+
+    -- build the image path
+--DEV join_path??
+--ie    sequence path = join_path({"icons",image[5..$]&".png"})
+    sequence path = join({"icons",image[5..$]&".png"}, SLASH)
+
+    if platform()=WINDOWS then
+
+        -- use IM library to load image
+        Ihandln handle = IupLoadImage(path)
+        if handle=NULL then return NULL end if
+
+        -- store the image handle
+        IupSetHandle(image, handle)
+        return image
+
+    else -- LINUX
+
+        -- natively supports PNG images
+        return path
+
+    end if
+
+end function
+
+
+function putx(atom x, atom y, string txt, integer colour)
 --temp/inline?
     cdCanvasSetForeground(cddbuffer, colour)
     cdCanvasText(cddbuffer,x,y,txt)
@@ -101,12 +1502,39 @@ function putx(integer x, integer y, string txt, integer colour)
     return x
 end function
 
-integer charheight
-procedure appUpdateRender()
+integer charheight,
+        charwidth   -- (for cursor I)
+
+integer fontsize = 12
+
+Ihandle cursorblink
+
+atom cursorx = 0,
+     cursory = 0,
+     cursorc = 0
+
+constant backgrounds = {CD_GRAY, CD_WHITE, CD_YELLOW}
+integer backgroundidx = length(backgrounds)-1
+
+procedure appUpdateRender()--integer pos=-1)
 integer width, height, x, y
+Ihandln tab
+integer fidx, line
+sequence text
+
     cdCanvasActivate(cddbuffer)
 
+--DEV if paintall...
     cdCanvasClear(cddbuffer)
+
+--?"appUpdateRender"
+    if RotateBackground then
+        backgroundidx += 1
+        if backgroundidx>length(backgrounds) then
+            backgroundidx = 1
+        end if
+        cdCanvasSetBackground(cddbuffer, backgrounds[backgroundidx])
+    end if
 
 --  {width, height} = IupGetIntInt(dlg, "RASTERSIZE")
     {width, height} = cdCanvasGetSize(cddbuffer)
@@ -117,22 +1545,117 @@ integer width, height, x, y
 --cdCanvasText(cddbuffer,15,16,sprint(cdCanvasGetTextSize(cddbuffer,"ABCDEFG"))) -- {64,16}
 --cdCanvasText(cddbuffer,15,1,sprint(cdCanvasGetSize(cddbuffer)&charheight))
 --cdCanvasText(cddbuffer,15,1,sprint(cdCanvasGetFont(cddbuffer)))
---  for i=charheight-1 to height+charheight/2-0*charheight*4 by charheight do
-    for i=charheight-1 to height+charheight/2 by charheight do
-        x = 1
-        y = height-i
-        if i>charheight then
-            x += putx(x, y, "The ", CD_BLACK)
-            x += putx(x, y, "quick", CD_BLUE)
-            x += putx(x, y, " brown fox jumped over the lazy dog", CD_BLACK)
-        else
---          x += putx(x, y, "The quick brown fox jumped over the lazy dog", CD_BLACK)
-            x += putx(x, y, "12345678901234567890123456789012345678901345", CD_BLACK)
+
+    tab = IupGetAttributeHandle(tabs, "VALUE")
+    -- (obviously tab!=NULL does not require much in the way of explanation, 
+    --  however note that VISIBLE is a fudge: we need to redisplay, from
+    --  tabclose_cb, /before/ the tab is actually removed (IUP_CONTINUE),
+    --  and, importantly, blank when there was no new VALUEPOS setting.)
+    if tab!=NULL and IupGetInt(tab,"VISIBLE") then
+        fidx = IupGetInt(tab,"FILEIDX")
+currfile = fidx
+        text = filetext[fidx]
+        line = 1    --DEV topline
+
+--DEV:
+linesPerPage = 0
+        for i=charheight-1 to floor(height+charheight/2) by charheight do
+            linesPerPage += 1
+        end for
+
+--      for i=charheight-1 to height+charheight/2-0*charheight*4 by charheight do
+        for i=charheight-1 to floor(height+charheight/2) by charheight do
+            if line>length(text) then exit end if
+            x = 1
+            y = height-i
+--          if i>charheight then
+--              x += putx(x, y, "The ", CD_BLACK)
+--              x += putx(x, y, "quick", CD_BLUE)
+--              x += putx(x, y, " brown fox jumped over the lazy dog", CD_BLACK)
+--          else
+----                x += putx(x, y, "The quick brown fox jumped over the lazy dog", CD_BLACK)
+--              x += putx(x, y, "12345678901234567890123456789012345678901345", CD_BLACK)
+--          end if
+            x += putx(x, y, ExpandTabs(text[line]), CD_BLACK)
+            if line=2 then
+                -- set blinking cursor info
+                cursorx = charwidth*2+1
+                cursory = y-charheight/8
+                if cursorc=0 then
+                    IupSetAttribute(cursorblink,"RUN","YES")
+                end if
+                cursorc = CD_BLACK
+--              tipline = line
+            end if
+            line += 1
+        end for
+
+        if tip_visible then
+--/*
+    CD_RED          = #FF0000,
+    CD_DARK_RED     = #800000,
+    CD_GREEN        = #00FF00,
+    CD_DARK_GREEN   = #008000,
+    CD_BLUE         = #0000FF,
+    CD_DARK_BLUE    = #000080,
+    CD_YELLOW       = #FFFF00,
+    CD_DARK_YELLOW  = #808000,
+    CD_MAGENTA      = #FF00FF,
+    CD_DARK_MAGENTA = #800080,
+    CD_CYAN         = #00FFFF,
+    CD_DARK_CYAN    = #008080,
+    CD_WHITE        = #FFFFFF,
+    CD_BLACK        = #000000,
+    CD_DARK_GRAY    = #808080,
+    CD_GRAY         = #C0C0C0,
+    CD_PARCHMENT    = #FFFFE0,
+
+--*/
+--          cdCanvasFont(cddbuffer, "Consolas", CD_PLAIN, floor(fontsize*0.75))
+            cdCanvasFont(cddbuffer, "Consolas", CD_ITALIC, floor(fontsize*0.75))
+
+--          cdCanvasSetForeground(cddbuffer, CD_PARCHMENT)
+--          cdCanvasSetForeground(cddbuffer, CD_DARK_GRAY)
+--          cdCanvasSetForeground(cddbuffer, #E0E0E0)
+            x = cursorx
+            y = floor(cursory-charheight*0.75*7/8)
+            {width, height} = cdCanvasGetTextSize(cddbuffer,"this is a tip")
+--?{x,y,width,height}
+--DEV it is xmin,xmax, ymin,ymax!!
+--          cdCanvasBox(cddbuffer, x, y, x+width, y+height) 
+--DEV rounded rect...
+            cdCanvasSetForeground(cddbuffer, #A0A0A0)
+            cdCanvasBox(cddbuffer, x+2, x+width+2, cursory-charheight/8-2, cursory-charheight/8-height-2)
+            cdCanvasSetForeground(cddbuffer, #E0E0E0)
+            cdCanvasBox(cddbuffer, x, x+width, cursory-charheight/8, cursory-charheight/8-height)
+--          cdCanvasBox(cddbuffer, cursorx, cursory-charheight, x+10, y+10) 
+--          {} = putx(cursorx, cursory+charheight, "this is a tip", CD_BLUE)
+            cdCanvasSetForeground(cddbuffer, CD_DARK_BLUE)
+            cdCanvasText(cddbuffer,x,y,"this is a tip")
+--          cdCanvasText(cddbuffer,cursorx,cursory-charheight,"this is a tip")
+--          cdCanvasSetBackground(cddbuffer, CD_GRAY)
+            cdCanvasFont(cddbuffer, "Consolas", CD_PLAIN, fontsize)
         end if
-    end for
+
+    else
+        if cursorc!=0 then
+            -- disable cursor when last tab closed
+            cursorc = 0
+            IupSetAttribute(cursorblink,"RUN","NO")
+        end if
+    end if
 
     cdCanvasFlush(cddbuffer)
 end procedure
+
+function cursorblink_cb(Ihandle /*ih*/)
+    cdCanvasActivate(cddbuffer)
+    cursorc = iff(cursorc=CD_BLACK?CD_GRAY:CD_BLACK)
+    cdCanvasSetForeground(cddbuffer, cursorc)
+    cdCanvasLine(cddbuffer, cursorx, cursory, cursorx, cursory+charheight*.6)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
 
 function redraw_cb(Ihandle /*ih*/, integer /*x*/, integer /*y*/)
     appUpdateRender()
@@ -148,11 +1671,13 @@ end function
 function map_cb(Ihandle ih)
     cdcanvas = cdCreateCanvas(CD_IUP, ih)
     cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    --DEV from settings:
     cdCanvasSetBackground(cddbuffer, CD_GRAY)
     -- (nb "" needs cdCanvasClear() to take effect)
     cdCanvasSetForeground(cddbuffer, CD_BLACK)
-    cdCanvasFont(cddbuffer, "Courier", CD_PLAIN, 10)
-    {?,charheight} = cdCanvasGetTextSize(cddbuffer,"X")
+--  cdCanvasFont(cddbuffer, "Courier", CD_PLAIN, fontsize)
+    cdCanvasFont(cddbuffer, "Consolas", CD_PLAIN, fontsize)
+    {charwidth,charheight} = cdCanvasGetTextSize(cddbuffer,"I")
     return IUP_DEFAULT
 end function
 
@@ -162,18 +1687,98 @@ function unmap_cb(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
 
+--function tabfocus_cb(Ihandle /*ih*/)
+----    appUpdateRender()
+------  return IUP_CONTINUE
+--?"tabfocus_cb"
+--  IupSetFocus(canvas)
+----    return IUP_DEFAULT
+----    return IUP_CONTINUE
+--  return IUP_IGNORE
+--end function
+
+procedure add_tab(string title="[untitled]", sequence text={}, sequence linelengths={}, integer encoding=ENC_NONE)
+
+--Ihandle fill = 
+--  IupSetAttribute(fill, "EXPAND", "HORIZONTAL")
+
+Ihandle tab = IupHbox({IupFill()})
+
+    IupSetAttributes(tab, "TABSIZE=4, EXPAND=YES, VISIBLE=YES")
+    IupSetAttribute(tab, "TABTITLE", title)
+    IupSetStrAttribute(tab, "TABIMAGE", get_image("PNG_FileNew"))
+--  IupSetCallback(tab, "GETFOCUS_CB", Icallback("tabfocus_cb"))
+
+--  atom tabs = IupGetHandle("tabs")
+    IupAppend(tabs, tab)
+    IupMap(tab)
+--VALUE_HANDLE??
+    IupSetAttributeHandle(tabs, "VALUE", tab)
+--?tab
+--DEV (temp)
+    if length(text)=0 then
+        if length(filetext)=0 then
+            text = {"one","two","three"}
+            linelengths = {0,0,0,2,0,1}
+        else
+            text = {"four","five","six"}
+            linelengths = {0,0,0,1,2}
+        end if
+    end if
+    filetext = append(filetext,text)
+    unicodefile = append(unicodefile,encoding)
+    actionptr = append(actionptr,0)
+    actions = append(actions,{})
+    actionsave = append(actionsave,0)
+    bookmarks = append(bookmarks,repeat(0,length(text)))
+    filelinelengths = append(filelinelengths,linelengths)
+--/* (readFile)
+C:\Program Files (x86)\Phix\demo\edix\crud.exw:5230 sequence linelengths
+C:\Program Files (x86)\Phix\demo\edix\crud.exw:5352     linelengths = repeat(0,80)
+C:\Program Files (x86)\Phix\demo\edix\crud.exw:5421         if linelength>=length(linelengths) then
+C:\Program Files (x86)\Phix\demo\edix\crud.exw:5422             linelengths &= repeat(0,linelength-length(linelengths)+1)
+C:\Program Files (x86)\Phix\demo\edix\crud.exw:5424         linelengths[linelength+1] = linelengths[linelength+1] + 1
+    linelengths[1] = 1
+    return {{}}
+--*/
+    IupSetInt(tab,"FILEIDX",length(filetext))
+
+--  IupSetFocus(tab)
+    IupRefresh(tabs)
+    appUpdateRender()
+
+--  IupSetAttribute(tab, "INSERT0", text)
+--  IupSetAttribute(tab, "UNDO", NULL)
+--  IupSetAttribute(tab, "SAVEDSTATE", NULL)
+--  IupSetCallback(tab, "MARGINCLICK_CB", Icallback("marginclick_cb"))
+--  IupSetCallback(tab, "SAVEPOINT_CB", Icallback("savepoint_cb"))
+
+--  IupSetCallback(tab, "K_cS", Icallback("save_cb"))
+
+--  return tab
+end procedure
+
 --function item_new_action_cb(Ihandle /*item_new*/)
 function new_cb(Ihandle /*item_new*/)
-?"new_cb"
+--?"new_cb"
 --  if save_check(item_new) then
 --      newFile("",{""},{1},0)
+--DEV:
+    if tpos!=0 then
+--?tpos
+    end if
+    add_tab()
 --  end if
     return IUP_DEFAULT;
 end function
 constant cb_new = Icallback("new_cb")
 
+constant filters = {{"Text Files", "*.txt;*.exw"},
+                    {"All Files", "*.*"}}
+
 --function item_open_action_cb(Ihandle /*item_open*/)
 function open_cb(Ihandle /*item_open*/)
+--?"open"
 --Ihandle filedlg;
 --string d
 --
@@ -197,6 +1802,123 @@ function open_cb(Ihandle /*item_open*/)
 --
 --      IupDestroy(filedlg);
 --  end if
+
+Ihandle filedlg
+integer encoding = ENC_NONE
+--ENC_NONE  = 0,
+--ENC_ANSI  = 1,
+--ENC_UTF8  = 2,
+--ENC_UTF16LE = 3,
+--ENC_UTF16BE = 4   -- (rare case)
+string filename = "", title
+sequence text, linelengths
+
+    if UseNativeDialog
+    and platform()=WINDOWS then
+        atom hWnd = IupGetAttributePtr(dlg,"HWND")
+        object res = newGetOpenFileName(hWnd,filters,{1,"exw"})
+        if sequence(res) then
+            {encoding,filename} = res
+--/*
+
+            integer r1 = res[1]
+--global constant ENC_NONE  = 0,
+--              ENC_ANSI    = 1,
+--              ENC_UTF8    = 2,
+--              ENC_UTF16LE = 3,
+--              ENC_UTF16BE = 4     -- (rare case)
+--
+--global constant Encodings = {"ANSI","UTF8","UTF16LE","UTF16BE"}
+            if r1=ENC_NONE then
+                res[1] = "0 (ENC_NONE)"
+            else
+                res[1] = sprintf("%d (%s)",{r1,Encodings[r1]})
+            end if
+--*/
+        end if
+--/*
+
+--global function newGetOpenFileName(atom hWnd=NULL, object filters=NULL, object extension=NULL, object default_folder=NULL, integer encoding=1)
+--
+-- hWnd is, obviously enough, the [optional] handle of a window you would like to act as the parent of the open/save dialog.
+-- filters can be NULL or something like { {"Text Document (*.txt)", "*.txt"}, 
+--                                         {"All Documents (*.*)", "*.*"} }
+-- extension can be NULL or {idx,"doc"[,flags]} or {idx,NULL[,flags]}:
+--  idx is an index to filters, to set the default type index. If filters is NULL then idx is ignored, conversely if extension is 
+--  NULL then an idx of 1 is assumed. The second "doc" part specifies a default file extension, ie/eg "fred" is actually saved as 
+--  "fred.doc" (and is not worth setting during file open). Note that manually changing the filter drop-down (if present) will
+--  automatically override this. The third "flags" part, if present, allows additional options such as FOS_ALLOWMULTISELECT.
+-- Specifying a default folder of say "C:\temp" causes the standard behaviour of setting the folder to use if there is not a
+--  recently used folder value available. Specifying a default folder of {"C:\temp"} overrides any recently used folder value.
+--  Edita, for example, uses the latter to force open/save in the directory associated with the current file tab, however most
+--  applications would not benefit from such brutally forceful behaviour.
+-- Specifying an encoding of 0 suppresses the encoding drop-down, otherwise specify 1..4 for default(ansi)/utf8/utf16le/utf16be.
+--  eg .reg files should [as opposed to must] always be stored as utf16le; so removing the option avoids potential mishap,
+--  or .avi/mp3/jpg files: anything selected would have to be completely ignored anyway. Note that when encoding is set 0,
+--  the result is a single string, whereas when left as the default or explicitly specified this returns {encoding,name},
+--  or 0 if the user cancels the operation. Note that FOS_ALLOWMULTISELECT can only be specified on open (not save), and 
+--  both automatically suppresses the custom encoding drop-down, and returns an array of strings, with no encoding flags.
+--
+-- Returns: 0                        - if user cancels the operation
+--          {"name","name","name"}   - if (not cancelled and) FOS_ALLOWMULTISELECT is specified
+--          "name"                   - if (not cancelled and not FOS_ALLOWMULTISELECT and) encoding is set to 0
+--          {encoding(=1..4),"name"} - if none of the above are true
+--
+    return filedialog(OPEN,hWnd,filters,extension,default_folder,encoding)
+end function
+
+--pp(newGetOpenFileName(NULL,NULL,{0,0,FOS_ALLOWMULTISELECT}))
+--pp(newGetOpenFileName(NULL,NULL,{0,0,0}))
+--pp(newGetOpenFileName(getHwnd(id),NULL,{0,0,0}))
+--pp(newGetOpenFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}}))
+--pp(newGetOpenFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{1,"txt"}))
+--pp(newGetOpenFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{2,NULL}))  -- fine
+--pp(newGetSaveFileName(NULL))
+--pp(newGetSaveFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{1,"txt"}))
+--pp(newGetSaveFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{2,NULL}))
+--pp(newGetSaveFileName(NULL,NULL,NULL,"C:\\Windows",2))
+--pp(newGetSaveFileName(NULL,NULL,NULL,"C:\\Windows",0))
+--trace(1)
+--  res = newGetSaveFileName(NULL,NULL,NULL,"C:\\Program Files (x86)\\Phix\\demo\\win32dibademo",0)
+--  res = newGetSaveFileName(NULL,NULL,NULL,"C:\\Program Files (x86)\\Phix\\demo\\win32dibademo")
+        pp(res)
+        {} = wait_key()
+--*/
+    else
+        filedlg = IupFileDlg()
+
+        IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg)
+--      IupSetAttributes(filedlg, "DIALOGTYPE = SAVE, TITLE = \"File Save\"")
+        IupSetAttribute(filedlg, "TITLE", "Open")
+--      IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
+--      IupSetAttributes(filedlg, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"")
+        IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
+
+        IupPopup(filedlg, IUP_CENTER, IUP_CENTER)
+
+        integer status = IupGetInt(filedlg, "STATUS")
+        if status=0 then    -- normal, exiusting file
+            filename = IupGetAttribute(filedlg, "VALUE")
+        end if
+--      switch status do
+--
+--          case 1 then
+--              IupMessage("New file",IupGetAttribute(filedlg, "VALUE"))
+--
+--          case 0 then
+--              IupMessage("File already exists",IupGetAttribute(filedlg, "VALUE"))
+--
+--          case -1 then
+--              IupMessage("IupFileDlg","Operation Canceled")
+--      end switch
+
+        IupDestroy(filedlg)
+    end if
+    if length(filename) then
+        {text,linelengths} = read_file(filename)
+        title = get_file_name(filename)
+        add_tab(title, text, linelengths, encoding)
+    end if
     return IUP_DEFAULT;
 end function
 constant cb_open = Icallback("open_cb")
@@ -560,15 +2282,18 @@ function run_cb(atom /*self*/)
 --  sequence path = IupGetAttribute(sci, "PATH")
 --  sequence name = get_file_name(path)
 --
---ifdef WINDOWS then
---  sequence comspec = getenv("ComSpec")
+--if platform()=WINDOWS then
 ----                sequence eui = locate_file( "euiw.exe" )
-----                sequence cmd = build_commandline({ comspec, "/C", eui, name })
---elsedef
---  sequence xterm = "/usr/bin/x-terminal-emulator"
+----                sequence cmd = build_commandline({getenv("COMSPEC"), "/C", eui, name })
+--else
 ----                sequence eui = locate_file( "eui" )
-----                sequence cmd = build_commandline({ xterm, "-e", eui, name })
---end ifdef
+----                sequence cmd = build_commandline({"/usr/bin/x-terminal-emulator", "-e", eui, name })
+--end if
+--OR:
+----    string cmd = iff(platform()=WINDOWS?getenv("COMSPEC"):"/usr/bin/x-terminal-emulator")
+----    string flags = iff(platform()=WINDOWS?"/C":"-e")
+----    string eui = locate_file(platform()=WINDOWS?"pw.exe":"phix")
+----    string cmd = build_commandline({cmd, flags, eui, name })
 --
 --  {} = chdir(get_file_path(path))
 --  ?9/0
@@ -595,6 +2320,14 @@ function fif_cb(atom /*self*/)
     return IUP_IGNORE
 end function
 constant cb_fif = Icallback("fif_cb")
+
+function crash_cb(atom /*ih*/)
+    if IupAlarm("Crash?","All edits will be lost!","OK","CANCEL")=1 then
+        ?9/0
+    end if
+    return IUP_IGNORE
+end function
+constant cb_crash = Icallback("crash_cb")
 
 --/*
 constant bind_fmt="""
@@ -640,6 +2373,8 @@ elsedef
 end ifdef
 
     -- build the input and output files from the original path
+--DEV?
+--  sequence input  = join_path({get_file_path(path),get_file_name(path)})
     sequence input  = get_file_path(path) & SLASH & get_file_name(path)
     sequence output = get_file_path(path) & SLASH & get_file_base(path)
 ifdef WINDOWS then output &= ".exe" end ifdef
@@ -713,7 +2448,7 @@ ifdef WINDOWS then output &= ".exe" end ifdef
 
     {} = chdir(get_file_path(input))
     ?9/0
-    --      pipeio:exec( cmd, pipeio:create() )
+--  pipeio:exec( cmd, pipeio:create() )
 
     return IUP_IGNORE
 end function
@@ -745,7 +2480,7 @@ constant cb_find = Icallback("find_cb")
 constant cb_findnext = cb_find
 constant cb_findprev = cb_find
 
-Ihandln goto_dlg=NULL, goto_txt
+Ihandln goto_dlg = NULL, goto_txt
 
 function goto_ok_action_cb(Ihandle /*bt_ok*/)
 integer line_count = IupGetInt(goto_txt, "TEXT_LINECOUNT");
@@ -805,11 +2540,11 @@ Ihandle lbl, buttons, box, bt_ok, bt_cancel
 
     if IupGetInt(goto_txt, "STATUS")==1 then
         integer line = IupGetInt(goto_txt, "VALUE");
-?line
---DEV:
---      integer pos = IupTextConvertLinColToPos(multitext, line, 0);
---      IupSetInt(multitext, "CARETPOS", pos);
---      IupSetInt(multitext, "SCROLLTOPOS", pos);
+        ?line
+        --DEV:
+        --      integer pos = IupTextConvertLinColToPos(multitext, line, 0);
+        --      IupSetInt(multitext, "CARETPOS", pos);
+        --      IupSetInt(multitext, "SCROLLTOPOS", pos);
     end if
 
 --  IupDestroy(goto_dlg);
@@ -913,60 +2648,38 @@ function edit_menu_open_cb(Ihandle /*ih*/)
     return IUP_DEFAULT;
 end function
 
+Ihandln keyboard_settings = NULL
 
-function get_image(string image)
--- image should be IUP_xxx to use an image from the stock library (see IupImageLibOpen),
---              or PNG_xxx to use an image from the icons subdirectory (icons/xxx.png).
---DEV see http://www.iconarchive.com/search?q=go&page=11
-
-    if length(image)=0 then
-        return NULL
-    end if
-
---  if image[1..4]="IUP_" then
-    if image[1]='I' then    -- (should be enough)
-        return image        -- stock image (see IupImageLibOpen)
-    end if
-
-    -- check if the icon is already loaded
-    if platform()=WINDOWS then
-        if IupGetHandle(image)!=NULL then   -- (already loaded)
-            return image
-        end if
-    end if
-
-    -- build the image path
---join_path??
-    sequence path = join({"icons",image[5..$]&".png"}, SLASH)
---  if not file_exists(path) then
---      path = ".." & SLASH & path
---  end if
-
-    if platform()=WINDOWS then
-
-        -- use IM library to load image
-        Ihandln handle = IupLoadImage(path)
-        if handle=NULL then return NULL end if
-
-        -- store the image handle
-        IupSetHandle(image, handle)
-        return image
-
-    else -- LINUX
-
-        -- natively supports PNG images
-        return path
+function keyboard_cb(Ihandln /*ih*/)
+    if keyboard_settings=NULL then
+--DEV src/keyboard.e:
 
     end if
-
+    return IUP_DEFAULT;
 end function
+constant cb_keyboard = Icallback("keyboard_cb")
+
+Ihandle options_file_panel
+
+function file_panel_cb(Ihandln /*ih*/)
+integer v = IupGetInt(tbox,"VALUE")
+    if v!=0 then
+        tboxv = v
+        IupSetInt(tbox,"VALUE", 0)
+    else
+        IupSetInt(tbox,"VALUE", tboxv)
+    end if
+    IupSetAttribute(options_file_panel,"VALUE",iff(v=0?"ON":"OFF"))
+    return IUP_DEFAULT;
+end function
+constant cb_file_panel = Icallback("file_panel_cb")
 
 function menu_item(string text, string image, atom action_cb, integer active=1)
-    Ihandle ih = IupMenuItem(text, action_cb)
+Ihandle ih = IupMenuItem(text, action_cb)
     IupSetStrAttribute(ih, "IMAGE", get_image(image))
 --DEV (temp)
---  IupSetInt(ih, "ACTIVE", active)
-    IupSetInt(ih, "ACTIVE", active=active)
+    IupSetInt(ih, "ACTIVE", active)
+--  IupSetInt(ih, "ACTIVE", active=active)
     return ih
 end function
 
@@ -981,22 +2694,22 @@ Ihandle file_print  = menu_item("&Print\t\tCtrl P", "PNG_FilePrint",  cb_print, 
 --Ihandle file_print  = menu_item("&Print\t\tCtrl P", "IUP_Print",    cb_print,  0)
 Ihandle recent_menu = IupMenu({})
 Ihandle file_recent = IupSubmenu("Recent &Files", recent_menu)
-IupSetStrAttribute(file_recent, "IMAGE", get_image("PNG_FileRecent"))
-Ihandle file_exit   = menu_item("E&xit\t\tAlt F4",  "PNG_FileExit",   cb_exit,   1)
---DEV paranormalise?
-Ihandle file_menu = IupMenu({file_new,
-                             file_open,
+    IupSetStrAttribute(file_recent, "IMAGE", get_image("PNG_FileRecent"))
+    Ihandle file_exit   = menu_item("E&xit\t\tAlt F4",  "PNG_FileExit",   cb_exit,   1)
+    --DEV paranormalise?
+    Ihandle file_menu = IupMenu({file_new,
+                                 file_open,
 --reopen
-                             file_save,
-                             file_saveas,
-                             file_close,
+                                 file_save,
+                                 file_saveas,
+                                 file_close,
 --filelist(nee tabslist)
 --recent
-                             IupSeparator(),
-                             file_print,
-                             IupSeparator(),
-                             file_recent,
-                             file_exit})
+                                 IupSeparator(),
+                                 file_print,
+                                 IupSeparator(),
+                                 file_recent,
+                                 file_exit})
 --DEV?
 --  IupSetHandle("file_menu", file_menu)
     IupSetCallback(file_menu, "OPEN_CB", Icallback("file_menu_open_cb"));
@@ -1018,7 +2731,7 @@ Ihandle edit_delete = menu_item("&Delete\tDelete",          "PNG_EditErase",    
 Ihandle edit_find   = menu_item("&Find...\tCtrl F",         "PNG_EditFind",     cb_find,      0)
 Ihandle find_next   = menu_item("Find Next\tF3",            "PNG_FindNext",     cb_findnext,  0)
 Ihandle find_prev   = menu_item("Find Prev\tShift F3",      "PNG_FindPrev",     cb_findprev,  0)
-Ihandle edit_goto   = menu_item("&Goto...\tCtrl G",         "PNG_EditGoto",     cb_goto,      0)
+Ihandle edit_goto   = menu_item("&Goto...\tCtrl G",         "PNG_EditGoto",     cb_goto,      1)
 Ihandle edit_selall = menu_item("Select &All\tCtrl A",      "PNG_EditSelectAll",cb_selectall, 0)
 
 --  item_goto = IupMenuItem("&Go To...\tCtrl G");
@@ -1072,7 +2785,7 @@ Ihandle tool_dbvwr = menu_item("Database &Viewer",              "PNG_DatabaseVie
 Ihandle tool_dbvfy = menu_item("Verif&y Database",              "PNG_DatabaseVerify",   cb_fif,    0)
 --DEV should this be on Options?
 Ihandle tool_showf = menu_item("Show Formatting\tCtrl Shift H", "PNG_pilcrow",          cb_fif,    0)
-Ihandle tool_crash = menu_item("Crash",                         "PNG_Crash",            cb_fif,    0)
+Ihandle tool_crash = menu_item("Crash",                         "PNG_Crash",            cb_crash,  1)
 
 --DEV paranormalise?
 Ihandle tool_menu = IupMenu({tool_run,
@@ -1132,20 +2845,25 @@ Ihandle options_fonts       = menu_item("&Fonts",               "PNG_Fonts",    
 --SUG put edit/diplay/keyboard/extensions on a tabbed dialog
 Ihandle options_display     = menu_item("&Display Options",     "PNG_DisplayOpt",   cb_rec6,  0)
 Ihandle options_edit        = menu_item("&Edit Options",        "PNG_EditOpt",      cb_play6, 0)
-Ihandle options_keyboard    = menu_item("&Keyboard Settings",   "PNG_KeyboardOpt",  cb_play6, 0)
+Ihandle options_keyboard    = menu_item("&Keyboard Settings",   "PNG_KeyboardOpt",  cb_keyboard, 0)
 Ihandle options_file_extns  = menu_item("File E&xtensions",     "PNG_ExtOpt",       cb_play6, 0)
---DEV move Wordwrap to Display options!
---Ihandle options_wordwrap  = menu_item("&Wordwrap",            "PNG_MacroPlay",    cb_play6, 0)
---SUG: Edit config file (use the FILENAME attribute, see IupConfigLoad)
---Ihandle options_config    = menu_item("Edit Confi&g File",    "PNG_EditOpt",      cb_edit_config?, 0)
+    options_file_panel  = menu_item("File Pane&l\t(Ctrl L)","PNG_PanelOn",      cb_file_panel, 1)
+    IupSetStrAttribute(options_file_panel, "IMPRESS", get_image("PNG_PanelOff"))
+    IupSetAttribute(options_file_panel,"VALUE","OFF")
 
---DEV paranormalise?
-Ihandle options_menu = IupMenu({options_colours,
-                                options_fonts,
-                                options_display,
-                                options_edit,
-                                options_keyboard,
-                                options_file_extns})
+    --DEV move Wordwrap to Display options!
+    --Ihandle options_wordwrap  = menu_item("&Wordwrap",            "PNG_MacroPlay",    cb_play6, 0)
+    --SUG: Edit config file (use the FILENAME attribute, see IupConfigLoad)
+    --Ihandle options_config    = menu_item("Edit Confi&g File",    "PNG_EditOpt",      cb_edit_config?, 0)
+
+    --DEV paranormalise?
+    Ihandle options_menu = IupMenu({options_colours,
+                                    options_fonts,
+                                    options_display,
+                                    options_edit,
+                                    options_keyboard,
+                                    options_file_extns,
+                                    options_file_panel})
 --  IupSetCallback(options_menu, "OPEN_CB", Icallback("options_menu_open_cb")); [probably not rqd]
     return options_menu
 end function
@@ -1181,47 +2899,17 @@ end function
 
 
 function create_menu()
-    Ihandle menu = IupMenu({IupSubmenu("&File",    create_file_menu()),
-                            IupSubmenu("&Edit",    create_edit_menu()),
-                            IupSubmenu("&Tools",   create_tool_menu()),
-                            IupSubmenu("&Macro",   create_macro_menu()),
-                            IupSubmenu("&Options", create_options_menu()),
-                            IupSubmenu("&Help",    create_help_menu()),
+Ihandle menu = IupMenu({IupSubmenu("&File",    create_file_menu()),
+                        IupSubmenu("&Edit",    create_edit_menu()),
+                        IupSubmenu("&Tools",   create_tool_menu()),
+                        IupSubmenu("&Macro",   create_macro_menu()),
+                        IupSubmenu("&Options", create_options_menu()),
+                        IupSubmenu("&Help",    create_help_menu()),
 --                          sub_menu_format,
 --                          sub_menu_view,
 --                          sub_menu_help});
-})
+                       })
     return menu
-end function
-
-function add_tab(sequence title = "Untitled")--, sequence text = "")
-
---Ihandle fill = 
---  IupSetAttribute(fill, "EXPAND", "HORIZONTAL")
-    
-atom tab = IupHbox({IupFill()})----IupScintilla()
-
-    IupSetAttributes(tab, "TABSIZE=4, EXPAND=YES, VISIBLE=YES")
-    IupSetAttribute(tab, "TABTITLE", title)
-    IupSetStrAttribute(tab, "TABIMAGE", get_image("PNG_FileNew"))
-
---  atom tabs = IupGetHandle("tabs")
-    IupAppend(tabs, tab)
-    IupMap(tab)
---VALUE_HANDLE??
-    IupSetAttributeHandle(tabs, "VALUE", tab)
---  IupSetFocus(tab)
-    IupRefresh(tabs)
-
---  IupSetAttribute(tab, "INSERT0", text)
---  IupSetAttribute(tab, "UNDO", NULL)
---  IupSetAttribute(tab, "SAVEDSTATE", NULL)
---  IupSetCallback(tab, "MARGINCLICK_CB", Icallback("marginclick_cb"))
---  IupSetCallback(tab, "SAVEPOINT_CB", Icallback("savepoint_cb"))
-
---  IupSetCallback(tab, "K_cS", Icallback("save_cb"))
-
-    return tab
 end function
 
 function toolbar_item(atom action, string image, string tip, integer active=1)
@@ -1252,55 +2940,55 @@ constant actset = {"create",
 
 function create_toolbar()
 --DEV shortcut keys and content from ini file
-    Ihandle tool_new     = toolbar_item(cb_new,     "PNG_FileNew",    "New (Ctrl N)",      1)
-    Ihandle tool_open    = toolbar_item(cb_open,    "PNG_FileOpen",   "Open (Ctrl O)",     1)
-    Ihandle tool_save    = toolbar_item(cb_save,    "PNG_FileSave",   "Save (Ctrl S)",     0)
-    Ihandle tool_saveas  = toolbar_item(cb_saveas,  "PNG_FileSaveAs", "Save As",           0)
-    Ihandle tool_close   = toolbar_item(cb_close,   "PNG_FileClose",  "Close (Ctrl W)",    0)
-    Ihandle tool_cut     = toolbar_item(cb_cut,     "PNG_EditCut",    "Cut (Ctrl X)",      0)
-    Ihandle tool_copy    = toolbar_item(cb_copy,    "PNG_EditCopy",   "Copy (Ctrl C)",     0)
-    Ihandle tool_paste   = toolbar_item(cb_paste,   "PNG_EditPaste",  "Paste (Ctrl V)",    0)
-    Ihandle tool_undo    = toolbar_item(cb_undo,    "PNG_EditUndo",   "Undo (Ctrl Z)",     0)
-    Ihandle tool_redo    = toolbar_item(cb_redo,    "PNG_EditRedo",   "Redo (Ctrl Y)",     0)
-    Ihandle tool_find    = toolbar_item(cb_find,    "PNG_EditFind",   "Find (Ctrl F)",     0)
-    Ihandle tool_zoomin  = toolbar_item(cb_zoomin,  "PNG_ZoomIn",     "Zoom In (Ctrl +)",  0)
-    Ihandle tool_zoomout = toolbar_item(cb_zoomout, "PNG_ZoomOut",    "Zoom Out (Ctrl -)", 0)
-    Ihandle tool_run     = toolbar_item(cb_run,     "PNG_ToolRun",    "Run (F5)",          0)
+Ihandle tool_new     = toolbar_item(cb_new,     "PNG_FileNew",    "&New (Ctrl N)",     1)
+Ihandle tool_open    = toolbar_item(cb_open,    "PNG_FileOpen",   "Open (Ctrl O)",     1)
+Ihandle tool_save    = toolbar_item(cb_save,    "PNG_FileSave",   "Save (Ctrl S)",     0)
+Ihandle tool_saveas  = toolbar_item(cb_saveas,  "PNG_FileSaveAs", "Save As",           0)
+Ihandle tool_close   = toolbar_item(cb_close,   "PNG_FileClose",  "Close (Ctrl W)",    0)
+Ihandle tool_cut     = toolbar_item(cb_cut,     "PNG_EditCut",    "Cut (Ctrl X)",      0)
+Ihandle tool_copy    = toolbar_item(cb_copy,    "PNG_EditCopy",   "Copy (Ctrl C)",     0)
+Ihandle tool_paste   = toolbar_item(cb_paste,   "PNG_EditPaste",  "Paste (Ctrl V)",    0)
+Ihandle tool_undo    = toolbar_item(cb_undo,    "PNG_EditUndo",   "Undo (Ctrl Z)",     0)
+Ihandle tool_redo    = toolbar_item(cb_redo,    "PNG_EditRedo",   "Redo (Ctrl Y)",     0)
+Ihandle tool_find    = toolbar_item(cb_find,    "PNG_EditFind",   "Find (Ctrl F)",     0)
+Ihandle tool_zoomin  = toolbar_item(cb_zoomin,  "PNG_ZoomIn",     "Zoom In (Ctrl +)",  0)
+Ihandle tool_zoomout = toolbar_item(cb_zoomout, "PNG_ZoomOut",    "Zoom Out (Ctrl -)", 0)
+Ihandle tool_run     = toolbar_item(cb_run,     "PNG_ToolRun",    "Run (F5)",          0)
 --  Ihandle tool_run     = toolbar_item(cb_run,     "IUP_ActionOk",   "Run (F5)",          0)
 
 --DEV in windows the control will still get the focus when clicked [the DEV part being that we need some extra code to re-focus]
-    Ihandle tool_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
---DEV this will be more dynamically set:
-if 1 then
-    IupSetInt(tool_rtns, "ACTIVE", 0)
-else
-    IupSetInt(tool_rtns,"VISIBLEITEMS",length(actset)+1)    -- [no idea why it needs the +1]
-    for i=1 to length(actset) do
-        IupSetAttributeId(tool_rtns, "", i, actset[i])
-    end for
-    IupSetInt(tool_rtns,"VALUE",length(actset))
-end if
+Ihandle tool_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
+    --DEV this will be more dynamically set:
+    if 1 then
+        IupSetInt(tool_rtns, "ACTIVE", 0)
+    else
+        IupSetInt(tool_rtns,"VISIBLEITEMS",length(actset)+1)    -- [no idea why it needs the +1]
+        for i=1 to length(actset) do
+            IupSetAttributeId(tool_rtns, "", i, actset[i])
+        end for
+        IupSetInt(tool_rtns,"VALUE",length(actset))
+    end if
 
-    Ihandle toolbar = IupHbox({ tool_new,
-                                tool_open,
-                                tool_save,
-                                tool_saveas,
-                                tool_close,
-                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
+    Ihandle toolbar = IupHbox({tool_new,
+                               tool_open,
+                               tool_save,
+                               tool_saveas,
+                               tool_close,
+                               IupLabel(NULL, "SEPARATOR=VERTICAL"),
 -- print/page setup
-                                tool_cut,
-                                tool_copy,
-                                tool_paste,
-                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
-                                tool_undo,
-                                tool_redo,
-                                tool_find,
-                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
-                                tool_zoomin,
-                                tool_zoomout,
-                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
-                                tool_run,
-                                tool_rtns})
+                               tool_cut,
+                               tool_copy,
+                               tool_paste,
+                               IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                               tool_undo,
+                               tool_redo,
+                               tool_find,
+                               IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                               tool_zoomin,
+                               tool_zoomout,
+                               IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                               tool_run,
+                               tool_rtns})
 --/*
 atom toolbar = IupHbox({
                         IupLabel(NULL, "SEPARATOR=VERTICAL"),
@@ -1318,11 +3006,315 @@ atom toolbar = IupHbox({
     return toolbar
 end function
 
+Ihandln cmenu = NULL
+
+function canvas_button_cb(Ihandle ih, integer button, integer pressed, integer x, integer y, atom /*pStatus*/)
+
+    if cmenu=NULL then
+        cmenu = IupMenu({IupMenuItem("Item"),
+                         IupMenuItem("Item"),
+                         IupMenuItem("Item")})
+    end if
+    if button=IUP_BUTTON3   -- right mouse button
+    and pressed=0 then      -- (on release)
+        {x,y} = sq_add({x,y},IupGetIntInt(ih,"SCREENPOSITION"))
+        IupPopup(cmenu, x, y);
+    end if
+--  IupDestroy(menu);
+    return IUP_DEFAULT
+end function
+
+function isensekey_cb(Ihandle ih, atom c)
+    --DEV use key settings...
+    switch c do
+--      case K_cO: return open_cb(ih)
+        case K_TAB,K_CR:
+--(DEV this works fine:)
+            IupSetStrAttribute(dlg,"TITLE","isensekey_cb:%s",{IupGetAttribute(ih,"VALUESTRING")})
+            return IUP_CLOSE
+        --DEV to go (when it gets useable):
+        case K_ESC: return IUP_CLOSE
+--      case K_cSP: intellisense()
+--      default: IupSetStrAttribute(dlg,"TITLE","isensekey_cb:%0x",{c})
+    end switch
+    return IUP_CONTINUE
+--  return IUP_IGNORE
+end function
+
+procedure intellisense()
+--DEV/temp (nick code from Edita!)
+--Ihandle list = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
+Ihandle list = IupList("EXPAND=HORIZONTAL, EDITBOX=NO")
+--  for i=1 to length(actset) do
+--      IupSetAttributeId(tool_rtns, "", i, actset[i])
+--  end for
+    IupSetAttributeId(list, "", 1, "IupAlarm")
+    IupSetAttributeId(list, "", 2, "IupButton")
+    IupSetAttributeId(list, "", 3, "IupCanvas")
+    IupSetAttributeId(list, "", 4, "IupDialog")
+    IupSetAttributeId(list, "", 5, "IupExitLoop")
+    IupSetAttributeId(list, "", 6, "IupFill")
+--  IupSetInt(list,"VISIBLEITEMS",3)
+    IupSetInt(list,"VISIBLELINES",3)
+    IupSetInt(list,"VALUE",0)
+    Ihandle idialog = IupDialog(list,"BORDER=NO, RESIZE=NO, MAXBOX=NO, MINBOX=NO, MENUBOX=NO")
+    IupSetCallback(list, "K_ANY", Icallback("isensekey_cb"))
+    integer {x,y} = IupGetIntInt(canvas,"SCREENPOSITION")
+    x += charwidth*2
+    y += charheight*2
+    IupPopup(idialog,x,y)
+    IupDestroy(idialog)
+end procedure
+
+procedure intellitip()
+--DEV/temp/quite a bit more to do here... (nick code from Edita!)
+    tip_visible = 1
+    appUpdateRender()
+end procedure
+
+--DEV syntax colour/index:
+--control_shift_c = iup_XkeyCtrl(iup_XkeyShift('C'))
+
+function key_cb(Ihandle ih, atom c)
+    --DEV use key settings...
+    if iup_isprint(c) then
+--      IupSetStrAttribute(dlg,"TITLE","iup_isprint:%0x",{c})
+        addAction(INSERTCHAR,c)
+        InsertChar(c,insertMode)
+    else
+        switch c do
+            case K_TAB: 
+--DEV untested:
+--              if shift then
+----                    addAction(UNINDENT,{VK_TAB,unindent(VK_TAB)})
+--                  addAction(UNINDENT,unindent(VK_TAB))
+--              else
+--DEV 23/1/11: (I thought we might need this, but seems OK without)
+--                  addAction(INDENT,indentWith(VK_TAB))
+                if currfile then
+                    if not deleteSelection() then
+                        string oneline = filetext[currfile][CursorY+1]
+                        integer k = MapToByte(oneline,CursorX)
+                        if k then
+                            if not insertMode then
+                                addAction(DELETECHAR,oneline[k])
+                            end if
+                        else
+--DEV isense: autocomplete?
+--DEV if at end of line...
+--                          if synclr:isautocomplete(VK_ESCAPE) then
+                            if synclr:isautocomplete(K_ESC) then
+                                insertMode = 1
+                                string acrest = {synclr:getautocomplete()}
+                                addAction(INSERTBLOCK,acrest)
+                                InsertBlock(acrest)
+                                c = 0
+                            end if
+                        end if
+                    end if
+                    if c='\t' then
+--                      addAction(INSERTCHAR,VK_TAB)
+                        addAction(INSERTCHAR,K_TAB)
+--                      InsertChar(VK_TAB,insertMode)
+                        InsertChar(K_TAB,insertMode)
+                    end if
+--              end if
+                    forceCursorOnscreen()
+                end if
+                return IUP_IGNORE
+
+            case K_cL: return file_panel_cb(NULL)
+--                  IupSetInt(tree,"VISIBLE", not IupGetInt(tree,"VISIBLE"))
+--tbox, tree, tcbox, 
+--                  if IupGetInt(tree,"VISIBLE") then
+--                  integer v = IupGetInt(tbox,"VALUE")
+--                  if v!=0 then
+----                        IupSetInt(tree,"VISIBLE", FALSE)
+--                      tboxv = v
+--                      IupSetInt(tbox,"VALUE", 0)
+----                        IupDetach(tree)
+----                        IupReparent(tree,tcbox,NULL)
+----                        IupReparent(tree,hidden,NULL)
+----                        {treewidth,treeheight} = IupGetIntInt(tree,"RASTERSIZE")
+----?{treewidth,treeheight}
+----                        IupSetAttribute(tree,"RASTERSIZE","0x0")
+--                  else
+----                        IupSetInt(tree,"VISIBLE", TRUE)
+--                      IupSetInt(tbox,"VALUE", tboxv)
+----                        IupSetStrAttribute(tree,"RASTERSIZE","%dx%d",{treewidth,treeheight})
+----                        IupInsert(tbox,tcbox,tree)
+----                        IupReparent(tree,tbox,tcbox)
+--                  end if
+----                   IupRefresh(dlg)
+--
+----                   IupRefreshChildren(dlg)
+----                   IupMap(dlg)
+----                   IupUpdate(dlg)
+----                   IupSetAttribute(tree,"RASTERSIZE",NULL);
+            case K_cN: return new_cb(ih)
+            case K_cO: return open_cb(ih)
+            case K_cSP: intellisense()
+            case K_csSP: intellitip()
+            case K_ESC:
+                if tip_visible then
+                    tip_visible = 0
+                    appUpdateRender()
+                    break
+                end if
+                return IUP_CLOSE -- DEV to go (once edix gets useable)
+            default: IupSetStrAttribute(dlg,"TITLE","key_cb:%0x",{c})
+        end switch
+    end if
+    return IUP_CONTINUE
+end function
+
+
+function tabchange_cb(atom /*self*/, atom /*new_tab*/, atom /*old_tab*/)
+--  if self or old_tab then end if
+--  IupSetFocus(new_tab)
+--  sequence path = IupGetAttribute(new_tab, "PATH")
+
+--  atom field1 = IupGetHandle("field1")
+--  IupSetAttribute(field1, "TITLE", path)
+    appUpdateRender()
+
+    return IUP_DEFAULT
+end function
+
+Ihandln tmenu = NULL
+
+function tab_rightclick_cb(Ihandle /*ih*/, integer pos)
+--ih: identifier of the element that activated the event.
+--pos: the tab position  
+    if tmenu=NULL then
+        tmenu = IupMenu({IupMenuItem("New",cb_new),
+                         IupMenuItem("Open"),
+                         IupMenuItem("ReOpen"),
+                         IupMenuItem("Save"),
+                         IupMenuItem("Save As"),
+                         IupMenuItem("Close")})
+    end if
+    integer {x,y} = IupGetIntInt(NULL,"CURSORPOS")
+    tpos = pos+1    -- (for New,Open)
+    IupPopup(tmenu, x, y);
+    tpos = 0
+    return IUP_DEFAULT
+end function
+
+function tabclose_cb(Ihandle ih, integer pos)
+--function tabclose_cb(Ihandle /*ih*/, integer /*pos*/)
+--      IupAlarm( "Action", "Tab close", "OK" )
+
+--Ihandle tab = IupGetAttributeHandle(tabs, "VALUE")
+Ihandle tab = IupGetChild(ih, pos)
+Ihandln ntab = IupGetChild(ih, pos+1)
+    if ntab=NULL and pos>0 then
+        ntab = IupGetChild(ih, pos-1)
+        pos -= 2 -- (as we use pos+1 below)
+    end if
+--  IupSetAttributePtr(ih,"VALUE_HANDLE",tab)
+----IupGetAttributeHandle(tabs, "VALUE")
+--  IupSetAttributeHandle(tabs, "VALUE", tab)
+--  IupSetAttributeHandle(tabs, "XACTIVETAB", tab)
+--atom tabs = IupGetHandle("tabs")
+--  IupSetInt(tabs, "VALUE", pos)
+
+--  atom sci = IupGetAttributeHandle(tabs, "VALUE")
+--  atom modified = IupGetInt(sci, "SAVEDSTATE")
+
+--  if modified then
+--      -- ask the user to save
+--
+--      sequence name = "Untitled"
+--      sequence path = IupGetAttribute(sci, "PATH")
+--
+--      if length(path) then
+--          name = get_file_name(path)
+--      end if
+--
+--      atom response = confirm_close(name)
+--
+--      if response=1 then
+--          -- user wants to save
+--
+--          {} = save_cb(self)
+--          modified = IupGetInt(sci, "SAVEDSTATE")
+--          if modified then
+--              -- user cancelled save
+--              return IUP_IGNORE
+--          end if
+--
+--      elsif response=3 then
+--          -- user cancelled prompt
+--          return IUP_IGNORE
+--
+--      end if
+--
+--  end if
+-- nope:
+--  IupDetach(ih)
+    IupHide(tab)    -- (in case it is the last one, see appUpdateRender)
+--  tab = IupGetChild(ih, pos+1)
+--  if tab=NULL and pos>0 then
+--      tab = IupGetChild(ih, pos-1)
+--  end if
+    if ntab!=NULL then
+--?ntab
+--      IupSetFocus(ntab)
+        IupSetInt(tabs,"VALUEPOS",pos+1)
+    end if
+--  IupDestroy(ih)
+    appUpdateRender()
+--  IupUpdate(dlg)
+--  IupUpdate(tabs)
+    -- let the tab close
+    return IUP_CONTINUE
+end function
+
+object PTICK,       -- (get_image("PNG_Ptick"), after IupOpen)
+       PBACK=NULL   -- (get_image("PNG_Pback"), after IupOpen)
+
+Ihandle tproject, tdirectory
+
+function projdir_cb(Ihandle ih, integer state)
+--function projdir_cb(Ihandle ih)
+object image
+--DEV this is probably not right for directory... which probably wants PTICK in IMAGEid and IMAGEEXPANDEDid for all non-dir nodes,
+--                                                                      NULL for IMAGEBRANCHCOLLAPSED and IMAGEBRANCHEXPANDED on dirs,
+--                                                                      possibly drive icons for the actual drives,
+--                                                                      and a new image for IMAGELEAF (backup) nodes.
+
+--  integer state = IupGetInt(ih,"VALUE")
+--?{iff(ih=tproject?"project":iff(ih=tdirectory?"directory":"???")),state}
+    if state=1 then
+        image = iff(ih=tproject?PTICK:NULL)
+        IupSetStrAttribute(tree, "IMAGEBRANCHCOLLAPSED", image)
+        IupSetStrAttribute(tree, "IMAGEBRANCHEXPANDED", image)
+        if ih=tdirectory then
+            if PBACK=NULL then
+                PBACK = get_image("PNG_Pback")
+            end if
+            image = PBACK
+        end if
+        IupSetStrAttribute(tree, "IMAGELEAF", image)
+    end if
+    return IUP_DEFAULT
+end function
+
 procedure main()
 
-    IupOpen(iff(platform()=WINDOWS?"..\\pGUI\\":"../pGUI/"))
+--  IupOpen(iff(platform()=WINDOWS?"..\\pGUI\\":"../pGUI/"))
+    IupOpen(initialcurrentdir&iff(platform()=WINDOWS?"..\\pGUI\\":"../pGUI/"))
+--DEV
+--  IupOpen(join_path({"..","pGUI",""}))
 
     IupImageLibOpen()
+
+--DEV test with/without for performance.
+--      (if it would help any, we could probably 
+--       defer this until it is actually needed.)
+--platform()=WINDOWS?
+    IupSetGlobal("UTF8MODE","YES")
 --/*
     item_revert = IupMenuItem("&Revert");
     IupSetAttribute(item_revert, "NAME", "ITEM_REVERT");
@@ -1453,8 +3445,10 @@ procedure main()
     IupSetAttribute(tabs, "SHOWCLOSE", "YES")
     IupSetAttribute(tabs, "MAXSIZE", "x25")
 --  IupSetCallback(tabs, "RIGHTCLICK_CB", Icallback("rightclick_cb"))
---  IupSetCallback(tabs, "TABCHANGE_CB",  Icallback("tabchange_cb"))
---  IupSetCallback(tabs, "TABCLOSE_CB",   Icallback("tabclose_cb"))
+    IupSetCallback(tabs, "TABCHANGE_CB",  Icallback("tabchange_cb"))
+    IupSetCallback(tabs, "TABCLOSE_CB",   Icallback("tabclose_cb"))
+--  IupSetCallback(tabs, "GETFOCUS_CB",   Icallback("tabfocus_cb")) --NO!
+    IupSetCallback(tabs, "RIGHTCLICK_CB", Icallback("tab_rightclick_cb"))
 --  IupSetHandle("tabs", tabs)
 
     canvas = IupCanvas(Icallback("redraw_cb"), "RASTERSIZE=200x20, SCROLLBAR=YES")
@@ -1464,25 +3458,70 @@ procedure main()
     IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
     IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
 --  IupSetCallback(canvas, "ACTION",    Icallback("redraw_cb"))
+    IupSetCallback(canvas, "BUTTON_CB", Icallback("canvas_button_cb"))
+
+    cursorblink = IupTimer(Icallback("cursorblink_cb"), 500)
+
+
+    tree = IupTree();
+--  IupSetAttribute(tree, "SHOWRENAME", "YES");
+    IupSetAttribute(tree, "EXPAND", "YES");
+--  IupSetAttribute(tree, "SHRINK", "YES");
+--  IupSetAttribute(tree,"RASTERSIZE","100x150");
+--?IupGetHandle(tree,"IMAGEBRANCHCOLLAPSED")    -- nah, the;re globals
+--?IupGetHandle(tree,"IMAGEBRANCHEXPANDED")
+    PTICK = get_image("PNG_Ptick")
+    IupSetStrAttribute(tree, "IMAGEBRANCHCOLLAPSED", PTICK)
+    IupSetStrAttribute(tree, "IMAGEBRANCHEXPANDED", PTICK)
+    IupSetStrAttribute(tree, "IMAGELEAF", PTICK)
 
 --  Ihandle scrollbox = IupScrollBox(canvas)
 
-    Ihandle statusbar = IupLabel("Lin 1, Col 1","NAME=STATUSBAR, EXPAND=HORIZONTAL, PADDING=10x5")
+--  rtbox = IupExpander(IupSetAttributesf(IupSbox(IupVbox({IupRadio(IupHbox({IupToggle("Project"),IupToggle("Directory")})),
+--                                                         tree})),"DIRECTION=EAST"))
+--  rtbox = IupExpander(IupVbox({IupRadio(IupHbox({IupToggle("Project"),IupToggle("Directory")})),
+--                                                         tree}))
+--  IupSetAttribute(rtbox,"BARPOSITION","LEFT")
+--DEV mnemonic support question asked 19/6/16 - will be fixed next release 20/6/16
+    tproject = IupToggle("Project","ACTION",Icallback("projdir_cb"))
+--  tproject = IupToggle("&Project","ACTION",Icallback("projdir_cb"))
+--  tproject = IupToggle("&Project","VALUECHANGED_CB",Icallback("projdir_cb"))
+    tdirectory = IupToggle("Directory","ACTION",Icallback("projdir_cb"))
+--  tdirectory = IupToggle("&Directory","ACTION",Icallback("projdir_cb"))
+--  tdirectory = IupToggle("&Directory","VALUECHANGED_CB",Icallback("projdir_cb"))
+    Ihandle radio = IupRadio(IupHbox({tproject,tdirectory},"MARGIN=4x4"))
+    IupSetAttributePtr(radio,"VALUE_HANDLE",tproject)
+--  IupSetAttributePtr(radio,"VALUE_HANDLE",tdirectory)
+    rtbox = IupVbox({radio,
+                     tree})
+--  IupSetAttribute(rtbox,"SHRINK","YES")
+--  tbox = IupHbox({rtbox,tcbox})
+    tcbox = IupVbox({tabs,canvas})
+
+    tbox = IupSetAttributesf(IupSplit(rtbox,tcbox),"ORIENTATION=VERTICAL, AUTOHIDE=YES, VALUE=305")
+
+    statusbar = IupLabel("Lin 1, Col 1","NAME=STATUSBAR, EXPAND=HORIZONTAL, PADDING=10x5")
 
     Ihandle vbox = IupVbox({toolbar,
-                            tabs,
-                            canvas,
+                            tbox,
+--                             IupFrame(IupHbox({tree}), "TITLE=IupTree")})});
+--                          tabs,
+--                          canvas,
+
 --                          scrollbox,
                             statusbar});
+--  IupSetAttribute(vbox, "SHRINK", "YES");
 
     dlg = IupDialog(vbox, "TITLE=Edix, SHRINK=YES")
 --  IupSetAttribute(dlg, "MINSIZE", "144x87")   -- 96x46
 --  IupSetAttribute(dlg, "MINSIZE", "216x163")  -- 144x87
     IupSetAttribute(dlg, "MINSIZE", "462x163")
     IupSetAttributeHandle(dlg, "MENU", create_menu());
-    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(dlg, "K_ANY",     Icallback("key_cb"))
     IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"))
-    IupSetStrAttribute(dlg, "ICON", "icons/95.ico")
+--DEV temp (to avoid confusing Edita with Edix, on the taskbar)
+--  IupSetStrAttribute(dlg, "ICON", "icons/95.ico")
+    IupSetStrAttribute(dlg, "ICON", "icons/96.ico")
     -- (above might not be supported by GDK-PixBuf ... in which case:)
 --  IupSetStrAttribute(dlg, "ICON", iff(platform()=WINDOWS?"icons\\95.ico":"icons/95.png"))
     -- (for some reason, despite the fact they are both 32x32bit identical/lossless images,
@@ -1490,10 +3529,34 @@ procedure main()
 
 --DEV previous location/size (IupConfig)
     IupSetAttribute(dlg, "SIZE", "211x183")
+
+--  IupSetAttribute(vbox,"MARGIN","5x5");
+--  IupSetAttribute(vbox,"GAP","5");
+
+    IupMap(dlg);
+
+--DEV do this later, with project/directory/recovery info...
+    IupSetAttribute(tree, "TITLE0",     "Figures");
+    IupSetAttribute(tree, "ADDLEAF0",   "Other")         /* new id=1 */
+    IupSetAttribute(tree, "ADDBRANCH1", "triangle");     /* new id=2 */
+    IupSetAttribute(tree, "ADDLEAF2",   "equilateral");  /* ... */
+    IupSetAttribute(tree, "ADDLEAF3",   "isoceles");
+    IupSetAttribute(tree, "ADDLEAF4",   "scalenus");
+    IupSetAttribute(tree, "RASTERSIZE", NULL)
+--  IupSetAttribute(tree, "SHRINK", "YES")
+
+    IupSetInt(tbox,"VALUE", 0)  -- (visibility glitch if this is done before IupMap)
+--  hidden = IupVbox({})
+--  hdlg = IupDialog(hidden)
+--  IupMap(hdlg)
+
     IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
 
-    {} = add_tab()
+    add_tab()
+
     IupSetFocus(canvas)
+
+--  IupSetGlobal("CURSORPOS","200x200") -- no, that's the mouse!
 
     IupMainLoop()
 

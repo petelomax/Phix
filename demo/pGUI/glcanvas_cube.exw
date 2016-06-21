@@ -1,0 +1,239 @@
+--
+-- glcanvas_cube.exw
+--
+-- From https://sourceforge.net/p/iup/iup/1530/tree/tags/iup_2_7_1/iup2/test/iupgl/glcanvas_cube.c
+-- (simplified version of iup3Dctrls.exw)
+-- Translated to Phix by Pete Lomax
+--
+
+include pGUI.e
+include opengl.e
+include glu.e
+
+--#withtype Ihandle
+
+constant R = 1, G = 2, B = 3
+type color3D(object c)
+    return sequence(c) and length(c)=3 and atom(c[R]) and atom(c[G]) and atom(c[B])
+end type
+
+procedure add_color_vertex(color3D c)
+    glColor3d(c)
+    glVertex3d(c)
+end procedure
+
+procedure draw_cube_face(color3D c1, color3D c2, color3D c3, color3D c4)
+atom r = (c1[R]+c2[R]+c3[R]+c4[R])/4
+atom g = (c1[G]+c2[G]+c3[G]+c4[G])/4
+atom b = (c1[B]+c2[B]+c3[B]+c4[B])/4
+color3D cm = {r,g,b}
+
+    add_color_vertex(cm)
+    add_color_vertex(c1)
+    add_color_vertex(c2)
+
+    add_color_vertex(cm)
+    add_color_vertex(c2)
+    add_color_vertex(c3)
+
+    add_color_vertex(cm)
+    add_color_vertex(c3)
+    add_color_vertex(c4)
+
+    add_color_vertex(cm)
+    add_color_vertex(c4)
+    add_color_vertex(c1)
+end procedure
+
+--DEV earein misses this:
+constant color3D c3D_black   = {0, 0, 0},
+                 c3D_red     = {1, 0, 0},
+                 c3D_green   = {0, 1, 0},
+                 c3D_blue    = {0, 0, 1},
+                 c3D_cyan    = {0, 1, 1},
+                 c3D_magenta = {1, 0, 1},
+                 c3D_yellow  = {1, 1, 0},
+                 c3D_white   = {1, 1, 1}
+
+procedure draw_cube()
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+
+    glBegin(GL_TRIANGLES);
+
+    draw_cube_face(c3D_black, c3D_blue,  c3D_magenta, c3D_red);
+    draw_cube_face(c3D_black, c3D_green,     c3D_cyan,    c3D_blue);
+    draw_cube_face(c3D_black, c3D_red,   c3D_yellow,  c3D_green);
+    draw_cube_face(c3D_white, c3D_cyan,  c3D_blue,    c3D_magenta);
+    draw_cube_face(c3D_white, c3D_cyan,  c3D_green,   c3D_yellow);
+    draw_cube_face(c3D_white, c3D_magenta, c3D_red,   c3D_yellow);
+
+    glEnd();
+end procedure
+
+procedure init()
+    glClearColor(0.5,0.5,0.5,0.0);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(45, 1, 1, 10);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    gluLookAt({0.5, 0.5, 4.0},  /* position of the observer */
+              {0.5, 0.5, 0.0},  /* reference point          */
+              {0.0, 1.0, 0.0})  /* up                       */
+    glEnable(GL_DEPTH_TEST);
+    glClearDepth(1.0);
+end procedure
+
+procedure unproject(atom x2, atom y2, atom p3)
+atom mv = allocate(16*8)                -- 16 doubles
+atom pm = allocate(16*8)                -- 16 doubles
+atom vp = allocate(4*machine_word())    -- 4 ints
+
+    glGetDoublev(GL_MODELVIEW_MATRIX,  mv);
+    glGetDoublev(GL_PROJECTION_MATRIX, pm);
+    glGetIntegerv(GL_VIEWPORT, vp);
+    gluUnProject(x2, y2, 0.0,
+                 mv, pm, vp,
+                 p3, p3+8, p3+16);
+    free(mv)
+    free(pm)
+    free(vp)
+end procedure
+
+integer pos_x, pos_y;
+integer move = 0;
+
+function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, integer y, atom /*pStatus*/)
+--?"button-cb"
+    if but==IUP_BUTTON1 then
+        if pressed then
+            pos_x = x;
+            pos_y = y;
+            move = 1;
+        else
+            move = 0;
+        end if
+    end if
+    return IUP_DEFAULT;
+end function
+
+function peek_double(object pDouble)
+sequence doubles
+
+    if atom(pDouble) then
+        return float64_to_atom(peek({pDouble,8}))
+    else
+        doubles = {}
+
+        for i=1 to pDouble[2] do
+            doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
+        end for
+
+        return doubles
+    end if
+end function
+
+function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
+    if move then
+        atom dif_x, dif_y
+        atom dx, dy, dz
+        atom pxyz = allocate(3*8)               -- 3 doubles
+        atom x1, y1, z1
+        atom x2, y2, z2
+        atom angle, norma
+        integer height = IupGetInt2(ih, "RASTERSIZE")
+
+        IupGLMakeCurrent(ih);
+
+        dif_x = x-pos_x;
+        dif_y = y-pos_y;
+
+        pos_x = x;
+        pos_y = y;
+
+        angle = sqrt(dif_x*dif_x+dif_y*dif_y);
+
+        unproject(pos_x,height-y,pxyz)
+        {x1,y1,z1} = peek_double({pxyz,3})
+        unproject(dif_y+pos_x, dif_x+(height-y), pxyz)
+        {x2,y2,z2} = peek_double({pxyz,3})
+        dx = x2-x1
+        dy = y2-y1
+        dz = z2-z1;
+        norma = sqrt(dx*dx+dy*dy+dz*dz);
+        dx /= norma
+        dy /= norma
+        dz /= norma
+
+        glTranslate(0.5, 0.5, 0.5);
+        glRotate(angle, dx, dy, dz);
+        glTranslate(-0.5, -0.5, -0.5);
+
+        draw_cube();
+
+        IupGLSwapBuffers(ih);
+        free(pxyz)
+    end if
+    return IUP_DEFAULT;
+end function
+
+function action(Ihandle ih)
+    IupGLMakeCurrent(ih);
+
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+
+    draw_cube();
+
+    IupGLSwapBuffers(ih);
+
+    return IUP_DEFAULT;
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+Ihandle dialog, canvas, box;
+
+    IupOpen();
+    IupGLCanvasOpen();
+
+    box = IupVbox({});
+    IupSetAttribute(box, "MARGIN", "5x5");
+
+    canvas = IupGLCanvas();
+    IupSetCallback(canvas, "ACTION", Icallback("action"));
+    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"));
+    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"));
+    IupSetAttribute(canvas, "BUFFER", "DOUBLE");
+    IupSetAttribute(canvas, "BORDER", "NO");
+    IupSetAttribute(canvas, "RASTERSIZE", "400x400");
+    IupAppend(box, canvas);
+
+    dialog = IupDialog(box);
+    IupSetAttribute(dialog, "TITLE", "IupGLCanvas Test (drag cube to rotate it)")
+
+    IupMap(dialog);
+
+    IupGLMakeCurrent(canvas);
+    init();
+    printf(1,"Vendor: %s\n", glGetString(GL_VENDOR));
+    printf(1,"Renderer: %s\n", glGetString(GL_RENDERER));
+    printf(1,"Version: %s\n", glGetString(GL_VERSION));
+    IupSetAttribute(canvas, "RASTERSIZE", NULL);
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
+
+    IupMainLoop();
+
+    IupDestroy(dialog);
+
+    IupClose();
+
+end procedure
+main()

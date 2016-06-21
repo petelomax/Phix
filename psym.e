@@ -483,6 +483,45 @@ end procedure
 -- the difference before using this in your application code,
 -- and think carefully before "inlining" the above.
 
+global integer builtinsReferenced
+               builtinsReferenced = 0
+
+sequence binftab
+sequence agfiles,   -- filenames, eg "VM\pHeap.e"
+         agfdone,   -- -1 after syminit, 0 = rqd, 1 after getBuiltin() (same length as agfiles)
+         agtidx,    -- from tt_string(glabel,-3)s
+         agfnos     -- corresponding index of agtidx[i] to agfiles[] (same length as agtidx)
+
+--with trace
+global procedure agchecktt(integer tidx, integer done=0)
+integer k = find(tidx,agtidx)
+integer fno
+    if not emitON then ?9/0 end if
+    if k!=0 then
+        fno = agfnos[k]
+        if agfdone[fno] = -1 then
+--printf(1,"agcheck: %s set\n",{agfiles[fno]})
+--trace(1)
+--          agfdone[fno] = 0
+            agfdone[fno] = done
+if done=0 then
+-- added 30/8/14:
+            builtinsReferenced = 1
+end if
+        end if
+    end if
+end procedure
+
+global procedure agcheckop(integer opcode)
+integer tidx
+    tidx = aatidx[opcode]
+    if tt[tidx+EQ]=0 then
+        agchecktt(tidx)
+--      lblidx = get_lblidx(ttidx)
+    end if
+end procedure
+
+
 without trace
 --with trace
 global function dropScope(integer routineNo, integer scopetype)
@@ -1159,12 +1198,6 @@ integer N
     end if
 end procedure
 
-sequence binftab
-sequence agfiles,   -- filenames, eg "VM\pHeap.e"
-         agfdone,   -- -1 after syminit, 0 = rqd, 1 after getBuiltin() (same length as agfiles)
-         agtidx,    -- from tt_string(glabel,-3)s
-         agfnos     -- corresponding index of agtidx[i] to agfiles[] (same length as agtidx)
-
 --with trace
 procedure AutoAsm(object name, integer Stype, sequence sig, sequence filename, integer opcode, string glabel, integer sideeffects, integer rtype)
 -- Maps a hll-style call to a global label, eg getc() wants the equivalent of #ilASM{ call :%opGetc } which is defined in VM\pfileioN.e.
@@ -1214,38 +1247,6 @@ integer fno
 --  if opcode=opRetf then
 --      printf(1,"opRetf = %d\n",length(agtidx))    -- 3
 --  end if
-end procedure
-
-global integer builtinsReferenced
-               builtinsReferenced = 0
-
---with trace
-global procedure agchecktt(integer tidx, integer done=0)
-integer k = find(tidx,agtidx)
-integer fno
-    if not emitON then ?9/0 end if
-    if k!=0 then
-        fno = agfnos[k]
-        if agfdone[fno] = -1 then
---printf(1,"agcheck: %s set\n",{agfiles[fno]})
---trace(1)
---          agfdone[fno] = 0
-            agfdone[fno] = done
-if done=0 then
--- added 30/8/14:
-            builtinsReferenced = 1
-end if
-        end if
-    end if
-end procedure
-
-global procedure agcheckop(integer opcode)
-integer tidx
-    tidx = aatidx[opcode]
-    if tt[tidx+EQ]=0 then
-        agchecktt(tidx)
---      lblidx = get_lblidx(ttidx)
-    end if
 end procedure
 
 integer IAEType
@@ -1619,6 +1620,7 @@ global procedure syminit()
 --  initialConstant("E_SEQUENCE",   #08000004)
 --  initialConstant("E_OBJECT",     #09000004)
 
+    Alias("bool",T_integer)
     initialConstant("NULL", 0)
     Alias("null", symlimit)
 --  initialConstant("null", 0)
@@ -2311,7 +2313,7 @@ end if
     initialAutoEntry("islower",         S_Func,"FI",    "pcase.e",0,E_none)
     initialAutoEntry("isupper",         S_Func,"FI",    "pcase.e",0,E_none)
 if newEmit then --DEV (temp) (T_find/T_match will be rqd once the asm conversion is completed)
-    initialAutoEntry("find",            S_Func,"FOPI",  "VM\\pFind.e",0,E_none)     --T_find = symlimit
+    initialAutoEntry("find",            S_Func,"FOPI",  "VM\\pFind.e",0,E_none)     T_find = symlimit
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("rfind",           S_Func,"FOPI",  "VM\\pFind.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
@@ -2344,6 +2346,9 @@ elsif hllfileio then
     initialAutoEntry("where",           S_Func,"FI",    "pfileio.e",0,E_other)
     initialAutoEntry("lock_file",       S_Func,"FIIP",  "pfileio.e",0,E_other)
 end if
+    initialAutoEntry("task_create",     S_Func,"FIP",   "VM\\pTask.e",0,E_other)
+    initialAutoEntry("task_self",       S_Func,"F",     "VM\\pTask.e",0,E_none)
+    initialAutoEntry("task_status",     S_Func,"FI",    "VM\\pTask.e",0,E_none)
     initialAutoEntry("walk_dir",        S_Func,"FPII",  "file.e",0,E_all)
     initialAutoEntry("save_bitmap",     S_Func,"FPP",   "image.e",0,E_other)
 --DEV document/test/remove:
@@ -2478,6 +2483,7 @@ end if
     initialAutoEntry("flatten",         S_Func,"FP",    "pflatten.e",0,E_none)
     initialAutoEntry("join",            S_Func,"FPS",   "pflatten.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("join_path",       S_Func,"FP",    "pflatten.e",0,E_none)
 if newEmit then
 --  initialAutoEntry("get_position",    S_Func,"F",     "VM\\pfileioN.e",0,E_none)
 elsif hllfileio then
@@ -2520,6 +2526,7 @@ end if
     initialAutoEntry("tagset",          S_Func,"FN",    "ptagset.e",0,E_none)
     initialAutoEntry("tail",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("task_list",       S_Func,"F",     "VM\\pTask.e",0,E_none)
 --DEV Eu4 has another 2 optional params..
     initialAutoEntry("custom_sort",     S_Func,"FIP",   "sort.e",0,E_none)
     initialAutoEntry("ppf",             S_Func,"FO",    "ppp.e",0,E_other)
@@ -2744,6 +2751,13 @@ end if
     initialAutoEntry("system",              S_Proc,"PSI",   "syswait.ew",0,E_other)
     symtab[symlimit][S_ParmN] = 1
 --  initialAutoEntry("sysproc",             S_Proc,"PS",    "syswait.ew",0,E_other)
+
+    initialAutoEntry("task_schedule",       S_Proc,"PIO",   "VM\\pTask.e",0,E_other)
+    initialAutoEntry("task_suspend",        S_Proc,"PI",    "VM\\pTask.e",0,E_other)
+    initialAutoEntry("task_delay",          S_Proc,"PN",    "VM\\pTask.e",0,E_other)
+    initialAutoEntry("task_yield",          S_Proc,"P",     "VM\\pTask.e",0,E_other)
+    initialAutoEntry("task_clock_stop",     S_Proc,"P",     "VM\\pTask.e",0,E_other)
+    initialAutoEntry("task_clock_start",    S_Proc,"P",     "VM\\pTask.e",0,E_other)
 
 --DEV document*2
     initialAutoEntry("TlsSetValue",         S_Proc,"PIO",   "ptls.ew",0,E_other)

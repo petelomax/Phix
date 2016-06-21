@@ -822,7 +822,9 @@ end procedure -- (for Edita/CtrlQ)
         lea eax,[ebx+esi*4]
         cmp edi,edx                 -- if idx is -ve/float/oob then longhand
         jb @f
-            mov al,2+0              -- [era] @ [esp+4] "assigning to"
+--20/6/16:
+--          mov al,2+0              -- [era] @ [esp+4] "assigning to"
+            mov al,4+0              -- [era] @ [esp+8] "assigning to"
             call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
             lea eax,[ebx+esi*4]     -- as we just trashed it
       @@:
@@ -873,7 +875,9 @@ end procedure -- (for Edita/CtrlQ)
         lea rax,[rbx+rsi*4]
         cmp rdi,rdx                 -- if idx is -ve/float/oob then longhand
         jb @f
-            mov al,2+0              -- [era] @ [esp+4] "assigning to"
+--20/6/16:
+--          mov al,2+0              -- [era] @ [esp+4] "assigning to"
+            mov al,4+0              -- [era] @ [esp+8] "assigning to"
             call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
             lea rax,[rbx+rsi*4]     -- as we just trashed it
       @@:
@@ -935,7 +939,9 @@ end procedure -- (for Edita/CtrlQ)
         cmp edi,edx                 -- if idx is -ve/float/oob then longhand
         jb @f
             push eax
-            mov al,4+0              -- [era] @ [esp+8] "assigning to"
+--20/6/16 (spotted in passing, opposite of several others that needed doing)
+--          mov al,4+0              -- [era] @ [esp+8] "assigning to"
+            mov al,2+0              -- [era] @ [esp+4] "assigning to"
             call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
             pop eax
       @@:
@@ -980,7 +986,9 @@ end procedure -- (for Edita/CtrlQ)
         cmp rdi,rdx                 -- if idx is -ve/float/oob then longhand
         jb @f
             push rax
-            mov al,4+0              -- [era] @ [esp+8] "assigning to"
+--20/6/16 (spotted in passing, opposite of several others that needed doing)
+--          mov al,4+0              -- [era] @ [esp+8] "assigning to"
+            mov al,2+0              -- [era] @ [esp+4] "assigning to"
             call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
             pop rax
       @@:

@@ -113,7 +113,8 @@ constant show_bad_era = 01
 
 
 integer edi4
-procedure show_corruption()
+constant CTB = "**CORRUPT TYPE BYTE**"
+procedure show_corruption(string msg)
 --
 -- If this triggers you should assume a bug in builtins\VM, although it
 -- could be a rogue poke() or possibly some application-specific #ilASM{}.
@@ -134,8 +135,8 @@ integer pGtcb
             mov [pGtcb],rax
         []
           }
-    printf(1,"\n\n**type byte corruption at #%08x(-1), pGtcb=#%08x, *4=#%08x, diff=#%08x\n\n",
-                                            {edi4*4,pGtcb,pGtcb*4,edi4*4-pGtcb*4})
+    printf(1,"\n\n%s at #%08x(-1), pGtcb=#%08x, *4=#%08x, diff=#%08x\n\n",
+             {msg,edi4*4,pGtcb,pGtcb*4,edi4*4-pGtcb*4})
 end procedure
 
 --include pgets0.ew     --DEV removed 16/6/08...
@@ -297,7 +298,7 @@ integer newprst,                -- Scratch/innner version of prst.
 
 -- added 15/10/15:
     if not integer(o) then
-        this = "**CORRUPT TYPE BYTE**"
+        this = CTB --"**CORRUPT TYPE BYTE**"
         #ilASM{
             [32]
                 mov eax,[o]
@@ -455,7 +456,7 @@ integer newprst,                -- Scratch/innner version of prst.
         addtostack(idii,newprst,name,this)
         return {prdx+1,""}
 #ilASM{ ::badtypebyte }
-        show_corruption()
+        show_corruption(CTB)
     end if
     return {prdx,this}
 end function
@@ -1408,7 +1409,7 @@ object res
           ::done
           } 
 --  res = sprintf("%s [gidx=%d, ds4=%d]",{sprint(res),gidx,ds4})
-    if novalue=3 then show_corruption() end if
+    if novalue=3 then show_corruption(CTB) end if
     return {novalue,res}    -- ({0,whatever} or {1\2\3,0})
 end function
 
@@ -1528,7 +1529,7 @@ object res
         []
           ::done
           } 
-    if novalue=3 then show_corruption() end if
+    if novalue=3 then show_corruption(CTB) end if
     return {novalue,res}    -- ({0,whatever} or {1,0})
 end function
 
@@ -4062,6 +4063,7 @@ end procedure -- (for Edita/CtrlQ)
             puts1(", or_esp=#")
             puthex32(or_esp,1)
         else
+--          show_corruption(CTB)
             printf(1,"exception #%08x at #%08x, or_era=#%08x, or_ebp=#%08x, or_esp=#%08x\n",
                    {xceptn,xcepta,or_era,or_ebp*4,or_esp})
         end if

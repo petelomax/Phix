@@ -11,14 +11,15 @@
         <br>
         There may be problems that go way beyond anything the standard ex.err, trace(), and profile() 
         mechanisms can help you with, or indeed affect the latter trio directly: lower-level is needed,
-        at least until whichever of those three failed is fit and well again.
+        at least until whichever of those three that failed is fit and well again.
         <br>
         <br>
         Obviously this is a last resort, feel free to chuck real nasties into my lap and stand well back.
         <br>
         <br>
         Likewise this is not something you can jump into on day one; it needs a basic understanding of the
-        whole VM, and the ability to understand the whole of any list.asm files that you produce.
+        whole VM, and the ability to understand the whole of any list.asm files that you produce. None of
+        this is meant as a selling point, but I may as well share any little insights I might have.
         <br>
         <br>
         An intermediate level problem is resolving a bad <a href="html/glossary.htm#era">era</a>: often 
@@ -31,6 +32,9 @@
         whereas I am pretty sure a cmp reg,[ebx+reg*4-12] would help shave something off. Just bear in mind
         that sometimes things are done the long/hard/convoluted way in order to be more helpful when things
         go wrong, so consider adding a few more tests to test/terror.exw *before* starting anything else.
+        By entry level I guess I mean a learning exercise for the terminally curious, and obviously finding
+        something you think you can improve is quite a bit easier than finding a typo or logic error hiding 
+        away somewhere in 50,000 lines or more of low-level code, but still not exactly trivial.
         <br>
         <br>
         If possible, reproduce the problem using "p -d test" and running test.exe. Typically I will spend
@@ -40,7 +44,9 @@
         and deleting all the not used bits. The program has to be re-tested at every step, usually I have
         to undo something that fixed it, and yes, it takes days, not hours. Once I have made life as easy 
         as possible, and assuming close examination of the last changes in the list.asm revealed nothing,
-        I run the failing program under OllyDbg, regularly toggling back to said list.asm.
+        I run the failing program under OllyDbg, regularly toggling back to said list.asm. Also, after I 
+        have gone to all that trouble, I make sure that should the problem ever occur again then at least 
+        it does so in the already simplified code, by adding it to "p -test".
         <br>
         <br>
         If the problem only occurs under "p test", a couple of extra steps are required: You may want or
@@ -57,20 +63,21 @@
         <br>
         <br>
         However the heap can also experience motion, and for that I can only recommend looking at the
-        value of pGtcb, which is at least in a static location, found by looking in that p.asm, whether 
-        running via "p -d test" or "p test". If your program allocates multiple blocks or use threads,
-        that may prove a fair bit more difficult.
+        value of pGtcb, which is at least in a static location, found by looking in list.asm when 
+        running via "p -d test", or p.asm when running via "p test". If your program allocates multiple 
+        blocks or use threads, that may prove a fair bit more difficult. One day I hope to simplify all
+        this "offset management" with something in pDiagN.e and/or Edita/Edix.
         <br>
         <br>
         The reason these things move (at least on windows 7) is that every time you allocate some memory,
         the operating system locates it somewhere different. I *GUESS* it is either some kind of screen
         saver for memory cells (ie preventing damage by always using the same parts) or more likely it
-        improves compatibility of some some application(s) that re-use memory (just) after it has been
-        freed, and further they might have been getting away with that an awful lot more on previous
-        versions of Windows, and therefore this has been introduced so that fewer people think the new 
-        version of Windows sucks when the real culrit is some bug-ridden application they use. Anyway,
-        it is a cross you must bear at the sharp end, and I trust it is now clear that "p -d test" is
-        at least three times easier than "p test" when attempting low-level debugging.
+        improves compatibility of some application(s) that re-use memory (just) after it has been freed, 
+        and further they might have been getting away with that an awful lot more on previous versions 
+        of Windows, and therefore this has been introduced so that fewer people think the new version 
+        of Windows sucks when the real culprit is some bug-ridden application they use. Anyway, it is a 
+        cross you must bear at the sharp end, and I trust it is now clear that "p -d test" is at least 
+        three times easier than "p test" when attempting low-level debugging.
         <br>
         <br>
       </div>

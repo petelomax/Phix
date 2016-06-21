@@ -42,7 +42,7 @@
 --      dd item 1                   [ebp]
 --      dd N                        [ebp+4] (if N==0 then [ebp] is junk/off-limits)
 --      dd routine being called     [ebp+8] (there is no longer a calling routine)
---      dd called from addr         [ebp+12]    [DEV remove?] [might be needed for opTchk]
+--      dd called from addr         [ebp+12]
 --      dd return address           [ebp+16] (0 means callback)
 --      dd prev_ebp                 [ebp+20] (0 means top-level quit [maybe?])
 --      dd vsb_root                 [ebp+24]
@@ -75,7 +75,7 @@
 --      dq item 1                   [rbp]
 --      dq N                        [rbp+8] (if N==0 then [rbp] is junk/off-limits)
 --      dq routine being called     [rbp+16] (there is no longer a calling routine)
---      dq called from addr         [rbp+24]    [DEV remove?] (see above)
+--      dq called from addr         [rbp+24]
 --      dq return address           [rbp+32] (0 means callback)
 --      dq prev_ebp                 [rbp+40] (0 means top-level quit [maybe?])
 --      dq vsb_root                 [rbp+48]
@@ -192,7 +192,7 @@ end procedure -- (for Edita/CtrlQ)
 procedure ::newVSB(::)
 end procedure -- (for Edita/CtrlQ)
 --*/
-::newVSB    -- (called from newStack and opFrame)
+::newVSB    -- (called from pNewStack and opFrame)
 --------
     -- Allocate a new page for the virtual stack or re-use vsb_next.
     --
@@ -260,10 +260,10 @@ end procedure -- (for Edita/CtrlQ)
         ret
 
 --/*
-procedure :%newStack(:%)
+procedure :%pNewStack(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
-:%newStack      -- (called from :>initStack, :%opInterp, task_yield, and CreateThread [DEV])
+:%pNewStack     -- (called from :>initStack, :%opInterp, task_yield, and CreateThread [DEV])
 ----------
     [32]
         -- first, create a dummy vsb_root (vsb_next,vsb_prev@=0) on the stack
@@ -333,7 +333,7 @@ end procedure -- (for Edita/CtrlQ)
 --      mov eax,[ds+8]              -- symtabptr
 --      shl ecx,2                   -- *4
 --      add ecx,20                  -- gvarptr (==addr gvar[1]) --DEV gvar0?
-        call :%newStack
+        call :%pNewStack
 --      add esp,8                   -- discard that dummy vsb
 --31/7/15:
         mov dword[ebp+16],:Exit0    -- return address (0)
@@ -352,7 +352,7 @@ end procedure -- (for Edita/CtrlQ)
 --      mov rax,[ds+8]          -- symtabptr
 --      shl rcx,3               -- *8
 --      add rcx,32              -- gvarptr (==addr gvar[1])
-        call :%newStack
+        call :%pNewStack
 --      add rsp,16              -- discard that dummy vsb
         mov qword[rbp+32],:Exit0    -- return address (0)
     [ELF64]
@@ -843,7 +843,7 @@ end procedure -- (for Edita/CtrlQ)
 --*/
   ::trimStackPop
 ----------------
-    -- (assumes this is from opFrame/newVSB, not newStack/newVSB):
+    -- (assumes this is from opFrame/newVSB, not pNewStack/newVSB):
     [32]
         add esp,4
     [64]
@@ -909,7 +909,7 @@ end procedure -- (for Edita/CtrlQ)
         -- and finally trigger e33maf
         --
         pop edx
-        mov al,33   -- e33maf
+        mov al,33   -- e33maf (memory allocation failure)
         sub edx,1
         jmp :!iDiag
         int3
@@ -970,7 +970,7 @@ end procedure -- (for Edita/CtrlQ)
         -- and finally trigger e33maf
         --
         pop rdx
-        mov al,33   -- e33maf
+        mov al,33   -- e33maf (memory allocation failure)
         sub rdx,1
         jmp :!iDiag
         int3
@@ -1143,7 +1143,7 @@ end procedure -- (for Edita/CtrlQ)
 --  mov [symtabptr],??? ""
     [level]++
 --27/2/15: eax:=symtabptr, ecx:=gvarptr
-    call :%newStack
+    call :%pNewStack
     call ???
 :%opIaborted
     [level]--

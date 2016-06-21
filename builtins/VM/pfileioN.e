@@ -712,7 +712,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
           @@:
 --          mov edx,[ebp+16]    -- era
             mov edx,[ebp+12]    -- era (called from address)
-            mov ebp,[ebp+20]    -- (nb no local vars after this!)
+            mov ebp,[ebp+20]    -- prev_ebp (nb no local vars after this!)
             sub ecx,1
             jg @b
             sub edx,1
@@ -726,7 +726,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
           @@:
 --          mov rdx,[rbp+32]    -- era
             mov rdx,[rbp+24]    -- era (called from address)
-            mov rbp,[rbp+40]    -- (nb no local vars after this!)
+            mov rbp,[rbp+40]    -- prev_ebp (nb no local vars after this!)
             sub rcx,1
             jg @b
             sub rdx,1
@@ -2508,7 +2508,15 @@ end function
         mov edi,[esi+MODE]
         mov eax,[esi+POSN]
         test edi,F_READ
-        jz :e59wfmfao
+--      jz :e59wfmfao
+        jnz @f
+            mov edx,[esp+8]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+--          add esp,12
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         mov ecx,ebx                             -- ecx:=0
       ::looptop
         cmp eax,[esi+FEND]
@@ -2629,7 +2637,15 @@ end function
         mov rdi,[rsi+MODE64]
         mov rax,[rsi+POSN64]
         test rdi,F_READ
-        jz :e59wfmfao
+--      jz :e59wfmfao
+        jnz @f
+            mov rdx,[rsp+16]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+--          add rsp,24
+            sub rdx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         mov rcx,rbx                             -- rcx:=0
       ::looptop
         cmp rax,[rsi+FEND64]
@@ -2713,19 +2729,19 @@ end function
                     --          hence getc always returns -1; naturally this makes it -1..255.)
                 ch = -1
 --*/
-  ::e59wfmfao
--------------
-        -- e59wfmfao: "wrong file mode for attempted operation"
-        mov al,59
-    [32]
-        xor edi,edi                         -- ep1 unused
-        xor esi,esi                         -- ep2 unused
-    [64]
-        xor rdi,rdi                         -- ep1 unused
-        xor rsi,rsi                         -- ep2 unused
-    []
---DEV
-        call :%pRTErn                       -- fatal error
+--  ::e59wfmfao
+---------------
+--      -- e59wfmfao: "wrong file mode for attempted operation"
+--      mov al,59
+--  [32]
+--      xor edi,edi                         -- ep1 unused
+--      xor esi,esi                         -- ep2 unused
+--  [64]
+--      xor rdi,rdi                         -- ep1 unused
+--      xor rsi,rsi                         -- ep2 unused
+--  []
+----DEV
+--      call :%pRTErn                       -- fatal error
 
 --/*
 global procedure :%n_initC(:%)
@@ -2807,7 +2823,16 @@ end procedure -- (for Edita/CtrlQ)
             call :%n_initC -- (preserves eax)
       @@:
         add eax,3 -- (undo sub3 above and test)
-        jnz :e59wfmfao
+--      jnz :e59wfmfao
+        jz @f
+            mov edx,[esp+8]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+--          add esp,12
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
+
 --DEV clear_debug
 --      #ilASM{ call :%opClrDbg }
     [PE32]
@@ -2858,7 +2883,15 @@ end procedure -- (for Edita/CtrlQ)
             call :%n_initC -- (preserves rax)
       @@:
         add rax,3 -- (undo sub3 above and test)
-        jnz :e59wfmfao
+--      jnz :e59wfmfao
+        jz @f
+            mov rdx,[rsp+16]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+--          add rsp,24
+            sub rdx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
 --DEV clear_debug
 --      #ilASM{ call :%opClrDbg }
     [PE64]
@@ -2941,7 +2974,15 @@ end function
             jmp @b
       @@:
         test dword[ebx+esi*4+MODE],F_READ
-        jz :e59wfmfao
+--      jz :e59wfmfao
+        jnz @f
+            mov edx,[esp+8]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+--          add esp,12
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         shl esi,2
         push -1                                 -- partial result @ [esp+4]
         push esi                                -- this @ [esp]
@@ -3161,7 +3202,15 @@ adc ecx, ebx
             jmp @b
       @@:
         test qword[rbx+rsi*4+MODE64],F_READ
-        jz :e59wfmfao
+--      jz :e59wfmfao
+        jnz @f
+            mov rdx,[rsp+16]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+--          add rsp,24
+            sub rdx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         shl rsi,2
         push -1                                 -- partial result @ [rsp+8]
         push rsi                                -- this @ [rsp]
@@ -3367,7 +3416,15 @@ end procedure -- (for Edita/CtrlQ)
         -- [esp+4]  prev [edi]
         -- [esp+8]  <return address>
         add eax,3 -- (undo sub3 above and test) [fn]
-        jnz :e59wfmfao      -- only gets(0) valid
+--      jnz :e59wfmfao      -- only gets(0) valid
+        jz @f
+            mov edx,[esp+8]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+--          add esp,12
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         cmp [stdout],0
         jne @f
             call :%n_initC -- (preserves eax, not that we need it anymore)
@@ -3648,7 +3705,15 @@ end procedure -- (for Edita/CtrlQ)
         -- [rsp+8]  prev [rdi]
         -- [rsp+12] <return address>
         add rax,3 -- (undo sub3 above and test)
-        jnz :e59wfmfao      -- only gets(0) valid
+--      jnz :e59wfmfao      -- only gets(0) valid
+        jz @f
+            mov rdx,[rsp+16]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+--          add rsp,24
+            sub rdx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         cmp [stdout],0
         jne @f
             call :%n_initC -- (preserves rax, not that we need it)
@@ -3960,7 +4025,14 @@ end procedure
         shl esi,2
         push edx
         test edi,F_WRITE
-        jz :e59wfmfao   -- (may need a pop?)
+--      jz :e59wfmfao   -- (may need a pop?)
+        jnz @f
+            mov edx,[esp+4]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         test edi,F_DIRTY
         jnz @f
             or edi,F_DIRTY
@@ -4090,7 +4162,14 @@ end procedure
         shl rsi,2
         push rdx
         test rdi,F_WRITE
-        jz :e59wfmfao   -- (may need a pop?)
+--      jz :e59wfmfao   -- (may need a pop?)
+        jnz @f
+            mov rdx,[rsp+8]
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+            sub rdx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         test rdi,F_DIRTY
         jnz @f
             or rdi,F_DIRTY
@@ -4688,7 +4767,14 @@ end procedure -- (for Edita/CtrlQ)
 ---------
     [32]
         add eax,3 -- (undo sub3 above and test)
-        jle :e59wfmfao      -- only puts(1|2) valid
+--      jle :e59wfmfao      -- only puts(1|2) valid
+        jg @f
+            pop edx
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         push edx
         cmp [stdout],0
         jne @f
@@ -4734,7 +4820,14 @@ end procedure -- (for Edita/CtrlQ)
         ret
     [64]
         add rax,3 -- (undo sub3 above and test)
-        jle :e59wfmfao      -- only puts(1|2) valid
+--      jle :e59wfmfao      -- only puts(1|2) valid
+        jg @f
+            pop rdx
+            mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
+            sub edx,1
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
+      @@:
         push rdx
         mov r15,h4
         cmp [stdout],0
@@ -7608,7 +7701,7 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,[rsp+32]                    -- return address (of the call :%opSeek)
             pop qword[rbp]                      --[4] file number
             pop qword[rbp-8]                    --[3] position
-            mov qword[ebp+32],:seekret          -- return address
+            mov qword[rbp+32],:seekret          -- return address
             mov qword[rbp+24],rdx               -- called from address (for errors)
             jmp $_il                            -- jmp code:fseek
           ::seekret     
@@ -7682,7 +7775,7 @@ end procedure -- (for Edita/CtrlQ)
             call :%opFrame
             mov rdx,[rsp+24]                    -- return address (of the call :%opSeek)
             pop qword[rbp]                      --[3] file number
-            mov qword[ebp+32],:whereret         -- return address
+            mov qword[rbp+32],:whereret         -- return address
             mov qword[rbp+24],rdx               -- called from address (for errors)
             jmp $_il                            -- jmp code:fwhere
           ::whereret    
@@ -8243,7 +8336,7 @@ end procedure -- (for Edita/CtrlQ)
         [64]
             -- calling convention
             --  mov rax,[color]     -- color (opUnassigned, integer)
-            --  call :%opBkClr      -- wrap(rax)
+            --  call :%opBkClr      -- bk_color(rax)
             mov r15,h4
             cmp rax,r15
             jl @f

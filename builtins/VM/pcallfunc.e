@@ -220,6 +220,13 @@ object res
                 xor eax,eax
          ::isFunc
             mov [res],eax                           -- (assumes [res] is still h4 here)
+--DEV (temp, verify it is a valid ebp, or 0:)
+mov eax,[ebp+24]                -- ebp_root
+cmp dword[eax+16],#40565342     -- vsb_magic="@VSB"?
+je @f
+    int3
+@@:
+
         [64]
             mov rcx,[nooflocals]
             mov rdx,[rid]
@@ -393,6 +400,9 @@ end procedure -- (for Edita/CtrlQ)
             --  mov eax,[rid]       -- (opUnassigned)
             --  mov esi,[args]      -- (opUnassigned)
             --  call :%opCallProc   -- call_proc(eax,esi)
+            -- If instead of call this is invoked via push 0; jmp :%opCallProc,
+            --  the impossible return is discarded and control passes to opRetf.
+            --  This allows pTask.e to keep the system stack balanced.
             cmp eax,h4
             jl @f
                 add dword[ebx+eax*4-8],1
@@ -409,8 +419,17 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,[esp+8]
             pop dword[ebp]                      --[2] rid
             pop dword[ebp-4]                    --[1] args
+            mov eax,:callprocret                -- return address
+            test edx,edx
+            jnz @f
+                mov edx,[ebp+20]
+                add esp,4
+                mov eax,:%opRetf
+                mov edx,[edx+12]
+          @@:
             mov dword[ebp-8],1                  -- isProc:=1
-            mov dword[ebp+16],:callprocret      -- return address
+--          mov dword[ebp+16],:callprocret      -- return address
+            mov dword[ebp+16],eax               -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:call_common
           ::callprocret
@@ -422,6 +441,9 @@ end procedure -- (for Edita/CtrlQ)
             --  mov rax,[rid]       -- (opUnassigned)
             --  mov rsi,[args]      -- (opUnassigned)
             --  call :%opCallProc   -- call_proc(rax,rsi)
+            -- If instead of call this is invoked via push 0; jmp :%opCallProc,
+            --  the impossible return is discarded and control passes to opRetf.
+            --  This allows pTask.e to keep the system stack balanced.
             mov r15,h4
             cmp rax,r15
             jl @f
@@ -439,8 +461,17 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,[rsp+16]
             pop qword[rbp]                      --[2] rid
             pop qword[rbp-8]                    --[1] args
+            mov rax,:callprocret                -- return address
+            test rdx,rdx
+            jnz @f
+                mov rdx,[rbp+40]
+                add rsp,8
+                mov rax,:%opRetf
+                mov rdx,[rdx+24]
+          @@:
             mov qword[rbp-16],1                 -- isProc:=1
-            mov qword[rbp+32],:callprocret      -- return address
+--          mov qword[rbp+32],:callprocret      -- return address
+            mov qword[rbp+32],rax               -- return address
             mov qword[ebp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:call_common
           ::callprocret

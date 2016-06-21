@@ -11,6 +11,8 @@ SOLVED: 1) make the canvas non-resizable by setting EXPAND=NO (on the IupCanvas)
         4) cdCanvasGetSize now fixed so use eg IupGetIntInt(dlg,"RASTERSIZE")
         5) redraw_cb will be called far less often, in fact only when revealing
            a previously clipped region, which is absolutely fine for what I want.
+
+Updated 30/5: proper resizable canvas, redraw every time.
 --*/
 
 --#withtype Ihandle
@@ -40,10 +42,15 @@ integer width, height
     cdCanvasFlush(cddbuffer)
 end procedure
 
-function resize_cb(Ihandle /*ih*/)
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     appUpdateRender()
     return IUP_DEFAULT
 end function
+
+--function resize_cb(Ihandle /*ih*/)
+--  appUpdateRender()
+--  return IUP_DEFAULT
+--end function
 
 function map_cb(Ihandle ih)
     cdcanvas = cdCreateCanvas(CD_IUP, ih)
@@ -63,18 +70,20 @@ procedure CanvasCDDBufferTest()
 
     canvas = IupCanvas(NULL)
     IupSetAttribute(canvas, "RASTERSIZE", "300x200") -- initial size
-    IupSetAttribute(canvas, "EXPAND", "NO")
+--  IupSetAttribute(canvas, "EXPAND", "NO")
 
     IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
     IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
 
     dlg = IupDialog(canvas)
+--  dlg = IupDialog(canvas,"SIZE=300x200")
     IupSetAttribute(dlg, "TITLE", "CD Double Buffer Test")
     IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
-    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"))
+--  IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 
     IupMap(dlg)
---  IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
 
     IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
 end procedure

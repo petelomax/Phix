@@ -1,0 +1,81 @@
+--
+-- triangle.exw
+-- ============
+--
+--  Translation of http://rosettacode.org/wiki/OpenGL#Lua
+--
+--  Converted to pGUI by Pete Lomax
+--
+
+include pGUI.e
+include opengl.e
+
+--#withtype Ihandle
+
+function resize_cb(Ihandle /*ih*/, integer width, integer height)
+    glViewport(0, 0, width, height)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    glOrtho(-30.0, 30.0, -30.0, 30.0, -30.0, 30.0)
+    glMatrixMode(GL_MODELVIEW)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+function action(Ihandle /*ih*/)
+
+    glClearColor(0.3,0.3,0.3,0.0)
+    glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT)
+
+    glShadeModel(GL_SMOOTH)
+
+    glLoadIdentity()
+    glTranslate(-15.0, -15.0, 0.0)
+
+    glBegin(GL_TRIANGLES)
+    glColor(1.0, 0.0, 0.0)
+    glVertex(0.0, 0.0)
+    glColor(0.0, 1.0, 0.0)
+    glVertex(30.0, 0.0)
+    glColor(0.0, 0.0, 1.0)
+    glVertex(0.0, 30.0)
+    glEnd()
+
+    glFlush()
+
+    return IUP_DEFAULT
+end function
+
+Ihandle dialog, canvas
+
+function map_cb(Ihandle /*ih*/)
+    IupGLMakeCurrent(canvas)
+    integer {width, height} = IupGetIntInt(dialog, "RASTERSIZE")
+    {} = resize_cb(dialog, width, height)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    IupGLCanvasOpen()
+
+    canvas = IupGLCanvas(Icallback("action"), "RASTERSIZE=640x480")
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("resize_cb"))
+
+    dialog = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
+    IupSetCallback(dialog, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+
+    IupShow(dialog)
+    IupMainLoop()
+    IupDestroy(dialog)
+    IupClose()
+end procedure
+main()
+
+

@@ -64,12 +64,13 @@ include builtins\VM\pFPU.e
       ::e06not8
     [32]
 --5/4/16: (wrong line on linux, from t39rndio/fimage[idx]=ch (line 111), when fimage hosed)
---          mov edx,[esp+4]
-            mov edx,[esp+8]
+-- undone 20/6/16 (and pRepe1ip changed for "" to use #04)
+            mov edx,[esp+4]
+--          mov edx,[esp+8]
     [64]
 --28/8/15:
---          mov rdx,[rsp+8]
-            mov rdx,[rsp+16]
+            mov rdx,[rsp+8]
+--          mov rdx,[rsp+16]
     []
         test al,0x04
         jz @f

@@ -1127,7 +1127,7 @@ end function
 -- See Also:
 --     [[:pathinfo]], [[:filename]], [[:fileext]]
 
---/* Not Phix (defined in pfile[exists].e)
+--/* Not Phix (defined in pfile.e)
 public function filebase(sequence path)
 sequence data
 
@@ -1518,7 +1518,7 @@ public enum
 -- end if
 -- </eucode>
 
---/* not Phix (defined in pfileexists.e)
+--/* Not Phix (defined in pfile.e)
 public function file_exists(object name)
 atom pName, r
     if atom(name) then

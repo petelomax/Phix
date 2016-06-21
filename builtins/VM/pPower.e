@@ -37,8 +37,8 @@ include VM\pFPU.e   -- :%down53 etc
 #ilASM{ jmp :%opRetf
 
 --DEV
-        ::e102cr0tple0   -- cannot raise 0 to power<=0
-            int3
+--      ::e102cr0tple0   -- cannot raise 0 to power<=0
+--          int3
         ::e1413sopa
             int3
         ::e34pfu
@@ -155,7 +155,12 @@ end procedure -- (for Edita/CtrlQ)
 --DEV test ah,0x01/jnz (C=1 for jb)
             sahf
             jb :%pStoreFlt
-            jmp :e102cr0tple0   -- cannot raise 0 to power<=0
+--          jmp :e102cr0tple0   -- cannot raise 0 to power<=0
+            pop edx
+            mov al,102          -- e102cr0tple0: cannot raise 0 to power<=0
+            sub edx,1
+            jmp :!iDiag
+            int3
       @@:
         fxch
       ::opPowP3even
@@ -341,7 +346,12 @@ end procedure -- (for Edita/CtrlQ)
 --DEV test ah,0x01/jnz (C=1 for jb)
             sahf
             jb :%pStoreFlt
-            jmp :e102cr0tple0   -- cannot raise 0 to power<=0
+--          jmp :e102cr0tple0   -- cannot raise 0 to power<=0
+            pop rdx
+            mov al,102          -- e102cr0tple0: cannot raise 0 to power<=0
+            sub rdx,1
+            jmp :!iDiag
+            int3
       @@:
         fxch
       ::opPowP3even

@@ -1139,17 +1139,12 @@ global constant bind = 0
 global sequence tt
 global integer ttidx
 global constant EQ=0
-without warning -- (suppress no side effects*3)
-global procedure Finc(string file)
-    if string(file) then end if
-end procedure
-global procedure tt_string(string s,integer i)
-    if string(s) or integer(i) then end if
-end procedure
-global procedure agchecktt(integer ttidx, integer i)
-    if integer(ttidx) or integer(i) then end if
-end procedure
-with warning
+--without warning -- (suppress no side effects*3)
+integer swm -- (suppress warning messages)
+global procedure Finc(string file)                      swm = length(file)  end procedure
+global procedure tt_string(string s,integer i)          swm = length(s)+i   end procedure
+global procedure agchecktt(integer ttidx, integer i)    swm = ttidx+i       end procedure
+--with warning
 include builtins\VM\optable.e   -- get_vm_names()
 glblname = {}
 --void = create_optable()
@@ -1608,7 +1603,7 @@ string e_magic
     SetTabIdx("DOS Header")
     -- An IMAGE_DOS_HEADER structure:
 --/*
-/* Header shared by DOS, Win16, Win32, and Win64 executables */
+-- Header shared by DOS, Win16, Win32, and Win64 executables
 typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
     WORD   e_magic;                     // Magic number
     WORD   e_cblp;                      // Bytes on last page of file
@@ -2237,17 +2232,17 @@ integer supported
         elsif and_bits(SectionCharacteristics,IMAGE_SCN_ALIGN_4BYTES) then
             SectionCharacteristics -= IMAGE_SCN_ALIGN_4BYTES
         end if
---      if SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ 
+        if and_bits(SectionCharacteristics,IMAGE_SCN_CNT_INITIALIZED_DATA) then
+            SectionCharacteristics -= IMAGE_SCN_CNT_INITIALIZED_DATA
+        end if
         if (SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ or
             SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_READ+IMAGE_SCN_MEM_WRITE)
---      and (desc="" or Name=".text\\0\0\\0") then
         and (desc="" or Name=".text\\0\0\\0" or Name=".code\\0\0\\0") then
             sCodeSections = append(sCodeSections,i)
             if length(sCodeSections)=1 then
                 desc = " (see \"Code Section\" tab)"
             else
---DEV (once CreateExecutable() goes live)
---              NotPhix("more than one code section")
+                NotPhix("more than one code section")
                 desc = sprintf(" (see \"Code Section(%d)\" tab)",length(sCodeSections))
             end if
             res[tabidx][k][R_NOTES] = desc
@@ -2256,8 +2251,7 @@ integer supported
             if length(sDataSections)=1 then
                 desc = " (see \"Data Section\" tab)"
             else
---DEV (once CreateExecutable() goes live)
---              NotPhix("more than one data section")
+                NotPhix("more than one data section")
                 desc = sprintf(" (see \"Data Section(%d)\" tab)",length(sDataSections))
             end if
             res[tabidx][k][R_NOTES] = desc
@@ -8828,6 +8822,31 @@ string filetype
 string currentfilename
        currentfilename = ""
 
+--with trace
+function is_so_or_bin(string filename, string extension)
+-- treat eg "libglfw.so.3.1" as "libglfw.so"
+integer ch
+--trace(1)
+    if find(extension,{"","so","bin"}) then return 1 end if
+    for i=length(filename) to 1 by -1 do
+        ch = filename[i]
+        if ch='.' then
+            extension = lower(filename[i+1..$])
+            if find(extension,{"so","bin"}) then return 1 end if
+            for j=length(extension) to 1 by -1 do
+                ch = extension[j]
+                if ch<'0' or ch>'9' then exit end if
+                extension = extension[1..j-1]
+            end for
+            if length(extension) then exit end if
+            filename = filename[1..i-1]
+        elsif find(ch,"\\/") then
+            exit
+        end if
+    end for
+    return 0
+end function
+
 procedure load_file(string filename)
 integer fn
 integer id
@@ -8885,7 +8904,8 @@ sequence todo, todos
     void = resetTabs()  -- Note: You may want to call this again, if decode_X fails, before calling decode_Y.
                         --       (As things stand, tests on extension mean only one decode_XXX() is called.)
 --trace(1)
-    if find(extension,{"","so","bin"})        and decode_ELF()!=-1 then
+--  if find(extension,{"","so","bin"})        and decode_ELF()!=-1 then
+    if is_so_or_bin(filename,extension)       and decode_ELF()!=-1 then
         filetype = "ELF executable"
     elsif extension="flv"                     and decode_FLV()!=-1 then
         filetype = "FLV"
@@ -9364,8 +9384,11 @@ procedure main()
 --  load_file("C:\\Program Files (x86)\\Phix\\test\\t40rtnid")
 --  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\libdl-2.19.so")
 --  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\libc-2.19.so")
-    load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\SHA\\SHA.DLL")
-
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\SHA\\SHA.DLL")
+--DEV much more work required: (any relocation to part of distro) [also need a 32 bit version]
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euglfw3_2\\EuGLFW3\\Bin\\libglfw.so.3.1")
+--DEV much more work required: (any relocation to part of distro) [also need a 64 bit version]
+    load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euglfw3_2\\EuGLFW3\\Bin\\glfw3.dll")
     WinMain(Main,SW_NORMAL)
 end procedure
 main()

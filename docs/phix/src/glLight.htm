@@ -1,0 +1,175 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">glLight</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          include pGUI.e
+          <br>
+          include opengl.e
+          <br>
+          <br>
+          glLight(integer light, integer pname, object params)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            The glLight function sets the light source parameter values.
+            <br>
+            <br>
+            light: The identifier of a light. The number of possible lights depends on the implementation, but at least eight lights are supported. <br>
+            They are identified by symbolic names of the form GL_LIGHTi where i is a value: 0 to GL_MAX_LIGHTS - 1.
+            <br>
+            <br>
+            pname: A light source parameter for light. See the Remarks section for possible values.
+            <br>
+            <br>
+            params: Specifies the value or values that parameter pname of light source light will be set to.
+            <br>
+            <br>
+            If light or pname was not an accepted value, <a href="glGetError.htm">glGetError</a>() will return GL_INVALID_ENUM.<br>
+            If a spot exponent value was specified outside the range [0, 128], or spot cutoff was specified outside the range [0, 90] 
+            (except for the special value 180), or a negative attenuation factor was specified, <a href="glGetError.htm">glGetError</a>() will return GL_INVALID_VALUE.<br>
+            If glLight is called between glBegin and glEnd, <a href="glGetError.htm">glGetError</a>() will return GL_INVALID_OPERATION.
+            <br>
+            <br>
+            Internally, glLight() invokes the C function glLightf when params is an atom, and glLightfv when params is a sequence.<br>
+            It does not validate whether params is an atom or sequence of the correct length against the setting of pname.<br>
+            The C functions glLighti and glLightiv are not wrapped, since params can be an integer, a float, a sequence of integer,
+            a sequence of float, or even a sequence containing a mixture of integer and float. Obviously testing whether it is
+            safe to invoke the int functions would be far more expensive than just always using the float versions, that is as far 
+            as opengl.e is concerned.<br>
+            Some care may be necessary when translating C code, to ensure that params is <i><b>not</b></i> a memory address.<br>
+            All four C functions just mentioned are syntax coloured illegal, and should be changed to a plain glLight after
+            any required changes to the final "params" parameter setting.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Remarks</b>
+         </td>
+         <td>
+            The glLight function sets the value or values of individual light source parameters.
+            <br>
+            <br>
+            The light parameter names the light and is a symbolic name of the form GL_LIGHTi, where 0 &lt;= i &lt; GL_MAX_LIGHTS.
+            <br>
+            <br>
+            The pname parameter specifies one of the light source parameters, again by symbolic name (as defined in opengl.e):
+            <br>
+            <br>
+            <div id="images" class="images">
+            <table>
+             <tr><th bgcolor="#C0C0C0">Value</th>   <th bgcolor="#C0C0C0">Meaning</th></tr>
+             <tr><td>GL_AMBIENT</td> <td>
+                The params parameter contains four floating-point values that specify the ambient RGBA intensity of the light. <br>
+                Floating-point values are mapped directly. Neither integer nor floating-point values are clamped. <br>
+                The default ambient light intensity is (0.0, 0.0, 0.0, 1.0).</td> </tr>
+             <tr><td>GL_DIFFUSE</td> <td>
+                The params parameter contains four floating-point values that specify the diffuse RGBA intensity of the light. <br>
+                Floating-point values are mapped directly. Neither integer nor floating-point values are clamped. <br>
+                The default diffuse intensity is (0.0, 0.0, 0.0, 1.0) for all lights other than light zero. <br>
+                The default diffuse intensity of light zero is (1.0, 1.0, 1.0, 1.0).</td> </tr>
+             <tr><td>GL_SPECULAR</td> <td>
+                The params parameter contains four floating-point values that specify the specular RGBA intensity of the light. <br>
+                Floating-point values are mapped directly. Neither integer nor floating-point values are clamped. <br>
+                The default specular intensity is (0.0, 0.0, 0.0, 1.0) for all lights other than light zero. <br>
+                The default specular intensity of light zero is (1.0, 1.0, 1.0, 1.0).</td> </tr>
+             <tr><td>GL_POSITION</td> <td>
+                The params parameter contains four floating-point values that specify the position of the light in homogeneous object coordinates. <br>
+                Both integer and floating-point values are mapped directly. Neither integer nor floating-point values are clamped.<br>
+                The position is transformed by the modelview matrix when glLight is called (just as if it were a point), and it is stored in eye coordinates. <br>
+                If the w component of the position is 0.0, the light is treated as a directional source. <br>
+                Diffuse and specular lighting calculations take the light&rsquo;s direction, but not its actual position, into account, and attenuation is disabled. <br>
+                Otherwise, diffuse and specular lighting calculations are based on the actual location of the light in eye coordinates, and attenuation is enabled. <br>
+                The default position is (0,0,1,0); thus, the default light source is directional, parallel to, and in the direction of the -z axis.</td> </tr>
+             <tr><td>GL_SPOT_DIRECTION</td> <td>
+                The params parameter contains three floating-point values that specify the direction of the light in homogeneous object coordinates. <br>
+                Both integer and floating-point values are mapped directly. Neither integer nor floating-point values are clamped.<br>
+                The spot direction is transformed by the inverse of the modelview matrix when glLight is called (just as if it were a normal), and it is stored in eye coordinates. <br>
+                It is significant only when GL_SPOT_CUTOFF is not 180, which it is by default. The default direction is (0,0,1).</td> </tr>
+             <tr><td>GL_SPOT_EXPONENT</td> <td>
+                The params parameter is a single floating-point value that specifies the intensity distribution of the light. <br>
+                Integer and floating-point values are mapped directly. Only values in the range [0, 128] are accepted.<br>
+                Effective light intensity is attenuated by the cosine of the angle between the direction of the light and the direction from the light to the vertex being lighted, 
+                raised to the power of the spot exponent. <br>
+                Thus, higher spot exponents result in a more focused light source, regardless of the spot cutoff angle. <br>
+                The default spot exponent is 0, resulting in uniform light distribution.</td> </tr>
+             <tr><td>GL_SPOT_CUTOFF</td> <td>
+                The params parameter is a single floating-point value that specifies the maximum spread angle of a light source. <br>
+                Integer and floating-point values are mapped directly. Only values in the range [0, 90], and the special value 180, are accepted.<br>
+                If the angle between the direction of the light and the direction from the light to the vertex being lighted is greater than the spot cutoff angle, 
+                then the light is completely masked. <br>
+                Otherwise, its intensity is controlled by the spot exponent and the attenuation factors. <br>
+                The default spot cutoff is 180, resulting in uniform light distribution.</td> </tr>
+             <tr><td>GL_CONSTANT_ATTENUATION,<br>GL_LINEAR_ATTENUATION,<br>GL_QUADRATIC_ATTENUATION</td> <td>
+                The params parameter is a single floating-point value that specifies one of the three light attenuation factors. <br>
+                Integer and floating-point values are mapped directly. Only nonnegative values are accepted.<br>
+                If the light is positional, rather than directional, its intensity is attenuated by the reciprocal of the sum of: <br>
+                the constant factor, 
+                the linear factor multiplied by the distance between the light and the vertex being lighted, and <br>
+                the quadratic factor multiplied by the square of the same distance. <br>
+                The default attenuation factors are (1,0,0), resulting in no attenuation.</td> </tr>
+            </table>
+            </div>
+            <hr style="visibility:hidden; clear:both">
+            <br>
+            The params parameter is either a single value or a sequence that contains the new values.
+            <br>
+            <br>
+            Lighting calculation is enabled and disabled using glEnable and glDisable with argument GL_LIGHTING. <br>
+            When lighting is enabled, light sources that are enabled contribute to the lighting calculation. <br>
+            Light source i is enabled and disabled using glEnable and glDisable with argument GL_LIGHTi.
+            <br>
+            <br>
+            It is always the case that GL_LIGHTi = GL_LIGHT0 + i.
+            <br>
+            <br>
+            The following functions retrieve information related to the glLight function:<br>
+            glGetLight<br>
+            glIsEnabled with argument GL_LIGHTING<br>
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="glBegin.htm">glBegin</a>,
+          <a href="glBegin.htm">glEnd</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="glGetError.htm">glGetError</a>,
+          <a href="not_bits.htm">not_bits</a>,
+          <a href="int_to_bits.htm">int_to_bits</a>
+<br>
+See also
+//glBegin
+glColorMaterial
+//glEnd
+glLightModel
+glMaterial
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,87 @@
+--
+-- Elliptic_curve_arithmetic.exw
+--
+-- Translation of C version
+
+constant bCoeff=7, INF = 1e300*1e300
+ 
+enum X, Y
+
+type point(object pt)
+    return sequence(pt) and length(pt)=2 and atom(pt[X]) and atom(pt[Y])
+end type
+
+function zero()
+point pt = {INF, INF}
+    return pt
+end function
+
+function is_zero(point p)
+    return p[X]>1e20 or p[X]<-1e20
+end function
+ 
+function neg(point p)
+    p = {p[X], -p[Y]}
+    return p
+end function
+
+function dbl(point p)
+point r = p
+    if not is_zero(p) then
+        atom L = (3*p[X]*p[X])/(2*p[Y])
+        atom x = L*L-2*p[X]
+        r = {x, L*(p[X]-x)-p[Y]}
+    end if
+    return r
+end function
+ 
+function add(point p, point q)
+    if p==q then return dbl(p) end if
+    if is_zero(p) then return q end if
+    if is_zero(q) then return p end if
+    atom L = (q[Y]-p[Y])/(q[X]-p[X])
+    atom x = L*L-p[X]-q[X]
+    point r = {x, L*(p[X]-x)-p[Y]}
+    return r
+end function
+ 
+function mul(point p, integer n)
+point r = zero()
+integer i = 1
+    while i<=n do
+        if and_bits(i, n) then r = add(r, p) end if
+        p = dbl(p)
+        i = i*2
+    end while
+    return r
+end function
+ 
+procedure show(string s, point p)
+    puts(1, s&iff(is_zero(p)?"Zero\n":sprintf("(%.3f, %.3f)\n", p)))
+end procedure
+ 
+function cbrt(atom c)
+    return iff(c>=0?power(c,1/3):-power(-c,1/3))
+end function
+
+function from_y(atom y)
+    point r = {cbrt(y*y-bCoeff), y}
+    return r
+end function
+ 
+point a, b, c, d
+ 
+    a = from_y(1)
+    b = from_y(2)
+    c = add(a, b)
+    d = neg(c)
+ 
+    show("a = ", a)
+    show("b = ", b)
+    show("c = a + b = ", c)
+    show("d = -c = ", d)
+    show("c + d = ", add(c, d))
+    show("a + b + d = ", add(a, add(b, d)))
+    show("a * 12345 = ", mul(a, 12345))
+
+{} = wait_key()
