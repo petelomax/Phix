@@ -162,7 +162,7 @@ atom --static_base,     -- where all globals and file-level vars live
      saved_ebp,         --                  ""
      prev_ebp           --                  ""
 
-integer ds4
+integer ds4             -- start of data section/4 (as symtab[T_ds4], when interpreted ([T_EBP]!=0))
 integer ebp4
 
 integer prevcol =  1    -- previous value of column

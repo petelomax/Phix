@@ -1,0 +1,181 @@
+--
+-- GraphR.exw
+-- ==========
+--
+-- Displays a simple staggered rainbow graph. 
+--
+-- Uses the clipboard text if it begins with "GraphR:{" and ends with "}":
+--  between those it should contain a comma-separated list of elements,
+--  each of which is a sub-sequence of "{description,start,size}", all of 
+--  which is processed using value() (from builtins\get.e). For an example
+--  see default_text. Note that eg "red" is a description not a colour in 
+--  constant default_text, which happens to match the colours in rainbow.
+--
+-- Pressing F9 in filedump.exw, when it is showing a PE executable, invokes
+--  this program to show a simple memory (erm, actually a file) map. While
+--  not exactly pretty, it helped quickly resolve some issues with "strange"
+--  (albeit perfectly legal) format files, such as the import RVA lying slap
+--  in the middle of the data section, rather than occupying a separate one.
+--  Seeing a visual representation is far easier than studying 10 or 15 sets
+--  of numbers in no particular order, especially with not only different
+--  file and virtual addresses, but also those tricky RVA offset thingies.
+--
+
+--#withtype Ihandle
+--#withtype cdCanvas
+--#withtype cdCanvan
+
+include pGUI.e
+
+constant default_text = "GraphR:{{\"red\",0,20},"&
+                                "{\"orange\",10,30},"&
+                                "{\"yellow\",20,40},"&
+                                "{\"green\",30,50},"&
+                                "{\"blue\",40,60},"&
+                                "{\"indigo\",50,70},"&
+                                "{\"violet\",60,80}}"
+
+sequence v  -- decoded version of above/clipboard text
+
+integer maxright    -- The highest (start+size) found.
+
+constant rainbow = { CD_RED , CD_ORANGE , CD_YELLOW , CD_GREEN , CD_BLUE , CD_INDIGO , CD_VIOLET }
+--sequence text_clr = repeat(0,length(rainbow))
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    cdCanvasActivate(cddbuffer)
+
+--  cdCanvasClear(cddbuffer)
+
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    -- surrounding box:
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    cdCanvasRect(cddbuffer, 5, width-10, 5, height-10) 
+    width-=30
+    for pass=1 to 2 do  -- draw all blocks first, then text
+        integer cidx = 1
+        integer x, y = height-20
+        string text
+        integer w, right
+        for i=1 to length(v) do
+            {text,x,w} = v[i]
+            right = x+w
+            integer x1 = floor(x/maxright*width)+10,
+                    x2 = floor(right/maxright*width)+10,
+                    y2 = (length(v)-i)*20+15
+            if pass=1 then
+                cdCanvasSetForeground(cddbuffer, rainbow[cidx])
+                cdCanvasBox(cddbuffer, x1, x2, y, y2) 
+            else
+                integer {twidth, theight} = cdCanvasGetTextSize(cddbuffer, text)
+if twidth>x2-x1 then
+                cdCanvasSetForeground(cddbuffer, CD_BLACK)
+                cdCanvasText(cddbuffer, x1, y-theight/2, text)
+else
+                cdCanvasSetForeground(cddbuffer, xor_bits(rainbow[cidx],#FFFFFF))
+--              cdCanvasSetForeground(cddbuffer, text_clr[cidx])
+                cdCanvasText(cddbuffer, x1, y-theight/2, text)
+                cdCanvasVectorTextSize(cddbuffer, twidth, theight, text)
+                cdCanvasMultiLineVectorText(cddbuffer, x1+3, y-theight, text)
+end if
+            end if
+            y -= 20
+            cidx += 1
+            if cidx>length(rainbow) then cidx = 1 end if
+        end for
+    end for
+
+--  cdText(15, height-15, "string text") --DEV broken
+--  cdCanvasText(cddbuffer, 15, height-15, "string text") 
+--  cdCanvasText(cdActiveCanvas(), 15, height-15, "string text") 
+
+    cdCanvasFlush(cddbuffer)
+
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    cdCanvasFont(cddbuffer, "Helvetica", CD_PLAIN, 8)
+    cdCanvasVectorTextDirection(cddbuffer, 1, 1, 1, 0)
+    return IUP_DEFAULT
+end function
+
+function unmap_cb(Ihandle /*ih*/)
+    cdKillCanvas(cddbuffer)
+    cdKillCanvas(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+integer error_status, 
+        x, 
+        width, 
+        right
+
+    IupOpen()
+
+    Ihandle clipboard = IupClipboard()
+    string text = IupGetAttribute(clipboard,"TEXT")
+    if length(text)=0
+    or match("GraphR:{",text)!=1
+    or text[$]!='}' then
+        text = default_text
+    end if
+    text = text[8..$] -- strip the "GraphR:", leaving "{...}"
+    {error_status,v} = value(text)
+    if error_status!=GET_SUCCESS then
+        IupMessage("error",text)
+        abort(0)
+    end if
+    maxright = 0
+    for i=1 to length(v) do
+        {text,x,width} = v[i]
+        right = x+width
+        if right>maxright then maxright = right end if
+    end for
+--  for i=1 to length(rainbow) do
+--      integer c = rainbow[i]
+--      atom r = and_bits(c,#FF0000)/#FF0000,
+--           g = and_bits(c,#00FF00)/#00FF00,
+--           b = and_bits(c,#0000FF)/#0000FF,
+--           l = 0.2126 * power(r, 2.2)
+--             + 0.7152 * power(g, 2.2)
+--             + 0.0722 * power(b, 2.2)
+--      text_clr[i] = iff(l>0.5?CD_BLACK:CD_WHITE)
+--  end for
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "600x400") -- initial size
+
+    IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "GraphR")
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+
+    IupMainLoop()
+
+    IupClose()
+end procedure
+
+main()
+

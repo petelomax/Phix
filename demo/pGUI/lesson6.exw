@@ -1,0 +1,165 @@
+--All made by Daniel Kluss(xerox_irs@lvcm.com)
+--
+without warning
+include win32lib.ew
+include truegl.e
+include pics.e
+include png.e
+
+--constant speed=.2,fog_distance=1000000,Texture_Name="checker.tga",
+--scene_points_list=3,
+--scene_lines_list=4,
+--scene_polygon_list=5,
+--scene_quads_list=6,
+--floor_pic=2
+sequence keys_down
+keys_down = repeat(0,256)
+atom Width,Height
+Width = 640
+Height = 480
+
+constant win = create(Window,"OpenGL!!!!!",0,0,0,Width,Height,0)
+
+atom xrot = 0   -- X Rotation ( NEW )
+atom yrot = 0   -- Y Rotation ( NEW )
+atom zrot = 0   -- Z Rotation ( NEW )
+atom texture    -- Storage For One Texture ( NEW )
+constant junk_space = allocate(4*16)
+
+procedure LoadGLTextures()
+--load_bmp(sequence filen)
+sequence TextureImage                                   -- Create Storage Space For The Texture
+
+-- Load The Bitmap, Check For Errors, If Bitmap's Not Found Quit
+    TextureImage = load_bmp("data\\NeHe.bmp")
+--IupLoadImage("data\\NeHe.png")??? [NAH]
+
+    glGenTextures(1, junk_space)                        -- Create The Texture
+    texture = peek4u(junk_space)
+
+    -- Typical Texture Generation Using Data From The Bitmap
+    glBindTexture(GL_TEXTURE_2D, texture)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TextureImage[2], TextureImage[3], 0, GL_RGB, GL_UNSIGNED_BYTE, TextureImage[1])
+--C:\Program Files (x86)\Phix\demo\pGUI\vol_fog.exw:84   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, fmt, GL_UNSIGNED_BYTE, data)
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR)
+
+    free(TextureImage[1])                                                                    -- If Texture Exists
+end procedure
+
+
+procedure display(atom /*self*/, atom /*event*/, sequence /*params*/)
+    glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT)    -- Clear The Screen And The Depth Buffer
+    glLoadIdentity()                                    -- Reset The View
+    glTranslatef(0.0,0.0,-5.0)
+
+    glRotatef(xrot,1.0,0.0,0.0)
+    glRotatef(yrot,0.0,1.0,0.0)
+    glRotatef(zrot,0.0,0.0,1.0)
+
+    glBindTexture(GL_TEXTURE_2D, texture)
+
+    glBegin(GL_QUADS)
+    -- Front Face
+    glTexCoord2f(0.0, 0.0) glVertex3f(-1.0, -1.0,  1.0)
+    glTexCoord2f(1.0, 0.0) glVertex3f(1.0, -1.0,  1.0)
+    glTexCoord2f(1.0, 1.0) glVertex3f(1.0,  1.0,  1.0)
+    glTexCoord2f(0.0, 1.0) glVertex3f(-1.0,  1.0,  1.0)
+    -- Back Face
+    glTexCoord2f(1.0, 0.0) glVertex3f(-1.0, -1.0, -1.0)
+    glTexCoord2f(1.0, 1.0) glVertex3f(-1.0,  1.0, -1.0)
+    glTexCoord2f(0.0, 1.0) glVertex3f(1.0,  1.0, -1.0)
+    glTexCoord2f(0.0, 0.0) glVertex3f(1.0, -1.0, -1.0)
+    -- Top Face
+    glTexCoord2f(0.0, 1.0) glVertex3f(-1.0,  1.0, -1.0)
+    glTexCoord2f(0.0, 0.0) glVertex3f(-1.0,  1.0,  1.0)
+    glTexCoord2f(1.0, 0.0) glVertex3f(1.0,  1.0,  1.0)
+    glTexCoord2f(1.0, 1.0) glVertex3f(1.0,  1.0, -1.0)
+    -- Bottom Face
+    glTexCoord2f(1.0, 1.0) glVertex3f(-1.0, -1.0, -1.0)
+    glTexCoord2f(0.0, 1.0) glVertex3f(1.0, -1.0, -1.0)
+    glTexCoord2f(0.0, 0.0) glVertex3f(1.0, -1.0,  1.0)
+    glTexCoord2f(1.0, 0.0) glVertex3f(-1.0, -1.0,  1.0)
+    -- Right face
+    glTexCoord2f(1.0, 0.0) glVertex3f(1.0, -1.0, -1.0)
+    glTexCoord2f(1.0, 1.0) glVertex3f(1.0,  1.0, -1.0)
+    glTexCoord2f(0.0, 1.0) glVertex3f(1.0,  1.0,  1.0)
+    glTexCoord2f(0.0, 0.0) glVertex3f(1.0, -1.0,  1.0)
+    -- Left Face
+    glTexCoord2f(0.0, 0.0) glVertex3f(-1.0, -1.0, -1.0)
+    glTexCoord2f(1.0, 0.0) glVertex3f(-1.0, -1.0,  1.0)
+    glTexCoord2f(1.0, 1.0) glVertex3f(-1.0,  1.0,  1.0)
+    glTexCoord2f(0.0, 1.0) glVertex3f(-1.0,  1.0, -1.0)
+    glEnd()
+
+    xrot += 0.3
+    yrot += 0.2
+    zrot += 0.4
+    special_SwapBuffers()
+end procedure
+
+procedure onResize_win(atom self, atom event, sequence params)
+integer style, width, height
+--      sequence matrix
+    style = params[1]
+    width = params[2]
+    height = params[3]
+
+    if height=0 then height = 1 end if
+    Width = width
+    Height = height
+    glViewport(0,0,Width,Height)
+
+    glMatrixMode(GL_PROJECTION)                         -- Select The Projection Matrix
+    glLoadIdentity()                                    -- Reset The Projection Matrix
+
+    -- Calculate The Aspect Ratio Of The Window
+    gluPerspective(45.0,width/height,0.1,100.0)
+
+    glMatrixMode(GL_MODELVIEW)                          -- Select The Modelview Matrix
+    glLoadIdentity()                                    -- Reset The Modelview Matrix
+    display(self,event, params)
+end procedure
+
+
+procedure onOpen_win(atom /*self*/, atom /*event*/, sequence /*params*/)
+sequence winsize
+object junk
+    winsize = getRect(win)
+    winsize[3..4] = sq_sub(winsize[3..4],winsize[1..2])
+    Width = winsize[3]
+    Height = winsize[4]
+    init_opengl_window(win,or_all({PFD_DOUBLEBUFFER,PFD_GENERIC_ACCELERATED}),PFD_TYPE_RGBA,1)
+    LoadGLTextures()                                    -- Jump To Texture Loading Routine ( NEW )
+    glEnable(GL_TEXTURE_2D)                             -- Enable Texture Mapping ( NEW )
+    glShadeModel(GL_SMOOTH)                             -- Enable Smooth Shading
+    glClearColor(0.0, 0.0, 0.0, 0.5)                    -- Black Background
+    glClearDepth(1.0)                                   -- Depth Buffer Setup
+    glEnable(GL_DEPTH_TEST)                             -- Enables Depth Testing
+    glDepthFunc(GL_LEQUAL)                              -- The Type Of Depth Testing To Do
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST)   -- Really Nice Perspective Calculations
+    glDisable(GL_DITHER)
+    junk = setIdle(True)
+end procedure
+
+procedure onClose_win(atom /*self*/, atom /*event*/, sequence /*params*/)
+    all_done(win)
+    abort(0)
+end procedure
+
+    if onXXX(False) then end if
+    setHandler(win,w32HResize,routine_id("onResize_win"))
+    setHandler(Screen,{w32HIdle,w32HPaint},routine_id("display"))
+    setHandler(win,w32HOpen,routine_id("onOpen_win"))
+    setHandler(win,w32HClose,routine_id("onClose_win"))
+    WinMain(win, Normal)
+
+--/*
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+--*/

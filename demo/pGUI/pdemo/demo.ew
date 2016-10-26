@@ -1,0 +1,1086 @@
+--
+-- demo.ew
+-- =======
+--
+--  Part of pdemo.exw; as much code as possible for the demo tab should reside in here.
+--
+
+include pdb.e
+
+constant titles = {"Directory", "Name", "Size", "Modified", "Last Run", "Broken", "Text"},
+         twidth = { 120,         60,     20,     50,         50,         20,       100},
+         C = "ACENTER", L = "ALEFT", R = "ARIGHT",
+         talign = { L,           L,      R,      C,          C,          L,        L}
+
+constant htxt = """
+Lists all *.exw files in Phix\demo and any sub-directories with demo in their name.
+
+Press F5 or click on the Run button to launch the selected program.
+
+Right click on an entry for more options.
+Amend(F2) allows the broken/text fields to be altered on the selected record.
+Edit with Edita/x gives better error handling, syntax colouring, search tools, etc.
+Copy Command simply puts what it would run in the clipboard, hold down the shift key for full paths.
+
+Character input (whether focus is on the Filter or not) automatically updates the 
+filter and listview contents. The filter performs a full text search (just the main 
+*.exw file, not files it includes, but the majority of demos should be short single 
+files anyway), so you can enter (eg) IupConfigLoad to quickly locate demos that 
+use that particular function. You can also sort on any column.
+
+When a file is selected it shows the source code, which ideally starts with a helpful summary comment, in the lower half of the screen.
+
+Note: mandle, combo, and takeuchi are used in "p -test" and should not have a final wait_key() or similar.
+
+Using %dbit %s interpreter, crun is %s
+"""		
+
+global procedure Help()
+string msg = sprintf(htxt,
+                     {machine_bits(),
+                      iff(platform()=WINDOWS?"Windows":"Linux"),
+                      crun})
+    IupMessage("Demos",msg)
+end procedure
+
+function help_cb(Ihandle /*helpBtn*/)
+    Help()
+    return IUP_DEFAULT
+end function
+global constant cb_help = Icallback("help_cb")
+
+sequence directories
+sequence files
+-- indexes to files:
+constant T_path = 1, 
+         T_name = 2
+--       T_size = 3,
+--       T_mod  = 4,
+--       T_lrun = 5,
+--       T_broke = 6,
+--       T_text = 7
+--  files = append(files,{path,name,size,modified,lastrun,broken,text}) -- NO!
+
+sequence sizes
+sequence modifieds
+sequence fileinfo   -- {last run, broke, text}
+sequence fulltext
+
+--
+-- tags (with no filters) is a simple table of 1..N which is sorted by clicking 
+-- on the listview columns. When windows/the listview asks for record N we just
+-- simply get record[tags[N]] instead. Both files and fulltext are indexed with
+-- that same method, and remain completely unchanged by filtering/sorting etc.
+-- As/when any filter gets applied, some of those 1..N go missing (and are easy
+-- to replace/reconstruct should the filter later be removed or replaced).
+--
+sequence tags   -- {1,2,3,...length(files)}, sorted/filtered as rqd.
+
+
+procedure dload(sequence path)
+object d
+integer k
+string name
+sequence modified
+object lastrun
+atom size
+integer broken
+--DEV
+--string text
+object text
+    k = find(path,directories)
+    if k=0 then
+        directories = append(directories,path)
+        k = length(directories)
+        pgdbAddDir(path)
+    end if
+    d = dir(path)
+    if atom(d) then
+--?9/0
+        files = append(files,{k,"**error**"})
+    else
+        for i=1 to length(d) do
+            sequence di = d[i]
+            name = di[D_NAME]
+            if find('d',di[D_ATTRIBUTES]) then
+                if match("demo",lower(name))
+                or match("rosetta",lower(name))
+                or match("pgui",lower(name)) then
+                    dload(path&"\\"&name)
+                end if
+            elsif match(".exw",lower(name)) then
+                object fi = pgdbGetFileInfo(k,name)
+                if sequence(fi) then
+                    lastrun = fi[1]
+--DEV
+--if length(fi)>=2 then
+--  if not find(fi[2],{0,1}) then
+--      ?{"oops, corrupt broken flag",path,name,fi}
+--      fi[2] = 0
+--  end if
+--end if
+                    broken = iff(length(fi)>=2?fi[2]:0)
+--DEV
+--if length(fi)>=3 then
+--  if not string(fi[3]) then
+--      ?{"oops, corrupt text",path,name,fi}
+--      fi[3] = ""
+--  end if
+--end if
+                    text = iff(length(fi)>=3?fi[3]:"")
+                else
+                    lastrun = 0
+                    broken = 0
+                    text = ""
+                end if
+                size = di[D_SIZE]
+                modified = di[D_YEAR..D_SECOND]
+                -- Directory,Name,Size,Modified,LastRun,Broken,Text
+--              files = append(files,{path,name,size,modified,lastrun,broken,text}) -- NO!
+                files = append(files,{path,name})
+                sizes = append(sizes,size)
+                modifieds = append(modifieds,modified)
+                fileinfo = append(fileinfo,fi)
+                fulltext = append(fulltext,0)
+            end if
+        end for
+    end if
+end procedure
+
+function get_file_text(integer i)
+-- i is a real index to files/fulltext (ie it has been tags[]'d)
+string path
+object res
+integer fn, ch
+    res = fulltext[i]
+--  res = files[i][T_text]  --NO!
+    if atom(res) then
+--      path = directories[files[i][T_path]]&"\\"&files[i][T_name]
+        path = join_path({files[i][T_path],files[i][T_name]})
+        fn = open(path,"rb")
+        if fn=-1 then
+            res = "cannot open file "&path
+        else
+--DEV use get_text()?
+            res = ""
+            while 1 do
+                ch = getc(fn)
+                if ch=-1 then exit end if
+                res &= ch
+            end while
+            close(fn)
+        end if
+        fulltext[i] = res
+--      files[i][T_text] = res  -- NO!
+    end if
+    return res
+end function
+
+integer eiskip = 1
+
+function enteritem_cb(Ihandle ih, integer lin, integer col)
+    IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
+    IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
+    IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
+    IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col}); -- [1]
+    if eiskip then
+        eiskip -= 1 -- (don't clobber inital buildDummyData() msg) [DEV]
+    else
+        IupSetStrAttribute(statusbar, "TITLE", sprint(files[tags[lin]]))
+    end if
+    IupSetAttribute(pt,"VALUE",get_file_text(tags[lin]))
+    return IUP_DEFAULT
+end function
+global constant cb_enteritem = Icallback("enteritem_cb")
+
+function datestring(object d)
+-- d is {y,m,d,...} from the date() function.
+-- return it in dd/mm/yyyy hh:mm:ss format.
+    if not sequence(d) then
+        return "-"
+    end if
+--DEV (temp/BUG)
+--  if length(d)=1 then
+--?"datestring"
+--      d = d[1]
+--      {d[1],d[3]} = {d[3],d[1]}
+--      return sprintf("{%02d\\%02d\\%04d %02d:%02d:%02d}",d)
+--  end if
+    {d[1],d[3]} = {d[3],d[1]}
+    return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
+end function
+
+constant KB = 1024,
+         MB = KB*KB,
+         GB = KB*MB,
+    --
+    -- the following written so that a single change to sw affects all:
+    --
+    sw = 11,                                -- size width of 11 characters
+    dpsfmt = sprintf("%%%d.2f%%s",sw-2),    -- with decimal places and suffix    -- eg/ie "%9.2f%s"
+    sfmt = sprintf("%%%d.0f%%s",sw-2),      -- no d.p, but still suffix          -- eg/ie "%9.0f%s"
+    bfmt = sprintf("%%%d.0f",sw)            -- no d.p, no suffix (size in bytes) -- eg/ie "%11.0f"
+
+function Size00(atom filesize, atom factor, sequence suffix)
+-- common code for Size function, to avoid ".00" displaying
+sequence res, params
+    params = {floor(filesize/factor),suffix}
+    if remainder(filesize,factor) then
+        res = sprintf(dpsfmt, params)           -- eg 9.2GB
+        if equal(res[sw-4..sw-2],".00") then
+            res = sprintf(sfmt, params)         -- eg   9MB (not "9.00MB" when really 9.00004701MB)
+        end if
+    else
+        res = sprintf(sfmt, params)             -- eg 100KB (that is, when really 100.00000000KB)
+    end if
+    return res
+end function    
+
+function Size(atom filesize)
+    if filesize>=GB then
+        return Size00(filesize,GB,"GB")
+    elsif filesize>=MB then
+        return Size00(filesize,MB,"MB")
+    elsif filesize>=KB then
+        return Size00(filesize,KB,"KB")
+    end if
+    return sprintf(bfmt, filesize)              -- eg     0 (ie absolute size in bytes)
+end function
+
+string semiperm -- (return value of value_cb must outlive it)
+
+function value_cb(Ihandle /*self*/, integer l, integer c)
+    if c>0 then
+        if c>length(titles) then return NULL end if
+        if l==0 then
+            return IupRawStringPtr(titles[c])   -- column title
+        end if
+        if l>length(files) then return NULL end if
+        l = tags[l]
+        if c=1              -- path
+        or c=2 then         -- name
+            semiperm = files[l][c]
+        elsif c=3 then      -- size
+            semiperm = Size(sizes[l])
+        elsif c=4 then      -- modified date
+            semiperm = datestring(modifieds[l])
+        else
+            object fi = fileinfo[l]
+            if not sequence(fi) then
+                fi = {0,0,""}
+            elsif length(fi)<3 then
+                if length(fi)<2 then
+                    fi = append(fi,0)
+                end if
+                fi = append(fi,"")
+            end if
+            if c=5 then     -- last run date
+                semiperm = datestring(fi[1])
+            elsif c=6 then      -- broken
+                semiperm = iff(fi[2]?"yes":"no")
+            elsif c=7 then      -- text
+                semiperm = fi[3]
+            else
+                semiperm = "**??value_cb??**"
+            end if
+        end if
+        return IupRawStringPtr(semiperm)
+    end if
+    return NULL
+end function
+global constant cb_value = Icallback("value_cb")
+
+--/*
+function LVFormat(integer lRow, integer lColumn)
+end function
+--*/
+
+integer sortcol = 1
+integer sortdir = 1
+
+function by_column(integer i, integer j)
+integer c
+    if sortcol=1 then
+--      c = compare(files[i][sortcol],files[j][sortcol])
+        c = compare(lower(files[i][sortcol]),lower(files[j][sortcol]))
+    elsif sortcol=2 then
+        c = compare(lower(files[i][sortcol]),lower(files[j][sortcol]))
+    elsif sortcol=3 then
+        c = compare(sizes[i],sizes[j])
+    elsif sortcol=4 then
+        c = compare(modifieds[i],modifieds[j])
+    else
+--DEV this is ridiculous!! (pad in pdb.e)
+        object fi = fileinfo[i]
+        if not sequence(fi) then
+            fi = {0,0,""}
+        elsif length(fi)<3 then
+            if length(fi)<2 then
+                fi = append(fi,0)
+            end if
+            fi = append(fi,"")
+        end if
+        object fj = fileinfo[j]
+        if not sequence(fj) then
+            fj = {0,0,""}
+        elsif length(fj)<3 then
+            if length(fj)<2 then
+                fj = append(fj,0)
+            end if
+            fj = append(fj,"")
+        end if
+        if sortcol=5 then   -- last run date
+            c = compare(fi[1],fj[1])
+        elsif sortcol=6 then        -- broken
+            c = compare(fi[2],fj[2])
+        elsif sortcol=7 then        -- text
+            c = compare(fi[3],fj[3])
+        end if
+    end if
+    if c=0 then
+        c = compare(lower(files[i]),lower(files[j]))
+    end if
+    return sortdir*c
+end function
+constant r_by_column = routine_id("by_column")
+
+--DEV to go:
+--procedure showselected()
+--integer idx = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+--string msg = sprint(data[tags[idx]])
+--  IupMessage("Selected", msg)
+--end procedure
+
+function click_cb(Ihandle self, integer l, integer c, atom pStatus)
+string sortc
+--nullable_string v = IupMatGetAttribute(self, "", l, c);
+--  if v=NULL then v = "NULL" end if
+--  printf(1,"click_cb(%d, %d, %s)\n", {l, c, peek_string(pStatus)})
+--  printf(1,"  VALUE%d:%d = %s\n", {l, c, v})
+    if c>0 and c<=length(titles) then
+        if l=0 then -- title clicked, so sort that column
+            atom t = time()
+            if sortcol!=0 and sortcol!=c then
+                sortc = sprintf("SORTSIGN%d",sortcol)
+                IupSetAttribute(self,sortc,"NO")
+            end if
+            sortc = sprintf("SORTSIGN%d",c)
+            sortdir = iff(IupGetAttribute(self,sortc)="DOWN"?-1:1)
+            IupSetAttribute(self,sortc,iff(sortdir=-1?"UP":"DOWN"))
+            sortcol = c
+            tags = custom_sort(r_by_column,tags)
+--          IupSetAttribute(statusbar, "TITLE", sprintf("sort completed in %3.2f seconds",time()-t))
+            IupSetAttribute(self,"REDRAW","ALL")
+--      elsif l<=length(data)
+--        and iup_isdouble(pStatus) then
+--          showselected()
+        elsif iup_isbutton3(pStatus) then
+            IupSetStrAttribute(matrix,"FOCUSCELL","%d:%d",{l,c})
+            return enteritem_cb(matrix, l, c)
+        end if
+    end if
+    return IUP_DEFAULT
+end function
+global constant cb_click = Icallback("click_cb")
+
+--/*
+--integer SortColumn = 1, Sign = 1
+integer SortColumn, Sign
+        SortColumn = 1
+        Sign = 1
+
+function CompareSortColumn(integer t1,integer t2)
+-- (t1 and t2 are elements from tags[] to be "compared"/tag sorted)
+--integer c = 0
+integer c
+integer fmt, subtype
+object o1, o2
+integer col
+    c = 0
+    return Sign*c
+end function
+constant rCSC = routine_id("CompareSortColumn")
+--*/
+
+--temp, for debug...
+--string ftext
+
+global procedure setFilters()
+-- called whenever the text in dtFilter changes
+sequence wastags
+integer focus
+string ftext
+sequence fi
+integer k, ok
+string name,text
+    wastags = tags
+--> focus = getIndex(dlist)
+    focus = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+    if focus!=0 then
+        if focus>=1 and focus<=length(tags) then
+            focus = tags[focus]
+        else
+            focus = 0
+        end if
+    end if
+--> ftext = lower(getText(dtFilter))
+    ftext = lower(IupGetAttribute(ftxt,"VALUE"))
+    tags = repeat(0,length(files))
+    k = 0
+    for i=1 to length(files) do
+        fi = files[i]
+        name = fi[T_name]
+        if length(ftext)=0
+        or match(ftext,lower(name)) then
+            ok = 1
+        else
+            text = get_file_text(i)
+            ok = match(ftext,lower(text))!=0
+        end if
+        if ok then
+            k += 1
+            tags[k] = i
+        end if
+    end for
+    tags = tags[1..k]
+    tags = custom_sort(r_by_column,tags)
+    if not equal(tags,wastags) then
+-->     setLVItemCount(dlist,k)
+        IupSetInt(matrix, "NUMLIN", k)
+-->     deleteItem(dSource,0)   -- empty list
+        IupSetAttribute(pt,"VALUE","")
+    end if
+--> setIndex(dlist,find(focus,tags))
+    focus = find(focus,tags)
+    if focus!=0 then
+        IupSetInt(matrix,"FOCUSCELL",focus)
+        IupSetInt(matrix,"ORIGIN",focus)
+--DEV (untested)
+        {} = enteritem_cb(matrix, focus, 1)
+    end if
+end procedure
+
+global procedure filterkey(integer ch)
+--?{"filterkey",ch}
+--      if id!=dtFilter then
+    string text = IupGetAttribute(ftxt,"VALUE")
+    if iup_isprint(ch) then
+        text &= ch
+    else -- K_BS/K_DEL
+        if length(text) then
+            text = text[1..-2]
+        end if
+    end if
+    IupSetAttribute(ftxt,"VALUE",text)
+    setFilters()
+--      end if
+end procedure
+
+function valuechanged_cb(Ihandle /*ftxt*/)
+    setFilters()
+    return IUP_CONTINUE
+end function
+global constant cb_valuechanged = Icallback("valuechanged_cb")
+
+function resize_cb(Ihandle /*ih*/, integer width, integer /*height*/)
+sequence widths = repeat(0,IupGetInt(matrix,"NUMCOL"))
+integer total_width = 0, new_width
+    for i=1 to length(widths) do
+        widths[i] = IupGetInt(matrix,sprintf("RASTERWIDTH%d",i))
+    end for
+    width -= 85
+    if width<120 then width = 120 end if
+    total_width = sum(widths)
+    IupSetInt(matrix,"RASTERWIDTH0",0)
+    for i=1 to length(widths) do
+        new_width = floor((widths[i]/total_width)*width)
+        if new_width<10 then new_width = 10 end if
+        IupSetInt(matrix,sprintf("RASTERWIDTH%d",i),new_width)
+        widths[i] = new_width
+    end for
+--DEV I used this (in listview.exw) to set MINSIZE: 
+--IupSetAttribute(dlg, "TITLE", IupGetAttribute(dlg,"SIZE"))
+    return IUP_DEFAULT
+end function
+global constant cb_resize = Icallback("resize_cb")
+
+function colresize_cb(Ihandle /*ih*/, integer col)
+-- thwart attempts to resize column 0 (vertical titles)
+    if col=0 then
+        IupSetInt(matrix, "WIDTH0", NULL)
+    end if
+    return IUP_DEFAULT
+end function
+global constant cb_colresize = Icallback("colresize_cb")
+
+integer init = 0
+
+global function Init()
+atom t = time()
+
+    if init then ?9/0 end if
+    init = 1
+    directories = {}
+    files = {}
+--  tags = {}
+    fulltext = {}
+    fileinfo = {}
+    modifieds = {}
+    sizes = {}
+--  pgdbinit(croot&"\\demo\\arwendemo\\pgui\\")
+    pgdbinit(croot&"\\demo\\pGUI\\pdemo\\")
+--  dload(croot&"demo")
+    dload(join_path({croot,"demo"}))
+    tags = tagset(length(files))
+--  ?directories
+--  ?files
+    setFilters()
+--< IupSetCallback(matrix, "VALUE_CB", Icallback("value_cb")) (done in main)
+--> setFocus(dlist)
+    IupSetInt(matrix, "NUMCOL", length(titles))
+    IupSetInt(matrix, "NUMCOL_VISIBLE", length(titles))
+    IupSetInt(matrix, "NUMLIN", length(files))
+--  IupSetInt(matrix, "WIDTHDEF", 40) -- (now completely overidden anyway)
+    for i=1 to length(twidth) do
+        IupSetIntId(matrix, "RASTERWIDTH", i, twidth[i])
+        IupSetAttributeId(matrix, "ALIGNMENT", i, talign[i])
+    end for
+    IupSetFocus(matrix)
+
+    return sprintf("%d files discovered in %3.2f seconds",{length(files),time()-t})
+end function
+
+constant rNORM = 0, rCOPY = 1, rEDIX = 2
+
+global procedure Run(integer option=rNORM)
+-- option is a three-way flag: 0=run normally, 1=copy to clipbaord, 2=open in edix
+integer i, fidx, k
+string name, path, cmd
+sequence d
+    i = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+    if i then
+        fidx = tags[i]
+--      k = files[fidx][T_path]
+        k = find(files[fidx][T_path],directories)
+        name = files[fidx][T_name]
+        d = date()
+        if atom(fileinfo[fidx]) then
+--          fileinfo[fidx] = {d}
+--DEV/SUG:
+            fileinfo[fidx] = {d,0,""}
+        else
+            fileinfo[fidx][1] = d
+        end if
+        pgdbSetFileInfo(k,name,fileinfo[fidx])
+        IupUpdate(matrix)
+        path = directories[k]&"\\"&name
+        if option=rCOPY then
+            cmd = crun
+            if IupGetGlobal("SHIFTKEY")="OFF" then
+                if cmd[1]='\"' then
+                    cmd = cmd[2..-2]
+                end if
+                if match(croot,cmd)=1 then
+                    cmd = cmd[length(croot)+1..$]
+                end if
+                if length(cmd)>4
+                and equal(cmd[-4..-1],".exe") then
+                    cmd = cmd[1..-5]
+                end if
+                if find(' ',cmd) then
+                    cmd = '\"' & cmd & '\"'
+                end if
+                if match(croot,path)=1 then
+                    path = path[length(croot)+1..$]
+                end if
+            end if
+            if find(' ',path) then
+                path = '\"' & path & '\"'
+            end if
+            cmd &= " "&path
+            IupSetAttribute(clipboard,"TEXT",cmd)
+        else
+            if find(' ',path) then
+                path = '\"' & path & '\"'
+            end if
+            if option=rEDIX then
+--DEV
+if 0 then
+                cmd = crun&" edita "&path
+--              cmd = crun&" edix "&path
+                {} = chdir(croot)
+else
+                cmd = sprintf("%s \"%s\\demo\\edita\\edita.exw\" %s",{crun,croot,path})
+--              cmd = sprintf("%s \"%s\\demo\\edix\\edix.exw\" %s",{crun,croot,path})
+end if
+            else
+                cmd = crun&" "&path
+            end if
+--          void = system_wait(cmd)
+--          sysproc(cmd)
+            {} = system_exec(cmd,8) -- (no result/wait, no redirect)
+        end if
+    end if
+end procedure
+
+function run_cb(Ihandle /*ih*/)
+    Run()
+    return IUP_DEFAULT
+end function
+global constant cb_run = Icallback("run_cb")
+
+function copy_cb(Ihandle /*ih*/)
+    Run(rCOPY)
+    return IUP_DEFAULT
+end function
+global constant cb_copy = Icallback("copy_cb")
+
+function edit_cb(Ihandle /*ih*/)
+    Run(rEDIX)
+    return IUP_DEFAULT
+end function
+global constant cb_edit = Icallback("edit_cb")
+
+--global procedure ShowCount()
+--sequence htxt
+--  htxt = sprintf("showing %d of %d demos",{length(tags),length(files)})
+----    void = messageBox("Demos",htxt,MB_OK)
+--  IupMessage("Demos",htxt)
+--end procedure
+
+--global procedure PopMenu()
+--?"PopMenu"
+----/*
+--atom msg_pos
+--integer x, y
+--
+--> setEnable(M_Cewe,eHwnd!=0)
+--  -- get the mouse position in *Screen* coords
+--> msg_pos = c_func( xGetMessagePos, {} )
+--  x = and_bits(msg_pos, #FFFF)
+--  y = floor(msg_pos / #10000) 
+--> void = c_func(xTrackPopupMenu, {getHwnd(M_Cmnu),
+--                                  TPM_LEFTALIGN+TPM_RIGHTBUTTON,
+--                                  x, y, 0, getHwnd(pmain), NULL} )
+----*/
+--end procedure
+
+--/*
+integer ainit
+        ainit=0
+>constant Awin=create(Window,"Amend",0,pmain,812,279,507,526,0)
+--constant Adir=create(Label,"Adir",0,Awin,9,12,471,20,0)
+--constant Afile=create(Label,"Afile",0,Awin,9,33,471,20,0)
+-- (more labels and input fields get added dynamically)
+sequence Alabels, Afields, Afinfo
+
+integer row -- of item being amended
+
+function allocate_column()
+integer c
+integer res
+    res = 2
+    return res
+end function
+
+function toNumber(sequence txt)
+integer ch, res
+    res = 0
+    for i=1 to length(txt) do
+        ch = txt[i]
+        if ch<'0' or ch>'9' then return 0 end if
+        res = res*10+ch-'0'
+    end for
+    return res
+end function
+--*/
+
+
+--/*
+>function amendHandler(integer id, integer msg, atom wParam, object lParam)
+integer k,colno,c, tr
+sequence column, flags
+object fi, o
+--,last
+--atom addr
+--object w
+--integer fmt
+--object c
+--atom hDC
+
+    if object(lParam) then end if   -- suppress warnings
+
+>   if msg=WM_CHAR then
+>       if wParam=VK_ESCAPE then
+>           closeWindow(Awin)
+        end if
+    end if
+    return 0
+end function
+--*/
+
+Ihandln amend_dlg = NULL
+Ihandle l_dir,l_name,l_size,l_mod,l_lrun,l_broke,t_txt
+
+function ok_cb(Ihandle /*bt_ok*/)
+    IupSetInt(amend_dlg, "STATUS", 1)
+    return IUP_CLOSE;
+end function
+constant cb_ok = Icallback("ok_cb")
+
+function cancel_cb(Ihandle /*bt_cancel*/)
+    return IUP_CLOSE;
+end function
+constant cb_cancel = Icallback("cancel_cb")
+
+global procedure Amend(integer use_mouse=0)
+--?"Amend"
+    if amend_dlg=NULL then
+        l_dir = IupLabel()
+        l_name = IupLabel()
+        l_size = IupLabel()
+        l_mod = IupLabel()
+        l_lrun = IupLabel()
+        l_broke = IupList()
+        IupSetAttribute(l_broke,"DROPDOWN","YES")
+--      IupSetInt(l_broke,"VISIBLEITEMS",2) -- [no idea why it needs the +1]
+        IupSetAttribute(l_broke, "1", "no")
+        IupSetAttribute(l_broke, "2", "yes")
+        t_txt = IupText("EXPAND=YES")
+--      IupSetAttribute(amend_txt, "MASK", IUP_MASK_UINT);  /* unsigned integer numbers only */
+--      IupSetAttribute(amend_txt, "VISIBLECOLUMNS", "8");
+        Ihandle bt_ok = IupButton("OK","ACTION", cb_ok,"PADDING=10x2")
+        Ihandle bt_cancel = IupButton("Cancel","ACTION", cb_cancel,"PADDING=10x2")
+        Ihandle buttons = IupHbox({IupFill(),bt_ok,bt_cancel},"NORMALIZESIZE=HORIZONTAL")
+        Ihandle vbox = IupVbox({IupHbox({IupLabel("Directory: "),l_dir}),
+                                IupHbox({IupLabel("Name: "),l_name}),
+                                IupHbox({IupLabel("Size: "),l_size}),
+                                IupHbox({IupLabel("Modified: "),l_mod}),
+                                IupHbox({IupLabel("LastRun: "),l_lrun}),
+                                IupHbox({IupLabel("Broken: "),l_broke},"NORMALIZESIZE=VERTICAL"),
+                                IupHbox({IupLabel("Text: "),t_txt}),
+                                buttons})
+--      IupDestroy(IupNormalizer({goto_lbl,amend_txt},"NORMALIZE=VERTICAL"))
+
+--      IupSetAttribute(vbox, "MARGIN", "10x10");
+        IupSetAttribute(vbox, "MARGIN", "5x5");
+--      IupSetAttribute(vbox, "GAP", "5");
+
+        amend_dlg = IupDialog(vbox);
+        IupSetAttribute(amend_dlg, "TITLE", "Amend");
+--      IupSetAttribute(amend_dlg, "DIALOGFRAME", "Yes");
+        IupSetAttributeHandle(amend_dlg, "DEFAULTENTER", bt_ok);
+        IupSetAttributeHandle(amend_dlg, "DEFAULTESC", bt_cancel);
+        IupSetAttributePtr(amend_dlg, "PARENTDIALOG", dlg);
+    end if
+--  IupSetStrAttribute(goto_lbl, "TITLE", "Line Number [1-%d]:", {length(filetext[currfile])});
+--  IupSetAttribute(amend_txt, "SELECTION", "ALL");
+    integer l = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+    l = tags[l]
+--?files[l]
+--  files = {{"C:\\Program Files (x86)\\Phix\\demo","99bottles.exw",964,{2015,9,13,18,38'&',23},{{2016,10,9,18,12,15,1,283}},0,""}}
+    IupSetAttribute(l_dir,"TITLE",files[l][T_path])
+    IupSetAttribute(l_name,"TITLE",files[l][T_name])
+--  IupSetStrAttribute(l_size,"TITLE",trim(Size(files[l][3])))
+    IupSetStrAttribute(l_size,"TITLE",trim(Size(sizes[l])))
+--  IupSetStrAttribute(l_mod,"TITLE",datestring(files[l][4]))
+    IupSetStrAttribute(l_mod,"TITLE",datestring(modifieds[l]))
+--  IupSetStrAttribute(l_lrun,"TITLE",datestring(files[l][5]))
+    object fi = fileinfo[l]
+    string lastrun, text
+    integer broken
+    if sequence(fi) then
+        lastrun = datestring(fi[1])
+        broken = iff(length(fi)>=2?fi[2]:0)
+        text = iff(length(fi)>=3?fi[3]:"")
+    else
+        lastrun = ""
+        broken = 0
+        text = ""
+    end if
+    IupSetStrAttribute(l_lrun,"TITLE",lastrun)
+--  IupSetInt(l_broke,"VALUE",files[l][6]+1)
+    IupSetInt(l_broke,"VALUE",broken+1)
+--  IupSetAttribute(t_txt,"VALUE",files[l][7])
+    IupSetAttribute(t_txt,"VALUE",text)
+
+--/*
+        dlc = files[l][c]
+        if string(dlc) then
+            if length(dlc)=0 then return NULL end if
+            return IupRawStringPtr(dlc)
+        elsif c=3 then      -- size
+            semiperm = Size(dlc)
+        elsif c=4           -- modified date
+           or c=5 then      -- last run date
+            semiperm = datestring(dlc)
+        elsif c=6 then      -- broken
+            semiperm = iff(dlc?"yes":"no")
+        elsif c=31 then -- amount
+            semiperm = sprintf("%9.2f",dlc)
+        elsif c=41 then -- status
+            semiperm = sprintf("%c",dlc)
+        else
+            -- (c=1 (ChqNo) and/or c=6 (Bank):)
+            semiperm = sprint(dlc)
+        end if
+--*/
+    IupSetInt(amend_dlg, "STATUS", 0)
+    IupSetAttribute(amend_dlg,"SIZE",NULL)
+    IupRefresh(amend_dlg)
+
+    integer xy = iff(use_mouse?IUP_MOUSEPOS:IUP_CENTERPARENT)
+    IupPopup(amend_dlg, xy, xy)
+
+    if IupGetInt(amend_dlg, "STATUS")==1 then
+        broken = IupGetInt(l_broke,"VALUE")-1
+        text = IupGetAttribute(t_txt,"VALUE")
+        fi = {iff(sequence(fi)?fi[1]:0),broken,text}
+        string name = files[l][T_name]
+        string path = files[l][T_path]
+        integer k = find(path,directories)
+        pgdbSetFileInfo(k,name,fi)
+        fileinfo[l] = fi
+        IupUpdate(matrix)
+--?"amended..."
+--?"what is tr?" ans: tags[row] (which has become l = tags[l] above)
+--/*
+    k = find(path,directories)
+                object fi = pgdbGetFileInfo(k,name)
+                    lastrun = fi[1]
+                    broken = iff(length(fi)>=2?fi[2]:0)
+                    text = iff(length(fi)>=3?fi[3]:"")
+
+                fileinfo = append(fileinfo,fi)
+                files = append(files,{path,name})
+
+    i = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+    if i then
+        fidx = tags[i]
+--      k = files[fidx][T_path]
+        k = find(files[fidx][T_path],directories)
+        name = files[fidx][T_name]
+        d = date()
+        if atom(fileinfo[fidx]) then
+            fileinfo[fidx] = {d}
+--DEV/SUG:
+--          fileinfo[fidx] = {d,0,""}
+        else
+            fileinfo[fidx][1] = d
+        end if
+        pgdbSetFileInfo(k,name,fileinfo[fidx])
+
+    object fi = fileinfo[l]
+
+--*/
+--object fi
+--          fi = fileinfo[tr]
+--          if atom(fi) then
+--              fi = repeat(0,c)
+--          else
+--              while length(fi)<c do
+--                  fi = append(fi,0)
+--              end while
+--          end if
+--
+--          if not equal(fi[c],o) then
+--              fi[c] = o
+--              fileinfo[tr] = fi
+--              pgdbSetFileInfo(files[tr][T_path],files[tr][T_name],fi)
+--          end if
+    end if
+
+--/*
+--  IupDestroy(amend_dlg);
+--  IupHide(amend_dlg)  -- (not needed)
+
+    return IUP_DEFAULT;
+end function
+global constant cb_goto = Icallback("goto_cb")
+
+integer flabel, field
+sequence txt
+integer x,y
+--,w
+>   row = getIndex(dlist)
+    row = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
+    if row then
+        if ainit then
+            -- This is pretty brutal (use of destroy), but I can't be 
+            --  bothered to pick through trying to reuse things if the
+            --  column definitions etc happen to have been updated. It
+            --  needed a fix (or 2) to arwen/destroy() [30/07/2013].
+--          setHandler(Afields,-1)  -- (not sure if this helps any)
+>           void = destroy(Afields)
+>           void = destroy(Alabels)
+        end if
+    end if
+--*/
+end procedure
+
+function amend_cb(Ihandle /*ih*/)
+    Amend(1)
+    return IUP_DEFAULT
+end function
+global constant cb_amend = Icallback("amend_cb")
+
+--/*
+integer cinit
+        cinit = 0
+>constant DCwin=create(Window,"Define Columns",0,pmain,601,26,333,375,0)
+constant LVstyle=or_all({LVS_OWNERDATA, LVS_SINGLESEL, LVS_SHOWSELALWAYS})
+constant DClv = create(ListView,{{"Name",120,0}},0,DCwin,7,7,304,229,LVstyle)
+constant DCadd = create(Button,"&Add",0,DCwin,5,239,75,30,0)
+constant DChelp = create(Button,"&Help",0,DCwin,237,240,75,30,0)
+constant DClblw = create(Label,"&Width",0,DCwin,8,281,39,15,SS_OWNERDRAW)
+constant DCwidth = create(EditText,"0",0,DCwin,45,275,36,23,{{ES_RIGHT,ES_NUMBER},0})
+constant DCalign = create(ComboDropDownList,"",0,DCwin,94,276,85,94,0)
+constant DCformat = create(ComboDropDownList,"",0,DCwin,191,276,83,22,0)
+constant DCactive=create(CheckBox,"Ac&tive",0,DCwin,9,309,61,20,0)
+constant DCcolumn=create(CheckBox,"&Column",0,DCwin,75,309,64,20,0)
+constant DCsubtype = create(ComboDropDownList,"",0,DCwin,226,308,83,146,0)
+
+constant DCretset = {DClv,DCwidth,DCalign,DCformat,DCactive,DCcolumn,DCsubtype}
+
+procedure DCHelp()
+end procedure
+
+procedure setDCsubtype(integer fmt)
+integer visible
+sequence options
+
+    visible = (fmt=3 or fmt=4)
+    setVisible(DCsubtype,visible)
+end procedure
+
+function DCFormat(integer lRow, integer lColumn)
+end function
+
+--DEV this should be an auto-include or something...
+function getInteger(sequence numstr)
+--
+-- Return the (positive) integer value of a string.
+-- "" is treated as 0. {} is returned on error.
+--
+atom n
+integer ch
+    n=0
+    for i=1 to length(numstr) do
+        ch=numstr[i]-'0'
+        if ch<0 or ch>9 then return {} end if
+        n=n*10+ch
+        if not integer(n) then return {} end if
+    end for
+    return n
+end function
+
+integer lblwColour
+
+function DCHandler(integer id, integer msg, atom wParam, object lParam)
+integer k,last
+atom addr
+--string newname, oldname
+object w
+integer fmt
+object c
+atom hDC
+integer col
+--integer x,y,w,h,hh
+--string ftext
+--integer k
+--atom pItemIdx
+--atom eHndl, pRect
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(DCwin)
+        elsif wParam=VK_RETURN then
+            k = find(id,DCretset)
+            if k then
+                last = length(DCretset)-1+isVisible(DCsubtype)
+                if k<last then
+                    setFocus(DCretset[k+1])
+                end if
+            end if
+        end if
+    end if
+    return 0
+end function
+--*/
+
+--/*
+integer einit
+        einit = 0
+constant DEwin=create(Window,"Define Enums",0,pmain,601,26,255,231,0)
+constant DEnuml = create(Label,"Names",0,DEwin,5,5,50,20,0)
+constant DEnums = create(ComboBox,"",  0, DEwin, 5, 25, 105, 160, 0)
+constant DEvall = create(Label,"Values",0,DEwin,126,4,50,20,0)
+constant DEvals = create(ComboBox,"",  0, DEwin, 125, 25, 105, 160, 0)
+
+constant DEht = "An enum is a set of values that can be used on a column.\n\n"&
+
+                "For example, you could define \"yesno\" as {\"yes\",\"no\"}.\n\n"&
+
+                "Create as many sets of as many values as you like, there are no known limits. "&
+                "Note that the first entry is always the default, so you might need (eg) both "&
+                "\"yesno\" and \"noyes\".\n\n"&
+
+                "As yet you can only add things, there is no ability to edit or delete anything, sorry!"
+
+procedure DEHelp()
+>   void = messageBox("Enums",DEht,MB_OK)
+--  void = messageBox("Demos",htxt,MB_OK)
+    IupMessage("Demos",htxt)
+end procedure
+
+function DEHandler(integer id, integer msg, atom wParam, object lParam)
+string text
+sequence fullset
+integer k
+
+    if object(lParam) then end if -- suppress warnings
+
+    if msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(DEwin)
+        end if
+    end if
+    return 0
+end function
+
+global procedure Enums()
+end procedure
+--*/
+
+--global constant
+--  M_Cmnu = create(Menu, "", 0, 0, 0,0,0,0,0),
+--  M_Camd = create(MenuItem,"Amend\tF2",       0, M_Cmnu, 0,0,0,0,0),
+----    M_Cewe = create(MenuItem,"Edit with Edita", 0, M_Cmnu, 0,0,0,0,0),
+--  M_Crun = create(MenuItem,"Run\tF5",         0, M_Cmnu, 0,0,0,0,0),
+--  M_Copy = create(MenuItem,"Copy command",    0, M_Cmnu, 0,0,0,0,0)
+
+Ihandln rmenu = NULL
+function release_cb(Ihandle /*ih*/, integer l, integer c, atom pStatus)
+--?"release_cb"
+    if iup_isbutton3(pStatus) then
+        if rmenu=NULL then
+            Ihandle amnd = IupMenuItem("Amend\tF2",cb_amend)
+            Ihandle edit = IupMenuItem("Edit with Edita",cb_edit)
+--          Ihandle edit = IupMenuItem("Edit with Edix",cb_edit)
+            Ihandle run  = IupMenuItem("Run",cb_run)
+            Ihandle copy = IupMenuItem("Copy Command",cb_copy)
+            rmenu = IupMenu({amnd,
+                             edit,
+                             run,
+                             copy})
+        end if
+        IupSetStrAttribute(matrix,"FOCUSCELL","%d:%d",{l,c})
+--      IupSetAttribute(matrix,"REDRAW","ALL")
+--      IupFlush()
+        {} = enteritem_cb(matrix, l, c)
+        IupPopup(rmenu, IUP_MOUSEPOS, IUP_MOUSEPOS)
+    end if
+    return IUP_CONTINUE
+end function
+global constant cb_release = Icallback("release_cb")
+

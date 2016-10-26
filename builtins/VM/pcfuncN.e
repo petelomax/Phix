@@ -1,3 +1,4 @@
+DEAD
 --
 -- pcfuncN.e (Phix compatible 0.6.3)
 --
@@ -164,13 +165,13 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             mov ecx,[level]
             mov eax,[errcode]
             mov edi,[ep1]
-            mov edi,[ep2]
+            mov esi,[ep2]
           @@:
             mov edx,[ebp+16]    -- era
             mov ebp,[ebp+20]    -- (nb no local vars after this!)
             sub ecx,1
             jg @b
-            xor esi,esi         -- ep2 unused
+--          xor esi,esi         -- ep2 unused
             sub edx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
             int3
@@ -178,13 +179,13 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             mov rcx,[level]
             mov rax,[errcode]
             mov rdi,[ep1]
-            mov rsi,[ep1]
+            mov rsi,[ep2]
           @@:
             mov rdx,[rbp+32]    -- era
             mov rbp,[rbp+40]    -- (nb no local vars after this!)
             sub rcx,1
             jg @b
-            xor rsi,rsi         -- ep2 unused
+--          xor rsi,rsi         -- ep2 unused
             sub rdx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
             int3
@@ -1436,9 +1437,10 @@ sequence tr -- table[rid], ie {name,addr,args,return_type,convention}
 atom addr
 sequence cstrings -- keeps refcounst>0, of any temps we have to make
 
-    if string(args) then
-        args = {args}
-    end if
+--DEV (removed 13/8/16):
+--  if string(args) then
+--      args = {args}
+--  end if
 --DEV (temp, getting e36loaaind on lnx, presumably "table" has been clobbered)
     #ilASM{
         [ELF32]
@@ -1527,6 +1529,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
     if la!=lad then
         -- e116rrnp: routine requires %d parameters, not %d
         fatalN(3,e116rrnp,lad,la)
+--      fatalN(1,e116rrnp,lad,la)
 --/*
         -- e116rrnp4: routine [%s] requires %d parameters, not %d
         #ilASM{
@@ -1553,6 +1556,7 @@ sequence cstrings -- keeps refcounst>0, of any temps we have to make
     end if
     if flag=FUNC then
         if return_type=0 then fatalN(3,e117rdnrav) end if
+--      if return_type=0 then ?9/0 end if
     else -- flag=PROC
         if return_type!=0 then fatalN(3,e118rrav) end if
     end if

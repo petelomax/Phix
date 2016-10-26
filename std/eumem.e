@@ -8,9 +8,7 @@
 --
 -- <<LEVELTOC depth=2>>
 
---/*
 namespace eumem
---*/
 
 --**
 -- The (pseudo) RAM heap space. Use [[:malloc]] to gain ownership to a heap location
@@ -18,7 +16,36 @@ namespace eumem
 export sequence ram_space = {}
 
 integer ram_free_list = 0
-integer free_rid
+--integer free_rid
+
+--**
+-- Deallocate a block of (pseudo) memory
+--
+-- Parameters:
+-- # ##mem_p## : The handle to a previously acquired [[:ram_space]] location.
+--
+-- Comments:
+-- This allows the location to be used by other parts of your application. You 
+-- should no longer access this location again because it could be acquired by
+-- some other process in your application.  This routine should only be called
+-- if you passed 0 as ##cleanup_p## to [[:malloc]].
+--
+-- Example 1:
+-- <eucode>
+--  my_spot = malloc(1,0)
+--  ram_space[my_spot] = my_data
+--      -- . . . do some processing  . . . 
+--  memfree(my_spot)
+-- </eucode>
+
+--DEV PL renamed as memfree...
+export procedure memfree(atom mem_p)
+    if mem_p>=1 and mem_p<=length(ram_space) then
+        ram_space[mem_p] = ram_free_list
+        ram_free_list = floor(mem_p)
+    end if
+end procedure
+constant free_rid = routine_id("memfree")
 
 --**
 -- Allocate a block of (pseudo) memory
@@ -69,35 +96,6 @@ integer temp_
         return temp_
     end if
 end function
-
---**
--- Deallocate a block of (pseudo) memory
---
--- Parameters:
--- # ##mem_p## : The handle to a previously acquired [[:ram_space]] location.
---
--- Comments:
--- This allows the location to be used by other parts of your application. You 
--- should no longer access this location again because it could be acquired by
--- some other process in your application.  This routine should only be called
--- if you passed 0 as ##cleanup_p## to [[:malloc]].
---
--- Example 1:
--- <eucode>
---  my_spot = malloc(1,0)
---  ram_space[my_spot] = my_data
---      -- . . . do some processing  . . . 
---  memfree(my_spot)
--- </eucode>
-
---DEV PL renamed as memfree...
-export procedure memfree(atom mem_p)
-    if mem_p>=1 and mem_p<=length(ram_space) then
-        ram_space[mem_p] = ram_free_list
-        ram_free_list = floor(mem_p)
-    end if
-end procedure
-free_rid = routine_id("memfree")
 
 --**
 -- Validates a block of (pseudo) memory

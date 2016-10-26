@@ -145,7 +145,7 @@ constant
 
 include builtins\pdir.e as pdir
 include builtins\pscreen.e as pscreen
-include builtins\VM\pcfuncN.e as cfunc
+include builtins\VM\pcfunc.e as cfunc
 --include builtins\dll.e as dll
 include builtins\pchdir.e as cd
 include builtins\pcurrdir.e as currdir

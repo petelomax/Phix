@@ -18,6 +18,10 @@ global function abs(atom o)
     return o
 end function
 
+global function exp(atom x)
+    return power(E,x)
+end function
+
 global function round(atom a, atom inverted_precision=1)
     inverted_precision = abs(inverted_precision)
     return floor(0.5 + (a * inverted_precision )) / inverted_precision

@@ -2,6 +2,10 @@
 -- pemit2.e
 -- ========
 --
+--constant TRAP = #1144
+--constant TRAP = #1158
+--constant TRAP = #118C
+--constant TRAP = #1234 -- DEV investigate remaining uses thoroughly, then remove.
 -- This is the long-awaited final stage: creating the executable. In the case of -c,
 --  that means a PE format .exe/.dll, or ELF format file, whereas when interpreting,
 --  that means some allocated memory that gets filled with code (ditto data).
@@ -96,30 +100,24 @@ constant isShortJmp = #010000   -- isJmp that has been found to fit in a byte.
 --          Note these are 4+4 bytes on both 32 and 64-bit, whereas all following 4/h4 go 8.
 --          Update: on file, layout is as above some small number for the use of filedump.exw,
 --          but at runtime, that dword [ds+4] is used to hold a 32-bit random number seed.  [[ DEV why?  see VM\pRand.e (only file that uses it/use a local var in there instead) ]]
---  symptr  When this is non-zero (see below), it should be (maxop+maxgvar)*4+40, on 32-bit,
+--  symptr  When this is non-zero (see below), it should be maxgvar*4+40, on 32-bit,
 --          or *8+72 on 64-bit, ie it locates symtab[1] rather than slack/maxlen/length etc.
 --27/2/15:
 --          *NB* For nested opInterp/thread safety, use [vsb_root+8/16] in preference to this.
 --23/3/15: (maybe)
---          Note that maxop/optable/maxgvar/gvarptr are correctly located via [symptr][T_EBP].
+--          Note that maxgvar/gvarptr are correctly located via [symptr][T_EBP].
 --          Obviously they are right here when compiled, but things get switched about when
 --          interpreting...
---or, instead of maxop: (or better yet, symtab[T_optable], maxop becomes spare/level)
--->--  00001010    slack               4   0           (should be 0)
---  00001014    maxlen              4   6836        (should be length*4+20, or *8+40)
---  00001018    length              4   1704
---  0000101C    refcount            4   1           (should be 1, some later on may be >1)
---  00001020    type                h4  #80000000   (should be #80000000)
---<
 --DEV: maxop/optable are deprecated; this is now done via symtab[T_optable]
---   (I am however far more inclined to leave a maxop of 0 unused than reclaim it)
---  maxop   The number of entries in the following table, set from pops2.e/maxNVop2?. [DEV]
---  optable When interpreting, there is already a copy of the heap manager, file i/o, printf(), 
---          subscripting, append/prepend, peek/poke, and so on, already in memory, so we may as 
---          well use them and save ourselves some time. Note that a maxop of zero is perfectly 
---          valid, as is any optable[n], either of which trigger appropriate recompilation. 
---          The lack of an opInterpret is also a fair reason to deliberately set maxop to 0.
---          (At the time of writing, there are no confirmed entries, just ideas/suggestions.)
+--   (I am however far more inclined to leave a maxop of 0 unused than reclaim it) [DEV will be reclaimed for relocs:]
+--< maxop   The number of entries in the following table, set from pops2.e/maxNVop2?. [DEV]
+--< optable When interpreting, there is already a copy of the heap manager, file i/o, printf(), 
+--<         subscripting, append/prepend, peek/poke, and so on, already in memory, so we may as 
+--<         well use them and save ourselves some time. Note that a maxop of zero is perfectly 
+--<         valid, as is any optable[n], either of which trigger appropriate recompilation. 
+--<         The lack of an opInterpret is also a fair reason to deliberately set maxop to 0.
+--<         (At the time of writing, there are no confirmed entries, just ideas/suggestions.)
+--> relocs  When this is non-zero (dll only) points to a reloc-ref table (0=done/none)
 --  maxgvar The number of entries in the following table.
 --DEV       *NB* the correct way to locate maxgvar/gvars[N] is via symtab[T_ds4], since that
 --          will match the symtab located via symtabptr @ [ds+8], whereas this ([ds+16] or so)  --DEV :%pGetSymPtr
@@ -178,16 +176,18 @@ constant isShortJmp = #010000   -- isJmp that has been found to fit in a byte.
 --  00000004    layout              h4  #00000001
 --  00000008    symptr              h4  #00001024   (raw address of symtab[1], h8 on 64-bit)
 --              -                                   opcodes
---  0000000C    maxop               4   238         (0 /is/ valid, at #00000010 on 64-bit)
---  00000010    opInit              h4  #0000204C   opcode[1] (entry point, in code section)
---                          ...
---              -                                   gvars
---  000003C4    maxgvar             4   785         (at maxop*4+16, or *8+24 on 64-bit)
+--< 0000000C    maxop               4   238         (0 /is/ valid, at #00000010 on 64-bit)
+--< 00000010    opInit              h4  #0000204C   opcode[1] (entry point, in code section)
+--<                         ...
+--> 0000000C    relocs              4   #00003047   raw ptr to ref relocs (dll only, 0=done/none)
+--              -                                   gvars:
+--< 000003C4    maxgvar             4   785         (at maxop*4+16, or *8+24 on 64-bit)
+--> 00000010    maxgvar             4   785         size of following table
 --              gvar[1]             h4  #40004016   (name replaced, except for temps)
 --              gvar[2]             h4  #4000406C   (see #000101B0)
 --              gvar[3]             h4  #00000001   1
 --                          ...
---              -                                   symtab (at (maxop+maxgvar)*4+20, or *8+32)
+--              -                                   symtab (at maxgvar*4+20, or *8+32)
 --  00001010    slack               4   0           (should be 0)
 --  00001014    maxlen              4   6836        (should be length*4+20, or *8+40)
 --  00001018    length              4   1704
@@ -205,6 +205,13 @@ constant isShortJmp = #010000   -- isJmp that has been found to fit in a byte.
 --  00002028    S_NTyp              h4  #00000001   S_Const
 --  0000202C    S_FPno              4   1
 --  00002030    S_State             h4  #00000001   <copy csome code from plist.e>
+--                          ...
+--  00003047    reloc offset table  1   0           bytes 4..255 are offsets,
+--                                                  (ie offset+=byte; dword[ds+offset]+=refdiff)
+--                                                  (3 unused/illegal), 
+--                                                  2=word offset follows
+--                                                  1=dword offset follows
+--                                                  0=table terminator(byte)
 --/*
                 S_Nlink = 5,    -- name chain (see below)
                 S_Slink = 6,    -- scope/secondary chain (see below)
@@ -240,14 +247,19 @@ constant isShortJmp = #010000   -- isJmp that has been found to fit in a byte.
 --  00000004    layout              h4  #00000001
 --  00000008    symptr              h8  #0000000000000068   (raw address of symtab[1])
 --              -                                           opcodes
---  00000010    maxop               8   1                   (0 /is/ valid)
---  00000018    opInit              h8  #000000000000204C   opcode[1] (entry point, in code section)
---                          ...
+--< 00000010    maxop               8   1                   (0 /is/ valid)
+--< 00000018    opInit              h8  #000000000000204C   opcode[1] (entry point, in code section)
+--<                         ...
+--> 00000010    relocs              8   #0000000000003047   raw ref relocs (dll only, 0=done/none)
 --              -                                           gvars
---  00000020    maxgvar             8   3                   (at maxop*8+24)
---  00000028    gvar[1]             h8  #4000000000004016   (name replaced, except for temps)
---  00000030    gvar[2]             h8  #400000000000406C   (see #000101B0)
---  00000038    gvar[3]             h8  #0000000000000001   1
+--< 00000020    maxgvar             8   3                   (at maxop*8+24)
+--< 00000028    gvar[1]             h8  #4000000000004016   (name replaced, except for temps)
+--< 00000030    gvar[2]             h8  #400000000000406C   (see #000101B0)
+--< 00000038    gvar[3]             h8  #0000000000000001   1
+--> 00000018    maxgvar             8   3                   (at maxop*8+24)
+--> 00000020    gvar[1]             h8  #4000000000004016   (name replaced, except for temps)
+--> 00000028    gvar[2]             h8  #400000000000406C   (see #000101B0)
+--> 00000030    gvar[3]             h8  #0000000000000001   1
 --                          ...
 --              -                                           symtab (at (maxop+maxgvar)*8+32)
 --  00000040    slack               8   0                   (should be 0)
@@ -268,7 +280,7 @@ constant isShortJmp = #010000   -- isJmp that has been found to fit in a byte.
 --  00002038    S_FPno              8   1
 --  00002050    S_State             h8  #0000000000000001   <copy some code from plist.e>
 
-integer maxop
+--integer maxop
 integer maxgvar
 --  
 --string mzpe
@@ -413,7 +425,8 @@ end function
 if isString(0) then end if  -- and prevent the compiler from optimising it away!
 
 constant m4 = allocate(4),
-         m44 = {m4,4}
+         m44 = {m4,4},
+         m42 = {m4,2}
 
 procedure setcsDword(integer i, atom v)
 -- set a dword in code_section
@@ -1682,15 +1695,19 @@ end procedure
 sequence imports
 --datab4code:
 --DEV global constant DATA=1, CODE=2 (after/when we swap)
-global constant CODE=1, DATA=2
+global constant CODE=1, DATA=2, IMPORTS=3, REFS=3
 sequence relocations
         --
-        -- relocations is initially {{{},{}},{{},{}}}
+        -- relocations is initially {{{},{},{}},{{},{},{}}}
         -- ie, if they are non-empty, the four lists of dword offsets are:
         -- relocations[DATA][DATA][1..$] in data relative to start of data section,
         -- relocations[DATA][CODE][1..$] in data relative to start of code section,
+        -- relocations[DATA][REFS][1..$] in data relative to start of data section,
+        --  [latter is DLL only, and only for pStack/initStack, not LoadLibrary]
         -- relocations[CODE][DATA][1..$] in code relative to start of data section,
         -- relocations[CODE][CODE][1..$] in code relative to start of code section.
+        -- relocations[CODE][IMPORTS][1..$] are code references to import section.
+        --  [latter is DLL only, and only for LoadLibrary, not pbinary.e/fixup()]
         -- eg a mov reg,[var] needs to put an entry in relocations[CODE][DATA],
         --    a lea reg,:label needs to put an entry in relocations[CODE][CODE],
         --    a constant x="yz" needs to put an entry in relocations[DATA][DATA],
@@ -1808,6 +1825,11 @@ if newEmit then
                     {libidx,fnidx} = APINames[vno]
                     offset = imports[libidx][3][fnidx]
                     imports[libidx][3][fnidx] = cout-1
+--13/9/16:
+                    if DLL then
+                        relocations[CODE][IMPORTS] = append(relocations[CODE][IMPORTS],cout-1)  -- (dword)
+--                      relocations[CODE][DATA] = append(relocations[CODE][DATA],cout-1)    -- (dword)
+                    end if
                 else
 --                  offset = thunktable+vno*4-4
 --9/1/16:
@@ -1855,16 +1877,16 @@ if newEmit then ?9/0 end if
                     if bind then
 if vno=0 then ?9/0 end if   -- yep, thought so...
 --DEV tryme
---                      offset = (maxop+vno+2)*dsize+8
+--                      offset = (vno+2)*dsize+8
                         if X64 then
-                            offset = (maxop+vno)*8+24
+                            offset = (vno)*8+24
                             if c=isVar1 then
                                 offset -= 1
                             elsif c=isVar4 then
                                 offset -= 4
                             end if
                         else
-                            offset = (maxop+vno)*4+16
+                            offset = (vno)*4+16
                         end if
                         relocations[CODE][DATA] = append(relocations[CODE][DATA],cout-1)    -- (dword)
                     else
@@ -1988,7 +2010,10 @@ end if
                     else -- c=isGaddr
 --if not bind then ?9/0 end if -- 27/2/15, just see (triggered first go... [DEV])
 --added 28/10/14:
+--11/9/16: (if bind wrapper)
+if bind then
                         relocations[CODE][CODE] = append(relocations[CODE][CODE],cout-1)    -- (dword)
+end if
                     end if
 --  else -- not newEmit
 --                  if c=isJmpG then
@@ -2549,6 +2574,7 @@ function DumpString(sequence name, integer node)
 integer slink, refcount
 sequence si
 integer x_addr
+integer rd = iff(DLL?REFS:DATA)
 --if length(name) and name[1]='a' then
 --?{"DumpString",name,node}
 --end if
@@ -2569,12 +2595,14 @@ else
 --      flatsym2[slink][S_value] = x_addr+#80000000
         si = flatsym2[slink]
         if X64 then
-            dsidx = (maxop+si[S_Slink])*8+25
+            dsidx = (si[S_Slink])*8+25
         else
-            dsidx = (maxop+si[S_Slink])*4+17
+            dsidx = (si[S_Slink])*4+17
         end if
---      dsidx = (maxop+si[S_Slink]+3)*dsize+5   --DEV tryme, but see the one below first
-        relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--      dsidx = (si[S_Slink]+3)*dsize+5 --DEV tryme, but see the one below first
+--if dsidx-1=TRAP then ?9/0 end if
+--      relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+        relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
         setds(x_addr,1)
     if si[S_NTyp]=S_Const then
         if si[S_ConstChain] then ?9/0 end if
@@ -2608,6 +2636,7 @@ integer slink, refcount
 --, vchk
 sequence si, x8
 integer x_addr
+integer rd = iff(DLL?REFS:DATA)
 --  v = tt[node+CH]
 --trace(1)
 --  if not integer(v) then
@@ -2632,14 +2661,16 @@ else
 --end if
             if si[S_NTyp]!=S_Const then ?9/0 end if
 --sug:      vno = si[S_Slink]
---          dsidx = (maxop+vno+2)*dsize+9
+--          dsidx = (vno+2)*dsize+9
             if X64 then
-                dsidx = (maxop+si[S_Slink])*8+25
+                dsidx = (si[S_Slink])*8+25
             else
-                dsidx = (maxop+si[S_Slink])*4+17
+                dsidx = (si[S_Slink])*4+17
             end if
---          dsidx = (maxop+si[S_Slink]+3)*dsize+5 (probably wrong...)
-            relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--          dsidx = (si[S_Slink]+3)*dsize+5 (probably wrong...)
+--if dsidx-1=TRAP then ?9/0 end if
+--          relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+            relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
             setds(x_addr,1)
             if si[S_ConstChain] then ?9/0 end if
             refcount += 1
@@ -2686,12 +2717,12 @@ else
                 if X64 then
 --                  if not integer(v) then ?9/0 end if
                     if isFLOAT(v) then ?9/0 end if
-                    setdsQword((maxop+si[S_Slink])*8+24, v)
+                    setdsQword((si[S_Slink])*8+24, v)
                 else
-                    setdsDword((maxop+si[S_Slink])*4+16, v)
+                    setdsDword((si[S_Slink])*4+16, v)
                 end if
 --DEV tryme:
---              setdsDword((maxop+si[S_Slink]+2)*dsize+8, v)
+--              setdsDword((si[S_Slink]+2)*dsize+8, v)
 --              fixupConstRefs(si[S_ConstChain],0,slink)
 if si[S_ConstChain] then
 --  S_Name
@@ -2784,6 +2815,7 @@ integer refcount
 integer l, l20
 integer tidx
 integer sidx
+integer rd = iff(DLL?REFS:DATA)
 --temp: [DEV]
 --trace(1)
 --puts(1,"DumpSequences()\n")
@@ -2807,7 +2839,7 @@ integer sidx
             x_addr = length(data_section)+5*dsize
             s = si[S_value]
 --          slink = si[S_Clink]
---          dsidx = (maxop+si[S_Slink]+2)*dsize+9
+--          dsidx = (si[S_Slink]+2)*dsize+9
             slink = i
             si = 0
             refcount = 0
@@ -2824,14 +2856,16 @@ integer sidx
 --was996 = flatsym2[slink][S_value]
 --end if
 --                  flatsym2[slink][S_value] = x_addr+#80000000
---                  dsidx = (maxop+flatsym2[slink][S_Slink]+2)*dsize+9
+--                  dsidx = (flatsym2[slink][S_Slink]+2)*dsize+9
 --DEV..?
                     if flatsym2[slink][S_NTyp]=S_Const then
                         if flatsym2[slink][S_ConstChain] then ?9/0 end if
                     end if
 --20/1/15:
-                    dsidx = (maxop+flatsym2[slink][S_Slink]+2)*dsize+9
-                    relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+                    dsidx = (flatsym2[slink][S_Slink]+2)*dsize+9
+--if dsidx-1=TRAP then ?9/0 end if
+--                  relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+                    relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
                     setds(x_addr,1)
 
                     refcount += 1
@@ -2884,7 +2918,10 @@ integer sidx
 --                      si = flatsym2[tt[tidx+EQ]][S_value]+#40000000 -- = x_addr+#800000000
 --                      si = flatsym2[tt[tidx+EQ]][S_value]/4+#80000000 -- = x_addr+#800000000
                         dsidx = length(data_section)+1
-                        relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--if dsidx-1=TRAP then ?9/0 end if
+--?dsidx-1
+--                      relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+                        relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
                         appenddsDword(0)
 --?si
 --if and_bits(si,#3FFFFFFF)=0 then ?9/0 end if
@@ -2995,6 +3032,7 @@ procedure dumpPathSet(sequence s)
 object si
 integer x_addr
 integer l, l20
+integer rd = iff(DLL?REFS:DATA)
 
     l = length(s)
     l20 = (l+5)*dsize               -- (l*4+20 or l*8+40, ie elements+seq header)
@@ -3012,7 +3050,9 @@ integer l, l20
         if string(si) then
             dumpString(si,1)
             dsidx = x_addr+(i-1)*dsize+1
-            relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--if dsidx-1=TRAP then ?9/0 end if
+--          relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+            relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
             setds(s_addr,1)
         else
             dsidx = x_addr+(i-1)*dsize+1
@@ -3028,6 +3068,7 @@ procedure dumpFileSet(sequence s)
 integer x_addr
 integer l = length(s),
         ml = (l+5)*dsize            -- (l*4+20 or l*8+40, ie elements+seq header)
+integer rd = iff(DLL?REFS:DATA)
     appenddsDword(0)                -- slack
     appenddsDword(ml)               -- maxlen (in bytes)
     appenddsDword(l)                -- length
@@ -3040,7 +3081,9 @@ integer l = length(s),
     for i=1 to l do
         dumpPathSet(s[i])
         dsidx = x_addr+1+(i-1)*dsize
-        relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--if dsidx-1=TRAP then ?9/0 end if
+--      relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+        relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
         setds(s_addr,1)
     end for
     s_addr = x_addr
@@ -3072,6 +3115,7 @@ constant r_CollectSignatures = routine_id("CollectSignatures")
 procedure DumpSignatures()
 integer refcount, slink, k
 --, flag
+integer rd = iff(DLL?REFS:DATA)
     for i=1 to length(Signatures) do
         refcount = 0
 --      if X64 then ?9/0 end if
@@ -3112,7 +3156,9 @@ end if
 --          slink = flatsym2[slink][S_Nlink]
             dsidx = slink
             slink = getdsDword(slink)
-            relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--if dsidx-1=TRAP then ?9/0 end if
+--          relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+            relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
             setds(s_addr,1)
             refcount += 1
         end while
@@ -3152,6 +3198,7 @@ constant r_CollectIds = routine_id("CollectIds")
 
 procedure DumpIds()
 integer refcount, slink
+integer rd = iff(DLL?REFS:DATA)
     for i=1 to length(Ids) do
         refcount = 0
 --      if X64 then ?9/0 end if
@@ -3162,7 +3209,9 @@ integer refcount, slink
             while slink do
                 dsidx = slink
                 slink = getdsDword(slink)
-                relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--if dsidx-1=TRAP then ?9/0 end if
+--              relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+                relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
                 setds(s_addr,1)
                 refcount += 1
             end while
@@ -3287,7 +3336,7 @@ include builtins\VM\optable.e
 --global sequence e2optable
 --with trace
 procedure DumpSymTab()
-integer wrong=0     --DEV temp
+--integer wrong=0   --DEV temp
 object si
 object lt
 integer siNTyp, lensi
@@ -3300,7 +3349,8 @@ sequence optable
 --integer l, l20
 integer dsidx0
 atom pathaddr, nameaddr
-object wassi        --DEV temp?
+--object wassi      --DEV temp?
+integer rd = iff(DLL?REFS:DATA)
     if not bind then ?9/0 end if
     for i=T_integer to T_object do
         flatsym2[i] = i
@@ -3316,11 +3366,7 @@ else
 end if
 --29/3/15:
 if newEmit then
-    -- Note: this may revert to maxop-style for ease of code(thunk) generation, for dlls etc.
---puts(1,"warning: create_optable() omitted line 3266 pemit2.e\n")
---  flatdump({1,2,3}, 1)
     optable = create_optable(flatsym2)
---?optable
     flatdump(optable, 1, 1)
 if listing then
     symtab[T_optable] = optable     -- (for listing)
@@ -3349,7 +3395,7 @@ end if
 --  end for
 --  DSvsize += l20
 --end procedure
-wrong=10
+--wrong=10
 
     flatsym2[T_optable] = s_addr+#80000000
 --  flatsym2[T_ds4] = 0+#80000000
@@ -3380,31 +3426,31 @@ elsif bind and and_bits(si[S_State],K_rtn) then
                     symtab[i][S_value] = v
                 end if
 end if
-wrong=21
+--wrong=21
                 lensi = length(si)
-wrong=22
+--wrong=22
                 if siNTyp=S_TVar then
-wrong=23
+--wrong=23
                     if lensi>S_Tidx then
-wrong=24
-wassi = si
+--wrong=24
+--wassi = si
                         si = si[1..S_Tidx]  -- discard compile-time cruft [S_ErrV]
-wrong=25
+--wrong=25
                     end if
                 else
 --DEV discard S_value and S_Clink, needs S_Tidx moved up, I think...
-wrong=26
+--wrong=26
                     if lensi>S_Clink then
 --if X64 then
 --  ?i
 --  ?si
 --end if
-wrong=27
+--wrong=27
                         si = si[1..S_Clink] -- discard compile-time cruft [S_ErrV]
-wrong=28
+--wrong=28
                     end if
                 end if
-wrong=30
+--wrong=30
                 -- Delete unused entries. Function results depend on    --DEV misplaced comment?!
                 -- the routine entry (i+1), and (may) get deleted in 
                 -- the next iteration, some 55 lines above.
@@ -3431,12 +3477,16 @@ end if
                 flatdump(si,1)
                 flatsym2[i] = s_addr+#80000000
             else -- siNTyp>=S_Nspc
-wrong=35
+--wrong=35
                 if siNTyp>S_Rsvd then
                     lensi = length(si)
                     if lensi>S_1stl then
-                        si = si[1..S_1stl]      -- discard compile-time cruft [S_ErrR]
+                        si = si[1..S_1stl]      -- discard compile-time cruft [S_Efct,S_ErrR]
                     end if
+--DEV (23/6/16) maybe we should always keep S_Efct: (trouble is, pretty meaningless, and doubly so for a packed symtab)
+--                  if lensi>S_Efct then
+--                      si = si[1..S_Efct]      -- discard compile-time cruft [S_ErrR]
+--                  end if
                 end if
 if newEmit then
                 if siNTyp>=S_Type then
@@ -3500,8 +3550,9 @@ if not bind then ?9/0 end if -- 27/2/15 just see
 --      --  again (with the backpatch address) in DumpSymTab().
 --      flatsym2[slink][S_sig] = s_addr + ???
                     if sequence(lt) then
-if not bind then ?9/0 end if -- 27/2/15 just see
-                        relocations[DATA][DATA] = append(relocations[DATA][DATA],ltdsidx-1)     -- (qword)
+--if ltdsidx-1=TRAP then ?9/0 end if
+--                      relocations[DATA][DATA] = append(relocations[DATA][DATA],ltdsidx-1)     -- (qword)
+                        relocations[DATA][rd] = append(relocations[DATA][rd],ltdsidx-1)     -- (qword)
                         dsidx = ltdsidx
 --if 1 then -- added 12/1/15:
                         setds(length(data_section)+4*dsize,1)
@@ -3515,20 +3566,19 @@ if not bind then ?9/0 end if -- 27/2/15 just see
                 end if
 end if
             end if
-wrong=35
+--wrong=35
         end if
     end for
-wrong=40
+--wrong=40
 
---if newEmit then
---  dsidx = and_bits(getdsDword(9),#7FFFFFFF)+1
---DEV and this does what?...
---  symtabptr?+?
+    -- relocate symtab[T_ds4] (start of data section, when compiled) normally:
     if X64 then
         dsidx = getdsQword(9)+1
+--if (dsidx-9+T_ds4*8)=TRAP then ?9/0 end if --NO
         relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-9+T_ds4*8)
     else
         dsidx = getdsDword(9)+1
+--if (dsidx-5+T_ds4*4)=TRAP then ?9/0 end if -- NO
         relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-5+T_ds4*4)
     end if
 --printf(1,"dsidx=%08x\n",dsidx)
@@ -3536,7 +3586,7 @@ wrong=40
     if pathslast then
         dsidx0 = dsidx
     end if
-wrong=60
+--wrong=60
 
 if bind and mapsymtab then
     for i=1 to length(symtabmap) do
@@ -3547,7 +3597,8 @@ if bind and mapsymtab then
             if and_bits(fi,#80000000) then
                 fi = and_bits(fi,#7FFFFFFF)
                 if and_bits(dsidx-1,1) then ?9/0 end if
-                relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--              relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+                relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
                 setds(fi,1)
             else
                 setds(fi)
@@ -3568,7 +3619,8 @@ if atom(flatsym2[i]) then
         if and_bits(fi,#80000000) then
             fi = and_bits(fi,#7FFFFFFF)
             if and_bits(dsidx-1,1) then ?9/0 end if
-            relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+--          relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+            relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
             setds(fi,1)
         else
             setds(fi)
@@ -3578,11 +3630,11 @@ else
 end if
     end for
 end if
-wrong=100
+--wrong=100
     DumpSignatures()
-wrong=200
+--wrong=200
     DumpIds()
-wrong=300
+--wrong=300
     if pathslast then
         dumpPathSet(filepaths)                      -- specials 1
 -- is this needed for listing or anything?
@@ -3595,7 +3647,43 @@ wrong=300
         setds(pathaddr,1)
         setds(nameaddr,1)
     end if
-wrong=999
+--wrong=999
+end procedure
+
+--with trace
+procedure dumpDLLrelocs()
+-- output packed offset table for pStack/initStack to fixup refs (DLL only)
+integer rdri, offset, last=0
+sequence rdr = sort(relocations[DATA][REFS])
+--?rdr
+--trace(1)
+    for i=1 to length(rdr) do
+        rdri = rdr[i]
+        offset = rdri-last
+--if i<=4 then
+--printf(1,"%08x,%x\n",{rdri,offset})
+--end if
+        last = rdri
+        if offset<4 then ?9/0 end if
+        if offset<=#FF then
+--          data_section &= offset  -- fits in a byte
+            data_section &= and_bits(offset,#FF)    -- fits in a byte
+        elsif offset<=#FFFF then
+            data_section &= #02     -- word follows
+            poke2(m4, offset)
+            string s = peek(m42)
+            data_section &= s
+        elsif offset<=#FFFFFFFF then
+            data_section &= #01     -- dword follows
+            appenddsDword(offset)
+        else
+            ?9/0
+        end if
+--if i<=4 then
+--?data_section[-12..-1]
+--end if
+    end for
+    data_section &= '\0'            -- terminator
 end procedure
 
 --DEV...
@@ -3629,6 +3717,32 @@ function AllocateBlock(integer bytesize)
 end function
 
 include pbinary.e
+
+-- also used by pilasm.e, pmain.e:
+global procedure Or_K_ridt(integer symidx, integer flags)
+integer p, maxparams
+    --
+    -- Set the "known target of routine_id" flag...
+    --
+    if and_bits(flags,K_ridt)=0 then ?9/0 end if    -- sanity check
+    symtab[symidx][S_State] = or_bits(symtab[symidx][S_State],flags)
+    --
+    -- ...and mark all parameters as used to avoid warnings:
+    --
+    if symtab[symidx][S_NTyp]<S_Type then ?9/0 end if -- sanity check
+    p = symtab[symidx][S_Parm1]
+    maxparams = length(symtab[symidx][S_sig]) - 1
+    while maxparams do
+        if DEBUG then
+            if symtab[p][S_NTyp]!=S_TVar then ?9/0 end if
+            -- sanity check: K_noclr must NOT be set on any params!
+            if and_bits(symtab[p][S_State],K_noclr) then ?9/0 end if
+        end if
+        symtab[p][S_State] = or_bits(symtab[p][S_State],S_used)
+        p = symtab[p][S_Slink]
+        maxparams -= 1
+    end while
+end procedure
 
 --with trace
 global procedure finalfixups2(sequence path, sequence outfile, atom t)
@@ -3674,6 +3788,8 @@ integer DSvaddr4
 --integer CSvaddr4
 sequence prevsym        -- previous symtab
 sequence optable
+integer relptr
+--, wasdsidx
 --integer DSvTC --DEV (isginfo on code)
 --object dbg
 
@@ -3791,11 +3907,16 @@ end if
         end if
     end if
     if bind then
-        relocations = {{{},{}},{{},{}}}     --  ie [DATA][DATA],[DATA][CODE],[CODE][DATA],[CODE][CODE]
+--if DLL then
+        relocations = {{{},{},{}},  --  ie [CODE][DATA],[CODE][CODE],[CODE][IMPORTS],
+                       {{},{},{}}}  --  ie [DATA][DATA],[DATA][CODE],[DATA][REFS]
+--else
+--      relocations = {{{},{}},{{},{}}}     --  ie [DATA][DATA],[DATA][CODE],[CODE][DATA],[CODE][CODE]
                                             -- (or [CODE][CODE],[CODE][DATA],[DATA][CODE],[DATA][DATA])
                                             -- eg [CODE][DATA] contains the offsets in CODE that refer
                                             --    to DATA, so we need to pbinary.e/fixup() that once we
                                             --    know exactly how big and where they both are.
+--end if
     end if
 
     -- check for unused/undefined/unassigned and if debugleak emit cleanup code (see pilx86.e):
@@ -3932,7 +4053,10 @@ end if
     if some_unresolved_rtnids then
         for i=T_Bin+1 to symlimit do
             si = symtab[i]
-            if si[S_NTyp]>S_Type then   -- ie func or proc
+--DEV 28/7/16:
+--          if si[S_NTyp]>S_Type then   -- ie func or proc
+            if sequence(si)
+            and si[S_NTyp]>S_Type then  -- ie func or proc
                 u = si[S_State]
 --DEV 20/09/2013 try pulling this tooth then... (solves problem of [indirect] routineid("open_dll") getting -1)
 --              if i>T_Ainc or and_bits(u,S_used) then
@@ -3949,12 +4073,20 @@ end if
 --DEV new routine, AddToSlink(i,K_used+K_ridt), also marks all params etc as "in use"...?
 --                          si = 0
 --                          AddToSlink(i,K_used+K_ridt)
+--DEV had to flip this...
+if 0 then -- old code:
                             symtab[i] = 0               -- kill refcount
                             u = or_bits(u,K_used+K_ridt)
                             si[S_State] = u
                             si[S_Slink] = symtab[T_maintls][S_Slink]
                             symtab[i] = si
                             symtab[T_maintls][S_Slink] = i
+else
+                            si = 0
+                            Or_K_ridt(i,K_used+K_ridt)
+                            symtab[i][S_Slink] = symtab[T_maintls][S_Slink]
+                            symtab[T_maintls][S_Slink] = i
+end if
                         end if
                     end if
                 end if
@@ -4552,14 +4684,15 @@ else -- not mapsymtab
         end for
         symtabmax = length(symtab)
 end if
---DEV
-        maxop = 0   -- (none exist yet!)
         maxgvar = vmax --DEV (use maxgvar above?)
 
 --if Z_ridN!=0 then
 --  ?symtab[Z_ridN]
 --end if
 
+--if iNNN then
+--?symtab[iNNN]
+--end if
         relink()
         Ids = {}
         IdLinks = {}
@@ -4617,11 +4750,11 @@ end if
 if X64 then
         poke4(DSvaddr+4,0)              -- layout/rand seed (unused) [DEV level?]
 --      poke8(DSvaddr+8,{0,             -- symptr
---                       0,             -- maxop
+--                       0,             -- relocs
 --                       vmax,          -- maxgvar
 --               #4000000000000000})    -- unassigned
         poke4(DSvaddr+8,{0,0,           -- symptr
-                         0,0,           -- maxop
+                         0,0,           -- relocs
                          0,vmax,        -- maxgvar
                          0,#40000000})  -- unassigned
         #ilASM{
@@ -4651,7 +4784,7 @@ if X64 then
 else -- 32
         poke4(DSvaddr+4,{0,             -- layout/rand seed (unused) [DEV level?]
                          0,             -- symptr
-                         0,             -- maxop
+                         0,             -- relocs
                          vmax,          -- maxgvar
                          #40000000})    -- unassigned
         #ilASM{
@@ -4770,7 +4903,7 @@ end if
     --
 
     if bind then
-        dslen = maxop+maxgvar
+        dslen = maxgvar
         dsize = DWORD
         if X64 then
             dsize = QWORD
@@ -4789,16 +4922,16 @@ end if
             dsize = QWORD
         end if
         setds(dslen+5*dsize)        -- symptr
-        setds(maxop)
-        for i=1 to maxop do         -- optable[i] [DEV]
-            setds(0)
-        end for
-        setds(maxgvar)
-        if X64 then
-            if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        else
-            if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
+--      setds(maxop)
+--      for i=1 to maxop do         -- optable[i] [DEV]
+--          setds(0)
+--      end for
+        if DLL then
+            relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
+            relptr = dsidx
         end if
+        setds(0)                    -- DEV relocs
+        setds(maxgvar)
         for i=1 to maxgvar do       -- gvars[i] [DEV]
             if X64 then
                 setds(#4000000000000000)
@@ -4817,11 +4950,6 @@ end if
             setds(0)
         end for
         d_addr = dsidx-1
-        if X64 then
-            if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        else
-            if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        end if
     end if
 
     -- trash any unused entries in the symtab:
@@ -4933,7 +5061,7 @@ end if
                             if bind and mapsymtab and and_bits(u,K_rtn) then
                                 xi = symtabmap[xi]
                             end if
-                            offset = (maxop+sv[S_Slink]+2)*dsize+8
+                            offset = (sv[S_Slink]+2)*dsize+8
                             if X64 then
                                 setdsQword(offset,xi)
                             else
@@ -4960,12 +5088,32 @@ end if
 --if newEmit then
 --      relink()
 --23/3/16:
-        if gexch!=0 then
+        if gexch!=0 then    -- global exception handler (PE64 only)
             glboffset[gexch] += symtab[glblabel[gexch]][S_il]
 --      section = SetField(section,#10,DWORD,BaseOfCode+glboffset[gexch]+symtab[glblabel[gexch]][S_il])
 -->             offset = glboffset[vno]
 --              offset += symtab[glblabel[vno]][S_il]
         end if
+        if DLL then
+            sequence export_names = {}
+--          sequence export_offsets = {}
+            for i=1 to length(exports) do
+                si = symtab[exports[i]]
+                if integer(si[S_Name]) then
+                    k = si[S_Name]
+                    if k>=1 and k<=length(Ids) then
+                        si[S_Name] = Ids[k]
+                    end if
+                end if
+                export_names = append(export_names,si[S_Name])
+--              export_offsets = append(export_offsets,si[S_il])
+--              export_offsets = append(export_offsets,exportaddrs[i])
+            end for
+--          exports = {outfile,export_names,export_offsets}
+            exports = {outfile,export_names,exportaddrs}
+            OptConsole = 0
+        end if
+
         flatsym2 = symtab
         if not listing then
             symtab = {}
@@ -5005,31 +5153,10 @@ end if
             end while
         end if
 
-        if X64 then
-            if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        else
-            if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        end if
-----puts(1,"finalfixups2 line 5046\n")
+----puts(1,"finalfixups2 line 5079\n")
         tt_traverse(r_DumpString,"",-1)             -- literal strings
-        if X64 then
-            if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        else
-            if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        end if
-
         tt_traverseA(r_DumpAtom)                    -- float constants
-        if X64 then
-            if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        else
-            if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        end if
         DumpSequences()
-        if X64 then
-            if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        else
-            if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        end if
 
         if listing then
             -- reconstruct any nested sequences
@@ -5046,14 +5173,23 @@ end if
 --puts(1,"finalfixups2 line 4940\n")
         DumpSymTab()                                -- the symtab itself
 --puts(1,"finalfixups2 line 5112\n")
-        if X64 then
-            if getdsQword(maxop*8+25)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        else
-            if getdsDword(maxop*4+17)!=maxgvar then ?9/0 end if -- sanity check, repeated often
-        end if
 --else -- not newEmit
 --      relink()
 --end if
+
+        if DLL then
+--DEV CODE
+--          setds()
+-- no!!, erm, yes!!
+            relocations[DATA][REFS] = append(relocations[DATA][REFS],length(data_section))
+            appenddsDword(length(data_section)+4)
+--          wasdsidx = dsidx
+            dsidx = relptr
+            setds(length(data_section))
+--          dsidx = wasdsidx
+            dumpDLLrelocs()
+--          relocations[DATA][REFS] = {relptr}
+        end if
 
         if not isString(data_section) then ?9/0 end if
 
@@ -5080,7 +5216,8 @@ end if
 
 --      CreateExecutable(fn, imports, exports, relocations, data_section, code_section)
 --puts(1,"calling CreateExecutable\n")
-        CreateExecutable(fn, imports, {}, relocations, data_section, code_section)
+--      CreateExecutable(fn, imports, {}, relocations, data_section, code_section)
+        CreateExecutable(fn, imports, exports, relocations, data_section, code_section)
 --puts(1,"returned from CreateExecutable\n")
 --DEV (for listing)
 --DEV (breaks self-host)
@@ -5108,7 +5245,7 @@ end if
               }
         optable = prevsym[T_optable]
         symtab[T_optable] = optable
-        symtab[T_ds4] = floor(DSvaddr/4)
+        symtab[T_ds4] = floor(DSvaddr/4)    -- (not bind)
         if listing then
             symtab[T_pathset] = -999
             symtab[T_fileset] = -999
@@ -5132,8 +5269,6 @@ BaseOfCode2 = CSvaddr
 SizeOfCode2 = CSvsize
 BaseOfData2 = DSvaddr
 SizeOfData2 = DSvsize
---DEV
-maxop = 0
 dsize = 4
 --printf(1,"BaseOfCode2: %08x\n",{BaseOfCode2})
 --printf(1,"BaseOfData2: %08x\n",{BaseOfData2})
@@ -5185,7 +5320,7 @@ end if
                 if nTyp<=S_GVar2 then
                     svname = sv[S_Name]
                     if sequence(svname) and length(svname)>0 then
-                        offset = (maxop+sv[S_Slink]+2)*dsize+8
+                        offset = (sv[S_Slink]+2)*dsize+8
 --printf(1,"%s: %08x\n",{sv[S_Name],offset+ImageBase2+BaseOfData2})
 --if bind then
 --                      knownAddr = append(knownAddr,offset+ImageBase2+BaseOfData2)

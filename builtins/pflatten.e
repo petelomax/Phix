@@ -35,28 +35,21 @@ sequence res = ""
     return res
 end function
 
-constant SLASH = iff(platform()=WINDOWS?'\\':'/')
-
---DEV not happy/for testing
-global function join_path(sequence path_elements)
---global function join_path(sequence path_elements, integer plat=platform())
---global function join_path(sequence path_elements, integer plat=-1)
+global function join_path(sequence path_elements, integer trailsep=0)
+integer SLASH = iff(platform()=WINDOWS?'\\':'/')
 string elem, fname = ""
 
---  if plat=-1 then
---      plat = platform()
---  end if
-    for i = 1 to length(path_elements) do
+    for i=1 to length(path_elements) do
+
         elem = path_elements[i]
 
-        if elem[$] = SLASH then
-            elem = elem[1..$ - 1]
+        if length(elem) and elem[$]=SLASH then
+            elem = elem[1..$-1]
         end if
 
-        if length(elem) and elem[1] != SLASH then
+        if length(fname) and length(elem) and elem[1]!=SLASH then
             if platform()=WINDOWS then
---          if plat=WINDOWS then
-                if elem[$] != ':' then
+                if elem[$]!=':' then
                     elem = SLASH & elem
                 end if
             else
@@ -65,7 +58,12 @@ string elem, fname = ""
         end if
 
         fname &= elem
+
     end for
+
+    if trailsep and length(fname) and fname[$]!=SLASH then
+        fname &= SLASH
+    end if
 
     return fname
 end function

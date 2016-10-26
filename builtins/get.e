@@ -2,6 +2,10 @@
 -- Phix compatible version of get.e, 
 --  modified for auto-include/forward references
 --
+--  Note this is an "inherited" include, that I don't much like.
+--  Whenever I try to use it, I tend to get stuck, give up, and roll my own. 
+--  However if it works for you, then fine.
+--
 -- Euphoria 2.4
 -- Input and Conversion Routines:
 -- get()
@@ -12,6 +16,7 @@
 -- error status values returned from get() and value():
 global constant GET_SUCCESS = 0,
                 GET_EOF = -1,
+                GET_IGNORE = -2,
                 GET_FAIL = 1
 --*/
 
@@ -34,6 +39,10 @@ natural string_next
 char ch -- the current character
      ch = 0
 
+global function active_ch()
+    return ch
+end function
+
 --/* Not required for Phix (defined in pfileioN.e)
 global function wait_key()
 -- Get the next key pressed by the user.
@@ -41,6 +50,8 @@ global function wait_key()
       return machine_func(26, 0)
 end function
 --*/
+
+global integer get_line_no = 0
 
 procedure get_ch()
 -- set ch to the next character in the input stream (either string or file)
@@ -54,10 +65,11 @@ procedure get_ch()
         end if
     else
         ch = getc(input_file)
+        get_line_no += (ch='\n')
     end if
 end procedure
 
-procedure skip_blanks()
+global procedure skip_blanks()
 -- skip white space
 -- ch is "live" at entry and exit
 
@@ -134,6 +146,18 @@ type plus_or_minus(integer x)
     return x=-1 or x=+1
 end type
 
+function read_comment()
+    while ch!='\n' and ch!='\r' and ch!=-1 do
+        get_ch()
+    end while
+    get_ch()
+    if ch=-1 then
+        return {GET_EOF, 0}
+    else
+        return {GET_IGNORE, 0}
+    end if
+end function
+
 function get_number()
 -- read a number
 -- ch is "live" at entry and exit
@@ -151,6 +175,9 @@ integer e_mag
     if ch='-' then
         n_sign = -1
         get_ch()
+        if ch='-' then
+            return read_comment()
+        end if
     elsif ch='+' then
         get_ch()
     end if
@@ -244,55 +271,85 @@ integer e_mag
 end function
 
 function Get()
--- read a Euphoria data object as a string of characters
--- and return {error_flag, value}
+-- read a data object as a string of characters and return {error_flag, value}
 -- Note: ch is "live" at entry and exit of this routine
 sequence s, e
+integer e1
 
     skip_blanks()
 
-    if find(ch, "0123456789-+.#") then
-        return get_number()
+    if ch= -1 then -- string is made of whitespace only
+        return {GET_EOF, 0}
+    end if
 
-    elsif ch='{' then
-        -- process a sequence
-        s = {}
-        get_ch()
-        skip_blanks()
-        if ch='}' then
+    while 1 do
+        if find(ch, "0123456789-+.#") then
+            e = get_number()
+            if e[1]!=GET_IGNORE then -- either a number or something illegal was read, so exit: the other goto
+                return e
+            end if          -- else go read next item, starting at top of loop
+            skip_blanks()
+            if ch=-1 or ch='}' then -- '}' is expected only in the "{--\n}" case
+                return {GET_IGNORE, 0} -- just a comment
+            end if
+
+        elsif ch='{' then
+            -- process a sequence
+            s = {}
             get_ch()
-            return {GET_SUCCESS, s} -- empty sequence
+            skip_blanks()
+            if ch='}' then -- empty sequence
+                get_ch()
+                return {GET_SUCCESS, s} -- empty sequence
+            end if
+
+            while 1 do -- read: comment(s), element, comment(s), comma and so on till it terminates or errors out
+                while 1 do -- read zero or more comments and an element
+                    e = Get() -- read next element, using standard function
+                    e1 = e[1]
+                    if e1=GET_SUCCESS then
+                        s = append(s, e[2])
+                        exit  -- element read and added to result
+                    elsif e1!=GET_IGNORE then
+                        return e
+                    -- else it was a comment, keep going
+                    elsif ch='}' then
+                        get_ch()
+                        return {GET_SUCCESS, s} -- empty sequence
+                    end if
+                end while
+
+                while 1 do -- now read zero or more post element comments
+                    skip_blanks()
+                    if ch='}' then
+                        get_ch()
+                        return {GET_SUCCESS, s}
+                    elsif ch!='-' then
+                        exit
+                    else -- comment starts after item and before comma
+                        e = get_number() -- reads anything starting with '-'
+                        if e[1]!=GET_IGNORE then    -- it wasn't a comment, this is illegal
+                            return {GET_FAIL, 0}
+                        end if
+                        -- read next comment or , or }
+                    end if
+                end while
+                if ch!=',' then
+                    return {GET_FAIL, 0}
+                end if
+                get_ch() -- skip comma
+            end while
+
+        elsif ch='\"' then
+            return get_string()
+        elsif ch='\'' then
+            return get_qchar()
+        else
+            return {GET_FAIL, 0}
         end if
 
-        while TRUE do
-            e = Get() -- read next element
-            if e[1]!=GET_SUCCESS then
-                return e
-            end if
-            s = append(s, e[2])
-            skip_blanks()
-            if ch='}' then
-                get_ch()
-                return {GET_SUCCESS, s}
-            elsif ch!=',' then
-                return {GET_FAIL, 0}
-            end if
-            get_ch() -- skip comma
-        end while
+    end while
 
-    elsif ch='\"' then
-        return get_string()
-
-    elsif ch='\'' then
-        return get_qchar()
-
-    elsif ch=-1 then
-        return {GET_EOF, 0}
-
-    else
-        return {GET_FAIL, 0}
-
-    end if
 end function
 
 global function get(integer file)

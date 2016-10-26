@@ -6,7 +6,7 @@
      <stripped>
       <h1 class="title">format directive</h1>
       <div id="mainSection">
-        The primary purpose of the format directive is cross-compilation, ie 32&lt;-&gt;64 and pe&lt;-&gt;elf.
+        The primary purpose of the format directive is cross-compilation, ie 32&lt;-&gt;64 and pe&lt;-&gt;elf (aka Windows&lt;-&gt;Linux).
        <br>
        <br> 
         If the format directive is completely omitted then suitable defaults for all values are provided,
@@ -16,32 +16,40 @@
         creates a 64-bit executable. And of course running a Windows version of Phix on a Windows machine
         by default creates a Windows PE format executable, whereas a Linux version on a Linux machine 
         creates a Linux ELF format executable (but running a PE format Phix under Wine will create a PE
-        format output suitable for running under Wine, by default). The format directive allows you to 
-        override that default behaviour and has the following formal syntax:
+        format output suitable for running under Wine). The format directive allows you to override that 
+        default behaviour and has the following formal syntax:
  <pre>
     format "redirect.file"|
-           ((PE32|PE64) [GUI|console] [3.10|4.0|5.0] [DLL]) [icons] [version] [manifest])|
-           (ELF32|ELF64)
- </pre>
-        To keep things simple, you may prefer to consider it as (needing "-c" and) just
- <pre>
-    format PE32|PE64|ELF32|ELF64
- </pre>
-        At the time of writing, DLL is not supported, but some test code has been written, and
-        PE64/ELF32/ELF64 have only been subject to very limited testing and are likely to fail.
+           (PE32|PE64) [GUI|console] [3.10|4.0|5.0] [DLL]) [icons] [version] [manifest]|
+           (ELF32|ELF64) [SO]</pre>
+        As a simple example, you could just use ("-c" and) "format PE32".
+        <br>
+        <br>
+        When DLL/SO is specified, the compiler collects export statements in the top-level file
+        and uses that list (of symtab entry indexes) to construct the required export section.
+        Note that constants (and enums) cannot be exported, and routines are subject to the same
+        restrictions as <a href="call_back.htm">call_back</a> routines. You should also note that
+        DLL/SO mandates the use of "-c -norun" on the command line, there is no interpret (or trace) 
+        mode, and further that "-c -nodiag -norun" (or the shorter/easier but equivalent "-dll") is 
+        recommended once things have been adequately tested.
+        <br>
+        <br>
+        At the time of writing, DLL/SO are in progress/not yet supported. [DEV]
+        <br>
+        <br>
         Note that, as a relatively new addition, the format directive is subject to frequent change.
         One possible (but untried) use for the format directive might be for a library to assert that
         the target architecture is properly supported/tested, eg arwen.ew could begin with the line
         "format PE32|PE64" (literally including the "|") to assert that it does not run on ELF, or
         another component could have all four currently supported targets, as a safety measure against
-        ARM or some other target being added in the future.
+        ARM or some other target being added in the future. (arwen.ew is 
         Consequently this section is likely to be updated as/when things get implemented/fixed.
        <br>
        <br>
         The format directive should be at the start of the main file, before any constant, variable, or
         routine definitions, or any executable code or include statements, but can be after namespace
-        and with/without directives. To get technical for a moment, the real issue is that an #ilASM
-        statement, as very commonly occuring in the builtins directory, is, before a format directive,
+        and with/without directives. To get technical for a moment, the real issue is that any #ilASM
+        statements, as very commonly occuring in the builtins directory, are, before a format directive,
         rather likely to target the wrong architecture. Some special handling has been added to pmain.e 
         (see Z_format) to allow trace() and profile() to precede a format statement, however it may not 
         work in all cases. Likewise you may also get away with a few simple constants, etc. Otherwise 
@@ -57,11 +65,11 @@
         p.fmt for cross-compilation etc. A redirected file cannot contain anything other than a format 
         directive; pmain.e/DoFormat() issues a compilation error if it does not reach EOF. In case you
         have not guessed, if the token following the format keyword is a string, it is a filename. In 
-        fact, a format "
-       <i>filename</i>" directive is almost identical to an include <i>filename</i> statement, 
-        except that the former expressly prohibits anything other than a format directive in the target 
-        file. Also, redirects are ignored during interpretation, whereas an "inline" format directive 
-        that specifies an incompatible architecture for interpretation causes a compilation error.
+        fact, a format "<i>filename</i>" directive is almost identical to an include <i>filename</i> 
+        statement, except that the former expressly prohibits anything other than a format directive 
+        in the target file. Also, redirects are ignored during interpretation, whereas an "inline" 
+        format directive that specifies an incompatible architecture for interpretation causes a 
+        compilation error.
        <br>
        <br>
         As an example, the file pe32.fmt distributed with Phix contains:
@@ -99,31 +107,22 @@ manifest `
         compilation, though it should be trivial to (programmatically) create such a file beforehand.
        <br>
        <br>
-DEV not sure we really need this, see http://openeuphoria.org/forum/124650.wc#124650
-       <br>
- <pre>
-&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;
-&lt;assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"&gt;
- &lt;assemblyIdentity version="4.1.0.0" processorArchitecture="x86" name="euphoria" type="win32"/&gt;
- &lt;dependency&gt;
-  &lt;dependentAssembly&gt;
-   &lt;assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0"
-                     processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*" /&gt;
-                                           ^^^ TRYME *** (and comment out pbinary.e/manifest = substitute_all(manifest,"\"x86\"","\"amd64\""))
-  &lt;/dependentAssembly&gt;
- &lt;/dependency&gt;
-&lt;/assembly&gt;
- </pre>
+        I believe (but I&rsquo;m not an expert) that a processorArchitecture of "*" would be best for
+        PE32/PE64 compatibility. Since I encountered a problem trying to compile "x86" to PE64, I expect
+        others will probably do so as well, and hence have implemented the following solution:
+        <br>
+        <br>
         Any "x86" in the manifest are automatically replaced with "amd64" (including the quotes)
         when PE64 is in force, as it seems that doing so is necessary to properly initialise the common
-        controls (without manually invoking InitCommonControlsEx). This was, of couse, originally only 
-        intended to apply to the default rather than any explicit replacement, but since it is an easy 
-        fix to a possibly fairly common mistake that would otherwise completely hose an application, it 
-        has been deliberately left like that (applying across the board to everything).
+        controls (without manually invoking InitCommonControlsEx). This was originally only intended to 
+        apply to the default rather than any explicit replacement, but since it is an easy fix to a 
+        possibly fairly common mistake that would otherwise completely hose an application, it has been 
+        deliberately left like that (applying across the board to everything).
+        There is, however, no equivalent substitution of "amd64" with "x86" when PE32 is in force.
        <br>
        <br>
         Lastly, when using a 32-bit compiler to create a 64-bit executable, be aware that the integer range is redefined 
-        as +/-#FFFF_FFFF rather than -#4000_0000_0000_0000 to #3FFF_FFFF_FFFF_FFFF. See ptok.e/setFLOAT() for all the 
+        as +/-#FFFF_FFFF rather than -#4000_0000_0000_0000 to #3FFF_FFFF_FFFF_FFFF. See ptok.e/<wbr>setFLOAT() for all the 
         nitty-gritty details. It is also true that the value of PI, and possibly some other constants, will be slightly 
         out, by about one trillionth of one percent, when performing such cross-compilations.
        <br>

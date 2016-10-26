@@ -12,6 +12,8 @@
 --  documented library written expressly for inclusion of this into Edita.
 --
 
+--DEV not documented
+
 --with trace
 include builtins/pComN.ew
 
@@ -220,11 +222,7 @@ constant atom pIFileDialogEvents = create_com_object({cb_IFileDialogEvents_Query
 --
 -- Part 2 (of 2). Add this drop-down to the dialog:
 --
-constant atom Encoding  = unicode_string("Encoding:")
-constant atom Ansi      = unicode_string("Ansi")
-constant atom Utf8      = unicode_string("Unicode (UTF-8)")
-constant atom Utf16le   = unicode_string("Unicode (UTF-16LE)")
-constant atom Utf16be   = unicode_string("Unicode (UTF-16BE)")
+atom Encoding=0, Ansi, Utf8, Utf16le, Utf16be
 
 --
 -- Helper routines
@@ -291,6 +289,13 @@ function add_encoding_dropdown(integer encoding)
 -- Helper routine, factored out of filedialog()
 integer res = 1
     if encoding!=0 then
+        if Encoding=0 then
+            Encoding = unicode_string("Encoding:")
+            Ansi     = unicode_string("Ansi")
+            Utf8     = unicode_string("Unicode (UTF-8)")
+            Utf16le  = unicode_string("Unicode (UTF-16LE)")
+            Utf16be  = unicode_string("Unicode (UTF-16BE)")
+        end if
         if cominvk(pFileDialogCustomize,IFileDialogCustomize_StartVisualGroup,{10,Encoding})!=S_OK
         or cominvk(pFileDialogCustomize,IFileDialogCustomize_AddComboBox,{100})!=S_OK
         or cominvk(pFileDialogCustomize,IFileDialogCustomize_AddControlItem,{100,1,Ansi})!=S_OK
@@ -326,8 +331,14 @@ atom pShellItemArray, pShellItemArrayCount
     {} = c_func(xCoInitialize,{NULL})
     if c_func(xCoCreateInstance,{clsids[fmode],NULL,CLSCTX_INPROC_SERVER,iids[fmode],pFileDialog})=S_OK then
         if default_folder!=NULL then
-            if length(default_folder)=1
+            if find(length(default_folder),{1,2})
             and sequence(default_folder[1]) then
+                if length(default_folder)=2 
+                and length(default_folder[2]) then
+                    pName = unicode_string(default_folder[2])
+                    {} = cominvk(pFileDialog,IFileDialog_SetFileName,{pName})
+                    free(pName)
+                end if                  
                 default_folder = default_folder[1]
                 I_SetFolder = IFileDialog_SetFolder -- (forcefully overrides any recently used default)
             end if
@@ -467,7 +478,9 @@ global function newGetOpenFileName(atom hWnd=NULL, object filters=NULL, object e
 -- Specifying a default folder of say "C:\temp" causes the standard behaviour of setting the folder to use if there is not a
 --  recently used folder value available. Specifying a default folder of {"C:\temp"} overrides any recently used folder value.
 --  Edita, for example, uses the latter to force open/save in the directory associated with the current file tab, however most
---  applications would not benefit from such brutally forceful behaviour.
+--  applications would not benefit from such brutally forceful behaviour. Lastly, a default name can be specified by using eg
+--  {"C:\temp","listing.txt"}, with the underlying assumption that anyone wanting to specify a name will also want to force a 
+--  specific target directory as well. Not sure if it is a smart idea for open, but there is nothing specific to stop that.
 -- Specifying an encoding of ENC_NONE (0) suppresses the encoding drop-down, otherwise specify ENC_ANSI/ENC_UTF8/ENC_UTF16LE/
 --  ENC_UTF16BE (1..4) for ansi/utf8/utf16le/utf16be.
 --  eg .reg files should [as opposed to must] always be stored as utf16le; so removing the option avoids potential mishap,
@@ -490,12 +503,16 @@ global function newGetSaveFileName(atom hWnd=NULL, object filters=NULL, object e
 end function
 
 global procedure fileopenFree()
-    free(Encoding)
-    free(Ansi)
-    free(Utf8)
-    free(Utf16le)
-    free(Utf16be)
-    free(pFileDialogCustomize)
-    freeGUIDS()
-    free(pIFileDialogEvents)
+    if platform()=WINDOWS then
+        if Encoding!=0 then
+            free(Encoding)
+            free(Ansi)
+            free(Utf8)
+            free(Utf16le)
+            free(Utf16be)
+        end if
+        free(pFileDialogCustomize)
+        freeGUIDS()
+        free(pIFileDialogEvents)
+    end if
 end procedure

@@ -39,8 +39,8 @@ pST = allocate_struct(idST),
 idFT = define_struct(tFT),
 pFT = allocate_struct(idFT),
 k32 = open_dll("kernel32.dll"),
-xSTtoFT = define_cfunc(k32,tSTtoFT),
-xFTtoST = define_cfunc(k32,tFTtoST)
+xSTtoFT = define_cffi_func(k32,tSTtoFT),
+xFTtoST = define_cffi_func(k32,tFTtoST)
 
 sequence res = {}
 
@@ -72,14 +72,14 @@ if define_struct(gdipSI,S64,0)!={"GdiplusStartupInput",24,8,{{"GdiplusVersion","
 constant func1="""
 DWORD WINAPI GetLastError(void);
 """
-if define_cfunc("kernel32.dll",func1,0)<=0 then ?9/0 end if
+if define_cffi_func("kernel32.dll",func1,0)<=0 then ?9/0 end if
 
 constant func2="""
 void WINAPI SetLastError(
   _In_  DWORD dwErrCode
 );
 """
-if define_cproc("kernel32.dll",func2,0)<=0 then ?9/0 end if
+if define_cffi_proc("kernel32.dll",func2,0)<=0 then ?9/0 end if
 
 --include builtins\cffi.e
 constant tMB="""
@@ -91,7 +91,7 @@ int WINAPI MessageBox(
 );
 """
 set_unicode(0)
-constant xMessageBox = define_cfunc("user32.dll",tMB,0)
+constant xMessageBox = define_cffi_func("user32.dll",tMB,0)
 --?c_func(xMessageBox,{0,"text","caption",0})
 atom pText = allocate_string("text"),
      pCaption = allocate_string("caption")
@@ -119,7 +119,7 @@ int WINAPI MessageBoxIndirect(
 );
 """
 integer idMBP = define_struct(tMBP)
-integer xMBI = define_cfunc("user32.dll",tMBI)
+integer xMBI = define_cffi_func("user32.dll",tMBI)
 atom pMBP = allocate_struct(idMBP)
     set_struct_field(idMBP,pMBP,"cbSize",get_struct_size(idMBP))
     set_struct_field(idMBP,pMBP,"lpszText",pText)
@@ -335,7 +335,7 @@ LONG WINAPI RegOpenKeyEx(
 );
 """		   
 if 01 then
-    if define_cfunc("Advapi32.dll",testROK,S32)<=0 then ?9/0 end if
+    if define_cffi_func("Advapi32.dll",testROK,S32)<=0 then ?9/0 end if
 end if
 
 --constant test = "struct x{char *ps; short s;} "

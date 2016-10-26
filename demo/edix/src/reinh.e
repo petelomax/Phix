@@ -40,7 +40,9 @@ string res
 integer ch
     if isReplaceTabs then
         otw = 0
-    elsif isTabWidth!=8 or (isEu and Xtrans) then
+--  elsif isTabWidth!=8 or (isEu and Xtrans) then
+--  elsif isTabWidth!=8 or isEu then
+    elsif isTabWidth!=8 then
         otw = 8
     end if
     for i=1 to length(ftxt) do
@@ -71,7 +73,7 @@ if string(fi) then
 else
             for j=1 to length(fi) do
                 ch = and_bits(fi[j],#FF)
-                res [start] = ch
+                res[start] = ch
                 start += 1
             end for
 end if

@@ -82,9 +82,7 @@ integer eiskip = 1
 
 function enteritem_cb(Ihandle ih, integer lin, integer col)
     IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
---DEV doc:
     IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
---  IupSetAttributes(ih,"MARK%d:0=Yes",{lin});
     IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
     IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col}); -- [1]
     if eiskip then
@@ -99,7 +97,9 @@ integer sortcol = 0
 integer sortdir = 1
 
 function by_column(integer i, integer j)
-    return sortdir*compare(data[i][sortcol],data[j][sortcol])
+integer c = sortdir*compare(data[i][sortcol],data[j][sortcol])
+    if c=0 then c=compare(data[i][1],data[j][1]) end if -- ChqNo
+    return c
 end function
 
 procedure showselected()
@@ -174,8 +174,8 @@ procedure main()
     IupSetInt(matrix, "NUMLIN_VISIBLE", 15)
 --  IupSetInt(matrix, "WIDTHDEF", 40) -- (now completely overidden anyway)
     for i=1 to length(twidth) do
-        IupSetInt(matrix, sprintf("RASTERWIDTH%d",{i}), twidth[i])
-        IupSetAttribute(matrix, sprintf("ALIGNMENT%d",{i}), IupRawStringPtr(talign[i]))
+        IupSetIntId(matrix, "RASTERWIDTH", i, twidth[i])
+        IupSetAttributeId(matrix, "ALIGNMENT", i, talign[i])
     end for
     --IMPORTANT: HEIGHT0 tells IupMatrix that we are gonna have column titles at line 0
     IupSetInt(matrix, "HEIGHT0", 10);

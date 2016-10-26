@@ -208,10 +208,12 @@ constant
 --       dec_edi        =  #4F,         -- 0o117                    -- dec edi
          push_eax       =  #50,         -- 0o120                    -- push eax     ..#57 for other regs
          push_edx       =  #52,         -- 0o122                    -- push edx
---       push_esi       =  #56,         -- 0o126                    -- push esi
+         push_esi       =  #56,         -- 0o126                    -- push esi
          pop_eax        =  #58,         -- 0o130                    -- pop eax  ..#5F for other regs
---       pop_esi        =  #5E,         -- 0o136                    -- pop esi
+         pop_esi        =  #5E,         -- 0o136                    -- pop esi
 --       pop_edi        =  #5F,         -- 0o137                    -- pop edi
+--       pushad         =  #60,         -- 0o140                    -- pushad
+--       popad          =  #61,         -- 0o141                    -- popad
 --       wd_prfx        =  #66,         -- 0o146                    -- <word prefix>
          push_imm32     =  #68,         -- 0o150 imm32              -- push imm32
          push_imm8      =  #6A,         -- 0o152 imm8               -- push imm8 (as machine word size)
@@ -606,15 +608,17 @@ atom m4 = allocate(4)
 --end if
 end procedure
 
---procedure emitHexWord(atom v)
----- break up a word constant into 2 bytes
---string s
---  poke2(m4, v) -- faster than doing divides etc. (idea from database.e)
---  s = peek(m42)
---  for i=1 to 2 do
---      x86 &= s[i]
---  end for
---end procedure
+procedure emitHexWord(atom v)
+-- break up a word constant into 2 bytes
+string s
+atom m2 = allocate(2)
+    poke2(m2, v) -- faster than doing divides etc. (idea from database.e)
+    s = peek({m2,2})
+    free(m2)
+    for i=1 to 2 do
+        x86 &= s[i]
+    end for
+end procedure
 
 -- for linking up isBase/isAddr/isJmp(/isDead):
 integer q86first,
@@ -4716,7 +4720,7 @@ end if
 
         thisDbg = and_bits(flag,K_wdb)  -- for lineinfo()
 
-        -- known routine_id target [also used in needstypecheck()]
+        -- known routine_id target [as used in needstypecheck()]
         isKridt = and_bits(flag,K_ridt)
 
 --trace(1)
@@ -11123,7 +11127,7 @@ end while
                 leamov(edi,dest)                                -- lea edi,[dest]/mov edi,addr dest (result)
                 if iroot=T_integer and bmin=bmax then
                     movRegImm32(eax,bmin)                       -- mov eax,imm32
-clearReg(eax)
+                    clearReg(eax)
                 else
                     loadToReg(eax,src)                          -- mov eax,[src] (item to repeat)
                 end if
@@ -14663,6 +14667,12 @@ if not newEmit then ?9/0 end if
 --                  x86 &= {#48,#83,#EC,#28}            -- align stack (sub rsp,8*5)
 --                  emitHex4l(integer op1, integer op2, integer op3, integer op4)
                 end if
+                integer exportaddr = length(x86)
+--temp!:
+--emitHex1(0o314) -- int3
+--emitHex1(pushad) -- pushad
+emitHex1(push_esi) -- push esi
+
                 for lblidx=1 to length(glblused) do
                     if and_bits(glblused[lblidx],G_init) then
 --                      x86 &= {call_rel32,isJmpG,0,0,lblidx}
@@ -14673,6 +14683,46 @@ end if
 --                      emitHex5callG(opInit)
                     end if
                 end for
+--emitHex1(popad) -- popad
+emitHex1(pop_esi) -- pop esi
+                if DLL then
+--DEV if no DllMain, we could just emit mov eax,1 ret (and reset exportaddr)...
+                    if length(exports)=0
+                    or symtab[exports[1]][S_Name]!=T_DLLMAIN then
+                        movRegImm32(eax,1)  -- mov eax,1
+                        emitHex1(#C3)       -- ret
+                        exportaddr = length(x86)
+                    end if
+                    -- emit the static callbacks.
+                    -- make sure VM/pcfunc.e has been included...
+                    -- check vi==T_maintls and s5=={opInit}
+                    for i=1 to length(exports) do
+                        -- save address against exports[i] 
+                        -- exportaddrs[i] = length(x86) (see glboffset)
+                        exportaddrs[i] = exportaddr
+                        integer ei = exports[i]
+-- push rtnid!
+--                      movRegImm32(eax,ei)                 -- mov eax,imm32
+--              mov byte[edi],0o150     -- push (#68)
+if X64 then ?9/0 end if
+--                      emitHex5w(push_imm32,ei)            -- push imm32
+                        emitHex5vno(push_imm32,ei)          -- push symtab index
+                        -- emit call :%cbhandler[64]
+--                      emitHex5callG(0,symtab[ei][S_Name])         -- call :%cbhandler[64]
+                        emitHex5callG(opCbHandler)          -- call :%cbhandler
+                        -- emit ret [imm16]
+--DEV and X64=0??
+                        if PE then  -- Windows
+                            integer noofparams = symtab[ei][S_ParmN]
+                            emitHex1(#C2)   -- ret imm16 (STDCALL)
+                            emitHexWord(noofparams*4)
+                        else        -- Linux
+                            emitHex1(#C3)   -- ret (CDECL)
+                        end if
+                        exportaddr = length(x86)
+                    end for
+--                  ?9/0
+                end if
             end if
             pc += 1
 --      elsif opcode=opTestN

@@ -71,7 +71,8 @@ global constant tPOINTER    = 4,
                 tBYTE       = 1
 
 atom myLoadIcon, myLoadCursor,mySetCursor, myGetStockObject, myRegisterClassEx,
-        myCreateWindow,myCreate, myShowWindow, myUpdateWindow, myGetMessage,myPeekMessage,
+        myCreateWindow, myShowWindow, myUpdateWindow, myGetMessage,myPeekMessage,
+--      myCreate,
         myTranslateMessage, myDispatchMessage, myPlaySound, myBeginPaint,
         myGetClientRect, myDrawText, myEndPaint, myPostQuitMessage, myDefWindowProc,mySetWindowText,
         myGetWindowText,myGetDesktopWindow,myGetActiveWindow,mySetActiveWindow,myGetTopWindow,myGetNextWindow,
@@ -123,7 +124,7 @@ PosRect = {0,0,0,0}
 -- Free the Buffer on Exit
 constant IPC_MAXDATA = 8192
 atom IPC_DATASTRING = #54494e53
-atom IPC_DATADATA = #54494e44
+--atom IPC_DATADATA = #54494e44
 atom IPC_DATANONE = #0
 atom IPC_BUFFER = allocate(IPC_MAXDATA)
 global atom IPC_COPYDATASTRUCT = allocate(12) --IPC_COPYDATASTRUCT
@@ -161,7 +162,7 @@ global object  Void
 global constant WinTimer = 1
 
 
-atom EWG = 1
+--atom EWG = 1
 
 global BOOL CloseEventEnabled ,
             UseTransparentPics ,
@@ -446,11 +447,11 @@ end procedure
 
 
 global function LoWord(atom dword)
-        return and_bits(#0000FFFF,dword)
+    return and_bits(#0000FFFF,dword)
 end function
 
 global function HiWord(atom dword)
-        return floor(and_bits(#FFFF0000,dword)/#FFFF)
+    return floor(and_bits(#FFFF0000,dword)/#FFFF)
 end function
 
 global procedure not_found(sequence name)
@@ -717,6 +718,23 @@ atom richedit,comctl,user32, gdi32, winmm,kernel32,uxtheme,comdlg,shell32,riched
     mySetLayeredWindowAttributes = link_c_func(user32,"SetLayeredWindowAttributes",{C_HANDLE,C_POINTER,C_BYTE,C_POINTER},C_INT)
 end procedure
 
+global function SetWindowLong(atom hwnd,atom index,atom newlong)
+--  LONG SetWindowLong(
+--  HWND hWnd,
+--  int nIndex,
+--  LONG dwNewLong
+-- );
+    return c_func(mySetWindowLong,{hwnd,index,newlong})
+end function
+
+global function GetWindowLong(atom hwnd,atom index)
+--  LONG GetWindowLong(
+--  HWND hWnd,
+--  int nIndex
+-- );
+    return c_func(myGetWindowLong,{hwnd,index})
+end function
+
 --==============================SET OPACITY for a TransparentWindow========================
 global procedure SetOpacity(atom handle=WinHwnd,atom opag=50)
     opag = floor(opag*(255/100))
@@ -737,14 +755,62 @@ global procedure SetOpacityRGB(atom handle=WinHwnd,atom opag=0)
 end procedure
 --==============================SET OPACITY for a TransparentWindow========================
 
+--******************************************************************************************************************
+global function MessageBox(atom hwnd, sequence text, sequence title, sequence style)
+atom ptext,ptitle,style1,result
+    style1 = or_all(style)
+    ptext = allocate_string(text)
+    ptitle = allocate_string(title)
+    result = c_func(myMessageBox,{hwnd,ptext,ptitle,style1})
+    free(ptext)
+    free(ptitle)
+    return result
+end function
+
+-- form_spec_def is defined in myconst32.ew 
+global procedure InfoMsg(object text, object title)
+
+sequence text1,title1
+
+    if atom(text) then
+        text1 = sprintf(form_spec_def,text)
+        text = text1
+    end if
+    if atom(title) then
+        title1 = sprintf(form_spec_def,title)
+        title = title1
+    end if
+    MessageBoxReturnValue = MessageBox(WinHwnd,text,title,{MB_OK,MB_ICONINFORMATION,MB_APPLMODAL})
+end procedure
+
+--******************************************************************************************************************
+global function FindWindow(object  name,object class=0)
+
+integer pointer,result
+    if sequence(class) then
+        class = allocate_string(class)
+    end if
+    pointer = allocate_string(name)
+    result = c_func(myFindWindow1,{class,pointer})
+    free(pointer)
+    free(class)
+    return result
+end function
+
+--******************************************************************************************************************
+global function SendMessage(atom hwnd, atom msg, atom wparam,atom lparam)
+
+--if not ((atom (hwnd)) or (atom (msg)) or (atom (wparam)) or (atom (lparam))) then
+--  return 0
+--end if
+    return c_func(mySendMessage,{hwnd,msg,wparam,lparam})
+
+end function
+
 --==============================IPC for tinEWG=============================================
 global function IPC_RecString()
     return peek_string(IPC_BUFFER)
 end function
-
-global procedure IPC_Ack(atom friend=IPC_FRIEND)
-    IPC_SendString(friend,"ACK")
-end procedure
 
 global procedure IPC_SendString(object target,sequence data)
 atom target_new
@@ -766,9 +832,15 @@ atom target_new
         return
     end if
 end procedure
+
+global procedure IPC_Ack(atom friend=IPC_FRIEND)
+    IPC_SendString(friend,"ACK")
+end procedure
 --==============================IPC for tinEWG=============================================
 
 -- Windows API --
+--DEV unused
+--/*
 procedure FillRect(atom hdc,atom xpos,atom ypos,atom ywidth,atom xheight,atom brush)
 --int FillRect(
 --  __in    HDC hDC,
@@ -784,6 +856,7 @@ atom pRect
     c_proc(myFillRect,{hdc,pRect,brush})
     free(pRect)
 end procedure
+--*/
 
 function GetDeviceCaps(atom hdc,atom index)
     return c_func(myGetDeviceCaps,{hdc,index})
@@ -830,23 +903,6 @@ global function CallWindowProc(atom wndproc,atom hwnd,atom msg,atom wParam,atom 
     else
         return 666
     end if
-end function
-
-global function SetWindowLong(atom hwnd,atom index,atom newlong)
---  LONG SetWindowLong(
---  HWND hWnd,
---  int nIndex,
---  LONG dwNewLong
--- );
-    return c_func(mySetWindowLong,{hwnd,index,newlong})
-end function
-
-global function GetWindowLong(atom hwnd,atom index)
---  LONG GetWindowLong(
---  HWND hWnd,
---  int nIndex
--- );
-    return c_func(myGetWindowLong,{hwnd,index})
 end function
 
 global function IsIconic(atom handle)
@@ -943,6 +999,10 @@ atom ptext,result
     return result
 end function
 
+global function AppendSeparator(atom menuhandle)
+    return AppendMenu(menuhandle,MF_SEPARATOR,NULL,"")
+end function
+
 global procedure AppendTextItem(atom menuhandle,atom id,object itemtext)
 
     if atom(itemtext) then
@@ -962,10 +1022,6 @@ global procedure AppendTextItem(atom menuhandle,atom id,object itemtext)
         end if
     end for
 end procedure
-
-global function AppendSeparator(atom menuhandle)
-    return AppendMenu(menuhandle,MF_SEPARATOR,NULL,"")
-end function
 
 global function AppendPopup(atom menuhandle,atom popuphandle,object itemtext)
     if atom(itemtext) then
@@ -997,6 +1053,8 @@ end procedure
 
 -- ================================Menu funtions===============================
 -- ================================ComboBoxEx funtions=========================
+--DEV unused
+--/*
 procedure cbex_AddText(atom handle,sequence text)
 --  typedef struct {
 --  UINT      mask;
@@ -1027,6 +1085,7 @@ atom citem,szPointer,result
         InfoMsg("dat war nix","cbex_AddText")
     end if
 end procedure
+--*/
 
 global function GetComboBoxInfo(atom handle)
 --typedef struct tagCOMBOBOXINFO {
@@ -1105,7 +1164,7 @@ end function
 --
 
 global procedure keybd_event(integer vk,integer scan, integer extended)
-        c_proc(mykeybd_event,{vk,scan,extended,0})
+    c_proc(mykeybd_event,{vk,scan,extended,0})
 end procedure
 --******************************************************************************************************************
 --************************************************************************************************************
@@ -1152,17 +1211,6 @@ global procedure ShowWindow(atom handle,atom style)
     c_proc(myUpdateWindow, {handle})
 end procedure
 --******************************************************************************************************************
-global function MessageBox(atom hwnd, sequence text, sequence title, sequence style)
-atom ptext,ptitle,style1,result
-    style1 = or_all(style)
-    ptext = allocate_string(text)
-    ptitle = allocate_string(title)
-    result = c_func(myMessageBox,{hwnd,ptext,ptitle,style1})
-    free(ptext)
-    free(ptitle)
-    return result
-end function
---******************************************************************************************************************
 global procedure InitCommonControls()
 atom pointer
 
@@ -1188,36 +1236,23 @@ end procedure
 --******************************************************************************************************************
 global procedure PostQuitMessage(atom msg)
 
-        c_proc(myPostQuitMessage,{msg})
+    c_proc(myPostQuitMessage,{msg})
 
 end procedure
 
 global function GetSystemMetrics(atom index)
     return c_func(myGetSystemMetrics,{index})
 end function
---******************************************************************************************************************
-global function FindWindow(object  name,object class=0)
-
-integer pointer,result
-    if sequence(class) then
-        class = allocate_string(class)
-    end if
-    pointer = allocate_string(name)
-    result = c_func(myFindWindow1,{class,pointer})
-    free(pointer)
-    free(class)
-    return result
-end function
 
 --******************************************************************************************************************
 procedure DispatchMessage()
-        c_proc(myDispatchMessage,{MSG})
+    c_proc(myDispatchMessage,{MSG})
 end procedure
 --******************************************************************************************************************
 
 --******************************************************************************************************************
 procedure TranslateMessage()
-        c_proc(myTranslateMessage,{MSG})
+    c_proc(myTranslateMessage,{MSG})
 end procedure
 --******************************************************************************************************************
 --**
@@ -1257,15 +1292,6 @@ function PeekMessage()
 end function
 
 --******************************************************************************************************************
-global function SendMessage(atom hwnd, atom msg, atom wparam,atom lparam)
-
---if not ((atom (hwnd)) or (atom (msg)) or (atom (wparam)) or (atom (lparam))) then
---  return 0
---end if
-    return c_func(mySendMessage,{hwnd,msg,wparam,lparam})
-
-end function
---******************************************************************************************************************
 global function PostMessage(atom hwnd, atom msg, atom wparam,atom lparam)
 
     return c_func(myPostMessage,{hwnd,msg,wparam,lparam})
@@ -1279,10 +1305,10 @@ global function SetFocus(atom handle)
 
 end function
 --******************************************************************************************************************
-global function LoadIcon(atom hinstance,object string)
+global function LoadIcon(atom hinstance,object str)
 atom szPointer
 atom result
-    szPointer = allocate_string(string)
+    szPointer = allocate_string(str)
     result = c_func(myLoadIcon,{hinstance ,szPointer})
     free(szPointer)
     return result
@@ -1292,7 +1318,7 @@ end function
 --***************************************************************************************************
 global function LoadImage(atom myinstance,object name, atom ptype, atom width,atom height, atom flags)
 atom szPointer,handle
-atom hdc,memdc
+--atom hdc,memdc
     if atom(name)  then
         return c_func(myLoadImage,{myinstance,name,ptype,width,height,flags})
     else
@@ -1553,10 +1579,6 @@ atom lParam,szPointer
     free(lParam)
 end procedure
 
-global procedure AddToolTip(atom handle,sequence text,atom width=-1)
-    tt_AddTool(resize_controls[ctlGetControlIndex(handle)][rs_tooltip],handle,text,width)
-end procedure
-
 --** 
 -- Gets the index of a control in the List from his handle
 -- This function is much to slow in a bigger programm (maybe resize_controls shouldbe sorted and then a binary search will be much faster)
@@ -1573,6 +1595,10 @@ atom index
     end for
     return index
 end function
+
+global procedure AddToolTip(atom handle,sequence text,atom width=-1)
+    tt_AddTool(resize_controls[ctlGetControlIndex(handle)][rs_tooltip],handle,text,width)
+end procedure
 
 -- Get the Type of an Control
 function GetControlType(atom handle)
@@ -2062,7 +2088,7 @@ end function
 
 global function WndProc(atom hwnd, atom iMsg, atom wParam, atom lParam)
 atom ctlindex,Xfactor,Yfactor,result
-sequence rect
+--sequence rect
 --if ctlGetControlIndex(hwnd) >  0 then
 --if resize_controls[ctlGetControlIndex(hwnd)][rs_group]=gDesigner then 
 --  if iMsg=WM_NCHITTEST then
@@ -2072,343 +2098,343 @@ sequence rect
 --end if          
 --end if
 
-        if iMsg=WM_CREATE then
-            INPROC = False
+    if iMsg=WM_CREATE then
+        INPROC = False
+        return 0
+    end if
+    if iMsg=WM_NCCREATE then
+        INPROC = False
+        return True
+    end if
+
+    if iMsg=WM_COPYDATA then
+        IPC_DATATYPE = IPC_DATANONE
+        IPC_FRIEND = Null
+        if peek4u(lParam+4)+1>IPC_MAXDATA then
             return 0
         end if
-        if iMsg=WM_NCCREATE then
-            INPROC = False
-            return True
+        if PostMessage(WinHwnd,WM_NULL,0,0) then end if -- I don't know why, but it make things working ????
+        if peek4u(lParam)=IPC_DATASTRING then
+            Event = Ipc
+            EventOwner = WinHwnd
+            EventItem = IPC_DATASTRING
+            IPC_DATATYPE = IPC_DATASTRING
+            IPC_FRIEND = wParam
+            for i=0 to peek4u(lParam+4)  do
+                poke(IPC_BUFFER+i,peek(peek4u(lParam+8)+i))
+            end for
+            return 1
         end if
 
-        if iMsg=WM_COPYDATA then
-            IPC_DATATYPE = IPC_DATANONE
-            IPC_FRIEND = Null
-            if peek4u(lParam+4)+1>IPC_MAXDATA then
-                return 0
-            end if
-            if PostMessage(WinHwnd,WM_NULL,0,0) then end if -- I don't know why, but it make things working ????
-            if peek4u(lParam)=IPC_DATASTRING then
-                Event = Ipc
-                EventOwner = WinHwnd
-                EventItem = IPC_DATASTRING
-                IPC_DATATYPE = IPC_DATASTRING
-                IPC_FRIEND = wParam
-                for i=0 to peek4u(lParam+4)  do
-                    poke(IPC_BUFFER+i,peek(peek4u(lParam+8)+i))
-                end for
-                return 1
-            end if
+    end if
 
+    if iMsg=WM_WINDOWPOSCHANGED then
+        --  if ctlGetControlIndex(hwnd) >  0 then       
+        if resize_controls[ctlGetControlIndex(hwnd)][rs_group]=gDesigner  then
+            PosRect = peek4u({lParam+8,4})
+            ctlEventOwner = hwnd
+            ctlEvent = PosChanged
         end if
-
-        if iMsg=WM_WINDOWPOSCHANGED then
-            --  if ctlGetControlIndex(hwnd) >  0 then       
-            if resize_controls[ctlGetControlIndex(hwnd)][rs_group]=gDesigner  then
-                PosRect = peek4u({lParam+8,4})
-                ctlEventOwner = hwnd
-                ctlEvent = PosChanged
-            end if
-        --  end if  
-        end if
-        if iMsg=WM_DESTROY then
+    --  end if  
+    end if
+    if iMsg=WM_DESTROY then
 --      if iMsg=9999 then
-            --Event = 0
-            --EventOwner = 0
-            --return 0
-            if CloseEventEnabled then
-                Event = Close
-                EventOwner = hwnd
-            end if
+        --Event = 0
+        --EventOwner = 0
+        --return 0
+        if CloseEventEnabled then
+            Event = Close
+            EventOwner = hwnd
+        end if
 
-            if hwnd=WinHwnd then
+        if hwnd=WinHwnd then
 
-                if not CloseEventEnabled then
-                    PostQuitMessage(0)
-                else
-                    Event = Close
-                    return 0
-                end if
+            if not CloseEventEnabled then
+                PostQuitMessage(0)
             else
-                ShowWindow(hwnd,SW_HIDE)
+                Event = Close
                 return 0
             end if
+        else
+            ShowWindow(hwnd,SW_HIDE)
+            return 0
+        end if
 
 
 
-        elsif iMsg=WM_CLOSE then
-            -- if CloseEventEnabled then
-            --  Event = Close
-            --  EventOwner = hwnd
-            -- end if
+    elsif iMsg=WM_CLOSE then
+        -- if CloseEventEnabled then
+        --  Event = Close
+        --  EventOwner = hwnd
+        -- end if
 
-            if hwnd=WinHwnd then
-                if not CloseEventEnabled then
-                    PostQuitMessage(0)
-                else
-                    Event = Close
-                    EventOwner = hwnd
-                    return 0
-                end if
-            elsif not(hwnd=WinHwnd) then
+        if hwnd=WinHwnd then
+            if not CloseEventEnabled then
+                PostQuitMessage(0)
+            else
                 Event = Close
                 EventOwner = hwnd
-                -- Void=AnimateWindow(hwnd,200,#010011)
-                -- ShowWindow(hwnd,SW_HIDE) -- tinEWG normally hides a control-window per default if the Close Button is pressed
-                return 0                    -- becouse i like it this way!
-            end if                          -- but then the "Close" Event get's lost. Don't know why (now)
-
-        elsif iMsg=WM_MOVE then
-
-        elsif iMsg=WM_PAINT then
+                return 0
+            end if
+        elsif not(hwnd=WinHwnd) then
+            Event = Close
             EventOwner = hwnd
-            Event = Paint
-        elsif iMsg=WM_USER+List then
-            EventOwner = hwnd
+            -- Void=AnimateWindow(hwnd,200,#010011)
+            -- ShowWindow(hwnd,SW_HIDE) -- tinEWG normally hides a control-window per default if the Close Button is pressed
+            return 0                    -- becouse i like it this way!
+        end if                          -- but then the "Close" Event get's lost. Don't know why (now)
+
+    elsif iMsg=WM_MOVE then
+
+    elsif iMsg=WM_PAINT then
+        EventOwner = hwnd
+        Event = Paint
+    elsif iMsg=WM_USER+List then
+        EventOwner = hwnd
+        Event = Click
+        --MouseX = LoWord(lParam)   -- i don't know if this make sence
+        --MouseY = HiWord(lParam)   -- but it doesn't hurd
+        if XEventOwner then
+            EventOwner = XEventOwner
+            XEventOwner = 0
+        end if
+        return 0
+    elsif iMsg=WM_LBUTTONDOWN then
+        EventOwner = hwnd
+        Event = Click
+        MouseX = LoWord(lParam)   -- i don't know if this make sence
+        MouseY = HiWord(lParam)   -- but it doesn't hurd
+        if XEventOwner then
+            EventOwner = XEventOwner
+            XEventOwner = 0
+        end if
+        --return 0
+    elsif iMsg=WM_RBUTTONDOWN then
+        EventOwner = hwnd
+        Event = RClick
+        MouseX = LoWord(lParam)   -- i don't know if this make sence
+        MouseY = HiWord(lParam)   -- but it doesn't hurd
+        if XEventOwner then
+            EventOwner = XEventOwner
+            XEventOwner = 0
+        end if
+        --return 0  
+
+    elsif iMsg=WM_LBUTTONUP then
+        Event = Release
+        EventOwner = hwnd
+        MouseX = LoWord(lParam)   -- i don't know if this make sence
+        MouseY = HiWord(lParam)   -- but it doesn't hurd
+        --return 0
+
+    elsif iMsg=WM_RBUTTONUP then
+        Event = RRelease
+        EventOwner = hwnd
+        if XEventOwner then
+            EventOwner = XEventOwner
+            XEventOwner = 0
+        end if
+        MouseX = LoWord(lParam)   -- i don't know if this make sence
+        MouseY = HiWord(lParam)   -- but it doesn't hurd
+        --return 0  
+    elsif iMsg=WM_LBUTTONDBLCLK then
+        Event = DClick
+        EventOwner = hwnd
+        if XEventOwner then
+            EventOwner = XEventOwner
+            XEventOwner = 0
+        end if
+        return 0
+    elsif iMsg=WM_MOUSEMOVE then
+        MouseX = LoWord(lParam)
+        MouseY = HiWord(lParam)
+        Event = Move
+        EventOwner = hwnd
+
+        --return 0
+
+
+    elsif iMsg=WM_COMMAND then
+
+        if HiWord(wParam)=BN_CLICKED then --BN_CLICKED and STN_CLICKED are the same
             Event = Click
-            --MouseX = LoWord(lParam)   -- i don't know if this make sence
-            --MouseY = HiWord(lParam)   -- but it doesn't hurd
-            if XEventOwner then
-                EventOwner = XEventOwner
-                XEventOwner = 0
-            end if
-            return 0
-        elsif iMsg=WM_LBUTTONDOWN then
-            EventOwner = hwnd
-            Event = Click
-            MouseX = LoWord(lParam)   -- i don't know if this make sence
-            MouseY = HiWord(lParam)   -- but it doesn't hurd
-            if XEventOwner then
-                EventOwner = XEventOwner
-                XEventOwner = 0
-            end if
+            EventOwner = lParam
+            EventItem = LoWord(wParam)
             --return 0
-        elsif iMsg=WM_RBUTTONDOWN then
-            EventOwner = hwnd
-            Event = RClick
-            MouseX = LoWord(lParam)   -- i don't know if this make sence
-            MouseY = HiWord(lParam)   -- but it doesn't hurd
-            if XEventOwner then
-                EventOwner = XEventOwner
-                XEventOwner = 0
-            end if
-            --return 0  
+        end if
 
-        elsif iMsg=WM_LBUTTONUP then
-            Event = Release
-            EventOwner = hwnd
-            MouseX = LoWord(lParam)   -- i don't know if this make sence
-            MouseY = HiWord(lParam)   -- but it doesn't hurd
-            --return 0
-
-        elsif iMsg=WM_RBUTTONUP then
-            Event = RRelease
-            EventOwner = hwnd
-            if XEventOwner then
-                EventOwner = XEventOwner
-                XEventOwner = 0
-            end if
-            MouseX = LoWord(lParam)   -- i don't know if this make sence
-            MouseY = HiWord(lParam)   -- but it doesn't hurd
-            --return 0  
-        elsif iMsg=WM_LBUTTONDBLCLK then
+        if HiWord(wParam)=LBN_DBLCLK then
             Event = DClick
-            EventOwner = hwnd
-            if XEventOwner then
-                EventOwner = XEventOwner
-                XEventOwner = 0
-            end if
-            return 0
-        elsif iMsg=WM_MOUSEMOVE then
-            MouseX = LoWord(lParam)
-            MouseY = HiWord(lParam)
-            Event = Move
-            EventOwner = hwnd
-
+            EventOwner = lParam
+            EventItem = LoWord(wParam)
             --return 0
-
-
-        elsif iMsg=WM_COMMAND then
-
-            if HiWord(wParam)=BN_CLICKED then --BN_CLICKED and STN_CLICKED are the same
-                Event = Click
-                EventOwner = lParam
+        end if
+        if HiWord(wParam)=0 then  -- Menu Item selected
+            if lParam=0 then
                 EventItem = LoWord(wParam)
-                --return 0
-            end if
-
-            if HiWord(wParam)=LBN_DBLCLK then
-                Event = DClick
-                EventOwner = lParam
-                EventItem = LoWord(wParam)
-                --return 0
-            end if
-            if HiWord(wParam)=0 then  -- Menu Item selected
-                if lParam=0 then
-                    EventItem = LoWord(wParam)
-                    EventOwner = hwnd
-                    Event = Menu
-                end if
-            end if
-            if HiWord(wParam)=1 then  -- Menu Shortcut selected
-                if lParam=0 then
-                    EventItem = LoWord(wParam)
-                    EventOwner = hwnd
-                    Event = Menu
-                end if
-            end if
-            if HiWord(wParam)=CBN_SELCHANGE then
-                EventOwner = lParam
-                Event = Click
-                EventItem = 0
-            end if
-            if HiWord(wParam)=LBN_SELCHANGE then
-                EventOwner = lParam
-                Event = Click
-                EventItem = 0
-            end if
-        elsif   iMsg=WM_CHAR then
-            EventItem = wParam
-            Event = Key
-            EventOwner = hwnd
-            if XEventOwner then
-                EventOwner = XEventOwner
-                XEventOwner = 0
-            end if
-            if wParam=VK_TAB then
-                Event = HotKey
-            end if
-            if wParam=13 then
-                EventItem = KEY_ENTER
-            end if
-            return 0
-
-        elsif iMsg=WM_KEYUP then
-            if and_bits(lParam,0x01000000) then
-                EventItem = wParam
                 EventOwner = hwnd
-                Event = Key
-                PressedKey = -1
+                Event = Menu
             end if
+        end if
+        if HiWord(wParam)=1 then  -- Menu Shortcut selected
+            if lParam=0 then
+                EventItem = LoWord(wParam)
+                EventOwner = hwnd
+                Event = Menu
+            end if
+        end if
+        if HiWord(wParam)=CBN_SELCHANGE then
+            EventOwner = lParam
+            Event = Click
+            EventItem = 0
+        end if
+        if HiWord(wParam)=LBN_SELCHANGE then
+            EventOwner = lParam
+            Event = Click
+            EventItem = 0
+        end if
+    elsif   iMsg=WM_CHAR then
+        EventItem = wParam
+        Event = Key
+        EventOwner = hwnd
+        if XEventOwner then
+            EventOwner = XEventOwner
+            XEventOwner = 0
+        end if
+        if wParam=VK_TAB then
+            Event = HotKey
+        end if
+        if wParam=13 then
+            EventItem = KEY_ENTER
+        end if
+        return 0
+
+    elsif iMsg=WM_KEYUP then
+        if and_bits(lParam,0x01000000) then
+            EventItem = wParam
+            EventOwner = hwnd
+            Event = Key
+            PressedKey = -1
+        end if
     --      if wParam=VK_TAB then
     --          Event = HotKey
     --      end if
     --      if wParam=13 then
     --          EventItem=KEY_ENTER
     --      end if
-            return 0
+        return 0
 
-        elsif iMsg=WM_KEYDOWN then
+    elsif iMsg=WM_KEYDOWN then
     --      EventItem = wParam
     --      Event = Key
-            PressedKey = wParam
+        PressedKey = wParam
     --      if wParam=VK_TAB then
     --          Event = HotKey
     --      end if
     --      if wParam=13 then
     --          EventItem=KEY_ENTER
     --      end if
+        return 0
+
+    elsif iMsg=WM_TIMER then
+        if wParam=1 then --only increment Ticks for then EuWinGui-Timer, timer 1
+            Ticks += 1
+        end if
+        EventItem = wParam
+        Event = Time
+        EventOwner = hwnd
+
+
+    elsif iMsg=WM_SIZE then
+        if wParam=1 then
+            IsMiniMized = True
+            XRestore = False
+            --InfoMsg("MiniMized","Pong1")
             return 0
+        end if
+        if wParam=Null or wParam=2 then -- 0 = SIZE_RESTORED 2 = SIZE_MAXIMIZED, ingnoring minimizing
 
-        elsif iMsg=WM_TIMER then
-            if wParam=1 then --only increment Ticks for then EuWinGui-Timer, timer 1
-                Ticks += 1
+            if IsMiniMized then
+                IsMiniMized = False
+                Event = Restore
+                EventOwner = hwnd
+                XRestore = hwnd
+                --return 0
             end if
-            EventItem = wParam
-            Event = Time
-            EventOwner = hwnd
+            if wParam=0 then
+                Event = Restore
+                EventOwner = hwnd
+            end if
+            LPRECT = GetWindowRect(hwnd)
 
+            -- Sometimes it drives me mad!!!
+            -- Why isn't top and left not simply zero if the window is maximized?
+            -- (I know, but i forgot)
 
-        elsif iMsg=WM_SIZE then
-            if wParam=1 then
-                IsMiniMized = True
-                XRestore = False
-                --InfoMsg("MiniMized","Pong1")
+            ctlindex = ctlGetControlIndex(hwnd)
+            --  ctlindex now contains the index in resize_controls
+            if ctlindex=0 then
                 return 0
             end if
-            if wParam=Null or wParam=2 then -- 0 = SIZE_RESTORED 2 = SIZE_MAXIMIZED, ingnoring minimizing
 
-                if IsMiniMized then
-                    IsMiniMized = False
-                    Event = Restore
-                    EventOwner = hwnd
-                    XRestore = hwnd
-                    --return 0
-                end if
-                if wParam=0 then
-                    Event = Restore
-                    EventOwner = hwnd
-                end if
-                LPRECT = GetWindowRect(hwnd)
+            -- It seems WM_SIZE is fired during creation of the Window before, CreateWindowEx returns. !?
+            -- This forced a race condition on Eu4 if compiled (only compiled Eu4 no problems with
+            -- Eu4 interpreted or Eu3 compiled or interpreted).
+            -- I changed the code to use the full size of the window to fill out the resize_controls[1]
+            -- , before i used the Clientarea size. 
 
-                -- Sometimes it drives me mad!!!
-                -- Why isn't top and left not simply zero if the window is maximized?
-                -- (I know, but i forgot)
-
-                ctlindex = ctlGetControlIndex(hwnd)
-                --  ctlindex now contains the index in resize_controls
-                if ctlindex=0 then
-                    return 0
-                end if
-
-                -- It seems WM_SIZE is fired during creation of the Window before, CreateWindowEx returns. !?
-                -- This forced a race condition on Eu4 if compiled (only compiled Eu4 no problems with
-                -- Eu4 interpreted or Eu3 compiled or interpreted).
-                -- I changed the code to use the full size of the window to fill out the resize_controls[1]
-                -- , before i used the Clientarea size. 
-
-                if (resize_controls[ctlindex][rs_xsize]=0) or (resize_controls[ctlindex][rs_ysize]=0) then
-                    print(1,"WndProc in WM_SIZE!!!")
+            if (resize_controls[ctlindex][rs_xsize]=0) or (resize_controls[ctlindex][rs_ysize]=0) then
+                print(1,"WndProc in WM_SIZE!!!")
 --DEV PL
 --                  pretty_print(1,resize_controls,{})
-                    --sleep(5)
-                    return 0
-                end if
-
-
-                Xfactor = ((LPRECT[3]-LPRECT[1])/resize_controls[ctlindex][rs_xsize])
-                Yfactor = ((LPRECT[4]-LPRECT[2])/resize_controls[ctlindex][rs_ysize])
-                Yfactor = Yfactor
-                if length(resize_controls)>1 then
-
-                    for i=2 to length(resize_controls)  do
-                        if (hwnd=resize_controls[i][rs_parent]) then
-                            if resize_controls[i][rs_mode]=rs_mode_full then
-                                MoveWindow(resize_controls[i][rs_handle],
-                                           floor(resize_controls[i][rs_xcoord]*Xfactor),
-                                           floor(resize_controls[i][rs_ycoord]*Yfactor),
-                                           floor(resize_controls[i][rs_xsize]*Xfactor),
-                                           floor(resize_controls[i][rs_ysize]*Yfactor),
-                                           True)
-
-                            elsif resize_controls[i][rs_mode]=rs_mode_non then
-                            -- do nothing
-                            elsif resize_controls[i][rs_mode]=rs_mode_size then
-                                MoveWindow(resize_controls[i][rs_handle],
-                                           floor(resize_controls[i][rs_xcoord]),
-                                           floor(resize_controls[i][rs_ycoord]),
-                                           floor(resize_controls[i][rs_xsize]*Xfactor),
-                                           floor(resize_controls[i][rs_ysize]*Yfactor),
-                                           True)
-                            elsif resize_controls[i][rs_mode]=rs_mode_pos then
-                                MoveWindow(resize_controls[i][rs_handle],
-                                           floor(resize_controls[i][rs_xcoord])*Xfactor,
-                                           floor(resize_controls[i][rs_ycoord])*Yfactor,
-                                           floor(resize_controls[i][rs_xsize]),
-                                           floor(resize_controls[i][rs_ysize]),
-                                           True)
-                            end if
-                        end if
-
-                    end for
-
-                    return 0
-
-                end if
+                --sleep(5)
+                return 0
             end if
 
 
-        elsif iMsg=WM_CTLCOLORLISTBOX  then
+            Xfactor = ((LPRECT[3]-LPRECT[1])/resize_controls[ctlindex][rs_xsize])
+            Yfactor = ((LPRECT[4]-LPRECT[2])/resize_controls[ctlindex][rs_ysize])
+            Yfactor = Yfactor
+            if length(resize_controls)>1 then
+
+                for i=2 to length(resize_controls)  do
+                    if (hwnd=resize_controls[i][rs_parent]) then
+                        if resize_controls[i][rs_mode]=rs_mode_full then
+                            MoveWindow(resize_controls[i][rs_handle],
+                                       floor(resize_controls[i][rs_xcoord]*Xfactor),
+                                       floor(resize_controls[i][rs_ycoord]*Yfactor),
+                                       floor(resize_controls[i][rs_xsize]*Xfactor),
+                                       floor(resize_controls[i][rs_ysize]*Yfactor),
+                                       True)
+
+                        elsif resize_controls[i][rs_mode]=rs_mode_non then
+                        -- do nothing
+                        elsif resize_controls[i][rs_mode]=rs_mode_size then
+                            MoveWindow(resize_controls[i][rs_handle],
+                                       floor(resize_controls[i][rs_xcoord]),
+                                       floor(resize_controls[i][rs_ycoord]),
+                                       floor(resize_controls[i][rs_xsize]*Xfactor),
+                                       floor(resize_controls[i][rs_ysize]*Yfactor),
+                                       True)
+                        elsif resize_controls[i][rs_mode]=rs_mode_pos then
+                            MoveWindow(resize_controls[i][rs_handle],
+                                       floor(resize_controls[i][rs_xcoord])*Xfactor,
+                                       floor(resize_controls[i][rs_ycoord])*Yfactor,
+                                       floor(resize_controls[i][rs_xsize]),
+                                       floor(resize_controls[i][rs_ysize]),
+                                       True)
+                        end if
+                    end if
+
+                end for
+
+                return 0
+
+            end if
+        end if
+
+
+    elsif iMsg=WM_CTLCOLORLISTBOX  then
 
     --  case WM_CTLCOLORSTATIC:
     --  {
@@ -2425,84 +2451,84 @@ sequence rect
     -- Also this Message seems to be fired before CreateWindowEx returns!
     -- So we could get a nice crash if resize_controls is not set up until the first
     -- WM_CTLCOLORLISTBOX. Nice race condition.
-            ctlindex = ctlGetControlIndex(lParam)
-            if ctlindex=0 then
-                return 0
-            end if
-            if  resize_controls[ctlindex][rs_backbrush]>0 then
-                c_proc(mySetTextColor,{wParam,resize_controls[ctlindex][rs_textcolor]})
-                c_proc(mySetBkColor,{wParam,resize_controls[ctlindex][rs_backcolor]})
-                return resize_controls[ctlindex][rs_backbrush]
-            end if
+        ctlindex = ctlGetControlIndex(lParam)
+        if ctlindex=0 then
+            return 0
+        end if
+        if  resize_controls[ctlindex][rs_backbrush]>0 then
+            c_proc(mySetTextColor,{wParam,resize_controls[ctlindex][rs_textcolor]})
+            c_proc(mySetBkColor,{wParam,resize_controls[ctlindex][rs_backcolor]})
+            return resize_controls[ctlindex][rs_backbrush]
+        end if
 
-        elsif iMsg=WM_CTLCOLOREDIT  then
-            ctlindex = ctlGetControlIndex(lParam)
-            if ctlindex=0 then
-                return 0
-            end if
-            if  resize_controls[ctlindex][rs_backbrush]>0 then
-                c_proc(mySetTextColor,{wParam,resize_controls[ctlindex][rs_textcolor]})
-                c_proc(mySetBkColor,{wParam,resize_controls[ctlindex][rs_backcolor]})
-                return resize_controls[ctlindex][rs_backbrush]
-            end if
+    elsif iMsg=WM_CTLCOLOREDIT  then
+        ctlindex = ctlGetControlIndex(lParam)
+        if ctlindex=0 then
+            return 0
+        end if
+        if  resize_controls[ctlindex][rs_backbrush]>0 then
+            c_proc(mySetTextColor,{wParam,resize_controls[ctlindex][rs_textcolor]})
+            c_proc(mySetBkColor,{wParam,resize_controls[ctlindex][rs_backcolor]})
+            return resize_controls[ctlindex][rs_backbrush]
+        end if
 
-        elsif iMsg=WM_CTLCOLORSTATIC then
-            ctlindex = ctlGetControlIndex(lParam)
-            if ctlindex=0 then
-                return 0
-            end if
-            if  resize_controls[ctlindex][rs_backbrush]>0 then
-                c_proc(mySetTextColor,{wParam,resize_controls[ctlindex][rs_textcolor]})
-                c_proc(mySetBkColor,{wParam,resize_controls[ctlindex][rs_backcolor]})
-                return resize_controls[ctlindex][rs_backbrush]
-            end if
+    elsif iMsg=WM_CTLCOLORSTATIC then
+        ctlindex = ctlGetControlIndex(lParam)
+        if ctlindex=0 then
+            return 0
+        end if
+        if  resize_controls[ctlindex][rs_backbrush]>0 then
+            c_proc(mySetTextColor,{wParam,resize_controls[ctlindex][rs_textcolor]})
+            c_proc(mySetBkColor,{wParam,resize_controls[ctlindex][rs_backcolor]})
+            return resize_controls[ctlindex][rs_backbrush]
+        end if
 
-        elsif iMsg=WM_CTLCOLORBTN then
-            ctlindex = ctlGetControlIndex(lParam)
-            if ctlindex=0 then
-                return 0
-            end if
-            if  resize_controls[ctlindex][rs_backbrush]>0 then
-                c_proc(mySetTextColor,{wParam,resize_controls[ctlindex][rs_textcolor]})
-                c_proc(mySetBkColor,{wParam,resize_controls[ctlindex][rs_backcolor]})
-                return resize_controls[ctlindex][rs_backbrush]
-            end if
+    elsif iMsg=WM_CTLCOLORBTN then
+        ctlindex = ctlGetControlIndex(lParam)
+        if ctlindex=0 then
+            return 0
+        end if
+        if  resize_controls[ctlindex][rs_backbrush]>0 then
+            c_proc(mySetTextColor,{wParam,resize_controls[ctlindex][rs_textcolor]})
+            c_proc(mySetBkColor,{wParam,resize_controls[ctlindex][rs_backcolor]})
+            return resize_controls[ctlindex][rs_backbrush]
+        end if
 
-        end if  -- That's the "end if" of the whole beast
+    end if  -- That's the "end if" of the whole beast
 
 
-        if iMsg=WM_SYSCOMMAND then
+    if iMsg=WM_SYSCOMMAND then
 --      In WM_SYSCOMMAND messages, the four low-order bits of the uCmdType parameter are used internally by Windows. 
 --  To obtain the correct result when testing the value of uCmdType, an application must combine the value
 --  0xFFF0 with the uCmdType value by using the bitwise AND operator. 
 --  uCmdType = wParam   
-        end if
+    end if
 
-        -- A Quick way of implementing the TrappMessage of EuWinGui. Be careful it trapps "every" Message!!!
-        if length(TrappedMsgList)>1 then
-            for i=1 to length(TrappedMsgList) do
-                if iMsg=TrappedMsgList[i] then
-                    UserTrap = True
-                    TrappedMsg = {hwnd,iMsg,wParam,lParam}
-                    return 0
+    -- A Quick way of implementing the TrappMessage of EuWinGui. Be careful it trapps "every" Message!!!
+    if length(TrappedMsgList)>1 then
+        for i=1 to length(TrappedMsgList) do
+            if iMsg=TrappedMsgList[i] then
+                UserTrap = True
+                TrappedMsg = {hwnd,iMsg,wParam,lParam}
+                return 0
+            end if
+        end for
+    end if
+
+    result = c_func(myDefWindowProc,{hwnd,iMsg,wParam,lParam})
+
+    if iMsg=WM_PAINT  then
+        if length(PaintProcs)>1 then
+            for i=2 to length(PaintProcs) do
+                if hwnd=PaintProcs[i][1] then
+                    EventOwner = hwnd
+                    call_proc(PaintProcs[i][2],{})
                 end if
             end for
         end if
+    end if
 
-        result = c_func(myDefWindowProc,{hwnd,iMsg,wParam,lParam})
-
-        if iMsg=WM_PAINT  then
-            if length(PaintProcs)>1 then
-                for i=2 to length(PaintProcs) do
-                    if hwnd=PaintProcs[i][1] then
-                        EventOwner = hwnd
-                        call_proc(PaintProcs[i][2],{})
-                    end if
-                end for
-            end if
-        end if
-
-        return result
+    return result
 
 end function
 
@@ -2833,7 +2859,7 @@ end function
 --
 
 global procedure DrawPoint(atom xpos,atom ypos)
-atom hdc,oldobject,iscontrol,pPoint
+atom hdc,oldobject,iscontrol--,pPoint
     hdc = Null
     iscontrol = False
 
@@ -2924,31 +2950,31 @@ global procedure CopyMB(atom sourcebitmap,atom xpos,atom ypos,atom xsize,atom ys
 --  __in    int nHeightSrc,
 --  __in    DWORD dwRop
 --);
-atom hdcsrc,hdcdest,oldobjectsrc,oldobjectdest,hdc
+atom hdcsrc,hdcdest,oldobjectsrc,oldobjectdest--,hdc
 -- source
-        --hdc=c_func(myGetDC,{WinHwnd})
-        hdcsrc = c_func(myCreateCompatibleDC,{0}) --hdc
-        --Void=c_func(myReleaseDC,{WinHwnd,hdc})
-        oldobjectsrc = c_func(mySelectObject,{hdcsrc,sourcebitmap})
+    --hdc=c_func(myGetDC,{WinHwnd})
+    hdcsrc = c_func(myCreateCompatibleDC,{0}) --hdc
+    --Void=c_func(myReleaseDC,{WinHwnd,hdc})
+    oldobjectsrc = c_func(mySelectObject,{hdcsrc,sourcebitmap})
 -- dest
-        --hdc=c_func(myGetDC,{WinHwnd})
-        hdcdest = c_func(myCreateCompatibleDC,{0}) --hdc
-        --Void=c_func(myReleaseDC,{WinHwnd,hdc})
-        oldobjectdest = c_func(mySelectObject,{hdcdest,destbitmap})
+    --hdc=c_func(myGetDC,{WinHwnd})
+    hdcdest = c_func(myCreateCompatibleDC,{0}) --hdc
+    --Void=c_func(myReleaseDC,{WinHwnd,hdc})
+    oldobjectdest = c_func(mySelectObject,{hdcdest,destbitmap})
 -- copy it
 --
-        if (destysize=ysize) and (destxsize=xsize) then
-            Void = c_func(myBitBlt,{hdcdest,destxpos,destypos,xsize,ysize,hdcsrc,xpos,ypos,CopyMode})
-        else
-            c_proc(mySetStretchBltMode,{hdcdest,3}) -- 3 means COLORONCOLOR
-            Void = c_func(myStretchBlt,{hdcdest,destxpos,destypos,destxsize,destysize,hdcsrc,xpos,ypos,xsize,ysize,CopyMode})
-        end if
+    if (destysize=ysize) and (destxsize=xsize) then
+        Void = c_func(myBitBlt,{hdcdest,destxpos,destypos,xsize,ysize,hdcsrc,xpos,ypos,CopyMode})
+    else
+        c_proc(mySetStretchBltMode,{hdcdest,3}) -- 3 means COLORONCOLOR
+        Void = c_func(myStretchBlt,{hdcdest,destxpos,destypos,destxsize,destysize,hdcsrc,xpos,ypos,xsize,ysize,CopyMode})
+    end if
 
-        Void = c_func(mySelectObject,{hdcsrc,oldobjectsrc})
-        Void = c_func(myDeleteDC,{hdcsrc})
+    Void = c_func(mySelectObject,{hdcsrc,oldobjectsrc})
+    Void = c_func(myDeleteDC,{hdcsrc})
 
-        Void = c_func(mySelectObject,{hdcdest,oldobjectdest})
-        Void = c_func(myDeleteDC,{hdcdest})
+    Void = c_func(mySelectObject,{hdcdest,oldobjectdest})
+    Void = c_func(myDeleteDC,{hdcdest})
 
 end procedure
 
@@ -2969,30 +2995,30 @@ global procedure CopyMBToControl(atom sourcebitmap,atom xpos,atom ypos,atom xsiz
 --  __in    int nHeightSrc,
 --  __in    DWORD dwRop
 --);
-atom hdcsrc,hdcdest,oldobjectsrc,oldobjectdest,hdc
+atom hdcsrc,hdcdest,oldobjectsrc--,oldobjectdest,hdc
 -- source
-        --hdc=c_func(myGetDC,{WinHwnd})
-        hdcsrc = c_func(myCreateCompatibleDC,{0}) --hdc
-        --Void=c_func(myReleaseDC,{WinHwnd,hdc})
-        oldobjectsrc = c_func(mySelectObject,{hdcsrc,sourcebitmap})
+    --hdc=c_func(myGetDC,{WinHwnd})
+    hdcsrc = c_func(myCreateCompatibleDC,{0}) --hdc
+    --Void=c_func(myReleaseDC,{WinHwnd,hdc})
+    oldobjectsrc = c_func(mySelectObject,{hdcsrc,sourcebitmap})
 -- dest
-        hdcdest = c_func(myGetDC,{destcontrol})
-        --hdcdest=c_func(myCreateCompatibleDC,{0}) --hdc
+    hdcdest = c_func(myGetDC,{destcontrol})
+    --hdcdest=c_func(myCreateCompatibleDC,{0}) --hdc
 
-        --oldobjectdest=c_func(mySelectObject,{hdcdest,destbitmap})     
+    --oldobjectdest=c_func(mySelectObject,{hdcdest,destbitmap})     
 -- copy it
 
-        if (destysize=ysize) and (destxsize=xsize) then
-            Void = c_func(myBitBlt,{hdcdest,destxpos,destypos,xsize,ysize,hdcsrc,xpos,ypos,CopyMode})
-        else
-            c_proc(mySetStretchBltMode,{hdcdest,3}) -- 3 means COLORONCOLOR
-            Void = c_func(myStretchBlt,{hdcdest,destxpos,destypos,destxsize,destysize,hdcsrc,xpos,ypos,xsize,ysize,CopyMode})
-        end if
+    if (destysize=ysize) and (destxsize=xsize) then
+        Void = c_func(myBitBlt,{hdcdest,destxpos,destypos,xsize,ysize,hdcsrc,xpos,ypos,CopyMode})
+    else
+        c_proc(mySetStretchBltMode,{hdcdest,3}) -- 3 means COLORONCOLOR
+        Void = c_func(myStretchBlt,{hdcdest,destxpos,destypos,destxsize,destysize,hdcsrc,xpos,ypos,xsize,ysize,CopyMode})
+    end if
 
-        Void = c_func(mySelectObject,{hdcsrc,oldobjectsrc})
-        Void = c_func(myDeleteDC,{hdcsrc})
+    Void = c_func(mySelectObject,{hdcsrc,oldobjectsrc})
+    Void = c_func(myDeleteDC,{hdcsrc})
 
-        Void = c_func(myReleaseDC,{WinHwnd,hdcdest})
+    Void = c_func(myReleaseDC,{WinHwnd,hdcdest})
 
 end procedure
 
@@ -3209,22 +3235,22 @@ global function WaitEvent()
 atom x
     --  ctlEvent=0
     --  ctlEventOwner=0
-        Event = 0
-        EventOwner = 0
-        EventItem = 0
-        x = GetMessage()
-        if not CloseEventEnabled and not x then
-            CloseApp(0)
-        end if
-        TranslateMessage()
-        DispatchMessage()
+    Event = 0
+    EventOwner = 0
+    EventItem = 0
+    x = GetMessage()
+    if not CloseEventEnabled and not x then
+        CloseApp(0)
+    end if
+    TranslateMessage()
+    DispatchMessage()
 
-        if XRestore then
-            EventOwner = XRestore
-            Event = Restore
-            XRestore = False
-        end if
-        return x
+    if XRestore then
+        EventOwner = XRestore
+        Event = Restore
+        XRestore = False
+    end if
+    return x
 end function
 
 global procedure ProcessEvent()
@@ -3252,31 +3278,15 @@ global procedure WarnMsg(object text, object title)
 
 sequence text1,title1
 
-        if atom(text) then
-            text1 = sprintf(form_spec_def,text)
-            text = text1
-        end if
-        if atom(title) then
-            title1 = sprintf(form_spec_def,title)
-            title = title1
-        end if
-        MessageBoxReturnValue = MessageBox(WinHwnd,text,title,{MB_OK,MB_ICONWARNING,MB_APPLMODAL})
-end procedure
-
--- form_spec_def is defined in myconst32.ew 
-global procedure InfoMsg(object text, object title)
-
-sequence text1,title1
-
-        if atom(text) then
-            text1 = sprintf(form_spec_def,text)
-            text = text1
-        end if
-        if atom(title) then
-            title1 = sprintf(form_spec_def,title)
-            title = title1
-        end if
-        MessageBoxReturnValue = MessageBox(WinHwnd,text,title,{MB_OK,MB_ICONINFORMATION,MB_APPLMODAL})
+    if atom(text) then
+        text1 = sprintf(form_spec_def,text)
+        text = text1
+    end if
+    if atom(title) then
+        title1 = sprintf(form_spec_def,title)
+        title = title1
+    end if
+    MessageBoxReturnValue = MessageBox(WinHwnd,text,title,{MB_OK,MB_ICONWARNING,MB_APPLMODAL})
 end procedure
 
 -- form_spec_def is defined in myconst32.ew 
@@ -3284,20 +3294,20 @@ global function AskMsg(object text,object title)
 
 sequence text1,title1
 
-        if atom(text) then
-            text1 = sprintf(form_spec_def,text)
-            text = text1
-        end if
-        if atom(title) then
-            title1 = sprintf(form_spec_def,title)
-            title = title1
-        end if
-        MessageBoxReturnValue = MessageBox(WinHwnd,text,title,{MB_YESNO,MB_ICONQUESTION,MB_APPLMODAL})
-        if MessageBoxReturnValue=IDYES then
-            return True
-        else
-            return False
-        end if
+    if atom(text) then
+        text1 = sprintf(form_spec_def,text)
+        text = text1
+    end if
+    if atom(title) then
+        title1 = sprintf(form_spec_def,title)
+        title = title1
+    end if
+    MessageBoxReturnValue = MessageBox(WinHwnd,text,title,{MB_YESNO,MB_ICONQUESTION,MB_APPLMODAL})
+    if MessageBoxReturnValue=IDYES then
+        return True
+    else
+        return False
+    end if
 end function
 
 --******************************************************************************************************************
@@ -3317,9 +3327,9 @@ atom szPointer
     --if length(text)<1 then
     --  return
     --end if
-    if atom(text) then
-        return
-    end if
+--  if atom(text) then
+--      return
+--  end if
     if GetControlType(handle)=StatusBar then
         sb_SetText(handle,text,part)
         return
@@ -3364,7 +3374,7 @@ atom icon_handle
 end procedure
 
 global function LoadIco(sequence icon_file)
-atom icon_handle
+--atom icon_handle
     return  LoadImage(Null,icon_file,IMAGE_ICON,Null,Null,or_all({LR_LOADTRANSPARENT,LR_LOADFROMFILE}))
     --Void = SendMessage(ParentWnd,WM_SETICON,IMAGE_ICON,icon_handle)
 end function
@@ -3397,6 +3407,44 @@ atom icon_handle
     Void = SendMessage(control,BM_SETIMAGE,IMAGE_ICON,icon_handle)
 end procedure
 
+--**
+-- Deletes an Image or Memorybitmap
+--
+global procedure DeleteImage(atom handle)
+    Void = c_func(myDeleteObject,{handle})
+    if not Void then
+        WarnMsg("Can't Delete Image!","tinewg Graphics")
+    end if
+end procedure
+
+--** 
+-- Returns the Height of an Image or an Memorybitmap
+--
+
+global function GetImageHeight(atom handle)
+atom pointer
+atom result
+    pointer = allocate(28)
+    Void = c_func(myGetObject,{handle,28,pointer})
+    result = peek4u(pointer+8) --ImageHeight
+    free(pointer)
+    return result
+end function
+
+--** 
+-- Returns the Width of an Image or an Memorybitmap
+--
+
+global function GetImageWidth(atom handle)
+atom pointer
+atom result
+    pointer = allocate(28)
+    Void = c_func(myGetObject,{handle,28,pointer})
+    result = peek4u(pointer+4) --Imagewidth
+    free(pointer)
+    return result
+end function
+
 global function LoadPicFR(sequence picture_file,atom handle=0)
 atom picture_handle,pic_handle
     if handle=0 then
@@ -3417,10 +3465,10 @@ end procedure
 
 function LoadPic_old(sequence picture_file)
 atom picture_handle
-        picture_handle = LoadImage(Null,picture_file,IMAGE_BITMAP,Null,Null,or_all({LR_LOADFROMFILE}))
-        if picture_handle<1 then WarnMsg("During LoadPic : "&picture_file,"Error") end if
-        PictureHandle = picture_handle
-        return picture_handle
+    picture_handle = LoadImage(Null,picture_file,IMAGE_BITMAP,Null,Null,or_all({LR_LOADFROMFILE}))
+    if picture_handle<1 then WarnMsg("During LoadPic : "&picture_file,"Error") end if
+    PictureHandle = picture_handle
+    return picture_handle
 end function
 
 global function LoadPic(sequence picture_file)
@@ -3440,13 +3488,13 @@ end function
 
 global function LoadCur(sequence cursor_file)
 atom cursor_handle
-        cursor_handle = LoadImage(Null,cursor_file,IMAGE_CURSOR,Null,Null,or_all({LR_LOADFROMFILE}))
-        if cursor_handle<1 then WarnMsg("During LoadCur : "&cursor_file,"Error") end if
-        -- PictureHandle = picture_handle
-        return cursor_handle
+    cursor_handle = LoadImage(Null,cursor_file,IMAGE_CURSOR,Null,Null,or_all({LR_LOADFROMFILE}))
+    if cursor_handle<1 then WarnMsg("During LoadCur : "&cursor_file,"Error") end if
+    -- PictureHandle = picture_handle
+    return cursor_handle
 end function
 
-global procedure SetPicture(atom handle, atom controltype, sequence imagepath)
+global procedure SetPicture(atom handle, atom /*controltype*/, sequence imagepath)
 atom result
 atom flags,index
     if UseTransparentPics then
@@ -3470,7 +3518,7 @@ atom flags,index
     end if
 end procedure
 
-global procedure SetPic(atom handle, atom controltype, atom image_handle)
+global procedure SetPic(atom handle, atom /*controltype*/, atom image_handle)
 atom index
     index = ctlGetControlIndex(handle)
     if index>0 then
@@ -3563,6 +3611,14 @@ end procedure
 -- EWG Delete Current Item
 --
 
+global procedure ListSeek(atom handle,atom pos)
+    if GetControlType(handle)=DropDown then
+        Void = SendMessage(handle,CB_SETCURSEL,pos,Null)
+    else
+        Void = SendMessage(handle,LB_SETCURSEL,pos,Null)
+    end if
+end procedure
+
 global procedure ListDel(atom handle)
 atom selection
     if GetControlType(handle)=DropDown then
@@ -3608,14 +3664,6 @@ end procedure
 global procedure ListPut(atom handle,object item)
     ListIns(handle,item)
     ListDel(handle)
-end procedure
-
-global procedure ListSeek(atom handle,atom pos)
-    if GetControlType(handle)=DropDown then
-        Void = SendMessage(handle,CB_SETCURSEL,pos,Null)
-    else
-        Void = SendMessage(handle,LB_SETCURSEL,pos,Null)
-    end if
 end procedure
 
 global function GetCount(atom handle)
@@ -3848,36 +3896,6 @@ atom index
 end procedure
 
 
--- GDI Functions
-
---** 
--- Returns the Width of an Image or an Memorybitmap
---
-
-global function GetImageWidth(atom handle)
-atom pointer
-atom result
-    pointer = allocate(28)
-    Void = c_func(myGetObject,{handle,28,pointer})
-    result = peek4u(pointer+4) --Imagewidth
-    free(pointer)
-    return result
-end function
-
---** 
--- Returns the Height of an Image or an Memorybitmap
---
-
-global function GetImageHeight(atom handle)
-atom pointer
-atom result
-    pointer = allocate(28)
-    Void = c_func(myGetObject,{handle,28,pointer})
-    result = peek4u(pointer+8) --ImageHeight
-    free(pointer)
-    return result
-end function
-
 --**
 -- A more EuWInGui-Style version of getting Image sizes
 --
@@ -3891,41 +3909,29 @@ global function GetImageSize(atom handle,atom flag)
 end function
 
 
---**
--- Deletes an Image or Memorybitmap
---
-
-
-global procedure DeleteImage(atom handle)
-    Void = c_func(myDeleteObject,{handle})
-    if not Void then
-        WarnMsg("Can't Delete Image!","tinewg Graphics")
-    end if
-end procedure
-
 global procedure SetColor(atom handle,atom text,atom background)
 atom index,back_brush
-        DC_BkColor = background
-        index = ctlGetControlIndex(handle)
-        if resize_controls[index][rs_controltype]=DropDown then
-            SetColor(resize_controls[index+1][rs_handle],text,background)
+    DC_BkColor = background
+    index = ctlGetControlIndex(handle)
+    if resize_controls[index][rs_controltype]=DropDown then
+        SetColor(resize_controls[index+1][rs_handle],text,background)
+    end if
+    if index>0 then
+        if text=CL_DEFAULT then
+            text = c_func(myGetSysColor,{8})    -- COLOR_WINDOWTEXT
         end if
-        if index>0 then
-            if text=CL_DEFAULT then
-                text = c_func(myGetSysColor,{8})    -- COLOR_WINDOWTEXT
-            end if
-            if background=CL_DEFAULT then
-                background = c_func(myGetSysColor,{15})
-                back_brush = c_func(myGetSysColorBrush,{15}) --COLOR_3DFACE
-            else
-                back_brush = c_func(myCreateSolidBrush,{background})
-                GDIBrushes = append(GDIBrushes,{handle,back_brush})
-            end if
-            resize_controls[index][rs_backbrush] = back_brush
-            resize_controls[index][rs_textcolor] = text
-            resize_controls[index][rs_backcolor] = background
-            RedrawWindow(handle)
+        if background=CL_DEFAULT then
+            background = c_func(myGetSysColor,{15})
+            back_brush = c_func(myGetSysColorBrush,{15}) --COLOR_3DFACE
+        else
+            back_brush = c_func(myCreateSolidBrush,{background})
+            GDIBrushes = append(GDIBrushes,{handle,back_brush})
         end if
+        resize_controls[index][rs_backbrush] = back_brush
+        resize_controls[index][rs_textcolor] = text
+        resize_controls[index][rs_backcolor] = background
+        RedrawWindow(handle)
+    end if
 end procedure
 
 global procedure SetRefresh(atom handle)
@@ -4081,7 +4087,7 @@ global function GetPageSize(atom dimensionflag)
 end function
 
 global function GetPrinterStringSize(sequence sstring,atom font,atom dimensionflag)
-atom hdc,sizestruct,szpointer,result
+atom sizestruct,szpointer,result
 atom oldfont
 --BOOL GetTextExtentPoint32(
 --  __in     HDC hdc,
@@ -4190,25 +4196,25 @@ end procedure
 global procedure PrintMB(atom sourcebitmap,atom xpos,atom ypos,atom xsize,atom ysize)
 
 
-atom hdcsrc,hdcdest,oldobjectsrc,oldobjectdest,hdc
+atom hdcsrc,hdcdest,oldobjectsrc--,oldobjectdest,hdc
 
-        hdcsrc = c_func(myCreateCompatibleDC,{0}) --hdc
+    hdcsrc = c_func(myCreateCompatibleDC,{0}) --hdc
 
-        oldobjectsrc = c_func(mySelectObject,{hdcsrc,sourcebitmap})
+    oldobjectsrc = c_func(mySelectObject,{hdcsrc,sourcebitmap})
 -- dest
-        hdcdest = Printhdc
+    hdcdest = Printhdc
 
 -- copy it
 --
 
-        Void = c_func(myBitBlt,{hdcdest,xpos,ypos,xsize,ysize,hdcsrc,0,0,CopyMode})
+    Void = c_func(myBitBlt,{hdcdest,xpos,ypos,xsize,ysize,hdcsrc,0,0,CopyMode})
 
 
-        Void = c_func(mySelectObject,{hdcsrc,oldobjectsrc})
-        Void = c_func(myDeleteDC,{hdcsrc})
+    Void = c_func(mySelectObject,{hdcsrc,oldobjectsrc})
+    Void = c_func(myDeleteDC,{hdcsrc})
 
-        --Void=c_func(mySelectObject,{hdcdest,oldobjectdest})
-        --Void=c_func(myDeleteDC,{hdcdest}) 
+    --Void=c_func(mySelectObject,{hdcdest,oldobjectdest})
+    --Void=c_func(myDeleteDC,{hdcdest}) 
 end procedure
 
 global procedure PrintMBBlt(atom sourcebitmap,atom xpos,atom ypos,atom xsize,atom ysize,
@@ -4226,31 +4232,31 @@ global procedure PrintMBBlt(atom sourcebitmap,atom xpos,atom ypos,atom xsize,ato
 --  __in    int nHeightSrc,
 --  __in    DWORD dwRop
 --);
-atom hdcsrc,hdcdest,oldobjectsrc,oldobjectdest,hdc
+atom hdcsrc,hdcdest,oldobjectsrc--,oldobjectdest,hdc
 -- source
-        --hdc=c_func(myGetDC,{WinHwnd})
-        hdcsrc = c_func(myCreateCompatibleDC,{0}) --hdc
-        --Void=c_func(myReleaseDC,{WinHwnd,hdc})
-        oldobjectsrc = c_func(mySelectObject,{hdcsrc,sourcebitmap})
+    --hdc=c_func(myGetDC,{WinHwnd})
+    hdcsrc = c_func(myCreateCompatibleDC,{0}) --hdc
+    --Void=c_func(myReleaseDC,{WinHwnd,hdc})
+    oldobjectsrc = c_func(mySelectObject,{hdcsrc,sourcebitmap})
 -- dest
-        hdcdest = Printhdc
-        --hdc=c_func(myGetDC,{WinHwnd})
-        --hdcdest=c_func(myCreateCompatibleDC,{0}) --hdc
-        --Void=c_func(myReleaseDC,{WinHwnd,hdc})
-        --oldobjectdest=c_func(mySelectObject,{hdcdest,destbitmap})     
+    hdcdest = Printhdc
+    --hdc=c_func(myGetDC,{WinHwnd})
+    --hdcdest=c_func(myCreateCompatibleDC,{0}) --hdc
+    --Void=c_func(myReleaseDC,{WinHwnd,hdc})
+    --oldobjectdest=c_func(mySelectObject,{hdcdest,destbitmap})     
 -- copy it
 --
-        if (destysize=ysize) and (destxsize=xsize) then
-            Void = c_func(myBitBlt,{hdcdest,destxpos,destypos,xsize,ysize,hdcsrc,xpos,ypos,CopyMode})
-        else
-            Void = c_func(myStretchBlt,{hdcdest,destxpos,destypos,destxsize,destysize,hdcsrc,xpos,ypos,xsize,ysize,CopyMode})
-        end if
+    if (destysize=ysize) and (destxsize=xsize) then
+        Void = c_func(myBitBlt,{hdcdest,destxpos,destypos,xsize,ysize,hdcsrc,xpos,ypos,CopyMode})
+    else
+        Void = c_func(myStretchBlt,{hdcdest,destxpos,destypos,destxsize,destysize,hdcsrc,xpos,ypos,xsize,ysize,CopyMode})
+    end if
 
-        Void = c_func(mySelectObject,{hdcsrc,oldobjectsrc})
-        Void = c_func(myDeleteDC,{hdcsrc})
+    Void = c_func(mySelectObject,{hdcsrc,oldobjectsrc})
+    Void = c_func(myDeleteDC,{hdcsrc})
 
-        --Void=c_func(mySelectObject,{hdcdest,oldobjectdest})
-        --Void=c_func(myDeleteDC,{hdcdest}) 
+    --Void=c_func(mySelectObject,{hdcdest,oldobjectdest})
+    --Void=c_func(myDeleteDC,{hdcdest}) 
 end procedure
 
 global procedure PrintString(atom startx,atom starty,sequence text)
@@ -4348,7 +4354,9 @@ atom act_control
     Void = c_func(myDestroyWindow,{handle})
     SetParentWindow(WinHwnd)
 end procedure
---******************************************************************************************************************
+
+integer r_Window
+
 global function Control(object window_class, sequence caption="New",atom xpos=0,atom ypos=0,atom xsize=80, atom ysize=20)
 atom hwnd
 atom szAppName
@@ -4360,7 +4368,8 @@ sequence control_name,result
 
     if WinHwnd=0 then
     --  InfoMsg("You forgot your AppWindow!","Bullshit!")
-        if Window("AppWindow") then end if
+--      if Window("AppWindow") then end if
+        if call_func(r_Window,{"AppWindow"}) then end if
         SetParentWindow(WinHwnd)
     end if
 
@@ -4739,9 +4748,58 @@ sequence control_name,result
 
 end function
 
+--******************************************************************************************************************
+global function CreateWindow(sequence appname, sequence title,atom xpos,atom ypos,atom xsize, atom ysize,atom WS_Style,atom WS_EX_Style)
+atom hwnd
+atom szAppName
+atom my_title
+    my_title = allocate_string(title)
+    szAppName = allocate_string(appname)
+    hwnd = c_func(myCreateWindow, {
+                                   WS_EX_Style,              -- extended style
+                                   szAppName,                -- window class name
+                                   my_title,                 -- window caption
+                                   WS_Style,                 -- window style
+                                   xpos,
+                                   ypos,
+                                   xsize,
+                                   ysize,
+                    --CW_USEDEFAULT,           -- initial x position
+                    --CW_USEDEFAULT,           -- initial y position
+                    --CW_USEDEFAULT,           -- initial x size
+                    --CW_USEDEFAULT,           -- initial y size
+                                   NULL,                     -- parent window handle
+                                   NULL,                     -- window menu handle
+                                   0 ,              --hInstance // program instance handle
+                                   NULL})               -- creation parameters
+    free(my_title)
+    free(szAppName)
+    if hwnd=0 then
+        puts(1, "Couldn't CreateWindow\n")
+        sleep(5)
+        abort(1)
+    end if
+    if WinHwnd=0 then
+        WinHwnd = hwnd
+    end if
+    ParentWnd = hwnd
+
+-- WinHwnd is always the first  to keep care on
+
+    resize_controls[1] = {WinHwnd,xpos,ypos,xsize,ysize,Null,rs_mode_non,Null,Null,Null,MainWin,Null,Null}
+    resize_controls[1][rs_tooltip] = Control(ToolTip,"",0,0,0,0)
 
 
+    if ShowFlag then
+        c_proc(myShowWindow, {hwnd, SW_SHOWNORMAL})
+        c_proc(myUpdateWindow, {hwnd})
+    end if
+-- Crazy!? Somewhere i lost the caption ????
+    SetText(hwnd,title)
+    DC_DefaultControl = hwnd
+    return hwnd
 
+end function
 
 --******************************************************************************************************************
 
@@ -4803,129 +4861,78 @@ atom pexw
     end if
     return  class
 end function
---******************************************************************************************************************
---******************************************************************************************************************
-global function CreateWindow(sequence appname, sequence title,atom xpos,atom ypos,atom xsize, atom ysize,atom WS_Style,atom WS_EX_Style)
-atom hwnd
-atom szAppName
-atom my_title
-    my_title = allocate_string(title)
-    szAppName = allocate_string(appname)
-    hwnd = c_func(myCreateWindow, {
-                                   WS_EX_Style,              -- extended style
-                                   szAppName,                -- window class name
-                                   my_title,                 -- window caption
-                                   WS_Style,                 -- window style
-                                   xpos,
-                                   ypos,
-                                   xsize,
-                                   ysize,
-                    --CW_USEDEFAULT,           -- initial x position
-                    --CW_USEDEFAULT,           -- initial y position
-                    --CW_USEDEFAULT,           -- initial x size
-                    --CW_USEDEFAULT,           -- initial y size
-                                   NULL,                     -- parent window handle
-                                   NULL,                     -- window menu handle
-                                   0 ,              --hInstance // program instance handle
-                                   NULL})               -- creation parameters
-    free(my_title)
-    free(szAppName)
-    if hwnd=0 then
-        puts(1, "Couldn't CreateWindow\n")
-        sleep(5)
-        abort(1)
-    end if
-    if WinHwnd=0 then
-        WinHwnd = hwnd
-    end if
-    ParentWnd = hwnd
-
--- WinHwnd is always the first  to keep care on
-
-    resize_controls[1] = {WinHwnd,xpos,ypos,xsize,ysize,Null,rs_mode_non,Null,Null,Null,MainWin,Null,Null}
-    resize_controls[1][rs_tooltip] = Control(ToolTip,"",0,0,0,0)
-
-
-    if ShowFlag then
-        c_proc(myShowWindow, {hwnd, SW_SHOWNORMAL})
-        c_proc(myUpdateWindow, {hwnd})
-    end if
--- Crazy!? Somewhere i lost the caption ????
-    SetText(hwnd,title)
-    DC_DefaultControl = hwnd
-    return hwnd
-
-end function
---******************************************************************************************************************
-
-
 
 --******************************************************************************************************************
+
 global function Window(sequence title,atom xpos=-1,atom ypos=-1,atom xsize=400, atom ysize=200)
 
 atom WS_Style,WS_EX_Style,hwnd
 -- atom hdc
-        --xsize=xsize+GetSystemMetrics(SM_CYBORDER)
-        --ysize=ysize+GetSystemMetrics(SM_CYCAPTION)
+    --xsize=xsize+GetSystemMetrics(SM_CYBORDER)
+    --ysize=ysize+GetSystemMetrics(SM_CYCAPTION)
 
-        if xpos=-1 then
-            xpos = floor((ScreenWidth()/2)-(xsize/2))
+    if xpos=-1 then
+        xpos = floor((ScreenWidth()/2)-(xsize/2))
+    end if
+    if ypos=-1 then
+        ypos = floor((ScreenHeight()/2)-(ysize/2))
+    end if
+    if WinHwnd=0 then
+
+        WS_EX_Style = or_all({WS_EX_WINDOWEDGE,WS_EX_ACCEPTFILES})
+        WS_Style = or_all({WS_OVERLAPPEDWINDOW})
+
+        if WindowType=NoMaxWin then
+            WS_Style = or_all({WS_BORDER,WS_MINIMIZEBOX,WS_SYSMENU})
+        elsif WindowType=NoMaxMinWin then
+            WS_Style = or_all({WS_BORDER,WS_SYSMENU})
+            WS_EX_Style = or_all({WS_EX_CONTROLPARENT,WS_EX_WINDOWEDGE,WS_EX_ACCEPTFILES})
+        elsif WindowType=NoSysWin then
+            WS_Style = or_all({WS_BORDER})
+        elsif WindowType=NoTitleWin then
+            WS_Style = or_all({WS_DLGFRAME,WS_POPUP})
+            WS_EX_Style = or_all({WS_EX_CLIENTEDGE,WS_EX_WINDOWEDGE,WS_EX_ACCEPTFILES})
+        elsif WindowType=NoBorderWin then
+            WS_Style = or_all({WS_POPUP})
+            WS_EX_Style = or_all({WS_EX_WINDOWEDGE,WS_EX_ACCEPTFILES})
+        elsif WindowType=StandardWin then
+            WS_Style = or_all({WS_OVERLAPPEDWINDOW,WS_BORDER})
+            --xsize=xsize+4*(GetSystemMetrics(SM_CXEDGE))
+            --ysize=ysize+GetSystemMetrics(SM_CYCAPTION)
+        elsif WindowType=SSaver then
+            WS_Style = or_all({WS_POPUP})
         end if
-        if ypos=-1 then
-            ypos = floor((ScreenHeight()/2)-(ysize/2))
+        if WinOnTop then
+            WS_EX_Style = or_all({WS_EX_Style,WS_EX_TOPMOST})
         end if
         if WinHwnd=0 then
-
-            WS_EX_Style = or_all({WS_EX_WINDOWEDGE,WS_EX_ACCEPTFILES})
-            WS_Style = or_all({WS_OVERLAPPEDWINDOW})
-
-            if WindowType=NoMaxWin then
-                WS_Style = or_all({WS_BORDER,WS_MINIMIZEBOX,WS_SYSMENU})
-            elsif WindowType=NoMaxMinWin then
-                WS_Style = or_all({WS_BORDER,WS_SYSMENU})
-                WS_EX_Style = or_all({WS_EX_CONTROLPARENT,WS_EX_WINDOWEDGE,WS_EX_ACCEPTFILES})
-            elsif WindowType=NoSysWin then
-                WS_Style = or_all({WS_BORDER})
-            elsif WindowType=NoTitleWin then
-                WS_Style = or_all({WS_DLGFRAME,WS_POPUP})
-                WS_EX_Style = or_all({WS_EX_CLIENTEDGE,WS_EX_WINDOWEDGE,WS_EX_ACCEPTFILES})
-            elsif WindowType=NoBorderWin then
-                WS_Style = or_all({WS_POPUP})
-                WS_EX_Style = or_all({WS_EX_WINDOWEDGE,WS_EX_ACCEPTFILES})
-            elsif WindowType=StandardWin then
-                WS_Style = or_all({WS_OVERLAPPEDWINDOW,WS_BORDER})
-                --xsize=xsize+4*(GetSystemMetrics(SM_CXEDGE))
-                --ysize=ysize+GetSystemMetrics(SM_CYCAPTION)
-            elsif WindowType=SSaver then
-                WS_Style = or_all({WS_POPUP})
-            end if
-            if WinOnTop then
-                WS_EX_Style = or_all({WS_EX_Style,WS_EX_TOPMOST})
-            end if
-            if WinHwnd=0 then
-                Void = RegisterWindowClass("TinEWGDialog")
-                Void = RegisterWindowClass(tinEWGApp)
-            end if
-            hwnd = CreateWindow(tinEWGApp,title,xpos,ypos,xsize,ysize,WS_Style,WS_EX_Style)
+            Void = RegisterWindowClass("TinEWGDialog")
+            Void = RegisterWindowClass(tinEWGApp)
+        end if
+        hwnd = CreateWindow(tinEWGApp,title,xpos,ypos,xsize,ysize,WS_Style,WS_EX_Style)
 -- hdc=1
 --  hdc=c_func(myGetWindowDC,{WinHwnd})
 --  Void=c_func(mySelectObject,{hdc,FN_DEFAULT})
 --  Void=c_func(myReleaseDC,{WinHwnd,hdc})      
-            hwnd = SendMessage(hwnd,WM_SETFONT,FN_DEFAULT,True)
+        hwnd = SendMessage(hwnd,WM_SETFONT,FN_DEFAULT,True)
 
-        else
-            hwnd = Control(Dialog,title,xpos,ypos,xsize,ysize)
-            SetParentWindow(hwnd)
-        end if
-        return hwnd
+    else
+        hwnd = Control(Dialog,title,xpos,ypos,xsize,ysize)
+        SetParentWindow(hwnd)
+    end if
+    return hwnd
 end function
+r_Window = routine_id("Window")
+
 --******************************************************************************************************************
+--DEV unused
+--/*
 procedure Register_Dialog()
 
-        Void = RegisterWindowClass("TinEWGDialog")
+    Void = RegisterWindowClass("TinEWGDialog")
 
 end procedure
-
+--*/
 
 --******************************************************************************************************************
 -- Special Procedures. I do not know if i leave it in

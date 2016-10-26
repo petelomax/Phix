@@ -126,3 +126,35 @@ integer start = 1, pos
     return ret
 end function
 
+global function split_path(string path, bool preservetrailsep=0)
+sequence res = {}
+string chunk
+integer start = 1, ch
+    -- split, preserving any leading separator
+    for i=2 to length(path) do
+        ch = path[i]
+        if ch='\\' 
+        or ch='/' then
+            chunk = path[start..i-1]
+            if length(chunk) then
+                res = append(res,chunk)
+            end if
+            start = i+1
+        end if
+    end for
+    if start<=length(path) then
+        chunk = path[start..$]
+        res = append(res,chunk)
+    elsif preservetrailsep
+      and length(path)>=2 then
+        -- (Last char must be a separator, otherwise
+        --  we would have had to add a final chunk.)
+        if length(res)=0 then
+            res = path[$..$]
+        elsif not find(res[$][$],"\\/") then
+            res[$] = append(res[$],ch)
+        end if
+    end if
+    return res
+end function
+

@@ -450,7 +450,7 @@ end function
 --      a single thread, or write wrapper routines that perform locking.
 --
 --  6) file.e
---      set_walk_dir_sort_rtn. No solution offered as yet. (TLS?)
+--      set_walk_dir_sort_rtn. No solution offered as yet. (TLS?)   [ optional parameters! ]
 --
 --  7) get.e 
 --      input_file/input_string/string_next/ch need reworking, possibly

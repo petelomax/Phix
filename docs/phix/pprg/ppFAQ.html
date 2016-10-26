@@ -1,0 +1,281 @@
+<html><head><title>Print Preview and Report Generator FAQ</title></head>
+<style type="text/css">
+<!--
+body        {background-color: "#D0D0D0";}
+a           {text-decoration: none;}
+a:link      {color: "#0033BB"; text-decoration: underline;}
+a:visited   {color: "#006699"; text-decoration: underline;}
+a:active    {color: red; text-decoration: underline;}
+a:hover     {color: red; text-decoration: underline;}
+a.blue    {text-decoration: none;}
+a.blue:link      {color: "#5500FF"; text-decoration: underline;}
+a.blue:visited   {color: "#5500FF"; text-decoration: underline;}
+a.blue:active    {color: red; text-decoration: underline;}
+a.blue:hover     {color: red; text-decoration: underline;}
+a.brown      {text-decoration: none;}
+a.brown:link      {color: "#993333"; text-decoration: underline;}
+a.brown:visited   {color: "#993333"; text-decoration: underline;}
+a.brown:active    {color: red; text-decoration: underline;}
+a.brown:hover     {color: red; text-decoration: underline;}
+OL.n        { list-style-type: arabic-numbers }
+OL.ua       { list-style-type: upper-alpha }
+-->
+</style>
+<style>
+BODY {SCROLLBAR-FACE-COLOR: #330066; SCROLLBAR-HIGHLIGHT-COLOR: #CCCCFF; 
+      SCROLLBAR-SHADOW-COLOR: #CCCCFF; SCROLLBAR-3DLIGHT-COLOR: #CCCCFF; 
+      SCROLLBAR-ARROW-COLOR:    #FFFFFF; SCROLLBAR-TRACK-COLOR: #CCCCFF; 
+      SCROLLBAR-DARKSHADOW-COLOR: #330066; }
+</style>
+<body>
+<a href="pprg.html">Table of Contents</a>
+<a href="ppRef5.html">Previous Page - Reference Section Part 5</a>
+<a href="ppError.html">Next Page - Error Messages</a>
+<p><hr></p>
+<p align=center>
+<h2>Print Preview and Report Generator</h2>
+<h3>Frequently Asked Questions</h3></p>
+<p><hr><p>
+<p>
+<a name=printerDC></a>
+<ol class="n">
+<li>Error: printerDC is undefined.
+    <ol class="ua">
+    <p>
+    <li>This must be made global in win32lib.
+    </ol>
+<p>
+<li>There's a bug in win32591.ew.
+    <ol class="ua">
+    <p>
+    <li>Throw the file win32591.ew away, get a proper copy of win32lib, and make
+    sure printerDC is global.<br>
+    Follow this link for an <a href=ppInstall.html#win32591>explanation</a>.
+    </ol>
+<p>
+<li>Why can't I use calculations in the field list, eg:
+<pre>
+        Amount Due %8.2f
+
+        {OHnet+OHvat}
+</pre>
+    Instead I have to use {%due} and define the calculated field separately?
+    <ol class="ua">
+    <p>
+    <li>As a counter example,<p>
+<pre>
+        Vat %8.2f
+
+        {((OIgross=0)*OInet*0.175+(OIgross!=0)*(OIgross-floor(OIgross/1.175)))/100}
+</pre>
+        cannot be elegantly displayed in the layout editor.<br>
+        Note that such calculations are usually far easier to code in the datastream
+        creation program, eg:
+<pre>
+            if OIgross=0 then
+                OIvat=OInet*0.175
+            else
+                OIvat=floor(OIgross-OIgross/1.175)
+            end if
+            OIvat/=100  -- assuming OInet and OIgross are held in pennies/cents.
+</pre>
+        Then just print OIvat on the report.
+    </ol>
+<p>
+<li>Why is there is no conditional in calculated fields?
+    <p>
+    <ol class="ua">
+    <li>Whenever possible, complex calculations should be performed in the datastream
+        creation program.
+<p>
+        See also the answers to the next two questions.
+    </ol>
+<p>
+<a name=appfunc></a>
+<li>Can I use a loop, or temporary local variables in a calculation?
+<p>
+    <ol class="ua">
+    <li>No. It is however possible to define application-specific functions that can 
+        be called within a calculation. The function must be called with one parameter,
+        which can of course be a sequence of all the required fields. It should be 
+        possible to pass a unique identifier, for example the order number, and then
+        manually re-fetch any other data needed.<p>
+        A simple example of such a function can be found in userfunc.ew.<p>
+    </ol>
+<p>
+<a name=optional>
+<li>How do I make a field optional?
+<p>
+    <ol class="ua">
+    <li>To print an item only on the first sheet of a section (eg a multi-sheet invoice), 
+    define it as Repeat 1, the default. 
+    To make it print on all sheets, enter zero or blank in the Repeat field.<p>
+    To print something on the last page of a section, put it on a separate record and 
+    include that in the datastream at the end of the section.<p>
+    To make an individual field conditionally blank either write it to the datastream as
+    blank or use eg:
+    <pre>
+        OIdesc[1..length(OIdesc)*(OItype='x')]</pre>
+    So when OItype is equal to 'x', it prints the full length, otherwise it prints "".
+    <p>
+    Another favourite trick, which works well with summations, is to use sprintf, for 
+    example:<p>
+    <pre>
+        sprintf("Order total",{@sOIqtyOH})</pre>
+    This works because the expression is not evaluated at all until the summation is 
+    complete, and is cancelled if the summation is cancelled, and then the subtotal
+    itself is not put in the text because there is no format for it. This is used on 
+    the example invoice print so that "Brought forward" and "Carried forward" are
+    only printed when the corresponding subtotal is also going to be printed.
+    </ol>
+<p>
+<li>What is a section?
+<p>
+    <ol class="ua">
+    <li>In datastream terms, a particular record (eg OH) and all records following it
+    until the next record of that type.<p>
+    In physical terms, for example, a customer invoice, which may normally be a single
+    page but occasionally several. There may also be several sections on a single page.<p>
+    In layout definition terms, they are abstract, except for the use of the 
+    record type as the last part of <a href="ppRef2.html#Summations">summations</a>.
+    </ol>
+<p>
+<!--li>I think I'm getting an overflow in power(). Can you trap it and display a message?
+<p>
+    <ol class="ua">
+    <li>Not easily. All other overflows and errors are trapped (often returning "inf" 
+        or eg "ordinal() error").<br>Maybe I should just remove this function.
+        If anyone wants it I'll put my version of safe_power in userfunc.ew.
+    </ol>
+<p-->
+<li>My calculation isn't working. How can I trace/debug it?
+<p>
+    <ol class="ua">
+    <li>See <a href=ppRef3.html#Error>here</a>.
+    </ol>
+<p>
+<li>In the example invoice print, Cash Sale(11) splits over two pages.<br>
+    Cash Sale(11) is printed on both pages, Xchk 11 only on the first. Why?
+<p>
+    <ol class="ua">
+    <li>OHadd1 ("Cash Sale(11)") is defined as repeat 0 (or blank), which means
+    the previous value is printed (at the same position) on following pages.<br>
+    OHpost ("Xchk 11") is defined as repeat 1 (the default), so it is printed precisely once.
+    </ol>
+<p>
+<a name=align></a>
+<li>How do I line up columns of numbers?
+<p>
+    <ol class="ua">
+    <li>Make sure the columns are defined as single fields, not composite, eg
+    "%8.2f"&nbsp;{OInet}, not "Net&nbsp;Amount&nbsp;%8.2f"&nbsp;{OInet}.<p>
+    Also make sure the minimum field width (8 in the above example) is wide enough for all the fields
+    in the column.<p>
+    Column alignment is not attempted if the format width begins with a zero (as in %08.2f).<p>
+    If you need to align composite columns, use a fixed width font such as 
+    Courier New, Andale Mono, or Lucidia Console.<p>
+    Some fonts are just not practical for this, eg Impact (actually that's the only
+    unsuitable one I know of).
+    </ol>
+<p>
+<li>The fonts on the screen do not (exactly) match those printed.
+<p>
+    <ol class="ua">
+    <li>It is a fact of life that Arial 10 point as displayed on the screen and Arial 10 point
+    as printed are a different size, mainly due to the large number of non-standard screen 
+    sizes and resolutions, whereas paper sizes are much fewer in number and adhere to 
+    internationally agreed standards.
+    <p>
+    The print preview can adjust the font size to more closely match the printed output,
+    however a true exact match may not exist in all cases.
+    <p>
+    Use True Type fonts. Non-True-Type fonts only have a limited number
+    of permitted display sizes (eg System only has eight font sizes between 1 and 100).
+    A checkbox is provided above the font selector on the 
+    <a href="ppRef2.html#jedittext">field details window</a> 
+    to list only true type fonts (checked by default).
+    <p>
+<!--	Secondly, Check whether Font mapping is enabled on the report. In design mode, click on 
+    the tools
+    button (a hammer and screwdriver), and the fontmapping option is on the top-level menu.
+    Note that when font mapping is enabled, several calls to getTextExtent are made for every
+    field on every page of the report. Typically this makes the report load take about four
+    times as long as without font mapping, so you may want to disable it on a slow machine
+    or when printing very long reports.
+    <p>
+    Previewing a report without font mapping is perfectly adequate in most cases.-->
+<!--	However, even with True Type fonts, some discrepancies are inevitable. For example,
+    "Sunshine Garden Centre" in Arial 10 point is (approximately, lol) 40.61mm on the
+    printed page. However the display sizes this at 48.79mm, 9 point at 43.4mm, and 8 
+    point at 38.28 mm. Thus even choosing the closest match is out by 2.33mm.<p-->
+<!--	It is possible to demonstrate similar behaviour in say Word 97. For fun, try
+    entering "1.000" on several lines, in Courier, with sizes 10 to 19. Then
+    change to Courier New, you will appreciate how much better True Type fonts are.
+    <p>
+    Further reading: 
+    <a href="http://support.microsoft.com/default.aspx?scid=kb;en-gb;22553">Q22553</a>
+    (clearly out of date, and littered with varying degrees of untruths, naturally).
+    <p-->
+    </ol>
+<p>
+<li>This is all very nice, but how do I just print a simple text file?
+<p>
+    <ol class="ua">
+    <li>The simplest.exw program performs a simple print of its own source. The 
+    layout used ("plain") contains a single field, repeated 82 times down the page.
+    <p>
+    Note, however the program must reside in the same directory as pprg.ew, and there
+    are approximately ten support files that it needs. (support.ew, win32prt.ew, 
+    window.ew, layout.edb and the bitmaps directory.)
+    </ol>
+<p>
+<a name=Planned></a>
+<li>What planned features do you have in mind?<br>
+    <small>TpdBni stands for test program done, but not incorporated.</small>
+<p>
+    <ol class="ua">
+    <li>There are a number of known omissions in v0.2:
+        <ol class="n">
+        <li>Snap to grid when dragging and resizing. This also means that tab between 
+            controls may appear to occur in a random order instead of left to right 
+            because one control is just one pixel higher than another.<br>
+        <li>Repeat on Rectangles and bitmaps is not complete.<br>
+            Unlike text, the size of a rectangle/bitmap and the spacing need to be distinct.<br>
+            At the moment the right click menu only offers resize, not respace.
+        <li>Registration and third party revenue handling are not on-line, yet.<br>
+        <li>Layouts are not correctly locked to prevent multi-user amendment.<br>
+        <li>There is currently no undo facility in report layout amendment.<br>
+        <li>Label printing (as in sheets of several sticky things) is not as easy as it should be.<br>
+        <li>Zoom control sizes are not always optimal (the list available from the drop-down). TpdBni.<br>
+        <!--li>Line grouping formulas are not implemented. <br-->
+        <li>Multiple field selection and alignment is not supported.<br>
+        <li>Deleted fields from datadict.txt not trapped if still in use.<br>
+        <li>GDI and other resource monitoring has not been performed for the alpha version. 
+            Hence some resource leaks may occur. In particular, memory allocated for 
+            bitmaps may not be released until the application terminates. 
+            However it works acceptably in 48MB ram.<br>
+        </ol>
+        <p>
+        Of course I expect the odd suggestion as well ;-)
+        <p>
+        No action is planned on the following points:<br>
+        <ol class="n">
+        <li>Calculated fields, once defined, cannot be fully deleted, even if they are no longer
+        used on any report. (Due to the unique referencing system.)<br>
+        <li>See also <a href="ppRef3.html#KnownProblems">Known Problems</a> which details some 
+        minor issues with expression evaluation. The source of the expression evaluator is now 
+        available if anyone wishes to attempt to fix this.
+        </ol>
+    </ol>
+<p>
+</ol>
+<p>
+</body>
+<p><p><hr></p>
+<p align=center>
+<a href="pprg.html">Table of Contents</a>
+<a href="ppRef5.html">Previous Page - Reference Section Part 5</a>
+<a href="ppError.html">Next Page - Error Messages</a>
+</p>
+<p><hr><p><p>
+</html>

@@ -1,0 +1,136 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">unicode</h1>
+      <div id="mainSection">
+        The following routines allow simple conversion between UTF-8, UTF-16, and UTF-32.
+        <br>
+        <br>
+        They are intended for use more at the line/string level rather than whole file.
+        <br>
+        <br>
+        Note that no special handling of <a id="ext117" style="color#9B5565" 
+        href="javascript:ExternalLink('ext117','https://en.wikipedia.org/wiki/Byte_order_mark');">BOM</a>
+        (Byte Order Mark, aka "ZERO WIDTH NO-BREAK SPACE" prefix characters) is performed by any of these routines. <br>
+        My recommendation is that such should be handled at the read/write file level. <br>
+        For ease of reference, the following byte order marks are in common use (copy and paste these definitions as needed):
+<!--eucode>
+constant 
+    UTF8    = "\#EF\#BB\#BF",
+    UTF16BE = "\#FE\#FF",
+    UTF16LE = "\#FF\#FE",
+    UTF32BE = "\#00\#00\#FE\#FF",
+    UTF32LE = "\#FF\#FE\#00\#00",
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant 
+</font><font color="#000000">    UTF8   </font><font color="#0000FF"> =</font><font color="#008000"> "\#EF\#BB\#BF"</font><font color="#0000FF">,
+</font><font color="#000000">    UTF16BE</font><font color="#0000FF"> =</font><font color="#008000"> "\#FE\#FF"</font><font color="#0000FF">,
+</font><font color="#000000">    UTF16LE</font><font color="#0000FF"> =</font><font color="#008000"> "\#FF\#FE"</font><font color="#0000FF">,
+</font><font color="#000000">    UTF32BE</font><font color="#0000FF"> =</font><font color="#008000"> "\#00\#00\#FE\#FF"</font><font color="#0000FF">,
+</font><font color="#000000">    UTF32LE</font><font color="#0000FF"> =</font><font color="#008000"> "\#FF\#FE\#00\#00"</font><font color="#0000FF">,</font>
+</pre>
+        I would hesitantly suggest the following, more legacy byte order marks be detected and an error message shown, 
+        as opposed to blindly rushing in to support them before finding out at some later date that some minor error 
+        in their handling has quietly lead to severe data corruption. 
+        Besides, the Phix distribution does not contain any routines for converting any of these:
+<!--eucode>
+    UTF7      = "\#2B\#2F\#76", -- (38|39|2B|2F|38 2D)
+    UTF1      = "\#F7\#64\#4C",
+    UTFEBCDIC = "\#DD\#73\#66\#73",
+    SCSU      = "\#0E\#FE\#FF",
+    BOCU1     = "\#FB\#EE\#28",
+    GB18030   = "\#84\#31\#95\#33"
+</eucode-->
+<pre>
+<font color="#000000">    UTF7     </font><font color="#0000FF"> =</font><font color="#008000"> "\#2B\#2F\#76"</font><font color="#0000FF">,</font><font color="#000080"><i> -- (38|39|2B|2F|38 2D)
+</i></font><font color="#000000">    UTF1     </font><font color="#0000FF"> =</font><font color="#008000"> "\#F7\#64\#4C"</font><font color="#0000FF">,
+</font><font color="#000000">    UTFEBCDIC</font><font color="#0000FF"> =</font><font color="#008000"> "\#DD\#73\#66\#73"</font><font color="#0000FF">,
+</font><font color="#000000">    SCSU     </font><font color="#0000FF"> =</font><font color="#008000"> "\#0E\#FE\#FF"</font><font color="#0000FF">,
+</font><font color="#000000">    BOCU1    </font><font color="#0000FF"> =</font><font color="#008000"> "\#FB\#EE\#28"</font><font color="#0000FF">,
+</font><font color="#000000">    GB18030  </font><font color="#0000FF"> =</font><font color="#008000"> "\#84\#31\#95\#33"</font>
+</pre>
+        Also note these routines have no comprehension of any difference between LE and BE encodings: 
+        that is down to how the calling application reads/writes or peeks/pokes.<br>
+        Quite clearly by the time you pass a value/character/unicode point to these routines, it should 
+        be, well, a value, in the proper and expected endian-ness of the machine the program is running 
+        on, rather than (say) a sequence of (optionally) byte-swapped elements, which could only ever 
+        serve to make everything far harder than it needs to be.
+        <br>
+        <br>
+        The implementation of these routines can be found in builtins\utfconv.e (an autoinclude) and 
+        test\t62utf.exw has several tests, which should of course be extended if any glitches are found, 
+        and is obviously run as part of 'p -test'.
+        <br>
+       <br>
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <a href="utf8_to_utf32.htm">
+           <b>utf8_to_utf32</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>convert a UTF-8 string to a UTF-32 sequence</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="utf32_to_utf8.htm">
+           <b>utf32_to_utf8</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>convert a UTF-32 sequence to a UTF-8 string</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="utf16_to_utf32.htm">
+           <b>utf16_to_utf32</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>convert a UTF-16 sequence to a UTF-32 sequence</td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a href="utf32_to_utf16.htm">
+           <b>utf32_to_utf16</b>
+          </a>
+         </td>
+         <td width=10 align=center valign=top>-</td>
+         <td>convert a UTF-32 sequence to a UTF-16 sequence</td>
+        </tr>
+       </table>
+        &nbsp;
+       <br>
+        The routines <a href="utf16_to_utf32.htm#utf16_to_utf8">utf16_to_utf8</a> and 
+        <a href="utf32_to_utf16.htm#utf8_to_utf16">utf8_to_utf16</a> are simple nested wrappers of the above routines.
+       <br>
+       <br>
+        The above routines are not compatible with RDS Eu or OpenEuphoria.
+       <br>
+       <br>
+        You may of course pass basic latin ascii (#00..#7F) strings as if they were utf8, however if you have found
+        encodings in ISO-8859, Windows-1252, or some other code page, for characters with cedilla, umlaut, etc, (ie
+        any single-byte characters in the range #80..#FF), they will almost certainly cause problems. Use an editor 
+        which is utf8 compliant (such as Edix), rather than one that uses some legacy code page, and you should avoid 
+        such difficulties, or at least immediately see what needs to be changed. 
+        My commiserations if you have some database or similar chock full of such non-latin ascii characters from 
+        a legacy application, these routines are unlikely to help you. In such cases I would suggest performing the
+        appropriate substitutions to the correct unicode points directly, there will be at most 128 of them, but it
+        is up to you to find out what they are, and perhaps running that back through utf32_to_utf8. Alternatively,
+        you can try using the standard iconv utility (which can be installed on Windows as part of MinGW), eg 
+        "iconv -f WINDOWS-1252 -t UTF-8  filename.txt"
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

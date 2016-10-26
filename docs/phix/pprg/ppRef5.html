@@ -1,0 +1,273 @@
+<html><head><title>Print Preview and Report Generator Reference Section</title></head>
+<style type="text/css">
+<!--
+body        {background-color: "#D0D0D0";}
+a           {text-decoration: none;}
+a:link      {color: "#0033BB"; text-decoration: underline;}
+a:visited   {color: "#006699"; text-decoration: underline;}
+a:active    {color: red; text-decoration: underline;}
+a:hover     {color: red; text-decoration: underline;}
+a.blue    {text-decoration: none;}
+a.blue:link      {color: "#5500FF"; text-decoration: underline;}
+a.blue:visited   {color: "#5500FF"; text-decoration: underline;}
+a.blue:active    {color: red; text-decoration: underline;}
+a.blue:hover     {color: red; text-decoration: underline;}
+a.brown      {text-decoration: none;}
+a.brown:link      {color: "#993333"; text-decoration: underline;}
+a.brown:visited   {color: "#993333"; text-decoration: underline;}
+a.brown:active    {color: red; text-decoration: underline;}
+a.brown:hover     {color: red; text-decoration: underline;}
+OL.n        { list-style-type: arabic-numbers }
+OL.ua       { list-style-type: upper-alpha }
+-->
+</style>
+<style>
+BODY {SCROLLBAR-FACE-COLOR: #330066; SCROLLBAR-HIGHLIGHT-COLOR: #CCCCFF; 
+      SCROLLBAR-SHADOW-COLOR: #CCCCFF; SCROLLBAR-3DLIGHT-COLOR: #CCCCFF; 
+      SCROLLBAR-ARROW-COLOR:    #FFFFFF; SCROLLBAR-TRACK-COLOR: #CCCCFF; 
+      SCROLLBAR-DARKSHADOW-COLOR: #330066; }
+</style>
+<body>
+<a href="pprg.html">Table of Contents</a>
+<a href="ppRef4.html">Previous Page - Reference Section Part 4</a>
+<a href="ppFAQ.html">Next Page - FAQ</a>
+<p><hr></p>
+<p align=center>
+<h2>Print Preview and Report Generator</h2>
+<h3>Reference Section Part 5</h3></p>
+<p><hr><p>
+<p>
+<a name=ExampleReports></a>
+<h3>Example Reports</h3>
+<!--------------------->
+<p>
+    This section documents the sample reports which can be run from the pptest.exw program.
+    <p>
+    Very detailed notes follow, and are probably only of interest to programmers
+    already coding and hitting a problem they cannot solve, or wishing to fully
+    understand some more technical aspect of a particular report; the casual reader
+    may wish to proceed directly to the <a href="ppFAQ.thml">FAQ</a>.
+    <p>
+    
+<p>
+<h4>plain</h4>
+<!----------->
+    <ul>
+    <li><h5>Data Dictionary</h5>
+        <!--------------------->
+        <pre>
+            TX          -- For simple text print
+            TXline %s   -- A single text line
+        </pre>
+    <li><h5>Layout</h5>
+        <!------------>
+        A4 portrait. A single field, TXline, is defined in Lucidia Console 8 point,
+        repeating 82 times. The value of 82 was selected by trial and error.<p>
+    <li><h5>Datastream Creation</h5>
+        <!------------------------->
+        The simplest.exw program creates a datastream as:
+        <pre>
+            {{"TX","--"},
+             {"TX","-- simplest.exw"},
+             {"TX","-- ============"},
+             {"TX","--"},
+             ...
+        </pre>
+        The most complicated thing in that program is expanding tabs. Note that if you 
+        are printing a file longer than one page, there is no need to worry about page
+        breaks - it is handled automatically for you.
+        <p>
+        The pptest.exw program uses a slightly more complicated approach.
+        Initially, the report is printed using a dummy datastream of 
+        <pre>
+            repeat({"TX","dummy"},2)
+        </pre>
+        and the <a href="ppRef4.html#PSHook">pageSequenceHook()</a> method is used to 
+        construct a pagetable structure directly. As noted in the comments, for this 
+        particular report it would be easier to create a simple datastream (but then
+        I'd need another example to demonstrate pagetable manipulation).
+        <p>
+        Version 0.2 does not support any external maniplulation of the pagetable header
+        (paper, layout, font mapping, two-up changes may be allowed in a later version).
+     </ul>
+<p>
+<h4>column</h3>
+<!------------>
+TXline (as above) is repeated 40x3 on each page. If this is changed to 40y3 the columns
+are filled differently (row-by-row) on the second page.
+<p>
+The test datastream contains 125 records, so 5 are printed on the second page.
+<p>
+<h4>booklet</h4>
+<!------------->
+    <ul>
+    <li><h5>Data Dictionary</h5>
+        <!--------------------->
+        <pre>
+            BC  -- Booklet control
+            BCspine %s  -- text for booklet spine, also forces page.
+
+            BD  -- Booklet detail
+            BDtext  %s  -- text for table of contents and back page.
+        </pre>
+    <li><h5>Layout</h5>
+        <!------------>
+        A4 portrait. BCspine is printed rotated 270 degress to the left of the page.
+        A non-blank value is only passed for page 1. BDtext repeats ten times down
+        the page. A standard page n of m footer is also printed.
+        <p>
+        The report is printed in two-up mode.
+        <p>
+    <li><h5>Datastream Creation</h5>
+        <!------------------------->
+        The pptest.exw program contains the following constant:
+        <pre>
+        {{"BC","Booklet Demo.        Pete Lomax      October 2003"},
+         {"BD","                                                     A Booklet"},
+         {"BC",""}, -- inside front cover
+         {"BC",""}, -- table of contents
+         {"BD","           CONTENTS"},
+         {"BD","1 Cover page with vertical text for spine"},
+         {"BD","2 Blank page for inside front cover"},
+         {"BD","3 Table of contents"},
+         {"BD","4 An invoice from the other demo"},
+         {"BD","5 A mocked up graph"},
+         {"BD","6 Notes"},
+         {"BD","7 Blank page for inside back cover"},
+         {"BD","8 Back cover with fake press clippings"},
+         {"BC",""}, -- where the graph will go
+         {"BC",""}, -- .. and the invoice
+         {"BC",""}, -- page 6
+         {"BD","Notes"},
+         {"BC",""}, -- inside back cover
+         {"BC",""}, -- back cover
+         {"BD","           Praise for Booklet Demo"},
+         {"BD","'Some demos fire the imagination. This one mugs it' DAVID BADDIEL"},
+         {"BD",""},
+         {"BD","'Subtle, beautifully understated stuff which marks this out "},
+         {"BD"," as a demo to watch' THE TIMES"},
+         {"BD",""},
+         {"BD","'Satisfyingly weird and weirdly funny and just crying out to be filmed'"},
+         {"BD","             SCOTLAND ON SUNDAY"},
+         {"BD",""},
+         {"BD","ISBN 0-00-555321-2"}}
+        </pre>
+        Note there are eight BC records, which force page breaks.
+        <p>
+        The procedure booklet() in pptest.exw resequences the pages as required.
+        <p>
+        Page 4 is replaced with a saved copy of the first page of invoice print, with the
+        page number footer removed. Page 5 is replaced with an example graph.
+        <p>
+        Note that these are rotated to fit on the page as required; the invoice layout is
+        designed in portrait mode, however the graph layout is designed in landscape.
+        <p>
+        Special prize for naming the book the quotes were ripped from.
+     </ul>
+<p>
+<h4>graph</h4>
+<p>
+Change the initial setting of testlayoutname in pptest.exw to experiment with this.
+<p>
+<p>
+<h4>invoice</h4>
+<!------------->
+    <ul>
+    <li><h5>Data Dictionary</h5>
+        <!--------------------->
+        <pre>
+            OH          -- sales order header
+            OHadd1 %s   -- address line 1
+            OHadd2 %s   -- address line 2
+            OHpost %s   -- postcode
+            OHdate %s   -- order date
+            OHacc  %s   -- account number
+            OHtot %9.2f -- order total
+
+            OI          -- sales order detail line
+            OIprod %s   -- product code
+            OIdesc %s   -- description
+            OIqty %8.3f -- quantity 
+            OIpri %8.2f -- price
+            OInet %8.2f -- net
+            OIvat %8.2f -- VAT
+            OItot %8.2f -- total
+
+            SS          -- Serial number
+            SSserl %s   -- Serial number
+        </pre>
+    <li><h5>Layout</h5>
+        <!------------>
+        A4 portrait.
+        <p>
+        OHadd1 is defined with a blank repeat field, so when an invoice prints over
+        two or more pages, the address is printed on subsequent sheets.
+        <p>
+        OHpost is defined with a repeat field of 1, so when an invoice prints over
+        two or more pages, it only appears on the first sheet.
+        <p>
+        Sheet @nOH of @mOH. This prints the sheet number and total for each invoice
+        using standard section page numbering summation fields.
+        <p>
+        %ldate is a standard calculated field to show the date in long format.
+        <p>
+        @bOIqtyOH. A standard summation field to calculate the brought forward total
+        for OIqty within each OH record.
+        <p>
+        %bfwdtxt. This field is defined using the expression
+        <pre>
+                sprintf("Brought Forward",{@bOIqtyOH})
+        </pre>
+        if @bOIqtyOH does not return a value (namely on the first page of each invoice),
+        then the sprintf expression is not evaluated and the text is not printed.
+        If a value is returned, it is quietly ignored by the sprintf expression (since
+        there is no corresponding % format qualifier in the text), and the fixed text
+        is printed unaltered.
+        <p>
+        Note that OIqty was selected for brought forward and carried forward totals on
+        this example report solely because errors in calculations would be much easier
+        to spot than if dealing with multiples of 117.50.
+        <p>
+        OIprod, OIdesc, OIqty, and OInet all repeat ten times and have been placed in
+        variant set 1, with variant number 1.
+        <p>
+        SSerl also repeats ten times and has been placed in variant set number 1, but
+        with variant number 2.
+        <p>
+        This means that when an OI record is encountered in the datastream, it occupies
+        the next available slot (of the ten that these records all repeat), and all
+        other records/fields in the same variant set, but with a different variant
+        number, may not be printed in that slot.
+        <p>
+        In this manner, the OI and SS records are prevented from overprinting each other.
+        <p>
+        Note that the positioning and resizing of these five fields took some care,
+        and a little trial and error to get absolutely right. However, if anything does
+        appear badly out of place (when you are performing a test print on a newly
+        created report, that is) it should be very obvious which field is wrong and 
+        what needs to be done to correct it.
+        <p>
+        Lastly, note that because SSerl is defined as variant number 2, it is drawn in
+        slot number 2 by the layout editor and the selection box only covers slots 2
+        to 10. In some cases it may be helpful to temporarily set the variant number to
+        1 to perform alignment and resizing against other fields in the variant set.
+        <p>
+    <li><h5>Datastream Creation</h5>
+        <!------------------------->
+        The sample code in pptest.exw has been cobbled together over a period of time,
+        no coherent overall explanation is offered, sorry. It should be clear however
+        that each invoice is introduced by a new OH record and continues either until
+        the next OH record or the end of the datastream. Any OI and SS records found
+        between two OH records belong to the preceeding OH record.
+    </ul>
+<p>
+<p>
+</body>
+<p><p><hr></p>
+<p align=center>
+<a href="pprg.html">Table of Contents</a>
+<a href="ppRef4.html">Previous Page - Reference Section Part 4</a>
+<a href="ppFAQ.html">Next Page - FAQ</a>
+</p>
+<p><hr><p><p>
+</html>

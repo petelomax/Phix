@@ -1,0 +1,463 @@
+<html><head><title>Print Preview and Report Generator Reference Section</title></head>
+<style type="text/css">
+<!--
+body        {background-color: "#D0D0D0";}
+a           {text-decoration: none;}
+a:link      {color: "#0033BB"; text-decoration: underline;}
+a:visited   {color: "#006699"; text-decoration: underline;}
+a:active    {color: red; text-decoration: underline;}
+a:hover     {color: red; text-decoration: underline;}
+a.blue    {text-decoration: none;}
+a.blue:link      {color: "#5500FF"; text-decoration: underline;}
+a.blue:visited   {color: "#5500FF"; text-decoration: underline;}
+a.blue:active    {color: red; text-decoration: underline;}
+a.blue:hover     {color: red; text-decoration: underline;}
+a.brown      {text-decoration: none;}
+a.brown:link      {color: "#993333"; text-decoration: underline;}
+a.brown:visited   {color: "#993333"; text-decoration: underline;}
+a.brown:active    {color: red; text-decoration: underline;}
+a.brown:hover     {color: red; text-decoration: underline;}
+OL.n        { list-style-type: arabic-numbers }
+OL.ua       { list-style-type: upper-alpha }
+-->
+</style>
+<style>
+BODY {SCROLLBAR-FACE-COLOR: #330066; SCROLLBAR-HIGHLIGHT-COLOR: #CCCCFF; 
+      SCROLLBAR-SHADOW-COLOR: #CCCCFF; SCROLLBAR-3DLIGHT-COLOR: #CCCCFF; 
+      SCROLLBAR-ARROW-COLOR:    #FFFFFF; SCROLLBAR-TRACK-COLOR: #CCCCFF; 
+      SCROLLBAR-DARKSHADOW-COLOR: #330066; }
+</style>
+<body>
+<a href="pprg.html">Table of Contents</a>
+<a href="ppRef3.html">Previous Page - Reference Section Part 3</a>
+<a href="ppRef5.html">Next Page - Reference Section Part 5</a>
+<p><hr></p>
+<p align=center>
+<h2>Print Preview and Report Generator</h2>
+<h3>Reference Section Part 4</h3></p>
+<p><hr><p>
+<p>
+<a name=HFP></a>
+<h3>Headers, Footers and Page breaks</h3>
+<!-------------------------------------->
+<p>
+    The report generator intelligently interprets the semantics of the datastream to create
+    page breaks automatically.
+<p>
+    If the report layout specifies a repeating field, then a page break is forced when all 
+    available slots on the page for that field have been populated.
+<p>
+    If the report layout specifies a non-repeating field, for example the sales order number,
+    then a page break is forced whenever a sales order number occurs in the datastream.
+    The application can force a page break by writing a non-repeating blank field to the 
+    datastream, once for the first page, and again each time the application needs to force
+    a page break.
+<p>
+    Header and footer areas of the report are intuitively defined - simply those parts of the
+    layout with non-repeating fields.
+<p>
+<p>
+<a name=Variant></a>
+<h3>Variant Handling</h3>
+<!---------------------->
+<p>
+    Ocassionally it is necessary to intersperse repeating lines with optional lines, for
+    example a sales order line may have associated batch, comment, and serial numbers.
+    On a sales order summary report, both the order header and detail line information must
+    be treated as repeating detail. Therefore on the report layout we need to specify that
+    such fields repeat over the same area of the page, but obviously they should not over-
+    print each other either during report layout design or when the report is printed.
+<p>
+    This is achieved using variant fields.
+<p>
+    Variant fields are defined with both a variant set and a variant number.
+    All fields in a variant set must repeat the same number of times. 
+    Note that repeat fields without a variant specified must also repeat the same number of 
+    times. If, for example, an order page may contain up to 20 product lines, but a tax code
+    table on the same page (similarly addresses or delivery instructions) might only repeat 
+    five times, then a variant set must be used to prevent an error being reported.
+<p>
+    When a field is placed in one of the repeat slots on a variant field, then the matching
+    repeat slots on all other variant fields in the same set but with a different variant
+    number are marked as used, to prevent overprinting. This difficult concept is best 
+    illustrated with an example, shown on different lines for clarity:
+<pre>
+            OIprod      OIdesc      -- variant{1,1}		repeats 10 times
+                        SSserl      -- variant{1,2}		repeats 10 times
+</pre>
+    When a serial number occurs in the datastream, and the next available slot in the 
+    variant set is n(1..10), then the slots for OIprod[n] and OIdesc[n] are marked as
+    used, as well of course as the slot for SSserl[n] being marked as used.
+<p>
+    A following OIprod/desc would be automatically placed in OIprod/OIdesc[n+1], and 
+    SSerl[n+1] likewise marked used so OIdesc and SSerl do not overprint each other.
+<p>
+    Explanatory note: In the above example, an OI record is a sales order detail line,
+    with the field OIprod holding a product code and OIdesc a product description. The
+    SSserl field(/record) holds a serial number just like the one on the back of a TV 
+    or radio.
+<p>
+    In the report layout editor, variant fields are displayed on the screen using the 
+    variant number, so in a set of ten repeating lines, variant 1 is displayed on the 
+    first line, variant 2 on the second, and so on. Hence, as shown above, the SSserl 
+    definition is shown during report layout design below OIdesc, but actually starts 
+    repeating from the same place. Once all variants have been displayed, variant one
+    is shown in the remaining repeat slots for the variant set.
+<p>
+    Variant handling does not apply to non-repeating fields.
+<p>
+<p>
+<!--a name=Grouping>
+</a><h3>Line Grouping</h3-->
+<!----------------------->
+<!--p>
+    A grouping value can also be defined to keep groups of related lines together.
+    This simply causes a forced page break when less than the specified number of
+    free slots are available on the page.
+<p>
+    Although this can be specified as a fixed value, it can be specified as a field 
+    from the datastream. The application creating the datastream can then set that 
+    data value to force the following lines to remain together.
+<p>
+    For example, suppose that a sales order line has optional batch, serial, and 
+    comment information, which should be kept on the same page. The programmer should 
+    add a field, say OIlgrp, which is set to the number of lines which should not be
+    printed partly on one page and partly on the next. The programmer should impose
+    a sensible limit: the behaviour of the report engine is not guaranteed when a line
+    group value is near or larger than the size of a page - it may print blank pages 
+    forever, or put one line at a time on each page.
+<p>
+    The above assumes that the OI record is always the first line of any such set of
+    related records. If it might be a different record each time, a new, dummy record
+    to contain the lgrp value should be created and written to the datastream at the
+    appropriate points.
+<p>
+    NOTE: only the FIRST field should have line group information ARGHHHHHH
+DEV
+    the first record cannot
+<p>
+    For more advanced requirements, eg to specify that a group of 10 lines should 
+    not be split if that would orphan fewer than x lines on the previous page or y 
+    lines on the new page, OIlgrp should be set to {10,x,y}.
+<p>
+    The grouping formula is entered as "OIlgrp" (without the quotes).
+<p>
+    Note that in most cases, the line grouping formula has a natural home, if there
+    is a record (here the OI) which is always going to be the first line of any group
+    of lines which need to be kept together, otherwise it must be entered on all 
+    variants which comprise the group.
+<p>
+    An example of the use of line grouping can be found in pptest.exw.
+<p>
+<p-->
+<a name=PSHook></a>
+<h3>Page Sequence Hook</h3>
+<!------------------------>
+<p>
+    This option allows the calling application to regain control once the page table 
+    has been built, but before the preview is displayed or the report is printed.
+<p>
+    Before passing the datastream to the generateReport() routine, the application
+    calls pageSequenceHook() with the routine_id of a parameterless procedure.
+<p>
+    This procedure can save a copy of the global variable pagetable and set it to
+    -1 to suppress further activity, and resume processing following the call to 
+    generateReport(), or re-order and/or combine the pagetable with previous saved 
+    page tables which is then previewed and/or printed as one report.
+<p>
+    This technique allows cover pages, different styles and layouts for various parts
+    of the report, breakdowns and summaries, to be created.
+<p>
+    Another use for the page sequence hook is booklet printing. For example six pages
+    can be resequenced as {{},[1],[2],{},[6],[3],[4],[5]} and printed in 2-up mode.
+    There are several ways to achieve this effect; the above is useful when printing
+    the masters before using a double sided photocopier; the example in pptest.exw 
+    relies on manual feed, and flipping the paper at the mid-point of the printout.
+<p>
+    When a report is printed in fragments, naturally the page numbering may be wrong.
+    The application must manually correct this if needed, see the next section.
+<p>
+<p>
+<a name=ADR></a>
+<h3>Application-Defined Reports</h3>
+<!--------------------------------->
+<p>
+    Occasionally, it may be easier to define a report programatically rather than
+    manually placing each item on the layout, or if the layout is very fluid. An 
+    example might be a complicated form with hundreds of small checkboxes.
+<p>
+    The application may use a dummy layout which prints a single field, and use the
+    pageSequenceHook() procedure to craft a completely new pagetable. (TIP: create a
+    very rough sketch layout, with a few examples, say the top left and the bottom
+    right checkboxes, and pretty_print the pagetable from your pageSequenceHook
+    routine, as a starting point.)
+<p>
+    Each page in the pagetable is a header record followed by a simple list of fields, 
+    each of which is:
+<p>
+<pre>
+        L-type  :   Graphic=1, Bitmap=2, Text=3
+        L_pos   :   {x,y[,xto,yto]}
+                    Only {x,y} are given for text fields.
+                    The values are in Gry.
+        L_font  :   an internal integer reference, but see below
+        L_text  :   Text: format string, eg Page %d of %d
+                    Graphic: Rectangle not present
+                             RoundRectangle: {2,xc,yc}
+                             Line: 3
+                             Ellipse: 4
+                             (See below for Arcs and Chords)
+                    Bitmap: handle from loadBitmapFromFile()
+        L_flds  :   List of fields to be printed
+        L_flags :   No longer required, ignore
+</pre>
+<p>
+    Please note the above definition is subject to change in future releases.
+<p>
+    L_pos is in gry, a fraction of width and height (1..100000). For example, a
+    rectangle defined at {45000,45000,10000,10000} is the same shape as the paper,
+    10% of the size, drawn in the centre of the page.
+<p>
+    In fact, L_pos holds additional detail such as repeating and variant details,
+    which are no longer relevant by the time the pageSequenceHook routine is called.
+<p>
+    Text (not graphics or bitmaps) may be rotated by passing a slope value in
+    L_pos[11], between 0 and 3600. The length of L_pos must be 11, zero fill any
+    missing elements, as shown in procedure plain() in pptest.exw.
+<p>
+    Arcs and Chords may be drawn by passing {5,xstart,ystart,xend,yend} or
+    {6,xstart,ystart,xend,yend} respectively in L_text. However the values passed should be
+    in Gry (1..100000) and this feature is not officially supported. The following
+    diagram (courtesy of Brian Broker) may or may not be helpful:
+    <p>
+    <table align="center">
+    <tr><td><IMG src="images/chord.png"
+     alt="Disgram of Arc and Chord drawing parameters.">
+    </table>
+    <p> 
+    L_flags is used during the creation of the table and is no longer used or
+    needed (it is much slower to strip it out after the build stage than simply
+    leave it in the table, unreferenced). It may or may not be present.
+<p>
+    It is probably unwise to attempt any changes to the header record.
+<p>
+    The L_font values in the pagetable refer to an internal font table which is
+    not available to the calling application. The fonts may however be replaced by a 
+    sequence as follows:<p>
+<table border cellpadding=10 cellspacing=0>
+<tr><th>Text<td>{face,size,attributes,colour} eg {"Arial",12,Bold,Black}
+<tr><th>Graphic<td>{0,pen,style,colour} eg {0,5,DotDash,Blue}
+<tr><th>Bitmap<td>{0,0,Paintmode,Greyscale} eg {0,0,SrcCopy,#1A1A1A}
+</table>
+<p>
+    Note that Paintmode should be SrcCopy when Greyscale is not 0.
+    Greyscale should be an rgb() value with red,green,and blue
+    settings at the same value.
+<p>
+    Naturally, validation on returned pagetables is very limited, so use this feature 
+    at your own risk!
+<p>
+    No calculated or standard fields may be used in this case.
+<p>
+    Blank pages may be represented in the new page table with the empty sequence, {}.
+    Note that an application programmer would force a blank page by printing a single
+    blank field, when creating a report from a predefined layout, plus there is a
+    header on every page. Hence this will be 
+    the representation of a blank page in the passed page table.
+<p>
+    Make an unaltered copy of an existing header record for any new pages.
+<p>
+<p>
+<!--a name=DEV></a>
+<DEV:>
+    Upgrade:
+    =======
+    Modifying the Data Dictionary and repackaging for new version releases
+    ======================================================================
+<p>
+The first version of an application is normally released with a standard layouts.edb, 
+pre-loaded with the current datadict.txt.
+<p>
+When a newer version is released, the client may have a modified version of layouts.edb.
+Hence, instead of overwriting, it should be upgraded.
+<p>
+This is achieved by distributing and installing a copy of the development layouts.edb
+renamed as stdlay.edb along with the new datadict.txt and invoking the loadDDict() routine.
+An example of this can be seen in pptest.exw. Note that the routine uses current_dir() to
+locate both datadict.txt and layouts.edb.
+<p>
+<p>
+<p>
+    A new release of software often requires updates to the data dictionary.
+    However, amendments to existing report layouts at the client site must be preserved.
+    Hence, you should not release a new version of layouts.edb, instead it must be 
+    upgraded when the new version is installed.
+<p>
+    The loadDDict() routine should be used for this during the installation/upgrade, as
+    opposed to being run as part of the packaging process.
+<p>
+    The layouts.edb database will be created if required, and any standard layouts from 
+UGH:
+    stdlay.edb automatically
+    incorporated. stdlay.edb also contains old released versions of the standard report
+    layouts; differences in the standard layout can optionally be imported. The user
+    is informed of any differences that cannot be applied automatically. These changes
+    are also written to a log file (layout.log) for later browsing.
+    The DLLstd program is used to create the stdlay.edb database. It should be run against
+    the current development version of layouts.edb and the last officially released
+    version of stdlay.edb, to produce a new version of stdlay.edb suitable for release
+--DEV: why?
+    with the new version of the application. For the very first release of an application,
+    layouts.edb should be manually copied to stdlay.edb immediately prior to release.
+<p>
+<p>
+Reference Section: Coding the datastream creation program:
+=========================================================
+<p>
+    Checklist
+    =========
+<p>
+    Does the datastream contain all readily-accessible fields so that small ad-hoc changes 
+    can easily be made without amending the application program and/or using unnecessarily
+    complicated calculated field expressions?
+<p>
+    Does the test datastream include at least one instance of each record type referenced 
+    by the report layout? This will automatically check that each record is the correct
+    length, as specified in datadict.txt.
+<p>
+    Does the test verify that the fields it places in the datastream are in the same order
+    as the record definition in datadict.txt? Use the dumpDDrecord() function to visually
+    check this, or getDDidx() to verify this programatically.
+<p>
+    Does the installation and upgrade process incorporate loadDDict() instead of replacing
+    layouts.edb? (version 0.2 onwards)
+<p>
+    Are layouts.edb, datadict.txt, and any bitmaps used by the standard reports installed
+    to the same directory? Check the list of bitmaps from pptest.exw for any absolute 
+    pathnames.
+<p>
+    Are any difficult variant sets 
+-->
+    <!--and grouping controls -->
+<!--
+    in use adequately documented for future reference?
+<p>
+    Are the calculated fields properly documented? If you run the list calculated fields
+    option from pptest.exw, you can select and copy the entire set and add your own
+    comments for future reference. (If anyone really wants a function to return that as
+    text, it would be trivial.) As noted elsewhere excessive use of calculated fields is
+    ill-advised; beyond a certain point it becomes far easier to modify the datastream.
+    Before releasing an application, review the calculated fields to ensure they will not
+    cause unnecessary support issues.
+<p>
+<p>
+<p>
+Upgrade
+=======
+    If you do not allow clients to modify their own reports, then you can just create
+    a new layouts.edb and overwrite the existing file when a new release of your 
+    application is installed. Otherwise this is a very bad thing to do.
+<p>
+    At some point it is expected that the contents of datadict.txt and the datastream 
+    it defines will need to be updated to pass additional information to the report 
+    generator.
+    With the exception of reports which are still printing deleted fields, all report 
+    layouts must continue to work with the new data stream.
+<p>
+[Ed: this has all changed; ignore this until v0.2]
+Firstly, the field indexes in field and dict must be recalculated. Any changes to 
+the uniq value would have to be effected throughout the layout definitions, which would 
+require a complete mapping to be built in memory first (it cannot be done one field
+at a time). Instead, the uniq fields are left unaltered, by setting the index
+on deleted fields to a negative value, and allocating new, unused values for uniq for
+any inserted fields. This is also the reason why fields are never deleted.
+<p>
+Secondly, it is also expected that the standard layout definitions will be altered 
+between releases, and further that existing users may have amended their layouts on
+site. This is sufficiently difficult that it cannot be generally catered for, hence
+the program DDload is provided with full source code, should you need to modify it.
+<p>
+The program DDload also performs crude merging tasks between:
+<p>
+  stdlay.edb    the standard layouts as distributed with the installed version.
+  layouts.edb   the layouts as currently in use on site.
+  newlay.edb    the standard layouts as modified by the development team.
+  backups.edb   backup of layout.edb.
+<p>
+ The program performs the following tasks:
+<p>
+  On the first run[1],
+    Creates backups.edb by copying layouts.edb
+    Swaps the contents of stdlay.edb and newlay.edb
+        Compares each layout in newlay with layouts:
+            if unchanged overwrites with new version from stdlay.
+<p>
+    Displays a status screen with the descriptive text one of:
+<p>
+        1) No modifications detected - restored at user request     [o]
+        2) No modifications detected - new version installed        [r]
+        3) Modifications detected - left in place                   [o]
+        4) Modifications detected - overwritten at user request     [r]
+<p>
+  Buttons for Overwrite and Restore are enabled and disabled as the user cursors up and
+  down the screen. A total of the number of reports not automatically upgraded is also
+  shown, and a remove temporary installation files button allows newlay.edb and backups.edb
+  to be removed (after a suitable warning).
+<p>
+ Note[1]: This allows installation of the next version to safely overwrite newlay.edb and
+ backup.edb, if they have been left on disk for weeks, months, or even years. The program 
+ can be run any number of times until the user is satisfied all reports work as required.
+<p>
+<p>
+<p>
+        1. Controls
+        ===========
+<p>
+            When the print preview window is displayed, several controls and information fields
+            are displayed at the top of the screen.
+<p>
+            Quick Guide. The following subset of keys are intended to be the most useful:
+                Page Up/Down, Home and End to navigate through the report.
+                +/- or left/right mouse click to unzoom/zoom the display.
+                Alt-P to print, Escape to close print preview without printing.
+<p>
+            Below is a full list of the available controls and keystrokes.
+<p>
+            Page <fragment> of <maxpages>. (Display only). This displays the total number of
+            pages in the report and details of the page or pages currently displayed, for 
+            example it might read Page 1 of 3, or Pages 7-12 of 48 if there are six pages
+            currently displayed on the screen.
+<p>
+        Known problems
+        ==============
+<p>
+            Tooltips not refreshed. (minor) The Zoom, Print, Setup, and Register buttons have 
+            different tooltips but are only shown correctly on the second and subsequent 
+            buttons if the mouse is moved completely off the toolbar before hovering over the 
+            next button.
+<p>
+            Resize window delay. (minor)
+            The easiest way to explain this is to describe how to reproduce it. Preview a long
+            report (at least 30 pages), restore the preview window by pressing the double box
+            icon at the top right, then use the '-' key to zoom out and use the mouse to drag 
+            the bottom right hand corner about. Provided you have enough pages displayed on the
+            screen and/or have a slow enough computer, you should be able to resize the window
+            before all the pages have been displayed. This correctly interrupts the drawing 
+            process and begins drawing at the new size. However, if you wait and let the
+            drawing finish and then resize, the resize operation no longer interrupts the 
+            drawing process, which completes before clearing and re-starting at the new size.
+            I also note that the mouse cursor is not updated as normal during redraw when this
+            is happening, also Alt-F4 and closing the window by clicking on the top right hand
+            "x" are inoperative until the drawing has finished. This may be a problem in 
+            Windows 98 and may already be fixed in later versions of Windows.
+<p-->
+<p>
+</body>
+<p><p><hr></p>
+<p align=center>
+<a href="pprg.html">Table of Contents</a>
+<a href="ppRef3.html">Previous Page - Reference Section Part 3</a>
+<a href="ppRef5.html">Next Page - Reference Section Part 5</a>
+</p>
+<p><hr><p><p>
+</html>

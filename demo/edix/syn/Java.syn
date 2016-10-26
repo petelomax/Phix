@@ -1,0 +1,408 @@
+Java syntax file
+BlockComment /* */
+LineComment //
+//
+// About .syn files
+// ================
+// [[For an up-to-date version of these notes, always refer to Euphoria.syn]]
+// All files with a .syn extension in the /syn subdirectory are loaded when
+// the editor starts. They are reloaded if saved in the editor, which makes
+// it easy to add and test new keywords, etc.
+// Should a fatal error occur (which obviously it should not), then it may be
+// necessary to rename/move/delete/restore the offending .syn file.
+// The first line of a .syn file must be <Name> followed by " syntax file".
+// The second line may be "BlockComment" followed by start/end pair(s).
+//  eg  BlockComment /* */ <!-- --> [[ ]]
+//  Note that .syn files themselves may *NOT* contain block comments (since
+//        any and all support of them is in easynclr.e, not easynld.e).
+// The next line must be "LineComment" followed by a comment lead-in (if any).
+// This LineComment directive not only controls colourisation during editing of
+//  the files listed in the FileExtensions directive (see below), but also
+//  defines the comment method for the remainder of the .syn file.
+//        Therefore comments may not appear in a .syn file before the LineComment line.
+//        Note also that Edit/Comment and Edit/Uncomment (and the keyboard shortcuts)
+//        use the LineComment defined in None.syn when editing a .syn file (sorry!)
+//  As an example, C/C++ line comments are // so all these lines could begin with
+//  // instead of --, which is an operator in C/C++. If (eg) C.syn used -- as a
+//        line comment, it would not be possible to define -- as an operator!
+// If the programming language you are trying to support does not support line 
+//  comments (which should be very rare) then you cannot comment the syn file.
+//
+//
+// Sections
+// ========
+// All words beginning in column 1 (apart from comments) begin a section. 
+// The following sections should be defined:
+//                BlockComment, [optional]
+//                LineComment,
+//                TokenStart,
+//                TokenChar, [optional]
+//                TokenFirst, [optional]
+//                TokenLast, [optional]
+//                Escapes, [optional]
+//         Delimiters, [optional, except in None.syn]
+//                Braces, [optional]
+//                Operators, [optional]
+//                Illegal, [optional] and
+//                FileExtensions,
+// in that order. 
+// Then follow a number of keyword collections. The name is not "recognised"
+// apart from the fact that it begins in column 1 and is displayed in the 
+// Options/Colours window when that is opened when editing a file with one of
+// the file extensions (as defined in the FileExtensions section). These
+// section names should not contain spaces, a space is automatically inserted
+// between any lowercase character followed by an uppercase character.
+// Finally there is a Scheme section which defines the /default/ colours.
+// If a .clr file exists (eg Euphoria.clr) then it overrides these defaults.
+// Note: if you /DELETE/ sections, the .clr file may become invalid, though it
+//  should be trivial to edit it, removing the offending line(s). It is also 
+//  a good idea to copy the lines from the .clr back to the final Scheme 
+//  section of this file (which also becomes invalid if sections are removed).
+//  If you /ADD/ sections, you don't need to do anything special, except 
+//  perhaps to run Options/Colours to give new sections an appropriate colour.
+//
+
+//
+// Token characters must be specified next.
+//
+TokenStart abcedfghijklmnopqrstuvwxyz
+TokenStart ABCDEFGHIJKLMNOPQRSTUVWXYZ_
+TokenChar 0123456789
+// TokenFirst can be used to specify characters which are only valid at the start
+// of a token (eg # in #include or < in <table> [HTML]), and TokenLast can be used
+// to specify characters which terminate a token (eg > in <table> or $ in MID$), eg
+// TokenFirst #<        // by default this set is empty
+// TokenLast >$        // ""
+// In practice, TokenLast defines single-character tokens, so internally the
+//  syntax colouring will treat <table> as "<table" and ">". eg see Html.syn
+//
+// Whitespace is defaulted to #09101320, ie tab, lf, cr, and space. There is 
+// as yet no way to change this, though I will say it should be specified as 
+// a hexadecimal stringset rather than OS/editor/language dependent means.
+//
+// Likewise String and Character parsing is currently hard-coded (to ' and ").
+// You should not specify ' or " as delimiters or operators.
+//
+Escapes \rnt"0\'x
+
+// Next we have Delimiters, Operators, and Illegals (in that order).
+// The Delimiter section is optional (except in None.syn) and allows additional
+//        characters to be coloured as "Other". The idea is that in "integer a,integer b"
+//        then "a,integer" is not scanned as a single word, as well as colouring the ","
+//        normally as opposed to "Illegal". See easynld.e for technical details.
+// All characters used in the Operators section are automatically delimiters.
+Delimiters #$:,.?;
+Operators < <= > >= = != + += - -= * *= / /= .. & &= | || ^= ! \ ~ % ^ . ; : , ?
+
+// The Braces section begins with a digit specifying the number of nesting levels 
+// of colour required (1..7). Only pairs from ()<>[]{} are permitted. 
+// If the number of nesting levels is set above 5 you may have difficultly finding
+// enough appropriate colours to use. A lower number does not, of course, limit
+// the code that can be written, just how it is coloured. If the nesting level is
+// exceeded, inner brackets are coloured starting from 1 again.
+//
+Braces 5 ()[]{}
+
+//
+// FileExtensions should be specified next. This is not optional.
+//
+FileExtensions java
+
+// The optional Indents section. If present, this section lists words and
+//        characters which affect autoindentation. The first word must be "+" or "-",
+//        any following words or characters increase or decrease the indent level,
+//        until the next "+" or "-". Please fit everything on one line.
+//
+Indents + { - }
+
+// The optional AutoComplete section. If present, this section must
+// end with a "##end AutoComplete" line. Note that any comments in this
+// section must begin in column 1, otherwise they are misinterpreted as
+// being part of the autocompletion text. For more details, please
+// see eauto.e Ideally, leave this in English, and add translations
+// in elng_XXX.txt (if not English, that is).
+//
+//AutoComplete
+//##end AutoComplete
+
+//
+// The remaining sections are listed in the Options/Colours window. 
+// The names used should not contain spaces; these are automatically 
+// inserted after any lower-case character which is followed by an 
+// upper-case one. Otherwise these names are entirely descriptive and 
+// are not defined or used anywhere else (though they must match entries
+// in the final Scheme and .clr files). Remember that all words
+// beginning in column 1 are interpreted as section names.
+
+ReservedWords
+//      break
+//      case
+//      catch
+//      class
+        continue
+//      default
+//      delete
+//      do
+        else
+//      enum
+        for
+        function
+//      goto
+        if
+//      new
+//      private
+//      protected
+//      public
+        return
+//      static_cast
+//      std
+//      switch
+//      this
+//      throw
+//      try
+//      using
+        var
+//      virtual
+//      while
+
+Constants
+        false
+        true
+//      TRUE
+//      FALSE 
+
+Types
+//      typedef
+//      struct
+//      const
+//      static
+//      unsigned
+//      extern
+//      bool BOOL
+//      char uchar CHAR UCHAR
+//      double
+//      float
+//      int uint INT UINT
+//      int64_t
+//      long ulong LONG ULONG
+//      short ushort
+//      string
+//      time_t      // typedef long time_t; 
+//      uint64_t
+//      volatile
+//      wchar_t
+
+lib
+        document
+        getElementById
+        toNumber
+        toString
+//      abort 
+//      abs 
+//      acos 
+//      asctime 
+//      asin 
+//      assert 
+//      atan 
+//      atan2 
+//      atexit 
+//      atof 
+//      atoi 
+//      atol 
+//      atoll
+//      bsearch
+//      bottom
+//      calloc 
+//      ceil 
+//      clearerr 
+//      clock 
+//      close
+//      cos 
+//      cosh 
+//      ctime
+//      difftime 
+//      div
+//      exit 
+//      exp
+//      fabs 
+//      fclose 
+//      fdopen 
+//      feof 
+//      ferror 
+//      fflush 
+//      fgetc 
+//      fgetpos 
+//      fgets 
+//      filelength
+//      fileno 
+//      floor 
+//      fmod
+//      fopen 
+//      fprintf 
+//      fputc 
+//      fputs 
+//      fread 
+//      free 
+//      freopen 
+//      frexp 
+//      fscanf 
+//      fseek 
+//      ftell 
+//      fwrite
+//      getc 
+//      getenv 
+//      gets 
+//      gmtime
+//      hypot
+//      instr 
+//      isalnum 
+//      isalpha 
+//      isascii 
+//      isblank 
+//      isdigit 
+//      isxdigit 
+//      itoa
+//      labs 
+//      ldexp 
+//      ldiv 
+//      left 
+//      llabs 
+//      lldiv 
+//      localeconv 
+//      localtime 
+//      log 
+//      log10 
+//      longjmp
+//      lstrcat 
+//      lstrcmp 
+//      lstrcpy 
+//      lstrlen
+//      malloc 
+//      mblen 
+//      mbstowcs 
+//      mbtowc 
+//      memchr 
+//      memcmp 
+//      memcpy 
+//      memicmp 
+//      memmove
+//      memset 
+//      mid 
+//      mktime 
+//      modf
+//      perror 
+//      pow 
+//      printf 
+//      putc 
+//      putchar 
+//      putenv 
+//      puts
+//      qsort
+//      raise 
+//      rand
+//      read 
+//      realloc 
+//      regcomp 
+//      regerror 
+//      regexec 
+//      regfree 
+//      remove 
+//      rename 
+//      rewind
+//      right
+//      scanf 
+//      setbuf 
+//      setjmp 
+//      setlocale 
+//      setvbuf 
+//      signal 
+//      sin 
+//      sinh 
+//      sizeof 
+//      snprintf 
+//      sprintf
+//      sqrt 
+//      srand 
+//      sscanf 
+//      strcasecmp 
+//      strcat 
+//      strchr 
+//      strcmp 
+//      strcoll 
+//      strcpy 
+//      strcspn 
+//      strdup
+//      strerror 
+//      strftime 
+//      stricmp 
+//      strlen 
+//      strncasecmp 
+//      strncat 
+//      strncmp 
+//      strncmpi
+//      strncpy 
+//      strnicmp
+//      strpbrk 
+//      strrchr 
+//      strrev
+//      strspn 
+//      strstr 
+//      strtod 
+//      strtok 
+//      strtol 
+//      strtoll 
+//      strtoul 
+//      strtoull
+//      strupr 
+//      strxfrm 
+//      system
+//      tan 
+//      tanh 
+//      time 
+//      tmpfile 
+//      tmpnam 
+//      toascii 
+//      tolower 
+//      top 
+//      toupper
+//      ungetc
+//      vfprintf 
+//      vfscanf 
+//      vprintf 
+//      vscanf 
+//      vsnprintf 
+//      vsprintf 
+//      vsscanf
+//      wctomb 
+//      write
+//      wsprintf 
+//      wsprintfA 
+//      wvsprintf
+
+//
+// The Scheme section defines the /default/ colours (and exists mainly to 
+//        simplify distribution and installation).
+// If a .clr file exists (eg Euphoria.clr) then it overrides these defaults.
+// The Options/Colours window creates/overwrites .clr files on exit.
+//
+Scheme
+ Background Silver
+ Comments Navy Italic
+ Highlight Gray
+ CurrentLine #E9E9E9
+ Strings Green
+ Symbols Blue
+ Illegals Red
+ Other Black
+ Brace1 Blue
+ Brace2 Purple
+ Brace3 Maroon
+ Brace4 Purple
+ Brace5 Green
+ ReservedWords Teal
+ Constants Maroon
+// Preprocessor Teal
+ Types #FF7171
+ lib Maroon
+// Borland #681504
+

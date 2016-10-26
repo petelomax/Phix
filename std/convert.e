@@ -16,9 +16,9 @@ constant
     M_F32_TO_A = 49
 
 constant M_ALLOC = 16
---atom mem  = machine_func(M_ALLOC,4)
+atom mem    = machine_func(M_ALLOC,4)
 --*/
-atom mem  = allocate(4)
+--/**/atom mem  = allocate(4)
 
 --****
 -- === Routines

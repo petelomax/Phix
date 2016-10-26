@@ -1,0 +1,132 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">new_dict</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          integer tid = new_dict(integer pool_only=0)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a new dictionary, so that clashes with other uses of {key,data} pairings can be avoided.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            The returned tid is intended to be passed as the last parameter to <a href="setd.htm">setd</a>(), <a href="getd.htm">getd</a>(),
+            <a href="getd_index.htm">getd_index</a>(), <a href="getd_by_index.htm">getd_by_index</a>(), <a href="deld.htm">deld</a>(), 
+            <a href="destroy_dict.htm">destroy_dict</a>(), and <a href="traverse_dict.htm">traverse_dict</a>().
+            <br>
+            <br>
+            By default, all {key,data} pairings are entered into one common dictionary, in effect the system behaves as if new_dict() had
+            been called and returned 1, and everyone was using that (which explains all the defaulted integer tid=1 parameters that, if 
+            you have not already seen, will do soon).
+            <br>
+            <br>
+            You can also create multiple additional dictionaries by calling new_dict(), and pass the result as an additional (final) 
+            parameter to the other routines (taking care not to miss any).
+            <br>
+            <br>
+            When you have no further use for it, an entire dictionary can be removed by invoking destroy_dict(tid), except for the
+            default dictionary, 1, as mentioned above, which is special and is the only dictionary that cannot be deleted - attempts 
+            to do so merely empty it and leave it still available for use.
+            <br>
+            <br>
+            Dictionaries are <b>not</b> thread-safe, for details of that, or if you are curious about the mysterious pool_only
+            parameter, see the Technicalia drop-down.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+integer tid = new_dict()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> tid</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">()</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="enter_cs.htm">enter_cs</a>,
+          <a href="destroy_dict.htm">destroy_dict</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Multiple threads concurrently accessing dictionaries will cause corruption unless protected by 
+            <a href="enter_cs.htm">enter_cs</a>(dictcs) and friends. (If your application is not multithreaded, or only one thread 
+            accesses dictionaries, then nothing that follows is of <i>any</i> concern to you, and if I were you, I&rsquo;d get out 
+            while I still can.)
+            <br>
+            <br>
+            A single critical section protecting all dictionaries is normally sufficient, and in the vast majority of cases there
+            would be no point making life any more difficult for yourself, however per-dictionary locks are also perfectly viable, 
+            and if only one thread has access to a particular dictionary, then only new_dict() and destroy_dict() may need locking 
+            - but for either of the last two options, a big enough pool must be created at the get-go:
+            <br>
+            <br>
+            If pool_only is greater than 1, the routine adds the specified number of entries to the freelist and returns 0.
+            Such a call is of course expected to be made before any <a href="create_thread.htm">create_thread</a>() calls, and
+            before any destroy_dict() calls - you should verify the result actually is zero to guard against the latter.
+            Subsequent invocations of new_dict(1) [presumably from within an appropriate critical section] will yield 0 if
+            the pool is exhausted. In that case, the program should unlock, sleep and retry a bit later. If in fact you are
+            trying to shut down, but other threads have died or forgotten to destroy_dict(), it is not entirely unreasonable
+            (after a time) to offer a "create anyway" option - it is not actually very likely, let alone guaranteed to fail. 
+            I only mention this because systems which are multithreaded and require many dictionaries are somewhat more likely 
+            to have complex and critical shutdown requirements, and stand to lose much more data if terminated abruptly.
+            Tip: it costs very little to create a pool of say 500 dicts, and any such overhead would be completely and utterly 
+            dwarfed by trying to create 500 threads. Conversely, limiting the pool size may keep memory useage spikes down and
+            otherwise help spread out the workload.
+            <br>
+            <br>
+            Let me reiterate to make all this as clear as possible: 
+            <ul>
+            <li>If the program is not multithreaded, or only one thread accesses dictionaries, no locking required, go away now.</li>
+            <li>If multiple threads might access the same dictionary, locks are required around <i><b>every</b></i> call.</li>
+            <li>In the latter case you can have one lock for all dictionaries or one lock per dictionary (see last two points).</li>
+            <li>If a dictionary is only ever accessed by one thread, you can limit locking to new_dict/destroy_dict, but you
+                <b><i>must</i></b> work within a limited-size pool of dictionaries (or lock <i>all</i> calls).</li>
+            <li>Likewise any use of per-dictionary locks mandates the use of a limited-size pool of dictionaries.</li>
+            <li>The locks around new_dict/destroy_dict calls must always of course be system-wide, not per-dictionary.</li>
+            </ul>
+         </td>
+        </tr>
+       </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

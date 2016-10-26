@@ -387,6 +387,12 @@ atom kernel_dll, memDLL_id,
         -- VirtualLock_rid, VirtualUnlock_rid,
         VirtualProtect_rid, GetLastError_rid, GetSystemInfo_rid
 
+function VirtualAlloc(atom addr, atom size, atom allocation_type, atom protect_)
+atom r1
+    r1 = c_func(VirtualAlloc_rid, {addr, size, allocation_type, protect_})
+    return r1
+end function
+
     memDLL_id = open_dll("kernel32.dll")
     kernel_dll = memDLL_id
     VirtualAlloc_rid = define_c_func(memDLL_id, "VirtualAlloc", {C_POINTER, C_SIZE_T, C_DWORD, C_DWORD}, C_POINTER)
@@ -425,14 +431,6 @@ constant getpagesize_rid = define_c_func(-1, "getpagesize", {}, C_UINT)
 public constant PAGE_SIZE = c_func(getpagesize_rid, {})
 end ifdef
 
-ifdef WIN32 then
-function VirtualAlloc(atom addr, atom size, atom allocation_type, atom protect_)
-atom r1
-    r1 = c_func(VirtualAlloc_rid, {addr, size, allocation_type, protect_})
-    return r1
-end function
-end ifdef
-
 --****
 -- == Types supporting Memory
 
@@ -466,47 +464,6 @@ end procedure
 
 --****
 -- === Allocating and Writing to memory:
-
---**
--- Allocates and copies data into executable memory.
---
--- Parameters:
--- # ##a_sequence_of_machine_code## : is the machine code to
--- be put into memory to be later called with [[:call()]]        
--- # the ##word length## : of the said code.  You can specify your
--- code as 1-byte, 2-byte or 4-byte chunks if you wish.  If your machine code is byte
--- code specify 1.  The default is 1.
---
--- Return Value:
--- An **address**,
--- The function returns the address in memory of the code, that can be
--- safely executed whether DEP is enabled or not or 0 if it fails.  On the
--- other hand, if you try to execute a code address returned by [[:allocate()]]
--- with DEP enabled the program will receive a machine exception.  
---
--- Comments:
--- 
--- Use this for the machine code you want to run in memory.  The copying is
--- done for you and when the routine returns the memory may not be readable
--- or writeable but it is guaranteed to be executable.  If you want to also
--- write to this memory **after the machine code has been copied** you should
--- use [[:allocate_protect()]] instead and you should read about having memory
--- executable and writeable at the same time is a bad idea.  You mustn't use
--- ##free()## on memory returned from this function.  You may instead
--- use ##free_code()## but since you will probably need the code throughout
--- the life of your program's process this normally is not necessary.
--- If you want to put only data in the memory to be read and written use [[:allocate]].
--- See Also:
--- [[:allocate]], [[:free_code]], [[:allocate_protect]]
-
---#withtype valid_wordsize
-public function allocate_code(object data, valid_wordsize wordsize = 1)
-
-    return allocate_protect(data, wordsize, PAGE_EXECUTE)
-
-end function
-
-
 
 --**
 -- Type for memory addresses
@@ -674,6 +631,44 @@ end ifdef
     return eaddr
 end function
 
+--**
+-- Allocates and copies data into executable memory.
+--
+-- Parameters:
+-- # ##a_sequence_of_machine_code## : is the machine code to
+-- be put into memory to be later called with [[:call()]]        
+-- # the ##word length## : of the said code.  You can specify your
+-- code as 1-byte, 2-byte or 4-byte chunks if you wish.  If your machine code is byte
+-- code specify 1.  The default is 1.
+--
+-- Return Value:
+-- An **address**,
+-- The function returns the address in memory of the code, that can be
+-- safely executed whether DEP is enabled or not or 0 if it fails.  On the
+-- other hand, if you try to execute a code address returned by [[:allocate()]]
+-- with DEP enabled the program will receive a machine exception.  
+--
+-- Comments:
+-- 
+-- Use this for the machine code you want to run in memory.  The copying is
+-- done for you and when the routine returns the memory may not be readable
+-- or writeable but it is guaranteed to be executable.  If you want to also
+-- write to this memory **after the machine code has been copied** you should
+-- use [[:allocate_protect()]] instead and you should read about having memory
+-- executable and writeable at the same time is a bad idea.  You mustn't use
+-- ##free()## on memory returned from this function.  You may instead
+-- use ##free_code()## but since you will probably need the code throughout
+-- the life of your program's process this normally is not necessary.
+-- If you want to put only data in the memory to be read and written use [[:allocate]].
+-- See Also:
+-- [[:allocate]], [[:free_code]], [[:allocate_protect]]
+
+--#withtype valid_wordsize
+public function allocate_code(object data, valid_wordsize wordsize = 1)
+
+    return allocate_protect(data, wordsize, PAGE_EXECUTE)
+
+end function
 
 
 --**

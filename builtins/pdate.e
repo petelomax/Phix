@@ -30,7 +30,6 @@ global function is_leap_year(integer y)
     return remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0)
 end function
 
-
 global function day_of_year(integer y, integer m, integer d)
 -- day of year function, returns 1..366
 --  y = (m>2 and remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0))
@@ -202,3 +201,48 @@ sequence res
     return res
 end function
 
+--/* 
+--DEV/SUG possible builtin? (I wrote this for Edix, but then decided on a "not visited" count.)
+--        Alternative: timedate_delta(dt1,dt2) produces a timedelta (in seconds) which can be
+--                      displayed using elapsed(). Maybe better, but I haven't written that.
+global function days_between(sequence dt1, sequence dt2={})
+--
+-- if dt2 is omitted or of length zero the current date is used.
+-- dt1 and dt2 need to start with y,m,d, but can be longer, eg from date(), parse_date_string(), or adjust_timedate().
+-- if dt1 and dt2 are the same date (the first three elements match), the result will be 0.
+-- if dt1 is a date before dt2 the result will be positive
+-- if dt1 is a date after dt2 the result will be negative
+-- for any non-defaulted dt2, days_between(dt1,dt2)==days_between(dt2,dt1)*-1
+-- no rounding occurs: if dt1 is one second past midnight and dt2 is one second before midnight on the same day,
+-- the result will still be 0, even though it is 99.998% of a day, and likewise if dt1 is one second before
+-- midnight and dt2 is 1 second later, the result will still be 1, even though it is really 0.001% of a day.
+--
+    integer {y1,m1,d1} = dt1
+    if length(dt2)=0 then dt2 = date() end if
+    integer {y2,m2,d2} = dt2
+    integer res = day_of_year(y2,m2,d2)-day_of_year(y1,m1,d1)
+    while y2>y1 do
+        y2 -= 1
+        res += 365+is_leap_year(y2)
+    end while
+    while y2<y1 do
+        res -= 365+is_leap_year(y2)
+        y2 += 1
+    end while
+    return res
+end function
+
+--and some tests:
+--  if days_between({2016,08,08},{2016,08,09})!=1 then ?9/0 end if
+--  if days_between({2016,01,01},{2016,08,09})!=221 then ?9/0 end if
+--  if days_between({2015,12,31},{2016,08,09})!=222 then ?9/0 end if
+--  if days_between({2015,01,01},{2016,08,09})!=586 then ?9/0 end if
+--  if days_between({2014,12,31},{2016,08,09})!=587 then ?9/0 end if
+--  if days_between({2017,01,01},{2016,08,09})!=-145 then ?9/0 end if
+--  if days_between({2016,12,31},{2016,08,09})!=-144 then ?9/0 end if
+--  if days_between({2016,08,10},{2016,08,09})!=-1 then ?9/0 end if
+--  if days_between({2016,12,31},{2016,08,09})!=-144 then ?9/0 end if
+--  if days_between({2016,08,09},{2016,12,31})!=144 then ?9/0 end if
+--  if days_between(date())!=0 then ?9/0 end if
+--  if days_between({1900,01,01},{2016,08,09})!=42589 then ?9/0 end if
+--*/

@@ -1,3 +1,11 @@
+--
+-- p.exw:  Phix: Pete's hybrid interpreted/compiled self hosted programming language.
+--
+--  Pronounced "fix". Test/trace/profile a program using "p test" (ie interpreter mode),
+--  compile a program for distrubution using "p -c test", and/or use the gui front-end.
+--  Rebuild the compiler in seconds using "p -c p", with no other tools/software needed.
+--  Test compiler modifications using "p p test".
+--                
 --format PE64
 -- DEV this might need to be in pHeap.e (:%pGetMCHK?): (so that pAlloc can store 0 in the era)
 --  it may also want to be "with memory_leak_checking/full_memory_leak_checking"
@@ -10,16 +18,6 @@ global constant MCHK = 0        -- 0 = off, 1 = on
 --  Note that MCHK is ignored if opLntpcalled!=0 or length(ptab)!=0, as otherwise
 --                            opLnp/t will leave random floats etc on the "wrong heap"
 --                            and therefore trigger spurious memory leak errors.
---                            (that may be fixable with a bit of jiggery-pokery, if
---                             we extend symtab[T_EBP] to contain ntcb4...)
---
--- p.exw:  Phix: Pete's hybrid interpreted/compiled self hosted programming language.
---
---  Pronounced "fix". Test/trace/profile a program using "p test" (ie interpreter mode),
---  compile a program for distrubution using "p -c test", and/or use the gui front-end.
---  Rebuild the compiler in seconds using "p -c p", with no other tools/software needed.
---  Test compiler modifications using "p p test".
---                
 
 --SUG: check types and side-effects on auto-includes.
 --
@@ -48,7 +46,7 @@ global constant MCHK = 0        -- 0 = off, 1 = on
 --DEV temp. removed (as it now triggers use of new emit, try putting back once pth works!)
 --!/**/format "p.fmt"
 ----with gui 4.0        -- pw.exe/see verify_build() etc below
---/**/with console 4.0      -- p.exe (this program does not run on RDS Eu!)
+--!/**/with console 4.0     -- p.exe (this program does not run on RDS Eu!)
 --DEV (this wants to be in a common file for p.exw/pth.exw)
 --format PE32 4.0
 --version { "FileDescription","Phix Programming Language",
@@ -290,7 +288,7 @@ constant testset={
     "t60td.exw",            --[60] OK   -- timedate tests
 --DEV this is a very windows-centric test, need something quite different for linux:
 --  "t61cffi.exw",          --[61] OK   -- cffi tests
---FP
+    "t62utf.exw",           --[62] OK   -- test the utf conversion routines
     "..\\demo\\mandle.exw", --[61] OK   -- simple ascii mandlebrot demo
     "..\\demo\\combo.exw",  --[62] OK   -- simple combinations function
     "..\\demo\\takeuchi.exw",--[63] OK  -- stress test function calls
@@ -1171,6 +1169,7 @@ while 1 do  -- 17/8
 --      else
 --          if find(27,x) then abort(0) end if  -- esc
             -- save new default_commandline
+--DEV do this after verifying options!
             if not equal(x,default_commandline) then
                 k = find(x,default_commandlines)
                 if k=0 then
@@ -1293,11 +1292,6 @@ while 1 do  -- 17/8
                                     cl = append(cl,"-d")
                                     x = x[3..lenx]
                                     lenx = length(x)
---erm, bug/proof this lot is specious!?
-                                    if match("ompile",x)=1 then
-                                        x = x[7..lenx]
-                                        lenx = length(x)
-                                    end if
 --                              end if
                             end if
                             exit
@@ -1394,7 +1388,12 @@ while 1 do  -- 17/8
 -- moved, to use mainpath 15/3/10
 --          dilfn = open("ildump.txt","w")
         elsif equal(x,"dll") then
-            Fatal("unsupported option: -dll\n")     --DEV must get onto this soon....
+--          Fatal("unsupported option: -dll\n")     --DEV must get onto this soon....
+            DLL = 1
+            norun = 1
+            bind = 1
+            nodiag = 1
+--/*
         elsif equal(x,"e2") then
             newEmit = 1
         elsif equal(x,"e0") then
@@ -1405,12 +1404,15 @@ while 1 do  -- 17/8
 --suppressopRetf = 1
             subvers = #00000005
             OptConsole = 1
+--*/
         elsif equal(x,"lint") then
             lint = 1
+--/*
         elsif equal(x,"lnx") then
             PE = 0
 --?PE
 --          PEtrap = 1
+--*/
         elsif lenx>1 and find(ch,"cdel") then
             if ch='c' then
                 if match("ompile",x)=2 then
@@ -1468,12 +1470,14 @@ while 1 do  -- 17/8
         elsif equal(x,"nodiag") then
             nodiag = 1
 --suppressopRetf = 1
+--/*
         elsif find(x,{"import","imports"}) then
             listimports = 1
 --DEV (5/1/15)
 --          finalfixups("", "", 0)
             finalfixups2("", "", 0)
 --          return -- control does not return
+--*/
         elsif equal(x,"isense") then
 --DEV
             -- "pw -isense <trapfile> line col <pkey> mode <main>"
@@ -1837,15 +1841,11 @@ end if
             outfile = mainfile
             for i=length(mainfile) to 1 by -1 do
                 if mainfile[i]='.' then
-if newEmit then
-                    if PE then
-                        outfile = mainfile[1..i]&"exe"
+                    if PE or DLL then
+                        outfile = mainfile[1..i]&iff(DLL?iff(PE?"dll":"so"):"exe")
                     else
                         outfile = mainfile[1..i-1]
                     end if
-else
-                    outfile = mainfile[1..i]&"exe"
-end if
                     exit
                 end if
             end for
@@ -2466,6 +2466,7 @@ sequence smf, smp   -- save of main file & path [DEV to go]
 
     newEmit = 1
 -- X64 = 0
+--DLL = 0
     processCommandLine()
 
 atom eres

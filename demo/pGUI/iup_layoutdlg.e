@@ -65,6 +65,206 @@
 
 include pGUI.e  -- (Ihandle etc)
 
+constant -- (copied from pGUI, rather than made global)
+--       D  = C_DOUBLE, 
+--       F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this.. [edited 25/2/16]
+         I  = C_INT,
+--       L  = C_LONG,
+         P  = C_POINTER, 
+--       U  = C_UINT,
+--       UC = C_UCHAR,
+--       UL = C_ULONG,
+         $
+
+atom xiupAttribGet = NULL,
+     xiupAttribGetInherit,
+     xiupAttribGetInt,
+     xiupAttribGetLocal,
+--   xiupAttribSetInt,
+     xiupClassRegisterGetAttribute,
+     xiupDlgListVisibleCount,
+     xiupDlgListCount,
+     xiupDlgListFirst,
+     xiupDlgListNext,
+     xiupDrawCreateCanvas,
+     xiupDrawRectangle,
+     xiupDrawLine,
+     xiupDrawSetClipRect,
+     xiupDrawImage,
+     xiupDrawGetSize,
+     xiupDrawText,
+     xiupDrawResetClip,
+     xiupDrawSelectRect,
+     xiupDrawFlush,
+     xiupDrawKillCanvas,
+     xiupRegisterFindClass,
+     xiupObjectCheck,
+     xiupFocusCanAccept
+
+--DEV/doc (NO: these should be moved to iuplayoutdlg.e [test is in tee.exw])
+--/*
+char* iupAttribGet(Ihandle *ih, const char *name)     
+Returns the attribute from the hash table only. 
+NO inheritance, NO control implementation, NO defalt value here. 
+--*/
+function iupAttribGet(Ihandle ih, string name)
+    atom ptr = c_func(xiupAttribGet, {ih, name})
+    if ptr=NULL then return "" end if
+    return peek_string(ptr)
+end function
+
+--/*
+char* iupAttribGetInherit(Ihandle *ih, const char *name)
+Returns the attribute from the hash table only, but if not defined then checks in its parent tree. 
+NO control implementation, NO defalt value here. 
+Used for EXPAND and internal attributes inside a dialog. 
+--*/
+function iupAttribGetInherit(Ihandle ih, string name)
+    atom ptr = c_func(xiupAttribGetInherit, {ih, name})
+    if ptr=NULL then return "" end if
+    return peek_string(ptr)
+end function
+
+--/* unused
+function iupAttribGetInheritInt(Ihandle ih, string name)
+    atom ptr = c_func(xiupAttribGetInherit, {ih, name})
+    return ptr
+end function
+--*/
+
+--/*
+int iupAttribGetInt(Ihandle *ih, const char *name)
+Same as iupAttribGetStr but returns an integer number. Checks also for boolean values. 
+--*/
+function iupAttribGetInt(Ihandle ih, string name)
+    atom res = c_func(xiupAttribGetInt, {ih, name})
+    return res
+end function
+
+--/*
+char* iupAttribGetLocal(Ihandle *ih, const char *name)    
+Returns the attribute from the hash table as a string, but if not defined then checks in the control implementation, if still not defined then returns the registered default value if any. 
+NO inheritance here. Used only in the IupLayoutDialog. 
+--*/
+function iupAttribGetLocal(Ihandle ih, string name)
+    atom ptr = c_func(xiupAttribGetLocal, {ih, name})
+    if ptr=NULL then return "" end if
+    return peek_string(ptr)
+end function
+
+--procedure iupAttribSetInt(Ihandle ih, string name, integer i)
+--  c_proc(xiupAttribSetInt, {ih, name, i})
+--end procedure
+
+function iupClassGetAttribNameInfo(atom iclass, string name)
+atom pMem = allocate(8,1)
+object def_value
+atom flags
+    c_proc(xiupClassRegisterGetAttribute,{iclass,name,NULL,NULL,pMem,NULL,pMem+4})
+    def_value = peek4u(pMem)
+    if def_value!=NULL then
+        def_value = peek_string(def_value)
+    end if
+    flags = peek4u(pMem+4)
+    return {def_value,flags}
+end function
+
+function iupDlgListVisibleCount()
+integer res = c_func(xiupDlgListVisibleCount,{})
+    return res
+end function
+
+function iupDlgListCount()
+integer res = c_func(xiupDlgListCount,{})
+    return res
+end function
+
+function iupDlgListFirst()
+Ihandle ih = c_func(xiupDlgListFirst,{})
+    return ih
+end function
+
+function iupDlgListNext()
+Ihandln ih = c_func(xiupDlgListNext,{})
+    return ih
+end function
+
+function iupDrawCreateCanvas(Ihandle ih)
+atom dc = c_func(xiupDrawCreateCanvas,{ih})
+    return dc
+end function
+
+--function iupStrToRGB(string s)
+--sequence rbg
+--atom pMem = allocate(machine_word()*3)
+--  if c_func(x
+--end function
+
+procedure iupDrawRectangle(atom dc, integer x1, x2, y1, y2, r, g, b, style)
+    c_proc(xiupDrawRectangle,{dc, x1, x2, y1, y2, r, g, b, style})
+end procedure
+
+procedure iupDrawLine(atom dc, integer x1, x2, y1, y2, r, g, b, style)
+    c_proc(xiupDrawLine,{dc, x1, x2, y1, y2, r, g, b, style})
+end procedure
+
+procedure iupDrawSetClipRect(atom dc, integer x1, x2, y1, y2)
+    c_proc(xiupDrawSetClipRect,{dc, x1, x2, y1, y2})
+end procedure
+
+function iupDrawImage(atom dc, string name, integer make_inactive, x, y)
+integer w,h
+atom pMem = allocate(machine_word()*2)
+    c_proc(xiupDrawImage, {dc,name,make_inactive,x,y,pMem,pMem+machine_word()})
+    {w,h} = peekNS({pMem,2},machine_word(),1)
+    free(pMem)
+    return {w,h}
+end function
+
+function iupDrawGetSize(atom dc)
+integer w,h
+atom pMem = allocate(machine_word()*2)
+    c_proc(xiupDrawGetSize, {dc,pMem,pMem+machine_word()})
+    {w,h} = peekNS({pMem,2},machine_word(),1)
+    free(pMem)
+    return {w,h}
+end function
+
+procedure iupDrawText(atom dc, string text, integer len, x, y, r, g, b, string font)
+    c_proc(xiupDrawText,{dc, text, len, x, y, r, g, b, font})
+end procedure
+
+procedure iupDrawResetClip(atom dc)
+    c_proc(xiupDrawResetClip,{dc})
+end procedure
+
+procedure iupDrawSelectRect(atom dc, integer x, y, w, h)
+    c_proc(xiupDrawSelectRect,{dc, x, y, w, h})
+end procedure
+
+procedure iupDrawFlush(atom dc)
+    c_proc(xiupDrawFlush,{dc})
+end procedure
+
+procedure iupDrawKillCanvas(atom dc)
+    c_proc(xiupDrawKillCanvas,{dc})
+end procedure
+
+function iupRegisterFindClass(string name)
+atom iclass = c_func(xiupRegisterFindClass,{name})
+    return iclass
+end function
+
+function iupObjectCheck(Ihandle ih)
+integer res = c_func(xiupObjectCheck,{ih})
+    return res
+end function
+
+function iupFocusCanAccept(Ihandle ih)
+integer res = c_func(xiupFocusCanAccept,{ih})
+    return res
+end function
+
 -- (struct _iLayoutDialog made static and extended:)
 integer layoutdlg_destroy = 0   -- destroy the selected dialog, when the layout dialog is destroyed
 integer layoutdlg_changed
@@ -2732,6 +2932,32 @@ end function
 global function IupLayoutDialog2(Ihandle dialog)
 Ihandle tree, canvas, dlg, menu, status, splitter;
 
+    if xiupAttribGet=NULL then
+     xiupAttribGet                  = iup_c_func(iup, "iupAttribGet", {P,P}, P)
+     xiupAttribGetInherit           = iup_c_func(iup, "iupAttribGetInherit", {P,P}, P)
+     xiupAttribGetInt               = iup_c_func(iup, "iupAttribGetInt", {P,P}, I)
+     xiupAttribGetLocal             = iup_c_func(iup, "iupAttribGetLocal", {P,P}, P)
+--   xiupAttribSetInt               = iup_c_proc(iup, "iupAttribSetInt", {P,P,I})
+     xiupClassRegisterGetAttribute  = iup_c_proc(iup, "iupClassRegisterGetAttribute", {P,P,P,P,P,P,P})
+     xiupDlgListVisibleCount        = iup_c_func(iup, "iupDlgListVisibleCount", {}, I)
+     xiupDlgListCount               = iup_c_func(iup, "iupDlgListCount", {}, I)
+     xiupDlgListFirst               = iup_c_func(iup, "iupDlgListFirst", {}, P)
+     xiupDlgListNext                = iup_c_func(iup, "iupDlgListNext", {}, P)
+     xiupDrawCreateCanvas           = iup_c_func(iup, "iupDrawCreateCanvas", {P}, P)
+     xiupDrawRectangle              = iup_c_proc(iup, "iupDrawRectangle", {P,I,I,I,I,I,I,I,I})
+     xiupDrawLine                   = iup_c_proc(iup, "iupDrawLine", {P,I,I,I,I,I,I,I,I})
+     xiupDrawSetClipRect            = iup_c_proc(iup, "iupDrawSetClipRect", {P,I,I,I,I})
+     xiupDrawImage                  = iup_c_proc(iup, "iupDrawImage", {P,P,I,I,I,P,P})
+     xiupDrawGetSize                = iup_c_proc(iup, "iupDrawGetSize", {P,P,P})
+     xiupDrawText                   = iup_c_proc(iup, "iupDrawText", {P,P,I,I,I,I,I,I,P})
+     xiupDrawResetClip              = iup_c_proc(iup, "iupDrawResetClip", {P})
+     xiupDrawSelectRect             = iup_c_proc(iup, "iupDrawSelectRect", {P,I,I,I,I})
+     xiupDrawFlush                  = iup_c_proc(iup, "iupDrawFlush", {P})
+     xiupDrawKillCanvas             = iup_c_proc(iup, "iupDrawKillCanvas", {P})
+     xiupRegisterFindClass          = iup_c_func(iup, "iupRegisterFindClass", {P}, P)
+     xiupObjectCheck                = iup_c_func(iup, "iupObjectCheck", {P}, I)
+     xiupFocusCanAccept             = iup_c_func(iup, "iupFocusCanAccept", {P}, I)
+    end if
   if dialog!=NULL then
     layoutdlg_dialog = dialog;
   else

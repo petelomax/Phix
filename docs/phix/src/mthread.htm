@@ -18,7 +18,7 @@
         notification, or network access to complete, <i>without</i> stalling any other threads. In multitasking any of those will stall the
         entire application, because the offending task does not (and cannot) call task_yield() when it is in fact itself in such a stalled 
         wait state. If short timeouts and frequent yielding are not enough, and your application still feels sluggish and unresponsive, you
-        may have to resort to multithreading, whereas if you use multithreading when you do not need to, well that&rsquo;s just plain foolish.
+        may have to resort to multithreading, whereas if you use multithreading unnecessarily, well that&rsquo;s just plain foolish.
        <br>
        <br>
         Multithreading is widely considered the most difficult general purpose thing a programmer ever has to master, though there are 
@@ -27,7 +27,7 @@
         <li>
         Extensive locking is required on anything that can be modified by more than one thread. In Phix this includes the hidden reference
         counts on literal constants, and private variables that have been initialised from or contain copies of anything similar. You may
-        need to limit the number of strings sequences and floats that are shared between threads, to prevent that getting too painful.
+        need to limit the number of strings, sequences, and floats that are shared between threads, to prevent that getting too painful.
         </li>
         <li>
         All GUI updates must be performed by the main thread. If a worker thread wants an update to appear in the GUI, it should
@@ -49,6 +49,30 @@
         existing non-thread-safe code. As above that includes literal constants such as "hello" and 3.14159265358979323846.
         </li>
        </ul>
+        A good example of a program that needed multithreading was the File Manager I developed at Online50. The basic idea was
+        that a business could securely share their accounting data 24/7 with their accountants and other branches. Most of that
+        was done through the sage50 accounting package; the File Manager was like Windows File Explorer, but worldwide. A remote 
+        client, anywhere in the world, would log in to the online50 server, in London, and the File Manager would display:
+        <ul>
+        <li>local files on the hard drive(s) of the server</li>
+        <li>remote files on the hard drive(s) of the client</li>
+        <li>management info from a network attached database</li>
+        </ul>
+        Without multithreading, the program would be completely unresponsive until all this information had been collected, which 
+        ranged from 15 seconds to several minutes. The real killer was the client files, which would take at least 10 or 20 seconds
+        per drive, longer if the client had their own network attached drives, and each would have to be loaded sequentially.
+        <br>
+        <br>
+        With multithreading, the program would appear and be responsive immediately, with the local files appearing in a fraction of 
+        a second, management info in 2 to 5 seconds, and the client directories appearing soon after. Each request was initiated 
+        simultaneously, hence the total loading time depended on the slowest component, rather than the sum of all the component 
+        loading times. Even for the worst use case (a user on the other side of the planet accessing network attached files via a
+        server in London) it was at least 3 or 4 times faster, and most of the time it felt a thousand times faster.
+       <br>
+       <br>
+        In contrast, multitasking would have been completely ineffective, since each task would stall inside blocked i/o, without 
+        being able to invoke task_yield() to let other things carry on, or at the very least the program would be significantly 
+        complicated by attempts to use asynchronous i/o, which is effectively the same thing as multithreading anyway.
        <br>
        <br>
         The files demo\rosetta\AtomicUrpdates.exw and demo\rosetta\DiningPhilosophers.exw contain examples of use.

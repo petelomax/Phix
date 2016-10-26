@@ -701,7 +701,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
 -- toString, that must then call fatalN(3..), and when open_dll calls
 -- OpenOneDLL, which calls toString which finally calls this, it must 
 -- do so with call fatalN(4..). There are no fatalN(1..) calls since
--- this is local and that would report an error in pcfuncN.e itself,
+-- this is local and that would report an error in pfileioN.e itself,
 -- which is the very thing the level parameter is supposed to avoid!
     #ilASM{
         [32]
@@ -1395,7 +1395,9 @@ end function
 -- Internal routine flushfidx.
 --
 --DEV newsize [PE32]
-    #ilASM{ jmp :fin
+--DEV (11/9/16)
+--  #ilASM{ jmp :fin
+    #ilASM{ jmp :!opCallOnceYeNot
 --/*
 global procedure :%n_flush_esiedi(:%)
 end procedure -- (for Edita/CtrlQ)
@@ -1541,7 +1543,8 @@ end procedure -- (for Edita/CtrlQ)
             lea rdi,[rsi+BUFF64]
             ret
         []
-          ::fin }
+--        ::fin
+          }
 
 --global procedure flush(integer fn)
 procedure fflush(integer fn)
@@ -2498,6 +2501,7 @@ end function
 --          call :%pRTErn                       -- fatal error
             sub edx,1
             jmp :!iDiag
+            int3
       ::retryx
           mov edi,[fdtbl]
       @@:
@@ -2627,6 +2631,7 @@ end function
 --          call :%pRTErn                       -- fatal error
             sub rdx,1
             jmp :!iDiag
+            int3
       ::retryx
           mov rdi,[fdtbl]
       @@:
@@ -4438,7 +4443,7 @@ end procedure -- (for Edita/CtrlQ)
                     mov rdi,rax                             -- ep1
                     mov al,98                               -- e98fiofe -- flush error [ep1]
                     xor rsi,rsi                             -- ep2 unused
-                    jmp :%pRTErn                            -- fatal error
+--                  jmp :%pRTErn                            -- fatal error
               @@:
 --*/
 --              add rsp,8*5
@@ -5058,9 +5063,14 @@ end procedure -- (for Edita/CtrlQ)
         add esp,16      -- (locates era properly)
       ::putsqe65sfics   -- DEV "" to do
         mov al,65       -- "sequence found in character string"
+        pop edx
         xor edi,edi     -- ep1 unused
         xor esi,esi     -- ep2 unused
-        jmp :%pRTErn    -- fatal error
+--      jmp :%pRTErn    -- fatal error
+        sub edx,1
+        jmp :!iDiag
+        int3
+
     [64]
         lea rsi,[rbx+rdx*4]
         mov rdi,rax     -- hFile
@@ -5121,9 +5131,13 @@ end procedure -- (for Edita/CtrlQ)
         add rsp,32      -- (locates era properly[?])
       ::putsqe65sfics   -- DEV "" to do
         mov al,65       -- "sequence found in character string"
+        pop rdx
         xor rdi,rdi     -- ep1 unused
         xor rsi,rsi     -- ep2 unused
-        jmp :%pRTErn    -- fatal error
+--      jmp :%pRTErn    -- fatal error
+        sub rdx,1
+        jmp :!iDiag
+        int3
     []
 
 --/*
@@ -7088,9 +7102,11 @@ integer res
             mov [res],rax
             add rsp,sizeof_CSBI64
         [ELF32]
---          -- this routine is documented as having no effect on Lnx
+            -- this routine is documented as having no effect on Lnx
+            mov [res],ebx
         [ELF64]
---          pop al
+            -- this routine is documented as having no effect on Lnx
+            mov [res],rbx
           }
     return res
 end function

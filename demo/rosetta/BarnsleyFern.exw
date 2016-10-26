@@ -1,0 +1,59 @@
+--
+-- demo\rosetta\BarnsleyFern.exw
+--
+
+include ..\pGUI\pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+atom {x,y,r} @= 0
+integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    for i=1 to 100000 do
+        r = rand(100)
+        {x, y} = iff(r<=1? {             0,        0.16*y     } :
+                 iff(r<=8? { 0.20*x-0.26*y, 0.23*x+0.22*y+1.60} :
+                 iff(r<=15?{-0.15*x+0.28*y, 0.26*x+0.24*y+0.44} :
+                           { 0.85*x+0.04*y,-0.04*x+0.85*y+1.60})))
+        cdCanvasPixel(cddbuffer, width/2+x*60, y*60, #00FF00) 
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_RED)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen("..\\pGUI\\")
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "340x620") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Barnsley Fern")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

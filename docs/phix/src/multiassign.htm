@@ -156,9 +156,16 @@
         that Phix does.
        <br>
        <br>
+        Like all powerful programming constructs, multiple assigment can be used to make things easier, but it can 
+        also be abused to make things much more difficult than they need to be.
+       <br>
+       <br>
+        <h2>How NOT to use multiple assigment</h2>
+       <br>
         You may be wondering why I appear to have written the equivalents "backwards".
         Any subscripts on the lhs are pushed onto opstack (in pmain.e) from left to right, hence the assignments are 
         always performed from right to left to pick up any subscripts from the top of the stack, in the right order. 
+        (Actually, there is an exception to that rule, as explained in the technicalia section below.)
         Of course relying on such subtleties would constitute very bad practice, and in reality that is a fairly
         trivial implementation detail that could fairly easily be changed, if it ever proves necessary that is.
        <br>
@@ -177,6 +184,7 @@
         before any assignments on the lhs, hence main would be unassigned whichever way round things were done.
        <br>
        <br>
+<!--
         At this point it is worth noting that using all of these features together in
         one statement could easily create completely unreadable code; ideally they
         should be used wisely to make code clearer rather than harder to understand.
@@ -186,6 +194,8 @@
        <br>
        <br>
         The first example of such things that springs to mind is the slightly dodgy:
+-->
+        Another example is the slightly dodgy:
 <!--eucode>
     {s[idx],idx} = <something>
 </eucode-->
@@ -311,7 +321,7 @@ sequence temp
         considering using such a statement.)
        <br>
        <br>
-       <h4>Performance notes</h4>
+       <h2>Performance notes</h2>
        <br>
         Multiple assignment is ideally suited to function results and table entries.
         If you are using {} or & on the rhs (at the top level) of a multiple assigmnent
@@ -382,9 +392,10 @@ sequence temp
     {..</font><font color="#FF0000">.</font><font color="#0000FF">} =</font><font color="#000000"> s</font>
 </pre>
         is that an ex.err may contain some extra valuable and time saving information.
-        It should never be any slower (or faster) than the one-line version, and indeed
-        there may be cases where you can explicitly deassign ("s:={}") and avoid some
-        hidden refcounting issue that you cannot so easily fix with the one-liner.
+        It would not normally be any slower (or faster) than the one-line version.
+        In some cases, however, you may need to explicitly deassign ("s:={}") to avoid some
+        hidden refcounting issue that the one-liner does not exhibit, conversely sometimes
+        such an explicit deassign may circumvent a compiler refcount issue (/bug).
        <br>
        <br>
        <table>
@@ -444,7 +455,7 @@ sequence temp
             There is also (by comparison utterly trivial) an implementation detail for normal multiple assignment that I feel 
             I should at least document. Should the rhs be a plain variable, and further should it be assigned on the left, the 
             compiler automatically uses a temporary variable to avoid out-of-order operations (on the rhs, with that right-to-left 
-            thing) yielding unexpected results, eg/ie.
+            thing) yielding unexpected results, eg/ie:
 <!--eucode>
     {a,b,c} = b
 </eucode-->

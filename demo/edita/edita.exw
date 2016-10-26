@@ -2358,6 +2358,26 @@ integer uniskip
     return {{}}
 end function
 
+function toString(sequence name)--, integer errcode)
+-- Explicitly convert a dword-sequence to an 8-bit string
+string res
+integer nlen
+object ch
+    nlen = length(name)
+    res = repeat(' ',nlen)
+    for i=1 to nlen do
+        ch = name[i]
+        if atom(ch) then
+            ch = and_bits(ch,#FF)
+            res[i] = ch
+        else
+--          fatal(errcode)
+            ?9/0
+        end if
+    end for
+    return res
+end function
+
 -- used by eaini.ew
 global function openFile(object name, integer prompt, integer plth)
 --
@@ -2428,7 +2448,9 @@ integer c
             path = filepaths[tabfile]
             tabfile = 0
         elsif currfile then
-            path = filepaths[currfile]
+--18/9/16:
+--          path = filepaths[currfile]
+            path = toString(filepaths[currfile])
         else
             path = ""
         end if
@@ -2861,8 +2883,15 @@ integer len, c
 --  return
 --  end if
 
-    c = filelinelengths[currfile][len] - 1
-    filelinelengths[currfile][len] = c
+--21/9/2016 [DEV]
+--  c = filelinelengths[currfile][len] - 1
+    if len<=length(filelinelengths[currfile]) then
+        c = filelinelengths[currfile][len] - 1
+        filelinelengths[currfile][len] = c
+    else
+        ?"oops: filelinelengths error in replaceLine()"
+        c = 0
+    end if
     len = ExpLength(newline) + 1
     if len>length(filelinelengths[currfile]) then
         filelinelengths[currfile] = filelinelengths[currfile] &

@@ -54,8 +54,15 @@ global string identset
     identset['A'..'Z'] = 1
     identset['_'] = 1
     identset['a'..'z'] = 1
+    identset[#80] = 1   -- for rosettacode/unicode
+    identset[#88] = 1   -- for rosettacode/unicode
     identset[#94] = 1   -- for rosettacode/unicode (as ptok.e is not stored in utf8)
+    identset[#9A] = 1   -- for rosettacode/unicode
+    identset[#A3] = 1   -- for rosettacode/unicode
+    identset[#BB] = 1   -- for rosettacode/unicode
     identset[#CE] = 1   -- for rosettacode/unicode
+    identset[#CF] = 1   -- for rosettacode/unicode
+    identset[#E2] = 1   -- for rosettacode/unicode
 
 global string thisline -- copy of text[line]
     thisline = ""
@@ -1206,7 +1213,11 @@ global constant T_fisubr        = 4980  tt_stringF("fisubr",T_fisubr)
 global constant T_fidiv         = 4996  tt_stringF("fidiv",T_fidiv)
 global constant T_fidivr        = 5004  tt_stringF("fidivr",T_fidivr)
 global constant T_bswap         = 5024  tt_stringF("bswap",T_bswap)
+global constant T_BITS32        = 5052  tt_stringF("BITS32",T_BITS32)
+global constant T_BITS64        = 5064  tt_stringF("BITS64",T_BITS64)
+global constant T_DLLMAIN       = 5092  tt_stringF("DllMain",T_DLLMAIN)
 
+--global constant T_DLLATTACH       = 5098  tt_stringF("DLL_PROCESS_ATTACH",T_DLLATTACH)
 --global constant T_movq            = 4912  tt_stringF("movq",T_movq)
 --global constant gtiTestM  = T_ilASM+0     tt_glabel("%opTestM", gtiTestM)
 --global constant gtiopTestM        = 4020  tt_glabel("%opTestM", gtiopTestM)

@@ -71,7 +71,7 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
         <br>
         <br>
         An important detail when using callbacks is that they are only called when the user actually executes an action over an element. <br>
-        A callback is not called when the programmer sets a value via IupSetAttribute. For instance: when the programmer changes a selected item on a list, no callback is called.
+        A callback is not called when the programmer sets a value via IupSetAttribute. For instance: when the programmer changes a selected item on a list, no callback is invoked.
         <br>
         <br>
         The order of callback calling is system dependent. <br>
@@ -104,6 +104,14 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
         <col style="width: 5%"/>
         <tr>
          <td valign=top>
+          ACTION
+         </td>
+         <td>
+            While common to several elements, the callback parameters vary - see specific elements for details.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
           <a name=BUTTON_CB></a>
           BUTTON_CB
          </td>
@@ -127,18 +135,18 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
             x, y: position in the canvas where the event has occurred, in pixels.<br>
             pStatus: status of the mouse buttons and some keyboard keys at the moment the event is generated (a char*). <br>
             <br>
-            The following macros must be used for verification:
+            Use the following routines on pStatus:
             <br>
-            iup_isshift(status)<br>
-            iup_iscontrol(status)<br>
-            iup_isbutton1(status)<br>
-            iup_isbutton2(status)<br>
-            iup_isbutton3(status)<br>
-            iup_isbutton4(status)<br>
-            iup_isbutton5(status)<br>
-            iup_isdouble(status)<br>
-            iup_isalt(status)<br>
-            iup_issys(status)<br>
+            iup_isshift(pStatus)<br>
+            iup_iscontrol(pStatus)<br>
+            iup_isbutton1(pStatus)<br>
+            iup_isbutton2(pStatus)<br>
+            iup_isbutton3(pStatus)<br>
+            iup_isbutton4(pStatus)<br>
+            iup_isbutton5(pStatus)<br>
+            iup_isdouble(pStatus)<br>
+            iup_isalt(pStatus)<br>
+            iup_issys(pStatus)<br>
             <br>
             They return 1 if the respective key or button is pressed, and 0 otherwise.
             <br>
@@ -165,7 +173,33 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
 BUTTON_CB(but=1 (1), x=154, y=83 [  1  D    ])
 BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
  </pre>
-            Affects: IupCanvas, IupButton, IupText, IupList, IupGLCanvas
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, IupButton, IupText, IupList, IupGLCanvas
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=DESTROY_CB></a>
+          DESTROY_CB
+         </td>
+         <td>
+            Called right before an element is destroyed.
+            <br>
+            <br>
+            function(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            If the dialog is visible then it is hidden before it is destroyed. The callback will be called right after it is hidden.
+            <br>
+            <br>
+            The callback will be called before all other destroy procedures - for instance, if the element has children then it is called before the children are destroyed. 
+            <br>
+            <br>
+            For language binding implementations use the callback name "LDESTROY_CB" to release memory allocated by the binding for the element. 
+            Also the callback will be called before the language callback.
+            <br>
+            <br>
+            Affects: All
          </td>
         </tr>
         <tr>
@@ -188,60 +222,6 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             <br>
             See Also: <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, IupGetFocus, IupSetFocus 
-         </td>
-        </tr>
-        <tr>
-         <td valign=top>
-          <a name=KILLFOCUS_CB></a>
-          KILLFOCUS_CB
-         </td>
-         <td>
-            Action generated when an element loses keyboard focus. <br>
-            This callback is called before the GETFOCUS_CB of the element that gets the focus.
-            <br>
-            <br>
-            function killfocus_cb(Ihandle ih)
-            <br>
-            <br>
-            ih: identifier of the element that activated the event.
-            <br>
-            <br>
-            Affects: All elements with user interaction, except menus.
-            <br>
-            <br>
-            In Windows, there are restrictions when using this callback. <br>
-            From MSDN on WM_KILLFOCUS: "“While processing this message, do not make any function calls that display or activate a window. This causes the thread to yield control and can cause the application to stop responding to messages.” 
-            <br>
-            <br>
-            See Also: GETFOCUS_CB, IupGetFocus, IupSetFocus 
-         </td>
-        </tr>
-        <tr>
-         <td valign=top>
-          <a name=RESIZE_CB></a>
-          RESIZE_CB
-         </td>
-         <td>
-            Action generated when the canvas or dialog size is changed.
-            <br>
-            <br>
-            function resize_cb(Ihandle ih, integer width, integer height)
-            <br>
-            <br>
-            ih: identifier of the element that activated the event.<br>
-            width: the width of the internal element size in pixels not considering the decorations (client size)<br>
-            height: the height of the internal element size in pixels not considering the decorations (client size)
-            <br>
-            <br>
-            For the dialog, this action is also generated when the dialog is mapped, after the map and before the show.
-            <br>
-            <br>
-            When XAUTOHIDE=Yes or YAUTOHIDE=Yes, if the canvas scrollbar is hidden/shown after changing the DX or DY attributes from inside the callback, 
-            the size of the drawing area will immediately change, so the parameters with and height will be invalid. <br>
-            To update the parameters consult the DRAWSIZE attribute. Also activate the drawing toolkit only after updating the DX or DY attributes.
-            <br>
-            <br>
-            Affects: IupCanvas, IupGLCanvas, IupDialog
          </td>
         </tr>
         <tr>
@@ -286,9 +266,10 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             <br>
             split the operation in several parts but use a Timer to process each part. <br>
-            If you just want to do something simple as a background redraw of an IupCanvas, then a better idea is to handle the "idle" state yourself. <br>
-            For example, register a timer for a small time like 500ms, and reset the timer in all the mouse and keyboard callbacks of the IupCanvas. <br>
-            If the timer is trigged then you are in idle state. If the IupCanvas loses its focus then stop the timer.
+            If you just want to do something simple as a background redraw of an <a href="IupCanvas.htm">IupCanvas</a>, 
+            then a better idea is to handle the "idle" state yourself. <br>
+            For example, register a timer for a small time like 500ms, and reset the timer in all the mouse and keyboard callbacks of the <a href="IupCanvas.htm">IupCanvas</a>. <br>
+            If the timer is trigged then you are in idle state. If the <a href="IupCanvas.htm">IupCanvas</a> loses its focus then stop the timer.
             <br>
             <br>
             See Also: IupSetFunction, IupTimer.
@@ -306,45 +287,201 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             function key_cb(Ihandle ih, integer c)
             <br>
             <br>
-            ih: identifier of the element that activated the event.<br>
-            c: identifier of typed key. Possible values are listed below.
+            ih: the element that activated the event.<br>
+            c: the typed key. Possible values are listed below.
             <br>
             <br>
-            IUP defines several hundred key constants, only a selected few of which are available in pGUI:<br>
+            IUP defines several hundred key constants, most of which are available in pGUI:<br>
             K_ESC, K_CR (or '\r'), K_LF (or '\n'), K_BS (or '\b'), K_TAB (or '\t'), K_INS, K_DEL, 
             K_HOME, K_UP, K_PGUP, K_LEFT, K_MIDDLE, K_RIGHT, K_END, K_DOWN, K_PGDN, K_PAUSE, K_Print, K_Menu, 
-            K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8, K_F9, K_F10, K_F11, and K_F12.
-<!--DEV??   K_LSHIFT, K_RSHIFT, K_LCTRL, K_RCTRL, K_LALT, K_RALT, K_SCROLL, K_NUM, K_CAPS, -->
+            K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8, K_F9, K_F10, K_F11, K_F12,
+            K_LSHIFT, K_RSHIFT, K_LCTRL, K_RCTRL, K_LALT, K_RALT, K_SCROLL, K_NUM, and K_CAPS.
             <br>
             <br>
-            Standard key identifiers which should/must be replaced with literal constants when using pGUI (specifically when translating C code) include:<br>
-            K_SP (ie/eg use ' ' instead), K_exclam ('!'), K_quotedbl ('\"'), K_numbersign ('#'), K_dollar ('$'), K_percent ('%'),
+            Other standard key identifiers include:<br>
+            K_SP (' '), K_exclam ('!'), K_quotedbl ('\"'), K_numbersign ('#'), K_dollar ('$'), K_percent ('%'),
             K_ampersand ('&'), K_apostrophe '\'', K_parentleft ('('), K_parentright (')'), K_asterisk ('*'), K_plus ('+'),
             K_comma (','), K_minus ('-'), K_period ('.'), K_slash ('/'), K_0..K_9 ('0'..'9'), K_colon (':'), K_semicolon (';'),
             K_less ('&lt;'), K_equal ('='), K_greater ('&gt;'), K_question ('?'), K_at ('@'), K_A..K_Z ('A'..'Z'), K_a..K_z ('a'..'z'),
             K_bracketleft ('['), K_backslash ('\\'), K_bracketright (']'), K_circum ('^'), K_underscore ('_'), K_grave ('`'),
-            K_braceleft ('{'), K_bar ('|'), K_braceright ('}'), K_tilde ('~'), K_acute ('´'), K_ccedilla ('ç'), and K_diaeresis ('¨').
+            K_braceleft ('{'), K_bar ('|'), K_braceright ('}'), and K_tilde ('~'). My preference and recommendation is to use the literal
+            values instead of the constant names for 'plain' keystrokes, since for example I <i>cannot</i> get '!' wrong, however I could 
+            very easily mis-spell K_exclam as K_exclaim, or K_parentleft as K_parenthleft or K_leftparenth, K_period as K_dot, K_greater 
+            as K_gt, ... sure the syntax colouring/compiler would catch it, but there is little benefit in you or me sitting there going 
+            "OK, how <i>do</i> you spell it then?". In contrast, the modified keystrokes as listed below are usually much easier, for
+            instance using <code>K_cA</code> beats <code>iup_XkeyCtrl('A')</code> hands down.
             <br>
             <br>
-            Of course more could easily be added (and tested and syntax-coloured and help-indexed) as needed, but for the most part 
-            I simply don&rsquo;t get it: for example I <i>cannot</i> get '!' wrong, however I could very easily mis-spell K_exclam as 
-            K_exclaim, or K_parentleft as K_parenthleft, K_period as K_dot, K_greater as K_gt, ... Sure the compiler would catch it,
-            but where exactly is the benefit in me or you sitting there going "OK, how <i>do</i> you spell it then?".
+            The following are deprecated/untested:<br>
+            K_acute ('´', #B4), K_ccedilla ('ç', #E7), and K_diaeresis ('¨', #A8). While those are valid for UTF-32, Windows-1252, and
+            ISO 8859-1, the same cannot be said for UTF-8, and quite possibly several legacy 8-bit code pages, hence the exclusion.
             <br>
             <br>
-            For some keys, change the prefix to K_s*, K_c*, K_m* and K_y* to add the respective modifier (Shift, Control, Alt and Sys).<br>
+            For some keys, change the prefix to K_c*, K_m*, K_s*, and K_y* to add the respective modifier (Control, Alt, Shift, and Sys).<br>
             Sys in Windows is the Windows key and in Mac is the Apple key.<br>
-            Note that very few such keys have made it into pGUI thus far. Only keys that make sense and I get round to testing 
-            will (ever) be added: for instance K_sexclam (heh) makes no sense because you cannot (on my keyboard anyhow) get a '!' 
-            without the shift key being down, and the same for K_sPrint, K_sSCROLL, and K_sPAUSE. And it wasn&rsquo;t me that chose the 
-            capitalisation of K_Print, btw. I can accept K_cC, but then is Control+Shift K_csC or K_scC? In general I have come to the
-            conslusion that using the functions decribed next works better/is easier than hundreds of pre-defined constants.
-            That being said, more and more of the latter are quite likely to appear in dribs and drabs over time.<br>
-            To obtain a key code for a generic combination you can start with a base key and combine it repeated times using 
-            iup_XkeyShift(key), iup_XkeyCtrl(key), iup_XkeyAlt(key) and iup_XkeySys(key).<br>
+            Modifier prefixes are always applied in the above order, for instance &lt;Ctrl Shift C&gt; is K_csC, not K_scC.
+            <br>
+            <br>
+            Note that some keys have not yet made it into pGUI. Only keys that make sense and I get round to testing will (ever) be added: 
+            for instance K_sexclam (heh) makes no sense because you cannot (on my keyboard anyhow) get a '!' without the shift key being 
+            down, and the same for K_sPrint, K_sSCROLL, and K_sPAUSE. (Apart from a general reluctance to add rafts of untested things, I
+            am also trying to keep the documentation in step with the implementation.) The following keys do however exist:
+            <br>
+            <br>
+            Ctrl:<br>
+            K_cSP,
+            K_cPlus,
+            K_cMinus,
+            K_cEqual,
+            K_cA,
+            K_cB,
+            K_cC,
+            K_cD,
+            K_cE,
+            K_cF,
+            K_cG,
+            K_cH,
+            K_cI,
+            K_cJ,
+            K_cK,
+            K_cL,
+            K_cM,
+            K_cN,
+            K_cO,
+            K_cP,
+            K_cQ,
+            K_cR,
+            K_cS,
+            K_cT,
+            K_cU,
+            K_cV,
+            K_cW,
+            K_cX,
+            K_cY,
+            K_cZ,
+            K_cPGUP,
+            K_cPGDN,
+            K_cHOME,
+            K_cEND,
+            K_cF1,
+            K_cF2,
+            K_cF3,
+            K_cF4,
+            K_cF5,
+            K_cF6,
+            K_cF7,
+            K_cF8,
+            K_cF9,
+            K_cF10,
+            K_cF11,
+            K_cF12
+            <br>
+            <br>
+            Alt:<br>
+            K_mA,
+            K_mB,
+            K_mC,
+            K_mD,
+            K_mE,
+            K_mF,
+            K_mG,
+            K_mH,
+            K_mI,
+            K_mJ,
+            K_mK,
+            K_mL,
+            K_mM,
+            K_mN,
+            K_mO,
+            K_mP,
+            K_mQ,
+            K_mR,
+            K_mS,
+            K_mT,
+            K_mU,
+            K_mV,
+            K_mW,
+            K_mX,
+            K_mY,
+            K_mZ
+            <br>
+            <br>
+            Shift:<br>
+            K_sSP
+            <br>
+            <br>
+            Ctrl Shift:<br>
+            K_csSP,
+            K_csA,
+            K_csB,
+            K_csC,
+            K_csD,
+            K_csE,
+            K_csF,
+            K_csG,
+            K_csH,
+            K_csI,
+            K_csJ,
+            K_csK,
+            K_csL,
+            K_csM,
+            K_csN,
+            K_csO,
+            K_csP,
+            K_csQ,
+            K_csR,
+            K_csS,
+            K_csT,
+            K_csU,
+            K_csV,
+            K_csW,
+            K_csX,
+            K_csY,
+            K_csZ,
+            <br>
+            <br>
+            Alt Shift:<br>
+            K_msA,
+            K_msB,
+            K_msC,
+            K_msD,
+            K_msE,
+            K_msF,
+            K_msG,
+            K_msH,
+            K_msI,
+            K_msJ,
+            K_msK,
+            K_msL,
+            K_msM,
+            K_msN,
+            K_msO,
+            K_msP,
+            K_msQ,
+            K_msR,
+            K_msS,
+            K_msT,
+            K_msU,
+            K_msV,
+            K_msW,
+            K_msX,
+            K_msY,
+            K_msZ
+            <br>
+            <br>
+            Further keys will be added as needed and when time allows for adequate testing. In the short term, it should not prove difficult
+            to add any missing ones that you need to pGUI.e, where you will find several potential but untested candidates commented out,
+            maybe including the one you are after.
+            <br>
+            <br>
+            To obtain a key code for a generic combination you can also start with a base key and combine it repeated times using 
+            iup_XkeyCtrl(key), iup_XkeyAlt(key), iup_XkeyShift(key), and iup_XkeySys(key).
             For instance <code>constant control_shift_c = iup_XkeyCtrl(iup_XkeyShift('C'))</code>. Note that, depending on the 
             driver/firmware for your particular keyboard, iup_XkeyShift('c') might have use when caps lock is on, (now there&rsquo;s 
-            a way to confuse your users) but you are unlikely to get very far with iup_XkeyCtrl(iup_XkeyShift('c')).<br>
+            a way to confuse your users) but you are unlikely to get very far with iup_XkeyCtrl(iup_XkeyShift('c')). In general,
+            pGUI/IUP cannot guarantee the behaviour of various combinations of Caps Lock, Shift, and other key modifiers with
+            regard to the case/capitalisation of alphabetic base keys, since that is system/driver/hardware dependent, instead
+            the prudent programmer will ensure that eg 'c' and 'C' are both tested for.<br>
             The function iup_XkeyBase() can be used to obtain the raw keystroke less any modifiers.<br>
 <!-- DEV: (full search rqd, index all of these) -->
 <!--        The functions iupShift, iupCtrl, iupAlt, iupSys, and iupBase are simple aliases of the above functions.<br> -->
@@ -407,18 +544,183 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             It is called after the callback K_ANY is processed.
             <br>
             <br>
-            function keypress_cb(Ihandle ih, integer c, integer press)
+            function keypress_cb(Ihandle ih, integer c, bool press)
             <br>
             <br>
             ih: identifier of the element that activated the event.<br>
             c: identifier of typed key. See K_ANY above for possible values.<br>
-            press: 1 is the user pressed the key or 0 otherwise.
+            press: 1(true) when the key is pressed, 0(false) when the key is released.
             <br>
             <br>
             Returns: If IUP_IGNORE is returned the key is ignored by the system. IUP_CLOSE will be processed.
             <br>
             <br>
-            Affects: IupCanvas
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=KILLFOCUS_CB></a>
+          KILLFOCUS_CB
+         </td>
+         <td>
+            Action generated when an element loses keyboard focus. <br>
+            This callback is called before the <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a> of the element that gets the focus.
+            <br>
+            <br>
+            function killfocus_cb(Ihandle ih)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Affects: All elements with user interaction, except menus.
+            <br>
+            <br>
+            In Windows, there are restrictions when using this callback. <br>
+            From MSDN on WM_KILLFOCUS: <br>
+            “While processing this message, do not make any function calls that display or activate a window. <br>
+            &nbsp;This causes the thread to yield control and can cause the application to stop responding to messages.” 
+            <br>
+            <br>
+            See Also: <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>, IupGetFocus, IupSetFocus 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=MAP_CB></a>
+          MAP_CB
+         </td>
+         <td>
+            Called right after an element is mapped and its attributes updated in <a href="IupMap.htm">IupMap</a>().
+            <br>
+            <br>
+            When the element is a dialog, it is called after the layout is updated. 
+            For all other elements it is called before the layout is updated, so the element current size will still be 0x0 during MAP_CB (since 3.14).
+            <br>
+            <br>
+            function(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Affects: All elements that have a native representation.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=MOTION_CB></a>
+          MOTION_CB
+         </td>
+         <td>
+            Action generated when the mouse moves.
+            <br>
+            <br>
+            function motion_cb(Ihandle ih, integer x, integer y, atom pStatus)<br>
+            ih: identifier of the element that activated the event.<br>
+            x, y: position in the canvas where the event has occurred, in pixels.<br>
+            pStatus: status of mouse buttons and certain keyboard keys at the moment the event was generated (a char*).
+            <br>
+            <br>
+            Use the same routines for pStatus as <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>.
+            <br>
+            <br>
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, IupGLCanvas (DEV PL:IupList, IupMatrix,IupText,IupTree?)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=RESIZE_CB></a>
+          RESIZE_CB
+         </td>
+         <td>
+            Action generated when the canvas or dialog size is changed.
+            <br>
+            <br>
+            function resize_cb(Ihandle ih, integer width, integer height)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            width: the width of the internal element size in pixels not considering the decorations (client size)<br>
+            height: the height of the internal element size in pixels not considering the decorations (client size)
+            <br>
+            <br>
+            For the dialog, this action is also generated when the dialog is mapped, after the map and before the show.
+            <br>
+            <br>
+            When XAUTOHIDE=Yes or YAUTOHIDE=Yes, if the canvas scrollbar is hidden/shown after changing the DX or DY attributes from inside the callback, 
+            the size of the drawing area will immediately change, so the parameters with and height will be invalid. <br>
+            To update the parameters consult the DRAWSIZE attribute. Also activate the drawing toolkit only after updating the DX or DY attributes.
+            <br>
+            <br>
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, IupGLCanvas, IupDialog
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=SCROLL_CB></a>
+          SCROLL_CB
+         </td>
+         <td>
+            Called when some manipulation is made to the scrollbar. <br>
+            The canvas is automatically redrawn only if this callback is NOT defined.
+            <br>
+            <br>
+            (GTK 2.8) Also the POSX and POSY values will not be correctly updated for older GTK versions.
+            <br>
+            <br>
+            In Ubuntu, when liboverlay-scrollbar is enabled (the new tiny auto-hide scrollbar) only the IUP_SBPOSV and IUP_SBPOSH codes are used.
+            <br>
+            <br>
+            Callback<br>
+            function scroll_cb(Ihandle ih, integer op, atom /*posx*/, atom /*posy*/)<br>
+            ih: identifier of the element that activated the event.<br>
+            op: indicates the operation performed on the scrollbar:
+            <br>
+            <br>
+            If the manipulation was made on the vertical scrollbar, it can have the following values:
+            <br>
+            <br>
+            IUP_SBUP - line up<br>
+            IUP_SBDN - line down<br>
+            IUP_SBPGUP - page up<br>
+            IUP_SBPGDN - page down<br>
+            IUP_SBPOSV - vertical positioning<br>
+            IUP_SBDRAGV - vertical drag 
+            <br>
+            <br>
+            If it was on the horizontal scrollbar, the following values are valid:
+            <br>
+            <br>
+            IUP_SBLEFT - column left<br>
+            IUP_SBRIGHT - column right<br>
+            IUP_SBPGLEFT - page left<br>
+            IUP_SBPGRIGHT - page right<br>
+            IUP_SBPOSH - horizontal positioning<br>
+            IUP_SBDRAGH - horizontal drag
+            <br>
+            <br>
+            Notes<br>
+            IUP_SBDRAGH and IUP_SBDRAGV are not supported in GTK.<br>
+            posx, posy: require messy conversion on 32-bit, and are unreliable on 64-bit - use IupGetDouble(ih,"POSX"|"POSY") instead.
+            <br>
+            <br>
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, IupGLCanvas, <a href="iupattr.htm#SCROLLBAR">SCROLLBAR</a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <a name=UNMAP_CB></a>
+          UNMAP_CB
+         </td>
+         <td>
+            Called right before an element is unmapped.
+            <br>
+            <br>
+            function(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Affects: All elements that have a native representation.
          </td>
         </tr>
         <tr>
@@ -426,7 +728,7 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
           also [DEV]
          </td>
          <td>
-            MAP_CB, UNMAP_CB, DESTROY_CB, ENTERWINDOW_CB, LEAVEWINDOW_CB, HELP_CB: All common callbacks are supported.
+            ENTERWINDOW_CB, LEAVEWINDOW_CB, HELP_CB: All common callbacks are supported.
          </td>
         </tr>
        </table>

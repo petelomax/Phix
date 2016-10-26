@@ -1,0 +1,102 @@
+--
+-- demo\rosetta\PythagorasTree.exw
+-- ===============================
+--
+
+include ..\pGUI\pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function rgb(integer r, integer g, integer b)
+    return r*#10000 + g*#100 + b
+end function
+
+procedure drawTree(atom x1, atom y1, atom x2, atom y2, integer depth)
+atom dx = x2 - x1
+atom dy = y1 - y2
+
+atom x3 = x2 - dy
+atom y3 = y2 - dx
+atom x4 = x1 - dy
+atom y4 = y1 - dx
+atom x5 = x4 + 0.5 * (dx - dy)
+atom y5 = y4 - 0.5 * (dx + dy)
+ 
+integer r = 250-depth*20
+
+    cdCanvasSetForeground(cddbuffer, rgb(r,#FF,0))
+    cdCanvasBegin(cddbuffer,CD_FILL)
+    cdCanvasVertex(cddbuffer, x1, 640-y1)
+    cdCanvasVertex(cddbuffer, x2, 640-y2)
+    cdCanvasVertex(cddbuffer, x3, 640-y3)
+    cdCanvasVertex(cddbuffer, x4, 640-y4)
+    cdCanvasEnd(cddbuffer)
+ 
+    cdCanvasSetForeground(cddbuffer, CD_GRAY)
+    cdCanvasBegin(cddbuffer,CD_CLOSED_LINES)
+    cdCanvasVertex(cddbuffer, x1, 640-y1)
+    cdCanvasVertex(cddbuffer, x2, 640-y2)
+    cdCanvasVertex(cddbuffer, x3, 640-y3)
+    cdCanvasVertex(cddbuffer, x4, 640-y4)
+    cdCanvasEnd(cddbuffer)
+ 
+    cdCanvasSetForeground(cddbuffer, rgb(r-depth*10,#FF,0))
+    cdCanvasBegin(cddbuffer,CD_FILL)
+    cdCanvasVertex(cddbuffer, x3, 640-y3)
+    cdCanvasVertex(cddbuffer, x4, 640-y4)
+    cdCanvasVertex(cddbuffer, x5, 640-y5)
+    cdCanvasEnd(cddbuffer)
+
+    cdCanvasSetForeground(cddbuffer, CD_GRAY)
+    cdCanvasBegin(cddbuffer,CD_CLOSED_LINES)
+    cdCanvasVertex(cddbuffer, x3, 640-y3)
+    cdCanvasVertex(cddbuffer, x4, 640-y4)
+    cdCanvasVertex(cddbuffer, x5, 640-y5)
+    cdCanvasEnd(cddbuffer)
+
+    if depth<8 then
+        drawTree(x4, y4, x5, y5, depth + 1)
+        drawTree(x5, y5, x3, y3, depth + 1)
+    end if
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    cdCanvasActivate(cddbuffer)
+    drawTree(275, 500, 375, 500, 0)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_RED)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen("..\\pGUI\\")
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "640x640")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    dlg = IupDialog(canvas,"RESIZE=NO")
+    IupSetAttribute(dlg, "TITLE", "Pythagoras Tree")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+
+    IupShow(dlg)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

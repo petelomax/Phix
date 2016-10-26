@@ -73,6 +73,13 @@ with trace
 include arwen.ew
 include builtins\timestamp.ew -- DateTimeStampToString and SYSTEMTIMEtoDateTimeStamp
 
+include builtins\timedate.e
+
+constant Jan1st1970 = parse_date_string("1/1/1970",{"D/M/YYYY"})
+
+--  timedate td = adjust_timedate(Jan1st1970,DateTimeStamp)
+--  res[tabidx][$][R_NOTES] = format_timedate(td,"Mmmm dth yyyy hh:mm:ss")
+
 global sequence code_section
 global constant vmap = {}, VMep = {}, codeTable = {}, codeIdx = {}
 --global constant craddr = {}, cridx = {}, vmap = {}, symtab = {}, VMep = {}, opNames = {}, codeTable = {}, codeIdx = {}
@@ -1180,8 +1187,10 @@ integer rtidx
 integer rdiff
 integer rbyte
 --string txt
-atom maxop
-atom opcode
+--atom maxop
+integer relocs
+integer relocraw
+--atom opcode
 integer maxgvar
 --atom gvar
 object gvarX
@@ -1208,6 +1217,7 @@ object tmp
 string notes
 
     if size>4 and binary[address+1..address+4]="Phix" then
+        integer offset = addr
         sig = decode(sprintf("%08x: sigPhx",addr),"x4","signature (should be \"Phix\")")
         if sig!="Phix" then return fatal("bad signature") end if
         size -= 4
@@ -1233,17 +1243,18 @@ string notes
         res[tabidx][$][R_NOTES] = sprintf("see #%08x",symptr)
         size -= msize
         addr += msize
-        maxop = decode(sprintf("%08x: maxop",{addr}),fmt,"")
-        if not integer(maxop) then return fatal("maxop not integer!") end if
-        res[tabidx][$][R_NOTES] = sprintf("%d",maxop)
+        relocs = decode(sprintf("%08x: relocs",{addr}),fmt,"")
+--      if not integer(relocs) then return fatal("relocs not integer!") end if
+        res[tabidx][$][R_NOTES] = sprintf("see #%08x",relocs)
+        relocraw = relocs-4
         size -= msize
         addr += msize
 --DEV length 0 now...
-        for i=1 to maxop do
-            opcode = decode(sprintf("%08x: opcode[%d]",{addr,i}),fmt,"")
-            size -= msize
-            addr += msize
-        end for
+--      for i=1 to maxop do
+--          opcode = decode(sprintf("%08x: opcode[%d]",{addr,i}),fmt,"")
+--          size -= msize
+--          addr += msize
+--      end for
         maxgvar = decode(sprintf("%08x: maxgvar",{addr}),fmt,"")
         res[tabidx][$][R_NOTES] = sprintf("%d",maxgvar)
         size -= msize
@@ -1588,11 +1599,85 @@ end if
         todo = {}
         todx = {}
         tdfg = {}
+        if addr=relocraw then
+            -- A dll/so:
+            -- relocraw is the same value as [ds+12|16], but not in the Relocs table,
+            -- so LoadLibrary will not have relocated it. Obviously the difference
+            -- between the two (at runtime) shows how far LoadLibrary moved things,
+            -- and we use that in pStack/initStack to manually relocate data refs.
+            -- In the filedump, relocraw==relocs, 'cos LoadLibrary is not involved.
+            maxlen = decode(sprintf("%08x: relocraw",{addr}),fmt,"(not relocated)")
+            size -= 4
+            addr += 4
+            -- Convert the packed offset deltas to actual offsets:
+--          integer offset = 0 --DEV lea[ds+0]
+            while 1 do
+--              sequence line = {address,"delta","h1",0,"notes"}
+--                  tgtaddr = getAddr(notes[6..13])-(getAddr(line[R_DESC][1..8])-line[R_ADDR])
+                integer delta = decode(sprintf("%08x: delta",{addr}),"h1","")
+--              integer delta = binary[address+1]
+                size -= 1
+                if delta>=4 then    -- (technically >=8 for x64)
+                    offset += delta
+--                  res[tabidx][$][4] = sprintf("#%02x",delta)
+--                  res[tabidx][$][4] = delta
+                    res[tabidx][$][R_NOTES] = sprintf("see #%08x",offset)
+--                  address += 1
+                    addr += 1
+                elsif delta=3 then
+                    ?9/0 --DEV
+                elsif delta=2 then
+--                  delta = binary[address+2]*#100+binary[address+3]
+--                  delta = binary[address+1]*#100+binary[address+2]
+--good:
+--                  delta = binary[address+1]+binary[address+2]*#100
+                    delta = 0
+                    for i=2 to 1 by -1 do
+                        delta = delta*#100+binary[address+i]
+                    end for
+                    offset += delta
+--                  res[tabidx][$][4] = sprintf("#02%04x",delta)
+                    res[tabidx][$][3] = "h3"
+                    res[tabidx][$][4] = #020000+delta
+                    res[tabidx][$][R_NOTES] = sprintf("see #%08x",offset)
+--                  address += 3
+                    address += 2
+                    addr += 3
+                    size -= 2
+                elsif delta=1 then
+                    delta = 0
+                    for i=4 to 1 by -1 do
+                        delta = delta*#100+binary[address+i]
+                    end for
+--                  delta = binary[address+1] +
+--                          binary[address+2]*#100 +
+--                          binary[address+3]*#10000 +
+--                          binary[address+4]*#1000000
+                    offset += delta
+                    res[tabidx][$][3] = "h5"
+--                  res[tabidx][$][4] = sprintf("#01%08x",delta)
+                    res[tabidx][$][4] = #0100000000+delta
+                    res[tabidx][$][R_NOTES] = sprintf("see #%08x",offset)
+                    addr += 5
+                    size -= 4
+                elsif delta=0 then
+                    res[tabidx][$][R_NOTES] = "terminator"
+                    addr += 1
+                end if
+--              res[tabidx] = append(res[tabidx],line)
+                if delta=0 then exit end if     
+            end while
+        end if
     else
         NotPhix("data section does not start with \"Phix\"")
     end if
     if size then
+--printf(1,"%08x\n",address)
+--printf(1,"%08x\n",addr)
+--printf(1,"%08x\n",relocraw)
+--?bdesc
         binary_dump(size,bdesc)
+--printf(1,"%08x\n",address)
     end if
     return 1
 end function
@@ -1979,7 +2064,9 @@ integer supported
     res[tabidx][$][R_NOTES] = desc
     nSections = decode("sections",2,"Number of sections")                                           -- 6
     DateTimeStamp = decode("DateTimeStamp","h4","")
-    res[tabidx][$][R_NOTES] = sprintf("%s, %s (ish)",DateTimeStampToString(DateTimeStamp))
+--  res[tabidx][$][R_NOTES] = sprintf("%s, %s (ish)",DateTimeStampToString(DateTimeStamp))
+    timedate td = adjust_timedate(Jan1st1970,DateTimeStamp)
+    res[tabidx][$][R_NOTES] = format_timedate(td,"Mmm dth yyyy hh:mm:ss")
     PointerToSymbolTable = decode("PointerToSymbolTable","h4","")
     NumberOfSymbols = decode("NumberOfSymbols","h4","")
     SizeOfOptionalHeader = decode("SizeOfOptionalHeader","h2","")                                   -- 0xE0
@@ -2786,6 +2873,7 @@ string desc
         end while
     end while
     if size!=0 then -- oops
+        if size<0 then return fatal("oops, -ve padding") end if
         if size<16 then
             binary_dump(size,"padding?")
         else
@@ -3262,7 +3350,7 @@ typedef struct IMAGE_RESOURCE_DATA_ENTRY {
                             -- VS_VERSIONINFO structure:
                             wLength = decode("VS_VERSIONINFO.wLength",2,"")
                             if wLength!=Size then
-                                ?9/0
+                                ?"9/0"
                             end if
                             wValueLength = decode("VS_VERSIONINFO.wValueLength",2,"")
                             wType = decode("VS_VERSIONINFO.wType",2,"")
@@ -3558,10 +3646,17 @@ trace(1)
                             if address+size!=EndAddress then ?9/0 end if
                             if Size!=0 then
 --trace(1)
+if Size>0 then
                                 binary_dump(Size,"data")
+else
+    ?"negative size, line 3564..\n"
+end if
                                 size -= Size
                             end if
-                            if address+size!=EndAddress then ?9/0 end if
+--                          if address+size!=EndAddress then ?9/0 end if
+                            if address+size!=EndAddress then
+                                ?"wrong end address, line 3570..\n"
+                            end if
                         else
                             binary_dump(Size,"data")
                             size -= Size
@@ -4239,6 +4334,7 @@ constant PT_NULL = 0,       -- Unused segment
          PT_GNU_EH_FRAME    = 0x6474E550,
          PT_GNU_STACK       = 0x6474E551, -- Indicates stack executability.
          PT_GNU_RELRO       = 0x6474E552, -- Read-only after relocation.
+         PT_ARM_UNK         = 0x70000001, -- ???/DEV
          {PT_TYPES,PT_TDESC} = columnize({
          {PT_NULL,"PT_NULL"},
          {PT_LOAD,"PT_LOAD"},
@@ -4250,7 +4346,8 @@ constant PT_NULL = 0,       -- Unused segment
          {PT_TLS,"PT_TLS"},
          {PT_GNU_EH_FRAME,"PT_GNU_EH_FRAME"},
          {PT_GNU_STACK,"PT_GNU_STACK"},
-         {PT_GNU_RELRO,"PT_GNU_RELRO"}})
+         {PT_GNU_RELRO,"PT_GNU_RELRO"},
+         {PT_ARM_UNK,"PT_ARM_UNK"}})
 
 --#define PT_LOOS       0x60000000      /* Start of OS-specific */
 --#define PT_HIOS       0x6fffffff      /* End of OS-specific */
@@ -4343,6 +4440,8 @@ integer k
         elsif p_type=PT_GNU_STACK then      desc = "gnu stack (0x6474E551)"     -- 1685382481
         elsif p_type=PT_GNU_RELRO then      desc = "gnu relro (0x6474E552)"     -- 1685382482
 --      elsif p_type=0x65041580 then        desc = "pax flags (0x65041580)"     -- 1694766464
+1879048193
+#70000001
         else return fatal("unsupported type")
 --          desc = sprintf("*** unsupported type [0x%08x]***",p_type)
         end if
@@ -5534,13 +5633,17 @@ procedure decode_ELF_code_segment(integer idx, integer justsettab, integer suppo
 --sequence p_fileszs
 string desc
 --integer dsidx
-integer size = p_fileszs[idx]
+--integer size = p_fileszs[idx]
+integer size = iff(idx>0?p_fileszs[idx]:shsizes[-idx])
 atom taddr
 string asm,hex,analysis
 sequence line
 --integer ilen
 atom ilen
 
+if idx<0 then
+    desc = shdescs[-idx]
+else
     csidx = find(idx,sCodeSegments)
     if csidx=0 then ?9/0 end if
     if csidx=1 then
@@ -5548,11 +5651,18 @@ atom ilen
     else
         desc = sprintf("Code Segment(%d)",csidx)
     end if
+end if
     SetTabIdx(desc)
     if justsettab then return end if    -- DEV reorder them all at the end instead...
 --DEV this could be on phtab or pstab...
-    set_seetab(desc,idx)
-    CSvaddr = p_vaddrs[idx]
+    if idx>0 then
+        set_seetab(desc,idx)
+--DEV??
+--  else
+--      set_seetab2(desc,idx,???)
+    end if
+--  CSvaddr = p_vaddrs[idx]
+    CSvaddr = iff(idx>0?p_vaddrs[idx]:shaddrs[-idx])
     if CSvaddr=0 or supported=-1 then
 --?1
 --      address = 0
@@ -5573,7 +5683,8 @@ atom ilen
     --DEV note this is x86:
     CSvsize = size
     code_section = binary
-    address = p_offsets[idx]
+--  address = p_offsets[idx]
+    address = iff(idx>0?p_offsets[idx]:shoffsets[-idx])
     elfv = append(elfv,{desc,address,0})    -- erm?
 --  decodeinit(CSvaddr, p_offsets[idx], machine)
     decodeinit(CSvaddr, address, machine, arch_ELF)
@@ -5670,6 +5781,7 @@ integer size = p_fileszs[idx]
     return 1
 end function
 
+--                  mask    , divisor
 constant OOO    = {#0E000000,#02000000},
          OOOO   = {#0F000000,#01000000},
          OPCODE = {#01E00000,#00200000},
@@ -5691,8 +5803,12 @@ constant OOO    = {#0E000000,#02000000},
          W      = {#00200000,#00200000},
          Y      = {#00100000,#00100000},
          X2     = {#00008000,#00008000},
+         OP1    = {#00F00000,#00100000},
+         OP2    = {#000000E0,#00000020},
+         Z      = {#00000010,#00000010},
          REG16  = {#0000FFFF,#00000001},
-         REG15  = {#00007FFF,#00000001}
+         REG15  = {#00007FFF,#00000001},
+         SWI    = {#00FFFFFF,#00000001}
 
 constant ops = {"and","eor","sub","rsb",
                 "add","adc","sbc","rsc",
@@ -5702,7 +5818,7 @@ constant ops = {"and","eor","sub","rsb",
 constant ccs = {"eq","ne","cs","cc",
                 "mi","pl","vs","vc",
                 "hi","ls","ge","lt",
-                "gt","le","",  "nv"}
+                "gt","le", "" ,"nv"}
 constant AL = 15 -- (not out by 1)
 
 constant ss = {"","s"}
@@ -5731,6 +5847,10 @@ constant shifts = {"lsl",   -- (==asl) [use lsl 0 for a nop]
                    "asr",
                    "ror"}   -- (ror 0 (a nop) means rrx instead)
 
+constant m4 = {-4,4}
+
+constant hsbsh = {"h","sb","sh"}
+
 function mask(atom ins, sequence m)
 integer res = and_bits(ins,m[1])/m[2]
     return res
@@ -5748,7 +5868,7 @@ function dump_ELF_arm(integer idx, string desc)
 integer size = shsizes[idx]
 atom ins
 integer ooo, cond, opcode, Rn, Rd, Rm, Rs, s, shift, shifth, rot, lit8, offset
-integer p, u, x, w, y, reg_list, lit12
+integer p, u, x, w, y, reg_list, lit12, cp_num
 string asm, err = "", xtra, regs
     addr = shaddrs[idx]
     address = shoffsets[idx]
@@ -5812,6 +5932,35 @@ string asm, err = "", xtra, regs
                 res[tabidx][$][R_NOTES] = asm
                 if length(err) then return fatal(err) end if
 --              exit
+            elsif ooo=0b000 
+              and mask(ins,OPCODE)=0b0000
+              and and_bits(ins,#F0)=0b10010000 then
+--            and and_bits(ins,#F0)=#90 then
+                s = mask(ins,S)
+                if Rd!=0 then err = sprintf("  *** SBZ is #%x ***",Rd) end if
+                Rd = Rn
+                asm = "mul"&ccs[cond]&ss[s+1]&" "&R[Rd+1]&", "&R[Rm+1]&", "&R[Rs+1]&err
+                err = ""
+                res[tabidx][$][R_NOTES] = asm
+--              if length(err) then return fatal(err) end if
+                
+            elsif ooo=0b000
+              and mask(ins,Z)=1
+              and and_bits(ins,#E0)>#80 then
+                shift = mask(ins,SHIFT)
+                s = mask(ins,S)
+                if shift=1 or s=1 then
+                    p = mask(ins,P)     -- pre/post indexing
+                    u = mask(ins,U)     -- up/down
+                    x = mask(ins,X)     -- byte/word (I - 0=immediate, 1=register)
+                    w = mask(ins,W)     -- write-back
+                    -- (Rs and Rm are addr_mode here)
+                    asm = iff(s=0?"str":"ldr")&ccs[cond]&hsbsh[shift]&" "&R[Rd+1]&", "
+--DEV need help here! (on putting this in, quickly realised it was disassembling data not code anyway)
+                    asm &= sprintf("??P=%d,U=%d,I=%d,W=%d,Rn=%s,Rs=0b%04b,Rm=%04b",{p,u,x,w,R[Rn+1],Rs,Rm})
+                    res[tabidx][$][R_NOTES] = asm
+                end if
+
             elsif ooo=0b001 then
 --DEV msr*2
                 opcode = mask(ins,OPCODE)
@@ -5845,29 +5994,66 @@ string asm, err = "", xtra, regs
                 x = mask(ins,X)     -- byte/word
                 w = mask(ins,W)     -- write-back
                 y = mask(ins,Y)     -- load/store
-                -- NOTE/DEV: No attempt to output a "T" here(v) yet...
-                asm = iff(y=0?"str","ldr")&ccs[cond]&bs[x+1]&" "&R[Rd+1]&", "
-                --                                          (^)
+                asm = iff(y=0?"str","ldr")&ccs[cond]&bs[x+1]
+                if p=0 and w=1 then
+                    asm &= "t"
+--                  w = 0
+                end if
+                asm &= " "&R[Rd+1]&", "
                 lit12 = mask(ins,LIT12)
                 xtra = ""
+                if u=0 then
+                    lit12 = 0-lit12
+                end if
                 if p then
-                    if u=0 then
-                        lit12 = 0-lit12
-                    end if
                     asm &= sprintf("[%s, %d]",{R[Rn+1],lit12})
                     if Rn=15 then -- pc
                         xtra = sprintf(" (#%08x)",{addr+lit12+4})
                     end if
                 else
-                    if u=0 then
-                        lit12 = 0-lit12
-                    end if
                     asm &= sprintf("[%s], %d",{R[Rn+1],lit12})
                 end if
                 if p=1 and w=1 then
                     asm &= "!"
                 end if
                 res[tabidx][$][R_NOTES] = asm&xtra
+            elsif ooo=0b011
+              and and_bits(ins,#10)=0 then
+                p = mask(ins,P)     -- pre/post indexing
+                u = mask(ins,U)     -- up/down
+                x = mask(ins,X)     -- byte/word
+                w = mask(ins,W)     -- write-back
+                y = mask(ins,Y)     -- load/store
+--              s = mask(ins,S)
+                shift = mask(ins,SHIFT)
+                shifth = mask(ins,SHIFTH)
+                asm = iff(y=0?"str","ldr")&ccs[cond]&bs[x+1]
+                if p=0 and w=1 then
+                    asm &= "t"
+--                  w = 0
+                end if
+                asm &= " "&R[Rd+1]&", "
+                if opcode!=0b1101       -- mov
+                and opcode!=0b1111 then -- mvn
+                    asm &= ", "&R[Rn+1]
+                end if
+                asm &= ", "&R[Rm+1]
+--              if and_bits(ins,#10)=0 then
+                    if shifth!=0
+                    or shift!=0 then
+                        --DEV???
+--                      asm &= sprintf(" (shifth=0b%05b, shift=%02b)",{shifth,shift})
+                        asm &= sprintf(", %s %d",{shifts[shift+1],shifth})
+                    end if
+--              else
+--                  asm &= sprintf(", %s %s",{shifts[shift+1],R[Rs+1]})
+--              end if
+                if p=1 and w=1 then
+                    asm &= "!"
+                end if
+                res[tabidx][$][R_NOTES] = asm
+--              if length(err) then return fatal(err) end if
+
             elsif ooo=0b100 then
                 p = mask(ins,P)
                 u = mask(ins,U)
@@ -5960,359 +6146,417 @@ string asm, err = "", xtra, regs
                 if offset>#7FFFFF then
                     offset -= #1000000
                 end if
-                asm = "b"&ls[mask(ins,L)+1]&sprintf(" #%08x",addr+offset*4+4)
+                asm = "b"&ls[mask(ins,L)+1]&ccs[cond]&sprintf(" #%08x",addr+offset*4+4)
+                res[tabidx][$][R_NOTES] = asm
+            elsif ooo=0b110 then
+--          elsif 0 then
+                -- NB *not* checked against anything
+                -- stc/ldc
+                p = mask(ins,P)
+--LDC    p,CRd,[Rn,#20] ;short form (N=0), pre-indexed
+--STCL   p,CRd,[Rn,#-32]! ;long form (N=1), pre-indexed with writeback
+--LDCNEL p,CRd,[Rn],#-100 ;long form (N=1), post-indexed
+                u = mask(ins,U)
+                x = mask(ins,X) -- (N)
+                w = mask(ins,W)
+                y = mask(ins,Y)
+--              Rn = mask(ins,RN)   -- (already set)
+--              Rd = mask(ins,RD)   -- ("")
+                cp_num = mask(ins,RS)
+                offset = mask(ins,LIT8)*m4[u+1]
+                if p=0 and w=0 then return fatal("p=0 and w=0 ?!??") end if
+                asm = iff(y=0?"stc":"ldc")&ls[x+1]&ccs[cond]&sprintf(" p%d,c%s,",{cp_num,R[Rd+1]})
+                if p then
+                    asm &= sprintf("[%s, %d]",{R[Rn+1],offset})
+                    if Rn=15 then -- pc
+                        xtra = sprintf(" (#%08x)",{addr+offset+4})
+                    end if
+                else
+                    asm &= sprintf("[%s], %d",{R[Rn+1],offset})
+                end if
+--              if p=1 and w=1 then
+                if w=1 then -- (???)
+                    asm &= "!"
+                end if
+                res[tabidx][$][R_NOTES] = asm
+
+            elsif ooo=0b111 then
+--          elsif 0 then
+                -- NB *not* checked against anything
+                p = mask(ins,P)
+                if p=0 then             -- cdp/mcr/mrc
+                    integer op1 = mask(ins,OP1) -- (/2 if z=1)
+                    Rn = mask(ins,RN)
+                    Rd = mask(ins,RD)
+                    cp_num = mask(ins,RS)
+                    integer op2 = mask(ins,OP2)
+                    integer z = mask(ins,Z)
+                    if z=0 then op1 = floor(op1/2) end if
+                    Rm = mask(ins,RM)
+--DEV/SUG??: (arbitrarily nest and daisy-chain conditionals)
+--iff(a=0?"a=0":b=0?"b=0":"a&b!=0")
+--iff(a=0?b=0?"a&b=0":"b!=0":"a!=0")
+                    asm = iff(z=0?"cdp":iff(mask(ins,Y)=0?"mcr":"mrc"))&ccs[cond]
+--                  asm = iff(z=0?"cdp":mask(ins,Y)=0?"mcr":"mrc")&ccs[cond]
+                    asm &= sprintf(" p%d,%d,",{cp_num,op1})
+                    asm &= iff(z=0?"c":"")&R[Rd+1]&",c"&R[Rn+1]&",c"&R[Rm+1]&sprintf(",%d",op2)
+--                  ?9/0
+                else                    -- swi
+                    asm = "swi"&ccs[cond]&sprintf(" %d",mask(ins,SWI))
+                end if
                 res[tabidx][$][R_NOTES] = asm
 --/*
-void printasm (FILE *out, unsigned int x, unsigned int adr)
-{
-    char buf[1000];
-    int i, j;
-    char *cond[] = { "==", "!=", "c", "!c", "<0", ">=0",  "OVF", "!OVF", "HI", "LS", ">=", "<", ">", "<=", "", "UNC" };
-    char *op[] = { "&", "!", "-", "*-1+", "+", "+c+", "-!c-", "*-1-!c+", "?&", "?!", "?-", "?+", "|", "->", "&!", "->~" };
-    // char *shift[] = { "LSL", "LSR", "ASR",  "RR" };
-    char *shift[] = { "<<", ">>", "->>", ">>>" };
-    unsigned int Rn, Rd, Rs, Rm;
-    unsigned int adr1;
-    int adrinstr;
-    int trouve;
-
-    adrinstr = adr;
-
-    Rn = field (x, 0xF0000);
-    Rd = field (x, 0xF000);
-    Rs = field (x, 0xF00);
-    Rm = field (x, 0xF);
-
-    i = 0;
-
-    for (j=0; j<nadr; j++)
-        if (x == tabadr[j].adr)
-        {
-            if (dasm)
-            {
-                i += sprintf (buf+i, "%s", tabadr[j].name);
-                goto outbuf;
-            }
-            else
-                i += sprintf (buf+i, "#%X == %s ", x, tabadr[j].name);
-        }
-
-    if (x >= beginstrings && x <= endstrings)
-    {
-        i += sprintf (buf+i, "strings+%X", x-beginstrings);
-        goto outbuf;
-    }
-
-    i += sprintf (buf+i, cond[x>>28]);
-    // i += sprintf (buf+i, "(%x)", x>>28);
-    i += sprintf (buf+i, " ");
-
-    if (match (x, 0x1200010, 0xFF000F0))
-        i += sprintf (buf+i, "BX [R%X]", Rm);
-
-    else if (match (x, 0xF0000000, 0xF0000000)) /* unconditional */
-        i += sprintf (buf+i, "#%07X", x & 0xFFFFFFF);
-
-    /*
-    else if (match (x, 0xA000000, 0xF000000))
-        i += sprintf (buf+i, "B RF+4*%X == %X", field (x, 0xFFFFFF), adr+8+4*sfield(x,0xFFFFFF));
-    */
-    else if (match (x, 0xA000000, 0xF000000))
-    {
-        // i += sprintf (buf+i, "BL RF+4*%X == %X",  field (x, 0xFFFFFF), adr+8+4*sfield(x,0xFFFFFF));
-        trouve = 0;
-        for (j=0; j<nadr; j++)
-            if ((int)(tabadr[j].adr) == adr+8+4*sfield(x,0xFFFFFF))
-            {
-                trouve = 1;
-                i += sprintf (buf+i, "GOTO %s", tabadr[j].name);
-            }
-        if (!trouve)
-            i += sprintf (buf+i, "GOTO %X", adr+8+4*sfield(x,0xFFFFFF));
-    }
-
-    else if (match (x, 0xB000000, 0xF000000))
-    {
-        // i += sprintf (buf+i, "BL RF+4*%X == %X",  field (x, 0xFFFFFF), adr+8+4*sfield(x,0xFFFFFF));
-        trouve = 0;
-        for (j=0; j<nadr; j++)
-            if ((int)(tabadr[j].adr) == adr+8+4*sfield(x,0xFFFFFF))
-            {
-                trouve = 1;
-                i += sprintf (buf+i, "%s ()", tabadr[j].name);
-            }
-        if (!trouve)
-            i += sprintf (buf+i, "%X ()", adr+8+4*sfield(x,0xFFFFFF));
-    }
-    else if (match (x, 0x1000000, 0xF900010)) /* misc */
-        // i += sprintf (buf+i, "#%07X misc", x & 0xFFFFFFF);
-        i += sprintf (buf, "%X", x);
-    else if (match (x, 0x1000010, 0xF900090)) /* misc */
-        // i += sprintf (buf+i, "#%07X misc", x & 0xFFFFFFF);
-        i += sprintf (buf, "%X", x);
-
-    /*
-    else if (match (x, 0x3A00000, 0xFFF0F00))
-        i += sprintf (buf+i, "R%X=%X", field (x, 0xF000), field (x, 0xFF));
-    else if (match (x, 0x1A00000, 0xFFF0FF0))
-        i += sprintf (buf+i, "R%X=R%X", field (x, 0xF000), field (x, 0xF));
-    else if (match (x, 0x2800000, 0xFF00F00))
-        i += sprintf (buf+i, "R%X=R%X+%X", field (x, 0xF000), field (x, 0xF0000), field (x, 0xFF));
-    else if (match (x, 0x0800000, 0xFF00FF0))
-        i += sprintf (buf+i, "R%X=R%X+R%X", field (x, 0xF000), field (x, 0xF0000), field (x, 0xF));
-    else if (match (x, 0x2400000, 0xFF00F00))
-        i += sprintf (buf+i, "R%X=R%X-%X", field (x, 0xF000), field (x, 0xF0000), field (x, 0xFF));
-    else if (match (x, 0x0400000, 0xFF00FF0))
-        i += sprintf (buf+i, "R%X=R%X-R%X", field (x, 0xF000), field (x, 0xF0000), field (x, 0xF));
-    
-    else if (match (x, 0x5900000, 0xFF00000))
-        i += sprintf (buf+i, "R%X=[R%X+%X]", field (x, 0xF000), field (x, 0xF0000), field (x, 0xFFF));
-    else if (match (x, 0x5800000, 0xFF00000))
-        i += sprintf (buf+i, "[R%X+%X]=R%X", field (x, 0xF0000), field (x, 0xFFF), field (x, 0xF000));
-    */
-
-    else if (match (x, 0x9200000, 0xFF00000))
-        i += sprintf (buf+i, "PUSH R%X %04X", field (x, 0xF0000), field (x, 0xFFFF));
-    else if (match (x, 0x8B00000, 0xFF00000))
-        i += sprintf (buf+i, "POP R%X %04X", field (x, 0xF0000), field (x, 0xFFFF));
-
-    else if (match (x, 0x1A00000, 0xFF00FF0)) /* move with register */
-        i += sprintf (buf+i, "R%X = R%X", Rd, Rm);
-    else if (match (x, 0x1B00000, 0xFF00010)) /* move with register, update condition codes */
-        i += sprintf (buf+i, "R%X ?= R%X", Rd, Rm);
-
-    else if (match (x, 0x1A00000, 0xFF00010)) /* move with register shifted by immediate */
-        i += sprintf (buf+i, "R%X = R%X %s %X", Rd, Rm, shift[field(x,0x60)], field(x,0xF80));
-    else if (match (x, 0x1B00000, 0xFF00010)) /* move with register shifted by immediate, update condition codes */
-        i += sprintf (buf+i, "R%X ?= R%X %s %X", Rd, Rm, shift[field(x,0x60)], field(x,0xF80));
-    else if (match (x, 0x1A00010, 0xFF00090)) /* move with register shifted by register */
-        i += sprintf (buf+i, "R%X = R%X %s R%X", Rd, Rm, shift[field(x,0x60)], Rs);
-    else if (match (x, 0x1B00010, 0xFF00090)) /* move with register shifted by register, update condition codes */
-        i += sprintf (buf+i, "R%X ?= R%X %s R%X", Rd, Rm, shift[field(x,0x60)], Rs);
-    else if (match (x, 0x3A00000, 0xFF00000)) /* move immediate */
-        i += sprintf (buf+i, "R%X = %X", Rd, rotate (field(x,0xFF), field(x,0xF00)));
-    else if (match (x, 0x3B00000, 0xFF00000)) /* move immediate, update condition codes */
-        i += sprintf (buf+i, "R%X ?= %X", Rd, rotate (field(x,0xFF), field(x,0xF00)));
-
-    else if (match (x, 0x0000000, 0xE100FF0)) /* data processing with register */
-        i += sprintf (buf+i, "R%X = R%X %s R%X", Rd, Rn, op[field(x,0x1E00000)], Rm);
-    else if (match (x, 0x0100000, 0xE100FF0)) /* data processing with register, update condition codes */
-        i += sprintf (buf+i, "R%X ?= R%X %s R%X", Rd, Rn, op[field(x,0x1E00000)], Rm);
-
-    else if (match (x, 0x0000000, 0xE100010)) /* data processing with register shifted by immediate */
-        i += sprintf (buf+i, "R%X = R%X %s R%X %s %X", Rd, Rn, op[field(x,0x1E00000)], Rm, shift[field(x,0x60)], field(x,0xF80));
-    else if (match (x, 0x0100000, 0xE100010)) /* data processing with register shifted by immediate, update condition codes */
-        i += sprintf (buf+i, "R%X ?= R%X %s R%X %s %X", Rd, Rn, op[field(x,0x1E00000)], Rm, shift[field(x,0x60)], field(x,0xF80));
-    else if (match (x, 0x0000010, 0xE100090)) /* data processing with register shifted by register */
-        i += sprintf (buf+i, "R%X = R%X %s R%X %s R%X", Rd, Rn, op[field(x,0x1E00000)], Rm, shift[field(x,0x60)], Rs);
-    else if (match (x, 0x0100010, 0xE100090)) /* data processing with register shifted by register, update condition codes */
-        i += sprintf (buf+i, "R%X ?= R%X %s R%X %s R%X", Rd, Rn, op[field(x,0x1E00000)], Rm, shift[field(x,0x60)], Rs);
-    else if (match (x, 0x2000000, 0xE100000)) /* data processing immediate */
-        i += sprintf (buf+i, "R%X = R%X %s %X", Rd, Rn, op[field(x,0x1E00000)], rotate (field(x,0xFF), field(x,0xF00)));
-    else if (match (x, 0x2100000, 0xE100000)) /* data processing immediate, update condition codes */
-        i += sprintf (buf+i, "R%X ?= R%X %s %X", Rd, Rn, op[field(x,0x1E00000)], rotate (field(x,0xFF), field(x,0xF00)));
-
-    else if (match (x, 0x4000000, 0xE000000)) /* load store immediate offset */
-    {
-        char s;
-        char *af;
-        char adr[30];
-        char mem[30];
-        unsigned int im;
-        if (x & 0x800000)
-            s = '+';
-        else
-            s = '-';
-        im = field(x,0xFFF);
-        if (match (x, 0x4000000, 0xF200000))
-        {
-            af = "=";
-            sprintf (adr, "R%X,%c=%X", Rn, s, im);
-        }
-        else if (match (x, 0x4200000, 0xF200000))
-        {
-            af = "=U";
-            sprintf (adr, "R%X,%c=%X", Rn, s, im);
-        }
-        else if (match (x, 0x5000000, 0xF200000))
-        {
-            af = "=";
-            sprintf (adr, "R%X%c%X", Rn, s, im);
-            if (Rn == 0xF)
-            { 
-                if (s == '+')
-                    adr1 = adrinstr + 8 + im;
-                else
-                    adr1 = adrinstr + 8 - im;
-                if (dasm)
-                    sprintf (adr, "%X", adr1);
-                else
-                    sprintf (adr+strlen(adr), "==%X", adr1);
-                for (j=0; j<nadr; j++)
-                    if (adr1 == tabadr[j].adr)
-                    {
-                        if (dasm)
-                            sprintf (adr, "%s", tabadr[j].name);
-                        else
-                            sprintf (adr+strlen(adr), "==%s", tabadr[j].name);
-                    }
-                    
-            }
-        }
-        else if (match (x, 0x5200000, 0xF200000))
-        {
-            af = "=";
-            sprintf (adr, "R%X%c=%X", Rn, s, im);
-        }
-        if (x & 0x400000)
-            sprintf (mem, "$[%s]", adr);
-        else
-            sprintf (mem, "[%s]", adr);
-        if (x & 0x100000)
-            i += sprintf (buf+i, "R%X %s %s", Rd, af, mem);
-        else
-            i += sprintf (buf+i, "%s %s R%X", mem, af, Rd);
-        
-    }
-
-    else if (match (x, 0x6000000, 0xE000010)) /* load store register offset */
-    {
-        char s;
-        char *af;
-        char adr[30];
-        char mem[30];
-        char im[30];
-//  fprintf (fdasm, "*1*");
-        if (x & 0x800000)
-            s = '+';
-        else
-            s = '-';
-//  fprintf (fdasm, "*2*");
-        sprintf (im, "R%X %s %X", Rm, shift[field(x,0x60)], field(x,0xF80));
-//  fprintf (fdasm, "*3*");
-        if (match (x, 0x6000000, 0xF200000))
-        {
-            af = "=";
-            sprintf (adr, "R%X,%c=%s", Rn, s, im);
-        }
-        else if (match (x, 0x6200000, 0xF200000))
-        {
-            af = "=U";
-            sprintf (adr, "R%X,%c=%s", Rn, s, im);
-        }
-        else if (match (x, 0x7000000, 0xF200000))
-        {
-            af = "=";
-            sprintf (adr, "R%X%c%s", Rn, s, im);
-        }
-        else if (match (x, 0x7200000, 0xF200000))
-        {
-            af = "=";
-            sprintf (adr, "R%X%c=%s", Rn, s, im);
-        }
-        else
-        {
-            af = "?";
-            sprintf (adr, "?");
-        }
-//  fprintf (fdasm, "*4");
-        if (x & 0x400000)
-            sprintf (mem, "$[ %s]", adr);
-        else
-            sprintf (mem, "[%s]", adr);
-/*  fprintf (fdasm, "*5*");
-    fprintf (fdasm, "*i=%d*", i);
-    fprintf (fdasm, "*Rd=%X*", Rd);
-    fprintf (fdasm, "*af=%s*", af);
-    fprintf (fdasm, "*mem=%s*", mem);
-*/      if (!strcmp (af, "?"))
-            i += sprintf (buf, "%X", x);
-        else if (x & 0x100000)
-            i += sprintf (buf+i, "R%X %s %s", Rd, af, mem);
-        else
-            i += sprintf (buf+i, "%s %s R%X", mem, af, Rd);
-//  fprintf (fdasm, "*6");
-    }
-
-    else if (match (x, 0x8000000, 0xE000000)) /* load store multiple */
-    {
-        char mem[30];
-        char *af;
-
-        if (x & 0x400000)
-            af = "?=";
-        else
-            af = "=";
-
-        if (match (x, 0x8000000, 0xFA00000)) sprintf (mem, "[R%X-]", Rn); else 
-        if (match (x, 0x8200000, 0xFA00000)) sprintf (mem, "[R%X-=]", Rn); else
-        if (match (x, 0x8800000, 0xFA00000)) sprintf (mem, "[R%X+]", Rn); else
-        if (match (x, 0x8A00000, 0xFA00000)) sprintf (mem, "[R%X+=]", Rn); else
-        if (match (x, 0x9000000, 0xFA00000)) sprintf (mem, "[R%X--]", Rn); else
-        if (match (x, 0x9200000, 0xFA00000)) sprintf (mem, "[R%X--=]", Rn); else
-        if (match (x, 0x9800000, 0xFA00000)) sprintf (mem, "[R%X++]", Rn); else
-        if (match (x, 0x9A00000, 0xFA00000)) sprintf (mem, "[R%X++=]", Rn); else
-        sprintf (mem, "?");
-
-        if (x & 0x100000)
-            i += sprintf (buf+i, "RR#%04X %s %s", field(x,0xFFFF), af, mem);
-        else
-            i += sprintf (buf+i, "%s %s RR#%04X", mem, af, field(x,0xFFFF));
-            
-    }
-
-    else if (match (x, 0x1000090, 0xFF00FF0)) /* swap */
-        i += sprintf (buf+i, "R%X = [R%X] = R%X", Rd, Rn, Rm);
-    else if (match (x, 0x1400090, 0xFF00FF0)) /* swap bytes */
-        i += sprintf (buf+i, "R%X = $[R%X] = R%X", Rd, Rn, Rm);
-
-    else if (match (x, 0x1900F9F, 0xFF00FFF)) /* LDREX */
-        i += sprintf (buf+i, "R%X X= [R%X]", Rd, Rn);
-    else if (match (x, 0x1800F9F, 0xFF00FFF)) /* STREX */
-        i += sprintf (buf+i, "[R%X] X= R%X", Rn, Rd);
-
-    else if (match (x, 0x19000D0, 0xFF00FF0)) /* load signed byte register offset */
-        i += sprintf (buf+i, "R%X = +$[R%X+R%X]", Rd, Rn, Rm);
-
-    else if (match (x, 0x04000D0, 0xE4000F0))
-    {
-        char mem[30];
-        char s;
-        unsigned int ofs;
-        ofs = (x&0xF) | ((x&0xF00)>>4);
-        if (x & 0x800000)
-            s = '+';
-        else
-            s = '-';
-        if (match (x, 0x04000D0, 0xE6000F0))
-            sprintf (mem, "$$[R%X,%c=%X]", Rn, s, ofs);
-        else if (match (x, 0x14000D0, 0xE6000F0))
-            sprintf (mem, "$$[R%X%c=%X]", Rn, s, ofs);
-        else if (match (x, 0x16000D0, 0xE6000F0))
-            sprintf (mem, "$$[R%X%c%X]", Rn, s, ofs);
-        else
-            sprintf (mem, "[?]");
-        if (x & 100000)
-            i += sprintf (buf+i, "R%X = %s", Rd, mem);
-        else
-            i += sprintf (buf+i, "%s = R%X", mem, Rd);
-    }
-
-    else if (match (x, 0x0000090, 0xFF0F0F0))
-        i += sprintf (buf+i, "R%X = R%X * R%X", field(x,0xF0000), field(x,0xF00), field(x,0xF));
-
-    else
-        i += sprintf (buf, "%X", x);
-outbuf:
-    buf[i] = 0;
-    fprintf (out, "%s", buf);
-}
+--  void printasm (FILE *out, unsigned int x, unsigned int adr)
+--  {
+--      char buf[1000];
+--      int i, j;
+--      char *cond[] = { "==", "!=", "c", "!c", "<0", ">=0",  "OVF", "!OVF", "HI", "LS", ">=", "<", ">", "<=", "", "UNC" };
+--      char *op[] = { "&", "!", "-", "*-1+", "+", "+c+", "-!c-", "*-1-!c+", "?&", "?!", "?-", "?+", "|", "->", "&!", "->~" };
+--      // char *shift[] = { "LSL", "LSR", "ASR",  "RR" };
+--      char *shift[] = { "<<", ">>", "->>", ">>>" };
+--      unsigned int Rn, Rd, Rs, Rm;
+--      unsigned int adr1;
+--      int adrinstr;
+--      int trouve;
+--
+--      adrinstr = adr;
+--
+--      Rn = field (x, 0xF0000);
+--      Rd = field (x, 0xF000);
+--      Rs = field (x, 0xF00);
+--      Rm = field (x, 0xF);
+--
+--      i = 0;
+--
+--      for (j=0; j<nadr; j++)
+--          if (x == tabadr[j].adr)
+--          {
+--              if (dasm)
+--              {
+--                  i += sprintf (buf+i, "%s", tabadr[j].name);
+--                  goto outbuf;
+--              }
+--              else
+--                  i += sprintf (buf+i, "#%X == %s ", x, tabadr[j].name);
+--          }
+--
+--      if (x >= beginstrings && x <= endstrings)
+--      {
+--          i += sprintf (buf+i, "strings+%X", x-beginstrings);
+--          goto outbuf;
+--      }
+--
+--      i += sprintf (buf+i, cond[x>>28]);
+--      // i += sprintf (buf+i, "(%x)", x>>28);
+--      i += sprintf (buf+i, " ");
+--
+--      if (match (x, 0x1200010, 0xFF000F0))
+--          i += sprintf (buf+i, "BX [R%X]", Rm);
+--
+--      else if (match (x, 0xF0000000, 0xF0000000)) /* unconditional */
+--          i += sprintf (buf+i, "#%07X", x & 0xFFFFFFF);
+--
+--      /*
+--      else if (match (x, 0xA000000, 0xF000000))
+--          i += sprintf (buf+i, "B RF+4*%X == %X", field (x, 0xFFFFFF), adr+8+4*sfield(x,0xFFFFFF));
+--      */
+--      else if (match (x, 0xA000000, 0xF000000))
+--      {
+--          // i += sprintf (buf+i, "BL RF+4*%X == %X",  field (x, 0xFFFFFF), adr+8+4*sfield(x,0xFFFFFF));
+--          trouve = 0;
+--          for (j=0; j<nadr; j++)
+--              if ((int)(tabadr[j].adr) == adr+8+4*sfield(x,0xFFFFFF))
+--              {
+--                  trouve = 1;
+--                  i += sprintf (buf+i, "GOTO %s", tabadr[j].name);
+--              }
+--          if (!trouve)
+--              i += sprintf (buf+i, "GOTO %X", adr+8+4*sfield(x,0xFFFFFF));
+--      }
+--
+--      else if (match (x, 0xB000000, 0xF000000))
+--      {
+--          // i += sprintf (buf+i, "BL RF+4*%X == %X",  field (x, 0xFFFFFF), adr+8+4*sfield(x,0xFFFFFF));
+--          trouve = 0;
+--          for (j=0; j<nadr; j++)
+--              if ((int)(tabadr[j].adr) == adr+8+4*sfield(x,0xFFFFFF))
+--              {
+--                  trouve = 1;
+--                  i += sprintf (buf+i, "%s ()", tabadr[j].name);
+--              }
+--          if (!trouve)
+--              i += sprintf (buf+i, "%X ()", adr+8+4*sfield(x,0xFFFFFF));
+--      }
+--      else if (match (x, 0x1000000, 0xF900010)) /* misc */
+--          // i += sprintf (buf+i, "#%07X misc", x & 0xFFFFFFF);
+--          i += sprintf (buf, "%X", x);
+--      else if (match (x, 0x1000010, 0xF900090)) /* misc */
+--          // i += sprintf (buf+i, "#%07X misc", x & 0xFFFFFFF);
+--          i += sprintf (buf, "%X", x);
+--
+--      /*
+--      else if (match (x, 0x3A00000, 0xFFF0F00))
+--          i += sprintf (buf+i, "R%X=%X", field (x, 0xF000), field (x, 0xFF));
+--      else if (match (x, 0x1A00000, 0xFFF0FF0))
+--          i += sprintf (buf+i, "R%X=R%X", field (x, 0xF000), field (x, 0xF));
+--      else if (match (x, 0x2800000, 0xFF00F00))
+--          i += sprintf (buf+i, "R%X=R%X+%X", field (x, 0xF000), field (x, 0xF0000), field (x, 0xFF));
+--      else if (match (x, 0x0800000, 0xFF00FF0))
+--          i += sprintf (buf+i, "R%X=R%X+R%X", field (x, 0xF000), field (x, 0xF0000), field (x, 0xF));
+--      else if (match (x, 0x2400000, 0xFF00F00))
+--          i += sprintf (buf+i, "R%X=R%X-%X", field (x, 0xF000), field (x, 0xF0000), field (x, 0xFF));
+--      else if (match (x, 0x0400000, 0xFF00FF0))
+--          i += sprintf (buf+i, "R%X=R%X-R%X", field (x, 0xF000), field (x, 0xF0000), field (x, 0xF));
+--      
+--      else if (match (x, 0x5900000, 0xFF00000))
+--          i += sprintf (buf+i, "R%X=[R%X+%X]", field (x, 0xF000), field (x, 0xF0000), field (x, 0xFFF));
+--      else if (match (x, 0x5800000, 0xFF00000))
+--          i += sprintf (buf+i, "[R%X+%X]=R%X", field (x, 0xF0000), field (x, 0xFFF), field (x, 0xF000));
+--      */
+--
+--      else if (match (x, 0x9200000, 0xFF00000))
+--          i += sprintf (buf+i, "PUSH R%X %04X", field (x, 0xF0000), field (x, 0xFFFF));
+--      else if (match (x, 0x8B00000, 0xFF00000))
+--          i += sprintf (buf+i, "POP R%X %04X", field (x, 0xF0000), field (x, 0xFFFF));
+--
+--      else if (match (x, 0x1A00000, 0xFF00FF0)) /* move with register */
+--          i += sprintf (buf+i, "R%X = R%X", Rd, Rm);
+--      else if (match (x, 0x1B00000, 0xFF00010)) /* move with register, update condition codes */
+--          i += sprintf (buf+i, "R%X ?= R%X", Rd, Rm);
+--
+--      else if (match (x, 0x1A00000, 0xFF00010)) /* move with register shifted by immediate */
+--          i += sprintf (buf+i, "R%X = R%X %s %X", Rd, Rm, shift[field(x,0x60)], field(x,0xF80));
+--      else if (match (x, 0x1B00000, 0xFF00010)) /* move with register shifted by immediate, update condition codes */
+--          i += sprintf (buf+i, "R%X ?= R%X %s %X", Rd, Rm, shift[field(x,0x60)], field(x,0xF80));
+--      else if (match (x, 0x1A00010, 0xFF00090)) /* move with register shifted by register */
+--          i += sprintf (buf+i, "R%X = R%X %s R%X", Rd, Rm, shift[field(x,0x60)], Rs);
+--      else if (match (x, 0x1B00010, 0xFF00090)) /* move with register shifted by register, update condition codes */
+--          i += sprintf (buf+i, "R%X ?= R%X %s R%X", Rd, Rm, shift[field(x,0x60)], Rs);
+--      else if (match (x, 0x3A00000, 0xFF00000)) /* move immediate */
+--          i += sprintf (buf+i, "R%X = %X", Rd, rotate (field(x,0xFF), field(x,0xF00)));
+--      else if (match (x, 0x3B00000, 0xFF00000)) /* move immediate, update condition codes */
+--          i += sprintf (buf+i, "R%X ?= %X", Rd, rotate (field(x,0xFF), field(x,0xF00)));
+--
+--      else if (match (x, 0x0000000, 0xE100FF0)) /* data processing with register */
+--          i += sprintf (buf+i, "R%X = R%X %s R%X", Rd, Rn, op[field(x,0x1E00000)], Rm);
+--      else if (match (x, 0x0100000, 0xE100FF0)) /* data processing with register, update condition codes */
+--          i += sprintf (buf+i, "R%X ?= R%X %s R%X", Rd, Rn, op[field(x,0x1E00000)], Rm);
+--
+--      else if (match (x, 0x0000000, 0xE100010)) /* data processing with register shifted by immediate */
+--          i += sprintf (buf+i, "R%X = R%X %s R%X %s %X", Rd, Rn, op[field(x,0x1E00000)], Rm, shift[field(x,0x60)], field(x,0xF80));
+--      else if (match (x, 0x0100000, 0xE100010)) /* data processing with register shifted by immediate, update condition codes */
+--          i += sprintf (buf+i, "R%X ?= R%X %s R%X %s %X", Rd, Rn, op[field(x,0x1E00000)], Rm, shift[field(x,0x60)], field(x,0xF80));
+--      else if (match (x, 0x0000010, 0xE100090)) /* data processing with register shifted by register */
+--          i += sprintf (buf+i, "R%X = R%X %s R%X %s R%X", Rd, Rn, op[field(x,0x1E00000)], Rm, shift[field(x,0x60)], Rs);
+--      else if (match (x, 0x0100010, 0xE100090)) /* data processing with register shifted by register, update condition codes */
+--          i += sprintf (buf+i, "R%X ?= R%X %s R%X %s R%X", Rd, Rn, op[field(x,0x1E00000)], Rm, shift[field(x,0x60)], Rs);
+--      else if (match (x, 0x2000000, 0xE100000)) /* data processing immediate */
+--          i += sprintf (buf+i, "R%X = R%X %s %X", Rd, Rn, op[field(x,0x1E00000)], rotate (field(x,0xFF), field(x,0xF00)));
+--      else if (match (x, 0x2100000, 0xE100000)) /* data processing immediate, update condition codes */
+--          i += sprintf (buf+i, "R%X ?= R%X %s %X", Rd, Rn, op[field(x,0x1E00000)], rotate (field(x,0xFF), field(x,0xF00)));
+--
+--      else if (match (x, 0x4000000, 0xE000000)) /* load store immediate offset */
+--      {
+--          char s;
+--          char *af;
+--          char adr[30];
+--          char mem[30];
+--          unsigned int im;
+--          if (x & 0x800000)
+--              s = '+';
+--          else
+--              s = '-';
+--          im = field(x,0xFFF);
+--          if (match (x, 0x4000000, 0xF200000))
+--          {
+--              af = "=";
+--              sprintf (adr, "R%X,%c=%X", Rn, s, im);
+--          }
+--          else if (match (x, 0x4200000, 0xF200000))
+--          {
+--              af = "=U";
+--              sprintf (adr, "R%X,%c=%X", Rn, s, im);
+--          }
+--          else if (match (x, 0x5000000, 0xF200000))
+--          {
+--              af = "=";
+--              sprintf (adr, "R%X%c%X", Rn, s, im);
+--              if (Rn == 0xF)
+--              { 
+--                  if (s == '+')
+--                      adr1 = adrinstr + 8 + im;
+--                  else
+--                      adr1 = adrinstr + 8 - im;
+--                  if (dasm)
+--                      sprintf (adr, "%X", adr1);
+--                  else
+--                      sprintf (adr+strlen(adr), "==%X", adr1);
+--                  for (j=0; j<nadr; j++)
+--                      if (adr1 == tabadr[j].adr)
+--                      {
+--                          if (dasm)
+--                              sprintf (adr, "%s", tabadr[j].name);
+--                          else
+--                              sprintf (adr+strlen(adr), "==%s", tabadr[j].name);
+--                      }
+--                      
+--              }
+--          }
+--          else if (match (x, 0x5200000, 0xF200000))
+--          {
+--              af = "=";
+--              sprintf (adr, "R%X%c=%X", Rn, s, im);
+--          }
+--          if (x & 0x400000)
+--              sprintf (mem, "$[%s]", adr);
+--          else
+--              sprintf (mem, "[%s]", adr);
+--          if (x & 0x100000)
+--              i += sprintf (buf+i, "R%X %s %s", Rd, af, mem);
+--          else
+--              i += sprintf (buf+i, "%s %s R%X", mem, af, Rd);
+--          
+--      }
+--
+--      else if (match (x, 0x6000000, 0xE000010)) /* load store register offset */
+--      {
+--          char s;
+--          char *af;
+--          char adr[30];
+--          char mem[30];
+--          char im[30];
+--  //  fprintf (fdasm, "*1*");
+--          if (x & 0x800000)
+--              s = '+';
+--          else
+--              s = '-';
+--  //  fprintf (fdasm, "*2*");
+--          sprintf (im, "R%X %s %X", Rm, shift[field(x,0x60)], field(x,0xF80));
+--  //  fprintf (fdasm, "*3*");
+--          if (match (x, 0x6000000, 0xF200000))
+--          {
+--              af = "=";
+--              sprintf (adr, "R%X,%c=%s", Rn, s, im);
+--          }
+--          else if (match (x, 0x6200000, 0xF200000))
+--          {
+--              af = "=U";
+--              sprintf (adr, "R%X,%c=%s", Rn, s, im);
+--          }
+--          else if (match (x, 0x7000000, 0xF200000))
+--          {
+--              af = "=";
+--              sprintf (adr, "R%X%c%s", Rn, s, im);
+--          }
+--          else if (match (x, 0x7200000, 0xF200000))
+--          {
+--              af = "=";
+--              sprintf (adr, "R%X%c=%s", Rn, s, im);
+--          }
+--          else
+--          {
+--              af = "?";
+--              sprintf (adr, "?");
+--          }
+--  //  fprintf (fdasm, "*4");
+--          if (x & 0x400000)
+--              sprintf (mem, "$[ %s]", adr);
+--          else
+--              sprintf (mem, "[%s]", adr);
+--  /*  fprintf (fdasm, "*5*");
+--      fprintf (fdasm, "*i=%d*", i);
+--      fprintf (fdasm, "*Rd=%X*", Rd);
+--      fprintf (fdasm, "*af=%s*", af);
+--      fprintf (fdasm, "*mem=%s*", mem);
+--  */      if (!strcmp (af, "?"))
+--              i += sprintf (buf, "%X", x);
+--          else if (x & 0x100000)
+--              i += sprintf (buf+i, "R%X %s %s", Rd, af, mem);
+--          else
+--              i += sprintf (buf+i, "%s %s R%X", mem, af, Rd);
+--  //  fprintf (fdasm, "*6");
+--      }
+--
+--      else if (match (x, 0x8000000, 0xE000000)) /* load store multiple */
+--      {
+--          char mem[30];
+--          char *af;
+--
+--          if (x & 0x400000)
+--              af = "?=";
+--          else
+--              af = "=";
+--
+--          if (match (x, 0x8000000, 0xFA00000)) sprintf (mem, "[R%X-]", Rn); else 
+--          if (match (x, 0x8200000, 0xFA00000)) sprintf (mem, "[R%X-=]", Rn); else
+--          if (match (x, 0x8800000, 0xFA00000)) sprintf (mem, "[R%X+]", Rn); else
+--          if (match (x, 0x8A00000, 0xFA00000)) sprintf (mem, "[R%X+=]", Rn); else
+--          if (match (x, 0x9000000, 0xFA00000)) sprintf (mem, "[R%X--]", Rn); else
+--          if (match (x, 0x9200000, 0xFA00000)) sprintf (mem, "[R%X--=]", Rn); else
+--          if (match (x, 0x9800000, 0xFA00000)) sprintf (mem, "[R%X++]", Rn); else
+--          if (match (x, 0x9A00000, 0xFA00000)) sprintf (mem, "[R%X++=]", Rn); else
+--          sprintf (mem, "?");
+--
+--          if (x & 0x100000)
+--              i += sprintf (buf+i, "RR#%04X %s %s", field(x,0xFFFF), af, mem);
+--          else
+--              i += sprintf (buf+i, "%s %s RR#%04X", mem, af, field(x,0xFFFF));
+--              
+--      }
+--
+--      else if (match (x, 0x1000090, 0xFF00FF0)) /* swap */
+--          i += sprintf (buf+i, "R%X = [R%X] = R%X", Rd, Rn, Rm);
+--      else if (match (x, 0x1400090, 0xFF00FF0)) /* swap bytes */
+--          i += sprintf (buf+i, "R%X = $[R%X] = R%X", Rd, Rn, Rm);
+--
+--      else if (match (x, 0x1900F9F, 0xFF00FFF)) /* LDREX */
+--          i += sprintf (buf+i, "R%X X= [R%X]", Rd, Rn);
+--      else if (match (x, 0x1800F9F, 0xFF00FFF)) /* STREX */
+--          i += sprintf (buf+i, "[R%X] X= R%X", Rn, Rd);
+--
+--      else if (match (x, 0x19000D0, 0xFF00FF0)) /* load signed byte register offset */
+--          i += sprintf (buf+i, "R%X = +$[R%X+R%X]", Rd, Rn, Rm);
+--
+--      else if (match (x, 0x04000D0, 0xE4000F0))
+--      {
+--          char mem[30];
+--          char s;
+--          unsigned int ofs;
+--          ofs = (x&0xF) | ((x&0xF00)>>4);
+--          if (x & 0x800000)
+--              s = '+';
+--          else
+--              s = '-';
+--          if (match (x, 0x04000D0, 0xE6000F0))
+--              sprintf (mem, "$$[R%X,%c=%X]", Rn, s, ofs);
+--          else if (match (x, 0x14000D0, 0xE6000F0))
+--              sprintf (mem, "$$[R%X%c=%X]", Rn, s, ofs);
+--          else if (match (x, 0x16000D0, 0xE6000F0))
+--              sprintf (mem, "$$[R%X%c%X]", Rn, s, ofs);
+--          else
+--              sprintf (mem, "[?]");
+--          if (x & 100000)
+--              i += sprintf (buf+i, "R%X = %s", Rd, mem);
+--          else
+--              i += sprintf (buf+i, "%s = R%X", mem, Rd);
+--      }
+--
+--      else if (match (x, 0x0000090, 0xFF0F0F0))
+--          i += sprintf (buf+i, "R%X = R%X * R%X", field(x,0xF0000), field(x,0xF00), field(x,0xF));
+--
+--      else
+--          i += sprintf (buf, "%X", x);
+--  outbuf:
+--      buf[i] = 0;
+--      fprintf (out, "%s", buf);
+--  }
 --*/
             else
-                ooo = mask(ins,OOOO)
+                ooo = mask(ins,OOOO)    -- (not OOO)
                 asm = sprintf("unknown (%04b)",{ooo})
                 res[tabidx][$][R_NOTES] = asm
-                exit
+--              exit
+                return fatal(asm)
             end if
         end while
         if size then
@@ -7124,8 +7368,10 @@ atom vaddr
 integer vsize
     for i=1 to length(sCodeSegments) do
         dsi = sCodeSegments[i]
-        vaddr = p_vaddrs[dsi]
-        vsize = p_fileszs[dsi]
+--      vaddr = p_vaddrs[dsi]
+        vaddr = iff(dsi>0?p_vaddrs[dsi]:shaddrs[-dsi])
+--      vsize = p_fileszs[dsi]
+        vsize = iff(dsi>0?p_fileszs[dsi]:shsizes[-dsi])
         if v>=vaddr and v<=vaddr+vsize then
             return True
         end if
@@ -7233,7 +7479,7 @@ sequence codesegments
     if    e_type=0 then     desc = "No file type"
     elsif e_type=1 then     desc = "Relocatable file"
 --dev: (gets us further on the .o, but there are only sections not segments in the file...)
---supported = 1
+supported = 1
     elsif e_type=2 then     desc = "Executable file"                supported = 1
     elsif e_type=3 then     desc = "Shared object file"             supported = 1
     elsif e_type=4 then     desc = "Core file"
@@ -7609,6 +7855,17 @@ sequence codesegments
                           and and_bits(e_entry,0b11)=0b00           -- *NOT* Thumb
                           and shflags[i]=SHF_ALLOC+SHF_EXECINSTR then
                             if dump_ELF_arm(i,desc) then end if
+-- 17/9/16: (experimental)
+                        elsif find(desc,{
+                                      ".plt",       --DEV code...
+                                      ".text",      --DEV code...
+                                     }) then
+--DEV fixme: (pstab??}
+                            set_seetab2(desc,i,pstab)
+                            sCodeSegments = append(sCodeSegments,-i)
+                            decode_ELF_code_segment(-i,1,supported) -- (justsettab=1)
+                            codesegments = append(codesegments,-i)
+
 --DEV all of the following, of course, deserve a full and detailed treatment instead of this quick and dirty binary dump...
                         elsif find(desc,{
                                       ".dynstr",
@@ -8827,7 +9084,7 @@ function is_so_or_bin(string filename, string extension)
 -- treat eg "libglfw.so.3.1" as "libglfw.so"
 integer ch
 --trace(1)
-    if find(extension,{"","so","bin"}) then return 1 end if
+    if find(extension,{"","so","bin","o"}) then return 1 end if
     for i=length(filename) to 1 by -1 do
         ch = filename[i]
         if ch='.' then
@@ -9273,10 +9530,10 @@ procedure main()
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\templaterp.exe") -- ""         "" (de-macroed)
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\divsd.exe") -- perfect
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\main.exe") -- perfect
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\libtest.dll") -- perfect (but no imports)
+--  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\libtest.dll") -- perfect (but no imports) [64 bit]
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\cbeer.exe") -- perfect
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\USECOM\\USECOM.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasmu\\fasm\\fasm.o") -- unsupported file type (relocatable)
+--  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasmu\\fasm\\fasm.o") -- unsupported file type (relocatable) [DEV??]
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasmu\\fasm\\examples\\libcdemo\\libcdemo.o") -- unsupported file type (relocatable)
 --32bitpe:
 --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\BEER\\BEER.EXE") -- confused by single ".flat" section (who cares)
@@ -9328,7 +9585,7 @@ procedure main()
 --  load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\ok64.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\Speech\\Speech.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\e02.exe")
+    load_file("C:\\Program Files (x86)\\Phix\\e02.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\demo\\arwenpcomdemo\\fileopen.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\demo\\eicar.com")
 --  load_file("C:\\Program Files (x86)\\Phix\\demo\\Win32Demo\\boxes.exe")
@@ -9341,6 +9598,30 @@ procedure main()
 --  load_file("C:\\Edita14\\bitmap_write.ppm")
 --  load_file("C:\\Edita14\\rayv3\\ex.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\p7.exe")
+--  load_file("C:\\Program Files (x86)\\Phix\\p64.exe")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\EuGTK_4.3.2\\EuGTK_Win_Aug10\\eugtkdem\\gtk2\\LIBGLIB-2.0-0.DLL")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\EuGTK_4.3.2\\EuGTK_Win_Aug10\\eugtkdem\\gtk2\\libgio-2.0-0.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euphoria-4.1.0-ARMv6-hardfloat\\bin\\eui")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euphoria-4.1.0-ARMv6-hardfloat\\bin\\echoversion")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euphoria-4.1.0-ARMv6-hardfloat\\bin\\eutest")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libcairo-2.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libfontconfig-1.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libfreetype-6.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libpng15-15.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\zlib1.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libxml2-2.dll")
+--  load_file("C:\\Windows\\SysWOW64\\ws2_32.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\win14\\lnx32\\libiupcontrols.so")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\win14\\lnx32\\libiup.so")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\win14\\lnx32\\libiupcd.so")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\win14\\lnx32\\libcd.so")
+--libcairo-2.dll libfontconfig-1.dll libfreetype-6.dll libpng12.dll zlib1.dll libxml2-2.dll
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euiup\\iup.dll")
+--  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\phix\\sfx\\ledc")
+--  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\phix\\sfx\\win32\\test.exe")
+
+--  load_file("C:\\Program Files (x86)\\Phix\\e06.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\e06.so")
 --  load_file("C:\\Program Files (x86)\\Phix\\pth.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
 --  load_file("C:\\Program Files (x86)\\Phix\\e03.exe")
@@ -9388,7 +9669,7 @@ procedure main()
 --DEV much more work required: (any relocation to part of distro) [also need a 32 bit version]
 --  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euglfw3_2\\EuGLFW3\\Bin\\libglfw.so.3.1")
 --DEV much more work required: (any relocation to part of distro) [also need a 64 bit version]
-    load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euglfw3_2\\EuGLFW3\\Bin\\glfw3.dll")
+--  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euglfw3_2\\EuGLFW3\\Bin\\glfw3.dll")
     WinMain(Main,SW_NORMAL)
 end procedure
 main()

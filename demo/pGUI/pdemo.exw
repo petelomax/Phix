@@ -2,215 +2,155 @@
 -- pdemo.exw
 -- =========
 --
+-- The gui front-end to Phix.
+--
+-- Some other ideas are:
+--  move the testset from p.exw to here
+--  check for updates
+--  command prompt here, directory listing if I can find it, maybe.
+--
 -- Known bugs:
 --  You can drag/resize column 0 [FIXED]
 
 --hitlist:
 -- get popup menus working
--- load directories
+-- load directories [DONE]
 -- 
 
 --with trace
-
---include pGUI.e
-include ../demo/pGUI/pGUI.e
---include builtins\sort.e       -- (not strictly necessary)
-
---include demo\arwendemo\pgui\pgdb.ew as pgdb
---include demo\arwendemo\pgui\pgdemo.ew as demo
---include demo\arwendemo\pgui\pgsetup.ew as setup
-
 --#withtype Ihandle
 
-constant titles = {"Chq#", "Date", "Amount", "Status", "Bank"},
-         twidth = { 40,     60,     100,      50,       50},
-         C = "ACENTER", L = "ALEFT", R = "ARIGHT",
-         talign = { L,      C,      R,        C,        L},
-         MAX = 5000,
-         RSPACE = "R    "
+include pGUI.e
+--include ../demo/pGUI/pGUI.e
+--include builtins\sort.e       -- (not strictly necessary)
 
-sequence data
+global Ihandle dlg, tabs, matrix, ftxt, pt, statusbar, clipboard
 
-sequence tags = tagset(MAX)
+global string crun, croot
 
-function buildDummyData()
-atom t = time()
-    data = repeat(0,MAX)
-    for i=1 to MAX do
-        data[i] = {i,                                                   -- ChqNo
-                   {2014+rand(2),rand(12),rand(28)},                    -- Date
-                   rand(999999)/100,                                    -- Amount,
-                   RSPACE[rand(5)],                                     -- Status,
-                   sprintf("%5d", rand(9999)+10000)}                    -- Bank
-    end for
-    return sprintf("%d records created in %3.2f seconds",{MAX,time()-t})
-end function
+include pdemo\pdb.e as pdb
+include pdemo\demo.ew as demo
+include pdemo\setup.ew as setup
 
-Ihandle matrix, ftxt, statusbar, dlg
-
-string semiperm -- (return value of value_cb must outlive it)
-
-function value_cb(Ihandle /*self*/, integer l, integer c)
-object dlc
-    if c>0 then
-        if c>length(titles) then return NULL end if
-        if l==0 then
-            return IupRawStringPtr(titles[c])   -- column title
-        end if
-        if l>length(data) then return NULL end if
-        l = tags[l]
-        dlc = data[l][c]
-        if string(dlc) then
-            if length(dlc)=0 then return NULL end if
-            return IupRawStringPtr(dlc)
-        elsif c=2 then -- date
-            semiperm = sprintf("%02d/%02d/%04d",reverse(dlc))
-        elsif c=3 then  -- amount
-            semiperm = sprintf("%9.2f",dlc)
-        elsif c=4 then  -- status
-            semiperm = sprintf("%c",dlc)
-        else
-            -- (c=1 (ChqNo) and/or c=6 (Bank):)
-            semiperm = sprint(dlc)
-        end if
-        return IupRawStringPtr(semiperm)
-    end if
-    return NULL
-end function
-
-integer eiskip = 1
-
-function enteritem_cb(Ihandle ih, integer lin, integer col)
-    IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
-    IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
-    IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
-    IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col}); -- [1]
-    if eiskip then
-        eiskip -= 1 -- (don't clobber inital buildDummyData() msg) [DEV]
-    else
-        IupSetStrAttribute(statusbar, "TITLE", sprint(data[tags[lin]]))
-    end if
-    return IUP_DEFAULT;
-end function
-
-integer sortcol = 0
-integer sortdir = 1
-
-function by_column(integer i, integer j)
-    return sortdir*compare(data[i][sortcol],data[j][sortcol])
-end function
-
-procedure showselected()
-integer idx = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
-string msg = sprint(data[tags[idx]])
-    IupMessage("Selected", msg)
-end procedure
-
-function click_cb(Ihandle self, integer l, integer c, atom pStatus)
-string sortc
---nullable_string v = IupMatGetAttribute(self, "", l, c);
---  if v=NULL then v = "NULL" end if
---  printf(1,"click_cb(%d, %d, %s)\n", {l, c, peek_string(pStatus)})
---  printf(1,"  VALUE%d:%d = %s\n", {l, c, v})
-    if c>0 and c<=length(titles) then
-        if l=0 then -- title clicked, so sort that column
-            atom t = time()
-            if sortcol!=0 and sortcol!=c then
-                sortc = sprintf("SORTSIGN%d",sortcol)
-                IupSetAttribute(self,sortc,"NO")
-            end if
-            sortc = sprintf("SORTSIGN%d",c)
-            sortdir = iff(IupGetAttribute(self,sortc)="DOWN"?-1:1)
-            IupSetAttribute(self,sortc,iff(sortdir=-1?"UP":"DOWN"))
-            sortcol = c
-            tags = custom_sort(routine_id("by_column"),tags)
---          IupSetAttribute(statusbar, "TITLE", sprintf("sort completed in %3.2f seconds",time()-t))
-            IupSetAttribute(self,"REDRAW","ALL")
-        elsif l<=length(data)
-          and iup_isdouble(pStatus) then
-            showselected()
-        end if
-    end if
-    return IUP_DEFAULT;
-end function
-
-function resize_cb(Ihandle /*ih*/, integer width, integer /*height*/)
-sequence widths = repeat(0,IupGetInt(matrix,"NUMCOL"))
-integer total_width = 0, new_width
-    for i=1 to length(widths) do
-        widths[i] = IupGetInt(matrix,sprintf("RASTERWIDTH%d",i))
-    end for
-    width -= 65
-    if width<120 then width = 120 end if
-    total_width = sum(widths)
-    IupSetInt(matrix,"RASTERWIDTH0",0)
-    for i=1 to length(widths) do
-        new_width = floor((widths[i]/total_width)*width)
-        if new_width<10 then new_width = 10 end if
-        IupSetInt(matrix,sprintf("RASTERWIDTH%d",i),new_width)
-        widths[i] = new_width
-    end for
---I used this to set MINSIZE:
-IupSetAttribute(dlg, "TITLE", IupGetAttribute(dlg,"SIZE"))
-    return IUP_DEFAULT
-end function
-
-function colresize_cb(Ihandle /*ih*/, integer col)
--- thwart attempts to resize column 0 (vertical titles)
-    if col=0 then
-        IupSetInt(matrix, "WIDTH0", NULL)
-    end if
-    return IUP_DEFAULT
-end function
-
-function key_cb(Ihandle ih, atom c)
-    if c=K_CR and ih=matrix then showselected() end if
+function key_cb(Ihandle /*ih*/, atom c)
+--function keypress_cb(Ihandle /*ih*/, atom c, integer press)
 --DEV F1, 
-    -- (I like all my demos to close when escape is keyed)
+--  if press then
+        if IupGetInt(tabs,"VALUEPOS")=0 then    -- demos
+            if    c=K_F1 then demo:Help()
+            elsif c=K_F2 then demo:Amend()
+            elsif c=K_F5 then demo:Run()
+            elsif IupGetFocus()!=ftxt -- (managed via VALUECHANGED_CB)
+              and (c=K_DEL or 
+                   c=K_BS or 
+                   iup_isprint(c)) then
+                demo:filterkey(c)
+            end if
+        else                                    -- settings
+        end if
+--  end if
     return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
 end function
+constant cb_key = Icallback("key_cb")
+--constant cb_keypress = Icallback("keypress_cb")
 
-function run_cb(Ihandle /*ih*/)
---?"run_cb" -- OK
---DEV:
-    return IUP_DEFAULT
+function close_cb(Ihandle /*ih*/)
+    return IUP_CLOSE
+end function
+constant cb_close = Icallback("close_cb")
+
+--constant actset = {"create undo.reg",
+--                 "edit undo.reg",
+--                 "reload undo.reg",
+--                 "merge undo.reg",
+--                 "create setup.reg",
+--                 "edit setup.reg",
+--                 "merge setup.reg",
+--                 "apply (default)"}
+
+--function trim_trailing(sequence s, sequence parts)
+--  for i=length(parts) to 1 by -1 do
+--      if parts[i]!=s[$] then exit end if
+--      s = s[1..$-1]
+--  end for
+--  return s
+--end function
+
+function validexe(string s)
+    if find(s,{"p.exe","pw.exe","p64.exe","pw64.exe","phix"}) then
+        return 1
+    elsif length(s)=7
+      and s[1..2]="pw"
+      and s[4..7]=".exe"
+      and find(s[2],"123456789") then
+        -- Feel free to ignore this part
+        -- (I use pw1.exe..pw9.exe when developing phix)
+        return 1
+    end if
+    return 0
 end function
 
-constant actset = {"create undo.reg",
-                   "edit undo.reg",
-                   "reload undo.reg",
-                   "merge undo.reg",
-                   "create setup.reg",
-                   "edit setup.reg",
-                   "merge setup.reg",
-                   "apply (default)"}
+--DEV temp:
+include builtins\psplit.e
 
 procedure main()
-Ihandle runBtn, flbl, helpBtn, closeBtn, rlfhc, pt, tab1, tab2, tabs1, box,
-        lpath, ruser, rmach, radio, lpad1, cpath, path1, path2, path3,
-        lpert, tpert, lper2, tper2, ldefi, tdefi, icon1, lerri, terri, icon2,
-        ledix, tedix, edit1, lrun1, trun1, lrunw, trunw, lpad3, lpad4, lpad5,
-        lpad2, actdd, bOK, bHelp
+Ihandle runBtn, flbl, helpBtn, closeBtn, rlfhc, tab1, tab2, box
+--      lpath, ruser, rmach, radio, lpad1, cpath, path1, path2, path3,
+--      lpert, tpert, lper2, tper2, ldefi, tdefi, icon1, lerri, terri, icon2,
+--      ledix, tedix, edit1, lrun1, trun1, lrunw, trunw, lpad3, lpad4, lpad5,
+--      lpad2, actdd, bOK, bHelp
 
-    IupOpen()
+    sequence cl = command_line()
 
-    matrix = IupMatrix()
-    IupSetInt(matrix, "NUMCOL", length(titles))
-    IupSetInt(matrix, "NUMCOL_VISIBLE", length(titles))
-    IupSetInt(matrix, "NUMLIN", MAX)
---  IupSetInt(matrix, "WIDTHDEF", 40) -- (now completely overidden anyway)
-    for i=1 to length(twidth) do
-        IupSetInt(matrix, sprintf("RASTERWIDTH%d",{i}), twidth[i])
-        IupSetAttribute(matrix, sprintf("ALIGNMENT%d",{i}), IupRawStringPtr(talign[i]))
+--DEV/SUG:
+if 1 then
+-- get_interpreter()??
+    sequence cpaths = split_path(cl[1])
+    crun = cpaths[$]
+--  croot = join_path(trim_trailing(cpaths[1..$-1],{"demo","pGUI"}),1)
+--  croot = join_path(cpaths[1..find("demo",cpaths)-1],1)
+    cpaths = cpaths[1..$-1]
+    cpaths = cpaths[1..find("demo",cpaths)-1]
+    croot = join_path(cpaths,1)
+    if not validexe(crun) then
+        crun = "pw.exe"
+    end if
+    crun = join_path({croot,crun})
+else    
+    crun = cl[1]
+    for i=length(crun) to 0 by -1 do
+        if find(crun[i],"\\/") then
+            croot = crun[1..i]
+            crun = lower(crun[i+1..length(crun)])
+--          if not find(crun,{"p7.exe","pw.exe","p.exe"}) then
+            if not validexe(crun) then
+                crun = "pw.exe"
+            end if
+            crun = croot&crun
+            exit
+        end if
     end for
+end if
+    if find(' ',crun) then
+        crun = '\"' & crun & '\"'
+    end if
+
+    string dll_path = get_proper_dir(cl[2])
+    if lower(dll_path[-5..-2])="phix" then
+        -- if we ran pdemo.exw in C:\Program Files[ (x86)]\Phix\, then
+        --  pretend it was in C:\Program Files[ (x86)]\Phix\demo\pGUI\
+        dll_path = join_path({dll_path,"demo","pGUI"},1)
+    end if
+    IupOpen(dll_path)
+
+    IupSetGlobal("UTF8MODE","YES")
+
+    matrix = IupMatrix()    -- (columns/widths now set in demo.ew)
     --IMPORTANT: HEIGHT0 tells IupMatrix that we are gonna have column titles at line 0
     IupSetInt(matrix, "HEIGHT0", 10);
     IupSetAttribute(matrix, "RESIZEMATRIX", "YES");
     IupSetAttribute(matrix, "MARKMODE", "LIN");
     IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS");
---DEV does not seem to work...
---  IupSetAttribute(matrix, "MULTIPLE", "YES"); -- (or is that "MARKMULTIPLE"? the default is NO anyway)
-
 --  IupSetAttribute(matrix, "READONLY", "YES"); -- with VALUE_CB set, non-setting of VALUE_EDIT_CB (also) makes it read-only
     IupSetAttribute(matrix, "HIDEFOCUS", "YES");
     IupSetAttribute(matrix, "FRAMECOLOR", "220 220 220");
@@ -218,127 +158,34 @@ Ihandle runBtn, flbl, helpBtn, closeBtn, rlfhc, pt, tab1, tab2, tabs1, box,
     IupSetAttribute(matrix, "BORDER", "NO");
     IupSetAttribute(matrix, "CURSOR", "ARROW");
 
-    IupSetCallback(matrix, "VALUE_CB",      Icallback("value_cb"))
-    IupSetCallback(matrix, "ENTERITEM_CB",  Icallback("enteritem_cb"));
-    IupSetCallback(matrix, "CLICK_CB",      Icallback("click_cb"));
-    IupSetCallback(matrix, "COLRESIZE_CB",  Icallback("colresize_cb"));
-    IupSetCallback(matrix, "K_ANY",         Icallback("key_cb"));
+    IupSetCallback(matrix, "VALUE_CB",      demo:cb_value)
+    IupSetCallback(matrix, "ENTERITEM_CB",  demo:cb_enteritem)
+    IupSetCallback(matrix, "CLICK_CB",      demo:cb_click)
+    IupSetCallback(matrix, "COLRESIZE_CB",  demo:cb_colresize)
+    IupSetCallback(matrix, "RELEASE_CB",    demo:cb_release)
+--  IupSetCallback(matrix, "K_ANY",         cb_key)
 
-    runBtn = IupButton("&Run",Icallback("run_cb"),"PADDING=10x0")
+    runBtn = IupButton("&Run",demo:cb_run,"PADDING=10x0")
     flbl = IupLabel("Fil&ter","PADDING=0x4")
     ftxt = IupText("EXPAND=HORIZONTAL")
-    helpBtn = IupButton("&Help","PADDING=10x0")
-    closeBtn = IupButton("&Close","PADDING=10x0")
+    IupSetCallback(ftxt,"VALUECHANGED_CB",demo:cb_valuechanged)
+    helpBtn = IupButton("&Help",demo:cb_help,"PADDING=10x0")
+    closeBtn = IupButton("&Close",cb_close,"PADDING=10x0")
     rlfhc = IupHbox({runBtn,flbl,ftxt,helpBtn,closeBtn})
     pt = IupMultiLine("EXPAND=YES")
+--?IupGetAttribute(pt,"FONT")
+    IupSetAttribute(pt,"FONT","Courier, 9")
 
     tab1 = IupVbox({matrix, rlfhc, pt},"TABTITLE=Demos")
-    
-    lpath = IupLabel("PATH:","ALIGNMENT=ARIGHT, PADDING=0x4")
-    ruser = IupToggle("HKEY_CURRENT_USER\\Environment\\Path")
-    rmach = IupToggle("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment\\Path")
-    radio = IupRadio(IupVbox({ruser,rmach}))
-    lpad1 = IupLabel()
-    cpath = IupToggle("cbPath")
-    path1 = IupLabel()
-    path2 = IupLabel()
-    path3 = IupLabel()
-    lpert = IupLabel("Percieved Type","ALIGNMENT=ARIGHT, PADDING=0x2")
-    tpert = IupToggle(".e,.ew,.ex,.exw")
-    lper2 = IupLabel("(of \"text\")","ALIGNMENT=ARIGHT, PADDING=0x2")
-    tper2 = IupToggle(".asm,.bat,.css,.inc,.js")
-    ldefi = IupLabel("Default Icon","ALIGNMENT=ARIGHT, PADDING=0x2")
-    tdefi = IupToggle(".e,.ew,.ex,.exw")
-    lpad3 = IupLabel("","SIZE=4x4")
-    icon1 = IupLabel("C:\\Program Files\\Phix\\Psrc.ico,1")
-    lerri = IupLabel("Error File Icon","ALIGNMENT=ARIGHT, PADDING=0x2")
-    terri = IupToggle(".err")
-    lpad4 = IupLabel("","SIZE=4x4")
-    icon2 = IupLabel("C:\\Windows\\system32\\shell32.dll,78")
-    ledix = IupLabel("Edit with Edix","ALIGNMENT=ARIGHT, PADDING=0x2")
-    tedix = IupToggle(".e,.ew,.ex,.exw")
-    lpad5 = IupLabel("","SIZE=4x4")
-    edit1 = IupLabel("pw edix %1")
-    lrun1 = IupLabel("Run \".ex\" with Phix","ALIGNMENT=ARIGHT, PADDING=0x2")
-    trun1 = IupToggle("p %1")
-    lrunw = IupLabel("Run \".exw\" with Phix","ALIGNMENT=ARIGHT, PADDING=0x2")
-    trunw = IupToggle("pw %1")
+    tab2 = setup:create_settings_tab()
 
-    lpad2 = IupLabel()
-    actdd = IupList()
-    IupSetAttribute(actdd,"DROPDOWN","YES")
-    IupSetInt(actdd,"VISIBLEITEMS",length(actset)+1)    -- [no idea why it needs the +1]
-    for i=1 to length(actset) do
-        IupSetAttributeId(actdd, "", i, actset[i])
-    end for
-    IupSetInt(actdd,"VALUE",length(actset))
-    bOK = IupButton("OK","PADDING=10x0")
-    bHelp = IupButton("Help","PADDING=10x0")
+    tabs = IupTabs({tab1, tab2})
 
-    IupDestroy(IupNormalizer({lpath,lpad1,lpert,lper2,ldefi,lerri,ledix,lrun1,lrunw,lpad2},"NORMALIZE=HORIZONTAL"))
-    tab2 = IupHbox({IupFill(),
-                    IupVbox({IupLabel("*** INCOMPLETE ***"),    -- (make this "" when done)
---                                    iff(platform()=WINDOWS?"":"These settings are Windows only") (and disable OK [etc])
-                             IupHbox({lpath,IupVbox({radio})}),
-                             IupHbox({lpad1,IupVbox({cpath,
-                                                     path1,
-                                                     path2,
-                                                     path3})}),
-                             IupHbox({lpert,IupVbox({tpert})}),
-                             IupHbox({lper2,IupVbox({tper2})}),
-                             IupHbox({ldefi,IupVbox({tdefi,
-                                                     IupHbox({lpad3,icon1})})}),
-                             IupHbox({lerri,IupVbox({terri,
-                                                     IupHbox({lpad4,icon2})})}),
-                             IupHbox({ledix,IupVbox({tedix,
-                                                     IupHbox({lpad5,edit1})})}),
-                             IupHbox({lrun1,IupVbox({trun1})}),
-                             IupHbox({lrunw,IupVbox({trunw})}),
-                             IupHbox({lpad2,IupHbox({actdd,bOK,bHelp})}),
-                            $
-                            }),
-                    IupFill()},"TABTITLE=Settings")
---/*
---  psettings = create(TabItem,"Settings",0,TC,0,0,0,0,0),
---  lPath = create(Label,"PATH:",0,psettings,8,17,109,20,SS_RIGHT),
---  cHKCU = "HKEY_CURRENT_USER\\Environment\\Path",
---  cHKLM = "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment\\Path",
---  rbUser    = create(RadioButton,cHKCU,0,psettings,121,14,559,20,0),
---  rbMachine = create(RadioButton,cHKLM,0,psettings,121,31,631,20,0),
---  cbPath = create(CheckBox,"cbPath",0,psettings,119,53,14,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
---  lPath1 = create(Label,"path1",0,psettings,137,56,535,20,SS_OWNERDRAW),
---  lPath2 = create(Label,"path2",0,psettings,137,75,535,20,SS_OWNERDRAW),
---  lPath3 = create(Label,"path3",0,psettings,137,94,535,20,SS_OWNERDRAW),
---  cbPerceivedType = create(CheckBox,"Percieved Type",0,psettings, 8,111,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
---  cbPTOther       = create(CheckBox,"(of \"text\")", 0,psettings,41,130,91,20,{{BS_CENTER,BS_LEFTTEXT},0}),
---  lType1 = create(Label,".e,.ew,.ex,.exw",        0,psettings,137,114,535,20,SS_OWNERDRAW),
---  lType2 = create(Label,".asm,.bat,.css,.inc,.js",0,psettings,137,133,535,20,SS_OWNERDRAW),
---  cbDefaultIcon = create(CheckBox,"Default Icon",0,psettings,8,151,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
---  lIcon  = create(Label,".e,.ew,.ex,.exw",        0,psettings,137,154,535,20,SS_OWNERDRAW),
---  icon1 = create(Label,"C:\\Program Files\\Phix\\Psrc.ico,1",0,psettings,137,169,535,20,SS_OWNERDRAW),
---  cbErrorIcon = create(CheckBox,"Error File Icon",0,psettings,8,181,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
---  lEIcon = create(Label,".err",                   0,psettings,137,184,180,20,SS_OWNERDRAW),
---  icon2 = create(Label,"C:\\Windows\\system32\\shell32.dll,78",0,psettings,137,197,535,20,SS_OWNERDRAW),
---  cbEdita = create(CheckBox,"Edit with Edita",0,psettings,8,210,124,19,{{BS_LEFTTEXT,BS_RIGHT},0}),
---  lEdit = create(Label,".e,.ew,.ex,.exw",0,psettings,137,213,196,20,SS_OWNERDRAW),
---  edit1 = create(Label,"pw edita %1",0,psettings,137,227,535,15,SS_OWNERDRAW),
---  cbRun = create(CheckBox,"Run \".ex\" with Phix",0,psettings,8,242,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
---  run1 = create(Label,"p %1",0,psettings,137,245,535,13,SS_OWNERDRAW),
---  cbRunW = create(CheckBox,"Run \".exw\" with Phix",0,psettings,8,264,124,20,{{BS_LEFTTEXT,BS_RIGHT},0}),
---  run2 = create(Label,"pw %1",0,psettings,137,267,535,20,SS_OWNERDRAW),
-
---  cddAct = create(ComboDropDown,"Action", 0,psettings,120, 295, 116,157,0),
---  sbOK  = create(Button,"OK",         0,psettings, 246,289, 75,30,0),
---  sbHelp   = create(Button,"Help",            0,psettings,334,289, 75,30,0),
---*/
-
-    tabs1 = IupTabs({tab1, tab2})
-
-    box = IupHbox({tabs1})
+    box = IupHbox({tabs})
     IupSetAttribute(box, "MARGIN", "1x2")
     IupSetAttribute(box, "GAP", "10")
 
-    statusbar = IupLabel(buildDummyData());
+    statusbar = IupLabel(demo:Init())
     IupSetAttribute(statusbar, "EXPAND", "HORIZONTAL");
     IupSetAttribute(statusbar, "PADDING", "10x5");
 
@@ -348,26 +195,34 @@ Ihandle runBtn, flbl, helpBtn, closeBtn, rlfhc, pt, tab1, tab2, tabs1, box,
     dlg = IupDialog(vbox)
     IupSetAttribute(dlg, "TITLE", "pdemo")
     IupSetAttribute(dlg, "SIZE", "800x440")
--- (see comment in resize_cb)
---  IupSetAttribute(dlg, "MINSIZE", "220x160")  -- 147x85!!
---  IupSetAttribute(dlg, "MINSIZE", "290x240")  -- 193x128!!
---  IupSetAttribute(dlg, "MINSIZE", "440x320")  -- 293x171!!
---  IupSetAttribute(dlg, "MINSIZE", "370x300")  -- 247x160
---  IupSetAttribute(dlg, "MINSIZE", "350x300")  -- 233x160
---  IupSetAttribute(dlg, "MINSIZE", "330x300")  -- 220x160
--- (above was before Steeings tab had been populated)
---  IupSetAttribute(dlg, "MINSIZE", "478x354")  -- 319x189
-    IupSetAttribute(dlg, "MINSIZE", "717x664")  -- 478x354
--- (717=478*330/220; 664=354*300/160 (aka *{1.5,1.875}): I can do the maths but do not understand it..)
+    IupSetAttribute(dlg, "MINSIZE", "717x664")  -- (may want tweaking)
     IupSetAttribute(dlg, "SHRINK", "YES")
-    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"));
+    IupSetCallback(dlg, "RESIZE_CB", demo:cb_resize)
 
     IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+--  IupSetCallback(dlg, "KEYPRESS_CB", cb_keypress)
+
+    clipboard = IupClipboard()
 
     IupShow(dlg)
+
+    if length(cl)>=3 then
+        string cl3 = cl[3]
+        if cl3="-demo" then     -- (the default anyway)
+--          IupSetInt(tabs,"VALUEPOS",0)
+        elsif cl3="-settings" then
+            IupSetInt(tabs,"VALUEPOS",1)
+        else
+            puts(1,"unrecognised command line option :"&cl3)
+            ?9/0
+        end if
+    end if
+
     IupSetFocus(matrix)
     IupMainLoop()
     IupClose()
+    pdb:DBclose()
+
 end procedure
 
 main()

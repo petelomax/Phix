@@ -23,36 +23,45 @@ Any exceptions that must be re-thrown must be done so manually.<br>
 Unlike other languages there is only one (non-optional) catch clause. <br>
 There are no confusing <i>classes</i> of exceptions, and no implicit
 filtering, and hence no unexpected leaks to the outside world.
-
+<br>
+<br>
 The exception variable is declared immediately after the catch keyword and is a sequence.<br>
 It can be given with any valid identifier as a name, though "e" is usually sufficient.
-
+<br>
+<br>
 The sequence e always contains at least an exception code and address, but could also hold 
 a routine number/name, and source code line number. The content beyond the first two elements 
 may differ between interpreted and compiled applications, and the catch code block should be 
 written to cope accordingly. 
-
+<br>
+<br>
 Obviously the application will terminate immediately (just like 9/0) should throw() be invoked 
 when there is no active handler (try/catch construct) in the current call stack.
-
+<br>
+<br>
 I concede. Once I thought of it, catch e ... throw(e) is a fairly compelling argument. 
-
+<br>
+<br>
  Here is a first stab at defining what an exception innards might look like (with something of a Phix bias) 
-
+<br>
+<br>
 catch e 
-
+<br>
+<br>
 The following constants (automatically defined in psym.e/syminit) can be used to examine the contents of an exception:<br>
 1   E_CODE (atom) hardware and operating system exceptions usually have bit #800000000 set, user exceptions can be any atom value, even 0. <br>
 2   E_ADDR (atom) a machine address indicating where the exception ocurred.<br>
 3   E_RTN (integer, optional) equivalent to routine_id(), an index to the symbol table identifying the routine.<br>
 4   E_LINE (integer, optional) the source code line matching E_ADDR in E_RTN.<br>
 5   E_NAME (string|integer, optional) the human-readable name of E_RTN.<br>
-6   E_USER (object, optional) user defined/application specific content in e[6..$].<br>
-
+6   E_USER (object, optional) user defined/application specific content in e[6..$].
+<br>
+<br>
 Only the first two elements are guaranteed to be present. Further user-defined elements may also be present. 
 There is no upper limit to the length of an exception or the amount of detailed information it can contain, 
 however the first five elements have predefined meanings. 
-
+<br>
+<br>
 throw(object e, object e6={}) 
 
 <pre>
@@ -65,12 +74,15 @@ throw(object e, object e6={})
     if e[E_LINE] is -1 and e[E_ADDR] was -1, then the (new) value of e[ADDR]-1 is mapped to a line number in e[E_RTN] and stored in e[E_LINE]. 
     if e[E_NAME] is -1 and e[E_RTN] was -1, the name is retrieved from the symbol table.
 </pre>
-[DEV], however (in Phix) that may be a meaningless ttree index when interpreting and a proper string only when compiled. [DEV] (see what happens during implementation)
-
+[DEV], however (in Phix) E_NAME may be a meaningless ttree index when interpreting and a proper string only when compiled. <br>
+[DEV] (see what happens during implementation)
+<br>
+<br>
 Performance/benchmarking note: when interpreting, the first exception may take a few seconds to populate the (entire) symbol table with 
 actual identifier names instead of ttree indexes. Deliberately throwing and catching an exception before timing begins may therefore give 
 a much more sensible/honest/useful result for per-exception handling overhead.
-
+<br>
+<br>
 Note that for hardware and operating system exceptions, e[E_ADDR] may correspond to a machine instruction emitted for the source code line, 
 or the first byte of the next line, or somewhere deep in the heart of say kernel32.dll, or part of the internal workings of c_func, and 
 therefore (in early versions at least) e[E_LINE] may be quite wrong. Such cases will need to be fixed on an ad hoc basis, either by 
@@ -79,7 +91,8 @@ thing that makes sense. If all such efforts are in vain, the runtime reserves th
 In short, you should not become over-reliant on the optional values e[E_LINE] and e[E_NAME], and do not panic/crash if absent or -1. 
 You can however populate a throw() statement with made-up values. If you supply a made-up E_RTN you are also expected to supply a made-up
 E_NAME, and likewise with E_ADDR/E_LINE. Note the latter may drift over time, just like a puts(1,"This is line 6170\n") might.
-
+<br>
+<br>
 Gosling:
 <pre>
 A try statement with a finally block is executed by first executing the try block. Then there is a choice:
@@ -102,6 +115,8 @@ A try statement with a finally block is executed by first executing the try bloc
         If the finally block completes normally, then the try statement completes abruptly for reason R.
         If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S (and reason R is discarded).
 </pre>
+        Of course, each individual phrase/clause/statement is perfectly reasonable, however as a whole it is utterly incomprehensible, quite
+        literally almost impossible to remember, and hence extremely difficult to code correctly against. Maybe a flow chart would help. Or not.
       </div>
      </stripped>
     </get>

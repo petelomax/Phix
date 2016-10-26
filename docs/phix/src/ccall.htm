@@ -13,7 +13,7 @@
         <br>
         <br>
         Phix provides a mechanism for calling any C function in any Windows API .dll file, or indeed in any Windows .dll file that you or someone else creates. 
-        There is also a call-back mechanism that lets Windows call your Euphoria routines. Call-backs are necessary when you create a graphical user interface. 
+        There is also a call-back mechanism that lets Windows call your Phix routines. Call-backs are necessary when you create a graphical user interface. 
         <br>
         <br>
         <table>
@@ -110,7 +110,7 @@
         <br>
 To make full use of the WINDOWS platform, you need documentation on Windows programming, in particular the WINDOWS Application Program Interface (API), including the C structures defined by the API. 
 There is a large WIN32.HLP file (c) Microsoft that is available with many programming tools for Windows. 
-There are numerous books available on the subject of WINDOWS programming for C/C++. You can adapt most of what you find in those books to the world of Euphoria programming for Windows. 
+There are numerous books available on the subject of WINDOWS programming for C/C++. You can adapt most of what you find in those books to the world of Phix programming for Windows. 
 A good book is Programming Windows by Charles Petzold, Microsoft Press
         <br>
         <br>
@@ -226,7 +226,7 @@ In practice it is not hard to align most structures since 90% of the fields are 
         <br>
         <br>
 Tip: 
- For readability, make up Euphoria constants for the field offsets. See Example below. 
+ For readability, make up constants for the field offsets. See Example below. (See also <a href="cffi.htm">cffi</a>)
 <!--eucode>
         constant RECT_LEFT = 0,
          RECT_TOP  = 4,
@@ -265,11 +265,11 @@ atom rect = allocate(16)
 </font><font color="#7060A8">        puts</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000"> "InvalidateRect failed\n"</font><font color="#0000FF">)
 </font><font color="#008080">    end if</font>
 </pre>
-The Euphoria code that accesses C routines and data structures may look a bit ugly, but it will typically form just a small part of your program, 
-especially if you use Arwen, Win32Lib, or [DEV???] . Most of your program will be written in pure Euphoria, which will give you a big advantage over C. 
+The Phix code that accesses C routines and data structures may look a bit ugly, but it will typically form just a small part of your program, 
+especially if you use pGUI. Most of your program will be written in pure Phix, which will give you a big advantage over C. 
         <br>
         <br>
-<h3>Call-backs to your Euphoria routines</h3>
+<h3>Call-backs to your Phix routines</h3>
         <br>
         <br>
 When you create a window, the Windows operating system needs to call a routine that you must provide. 
@@ -290,12 +290,12 @@ To set this up, you must get a 32-bit "call-back" address for your routine and g
 </font><font color="#000000">        id</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"WndProc"</font><font color="#0000FF">) 
 </font><font color="#000000">        WndProcAddress</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">)</font>
 </pre>
-routine_id() uniquely identifies a Euphoria procedure or function by returning a small integer value. 
+routine_id() uniquely identifies a Phix procedure or function by returning a small integer value. 
 This value can be used later to call the routine. You can also use it as an argument to the call_back() function. 
         <br>
         <br>
 In the example above, The call-back address, WndProcAddress, can be stored in a C structure and passed to Windows via the RegisterClass() C API function. 
-This gives Windows the ability to call the Euphoria routine, WndProc(), whenever the user performs an action on a certain class of window. 
+This gives Windows the ability to call the Phix routine, WndProc(), whenever the user performs an action on a certain class of window. 
 Actions include clicking the mouse, typing a key, resizing the window etc. See the window.exw demo program for the whole story. 
         <br>
         <br>
@@ -324,25 +324,25 @@ No error will occur if you declare all parameters as atom.
         <br>
         <br>
 Normally, as in the case of WndProc() above, Windows initiates these call-backs to your routines. 
-It is also possible for a C routine in any .dll to call one of your Euphoria routines. 
+It is also possible for a C routine in any .dll to call one of your Phix routines. 
 You just have to declare the C routine properly, and pass it the call-back address. 
         <br>
         <br>
-Here is an example of a WATCOM C routine that takes your call-back address as its only parameter, and then calls your 3-parameter Euphoria routine: 
+Here is an example of a WATCOM C routine that takes your call-back address as its only parameter, and then calls your 3-parameter Phix routine: 
 <pre>
-        / * 1-parameter C routine that you call from Euphoria * /
+        / * 1-parameter C routine that you call from Phix * /
         unsigned EXPORT APIENTRY test1(
                  LRESULT CALLBACK (*eu_callback)(unsigned a,
                                                  unsigned b,
                                                  unsigned c))
         {
-            / * Your 3-parameter Euphoria routine is called here 
+            / * Your 3-parameter Phix routine is called here 
                via eu_callback pointer * /
             return (*eu_callback)(111, 222, 333); 
         }
 </pre>
 The C declaration above declares test1 as an externally-callable C routine that takes a single parameter. 
-The single parameter is a pointer to a routine that takes 3 unsigned parameters - i.e. your Euphoria routine. 
+The single parameter is a pointer to a routine that takes 3 unsigned parameters - i.e. your Phix routine. 
         <br>
         <br>
 In WATCOM C, "CALLBACK" is the same as "__stdcall", i.e "standard call". 
@@ -351,8 +351,8 @@ must be declared this way too, or you will get an error when your routine tries 
 Note that the default calling convention for Windows C compilers is something different, called "__cdecl". 
         <br>
         <br>
-In the example above, your Euphoria routine will be passed the three values 111, 222 and 333 as arguments. 
-Your routine will return a value to test1. That value will then be immediately returned to the caller of test1 (which could be at some other place in your Euphoria program).
+In the example above, your Phix routine will be passed the three values 111, 222 and 333 as arguments. 
+Your routine will return a value to test1. That value will then be immediately returned to the caller of test1 (which could be at some other place in your Phix program).
         <br>
         <br>
       </div>

@@ -45,8 +45,8 @@ include VM\pFPU.e   -- :%down53 etc
             int3
 --      ::e35pfo
 --          int3
-        ::e54atrnntnip
-            int3
+--      ::e54atrnntnip
+--          int3
 
 --/*
 procedure :%opPow(:%)
@@ -226,7 +226,14 @@ end procedure -- (for Edita/CtrlQ)
         fcom st2
         fnstsw ax
         sahf
-        jne :e54atrnntnip   -- attempt to raise negative number to non-integer power
+--      jne :e54atrnntnip   -- attempt to raise negative number to non-integer power
+        je @f
+            pop edx
+            mov al,54       -- e54atrnntnip: attempt to raise negative number to non-integer power
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
         sub esp,4
         fistp dword[esp]
         pop eax
@@ -412,7 +419,14 @@ end procedure -- (for Edita/CtrlQ)
         fcom st2
         fnstsw ax
         sahf
-        jne :e54atrnntnip   -- attempt to raise negative number to non-integer power
+--      jne :e54atrnntnip   -- attempt to raise negative number to non-integer power
+        je @f
+            pop rdx
+            mov al,54       -- e54atrnntnip: attempt to raise negative number to non-integer power
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
         sub rsp,8
         fistp qword[rsp]
         pop rax

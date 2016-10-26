@@ -387,6 +387,8 @@ end function
 
 constant HighLow = #3000
 
+integer actual_reloc_size = 0
+
 function relocate(sequence relocations, sequence ridx, sequence Bases)
 integer Base
 integer first
@@ -397,22 +399,48 @@ string block
 integer bidx
 integer TypeOffset
 string res = ""
+integer lastRVA = 0
+
+    if Bases[1]>Bases[2] then
+        relocations = reverse(relocations)
+        ridx = reverse(ridx)
+        Bases = reverse(Bases)
+--  elsif length(relocations)=3 then
+--      relocations = {relocations[3],relocations[1],relocations[2]}
+--      ridx = {ridx[3],ridx[1],ridx[2]}
+--      Bases = {Bases[3],Bases[1],Bases[2]}
+    end if
 
     for i=1 to length(ridx) do
         Base = Bases[i]
         for j=1 to length(ridx[i]) do
             {first,n,PageRVA} = ridx[i][j]
+            PageRVA = PageRVA*#1000+Base
+--          if PageRVA<=lastRVA then ?9/0 end if
+            if PageRVA<=lastRVA then ?"pbinary.e: 9/0 line 420\n" end if
+            lastRVA = PageRVA
             BlockSize = 8+n*2
+            actual_reloc_size += BlockSize
+--?{actual_reloc_size,n,BlockSize}
             block = repeat(' ',BlockSize)
-            block = SetField(block,#0,DWORD,PageRVA+Base)
+            if and_bits(n,1) then
+                BlockSize += 2
+            end if
+            block = SetField(block,#0,DWORD,PageRVA)
             block = SetField(block,#4,DWORD,BlockSize)
             bidx = 8
             for k=first to first+n-1 do
-                TypeOffset = relocations[i][k]+HighLow
+                integer rik = and_bits(relocations[i][k],#0FFF)
+--              if rik<0 or rik>#0FFF then ?9/0 end if
+                TypeOffset = rik+HighLow
                 block = SetField(block,bidx,WORD,TypeOffset)
                 bidx += 2
             end for
             res &= block
+            if and_bits(n,1) then
+                res &= repeat('\0',2)
+                actual_reloc_size += 2
+            end if
         end for
     end for
     return res
@@ -430,6 +458,7 @@ global integer ImageBase2
 function peHeader(integer machine, integer subsystem, integer subvers, sequence imports, sequence exports, sequence relocations, integer datalen, integer codelen, integer resourcelen)
 integer BaseOfData
 integer BaseOfCode
+--integer BaseOfImports
 integer resourceBase
 integer SizeOfImage
 integer importRVA
@@ -473,14 +502,14 @@ integer RVAaddr
 --sequence names
 integer thunks,
         thunkstart,
-        isize = 0,
+        isize = 0,  -- imports
         ibase,
-        esize = 0,
+        esize = 0,  -- exports
         elen,
         ebase,
-        xsize = 0,
+        xsize = 0,  -- exceptions (PE64 only)
         xbase,
-        rsize = 0,
+        rsize = 0,  -- relocs/resources
         rbase,
         prevbase,
         newbase,
@@ -510,6 +539,7 @@ integer ImageBase
 atom v
 --integer symidx
 --object tmp
+integer expected_reloc_size
 
 --puts(1,"peHeader: entry\n")
     ImageBase = #00400000 -- DEV what about DLLs?
@@ -550,6 +580,8 @@ if and_bits(isize,1) then isize += 1 end if
         ibase = RVAaddr
         RVAaddr += RoundToSectionAlignment(isize)
         sections = append(sections,{2,".idata",isize,ibase})
+--      BaseOfImports = RVAaddr (untried)
+--      BaseOfImports = ibase
         SizeOfImage += RoundToFileAlignment(isize)
     else
         ithunks = {}
@@ -577,7 +609,7 @@ if and_bits(esize,1) then esize += 1 end if
     else
         HeaderCharacteristics += IMAGE_FILE_RELOCS_STRIPPED
     end if
-    if gexch!=0 then
+    if gexch!=0 then    -- global exception handler (PE64 only)
 --      ?9/0
         xsize = #0C
         xbase = RVAaddr
@@ -600,16 +632,27 @@ if and_bits(esize,1) then esize += 1 end if
                         ridx[i][$][2] += 1
                         rsize += 2
                     else
+                        if and_bits(ridx[i][$][2],1) then
+                            rsize += 2
+                        end if
+--?{rsize}
                         ridx[i] = append(ridx[i],{j,1,newbase})
                         rsize += 10
                         prevbase = newbase
                     end if
                 end for
+                if and_bits(ridx[i][$][2],1) then
+                    rsize += 2
+                end if
+--?rsize
             end if
+----??rsize+=8??
+            if i=1 then rsize+=10 end if
         end for
         rbase = RVAaddr
         RVAaddr += RoundToSectionAlignment(rsize)
         sections = append(sections,{6,".reloc",rsize,rbase})
+        expected_reloc_size = rsize
         SizeOfImage += RoundToFileAlignment(rsize)
     end if
 if datab4code then
@@ -646,7 +689,7 @@ end if
         rsize = resourcelen
         -- aside: we are reusing rsize; in SizeOfData calculations 
         --        below, we want this (rsize/resources) and /not/ 
-        --        relocations (which is "discardable").
+        --        relocations (which/as that is "discardable").
         sections = append(sections,{3,".rsrc",rsize,RVAaddr})
         RVAaddr += RoundToSectionAlignment(rsize)
         SizeOfImage += RoundToFileAlignment(rsize)
@@ -1073,7 +1116,7 @@ if and_bits(length(section),1) then section &= 0 end if
             res &= stringify(repeat(0,padding))
         end if
     end if
-    if gexch!=0 then
+    if gexch!=0 then    -- global exception handler (PE64 only)
 --;   DWORD BeginAddress; 
 --;   DWORD EndAddress; 
 --;   DWORD UnwindData; 
@@ -1126,6 +1169,8 @@ if and_bits(length(section),1) then section &= 0 end if
     if length(relocations) then
         -- (only needed for 32-bit dlls) [DEV you sure about that?]
         res &= relocate(relocations,ridx,{BaseOfCode,BaseOfData})
+--      res &= relocate(relocations,ridx,{BaseOfCode,BaseOfData,BaseOfImports})
+        if actual_reloc_size!=expected_reloc_size then ?{actual_reloc_size,"!=",expected_reloc_size} end if
 --datab4code:
 --      res &= relocate(relocations,ridx,{BaseOfData,BaseOfCode})
 -- or better yet:
@@ -1966,8 +2011,16 @@ end if
         mergedrelocations = {{},
                              sort(relocations[2][1]&relocations[2][2])}
     else
-        mergedrelocations = {sort(relocations[1][1]&relocations[1][2]),
-                             sort(relocations[2][1]&relocations[2][2])}
+--      mergedrelocations = {sort(relocations[1][1]&relocations[1][2]),
+--                           sort(relocations[2][1]&relocations[2][2])}
+        mergedrelocations = {sort(relocations[CODE][CODE]&relocations[CODE][DATA]&relocations[CODE][IMPORTS]),
+                             sort(relocations[DATA][CODE]&relocations[DATA][DATA])} -- nb no REFS
+--      if length(relocations[2])=3 then
+--          mergedrelocations = append(mergedrelocations,relocations[3][2])
+--      end if
+--      if length(relocations[2][3])!=0 then
+--          mergedrelocations = append(mergedrelocations,relocations[2][3][$])
+--      end if
     end if
 --puts(1,"CreatePE: calling peHeader\n")
     res = peHeader(machine,subsystem,subvers,imports,exports,mergedrelocations,datalen,codelen,resourcelen)
@@ -2021,6 +2074,9 @@ end if
         end if
         data = fixup(data,relocations[DATA][CODE],machine,0,codeBase+ImageBase)     -- (eg symtab[N][S_il])
         data = fixup(data,relocations[DATA][DATA],machine,0,dataBase+ImageBase,1)   -- (eg [nested] constants)
+        if DLL then
+            data = fixup(data,relocations[DATA][REFS],machine,0,dataBase+ImageBase,1)
+        end if
     end if
 --if 0 then -- checksum [DEV] (might still want this for linux)
 --  puts(fn,block)
@@ -2092,7 +2148,7 @@ end if
         img[imgidx+1..imgidx+datalen] = data
         imgidx += RoundToFileAlignment(datalen)
     end if
---  if gexch!=0 then
+--  if gexch!=0 then    -- global exception handler (PE64 only)
 --      ?9/0
 -->
 --  end if
@@ -2745,7 +2801,12 @@ integer didx = 1
 atom thunk
 integer thunkaddr, next
 
-    if exports!={} then ?9/0 end if -- (temp)
+--  if exports!={} then ?9/0 end if -- (temp)
+    if exports!={} then
+        -- (temp)
+        puts(1,"pbinary.e/CreateELF line 2807: exports is\n")
+        ?exports
+    end if
     datalen = length(data)
     codelen = length(code)
     {block,codeBase,dataBase,dynfixups,datapad} = elfHeader(machine, base, imports, datalen, codelen)

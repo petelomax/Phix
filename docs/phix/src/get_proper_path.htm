@@ -22,7 +22,7 @@
          <td valign=top>
           <b>Description:</b>
          </td>
-         <td>Return the full path and file name of the supplied file name.
+         <td>Return the fully qualified absolute path and file name of the specified file.
          </td>
         </tr>
         <tr>
@@ -30,24 +30,50 @@
           <b>Comments:</b>
          </td>
          <td>
-            The filepath can be a string such as <code>"C:\\"</code> or the equivalent 
-            <a href="html/glossary.htm#dwordseq">dword-sequence</a> which is
-            <code>{'C',':','\\'}</code> - the latter proves necessary in Edita, especially
-            when handling unicode and in particular UTF16 files.<br>
-            The root directory is only used when filepath is relative rather than absolute.
-            If no root directory is provided, <a href="current_dir.htm">current_dir</a>() is used.
+            The root directory is only used when filepath is relative rather than absolute.<br>
+            If no root directory is provided, and one is needed, <a href="current_dir.htm">current_dir</a>() is used.
+            <br>
+            <br>
+            Both forwardslash ('/') and backslash ('\\') are supported on all platforms, and converted appropriately in the output.
             <br>
             <br>
             Should work equally well for files and directories.
             <br>
-            Of course the result is fairly meaningless if the the specified file or path 
-            does not exist, but if you can open the input the same should always be true 
-            for the output. The point of the routine is to create a consistent path/name 
-            in terms of short->long filenames and actual upper/lower case, so that for
-            example your application does not think that C:\PROGRA~2\PHIX\P.EXE and
-            C:\Program Files (x86)\Phix\p.exe are two different files, in fact passing
-            the former in should yield the latter out, as long as that "PROGRA~2" short 
-            form matches what is shown when you run "dir /X".
+            <br>
+            The result has the correct file separators for the operating system and, on Windows, the exact case of any existing 
+            files and directories, the intention being that your application will not behave as if C:\Downloads\test.txt and 
+            C:\downloadS/TEST.TXT are two different files, and things like <a href="find.htm">find</a>() work, without needing
+            to restort to a loop and lower(x)=lower(y) on each element.
+            <br>
+            <br>
+            The result should not be taken as confirmation of the actual existence of a file or directory.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Examples:</b>
+         </td>
+         <td>
+<!--eucode>
+?get_proper_path("C:\\Downloads\\dEad\\TesT.txt")   -- "C:\\Downloads\\dead\\test.txt"
+?get_proper_path("C:\\downloadS\\deAd\\TEST.TXT")   -- "C:\\Downloads\\dead\\test.txt"
+?get_proper_path("C:\\prOgram Files (x86)\\Phix")   -- "C:\\Program Files (x86)\\Phix"
+?get_proper_path("C:\\bYetHost\\EDITA")             -- "C:\\byethost\\edita"
+?get_proper_path("C:\\UseRs\\")                     -- "C:\\Users\\"
+?get_proper_path("p.exw")                           -- "C:\\Program Files (x86)\\Phix\\p.exw"
+?get_proper_path("demo")                            -- "C:\\Program Files (x86)\\Phix\\demo"
+?get_proper_path("demo\\")                          -- "C:\\Program Files (x86)\\Phix\\demo\\"
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">get_proper_path</font><font color="#0000FF">(</font><font color="#008000">"C:\\Downloads\\dEad\\TesT.txt"</font><font color="#0000FF">)  </font><font color="#000080"><i> -- "C:\\Downloads\\dead\\test.txt"
+</i></font><font color="#0000FF">?</font><font color="#5E005E">get_proper_path</font><font color="#0000FF">(</font><font color="#008000">"C:\\downloadS\\deAd\\TEST.TXT"</font><font color="#0000FF">)  </font><font color="#000080"><i> -- "C:\\Downloads\\dead\\test.txt"
+</i></font><font color="#0000FF">?</font><font color="#5E005E">get_proper_path</font><font color="#0000FF">(</font><font color="#008000">"C:\\prOgram Files (x86)\\Phix"</font><font color="#0000FF">)  </font><font color="#000080"><i> -- "C:\\Program Files (x86)\\Phix"
+</i></font><font color="#0000FF">?</font><font color="#5E005E">get_proper_path</font><font color="#0000FF">(</font><font color="#008000">"C:\\bYetHost\\EDITA"</font><font color="#0000FF">)            </font><font color="#000080"><i> -- "C:\\byethost\\edita"
+</i></font><font color="#0000FF">?</font><font color="#5E005E">get_proper_path</font><font color="#0000FF">(</font><font color="#008000">"C:\\UseRs\\"</font><font color="#0000FF">)                    </font><font color="#000080"><i> -- "C:\\Users\\"
+</i></font><font color="#0000FF">?</font><font color="#5E005E">get_proper_path</font><font color="#0000FF">(</font><font color="#008000">"p.exw"</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- "C:\\Program Files (x86)\\Phix\\p.exw"
+</i></font><font color="#0000FF">?</font><font color="#5E005E">get_proper_path</font><font color="#0000FF">(</font><font color="#008000">"demo"</font><font color="#0000FF">)                           </font><font color="#000080"><i> -- "C:\\Program Files (x86)\\Phix\\demo"
+</i></font><font color="#0000FF">?</font><font color="#5E005E">get_proper_path</font><font color="#0000FF">(</font><font color="#008000">"demo\\"</font><font color="#0000FF">)                         </font><font color="#000080"><i> -- "C:\\Program Files (x86)\\Phix\\demo\\"</i></font>
+</pre>
          </td>
         </tr>
         <tr>
@@ -58,7 +84,29 @@
           <a href="current_dir.htm">current_dir</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The filepath can be a string such as <code>"C:\\"</code> or the equivalent 
+            <a href="html/glossary.htm#dwordseq">dword-sequence</a> which is
+            <code>{'C',':','\\'}</code> - the latter proved necessary in Edita, especially
+            when handling unicode and in particular UTF16 files.
+            <br>
+            <br>
+            Of course the result is fairly meaningless if the the specified file or path does not exist, but 
+            if you can open the input the same should always be true for the output (after closing the other).<br>
+            The point of the routine is to create a consistent path/name in terms of short->long filenames and 
+            actual upper/lower case, so that for example your application does not think that C:\PROGRA~2\PHIX\P.EXE 
+            and C:\Program Files (x86)\Phix\p.exe are two different files, in fact passing the former in should 
+            yield the latter out, as long as that "PROGRA~2" short form matches what is shown when you run "dir /X".
+         </td>
+        </tr>
        </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
       </div>
      </stripped>
     </get>

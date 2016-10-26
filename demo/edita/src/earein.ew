@@ -362,7 +362,11 @@ sequence tabwork
     CursorX = ExpLength(oneline[1..last])
     if deleteSelection() then end if
     if ctrl=TABWORK then
-        if nTabs+nSpaces then
+--19/7/16:
+--      if nTabs+nSpaces then
+        if nTabs+nSpaces
+        and nTabs>=0
+        and nSpaces>=0 then
             tabwork = {repeat('\t',nTabs)&
                        repeat(' ',nSpaces)}
             addAction(INSERTBLOCK,tabwork)
@@ -968,7 +972,11 @@ sequence oneline
                     col += 3
                     exit    -- (closing """ found)
                 end if
+                col += 1
             end while
+--DEV added 29/9/16 (untested)
+            nextCh()
+            return
         end if
         while 1 do
             col += 1
@@ -1355,7 +1363,7 @@ integer wastokline, wastokstart, wastokend
                                    "SUNOS","OPENBSD","OSX","UNIX",
                                    "WIN32_GUI","WIN32_CONSOLE",
                                    "SAFE","DATA_EXECUTE","UCSTYPE_DEBUG",
-                                   "CRASH","EU4_1"}) then
+                                   "CRASH","EU4_1","BITS32"}) then
                     if not find(token,withdefs) then
 --                      errtext &= "idfef "&token&xl(" unrecognised, and no \"--#withdef\" for it")
 --trace(1)
@@ -1832,6 +1840,7 @@ integer wasinexpression
     wasinexpression = inexpression
     inexpression = 1
     wasNest = nest
+--DEV crash here 27/6/16:
     nest = ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
     striptrailing = 1
 if 0 then --old code

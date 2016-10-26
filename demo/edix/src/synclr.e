@@ -398,7 +398,9 @@ integer syntaxClass
             word = text[chidx..chidx2-1]
             if chidx2>lt then exit end if
             ch2 = text[chidx2]
-            if (ch2=':' and find(word,WordLists[1][1]))
+--1/7/16:
+--          if (ch2=':' and find(word,WordLists[1][1]))
+            if (ch2=':' and length(WordLists[1])!=0 and find(word,WordLists[1][1]))
             or (ch2='.' and equal(word,"www")) then
                 chidx2 += 1
                 chidx0 = chidx2
@@ -594,7 +596,8 @@ integer lc
     if length(backC)<lt then
         backC = repeat(ColourTab[Background],lt)
         textC = repeat(ColourTab[Other],lt) -- was Background 22/6/05
-        attrC = repeat(EA_Normal,lt)
+--      attrC = repeat(EA_Normal,lt)
+        attrC = repeat(CD_PLAIN,lt)
 -- 29/04/2010 (replaced with else clause):
 --  end if
 ----DEV machine exceptions (2.4)
@@ -706,6 +709,7 @@ integer lc
             word = text[chidx..chidx2-1]
             syntaxClass = Other
             if newSyntax!=1 then
+--/*
 if isEu then
 --DEV include here
 --DEV do we (really need to) do this or store wordlists from .syn files xlated?
@@ -727,6 +731,7 @@ if isEu then
 --      syntaxClass = BookMarks+11  --DEV Builtins
     end if
 end if
+--*/
 
 if syntaxClass=Other and not resetBackSlash then
 --              for i=Other+bl+1 to length(Sections[newSyntax]) do
@@ -806,7 +811,7 @@ end if
             end if
 -- 02/08/2013:
             if newSyntax!=1
-            and isEu
+--          and isEu            -- (broken anyway 5/10/16)
             and chovline=lineno
             and chovfrom+marginWidth=chidx
             and chovto+marginWidth=chidx2-1 then
@@ -1080,15 +1085,18 @@ end if
         k = lt
         lt = length(text)
         if length(backC)<lt then
+--DEV this looks horribly wrong!!! (1/7/16!!)
             backC &= repeat(ColourTab[Background],lt-length(backC))
             textC &= repeat(ColourTab[Comments],lt-length(backC))
-            attrC &= repeat(EA_Italic,lt-length(backC))
+--          attrC &= repeat(EA_Italic,lt-length(backC))
+            attrC &= repeat(CD_ITALIC,lt-length(backC))
         end if
 --DEV colour/attr of autocompletes should be configurable
         for i=k+1 to lt do
             backC[i] = ColourTab[Background]
             textC[i] = ColourTab[Comments]
-            attrC[i] = EA_Italic
+--          attrC[i] = EA_Italic
+            attrC[i] = CD_ITALIC
         end for
     end if
 

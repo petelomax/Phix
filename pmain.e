@@ -234,6 +234,13 @@ integer k
                     end if
                     profileon = k
                 end if
+--added 7/7/16:
+                optset[k] = OptOn
+--DEV (spotted in passing) 28/6/16: I think I messed up for profile/profile_time...
+--          elsif k=OptWarning then
+--              finalOptWarn[fileno] = OptOn
+--          end if
+--          optset[k] = OptOn
             elsif testall then
                 if k=OptWarning then
                     finalOptWarn[fileno] = OptOn
@@ -1697,6 +1704,7 @@ end if
                     Unassigned(p2)
                 end if
                 p3 = opstack[opsidx]
+--DEV 12/7/16 bit harsh innit??? constants only?? (K-aod only??)
                 if scode=opDelRtn
                 and and_bits(symtab[p3][S_State],K_rtn)=0 then
                     Aborp("routine_id expected")
@@ -3094,9 +3102,13 @@ string emsg
         end if
 
 --emitON? (or is that covered by Q_Routine!=0)
+if 01 then
+        Or_K_ridt(Q_Routine, S_used+K_ridt)
+else
         k = symtab[Q_Routine][S_State]
         k = or_bits(k,S_used+K_ridt)
         symtab[Q_Routine][S_State] = k
+end if
 --removed PL 26/11/15:
 --      getToken()
 --      MatchChar(')')
@@ -5278,6 +5290,19 @@ end procedure
 
 --17/6/16:
 constant NO_BREAK = #01
+--06/9/16:
+--constant DLL_MAIN = #02
+
+--integer fdwReasonttidx
+
+--procedure get_fdwReason()
+--  if toktype!=LETTER
+--  or ttidx!=fdwReasonttidx then
+--      Aborp("fdwReason expected")
+--  end if
+--  getToken()
+--end procedure
+
 --integer rBlock
 forward procedure Block(integer flags=0)
 
@@ -5339,6 +5364,8 @@ integer pidx
 integer tvarstart, pfirst, plast
 sequence wasoptset
 integer savettidx
+
+integer exported = 0
 
 --sequence bi
 --object dbg
@@ -5558,6 +5585,31 @@ end if
         end if
         Stype = S_Map[Rtype]
         N = addSymEntryAt(rtnttidx,wasGlobal,Stype,0,0,0,rtntokcol)
+        if wasGlobal=2 and fileno=1 and DLL=1 then 
+            if Stype=S_Proc then
+                Aborp("export procedures are not supported")
+            end if
+--DEV
+--          ?Aborp("export routine parameters must be atom")
+--              from pcfunc.e:
+--              if and_bits(sigi,T_atom)=0 then
+--                  fatalN(2,e75cbrpmaba) -- call back routine parameters must all be atoms
+--              end if
+--              noofparams = si[S_ParmN]
+--              if noofparams!=length(sig)-1 then
+--                  fatalN(2,e16cbchop) -- call_backs cannot have optional parameters
+--              end if
+--              SUG: should we check the return type for non-atom as well? (warning)
+--          ?Aborp("export routines must return an atom")
+            if rtnttidx=T_DLLMAIN then
+                exports = prepend(exports,N)
+                exportaddrs = prepend(exportaddrs,0)
+            else
+                exports = append(exports,N)
+                exportaddrs = append(exportaddrs,0)
+            end if
+            exported = 1
+        end if
         killUsed = not wasGlobal
 --      killUsed = ((not wasGlobal) or lint)    -- maybe more annoying than useful?
     end if
@@ -5824,7 +5876,19 @@ end if
     symtab[N][S_Efct] = E_all   -- recursive calls must assume the worst
 
 --  call_proc(rBlock,{})
-    Block()
+--  if exported and rtnttidx=T_DLLMAIN then
+--      if toktype!=LETTER
+--      and not find(ttidx,{T_if, T_switch}) then
+--          Aborp("DllMain: if or select expected")
+--      end if
+--      if nParams!=3 then
+--          Aborp("DllMain: requires 3 parameters")
+--      end if
+--      fdwReasonttidx = paramNames[2]
+--      Block(DLL_MAIN)
+--  else
+        Block()
+--  end if
 
     symtab[N][S_Efct] = SideEffects
 
@@ -5940,6 +6004,15 @@ end if
 --if fileno=92 and tokline>=818 then
 --  trace(1)
 --end if
+
+    if exported then
+--?N
+        Or_K_ridt(N, S_used+K_ridt)
+--      Or_K_ridt(N, S_used+K_used+K_ridt)  -- no help
+        {} = addRoutineId(N)
+--?symtab[N]
+--iNNN = N
+    end if
 
     optset = wasoptset
 
@@ -6766,7 +6839,9 @@ object sig
                     if Ch!='(' then Undefined() end if
                 end if
 if FWARN then
-    Warn("forward call assumed",tokline,tokcol,0)
+    if not testall then
+        Warn("forward call assumed",tokline,tokcol,0)
+    end if
 end if
                 ForwardProc(FUNC)
 --              ForwardProc(FUNC,wasNamespace,nsttidx)
@@ -7252,6 +7327,8 @@ object sig
             else    -- relops (thisp=3)
                 if usecmap then -- map eg compare(a,b)>=0 to a>=b?
                     compOp = 0
+--23/10/16(!!)
+if emitON then
                     if opTopIsOp=BltinOp and opstack[opsidx]=opScmp then
                         -- lhs is compare(x,y), check for <relop><literal int>
                         compOp = opsidx
@@ -7266,6 +7343,7 @@ object sig
                         compOp = -opstack[opsidx]
                         opsidx -= 1
                     end if
+end if
                 end if
                 relopline = tokline
                 relopcol = tokcol
@@ -8357,6 +8435,7 @@ end procedure
 
 --without trace
 --with trace
+--procedure DoIf(integer flags)
 procedure DoIf()
 --
 -- Recognize and translate an "if" construct
@@ -8426,7 +8505,16 @@ integer scode, wasEmit2
 
             noofbranches = 0
 
-            Expr(0,0)   -- full, notBool/asIs
+--          if and_bits(flags,DLL_MAIN) then
+----                get_fdwReason()
+--              Matchstring(fdwReasonttidx)
+--              MatchChar('=')
+----                MatchString(T_DLLATTACH)
+--              ?9/0
+--              flags = 0
+--          else
+                Expr(0,0)   -- full, notBool/asIs
+--          end if
 
             ifBP = 0
             if exprBP then
@@ -9023,7 +9111,9 @@ integer cnTyp
         Aborp("a loop variable name is expected here")
     end if
     savettidx = ttidx
-    CN = InTable(InTop)
+--23/9/16!!
+--  CN = InTable(InTop)
+    CN = InTable(InVeryTop)
     if CN>0 then
         -- permit re-use of local variable rather than erroring, but it must be appropriate type.
 -- 1/9/14:
@@ -9456,6 +9546,7 @@ end if
     end if
 end procedure
 
+--procedure DoSwitch(integer flags)
 procedure DoSwitch()
 --  switch <expr> [(with|without) (fallthru|fallthrough|warning)] [do]
 --      {case <expr>{,<expr>} [:|then] <block> [break|fallthru|fallthrough]}
@@ -9514,8 +9605,12 @@ integer link
     elsevalid = 2
     elsectrl = -1
 
---15/10/5:
-    Expr(0,asBool)
+--  if and_bits(flags,DLL_MAIN) then
+----        get_fdwReason()
+--      Matchstring(fdwReasonttidx)
+--  else
+        Expr(0,asBool)
+--  end if
     if opTopIsOp then PopFactor() end if
 
 --28/9/15:
@@ -9598,10 +9693,24 @@ integer link
     while 1 do
 --DEV
 --T_end,T_break
-        if toktype!=LETTER then exit end if
-        if ttidx=T_case
-        or ttidx=T_else
-        or ttidx=T_default then
+--      if and_bits(flags,DLL_MAIN) then
+--          MatchString(T_case)
+----            MatchString(T_DLLATTACH)
+--          if toktype=':' then
+--              MatchChar(':')
+--          elsif toktype=LETTER
+--            and ttidx=T_then then
+--              MatchString(T_then)
+--          end if
+----opInit?
+--          flags -= DLL_MAIN
+--          ?9/0
+--      elsif toktype!=LETTER then
+        if toktype!=LETTER then
+            exit
+        elsif ttidx=T_case
+           or ttidx=T_else
+           or ttidx=T_default then
             if ttidx=T_case then
                 MatchString(T_case)
             end if
@@ -9707,11 +9816,33 @@ integer link
     --      ah, no: "case 5 break; else" needs the 5 not to do the else...
                             if not find(ttidx,{T_case,T_else,T_default}) then exit end if
                         end if
+--12/1/16: (while "case x then else" was caught, "case x then case else" was not) [also added a comment]
+--                      if ttidx=T_else
+--                      or ttidx=T_default then
+--                          Aborp("invalid construct (\"case x [fallthrough] else|default\" - omit \"case x\")")
+--                      end if
+--                      MatchString(T_case)
+                        --
+                        -- This is a consequence of so-called "smart switch" processing: if
+                        --      case 3:
+                        --      case 4: <block>
+                        -- should behave the same as
+                        --      case 3,4: <block>
+                        -- then the same principle should equally apply to
+                        --      case x:
+                        --      default:
+                        -- which should behave the same as
+                        --      default:
+                        -- so yes, it really should be omitted, or someone missed out a break statement.
+                        --
+                        if ttidx!=T_else
+                        and ttidx!=T_default then
+                            MatchString(T_case)
+                        end if
                         if ttidx=T_else
                         or ttidx=T_default then
-                            Aborp("invalid construct (\"case x [fallthrough] else|default\" - omit \"case x\")")
+                            Aborp("invalid construct (\"case x [fallthrough] else|default\" - omit \"case x\", or add \"break\")")
                         end if
-                        MatchString(T_case)
                     end if
                     -- add a success for this value (patched to start of Block() below),...
                     scBP = Branch(NoInvert,1,scMerge,scBP)
@@ -9864,6 +9995,9 @@ end if
             end while
         end if
     end if
+--  if and_bits(flags,DLL_MAIN) then
+--      Aborp("case DLL_PROCESS_ATTACH expected")
+--  end if
     if EndSwitchBP>0 then
         EndSwitchBP = backpatch(EndSwitchBP,0,endIfMerge)
         if EndSwitchBP then ?9/0 end if
@@ -10030,6 +10164,8 @@ integer Typ, rootInt
                 end if
                 Name = ttidx
                 N = addSymEntry(Name,isGlobal,S_GVar2,Typ,0,0)
+--DEV (not yet supported)
+--              if isGlobal=2 and fileno=1 and DLL then exports = append(exports,N) end if
                 getToken()
                 --
                 -- Assignment on declaration:
@@ -10112,6 +10248,8 @@ integer rtype
             if tokno<=0 then
                 if isDeclaration then
                     tokno = addSymEntryAt(ttidx,isGlobal,isDeclaration,Typ,0,0,tokcol)
+--DEV (not yet supported)
+--                  if isGlobal=2 and fileno=1 and DLL then exports = append(exports,tokno) end if
                 else
                     Aborp("undefined")
                 end if
@@ -10609,6 +10747,7 @@ end procedure
 integer Z_format -- T_format until Statement() processed
 
 procedure Statement()
+--procedure Statement(integer flags)
 --
 -- Parse and Translate a single Statement
 --
@@ -10642,6 +10781,7 @@ integer wasZformat -- quick restore for trace()/profile() [only!] (DEV: iff we c
         else
             Aborp("unrecognised")
         end if
+--  elsif ttidx=T_if then           DoIf(flags)
     elsif ttidx=T_if then           DoIf()
     elsif ttidx=T_for then          DoFor()
     elsif ttidx=T_while then        DoWhile()
@@ -10650,6 +10790,7 @@ integer wasZformat -- quick restore for trace()/profile() [only!] (DEV: iff we c
     elsif ttidx=T_break then        DoBreak()
     elsif ttidx=T_continue then     DoContinue()
     elsif ttidx=T_return then       DoReturn()
+--  elsif ttidx=T_switch then       DoSwitch(flags)
     elsif ttidx=T_switch then       DoSwitch()
     else
         N = tokno
@@ -10659,7 +10800,9 @@ integer wasZformat -- quick restore for trace()/profile() [only!] (DEV: iff we c
                 if Ch!='(' then Undefined() end if
             end if
 if FWARN then
-    Warn("forward call assumed",tokline,tokcol,0)
+    if not testall then
+        Warn("forward call assumed",tokline,tokcol,0)
+    end if
 end if
             ForwardProc(PROC)
         elsif symtab[N][S_NTyp]=S_Rsvd then
@@ -10757,6 +10900,8 @@ integer drop_scope = 0
                 end if
             end if
         end if
+--      Statement(flags)    -- (NO_BREAK has no meaning any deeper:)
+--      Statement(and_bits(flags,DLL_MAIN))
         Statement()
     end while
     if drop_scope then
@@ -10805,7 +10950,9 @@ integer SNtyp
             mapEndToMinusOne = 0
 --30/5/16 (moved below)
 --          if InTable(InTop) then Duplicate() end if
-            N = InTable(InAny)
+--28/7/16:
+--          N = InTable(InAny)
+            N = InTable(-InAny)
             if N>0 then
                 SNtyp = symtab[N][S_NTyp]
                 if SNtyp=S_Rsvd then
@@ -10848,10 +10995,18 @@ integer SNtyp
                 if opsltrl[opsidx]!=1 then
         --          N = addSymEntryAt(wasttidx,isGlobal,S_Const,T_object,0,0,wastokcol)
                     N = addSymEntryAt(wasttidx,isGlobal,S_Const,Ntype,0,0,wastokcol)
-        --          storeConst = 1
+--23/6/16:
+                    if opsidx=1 then
+                        integer k = opstack[1]
+                        if and_bits(symtab[k][S_State],K_Fres)
+                        and not find(symtab[k+1][S_Efct],{E_none,E_other}) then
+                            symtab[N][S_State] = or_bits(symtab[N][S_State],S_used)
+                        end if
+                    end if
+--                  storeConst = 1
                     storeConst = (Ntype==T_object)
                     onDeclaration = 1
-        --          StoreVar(N,-1)
+--                  StoreVar(N,-1)
                     StoreVar(N,Ntype)
                     storeConst = 0
                     onDeclaration = 0
@@ -11561,7 +11716,8 @@ procedure DoFormatHere()
 -- Process a format statement once any redirects have been taken care of (see DoFormat())
 --
 -- format ((PE32|PE64) [GUI|console] [3.10|4.0|5.0] [DLL]) [icons] [version] [manifest])|
---        (ELF32|ELF64) [ARM?]
+--        (ELF32|ELF64) [SO]
+--        (ARM?)
 --
 -- (An [at #7000000 on 'stub.exe'] clause may be added in the future)
 --
@@ -11617,13 +11773,17 @@ sequence iconids
         k = T_DLL
     else                -- ELF32/ELF64
         -- ... and I've not even googled how one might do this (T_SO) yet!
+        -- ( a position-independent data section may be a significant challenge!)
         k = T_SO
 --      ?9/0
     end if
     if ttidx=k then
+--  if PE and ttidx=k then
+--DEV intellisense?
         if bind=0 or norun=0 then
-            Aborp("requires -c and -norun command line options") -- or just set them?
+            Aborp("requires -c and -norun command line options (or -dll)")
         end if
+        agcheckop(opCbHandler)
         MatchString(ttidx)
         DLL = 1
     else
@@ -11766,6 +11926,7 @@ integer t
                 elsif ttidx=T_include     then IncludeFile()    isGlobal = 0
                 elsif isGlobal            then Aborp("procedure, function, type, constant, enum, or vartype expected")
                 elsif ttidx=T_override    then Aborp("override of builtins is not and never will be permitted")
+                elsif ttidx=T_export      then getToken()       isGlobal = 2
                 elsif find(ttidx,Tglobal) then getToken()       isGlobal = 1
                 elsif ttidx=Z_format      then DoFormat()
                 elsif ttidx=T_forward     then DoForwardDef()
@@ -11844,7 +12005,9 @@ global procedure Compile()
     glblname = {}
     gexch = 0
 --  PE = 1
-    DLL = 0
+--  DLL = 0 -- no! (spanners -dll option)
+    exports = {}
+    exportaddrs = {}
 
 --DEV
 if newEmit then
@@ -11866,8 +12029,17 @@ end if
     end if
 -- 18/6/14:
     if newEmit then
+--DEV: (no, methinks)
+--if DLL then
+--      s5 = {}
+--      s5 = {opDLL?}
+--else
         s5 = {opInit}
+--end if
 --      s5 = {opLn,1,opInit}
+        if DLL then
+            agcheckop(opCbHandler)
+        end if
     else
         s5 = {}
     end if

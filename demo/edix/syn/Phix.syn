@@ -1,0 +1,2756 @@
+Phix syntax file
+BlockComment /* */ --/* --*/
+LineComment --
+--LineComment //
+--              (nb for historical/compatibility reasons, Phix uses Euphoria.syn)
+--              (incorporates 01/09/2009 Eu 4.0 mods by Greg Haberek)
+--
+-- About .syn files
+-- ================
+-- [[For an up-to-date version of these notes, always refer to Euphoria.syn]]
+-- All files with a .syn extension in the /syn subdirectory are loaded when
+-- the editor starts. They are reloaded if saved in the editor, which makes
+-- it easy to add and test new keywords, etc.
+-- Should a fatal error occur (which obviously it should not), then it may be
+-- necessary to rename/move/delete/restore the offending .syn file.
+-- The first line of a .syn file must be <Name> followed by " syntax file".
+-- The second line may be "BlockComment" followed by start/end pair(s).
+--  eg  BlockComment /* */ <!-- --> [[ ]]
+--  Note that .syn files themselves may *NOT* contain block comments (since
+--      any and all support of them is in easynclr.e, not easynld.e).
+-- The next line must be "LineComment" followed by a comment lead-in (if any).
+-- This LineComment directive not only controls colourisation during editing of
+--  the files listed in the FileExtensions directive (see below), but also
+--  defines the comment method for the remainder of the .syn file.
+--      Therefore comments may not appear in a .syn file before the LineComment line.
+--      Note also that Edit/Comment and Edit/Uncomment (and the keyboard shortcuts)
+--      use the LineComment defined in None.syn when editing a .syn file (sorry!)
+--  As an example, C/C++ line comments are // so all these lines could begin with
+--  // instead of --, which is an operator in C/C++. If (eg) C.syn used -- as a
+--      line comment, it would not be possible to define -- as an operator!
+-- If the programming language you are trying to support does not support line 
+--  comments (which should be very rare) then you cannot comment the syn file.
+--      (actually, worse than that, as the LineComment section is not optional..)
+--
+--
+-- Sections
+-- ========
+-- All words beginning in column 1 (apart from comments) begin a section. 
+-- The following sections should be defined:
+--              BlockComment, [optional]
+--              LineComment,
+--              TokenStart,
+--              TokenChar, [optional]
+--              TokenFirst, [optional]
+--              TokenLast, [optional]
+--              Escapes, [optional]
+--              Delimiters, [optional, except in None.syn]
+--              Braces, [optional]
+--              Operators, [optional]
+--              Illegal, [optional] and
+--              FileExtensions,
+-- in that order. 
+-- Then follow a number of keyword collections. The name is not "recognised"
+-- apart from the fact that it begins in column 1 and is displayed in the 
+-- Options/Colours window when that is opened when editing a file with one of
+-- the file extensions (as defined in the FileExtensions section). These
+-- section names should not contain spaces, a space is automatically inserted
+-- between any lowercase character followed by an uppercase character.
+-- Finally there is a Scheme section which defines the /default/ colours.
+-- If a .clr file exists (eg Euphoria.clr) then it overrides these defaults.
+-- Note: if you /DELETE/ sections, the .clr file may become invalid, though it
+--  should be trivial to edit it, removing the offending line(s). It is also 
+--  a good idea to copy the lines from the .clr back to the final Scheme 
+--  section of this file (which also becomes invalid if sections are removed).
+--  If you /ADD/ sections, you don't need to do anything special, except 
+--  perhaps to run Options/Colours to give new sections an appropriate colour.
+--
+
+--
+-- Token characters must be specified next.
+--
+TokenStart abcedfghijklmnopqrstuvwxyz
+TokenStart ABCDEFGHIJKLMNOPQRSTUVWXYZ
+TokenChar 0123456789_
+-- TokenFirst can be used to specify characters which are only valid at the start
+-- of a token (eg # in #include or < in <table> [HTML]), and TokenLast can be used
+-- to specify characters which terminate a token (eg > in <table> or $ in MID$), eg
+-- TokenFirst #<        -- by default this set is empty
+-- TokenLast >$         -- ""
+-- In practice, TokenLast defines single-character tokens, so internally the
+--  syntax colouring will treat <table> as "<table" and ">". eg see Html.syn
+--
+-- Whitespace is defaulted to #09101320, ie tab, lf, cr, and space. There is 
+-- as yet no way to change this, though I will say it should be specified as 
+-- a hexadecimal stringset rather than OS/editor/language dependent means.
+--
+-- Likewise String and Character parsing is currently hard-coded (to ' and ").
+-- You should not specify ' or " as delimiters or operators.
+--
+-- Escape characters are defined using a single leadin followed by the valid 
+-- characters which may follow (this permits \r \n \t \\ \' \" and \#):
+--
+Escapes \rnt\'"eE#x0buU
+--
+-- Next we have Delimiters, Operators, and Illegals (in that order).
+-- The Delimiter section is optional (except in None.syn) and allows additional
+--      characters to be coloured as "Other". The idea is that in "integer a,integer b"
+--      then "a,integer" is not scanned as a single word, as well as colouring the ","
+--      normally as opposed to "Illegal". See easynld.e for technical details.
+-- All characters used in the Operators section are automatically delimiters.
+Delimiters #$:.%\^
+Operators , = := == != < <= > >= @= @== @!= @< @<= @> @>= + - * / += -= *= /= @+= @-= @*= @/= .. & &= ? ; : |
+
+-- The Braces section begins with a digit specifying the number of nesting levels 
+-- of colour required (1..7). Only pairs from ()<>[]{} are permitted. 
+-- If the number of nesting levels is set above 5 you may have difficultly finding
+-- enough appropriate colours to use. A lower number does not, of course, limit
+-- the code that can be written, just how it is coloured. If the nesting level is
+-- exceeded, inner brackets are coloured starting from 1 again. Note that if the
+-- number of nesting levels is reduced, Euphoria.clr may contain invalid entries
+-- such as Brace7 which must be removed manually.
+--
+Braces 7 ()[]{}
+
+--
+-- FileExtensions should be specified next. This is not optional.
+--
+FileExtensions e ex ew exw exwc eu exu exh pro ewx eui edx err
+
+-- The optional Indents section. If present, this section lists words and
+--      characters which affect autoindentation. The first word must be "+" or "-",
+--      any following words or characters increase or decrease the indent level,
+--      until the next "+" or "-". Please fit everything on one line.
+--
+Indents + then do else - end
+
+-- The optional AutoComplete section. If present, this section must
+-- end with a "##end AutoComplete" line. Note that any comments in this
+-- section must begin in column 1, otherwise they are misinterpreted as
+-- being part of the autocompletion text. For more details, please
+-- see eauto.e Ideally, leave this in English, and add translations
+-- in elng_XXX.txt (if not English, that is).
+--
+AutoComplete
+
+^ if& | then^pend if
+^ ifd&ef | then^pend ifdef
+^ for& | to  do^pend for
+^ whil&e | do^pend while
+^ elsif& | then
+^ elsifd&ef | then
+^ loo&p do^puntil |
+^ swi&tch | do^pend switch
+^ case &| then
+
+fu&nction |()^pend function
+pr&ocedure |()^pend procedure
+ty&pe |()^pend type
+
+g&lobal |
+global fu&nction |()^pend function
+global pr&ocedure |()^pend procedure
+global ty&pe |()^pend type
+
+--NB public and export are RDS Eu 4.0 only, for now...
+
+pu&blic |
+public fu&nction |()^pend function
+public pr&ocedure |()^pend procedure
+public ty&pe |()^pend type
+
+ex&port |
+export fu&nction |()^pend function
+export pr&ocedure |()^pend procedure
+export ty&pe |()^pend type
+
+a&tom |
+in&teger |
+se&quence |
+st&ring |
+ob&ject |
+co&nstant |
+en&um |
+
+global a&tom |
+global in&teger |
+global se&quence |
+global st&ring |
+global ob&ject |
+global co&nstant |
+global en&um |
+
+--NB public and export are RDS Eu 4.0 only, for now...
+
+public a&tom |
+public in&teger |
+public se&quence |
+public st&ring |
+public ob&ject |
+public co&nstant |
+public en&um |
+
+export a&tom |
+export in&teger |
+export se&quence |
+export st&ring |
+export ob&ject |
+export co&nstant |
+export en&um |
+
+^,a&tom |
+--^,bo&olean |
+^,in&teger |
+^,ob&ject |
+^,se&quence |
+^,st&ring |
+
+##end AutoComplete
+
+--
+-- The remaining sections are listed in the Options/Colours window. 
+-- The names used should not contain spaces; these are automatically 
+-- inserted after any lower-case character which is followed by an 
+-- upper-case one. Otherwise these names are entirely descriptive and 
+-- are not defined or used anywhere else (though they must match entries
+-- in the final Scheme and .clr files). Remember that all words
+-- beginning in column 1 are interpreted as section names.
+
+ReservedWords
+-------------
+        and
+        as
+        break
+        by
+        case
+        constant
+        continue
+        default
+        do
+        else
+        elsedef
+        elsif
+        elsifdef
+        end
+        enum
+        exit
+        fallthru
+        fallthrough
+        for 
+        forward
+        function
+        global
+        if
+        ifdef
+        include
+        jump_table
+        not
+        or
+        procedure 
+        return
+        switch
+        then
+        to
+        type
+        while
+        xor
+        ilASM
+        
+-- RDS Eu 4.0 only:
+Reserved4
+        entry
+        export
+        goto
+--      label
+        loop
+        namespace
+        override
+        public
+        retry
+        routine
+        until
+
+WithClauses
+-----------
+        with
+        without
+        profile
+        profile_time
+        trace
+        type_check
+        warning
+        strict
+        licence
+        debug
+        console
+        gui
+        -- (profile and trace are coloured as WithClauses even when used as procedures)
+
+Types
+-----
+        atom
+        bool
+        integer
+        object
+        sequence
+        string
+        timedate
+        a32Colour
+        a32Colour0
+        a32Dib
+        a32Dib0
+        -- (above are coloured as Types even when used as a functions)
+
+BuiltinRoutines
+---------------
+-- All
+        abort
+        allocate
+        and_bits
+        append
+        arctan
+        atom_to_float32
+        atom_to_float64
+        atom_to_float80
+        bk_color
+        call
+        call_func
+        call_proc
+        chdir
+        clear_screen
+        close
+        compare
+        cos
+        define_c_func
+        define_c_proc
+        define_c_var
+        equal
+        find
+        float32_to_atom
+        float64_to_atom
+        float80_to_atom
+        floor
+        flush
+        free
+        free_console
+        get_key
+        get_position
+        get_proc_address
+        getc
+        gets
+        iff
+        iif
+        instance
+        length
+        lock_file
+        log
+        machine_bits
+        machine_word
+        match
+        mem_copy
+        mem_set
+        not_bits 
+        open
+        open_dll
+        or_bits
+        peek
+        peek1s
+        peek1u
+        peek2s
+        peek2u
+        peek4s
+        peek4u
+        peek8s
+        peek8u
+        peekNS
+        platform
+        poke
+        poke1
+        poke2
+        poke4
+        poke8
+        pokeN
+        position
+        power
+        prepend
+        puts 
+        rand
+        remainder
+        repeat
+        repeatch
+        rfind
+        seek
+        set_rand
+        sin
+        sleep
+        sqrt
+        tan
+        text_color
+        time
+        unlock_file
+        wait_key
+        where
+        xor_bits
+-- RDS Eu 4.0 only, for now:
+Builtin4
+        hash 
+        option_switches
+        peeks
+                
+BuiltinConstants
+----------------
+        BLACK
+        BLINKING
+        BLUE
+        BMP_INVALID_MODE
+        BMP_OPEN_FAILED
+        BMP_SUCCESS
+        BMP_UNEXPECTED_EOF
+        BMP_UNSUPPORTED_FORMAT
+        BRIGHT_BLUE
+        BRIGHT_CYAN
+        BRIGHT_GREEN
+        BRIGHT_MAGENTA
+        BRIGHT_RED
+        BRIGHT_WHITE
+        BROWN
+        C_CHAR
+        C_DOUBLE
+        C_FLOAT
+        C_INT
+        C_LONG
+        C_POINTER
+        C_PTR
+        C_SHORT
+        C_UCHAR
+        C_UINT
+        C_ULONG
+        C_USHORT
+        CYAN
+        D_ATTRIBUTES
+        D_DAY
+        D_HOUR
+        D_MINUTE
+        D_MONTH
+        D_NAME
+        D_SECOND
+        D_SIZE
+        D_YEAR
+        DB_EXISTS_ALREADY
+        DB_LOCK_EXCLUSIVE
+        DB_LOCK_FAIL
+        DB_LOCK_NO
+        DB_LOCK_SHARED
+        DB_OK
+        DB_OPEN_FAIL
+        DOS32
+        E_ATOM
+        E_INTEGER
+        E_OBJECT
+        E_SEQUENCE
+        FREEBSD
+        GRAY
+        GREEN
+        IDABORT
+        IDCANCEL
+        IDIGNORE
+        IDNO
+        IDOK
+        IDRETRY
+        IDYES
+        LINUX
+        LOCK_EXCLUSIVE
+        LOCK_SHARED
+        MAGENTA
+        MB_ABORTRETRYIGNORE
+        MB_APPLMODAL
+        MB_DEFAULT_DESKTOP_ONLY
+        MB_DEFBUTTON1
+        MB_DEFBUTTON2
+        MB_DEFBUTTON3
+        MB_DEFBUTTON4
+        MB_HELP
+        MB_ICONASTERISK
+        MB_ICONERROR
+        MB_ICONEXCLAMATION
+        MB_ICONHAND
+        MB_ICONINFORMATION
+        MB_ICONQUESTION
+        MB_ICONSTOP
+        MB_ICONWARNING
+        MB_OK
+        MB_OKCANCEL
+        MB_RETRYCANCEL
+        MB_RIGHT
+        MB_RTLREADING
+        MB_SERVICE_NOTIFICATION
+        MB_SETFOREGROUND
+        MB_SYSTEMMODAL
+        MB_TASKMODAL
+        MB_YESNO
+        MB_YESNOCANCEL
+        NULL
+        PI
+        pp_Ascii
+        pp_Brkt
+        pp_Date
+        pp_File
+        pp_FltFmt
+        pp_Indent
+        pp_IntFmt
+        pp_Maxlen
+        pp_Nest
+        pp_Pause
+        pp_StrFmt
+        RED
+        YELLOW
+        VC_COLOR
+        VC_COLUMNS
+        VC_LINES
+        VC_MODE
+        VC_NCOLORS
+        VC_PAGES
+        VC_XPIXELS
+        VC_YPIXELS
+        W_BAD_PATH
+        WHITE
+        WIN32
+        WINDOWS
+-- pIUP:
+        --
+        --  Canvas Draw Constants
+        --
+        CD_QUERY
+        CD_ERROR
+        CD_OK
+        --
+        -- Polygon Mode Constants
+        --
+        CD_FILL
+        CD_OPEN_LINES
+        CD_CLOSED_LINES
+        CD_CLIP
+        CD_BEZIER
+        CD_REGION
+        CD_POLYCUSTOM
+        --
+        -- Bitmap Type Constants
+        --
+        --  These definitions are compatible with the IM library
+        --
+        CD_RGB
+        CD_MAP
+        CD_RGBA
+        --
+        -- Bitmap Data Constants
+        --
+        CD_IRED
+        CD_IGREEN
+        CD_IBLUE
+        CD_IALPHA
+        CD_INDEX
+        CD_COLORS
+        --
+        -- Clip Mode Constants
+        --
+        CD_CLIPOFF
+        CD_CLIPAREA
+        CD_CLIPPOLYGON
+        CD_CLIPREGION
+        --
+        -- Region Combine Mode Constants
+        --
+        CD_UNION
+        CD_INTERSECT
+        CD_DIFFERENCE
+        CD_NOTINTERSECT
+        --
+        -- Fill Mode Constants
+        --
+        CD_EVENODD
+        CD_WINDING
+        --
+        -- Line Join Constants
+        --
+        CD_MITER
+        CD_BEVEL
+        CD_ROUND
+        --
+        -- Line Cap Constants
+        --
+        CD_CAPFLAT
+        CD_CAPSQUARE
+        CD_CAPROUND
+        --
+        -- Background Opacity Mode Constants
+        --
+        CD_OPAQUE
+        CD_TRANSPARENT
+        --
+        -- Write Mode Constants
+        --
+        CD_REPLACE
+        CD_XOR
+        CD_NOT_XOR
+        --
+        -- Color Allocation Mode Constants
+        --
+        -- Pallette
+        --
+        CD_POLITE
+        CD_FORCE
+        --
+        -- Line Style Constants
+        --
+        CD_CONTINUOUS
+        CD_DASHED
+        CD_DOTTED
+        CD_DASH_DOT
+        CD_DASH_DOT_DOT
+        CD_CUSTOM
+        --
+        -- Marker Type Constants
+        --
+        CD_PLUS
+        CD_STAR
+        CD_CIRCLE
+        CD_X
+        CD_BOX
+        CD_DIAMOND
+        CD_HOLLOW_CIRCLE
+        CD_HOLLOW_BOX
+        CD_HOLLOW_DIAMOND
+        --
+        -- Hatch Type Constants
+        --
+        CD_HORIZONTAL
+        CD_VERTICAL
+        CD_FDIAGONAL
+        CD_BDIAGONAL
+        CD_CROSS
+        CD_DIAGCROSS
+        --
+        -- Interior Style Constants
+        --
+        CD_SOLID
+        CD_HATCH
+        CD_STIPPLE
+        CD_PATTERN
+        CD_HOLLOW
+        --
+        -- Text Alignment Constants
+        --
+        CD_NORTH
+        CD_SOUTH
+        CD_EAST
+        CD_WEST
+        CD_NORTH_EAST
+        CD_NORTH_WEST
+        CD_SOUTH_EAST
+        CD_SOUTH_WEST
+        CD_CENTER
+        CD_BASE_LEFT
+        CD_BASE_CENTER
+        CD_BASE_RIGHT
+        --
+        -- Style Constants
+        --
+        CD_PLAIN
+        CD_BOLD
+        CD_ITALIC
+        CD_UNDERLINE
+        CD_STRIKEOUT
+        CD_BOLD_ITALIC
+        --
+        -- Font Size Constants
+        --
+        CD_SMALL
+        CD_STANDARD
+        CD_LARGE
+        --
+        -- Canvas Capabilities Constants
+        --
+        CD_CAP_NONE
+        CD_CAP_FLUSH
+        CD_CAP_CLEAR
+        CD_CAP_PLAY
+        CD_CAP_YAXIS
+        CD_CAP_CLIPAREA
+        CD_CAP_CLIPPOLY
+        CD_CAP_REGION
+        CD_CAP_RECT
+        CD_CAP_CHORD
+        CD_CAP_IMAGERGB
+        CD_CAP_IMAGERGBA
+        CD_CAP_IMAGEMAP
+        CD_CAP_GETIMAGERGB
+        CD_CAP_IMAGESRV
+        CD_CAP_BACKGROUND
+        CD_CAP_BACKOPACITY
+        CD_CAP_WRITEMODE
+        CD_CAP_LINESTYLE
+        CD_CAP_LINEWITH
+        CD_CAP_FPRIMTIVES
+        CD_CAP_HATCH
+        CD_CAP_STIPPLE
+        CD_CAP_PATTERN
+        CD_CAP_FONT
+        CD_CAP_FONTDIM
+        CD_CAP_TEXTSIZE
+        CD_CAP_TEXTORIENTATION
+        CD_CAP_PALETTE
+        CD_CAP_LINECAP
+        CD_CAP_LINEJOIN
+        CD_CAP_PATH
+        CD_CAP_BEZIER
+        CD_CAP_ALL
+        --
+        -- Canvas Draw Play Constants
+        --
+        CD_SIZECB
+        CD_ABORT
+        CD_CONTINUE
+        --
+        -- Simulation Flag Constants
+        --
+        CD_SIM_NONE
+        CD_SIM_LINE
+        CD_SIM_RECT
+        CD_SIM_BOX
+        CD_SIM_ARC
+        CD_SIM_SECTOR
+        CD_SIM_CHORD
+        CD_SIM_POLYLINE
+        CD_SIM_POLYGON
+        CD_SIM_TEXT
+        CD_SIM_ALL
+        CD_SIM_LINES
+        CD_SIM_FILLS
+        --
+        -- Predefined Color Constants
+        --
+        CD_RED
+        CD_DARK_RED
+        CD_ORANGE
+        CD_DARK_ORANGE
+        CD_GREEN
+        CD_DARK_GREEN
+        CD_BLUE
+        CD_DARK_BLUE
+        CD_YELLOW
+        CD_DARK_YELLOW
+        CD_MAGENTA
+        CD_DARK_MAGENTA
+        CD_CYAN
+        CD_DARK_CYAN
+        CD_WHITE
+        CD_BLACK
+        CD_DARK_GRAY
+        CD_GRAY
+        CD_PARCHMENT
+        --
+        -- Conversion Factor Constants
+        --
+        CD_MM2PT
+        CD_RAD2DEG
+        CD_DEG2RAD
+
+        CD_IUP
+        CD_PRINTER
+        CD_PS
+        CD_PICTURE
+        CD_GL
+        CD_IUPDBUFFER
+        CD_DBUFFER
+        CD_IMIMAGE
+
+        EXIT_SUCCESS
+
+        GL_POINTS
+        GL_LINES
+        GL_LINE_LOOP
+        GL_LINE_STRIP
+        GL_TRIANGLES
+        GL_TRIANGLE_STRIP
+        GL_TRIANGLE_FAN
+        GL_QUADS
+        GL_QUAD_STRIP
+        GL_POLYGON
+
+        GL_NO_ERROR
+        GL_INVALID_ENUM
+        GL_INVALID_VALUE
+        GL_INVALID_OPERATION
+        GL_STACK_OVERFLOW
+        GL_STACK_UNDERFLOW
+        GL_OUT_OF_MEMORY
+--      GL_TABLE_TOO_LARGE_EXT
+
+        GL_VENDOR
+        GL_RENDERER
+        GL_VERSION
+        GL_EXTENSIONS
+
+        GL_FLAT
+        GL_SMOOTH
+
+        GL_CURRENT_BIT
+        GL_POINT_BIT
+        GL_LINE_BIT
+        GL_POLYGON_BIT
+        GL_POLYGON_STIPPLE_BIT
+        GL_PIXEL_MODE_BIT
+        GL_LIGHTING_BIT
+        GL_FOG_BIT
+        GL_DEPTH_BUFFER_BIT
+        GL_ACCUM_BUFFER_BIT
+        GL_STENCIL_BUFFER_BIT
+        GL_VIEWPORT_BIT
+        GL_TRANSFORM_BIT
+        GL_ENABLE_BIT
+        GL_COLOR_BUFFER_BIT
+        GL_HINT_BIT
+        GL_EVAL_BIT
+        GL_LIST_BIT
+        GL_TEXTURE_BIT
+        GL_SCISSOR_BIT
+        GL_ALL_ATTRIB_BITS
+
+        GL_MODELVIEW
+        GL_PROJECTION
+        GL_TEXTURE
+
+        GL_LIGHT0
+        GL_LIGHT1
+        GL_LIGHT2
+        GL_LIGHT3
+        GL_LIGHT4
+        GL_LIGHT5
+        GL_LIGHT6
+        GL_LIGHT7
+
+        GL_AMBIENT
+        GL_DIFFUSE
+        GL_SPECULAR
+        GL_POSITION
+        GL_SPOT_DIRECTION
+        GL_SPOT_EXPONENT
+        GL_SPOT_CUTOFF
+        GL_CONSTANT_ATTENUATION
+        GL_LINEAR_ATTENUATION
+        GL_QUADRATIC_ATTENUATION
+        
+        IUP_ANYWHERE
+        IUP_BOTTOM
+        IUP_BUTTON1
+        IUP_BUTTON2
+        IUP_BUTTON3
+        IUP_BUTTON4
+        IUP_BUTTON5
+        IUP_CENTER
+        IUP_CENTERPARENT
+        IUP_CLOSE
+        IUP_CONTINUE
+        IUP_CURRENT
+        IUP_DEFAULT
+        IUP_ERROR
+        IUP_GETPARAM_BUTTON1
+        IUP_GETPARAM_BUTTON2
+        IUP_GETPARAM_BUTTON3
+        IUP_GETPARAM_CANCEL
+        IUP_GETPARAM_CLOSE
+        IUP_GETPARAM_HELP
+        IUP_GETPARAM_INIT
+        IUP_GETPARAM_OK
+        IUP_IGNORE
+        IUP_INVALID
+        IUP_INVALID_ID
+        IUP_LEFT
+        IUP_MASK_UINT
+        IUP_MOUSEPOS
+        IUP_NOERROR
+        IUP_OPENED
+        IUP_RECBINARY
+        IUP_RECTEXT
+        IUP_RIGHT
+        IUP_TOP
+--      K_asterisk
+        K_BS
+        K_CR
+        K_DEL
+        K_DOWN
+        K_END
+        K_ESC
+        K_F1
+        K_F2
+        K_F3
+        K_F4
+        K_F5
+        K_F6
+        K_F7
+        K_F8
+        K_F9
+        K_F10
+        K_F11
+        K_F12
+        K_HOME
+        K_INS
+        K_LEFT
+        K_LF
+        K_Menu
+        K_MIDDLE
+        K_PAUSE
+        K_PGDN
+        K_PGUP
+        K_Print
+        K_RIGHT
+--      K_SP
+        K_TAB
+        K_UP
+        K_cSP
+        K_csSP
+        K_cA
+        K_cB
+        K_cC
+        K_cD
+        K_cE
+        K_cF
+        K_cG
+        K_cH
+        K_cI
+        K_cJ
+        K_cK
+        K_cL
+        K_cM
+        K_cN
+        K_cO
+        K_cP
+        K_cQ
+        K_cR
+        K_cS
+        K_cT
+        K_cU
+        K_cV
+        K_cW
+        K_cX
+        K_cY
+        K_cZ
+        K_sSP
+
+        SINGLEINSTANCE
+
+
+LibraryRoutines
+---------------
+-- DOS only [DEV]
+        all_palette
+        allocate_low
+        cursor
+        display_image
+        dos_interrupt
+        draw_line
+        ellipse
+        get_active_page
+        get_all_palette
+        get_display_page
+        get_mouse
+--      get_pixel
+        get_vector
+--      graphics_mode
+        free_low
+        lock_memory
+        mouse_events
+        mouse_pointer
+        palette
+--      pixel
+        polygon
+--      save_image
+        save_screen
+        scroll
+        set_active_page
+        set_display_page
+        set_vector
+        sound
+        text_rows
+        tick_rate
+        use_vesa
+        wrap
+-- All
+        abs
+        allocate_string
+        allow_break
+        any_key
+        arccos
+        arcsin
+        bits_to_int
+        bytes_to_int
+        call_back
+        ceil
+        check_all_blocks
+        check_break
+        check_calls
+        check_free_list
+        columnize
+        command_line
+        crash
+        crash_file
+        crash_message
+        crash_routine
+        current_dir
+        custom_sort
+        c_func
+        c_proc
+        date
+        db_close
+        db_compress
+        db_create
+        db_create_table
+        db_delete_record
+        db_delete_table
+        db_dump
+        db_find_key
+        db_insert
+        db_open
+        db_record_data
+        db_record_key
+        db_rename_table
+        db_replace_data
+        db_select
+        db_select_table
+        db_table_list
+        db_table_size
+        db_fatal_id
+        delete
+        delete_routine
+        dir
+        display_text_image
+        edges_only
+        elapsed
+        elapsed_short
+        factorial
+        factors
+        find_any
+        find_replace
+        flatten
+        gcd
+        get
+        get_bytes
+        get_proper_dir
+        get_proper_path
+        get_screen_char
+        get_text
+        getenv
+        head
+        include_paths
+        insert
+        int_to_bits
+        int_to_bytes
+        is_leap_year
+        join
+        lower
+        machine_func
+        machine_proc
+        match_replace
+        max
+        maxsq
+        maybe_any_key
+        message_box
+        min
+        minsq
+        mod
+        or_all
+        peek2s
+        peek2u
+        peek_string
+        poke_string
+        pp
+        ppEx
+        ppExf
+        ppf
+        ppOpt
+        pretty_print
+        prime_factors
+        print
+        printf
+        prompt_number
+        prompt_string
+        put_screen_char
+        read_bitmap
+        read_lines
+        register_block
+        remove
+        remove_all
+        replace
+        reverse
+        rnd
+        routine_id
+        scanf
+        series
+        shuffle
+        smallest
+        sort
+        splice
+        save_bitmap
+        save_text_image
+        set_unicode
+        setenv
+        splice
+        sprint
+        sprintf
+        sum
+        system
+        system_exec
+        tagset
+        tail
+        task_clock_start
+        task_clock_stop
+        task_create
+        task_delay
+        task_list 
+        task_schedule
+        task_self
+        task_status
+        task_suspend
+        task_yield
+        trim
+        trim_head
+        trim_tail
+        trunc
+        unregister_block
+        upper
+        value
+        video_config
+        vlookup
+        walk_dir
+        wildcard_file
+        wildcard_match
+
+-- Phix only:
+        adjust_timedate
+        change_timezone
+        create_thread
+        day_of_week
+        day_of_year
+        decode_flags
+        define_cffi_func
+        define_cffi_proc
+        delete_cs
+        enter_cs
+        exit_thread
+        format_timedate
+        get_thread_exitcode
+        init_cs
+        islower
+        isupper
+        leave_cs
+        parse_date_string
+        permute
+        resume_thread
+        round
+        set_mb_hwnd
+        set_system_doevents
+        set_timedate_formats
+        set_timezone
+        sign
+        sq_abs
+        sq_add
+        sq_and
+        sq_and_bits
+        sq_arccos
+        sq_arcsin
+        sq_arctan
+        sq_atom
+        sq_cos
+        sq_div
+        sq_eq
+        sq_floor
+        sq_floor_div
+        sq_ge
+        sq_gt
+        sq_int
+        sq_le
+        sq_log
+        sq_log10
+        sq_lower
+        sq_lt
+        sq_mul
+        sq_ne
+        sq_not
+        sq_not_bits
+        sq_or
+        sq_or_bits
+        sq_power
+        sq_rand
+        sq_rmdr
+        sq_round
+        sq_ceil
+        sq_sign
+        sq_mod
+        sq_trunc
+        sq_seq
+        sq_sin
+        sq_sqrt
+        sq_str
+        sq_sub
+        sq_tan
+        sq_uminus
+        sq_upper
+        sq_xor
+        sq_xor_bits
+        substitute
+        substitute_all
+        suspend_thread
+        system_wait
+        system_open
+        tagset
+        timedelta
+        try_cs
+        utf8_to_utf16
+        utf8_to_utf32
+        utf16_to_utf8
+        utf16_to_utf32
+        utf32_to_utf8
+        utf32_to_utf16
+        wait_thread
+-- arwen32dib:
+        newDib
+        dibColor
+        copyDib
+        extractDib
+        loadDib
+        saveDib
+        saveDibGray
+        saveDibReduced
+        killDib
+        putDibPixel
+        getDibPixel
+        clearDib
+        fastGetDibPixel
+        fastPutDibPixel
+        invertDib
+        makeDibGray
+        replaceDibColor
+        replaceDibColors
+        adjustDibColors
+        colorizeDib
+        adjustDibBrightness
+        adjustDibContrast
+        adjustDibBrightnessAndContrast
+        clipToSource
+        copyToDib
+        drawDibToDib
+        copyDibToDib
+        tileDibToDib
+        copyDibToClipboard
+        getDibFromClipboard
+        flipDibHor
+        flipDibVert
+        scaleDib
+        scaleDibPct
+        rotateDib
+        rotateDibFree
+        drawDibTransformedPolygon
+        filterDib
+        filterDibGray
+        filterDib3x3
+        filterDibGray3x3
+        detectDibEdges
+        sharpenDib
+        subtleSharpenDib
+        blurDib
+        subtleBlurDib
+        embossDib
+        drawShadedPolygonToDib
+        drawDib
+-- cffi:
+        allocate_struct
+        define_struct
+        set_struct_field
+        get_struct_field
+        get_struct_size
+        get_field_details
+-- pIUP:
+        cdCanvan
+        cdCanvas
+        cdCanvasActivate
+        cdCanvasArc
+        cdCanvasBegin
+        cdCanvasBox
+        cdCanvasClear
+        cdCanvasEnd
+        cdCanvasFlush
+        cdCanvasFont
+        cdCanvasGetAttribute
+        cdCanvasGetBackground
+        cdCanvasGetColorPlanes
+        cdCanvasGetContext
+        cdCanvasGetFont
+        cdCanvasGetFontDim
+        cdCanvasGetForeground
+        cdCanvasGetImageRGB
+        cdCanvasGetLineStyle
+        cdCanvasGetLineWidth
+        cdCanvasGetOrigin
+        cdCanvasGetNativeFont
+        cdCanvasGetSize
+        cdCanvasGetTextBounds
+        cdCanvasGetTextBox
+        cdCanvasGetTextSize
+        cdCanvasGetTransform
+        cdCanvasGetVectorTextBounds
+        cdCanvasGetVectorTextSize
+        cdCanvasInvertYAxis
+        cdCanvasLine
+        cdCanvasLineStyle
+        cdCanvasLineWidth
+        cdCanvasMM2Pixel
+        cdCanvasMultiLineVectorText
+        cdCanvasOrigin
+        cdCanvasPixel
+        cdCanvasPixel2MM
+        cdCanvasPutImageRectRGB
+        cdCanvasPutImImage
+        cdCanvasRect
+        cdCanvasSector
+        cdCanvasSetAttribute
+        cdCanvasSetBackground
+        cdCanvasSetForeground
+        cdCanvasSetLineStyle
+        cdCanvasSetLineWidth
+        cdCanvasSetNativeFont
+        cdCanvasText
+        cdCanvasTextAlignment
+        cdCanvasTransform
+        cdCanvasTransformMultiply
+        cdCanvasTransformPoint
+        cdCanvasTransformRotate
+        cdCanvasTransformScale
+        cdCanvasTransformTranslate
+        cdCanvasUpdateYAxis
+        cdCanvasVectorTextDirection
+        cdCanvasVertex
+        cdClear
+        cdContextCaps
+        cdCreateCanvas
+        cdEncodeColor
+        cdGetBackground
+        cdGetForeground
+        cdGetNativeFont
+        cdGetScreenColorPlanes
+        cdGetScreenSize
+        cdInitContextPlus
+        cdKillCanvas
+        cdLine
+        cdSetBackground
+        cdSetForeground
+        cdSetNativeFont
+        cdText
+        cdTextAlignment
+        cdUseContextPlus
+        cdVersion
+        cdVersionDate
+        wdCanvasFont
+        wdCanvasGetFont
+        wdCanvasGetFontDim
+        wdCanvasGetImageRGB
+        wdCanvasGetTextBounds
+        wdCanvasGetTextBox
+        wdCanvasGetTextSize
+        wdCanvasGetVectorTextBounds
+        wdCanvasGetVectorTextSize
+        wdCanvasGetViewport
+        wdCanvasGetWindow
+        wdCanvasViewport
+        wdCanvasWindow
+        imImage
+        Ihandle
+        Ihandln
+        Icallback
+        cbfunc
+        nullable_string
+        im_color_space
+        im_data
+        im_height
+        im_width
+        imConvertColorSpace
+        imFileImageLoadBitmap
+        imFileImageSave
+        imImageClone
+        imImageCreate
+        imImageCreateBased
+        imImageDestroy
+        imImageGetAttribString
+        imImageRemoveAlpha
+        imImageSetAttribString
+        imProcessFlip
+        imProcessMirror
+        imProcessNegative
+        imProcessRenderConstant
+        imProcessRenderFloodFill
+        imProcessResize
+        imProcessRotate180
+        imProcessRotate90
+        imProcessToneGamut
+        iup_isshift
+        iup_iscontrol
+        iup_isbutton1
+        iup_isbutton2
+        iup_isbutton3
+        iup_isdouble
+        iup_isalt
+        iup_issys
+        iup_isbutton4
+        iup_isbutton5
+        IupAlarm
+        IupAppend
+        IupAppends
+        IupButton
+        IupCanvas
+        IupCbox
+        IupClipboard
+        IupClose
+        IupConfig
+        IupConfigDialogClosed
+        IupConfigDialogShow
+        IupConfigGetVariableDouble
+        IupConfigGetVariableDoubleId
+        IupConfigGetVariableInt
+        IupConfigGetVariableIntId
+        IupConfigGetVariableStr
+        IupConfigGetVariableStrId
+        IupConfigLoad
+        IupConfigRecentInit
+        IupConfigRecentUpdate
+        IupConfigSave
+        IupConfigSetVariableDouble
+        IupConfigSetVariableDoubleId
+        IupConfigSetVariableInt
+        IupConfigSetVariableIntId
+        IupConfigSetVariableStr
+        IupConfigSetVariableStrId
+        IupControlsOpen
+        IupCopyClassAttributes
+        IupCreate
+        IupDestroy
+        IupDetach
+        IupDialog
+        IupExitLoop
+        IupFileDlg
+        IupFill
+        IupFlush
+        IupFontDlg
+        IupFrame
+        IupGetAllAttributes
+        IupGetAllClasses
+        IupGetAllDialogs
+        IupGetAllNames
+        IupGetAttribute
+        IupGetAttributeHandle
+        IupGetAttributeId
+        IupGetAttributeId2
+        IupGetAttributePtr
+--      IupGetAttributes    -- avoid. use IupGetAllAttributes instead
+        IupGetBrother
+        IupGetCallback
+        IupGetChild
+        IupGetClassAttributes
+        IupGetClassCallbacks
+        IupGetClassName
+        IupGetClassType
+        IupGetColor
+        IupGetDialog
+        IupGetDialogChild
+        IupGetGlobal
+        IupGetGlobalFunction
+        IupGetHandle
+        IupGetInt
+        IupGetInt2
+        IupGetIntInt
+        IupGetIntId
+        IupGetIntId2
+        IupGetFloat
+        IupGetFloatId
+        IupGetFloatId2
+        IupGetDouble
+        IupGetDoubleId
+        IupGetDoubleId2
+        IupGetName
+        IupGetNativeHandleImage
+        IupGetImageNativeHandle
+        IupGetRGB
+        IupGetRGBId
+        IupGetRGBId2
+        IupGetParam
+        IupGetParent
+        IupGLCanvas
+        IupGLCanvasOpen
+        IupGLIsCurrent
+        IupGLMakeCurrent
+        IupGLPalette
+        IupGLSwapBuffers
+        IupGLUseFont
+        IupGLWait
+        IupGridBox
+        IupHbox
+        IupHelp
+        IupHide
+        IupImage
+        IupImageFromImImage
+        IupImageLibOpen
+        IupImageRGB
+        IupImageRGBA
+        IupInsert
+        IupItem
+        IupLabel
+        IupList
+        IupListDialog
+        IupLoadImage
+        IupLoopStep
+        IupLoopStepWait
+        IupMainLoop
+        IupMainLoopLevel
+        IupMap
+        IupMatrix
+        IupMatrixEx
+        IupMatrixExInit
+        IupMatrixExOpen
+        IupMatSetAttribute
+        IupMatStoreAttribute
+        IupMenu
+        IupMenuItem
+        IupMessage
+        IupMessageDlg
+        IupMultiLine
+        IupNormalizer
+        IupOpen
+        IupPlayInput
+        IupPopup
+        IupProgressBar
+        IupRadio
+        IupRawStringPtr
+        IupRecordInput
+        IupRedraw
+        IupRefresh
+        IupRefreshChildren
+        IupReparent
+        IupResetAttribute
+        IupSaveClassAttributes
+        IupSaveImage
+        IupSeparator
+        IupSetAttribute
+        IupSetAttributeHandle
+        IupSetAttributeHandlef
+        IupSetAttributeId
+        IupSetAttributeId2
+        IupSetAttributePtr
+        IupSetAttributes
+        IupSetAttributesf
+        IupSetCallback
+        IupSetCallbackf
+        IupSetClassDefaultAttribute
+        IupSetFocus
+        IupSetGlobal
+        IupSetGlobalFunction
+        IupSetHandle
+        IupSetInt
+        IupSetIntId
+        IupSetIntId2
+        IupSetDouble
+        IupSetDoubleId
+        IupSetDoubleId2
+        IupSetFloat
+        IupSetFloatId
+        IupSetFloatId2
+        IupSetRGB
+        IupSetRGBId
+        IupSetRGBId2
+        IupSetStrAttribute
+        IupSetStrAttributeId
+        IupSetStrAttributeId2
+        IupSetStrGlobal
+        IupShow
+        IupShowXY
+        IupStoreAttribute
+        IupStoreGlobal
+        IupSubmenu
+        IupTabs
+        IupText
+        IupTextConvertLinColToPos
+        IupTextConvertPosToLinCol
+        IupTimer
+        IupToggle
+        IupTree
+        IupTreeGetId
+        IupTreeGetUserId
+        IupTreeSetUserId
+        IupUnmap
+        IupUpdate
+        IupUpdateChildren
+        IupVal
+        IupValuator
+        IupVbox
+        IupVersion
+        IupVersionDate
+        IupVersionNumber
+        IupZbox
+        glBegin
+        glCallList
+        glClear
+        glDisable
+        glEnable
+        glEnd
+        glFrustum
+        glGetError
+        glGetString
+        glLight
+        glLoadIdentity
+        glMatrixMode
+        glNormal
+        glNormal3d
+        glNormal3f
+        glPopMatrix
+        glPushMatrix
+        glRotate
+        glRotated
+        glRotatef
+        glShadeModel
+        glTranslate
+        glTranslated
+        glTranslatef
+        glVertex
+        glVertex2d
+        glVertex2f
+        glVertex2i
+        glVertex2s
+        glVertex3d
+        glVertex3f
+        glVertex3i
+        glVertex3s
+        glVertex4d
+        glVertex4f
+        glVertex4i
+        glVertex4s
+        glViewport
+        wglGetProcAddress
+        
+-- RDS Eu 4.0 only, for now:
+Library4
+        db_cache_clear
+        db_clear_table
+        db_current
+        db_current_table
+        db_fetch_record
+        db_get_errors
+        db_get_recid
+        db_record_recid
+        db_replace_recid
+        db_set_caching
+
+        absolute_path
+        accept
+--      add
+        add_item
+        add_to
+        all_left_units
+        all_matches
+        all_right_units
+        allocate_code
+        allocate_data
+--      allocate_pointer_array  -- (deliberately omitted)
+        allocate_protect
+        allocate_string_pointer_array
+        allocate_wstring
+        amalgamated_sum
+        any_key
+        append_lines
+        apply
+        approx
+        arccosh
+        arcsinh
+        arctanh
+        ascii_string
+        astring
+--      at
+        atan2
+        avedev
+        average
+        begins
+        belongs_to
+        binary_search
+--      bind
+        boolean
+        breakup
+        build_commandline
+        build_list
+        byte_range
+        calc_hash
+        calc_primes
+        can_add
+        canon2win
+        canonical
+        canonical_path
+        cardinal
+        central_moment
+        change_target
+        char_test
+        clear
+        clear_directory
+        cmd_parse
+--      color
+        combine_maps
+        compose_map
+        connect
+        copy
+        copy_file
+        cosh
+--      count   -- (renamed [as count_atoms] 15/5/14)
+        count_atoms
+        create
+        create_directory
+        curdir
+--      datetime
+        days_in_month
+        days_in_year
+        decanonical
+        defaulted_value
+        defaultext
+        define_map
+        define_operation
+        deg2rad
+        delete_file
+--      delta
+        dequote
+        deserialize
+        diagram_commutes
+        die
+        diff
+        difference
+        dir_size
+        direct_map
+        dirname
+        disk_metrics
+        disk_size
+        distributes_over
+        driveid
+        dump
+        dup
+        embed_union
+        embedding
+        emovavg
+        ends
+        error_no
+        exec
+        exp
+        extract
+        fetch
+        fiber_over
+        fiber_product
+        file_exists
+        file_length
+        file_number
+        file_position
+        file_timestamp
+        file_type
+        filebase
+        fileext
+--      filename    -- way too annoying!
+        filter
+        find_all
+        find_any
+        find_nested
+        find_replace_callback
+        find_replace_limit
+        format
+        frac
+        free_code
+--      free_pointer_array  -- (deliberately omitted)
+        from_date
+        from_unix
+        geomean
+        get_charsets
+        get_def_lang
+        get_dstring
+        get_encoding_properties
+        get_integer16
+        get_integer32
+        get_lang_path
+        get_lcid
+        get_option
+        graphics_point
+        harmean
+        has
+        has_inverse
+        has_match
+        has_unit
+        hex_text
+--      image -- uh?
+        init_curdir
+        intdiv
+        integer_array
+        intersection
+        is_associative
+        is_bijective
+        is_empty
+        is_even
+        is_even_obj
+        is_in_list
+        is_in_range
+        is_injective
+        is_match
+        is_subset
+        is_surjective
+        is_symmetric
+        is_unit
+        is_win_nt
+        keys
+        keyvalues
+        kill
+        kurtosis
+        lang_load
+        largest
+--      last
+        left_shift
+        linear
+        listen
+        load
+        load_map
+        locate_file
+        lock_type
+        log10
+        machine_addr
+        map
+        mapping
+        match_all
+        matches
+--      median
+--      merge
+        mid
+        mixture
+--      mod
+--      mode
+        money
+        movavg
+        move_file
+        nested_get
+        nested_put
+        new
+        new_extra
+        new_from_kvpairs
+        new_from_string
+        new_time
+        next_prime
+        now
+        now_gmt
+        number
+        number_array
+        operation
+        optimize
+        pad_head
+        pad_tail
+        pairs
+        parse
+        parse_commandline
+        patch
+        pathinfo
+        peek_end
+        peek_top
+        peek_wstring
+        pivot
+--      pop
+        positive_int
+        powof2
+        pretty_sprint
+        prime_list
+--      process
+        product
+        product_map
+        project
+        proper
+--      push
+        put
+        put_integer16
+        put_integer32
+        quote
+        rad2deg
+        rand_range
+--      range
+        raw_frequency
+        read
+        read_file
+        read_lines
+        receive
+        regex
+        rehash
+        remove_directory
+        remove_dups
+        remove_from
+        remove_subseq
+        rename_file
+        repeat_pattern
+        replace_all
+        restrict
+        reverse_map
+        right_shift
+        rmatch
+--      rnd
+        rnd_1
+        rotate
+        save_map
+--      section --??
+        select
+        send
+        sequence_array
+        sequence_to_set
+        sequences_to_map
+        serialize
+        service_by_name
+        service_by_port
+--      set
+        set_accumulate_summary
+        set_charsets
+        set_decimal_mark
+        set_def_lang
+        set_default_charsets
+        set_encoding_properties
+        set_in_list
+        set_in_range
+        set_lang_path
+        set_option
+        set_test_abort
+        set_test_verbosity
+        set_wait_on_summary
+        show
+--      show_block
+        show_help
+        shutdown
+--      sign
+        sim_index
+        sinh
+--      size
+        sizeof
+        skewness
+        slice
+        small
+        socket
+        sort_columns
+        split
+        split_any
+        split_limit
+        stack
+        statistics
+        std_library_address
+        stdev
+        store
+        subsets
+        subtract
+        sum_central_moments
+        swap
+        t_alnum
+        t_alpha
+        t_ascii
+        t_boolean
+        t_bytearray
+        t_cntrl
+        t_consonant
+        t_digit
+        t_display
+        t_graph
+        t_identifier
+        t_lower
+        t_print
+        t_punct
+        t_space
+        t_specword
+        t_text
+        t_upper
+        t_vowel
+        t_xdigit
+        tanh
+        temp_file
+        test_equal
+        test_fail
+        test_false
+        test_not_equal
+        test_pass
+        test_report
+        test_true
+        threshold
+        to_integer
+        to_number
+        to_unix
+--      top         -- (std/stack.e)
+        transform
+        trsprintf
+        type_of
+        uname
+        union
+        unsetenv
+        utf8_decode
+        valid_index
+        valid_memory_protection_constant
+        values
+        vslice
+        warning_file
+        weeks_day
+        write
+        write_file
+        write_lines
+        wstring
+        years_day
+
+
+Win32lib
+--------
+        abortErr
+        addDIB
+        addEuBmp
+        addIcon
+        addItem
+        addLVItem
+        addStyle
+        addToBand
+        addTVItem
+        addXpm
+        alignControls
+        appendText
+        assignFont
+        attachCleanUp
+        attachPopup
+        autoSelect
+        Beep
+        bitBlt
+        buildDefaultOfn
+        canFocus
+        captureMouse
+        centerControl
+        classAutoSelect
+        classDefaults
+        clear
+        clearWindow
+        clickPointerLeft
+        ClientToScreen
+        closeApp
+        closeWindow
+        collapseItem
+        colorValue
+        convPctToPixel
+        convPointsToLogical
+        copy
+        copyBlt
+        copyFile
+        copyToBitmapFile
+        copyToTrueColorBitmap
+        create
+        createDIB
+        createDirectory
+        createEx
+        createForm
+        createMousePointer
+        createMouseTrap
+        createXpm
+        createXpmFromBmpFile
+        current_number
+        cut
+        defineMenuRadioGroup
+        defineUserProperty
+        define_series
+        deleteFile
+        deleteItem
+        deleteLVColumn
+        deleteMouseTrap
+        deleteObject
+        deleteUserProperty
+        destroy
+        detachCleanUp
+        disableControlSet
+        distributeControls
+        doEvents
+        dragPointerTo
+        drawArc
+        drawBitmap
+        drawChord
+        drawEllipse
+        drawLine
+        drawLines
+        drawPie
+        drawPolygon
+        drawRectangle
+        drawRoundRect
+        drawText
+        enableControlSet
+        enableMouseTrap
+        endDoc
+        endPage
+        eraseItems
+        expandItem
+        expandTV
+        extractIcon
+        EzCreateFont
+        fetch_CHARFORMAT
+        fetch_SYSTEMTIME
+        filterMouseTrap
+        findChildren
+        findItem
+        findParent
+        findParentWindow
+        findText
+        findTrackedObject
+        findWindow
+        floodFill
+        formatDate
+        FormatMsg
+        getActiveWindow
+        getAppName
+        getCaption
+        getCharExtent
+        getChildren
+        getClassName
+        getClientPoint
+        getClientRect
+        getClientSize
+        getColorDialog
+        getColumnHeadings
+        getControlInfo
+        getCount
+        getCtlSize
+        getCurrentDirectory
+        getData
+        getDC
+        getFileInfo
+        getFindText
+        getFocus
+        getFontDialog
+        getFontMetric
+        getFontSize
+        getFormIds
+        getFullPathName
+        getHandle
+        getHandler
+        getHandles
+        getHint
+        getHScrollPos
+        getHWND
+        getId
+        getIdFromDC
+        getIdName
+        getIndex
+        getItem
+        getKeyState
+        getLastMsg
+        getLocalTime
+        getLVAllChecked
+        getLVAllText
+        getLVChecked
+        getLVCount
+        getLVItem
+        getLVItemlParam
+        getLVItemText
+        getLVSelected
+        getLVSelectedCount
+        getLVSelectedText
+        getMainWindow
+        getMenuPosn
+        getMouseTrap
+        getMultIndices
+        getMultItems
+        getNameId
+        getNameIdInContext
+        getNumber
+        getOpenFileName
+        getOpt
+        getPageSetup
+        getPageSetupEx
+        getPathFromIDList
+        getPixel
+        getPointerPos
+        getPointerRelPos
+        getPosition
+        getPrintChoice
+        getPrinter
+        getRandInt
+        getRect
+        getReplaceText
+        getReturnValue
+        getRichText
+        getSaveFileName
+        getScrollChange
+        getScrollPos
+        getScrollRange
+        getSelectedDate
+        getSelectedDateRange
+        getSelectedText
+        getSelection
+        getSelf
+        getStream
+        getSysColor
+        getSystemMetrics
+        getSystemTime
+        getTabItem
+        getTagMouseTrap
+        getTempFile
+        getTempPath
+        getText
+        getTextExtent
+        getTextHeight
+        getTextWidth
+        getThumbPos
+        getToday
+        getTrackedObject
+        getTVIndex
+        getTVParent
+        getTVSelectedText
+        getTVText
+        getUserName
+        getUserProperty
+        getValues
+        getVScrollPos
+        getWheelScrollLines
+        getWindowInfo
+        getWindowRect
+        getWinVersion
+        get_series
+        hideControlSet
+        hitMouseTrap
+        hitTestLV
+        hitTestTT
+        hitTestTV
+        insertItem
+        insertLVColumn
+        insertLVItem
+        insertText
+        invokeHandler
+        isChecked
+        isEnabled
+        isMaximized
+        isMinimized
+        isScreenPointIn
+        isVisible
+        killTimer
+        limitText
+        loadBitmapFromFile
+        loadCursor
+        loadForms
+        loadIconFromFile
+        loadLVInfo
+        makeFront
+        makeStandardName
+        manageToolTip
+        moveFile
+        moveWindow
+        moveZOrder
+        newUIObject
+        next_number
+        OleInitialize
+        OleUninitialize
+        openDialog
+        openWindow
+        paste
+        playSound
+        popup
+        printRichText
+        putStream
+        refreshWindow
+        registerHotKey
+        registerRoutine
+        registerw32Function
+        registerw32Library
+        registerw32Procedure
+        releaseDC
+        releaseMouse
+        releasePrinter
+        removeHandler
+        removeStyle
+        repaintFG
+        repaintRect
+        repaintWindow
+        resetReturnValue
+        resetUserProperty
+        restoreMousePointer
+        returnValue
+        rgb
+        ScreenToClient
+        selectDirectory
+        sendMessage
+        setAcceleration
+        setAlignment
+        setAppName
+        setAutoFocusLabels
+        setBackColor
+        setBitmap
+        setBuddy
+        setBullet
+        setCallback
+        setCheck
+        setClientRect
+        setColumn
+        setColumnHeadings
+        setContainer
+        setControlBlocks
+        setControlSet
+        setCreateFont
+        setCtlPosition
+        setCtlSize
+        setCurrentDirectory
+        setDefaultFont
+        setDragPointer
+        setEnable
+        setEndAction
+        setErasePolicy
+        setEventLoop
+        setFileAttr
+        setFocus
+        setFont
+        setFontWeight
+        setHandler
+        setHint
+        setHintEx
+        setHintFont
+        setHintWidth
+        setHScrollPos
+        setIcon
+        setIdle
+        setIdName
+        setImageList
+        setIndent
+        setIndex
+        setListHScroll
+        setLVAttr
+        setLVChecked
+        setLVInsert
+        setLVItem
+        setLVItemlParam
+        setLVItemText
+        setLVStyle
+        setMainWindow
+        setMaxDateRange
+        setMonthColor
+        setMouseClick
+        setMousePointer
+        setNotifyHandler
+        setPenBkColor
+        setPenBkMode
+        setPenBrushColor
+        setPenColor
+        setPenMode
+        setPenPos
+        setPenStyle
+        setPenWidth
+        setPixel
+        setPixmap
+        setPointerPos
+        setReadOnly
+        setReBarAutoSizing
+        setRect
+        setScrollChange
+        setScrollPos
+        setScrollRange
+        setSearchPaths
+        setSelectedDate
+        setSelectedDateRange
+        setSelectedText
+        setStartupFont
+        setSubFields
+        setTabs
+        setTabStops
+        setTagMouseTrap
+        setText
+        setTextAlign
+        setTextColor
+        setTimer
+        setToday
+        setToolBarSize
+        setTransparentColor
+        setTVImages
+        setTVText
+        setUserLanguage
+        setUserProperty
+        setVisible
+        setVScrollPos
+        setWarning
+        setWindowBackColor
+        setWindowRect
+        setWindowScrollRange
+        setWinMsgHandler
+        shellExecute
+        shellExecuteEx
+        showChars
+        showControlSet
+        showMessage
+        showWindow
+        sizeControls
+        skipF10
+        split_rgb
+        startApp
+        startDoc
+        startPage
+        stretchBlt
+        struct_CHARFORMAT
+        struct_LVCOLUMN
+        struct_LVFINDINFO
+        struct_LVITEM
+        struct_MENUITEMINFO
+        struct_SYSTEMTIME
+        struct_TOOLINFO
+        subClassControl
+        tab_direction
+        textOut
+        textRect
+        textToBitmap
+        toggleItem
+        trackObject
+        transBlt
+        undo
+        updateMouseTrap
+        useLogicalResolution
+        UseText
+        validId
+        w32abs
+        w32acquire_mem
+        w32address
+        w32allot
+        w32alloted_handle
+        w32alloted_size
+        w32alloted_sofar
+        w32CType
+        w32Encode
+        w32fetch
+        w32FileOpen
+        w32FindFile
+        w32findKey
+        w32findKeyEx
+        w32Func
+        w32GetCType
+        w32get_bits
+        w32hi_word
+        w32iif
+        w32insertElement
+        w32llSetAbort
+        w32lookup
+        w32lo_word
+        w32manage_mem
+        w32new_memset
+        w32or_all
+        w32pack_word
+        w32peek_string
+        w32Proc
+        w32release_mem
+        w32removeIndex
+        w32removeItem
+        w32replaceItem
+        w32routine_id
+        w32SetCType
+        w32shortInt
+        w32signed_word
+        w32split
+        w32store
+        w32string
+        w32TextToNumber
+        w32trim
+        w32trim_left
+        w32trim_right
+        warnErr
+        WinMain
+        wPrint
+        wPrintf
+        wPuts
+        xpmToEuBmp
+        xpmToPixmap
+        zorderMouseTrap
+
+Win32libConstants
+        advapi32
+        Bitmap
+        Button
+        CancelButton
+        CCexflags
+        CCflags
+        CCwinstyle
+        CheckBox
+        Combo
+        ComboBoxEx
+        comctl32
+        comdlg32
+        CText
+        Default
+        DefPushButton
+        DropDownList
+        EditText
+        FlatToolbar
+        FLOODFILLBORDER
+        FLOODFILLSURFACE
+        ForPaint
+        ForProgram
+        gdi32
+        Group
+        GroupAdv
+        HScroll
+        HTrackBar
+        Icon
+        kernel32
+        kLVColTypes
+        kLVSortRtn
+        kLVSortSeq
+        kMainMsg
+        kSubclassedMsg
+        List
+        ListView
+        LText
+        Menu
+        MenuItem
+        MenuSpacer
+        MleText
+        MonthCalendar
+        ole32
+        PictureButton
+        Pixmap
+        Popup
+        Printer
+        ProgressBar
+        PushButton
+        Radio
+        ReBar
+        riched32
+        RichEdit
+        RText
+        Screen
+        SepButton
+        shell32
+        SimpleCombo
+        SortedCombo
+        SortedList
+        StatusBar
+        TabControl
+        TabItem
+        ToggleButton
+        TogglePicture
+        ToolBar
+        ToolTip
+        TreeView
+        TriCheckBox
+        UpDown
+        user32
+        VScroll
+        VTrackBar
+        w32AllItems
+        w32AltEdge
+        w32Edge
+        w32False
+        w32HActivate
+        w32HAfterEvent
+        w32HBreak
+        w32HChange
+        w32HClick
+        w32HClose
+        w32HCloseUp
+        w32HDestroy
+        w32HDragAndDrop
+        w32HDropDown
+        w32HEvent
+        w32HGotFocus
+        w32HIdle
+        w32HKeyDown
+        w32HKeyPress
+        w32HKeyUp
+        w32HLostFocus
+        w32HMouse
+        w32HMouseTrap
+        w32HOpen
+        w32HPaint
+        w32HPause
+        w32HResize
+        w32HScroll
+        w32HTimer
+        w32InchScale
+        w32KH_SetFocus
+        w32LV_EndSorting
+        w32LV_StartSorting
+        w32MillScale
+        w32MsgNum
+        w32PB_BITMAP
+        w32PB_ICON
+        w32PixelScale
+        w32SameSize
+        w32True
+        w32TwipsScale
+        Win32LibVersion
+        Window
+        winmm32
+
+Incompatible
+------------
+        allocate_pointer_array
+        cdBackground
+        cdCanvasBackground
+        cdCanvasForeground
+        cdCanvasNativeFont
+        cdCanvasSetfAttribute
+        cdCreateCanvasf
+        cdForeground
+        cdNativeFont
+        glLightf
+        glLightfv
+        glLighti
+        glLightiv
+        glNormal3b
+        glNormal3bv
+        glNormal3dv
+        glNormal3fv
+        glNormal3i
+        glNormal3iv
+        glNormal3s
+        glNormal3sv
+        glVertex2dv
+        glVertex2fv
+        glVertex2iv
+        glVertex2sv
+        glVertex3dv
+        glVertex3fv
+        glVertex3iv
+        glVertex3sv
+        glVertex4dv
+        glVertex4fv
+        glVertex4iv
+        glVertex4sv
+        IupConfigGetVariableDoubleDef
+        IupConfigGetVariableDoubleIdDef
+        IupConfigGetVariableIntDef
+        IupConfigGetVariableIntIdDef
+        IupConfigGetVariableStrDef
+        IupConfigGetVariableStrIdDef
+        IupGetAttributes
+        IupGetFunction
+        IupSetCallbacks
+        IupSetfAttribute
+        IupSetfAttributeId2
+        IupSetFunction
+
+        K_SP
+        K_asterisk
+        K_exclam
+        K_quotedbl
+        K_numbersign
+        K_dollar
+        K_percent
+        K_ampersand
+        K_apostrophe
+        K_parentleft
+        K_parentright
+        K_plus
+        K_comma
+        K_minus
+        K_period
+        K_slash
+        K_0
+        K_1
+        K_2
+        K_3
+        K_4
+        K_5
+        K_6
+        K_7
+        K_8
+        K_9
+        K_colon
+        K_semicolon
+        K_less
+        K_equal
+        K_greater
+        K_question
+        K_at
+        K_A
+        K_B
+        K_C
+        K_D
+        K_E
+        K_F
+        K_G
+        K_H
+        K_I
+        K_J
+        K_K
+        K_L
+        K_M
+        K_N
+        K_O
+        K_P
+        K_Q
+        K_R
+        K_S
+        K_T
+        K_U
+        K_V
+        K_W
+        K_X
+        K_Y
+        K_Z
+        K_a
+        K_b
+        K_c
+        K_d
+        K_e
+        K_f
+        K_g
+        K_h
+        K_i
+        K_j
+        K_k
+        K_l
+        K_m
+        K_n
+        K_o
+        K_p
+        K_q
+        K_r
+        K_s
+        K_t
+        K_u
+        K_v
+        K_w
+        K_x
+        K_y
+        K_z
+        K_bracketleft
+        K_backslash
+        K_bracketright
+        K_circum
+        K_underscore
+        K_grave
+        K_braceleft
+        K_bar
+        K_braceright
+        K_tilde
+        K_acute
+        K_ccedilla
+        K_diaeresis
+
+        find_from
+        match_from
+
+--
+-- The Scheme section defines the /default/ colours (and exists mainly to 
+--      simplify distribution and installation).
+-- If a .clr file exists (eg Euphoria.clr) then it overrides these defaults.
+-- The Options/Colours window creates/overwrites .clr files on exit.
+--
+Scheme
+        Background Silver
+        Comments Navy Italic
+        Highlight Gray
+        Strings Green
+        Symbols Blue
+        Illegals Black
+        Other Black
+        Brace1 Blue
+        Brace2 Yellow
+        Brace3 Maroon
+        Brace4 Purple
+        Brace5 Green
+        ReservedWords Teal
+        Reserved4 Teal
+        WithClauses Teal
+        Types Teal
+        BuiltinRoutines #7060A8
+        Builtin4 #7060A8
+        LibraryRoutines #7060A8
+        Library4 #7060A8
+

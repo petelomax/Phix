@@ -1,0 +1,102 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">shared libraries</h1>
+      <div id="mainSection">
+        When a format directive such as "format PE32 DLL" is encountered, the Phix compiler attempts to produce a shared library.<br>
+        Of course PE64 is also valid, as are ELF32/ELF64, but with SO instead of DLL. While "export" is normally treated as an 
+        alias of "global", when creating a shared lib the compiler collects all top-level export routines in the main file and 
+        uses that list to populate the export section.
+        <br>
+        <br>
+        A requirement when producing shared libraries is that neither the main file nor any include file should generate any 
+        top-level code whatsoever - since it would never be executed. One case in particular is "constant x = somefunc()".
+        At the time of writing such things are not flagged as errors, but they should be.
+        <br>
+        <br>
+        Phix takes the stern line that any dll/so it creates should be universally valid: it is no good returning a sequence to
+        a C program that cannot comprehend it (and the same with Phix-style strings, though 
+        <a href="IupRawStringPtr.htm">IupRawStringPtr</a> or something similar might be a possibility).<br>
+        In a similar vein it might sound dandy having a dll routine that accepts (nested) sequences, but really there is little
+        point if only Phix knows how to invoke it - ultimately, the more you think about it, Phix should not care if the dll it 
+        happens to be calling was written in Phix, C, or any other language, or for that matter harbour any hidden lists of 
+        language-specific caveats, or indeed force anyone else using the result of your efforts into using Phix.<br>
+        Instead, therefore, <b>all parameters and return values of all export routines must be atom.</b><br>
+        (Note that you can pass strings directly to <i>any</i> dll, but they will always arrive in raw atom pointer form, aka
+        char*.)
+        <br>
+        <br>
+        Likewise you cannot allocate memory in a shared lib and free it in a completely separate module, or for that matter, free
+        memory in a dll/so that was originally allocated elsewhere. When necessary the programmer must engineer some appropriate 
+        callback(s) to achieve the required result. I am of course talking about hll <a href="allocate.htm">allocate</a>() and 
+        <a href="free.htm">free</a>() - on Windows, should it prove absolutely necessary for some fixed API, you may be able to 
+        utilise kernel32/<wbr>GlobalAlloc/<wbr>LocalAlloc/<wbr>HeapAlloc/<wbr>VirtualAlloc/<wbr>CoTaskMemAlloc etc directly, 
+        though afaik there are no equivalent functions on Linux.
+        <br>
+        <br>
+        In practice, when the compiler populates the export section, it does so via "static callbacks" which act as a kind of
+        "trampoline", converting full 32/64-bit values to 31/63-bit integers or floats, etc, as required by the Phix runtime.
+        This further cements the requirement that all exports be fully callback-compatible.
+        <br>
+        <br>
+        For Windows, special treatment is given to an export function DllMain(atom hinstDLL, integer fdwReason, atom lpvReserved), 
+        which should be kept as simple as possible, and according to the official Microsoft documentation must not invoke any of:
+        dll_open/LoadLibrary, FreeLibrary, GetStringType, CoInitialize, CreateProcess, create_thread/CreateThread, 
+        exit_thread/ExitThread, CreateNamedPipe, or any registry functions - in short, defer everything you can. <br>
+        If such a function is detected, it is moved to the top of the list and becomes the main entry point for LoadLibrary; <br>
+        if no such function is detected, the equivalent of a simple return 1 is automatically inserted, <br>
+        in either case the standard :>init routine processing is always performed first. <br>
+        You should also note that a DllMain that does anything other than return 1 is unlikely to work properly on Linux, since 
+        that code will/may never be executed.
+        <br>
+        <br>
+        [DEV]
+        Linux shared libraries are not supported at the time of writing. It creates a .so, but with incorrect relocations and an 
+        empty DT_REL. Most things found online strongly suggest pic (position independant code) is the only way to go, but that 
+        would be very difficult, especially for the data section, however libiup.so analysis suggests that relocations are fine.
+        Since Linux has no equivalent mechanism to kernel32/LoadLibrary (ie DLL_PROCESS_ATTACH) it should not matter whether a
+        DllMain exists or not (unless you call it manually). The initial code is likely to become something like: 
+<!--eucode>
+    ::top
+        <call >:init
+--      ret (not necessary, :>initStack clears the following field)
+    ::check
+        cmp dword[ds+12]|qword[ds+16],0
+        jne :top
+        ret
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">    ::</font><font color="#000000">top
+</font><font color="#0000FF">        &lt;</font><font color="#7060A8">call</font><font color="#0000FF"> &gt;:</font><font color="#000000">init
+</font><font color="#000080"><i>--      ret (not necessary, :&gt;initStack clears the following field)
+</i></font><font color="#0000FF">    ::</font><font color="#000000">check
+        cmp dword</font><font color="#0000FF">[</font><font color="#000000">ds</font><font color="#0000FF">+</font><font color="#000000">12</font><font color="#0000FF">]|</font><font color="#000000">qword</font><font color="#0000FF">[</font><font color="#000000">ds</font><font color="#0000FF">+</font><font color="#000000">16</font><font color="#0000FF">],</font><font color="#000000">0
+        jne</font><font color="#0000FF"> :</font><font color="#000000">top
+        ret</font>
+</pre>
+        with :check being invoked from every "static callback" for every top-level export routine. (see pilx86.e/opInit)
+        I should also note that pbinary.e/CreateELF() currently does nothing (useful) with the exports parameter.
+        No timescale is offered, but hopefully it will be a matter of several relatively small tweaks, as opposed to a drastic 
+        system-wide rewrite.
+        <br>
+        <br>
+        At the time of writing no attempt has been made to allow export variables - in any case non-integers would have to be
+        Phix-style refs that only Phix understands, and hence they would be of very limited use anyway, and besides it is not
+        particularly difficult to compose suitable getter/setter routines instead.
+        <br>
+        <br>
+        Lastly, I trust it goes without saying that there is no way to "interpret" a shared lib, and hence there can be no way
+        to trace/debug it at the source code level.
+        [DEV] Also, no testing has been done yet that errors in dll files generate sensible ex.err files.
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

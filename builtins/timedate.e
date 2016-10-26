@@ -442,6 +442,7 @@ enum LITERAL,
      MONTH,
      DAY,
      DOW,
+     DOY,
      HOUR,
      MINUTE,
      SECOND,
@@ -736,10 +737,10 @@ integer days, minutes, hours
 end function
 
 
-global function adjust_timedate(sequence td, atom timedelta)
+global function adjust_timedate(sequence td, atom delta)
 integer y, m, d, dsrule, tz, stz
-    td[1..6] = seconds_to_timedate(timedate_to_seconds(td)+timedelta)
-    timedelta = 0
+    td[1..6] = seconds_to_timedate(timedate_to_seconds(td)+delta)
+    delta = 0
     if length(td)=DT_DSTZ then
         dsrule = get_DST_rule(td,DT_DSTZ)
         if dsrule!=0 then
@@ -748,17 +749,17 @@ integer y, m, d, dsrule, tz, stz
             if isDSTr(td,dsrule) then
                 if tz!=stz then
                     -- modify ..,GMT,BST} to ..,BST,BST}
-                    timedelta = -tzadjs[tz]*3600
+                    delta = -tzadjs[tz]*3600
                     td[DT_TZ] = stz
-                    timedelta += tzadjs[stz]*3600
+                    delta += tzadjs[stz]*3600
                 end if
             else
                 if tz=stz then
                     -- modify ..,BST,BST} to ..,GMT,BST}
                     stz = find(tzDSL[tz],timezones)
-                    timedelta = tzadjs[stz]*3600
+                    delta = tzadjs[stz]*3600
                     td[DT_TZ] = stz
-                    timedelta -= tzadjs[tz]*3600
+                    delta -= tzadjs[tz]*3600
                 end if
             end if
         end if
@@ -770,14 +771,14 @@ integer y, m, d, dsrule, tz, stz
                 tz = td[DT_TZ]
                 stz = find(tzDSL[tz],timezones)
                 td = append(td,tz)
-                timedelta = tzadjs[stz]*3600
+                delta = tzadjs[stz]*3600
                 td[DT_TZ] = stz
-                timedelta -= tzadjs[tz]*3600
+                delta -= tzadjs[tz]*3600
             end if
         end if
     end if
-    if timedelta!=0 then
-        td[1..6] = seconds_to_timedate(timedate_to_seconds(td)+timedelta)
+    if delta!=0 then
+        td[1..6] = seconds_to_timedate(timedate_to_seconds(td)+delta)
     end if
     if length(td)>=DT_DOW then
 --      td[DT_DOW] = day_of_week(td)
@@ -907,6 +908,8 @@ constant edescs = {"literal character mismatch",    -- 1
                    "no closing quote",              -- 17
                    "unparsed input",                -- 18
                    "incomplete input",              -- 19
+                   "month next to hour/second",     -- 20
+                   "minute next to year/day",       -- 21
                    $}
 
 object ecxtra = 0
@@ -973,6 +976,12 @@ integer closequote
                         ftyp = DOW
                         if fcase=1 and fmt[fmtdx]='d' then
                             fcase = 2
+                        end if
+                    elsif fsize=1 and fcase=0 then
+                        if nxtch(fmt,fmtdx,'o',0,1)
+                        and nxtch(fmt,fmtdx+1,'y',0,1) then
+                            ftyp = DOY
+                            fmtdx += 2
                         end if
                     end if
                     break
@@ -1073,6 +1082,7 @@ integer closequote
     end switch
     if ftyp=0 then
         ecode = 7
+        ecxtra = "ch is "&ch
     end if
     return {ecode,fmtdx,ftyp,fcase,fsize,ch}
 end function
@@ -1089,7 +1099,7 @@ function to_space(string s)
 end function
 
 function get_number(string s, integer idx, integer nsize)
--- an nsize of 1 or 2 means 1 or 2, above that must be exact
+-- an nsize of 1..3 means 1 or 2 or 3, above that must be exact
 integer ch, n, asize = 1, sidx = idx+1
     ch = s[sidx]
     if ch<'0' 
@@ -1112,7 +1122,7 @@ integer ch, n, asize = 1, sidx = idx+1
     -- (comment above updated)
     if asize!=nsize
     and (asize>nsize or
-         nsize>2) then
+         nsize>3) then
         ecxtra = sprintf("wrong size (%d not %d) number in \"%s\" at position %d, (\"%s\")",{asize,nsize,s,idx+1,to_space(s[idx+1..$])})
         return {3,idx,0}    -- "number expected"
     end if
@@ -1153,6 +1163,7 @@ function parse_one(string s, string fmt, integer partial)
 integer sdx = 0,    -- chars processed in s
         fmtdx = 0,  -- chars processed in fmt
         ftyp,       -- LITERAL..AM
+        pftyp = 0,  -- previous value of ftyp
         fcase,      -- 0=lower, 1=upper
         fsize,      -- 1 (1 or 2)
                     -- 2 (2)
@@ -1221,6 +1232,11 @@ integer sdx = 0,    -- chars processed in s
                     end if
                 end if
             case YEAR:
+--NO!
+--              if pftyp=MINUTE then
+--                  ecode = 21
+--                  exit
+--              end if
                 switch fsize do
                     case 1,2:
 --                      {ecode,sdx,year} = get_number(s,sdx,fsize)
@@ -1247,6 +1263,10 @@ integer sdx = 0,    -- chars processed in s
                         ?9/0    -- should never happen
                 end switch
             case MONTH:
+                if pftyp=HOUR then
+                    ecode = 20
+                    exit
+                end if
                 switch fsize do
                     case 1,2:
 --                      {ecode,sdx,month} = get_number(s,sdx,fsize)
@@ -1283,6 +1303,8 @@ integer sdx = 0,    -- chars processed in s
                     default:
                         ?9/0    -- should never happen
                 end switch
+            case DOY:
+                {ecode,sdx,dayofyear} = get_number(s,sdx,3)
             case HOUR:
 --              {ecode,sdx,hour} = get_number(s,sdx,fsize)
                 {ecode,sdx,hour} = get_number(s,sdx,2)
@@ -1293,6 +1315,12 @@ integer sdx = 0,    -- chars processed in s
                     end if
                 end if
             case MINUTE:
+                if pftyp=DAY
+                or pftyp=YEAR then
+                    ecode = 21
+                    ecxtra = ""
+                    return {ecode,edescs[ecode],ecxtra}
+                end if
 --              {ecode,sdx,minute} = get_number(s,sdx,fsize)
                 {ecode,sdx,minute} = get_number(s,sdx,2)
                 if ecode=0 then
@@ -1302,6 +1330,10 @@ integer sdx = 0,    -- chars processed in s
                     end if
                 end if
             case SECOND:
+                if pftyp=MONTH then
+                    ecode = 20
+                    exit
+                end if
 --              {ecode,sdx,second} = get_number(s,sdx,fsize)
                 {ecode,sdx,second} = get_number(s,sdx,2)
                 if ecode=0 then
@@ -1311,6 +1343,10 @@ integer sdx = 0,    -- chars processed in s
                     end if
                 end if
             case AM:
+                if pftyp=MONTH then
+                    ecode = 20
+                    exit
+                end if
                 {ecode,sdx,pm} = get_any(s,sdx,ampm[currlang],2,1,"am/pm")
                 -- note: "12:00:00pm" is noon, and "12:00:00am" is midnight
                 --       on a 12 hour clock, 12:00am..12:59am and 12:00pm..12:59pm
@@ -1342,11 +1378,19 @@ integer sdx = 0,    -- chars processed in s
                     {ecode,sdx,tz} = get_any(s,sdx,timezones,4,1,"timezone")
                 end if
             case TH:
+                if pftyp!=DAY then
+                    ecode = 16
+                    ecxtra = ""
+                    exit
+                end if
 --              {ecode,sdx,{}} = get_any(s,sdx,ordinals[currlang],2,1,"ordinal suffix")
                 {ecode,sdx,{}} = get_any(s,sdx,ordinals[currlang],4,1,"ordinal suffix")
             default:
                 ?9/0    -- should never happen...
         end switch
+        if ftyp!=LITERAL then
+            pftyp = ftyp
+        end if
     end while   
     if ecode=0
     and not partial
@@ -1379,7 +1423,8 @@ end function
 sequence default_parse_fmts
 --sequence default_parse_fmts = {}
 integer allow_partial = 0
-string default_format = ""
+--string default_format = ""
+string default_format = "h:mpm Dddd Mmmm ddth, yyyy"
 
 global procedure set_timedate_formats(sequence parse_fmts, object out_fmt=1, integer partial=0)
 --
@@ -1440,7 +1485,7 @@ global function parse_date_string(string s, sequence fmts=default_parse_fmts, in
 --  for that exact literal and returns {0,0,0,0,0,0,0,0,0}, however it
 --  is illegal to specify an empty string ("") as the format.
 --
--- The dayofyear field (res[DT_DOY]) is always left zero, but can easily
+-- The dayofyear field (res[DT_DOY]) is usually left zero, but can easily
 --  be obtained using day_of_year(y,m,d).
 --
 -- The partial parameter controls whether to ignore excess text; if set the most detailed 
@@ -1507,6 +1552,7 @@ integer fmtdx = 0,
         day,
         l,
         dayofweek,
+        dayofyear,
         minute,
         second,
         tz,
@@ -1543,6 +1589,11 @@ object x
                         fmtdx += fsize-1
                     end if
             case YEAR:
+--NO!
+--              if pftyp=MINUTE then
+--                  ecode = 21
+--                  exit
+--              end if
                 year = td[DT_YEAR]
                 switch fsize do
                     case 1,2:
@@ -1553,6 +1604,10 @@ object x
                         ?9/0    -- shoule never happen
                 end switch
             case MONTH:
+                if pftyp=HOUR then
+                    ecode = 20
+                    exit
+                end if
                 month = td[DT_MONTH]
                 if month<1 then
                     ecxtra = sprintf("month is %d",month)
@@ -1620,6 +1675,17 @@ object x
                     default:
                         ?9/0    -- should never happen
                 end switch
+            case DOY:
+                dayofyear = td[DT_DOY]
+                if dayofyear=0 then
+                    year  = td[DT_YEAR]
+                    month = td[DT_MONTH]
+                    if month=0 then ecode = 5 exit end if
+                    day   = td[DT_DAY]
+                    if day=0 then ecode = 6 exit end if
+                    dayofyear = day_of_year(year,month,day)
+                end if
+                x = sprintf("%d",dayofyear)
             case HOUR:
                 hour = td[DT_HOUR]
                 switch fsize do
@@ -1635,6 +1701,11 @@ object x
                 hlen = length(x)
                 hsize = fsize
             case MINUTE:
+                if pftyp=DAY
+                or pftyp=YEAR then
+                    ecode = 21
+                    exit
+                end if
                 minute = td[DT_MINUTE]
                 switch fsize do
                     case 1,2:
@@ -1643,6 +1714,10 @@ object x
                         ?9/0    -- should never happen
                 end switch
             case SECOND:
+                if pftyp=MONTH then
+                    ecode = 20
+                    exit
+                end if
                 second = td[DT_SECOND]
                 switch fsize do
                     case 1,2:
@@ -1651,6 +1726,10 @@ object x
                         ?9/0    -- should never happen
                 end switch
             case AM:
+                if pftyp=MONTH then
+                    ecode = 20
+                    exit
+                end if
                 -- note: "12:00:00pm" is noon, and "12:00:00am" is midnight
                 --       (ideally use "noon" and "midnight", when practical)
                 --       on a 24 hour clock, 0:00..00:59 and 12:00..12:59 equate 
@@ -1719,7 +1798,9 @@ object x
                 ?9/0    -- should never happen
         end switch
         res &= x
-        pftyp = ftyp
+        if ftyp!=LITERAL then
+            pftyp = ftyp
+        end if
     end while   
     if ecode!=0 then return {ecode,edescs[ecode],ecxtra} end if
     if fmtdx!=length(fmt) then ?9/0 end if  -- should never happen

@@ -3,36 +3,40 @@
 --
 
 include pGUI.e
-procedure main()
-Ihandle test, dlg
 
-    IupOpen()
+Ihandle txt, increment, random, hbx, vbx, dlg
 
-    /*Canvas*/
-    test = IupCanvas(NULL);
-    IupSetAttribute(test, "BGCOLOR", "255 127 127");
-    IupSetAttribute(test, "CURSOR", "CROSS");
-    IupSetAttribute(test, "SIZE", "100x100");
-    IupSetAttribute(test, "SCROLLBAR", "YES");
-    IupSetAttribute(test, "XAUTOHIDE", "NO");
-    IupSetAttribute(test, "YAUTOHIDE", "NO");
-    IupSetAttribute(test, "XMAX", "200");
-    IupSetAttribute(test, "YMAX", "200");
+function action_cb(Ihandle /*ih*/, integer ch)
+    if not find(ch,"0123456789-") then return IUP_IGNORE end if
+    return IUP_CONTINUE
+end function
 
-    /*Dialog box*/
-    dlg = IupDialog(IupVbox({test}));
-    IupSetAttribute(dlg, "TITLE", "scrollbar");
-    IupSetAttribute(dlg, "MARGIN", "10x10");
-    IupSetAttribute(dlg, "MINBOX", "NO");
-    IupSetAttribute(dlg, "MAXBOX", "NO");
-    IupSetAttribute(dlg, "RESIZE", "NO");
-    IupShowXY(dlg, IUP_CENTER, IUP_CENTER);
+function increment_cb(Ihandle /*ih*/)
+    integer v = IupGetInt(txt,"VALUE")+1
+    IupSetInt(txt,"VALUE",v)
+    return IUP_CONTINUE
+end function
 
-    /*Run program*/
-    IupMainLoop ();
+function random_cb(Ihandle /*ih*/)
+    if IupAlarm("Confirm","Replace wth random value?","Yes","No")=1 then
+        IupSetInt(txt,"VALUE",rand(1000))
+    end if
+    return IUP_CONTINUE
+end function
 
-    /*Done*/
-    IupClose ();
-end procedure
-main()
+function esc_close(Ihandle /*ih*/, atom c)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+    IupOpen("../pGUI/")
+    txt = IupText(Icallback("action_cb"),"EXPAND=YES")
+    increment = IupButton("increment",Icallback("increment_cb"))
+    random = IupButton("random",Icallback("random_cb"))
+    hbx = IupHbox({increment,random},"MARGIN=0x10, GAP=20")
+    vbx = IupVbox({txt,hbx},"MARGIN=40x20")
+    dlg = IupDialog(vbx)
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+    IupShow(dlg)
+    IupMainLoop()
+    IupClose()
 

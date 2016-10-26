@@ -20,19 +20,23 @@ include builtins\file.e
 --include builtins\database.e
 --*/
 
-constant editaEDB = "edita.edb"
+--DEV edix.edb
+--constant editaEDB = "edita.edb"
+constant editaEDB = "edix.edb"
 
 sequence dbversion
-global integer needVedb
-               needVedb = 0
+--global integer needVedb
+--             needVedb = 0
 
 constant Tversion       = "version",
          Tdirectories   = "directories",
          Tfiles         = "files",
          Tglobals       = "globals",
          Tfolds         = "folds",  -- and bookmarks
-         Tbackups       = "backups",
-         Tprojects      = "projects",   -- unused (DEV)
+--DEV to go*2:
+--       Tbackups       = "backups",
+--       Tprojects      = "projects",   -- unused (DEV)
+--DEV ini file setings?
          Tmacros        = "macros",
          Textset        = "extset"      -- added 19/6/07
 
@@ -45,9 +49,9 @@ constant Tset=
  Tglobals,      -- Key is name (eg "db_open"), data is {uniq[file]}
                 --  eg {7}, or {7,9,10} if the global is defined in three files.
  Tfolds,        -- copy of bookmarks[currfile], with line text appended. Key is fileuniq.
- Tbackups,      -- Key is uniq[file], data is {int9} [eg 512312359 for "5C312359.exw"]
+-- Tbackups,        -- Key is uniq[file], data is {int9} [eg 512312359 for "5C312359.exw"]
                 --  -extension is determined from Tfiles[key][2].
- Tprojects,     -- Key is uniq, data is {name,desc,date,type,fileset}          [***UNUSED***]
+-- Tprojects,   -- Key is uniq, data is {name,desc,date,type,fileset}          [***UNUSED***]
  Tmacros,       -- Key is text, data is {{type,details}}
  Textset}       -- Key is extension, data is {runwith,tabcolour}
 
@@ -103,9 +107,8 @@ atom t
                 retries += 1
 --DEV
 --/*
-                winTxt = getText(Main)
---              setText(Main, xl("Edita") & " - DATABASE LOCKED")
-                setText(Main, Edita & " - DATABASE LOCKED")
+                winTxt = IupGetAttribute(dlg,"TITLE")
+                IupSetStrAttribute(dlg,"TITLE",xl("Edita") & " - DATABASE LOCKED")
                 sleep(1)
                 setText(Main,winTxt)
 --*/
@@ -292,11 +295,11 @@ global function logFile(sequence path, sequence name, integer Tg)
 integer k, f
 --sequence sdt  -- size and date info
 sequence r
-    if needVedb then
-        -- 0.2.0
-        path = upper(path)
-        name = lower(name)
-    else
+--  if needVedb then
+--      -- 0.2.0
+--      path = upper(path)
+--      name = lower(name)
+--  else
         -- 0.3.3 and later
         if showErrors then
             r = get_proper_path(name,path)
@@ -309,7 +312,7 @@ sequence r
             -- first one only (avoids making Edita unusable)
             showErrors = 0
         end if
-    end if
+--  end if
     k = getDirNo(path)
     f = find({k,name},knownFiles)
     if f=0 then
@@ -413,10 +416,10 @@ integer k, f
 object datum
 sequence r
 --string r
-    if needVedb then
-        gpath = upper(path)
-        name = lower(name)
-    else
+--  if needVedb then
+--      gpath = upper(path)
+--      name = lower(name)
+--  else
         gpath = path
         if showErrors then
             r = get_proper_path(name,path)
@@ -429,7 +432,7 @@ sequence r
             -- first one only (avoids making Edita unusable)
             showErrors = 0
         end if
-    end if
+--  end if
     guniq = 0
     k = getDirNo(gpath)
     gtkey = {k,name}
@@ -596,10 +599,10 @@ end procedure
 global function getCaptureFlag(sequence path, sequence name)
 integer k, f
 sequence data
-    if needVedb then
-        path = upper(path)
-        name = lower(name)
-    end if
+--  if needVedb then
+--      path = upper(path)
+--      name = lower(name)
+--  end if
     k = getDirNo(path)
     SelectTable(Tfiles)
     f = db_find_key({k,name}) -- key is {uniq[dir],file}
@@ -611,10 +614,10 @@ end function
 global procedure setCaptureFlag(sequence path, sequence name, object flag)
 integer k, f
 sequence data
-    if needVedb then
-        path = upper(path)
-        name = lower(name)
-    end if
+--  if needVedb then
+--      path = upper(path)
+--      name = lower(name)
+--  end if
     k = getDirNo(path)
     SelectTable(Tfiles)
     f = db_find_key({k,name}) -- key is {uniq[dir],file}
@@ -624,28 +627,28 @@ sequence data
     DBclose()
 end procedure
 
-global function loadProjects()
-sequence projects
-    SelectTable(Tprojects)
-    projects = repeat(0,db_table_size())
-    for i=1 to length(projects) do
-        projects[i] = db_record_data(i)&i   --DEV re-do this with tedb numbering system.
-    end for
-    return projects
-end function
+--global function loadProjects()
+--sequence projects
+--  SelectTable(Tprojects)
+--  projects = repeat(0,db_table_size())
+--  for i=1 to length(projects) do
+--      projects[i] = db_record_data(i)&i   --DEV re-do this with tedb numbering system.
+--  end for
+--  return projects
+--end function
 
-global function writeProject(sequence record)
-integer k
-    SelectTable(Tprojects)
-    k = db_table_size()+1
-    if db_insert(k,record)!=DB_OK then
-        --DEV DBfatal?
---      void = proemh("Error","error inserting record",0)
-        IupMessage("Error","error inserting record")
-        return 0
-    end if
-    return k
-end function
+--global function writeProject(sequence record)
+--integer k
+--  SelectTable(Tprojects)
+--  k = db_table_size()+1
+--  if db_insert(k,record)!=DB_OK then
+--      --DEV DBfatal?
+----        void = proemh("Error","error inserting record",0)
+--      IupMessage("Error","error inserting record")
+--      return 0
+--  end if
+--  return k
+--end function
 
 -- used by eadir.e:
 global function inProjectSet(sequence path, sequence name, sequence set)
@@ -699,11 +702,11 @@ integer k
 --if isDebug then
 --  printf(1,"getProjectSet(%s,%s)\n",{path,name})
 --end if
-    if needVedb then
-        path = upper(path)
-        name = lower(name)
-?9/0
-    end if
+--  if needVedb then
+--      path = upper(path)
+--      name = lower(name)
+--?9/0
+--  end if
 --if isDebug then
 --  if equal(name,"c_decl.e") then
 --      trace(1)
@@ -739,67 +742,67 @@ integer k
     return res
 end function
 
-global procedure logBackup(integer id, sequence path, sequence name)
-integer f, k
-    f = logFile(path,name,2)
-    SelectTable(Tbackups)
-    k = db_find_key(f)
-    if k>0 then
-        db_replace_data(k,append(db_record_data(k),id))
-    else
-        if db_insert(f,{id})!=DB_OK then
-            --DEV DBfatal?
---          void = proemh("Error","error inserting backup record",0)
-            IupMessage("Error","error inserting backup record")
-        end if
-    end if
-    DBclose()
-end procedure
+--global procedure logBackup(integer id, sequence path, sequence name)
+--integer f, k
+--  f = logFile(path,name,2)
+--  SelectTable(Tbackups)
+--  k = db_find_key(f)
+--  if k>0 then
+--      db_replace_data(k,append(db_record_data(k),id))
+--  else
+--      if db_insert(f,{id})!=DB_OK then
+--          --DEV DBfatal?
+----            void = proemh("Error","error inserting backup record",0)
+--          IupMessage("Error","error inserting backup record")
+--      end if
+--  end if
+--  DBclose()
+--end procedure
 
-global function getBackupSet(integer f)
-integer k
-sequence res
-    res = {}
-    SelectTable(Tbackups)
-    k = db_find_key(f)
-    if k>0 then
-        res = db_record_data(k)
-        if length(res)=0 then
-            db_delete_record(k)
-        end if
-    end if
-    DBclose()
-    return res
-end function
+--global function getBackupSet(integer f)
+--integer k
+--sequence res
+--  res = {}
+--  SelectTable(Tbackups)
+--  k = db_find_key(f)
+--  if k>0 then
+--      res = db_record_data(k)
+--      if length(res)=0 then
+--          db_delete_record(k)
+--      end if
+--  end if
+--  DBclose()
+--  return res
+--end function
 
-global procedure rewriteBackupSet(integer f, sequence backupSet)
-integer k
-    SelectTable(Tbackups)
-    k = db_find_key(f)
-    if length(backupSet) then
-        db_replace_data(k,backupSet)
-    else
-        db_delete_record(k)
-    end if
-    DBclose()
-end procedure
+--global procedure rewriteBackupSet(integer f, sequence backupSet)
+--integer k
+--  SelectTable(Tbackups)
+--  k = db_find_key(f)
+--  if length(backupSet) then
+--      db_replace_data(k,backupSet)
+--  else
+--      db_delete_record(k)
+--  end if
+--  DBclose()
+--end procedure
 
-global function getRestoreDetails(integer backNo, sequence backExt)
-sequence res
-    SelectTable(Tbackups)
-    for i=1 to db_table_size() do
-        if find(backNo,db_record_data(i)) then
-            res = getNameAndDir(db_record_key(i), 0, 0)
-            if match(backExt,res[2])=length(res[2])-length(backExt)+1 then
-                res[1] = getDir(res[1])
-                DBclose()
-                return res
-            end if
-        end if
-    end for
-    DBclose()
-    return 0
-end function
+--global function getRestoreDetails(integer backNo, sequence backExt)
+--sequence res
+--  SelectTable(Tbackups)
+--  for i=1 to db_table_size() do
+--      if find(backNo,db_record_data(i)) then
+--          res = getNameAndDir(db_record_key(i), 0, 0)
+--          if match(backExt,res[2])=length(res[2])-length(backExt)+1 then
+--              res[1] = getDir(res[1])
+--              DBclose()
+--              return res
+--          end if
+--      end if
+--  end for
+--  DBclose()
+--  return 0
+--end function
 
 
 -- Background processing:
@@ -807,11 +810,12 @@ global integer bgIdx
 global integer runFullBackgroundScan
                runFullBackgroundScan = 0
 
-integer purgeBackups, pDate
-        purgeBackups = 2
+integer purgeBackups = 2
+--, pDate
 
 --include eadadj.e  -- simple date adjust routine.
 
+--/*
 procedure checkBackups(integer funiq, sequence extension)
 sequence backset, backName
 integer backMod, backNo
@@ -821,6 +825,7 @@ object dt
     backMod = 0
     if purgeBackups=2 then
         dt = date()
+--DEV
         if not isAutoBackup or isRetainBackupsFor=0 then
             purgeBackups = 0
             return
@@ -856,6 +861,7 @@ object dt
         rewriteBackupSet(funiq,backset)
     end if
 end procedure
+--*/
 
 global function getModifiedFile()
 -- returns -1 when all done.
@@ -884,7 +890,7 @@ object void
     fkey = knownFiles[gMFstate]
 --  ext = getFileExtension(fkey[2])
     ext = get_file_extension(fkey[2])
-    if purgeBackups then checkBackups(gMFstate,ext) end if
+--  if purgeBackups then checkBackups(gMFstate,ext) end if
     syntax = find(ext,Extensions)
     if syntax and equal(SynNames[ExtensionNos[syntax]],"Euphoria") then
         SelectTable(Tfiles)
@@ -902,8 +908,8 @@ object void
             end if
             fkey[1] = getDir(fkey[1])
 
---          setText(SB6,sprintf("Bg: gchk:%s%s",fkey))
-            IupSetStrAttribute(statusbar,"TITLE","Bg: gchk:%s%s",fkey)
+--          setText(SB6(->sbmsg),sprintf("Bg: gchk:%s%s",fkey))
+            IupSetStrAttribute(sbmsg,"TITLE","Bg: gchk:%s%s",fkey)
 
             sdt = dir(fkey[1]&fkey[2])
             if sequence(sdt) and length(sdt)=1 then
@@ -1195,10 +1201,8 @@ procedure initEditaEdb()
 -- open/create the edita database
 --
 sequence tlist
-object exh
 integer errCode
 sequence Fkey
-object void
 
     errCode = db_open(initialcurrentdir&editaEDB,DB_LOCK_EXCLUSIVE)
     if errCode!=DB_OK then
@@ -1238,19 +1242,12 @@ object void
     --
     SelectTable(Tversion)
     dbversion = db_record_data(1)
-    if compare(dbversion,{0,3,3})<0 then
-        -- 0.2.0 (pre 0.3.3/usegpp)
-        needVedb = 1
-?9/0
-        -- (Tversion is [eventually] set to {0,3,3} by vedb.exw)
-    end if
-    --
-    -- Plug in the elng_xxx.exh file for automatic builtin load...
-    --
-    exh = getexhname()
-    if sequence(exh) then
-        void = logFile(exh[1],exh[2],0) -- ie add to background task list ;-))
-    end if
+--  if compare(dbversion,{0,3,3})<0 then
+--      -- 0.2.0 (pre 0.3.3/usegpp)
+----        needVedb = 1
+--?9/0
+--      -- (Tversion is [eventually] set to {0,3,3} by vedb.exw)
+--  end if
 
     --
     -- Load the default macros now

@@ -175,29 +175,32 @@ global constant W_BAD_PATH = -1 -- error code
 -- not strictly required, but helps with opCallOnce/fwd calls/onDeclaration:
 --/**/include builtins\pdir.e   -- dir()
 
+--constant SLASH = iff(platform()=LINUX?'/':'\\')
+
 function default_dir(sequence path)
 -- Default directory sorting function for walk_dir().
 -- * sorts by name *
 object d
     d = dir(path)
-    if atom(d) then return d end if
-    -- sort by name
-    return sort(d)
+    if sequence(d) then
+        -- sort by name
+        d = sort(d)
+    end if
+    return d
 end function
 
-integer SLASH
 
 -- override the dir sorting function with your own routine id
 constant DEFAULT = -2
 --global -- Removed for Phix, use set_walk_dir_sort_rtn() instead
-integer my_dir
-my_dir = DEFAULT  -- it's better not to use routine_id() here,
-      -- or else users will have to bind with clear routine names
-global procedure set_walk_dir_sort_rtn(integer id)
-    my_dir = id
-end procedure
+--integer my_dir
+--my_dir = DEFAULT  -- it's better not to use routine_id() here,
+--    -- or else users will have to bind with clear routine names
+--global procedure set_walk_dir_sort_rtn(integer id)
+--  my_dir = id
+--end procedure
 
-global function walk_dir(sequence path_name, integer your_function, integer scan_subdirs)
+global function walk_dir(sequence path_name, integer your_function, integer scan_subdirs=FALSE, integer my_dir=DEFAULT)
 -- Generalized Directory Walker
 -- Walk through a directory and (optionally) its subdirectories,
 -- "visiting" each file and subdirectory. Your function will be called
@@ -208,6 +211,7 @@ global function walk_dir(sequence path_name, integer your_function, integer scan
 -- any sequence or atom other than 0 as a useful diagnostic value.
 object d, abort_now
 sequence di
+integer SLASH = iff(platform()=LINUX?'/':'\\') 
 
     -- get the full directory information
     if my_dir=DEFAULT then
@@ -217,11 +221,6 @@ sequence di
     end if
     if atom(d) then
         return W_BAD_PATH
-    end if
-    if platform()=LINUX then
-        SLASH = '/'
-    else
-        SLASH = '\\'
     end if
 
     -- trim any trailing blanks or '\' characters from the path
@@ -243,8 +242,8 @@ sequence di
                     abort_now = walk_dir(path_name & SLASH & di[D_NAME],
                                          your_function, scan_subdirs)
 
-                    if not equal(abort_now, 0) and
-                    not equal(abort_now, W_BAD_PATH) then
+                    if not equal(abort_now, 0) 
+                    and not equal(abort_now, W_BAD_PATH) then
                     -- allow BAD PATH, user might delete a file or directory 
                         return abort_now
                     end if

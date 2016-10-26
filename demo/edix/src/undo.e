@@ -31,7 +31,7 @@ without trace
 -- INDENT and UNINDENT (in UndoRedo) call indent() and unindent(),
 -- passing either VK_TAB or comment (as originally passed to 
 -- addAction) over the same range of lines.
--- UndoRedo() only performs the four (middle) operations.
+-- UndoRedo() only performs the four (middle[2..-2]) operations.
 --
 global constant
     INSERTCHAR  =  3,   -- treated as 2 by undo/redo
@@ -51,9 +51,9 @@ global constant
 -- for those lines which did not begin with the required tab/comment).
 --
 -- In the case of insert/delete blocks, carriage returns are implied
--- between lines, so eg {{},{}} represents a single CR, and likewise
--- {{},{},{}} represents (exactly) two CR characters, a chunk beginning 
--- with {{},... starts with a CR, and a chunk ending with ...,{}} ends
+-- between lines, so eg {"",""} represents a single CR, and likewise
+-- {"","",""} represents (exactly) two CR characters, a chunk beginning 
+-- with {"",... starts with a CR, and a chunk ending with ...,""} ends
 -- with a CR.
 --
 
@@ -113,7 +113,7 @@ integer pointer, l
                     if mergeable(Type,data) then
 --                      if data=VK_RETURN then
                         if data=K_CR then
-                            action = append(action,{})
+                            action = append(action,"")
                         else
                             l = length(action[LINESET])
                             action[LINESET][l] = append(action[LINESET][l],data)
@@ -155,8 +155,15 @@ integer pointer, l
         action[TYPE..SELON] = Type
     end if
     if find(Type,{BACKSPACE,DELETECHAR,INSERTCHAR}) then
-        action[LINESET] = {{data}}
+--      action[LINESET] = {{data}}
+        action[LINESET] = {" "}
+        action[LINESET][1][1] = data
     else
+--DEV where did this come from? (30/6/16)
+--      if not sequence(data) then ?9/0 end if
+--      for i=1 to length(data) do
+--          if not string(data[i]) then ?9/0 end if
+--      end for
         action[LINESET] = data
     end if
     actions[currfile] = append(actions[currfile],action)

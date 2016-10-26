@@ -141,7 +141,7 @@ end function
 
 constant
          D  = C_DOUBLE, 
---       F  = C_FLOAT,      -- NB: VM/pcfuncN.e may not be up to this..
+--       F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this..
          I  = C_INT,
          L  = C_LONG,
          P  = C_POINTER, 

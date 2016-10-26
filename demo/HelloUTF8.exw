@@ -82,7 +82,127 @@ integer res
     return res
 end function
 
-    {} = MessageBoxW("Hello 水 test of MessageBoxW", "Unicode 水 test", MB_OK)
+--DEV all this should have "if platform()=WINDOWS then" around it...
+include builtins\cffi.e
+constant 
+tCOORD = """
+typedef struct _COORD {
+  SHORT X;
+  SHORT Y;
+} COORD, *PCOORD;
+""",
+tCFI="""
+typedef struct _CONSOLE_FONT_INFOEX {
+  ULONG cbSize;
+  DWORD nFont;
+  COORD dwFontSize;
+  UINT  FontFamily;
+  UINT  FontWeight;
+  WCHAR FaceName[LF_FACESIZE];
+} CONSOLE_FONT_INFOEX, *PCONSOLE_FONT_INFOEX;
+""",
+tSCOCP = """
+BOOL WINAPI SetConsoleOutputCP(
+  _In_  UINT wCodePageID
+);
+""",		   
+tSCCFX = """
+BOOL WINAPI SetCurrentConsoleFontEx(
+  _In_  HANDLE hConsoleOutput,
+  _In_  BOOL bMaximumWindow,
+  _In_  PCONSOLE_FONT_INFOEX lpConsoleCurrentFontEx
+);
+""",
+tGSH = """
+HANDLE WINAPI GetStdHandle(
+  _In_  DWORD nStdHandle
+);
+""",
+STD_OUTPUT_HANDLE = -11,
+idCOORD = define_struct(tCOORD),
+idCFI = define_struct(tCFI),
+k32 = open_dll("kernel32.dll"),
+xSetConsoleOutputCP = define_cffi_func(k32,tSCOCP),
+xSetCurrentConsoleFontEx = define_cffi_func(k32,tSCCFX),
+xGetStdHandle = define_cffi_func(k32,tGSH),
+pCFI = allocate_struct(idCFI),
+$
+set_struct_field(idCFI,pCFI,"cbSize",get_struct_size(idCFI))
+set_struct_field(idCFI,pCFI,"nFont",12)
+set_struct_field(idCFI,pCFI,"dwFontSize.X",11)
+set_struct_field(idCFI,pCFI,"dwFontSize.Y",18)
+set_struct_field(idCFI,pCFI,"FontFamily",54)
+set_struct_field(idCFI,pCFI,"FontWeight",400)
+--set_struct_field(idCFI,pCFI,"FaceName","Lucida Console")
+constant {name_offset} = get_field_details(idCFI,"FaceName")
+--poke2(pCFI+name_offset,"Lucida Console\0")
+poke2(pCFI+name_offset,"Consolas\0")
+
+puts(1,"")  -- force console to exist
+atom hConsole = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
+{} = c_func(xSetCurrentConsoleFontEx,{hConsole,FALSE,pCFI})
+-- the following is equivalent to running "chcp 65001":
+{} = c_func(xSetConsoleOutputCP,{CP_UTF8})
+
+puts(1,"├─│└ ─│ ┄ ┆ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ \n")
+
+--puts(1,"日本語") -- not covered...
+
+--note these required hacks to ptok.e and ptree.e to get working (search for rosettacode/unicode)
+constant π = 3.14
+printf(1,"π=%g\n",{π})
+constant √ = "root"
+printf(1,"√=%s\n",{√})
+constant λ = "lambda"
+printf(1,"λ=%s\n",{λ})
+constant Σ = "sum"
+printf(1,"Σ=%s\n",{Σ})
+--printf(1,"\u221B")
+--∛
+--?"\u2502 "
+--? "\u2514\u2500" 
+--? "\u251c\u2500"
+
+puts(1,"\u2502\u2514\u2500\u251c\u2500\n")
+puts(1,"£\n")
+
+--"as⃝df̅" becomes "f̅ds⃝a", not "̅fd⃝sa". 
+--"as\u203Ddf\u0305"
+string ctest = "as\u203Ddf\u0305"
+puts(1,ctest)
+
+-- this might have a place in builtins/unicode.e, or perhaps not...
+function unicode_reverse(string utf8)
+sequence utf32 = utf8_to_utf32(utf8)
+integer ch
+    --
+    -- The assumption is made that <char><comb1><comb2>
+    -- and <char><comb2><comb1> would work the same.
+    -- Of course <char> must be first, so this loop
+    -- converts <ch><c1..cN> to <c1..cN><ch>, and the
+    -- following reverse() makes that <ch><cN..c1>.
+    -- (where c1..cN are >=1 combining characters)
+    --
+    for i=1 to length(utf32) do
+        ch = utf32[i]
+        if (ch>=0x300 and ch<=0x36f)
+        or (ch>=0x1dc0 and ch<=0x1dff)
+        or (ch>=0x20d0 and ch<=0x20ff)
+        or (ch>=0xfe20 and ch<=0xfe2f) then
+            utf32[i] = utf32[i-1]
+            utf32[i-1] = ch
+        end if
+    end for
+    utf32 = reverse(utf32)
+    utf8 = utf32_to_utf8(utf32)
+    return utf8
+end function
+--ctest = reverse(ctest)
+string rtest = unicode_reverse(ctest)
+puts(1,rtest)
+
+
+    {} = MessageBoxW("Hello 水 test of MessageBoxW\n"&ctest&" <==> "&rtest, "Unicode 水 test", MB_OK)
 --str := "日本語"
 -- (I have no idea what 水 might mean, just t'first thing I found on t'internet)
 
@@ -93,6 +213,6 @@ end function
 --  ?s[i]
 --end for
 
---?'π' --DEV
+--?'π' --DEV (doc)
 --?"π" --DEV
 --  λ

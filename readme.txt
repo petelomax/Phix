@@ -132,6 +132,15 @@ Version 0.6.7
             forward routine definition.
             The only mention of (explicit) forward declarations in the manual 
             is in Core/Declarations/Scope. [DEV: updates to manual still rqd]
+23/06/2016: Removed unused parameter warnings for routines which are the target
+            of routine_id (as long as that is known at compile-time). Callbacks
+            for win32lib etc demand a fixed set of parameters which got a bit
+            too much in one of the demos I had a play with. At the same time,
+            constants which are assigned the result of a function with side
+            effects other than E_none or E_other are also exhonorated from 
+            unused warnings, such as constant TextLabel = create(Label,...).
+            [E_other stems, I believe, from the 09/02/2016 bugfix. It replaces
+             E-none in any routine of said that has any #ilASM in it.]
 
 Version 0.6.6
 =============

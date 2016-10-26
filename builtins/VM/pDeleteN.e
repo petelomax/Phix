@@ -2,7 +2,7 @@
 -- pDeleteN.e
 -- ==========
 --
--- Implements delete_routine and delete (auto-include) [DEV make this part of pcfuncN.e]
+-- Implements delete_routine and delete (auto-include) [DEV make this part of pcfunc.e]
 --
 --  This file is loaded automatically by Phix as and when needed. There is no
 --  need to manually include this file (unless you want a namespace on it).
@@ -235,7 +235,7 @@
 --  If necessary, it may be possible to use call_backs to the main process 
 --  to set delete_routines and/or perform file i/o, but such is untested.
 --
---include pcfuncN.e
+--include pcfunc.e
 --DEV?
 include pcallfunc.e
 

@@ -21,12 +21,12 @@ include VM\pFPU.e   -- :%down53 etc
             [32]
                 pop edx
                 mov al,14   -- e14soa(edi)
-                mov edi,6
+                mov edi,6   --- (floor->sq_floor)
                 sub edx,1
             [64]
                 pop rdx
                 mov al,14   -- e14soa(edi)
-                mov rdi,6
+                mov rdi,6   -- (floor->sq_floor)
                 sub rdx,1
             []
                 jmp :!iDiag

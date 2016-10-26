@@ -1,0 +1,168 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">wglUseFontOutlines</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          include pGUI.e
+          <br>
+          include opengl.e
+          <br>
+          <br>
+          integer success = wglUseFontOutlines(atom glhDC, integer first, integer count, atom pFontList, atom deviation, atom extrusion, integer fmt, atom pGMF)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            The wglUseFontOutlines function creates a set of display lists, one for each glyph of the currently selected outline font of a device context, 
+            for use with the current rendering context. <br>
+            The display lists are used to draw 3-D characters of TrueType fonts. <br>
+            Each display list describes a glyph outline in floating-point coordinates.<br>
+            The run of glyphs begins with the first glyph of the font of the specified device context. <br>
+            The em square size of the font, the notional grid size of the original font outline from which the font is fitted, 
+            is mapped to 1.0 in the x- and y-coordinates in the display lists. <br>
+            The extrusion parameter sets how much depth the font has in the z direction.<br>
+            The lpgmf parameter returns a GLYPHMETRICSFLOAT structure that contains information about the placement and orientation of each glyph in a character cell.
+            <br>
+            <br>
+<!--
+Syntax
+C++
+
+BOOL WINAPI wglUseFontOutlines(
+   HDC                 hdc,
+   DWORD               first,
+   DWORD               count,
+   DWORD               listBase,
+   FLOAT               deviation,
+   FLOAT               extrusion,
+   int                 format,
+   LPGLYPHMETRICSFLOAT lpgmf
+);
+
+Parameters-->
+            glhDC: Specifies the device context with the desired outline font. The outline font of glhDC is used to create the display lists in the current rendering context.<br>
+            first: Specifies the first of the set of glyphs that form the font outline display lists.<br>
+            count: Specifies the number of glyphs in the set of glyphs used to form the font outline display lists. 
+                    The wglUseFontOutlines function creates count display lists, one display list for each glyph in a set of glyphs.<br>
+            listBase: Specifies a starting display list.<br>
+            deviation: Specifies the maximum chordal deviation from the original outlines. 
+                    When deviation is zero, the chordal deviation is equivalent to one design unit of the original font. 
+                    The value of deviation must be equal to or greater than 0.<br>
+            extrusion: Specifies how much a font is extruded in the negative z direction. 
+                    The value must be equal to or greater than 0. When extrusion is 0, the display lists are not extruded.<br>
+            format: Specifies the format, either WGL_FONT_LINES or WGL_FONT_POLYGONS, to use in the display lists. 
+                    When format is WGL_FONT_LINES, the wglUseFontOutlines function creates fonts with line segments. 
+                    When format is WGL_FONT_POLYGONS, wglUseFontOutlines creates fonts with polygons.
+            lpgmf: Points to an array of countGLYPHMETRICSFLOAT structures that is to receive the metrics of the glyphs. 
+                    When lpgmf is NULL, no glyph metrics are returned.
+            <br>
+            <br>
+            Return value<br>
+            When the function succeeds, the return value is TRUE.
+            When the function fails, the return value is FALSE and no display lists are generated. To get extended error information, call GetLastError.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Remarks</b>
+         </td>
+         <td>
+            The wglUseFontOutlines function defines the glyphs of an outline font with display lists in the current rendering context. <br>
+            The wglUseFontOutlines function works with TrueType fonts only; stroke and raster fonts are not supported.<br>
+            Each display list consists of either line segments or polygons, and has a unique identifying number starting with the listBase number.<br>
+            The wglUseFontOutlines function approximates glyph outlines by subdividing the quadratic B-spline curves of the outline into line segments, 
+            until the distance between the outline and the interpolated midpoint is within the value specified by deviation. <br>
+            This is the final format used when format is WGL_FONT_LINES. <br>
+            When you specify WGL_FONT_OUTLINES, the display lists created don&rsquo;t contain any normals; thus lighting doesn&rsquo;t work properly. <br>
+            To get the correct lighting of lines use WGL_FONT_POLYGONS and set glPolygonMode( GL_FRONT, GL_LINE ). <br>
+            When you specify format as WGL_FONT_POLYGONS the outlines are further tessellated into separate triangles, triangle fans, triangle strips, 
+            or quadrilateral strips to create the surface of each glyph. <br>
+            With WGL_FONT_POLYGONS, the created display lists call glFrontFace( GL_CW ) or glFrontFace( GL_CCW ); thus the current front-face value might be altered. <br>
+            For the best appearance of text with WGL_FONT_POLYGONS, cull the back faces as follows:
+ <pre>
+C++
+
+glCullFace(GL_BACK); 
+glEnable(GL_CULL_FACE);
+ </pre>
+            A GLYPHMETRICSFLOAT structure contains information about the placement and orientation of each glyph in a character cell. <br>
+            The lpgmf parameter is an array of GLYPHMETRICSFLOAT structures holding the entire set of glyphs for a font. <br>
+            Each display list ends with a translation specified with the gmfCellIncX and gmfCellIncY members of the corresponding GLYPHMETRICSFLOAT structure. <br>
+            The translation enables the drawing of successive characters in their natural direction with a single call to glCallLists.<br>
+            Note: With OpenGL for Windows, you cannot make GDI calls to a device context when a pixel format is double-buffered. <br>
+            You can work around this limitation by using wglUseFontOutlines and wglUseFontBitmaps, when using double-buffered device contexts.
+            <br>
+            <br>
+            Examples<br>
+            The following code example shows how to draw text using wglUseFontOutlines.<br>
+ <pre>
+C++
+
+HDC    hdc;  // A TrueType font has already been selected  
+HGLRC  hglrc; 
+GLYPHMETRICSFLOAT agmf[256]; 
+ 
+// Make hglrc the calling thread's current rendering context  
+wglMakeCurrent(hdc, hglrc); 
+ 
+// create display lists for glyphs 0 through 255 with 0.1 extrusion  
+// and default deviation. The display list numbering starts at 1000  
+// (it could be any number)  
+wglUseFontOutlines(hdc, 0, 255, 1000, 0.0f, 0.1f,  
+            WGL_FONT_POLYGONS, &agmf); 
+ 
+// Set up transformation to draw the string  
+glLoadIdentity(); 
+glTranslate(0.0f, 0.0f, -5.0f) 
+glScalef(2.0f, 2.0f, 2.0f); 
+ 
+// Display a string  
+glListBase(1000); // Indicates the start of display lists for the glyphs  
+// Draw the characters in a string  
+glCallLists(24, GL_UNSIGNED_BYTE, "Hello Windows OpenGL World.");
+ </pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="glBegin.htm">?glBegin</a>,
+          <a href="glBegin.htm">glGetString</a>,
+          <a href="glBegin.htm">?glEnd</a>
+<br>
+See also
+OpenGL on Windows
+WGL Functions
+glCallLists
+glListBase
+glTexGen
+GLYPHMETRICSFLOAT
+wglUseFontBitmaps
+
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

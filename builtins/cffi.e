@@ -28,8 +28,8 @@
 --
 --      Routine definition:
 --      ===================
---          integer rid = define_cfunc(object lib, string cdef)
---          integer rid = define_cproc(object lib, string cdef)
+--          integer rid = define_cffi_func(object lib, string cdef)
+--          integer rid = define_cffi_proc(object lib, string cdef)
 --
 --
 --      Example 1 (structures):
@@ -76,7 +76,7 @@
 --              C-style struct to represent that.
 --              typos in field names and the like cause fatal errors in these
 --              routines, rather than returning some kind of error code. It 
---              may be possible to replicate the builtins/VM/pcfuncN.e/fatalN
+--              may be possible to replicate the builtins/VM/pcfunc.e/fatalN
 --              mechanism in here to get errors on more appropriate lines. [DEV]
 --
 --
@@ -90,7 +90,7 @@
 --          );
 --          """
 --          set_unicode(0)
---          constant xMessageBox = define_cfunc("user32.dll",tMB)
+--          constant xMessageBox = define_cffi_func("user32.dll",tMB)
 --          ?c_func(xMessageBox,{0,"text","caption",0})
 --
 --      Notes:  set_unicode() is needed before any auto "A/W" handling.
@@ -977,13 +977,13 @@ function define_c(object lib, string cdef, integer func, integer machine)
 --
 -- internal wrapper to define_c_func/define_c_proc.
 --
---  eg define_cfunc("kernel32.dll","DWORD WINAPI GetLastError(void);")
+--  eg define_cffi_func("kernel32.dll","DWORD WINAPI GetLastError(void);")
 --  firstly performs lib=open_dll("kernel32.dll") and then returns
 --  (non-0) result from define_c_func(lib,"GetLastError",{},C_INT).
 --
 --  lib can be a string or the non-0 atom result from open_dll().
 --  cdef is usually just copied from MSDN or similar.
---  func is 0 or 1, from define_cfunc/define_cproc below.
+--  func is 0 or 1, from define_cffi_func/define_cffi_proc below.
 --  machine can be set to S32 or S64, or (left) 0 for auto.
 --
 -- NOTE: if there are ansi and unicode versions of the routine, you
@@ -1072,11 +1072,11 @@ integer rid
     return rid
 end function
 
-global function define_cfunc(object lib, string cdef, integer machine=0)
+global function define_cffi_func(object lib, string cdef, integer machine=0)
     return define_c(lib,cdef,1,machine)
 end function
 
-global function define_cproc(object lib, string cdef, integer machine=0)
+global function define_cffi_proc(object lib, string cdef, integer machine=0)
     return define_c(lib,cdef,0,machine)
 end function
 

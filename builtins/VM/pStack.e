@@ -1,5 +1,5 @@
 --
--- pStackD.e
+-- pStack.e
 -- ========
 
 --constant freesym = "free symtab["
@@ -87,6 +87,8 @@
 include builtins\VM\pFEH.e
 include builtins\VM\pHeap.e     -- :%pDealloc, :%pGetPool
 
+integer sinit = 0   -- enforce once-only init
+
 integer pArg = 0    -- [ELF] save of r|esp/4 (for command_line) at load
                     -- (when non-null) [pArg*w+w] is argc, where w=machine_word()
                     -- see syswait.ew for more details/environment handling
@@ -95,7 +97,7 @@ integer nocleanup = 0   -- set to 1 if (eg) :!iDiag has been called,
                         -- so abort proper like, rather than try and
                         -- "return when interpreting" etc.
 
-integer CClean = 0      -- cleanup code for pcfuncN.e
+integer CClean = 0      -- cleanup code for pcfunc.e [DEV togo]
 
 constant oom = "Your program has run out of memory, one moment please\n"
 --DEV opCallOnceYeNot
@@ -107,10 +109,10 @@ constant oom = "Your program has run out of memory, one moment please\n"
 
 
 --
--- The following two routines are needed for p.exw and pcfuncN.e: in the "parlor trick"
+-- The following two routines are needed for p.exw and pcfunc.e: in the "parlor trick"
 --  that is "p p p -test" we need to be sure that when we access [ds+8] we are talking
 --  about the same one the VM is using. pDiagN/pStack/pTrace can use [ds+8] directly,
---  as they are part of the VM (and one day soon pcfuncN.e should be as well).
+--  as they are part of the VM (and one day soon pcfunc.e should be as well?).
 --
 
 --/*
@@ -320,46 +322,146 @@ end procedure -- (for Edita/CtrlQ)
 --*/
 :>initStack
 -----------
+        cmp [sinit],0
+        jne :dont_do_everything_twice
+        mov [sinit],1
+
     [PE32,ELF32,ELF64]  -- (not PE64) [DEV try without this...]
         call :>initFEH
---      -- first, create a dummy vsb_root (vsb_next,vsb_prev@=0) on the stack
     [32]
---      xor ebx,ebx
---      push ebx
---      push ebx
---      mov edi,esp
---27/2/15:
---      mov ecx,[ds+12]             -- maxop    [DEV - remove all this...]
---      mov eax,[ds+8]              -- symtabptr
---      shl ecx,2                   -- *4
---      add ecx,20                  -- gvarptr (==addr gvar[1]) --DEV gvar0?
         call :%pNewStack
---      add esp,8                   -- discard that dummy vsb
---31/7/15:
+--15/9/16:
+        mov edx,ebp             -- edx:=ebp
+        call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
+
         mov dword[ebp+16],:Exit0    -- return address (0)
     [ELF32] -- save esp for command line ... (assumes it is undamaged)  [DEV not interpret?]
         mov eax,esp
         shr eax,2
         mov [pArg],eax
     [64]
---      xor rbx,rbx
---      mov r15,h4
---      push rbx
---      push rbx
---      mov rdi,rsp
---27/2/15:
---      mov rcx,[ds+16]         -- maxop
---      mov rax,[ds+8]          -- symtabptr
---      shl rcx,3               -- *8
---      add rcx,32              -- gvarptr (==addr gvar[1])
         call :%pNewStack
---      add rsp,16              -- discard that dummy vsb
         mov qword[rbp+32],:Exit0    -- return address (0)
     [ELF64]
+--/*
+DEV/In case it is useful, from flatassembler.net:
+yes, that's right 
+if you try to load ELF64 under debugger, you can find how and why 
+in ELF64 created directly by FASM you get args in the stack 
+dword [rsp]=argc 
+qword [rsp+8]=pointer to arg0 
+... 
+qword [rsp+8 + argc*8]=0 end of args 
+qword [rsp+8 + argc*8 + 8]=pointer to first string of environment 
+... 
+qword [...]=0 end of envirnment 
+--*/
         mov rax,rsp
         shr rax,2
         mov [pArg],rax
+
+        -- and any dll ref relocations (after pNewStack has zeroed e/rbx!):
+
+    [32]
+        mov esi,[ds+12]
+        test esi,esi
+        jz :loopend
+        mov [ds+12],ebx
+    [64]
+        mov rsi,[ds+16]
+        test rsi,rsi
+        jz :loopend
+        mov [ds+16],rbx
+        --
+        -- So this must be a dll/so, first time.
+        -- The relocs table is in packed offset delta format:
+        --  bytes 4..255 are offset deltas (two refs cannot overlap, and a
+        --        constant sequence of length N causes N-1 4/8's to occur,
+        --        at least, that is, when every element of it is a ref)
+        --  3 is unused/illegal (no dll data segment is ever >4GB!)
+        --  2 means a word (16-bit) offset delta follows,
+        --  1 means a dword (32-bit) offset delta follows,
+        --  0 means end of table.
+        -- There should be no fixed literal refs anywhere in the code section.
+        --  (ie pilx86.e should avoid isConstRef and similar when DLL=1)
+        --
+    [32]
+        lea edi,[ds+0]
+        mov edx,esi
+        sub edx,[esi-4]     -- a non-relocated address...
+        xor eax,eax
+        shr edx,2           --> ref fixup value (add to all refs)
+    ::looptop
+        lodsb
+        cmp al,4
+        jb @f
+            add dword[edi+eax],edx
+            add edi,eax
+            jmp looptop
+      @@:
+        cmp al,3
+        jne @f
+            int3
+      @@:
+        cmp al,2
+        jne @f
+            lodsw
+            add dword[edi+eax],edx
+            add edi,eax
+            xor eax,eax
+            jmp looptop
+      @@:
+        cmp al,1
+        jne loopend
+            lodsd
+            add dword[edi+eax],edx
+            add edi,eax
+            xor eax,eax
+            jmp looptop
+      ::loopend
+    [64]
+        lea rdi,[ds+0]
+        mov rdx,rsi
+        sub rdx,[rsi-4]     -- a non-relocated address...
+        xor rax,rax
+        shr rdx,2           --> ref fixup value (add to all refs)
+    ::looptop
+        lodsb
+        cmp al,8
+        jb @f
+            add qword[rdi+rax],rdx
+            add rdi,rax
+            jmp looptop
+      @@:
+        cmp al,3
+        jb @f
+            -- deltas of 3..7 are all illegal on 64-bit
+            int3
+--          lodsq
+--          add qword[rdi+rax],rdx
+--          add rdi,rax
+--          xor rax,rax
+--          jmp looptop
+      @@:
+        cmp al,2
+        jne @f
+            lodsw
+            add qword[rdi+rax],rdx
+            add rdi,rax
+            xor rax,rax
+            jmp looptop
+      @@:
+        cmp al,1
+        jne loopend
+            lodsd
+            add qword[rdi+rax],rdx
+            add rdi,rax
+            xor rax,rax
+            jmp looptop
+      ::loopend
     []
+
+      ::dont_do_everything_twice
         ret
 
 --/*
@@ -1188,12 +1290,13 @@ pAbort.e
 --      jmp :%opIaborted
 --*/
 
+--DEV togo:
 --/*
 procedure :%SetCCleanup(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
-    :%SetCCleanup
-----------------
+    :%SetCCleanup       -- cleanup code for pcfunc.e
+-----------------
     [32]
         mov [CClean],eax
     [64]
@@ -1464,7 +1567,9 @@ end procedure -- (for Edita/CtrlQ)
             -- interpreted
             mov rcx,[rbx+rdx*4+8]   -- symtab[T_EBP][2] = esp4
             lea rsp,[rbx+rcx*4-16]
-            ret
+--DEV (temp) for now, abort meands abort (see exit_cb in edix)
+--          ret
+jmp @f
           ::Exit0
             xor rax,rax
       @@:

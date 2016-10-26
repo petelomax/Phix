@@ -68,9 +68,13 @@ object s, xi
 --      s = allascii(x)
 --      if string(s) then return s end if
 --  end if
-    if maxlen!=-1 and length(x)>maxlen then
+--8/8/16:
+--  if maxlen!=-1 and length(x)>maxlen then
+    if maxlen>4 and length(x)>maxlen then
         x = x[1..maxlen]
+--8/8/16: (change as above)
         if string(x) then
+--      if string(x) and length(x)>4 then
             s = allascii(x[1..maxlen-4])
             if string(s) then return s&".." end if
         end if

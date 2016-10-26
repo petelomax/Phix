@@ -974,7 +974,6 @@ atom gi2,gi3        -- ""
 integer sidx, last0 -- for new si[i..j]=0 loop
 sequence d          -- for generated date
 sequence wasopNames -- for testall
-integer maxop -- DEV
 integer offset
 sequence vm_names
 string vm_part
@@ -1186,7 +1185,7 @@ else
     --DEV
     if c=0 then
         -- can we also put this in the listing file?
-        puts(1,"oops, c=0 line 936 in plist.e\n")
+        puts(1,"oops, c=0 line 1189 in plist.e\n")
     else
                     vmap[c] = i
     end if
@@ -1735,11 +1734,10 @@ if newEmit then
 ----            data = fixup(data,relocations[DATA][CODE],machine,0,codeBase+ImageBase)
 ----            data = fixup(data,relocations[DATA][DATA],machine,0,dataBase+ImageBase)
 --*/
-maxop = 0 --DEV
                         if X64 then
-                            offset = (maxop+k)*8+24
+                            offset = (k)*8+24
                         else
-                            offset = (maxop+k)*4+16
+                            offset = (k)*4+16
                         end if
                         offset += ImageBase2+BaseOfData2
 --                      offset += ImageBase2+DSvaddr
@@ -1806,6 +1804,30 @@ if not newEmit then -- (temp/DEV 26/10/14)
 end if
 end if
                     ptxt = ppExf(si[S_sig],{pp_StrFmt,-1})
+--23/6/16: (this was always going to be temporary anyway, needs S_Efct preserved in pEmit2 [same date])
+if 0 then
+--                  if siNTyp>=S_Type then
+                        if length(si)>=S_Efct then
+                            k = si[S_Efct]
+                            if k=E_none then
+                                ptxt &= " [E_none]"
+                            elsif k=E_other then
+                                ptxt &= " [E_other]"
+                            elsif k=E_all then
+                                ptxt &= " [E_all]"
+                            else
+                                ptxt &= sprintf(" [%08x]",k)
+                            end if
+--global constant E_none = 0,
+--              E_other = #20000000,
+--              E_vars = #1FFFFFFF,
+--              E_all = #3FFFFFFF
+                        else
+                            ptxt &= sprintf(" [len=%d]",length(si))
+                        end if
+--                      end if
+end if
+
                     si[S_sig] = ptxt
 if newEmit then
     if listing!=-1 then

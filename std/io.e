@@ -6,7 +6,7 @@
 -- <<LEVELTOC depth=2>>
 
 namespace io
---/**/ **NOT PHIX COMPATIBLE!!**
+--!/*!*!/ **NOT PHIX COMPATIBLE!!** [DEV...]
 
 public enum
     BINARY_MODE,
@@ -32,11 +32,15 @@ public enum
 --/**/forward global function format(sequence format_pattern, object arg_list = {})
 --!/**/forward global function replace_all(sequence source, object olddata, object newdata)
 
+--/*
 include std/sort.e
+--*/
 include std/wildcard.e
 include std/types.e
 include std/machine.e
+--/*
 include std/text.e as text
+--*/
 include std/sequence.e
 include std/error.e
 public include std/unicode.e
@@ -2048,7 +2052,7 @@ end function
 --   in which case it is opened accordingly, written to and then closed.
 -- * With the alternative arguments, the third argument can a file handle, 
 --   in which case it is written to only
--- * The format pattern uses the formatting codes defined in [[:text:format]].
+-- * The format pattern uses the formatting codes defined in [[:text_format]].
 -- * When the data to be formatted is a single text string, it does not have to
 --   be enclosed in braces, 
 --
@@ -2072,7 +2076,7 @@ end function
 -- </eucode>
 --
 -- See Also:
---    [[:text:format]], [[:writefln]], [[:write_lines]]
+--    [[:text_format]], [[:writefln]], [[:write_lines]]
 
 public procedure writef(object fm, object data={}, object fn = 1, object data_not_string = 0)
 integer real_fn = 0
@@ -2116,7 +2120,7 @@ object ts
             data = {data}
         end if
     end if
-    puts(real_fn, text:format(fm, data))
+    puts(real_fn, text_format(fm, data))
     if close_fn then
         close(real_fn)
     end if
@@ -2142,7 +2146,7 @@ end procedure
 --   an output type ("a" for append, "w" for write), it is opened accordingly, 
 --   written to and then closed.
 -- * When ##fn## is a file handle, it is written to only
--- * The ##fm## uses the formatting codes defined in [[:text:format]].
+-- * The ##fm## uses the formatting codes defined in [[:text_format]].
 --
 -- Example 1:
 -- <eucode>
@@ -2155,7 +2159,7 @@ end procedure
 -- </eucode>
 --
 -- See Also:
---    [[:text:format]], [[:writef]], [[:write_lines]]
+--    [[:text_format]], [[:writef]], [[:write_lines]]
 public procedure writefln(object fm, object data={}, object fn = 1, object data_not_string = 0)
     if integer(fm) then
         writef(data & '\n', fn, fm, data_not_string)

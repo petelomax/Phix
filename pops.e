@@ -28,7 +28,7 @@
 -- Opcodes are used to locate entry points in the Virtual Machine, and hence the
 --  following definitions must exactly match the equivalent table in the assembly
 --  back-end [VMep]. Hence when/if Phix gets an "enum", this is probably the last
---  place you'd want to use it.
+--  place you'd want to use it. [DEV VMep vanished quite some time ago...]
 -- It may help to consider the VM as similar in theory to clib, with the compiler 
 --  electing to inline/emit machine code directly for as many trivial/common cases 
 --- as possible, but some things such as puts, s[i][j][k]=t, etc., are always 
@@ -373,17 +373,18 @@ global constant
     opCallFunc = 119,   -- o = call_func(rid,params)
     opCallProc = 120,   -- call_proc(rid,params)
 --DEV?
-    opOpenDLL = 121,    -- a = open_dll(s)      -- (:%opOpenDLL in pcfuncN.e)
+    opOpenDLL = 121,    -- a = open_dll(s)      -- (:%opOpenDLL in pcfunc.e) [DEV togo]
     opDcfunc = 122,     -- i = define_c_func(l,n,a,r) -- (:%opDcfunc "")
     opDcvar = 123,      -- i = define_c_var(l,n)      -- (:%opDcvar "")
     opInstance = 124,   -- a = instance()
+--DEV?
     opCallback = 125,   -- a = call_back(id)          -- (:%opCallback "")
     opCallA = 126,      -- call(addr)
     opCfunc = 127,      -- a = c_func(rid,params)
     opCproc = 128,      -- c_proc(rid,params)
     opGpct = 129,       -- call :%opGpct (prev3/[edi] = fget_pcfunc_tables())
     opRpct = 130,       -- call :%opRpct (frestore_pcfunc_tables(prev3/[esi]))
-
+    opCbHandler = 131,  -- call :%cbhandler (for dll use only)
     -- 126,127 spare
 --  opNres = 127,
 

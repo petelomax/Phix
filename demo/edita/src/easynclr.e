@@ -1078,6 +1078,7 @@ end if
         k = lt
         lt = length(text)
         if length(backC)<lt then
+--DEV this looks horribly wrong!! (1/7/16!!)
             backC &= repeat(ColourTab[Background],lt-length(backC))
             textC &= repeat(ColourTab[Comments],lt-length(backC))
             attrC &= repeat(EA_Italic,lt-length(backC))

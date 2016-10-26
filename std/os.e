@@ -7,30 +7,35 @@ namespace os
 --
 
 include std/sequence.e
+--/*
 include std/text.e
+--*/
 include std/machine.e
 
 include std/dll.e
 
 ifdef UNIX then
 
-        public constant CMD_SWITCHES = "-"
+public constant CMD_SWITCHES = "-"
 
 elsifdef WINDOWS then
 
-        public constant CMD_SWITCHES = "-/"
+public constant CMD_SWITCHES = "-/"
 
 end ifdef
 
+--/*
 constant
         M_SLEEP     = 64,
         M_SET_ENV   = 73,
         M_UNSET_ENV = 74
+--*/
 
 --****
 -- === Operating System Constants
 --
 
+--/*
 public enum
         WIN32 = 2,
         LINUX,
@@ -39,6 +44,7 @@ public enum
         OPENBSD,
         NETBSD,
         FREEBSD
+--*/
 
 --****
 -- These constants are returned by the [[:platform]] function.
@@ -63,7 +69,9 @@ public enum
 --****
 -- === Environment.
 
+--/*
 constant M_INSTANCE = 55
+--*/
 
 --**
 -- Return ##hInstance## on //Windows// and Process ID (pid) on //Unix//.
@@ -72,12 +80,14 @@ constant M_INSTANCE = 55
 -- On //Windows// the ##hInstance## can be passed around to various
 -- //Windows// routines.
 
+--/*
 public function instance()
         return machine_func(M_INSTANCE, 0)
 end function
+--*/
 
 ifdef WINDOWS then
-        atom cur_pid = -1
+atom cur_pid = -1
 end ifdef
 
 --**
@@ -92,24 +102,25 @@ end ifdef
 -- </eucode>
 
 public function get_pid()
-        ifdef UNIX then
-                return machine_func(M_INSTANCE, 0)
-        elsifdef WINDOWS then
-                if cur_pid = -1 then
-                        cur_pid = define_c_func(open_dll("kernel32.dll"), "GetCurrentProcessId", {}, C_DWORD)
-                        if cur_pid >= 0 then
-                                cur_pid = c_func(cur_pid, {})
-                        end if
-                end if
-                
-                return cur_pid
-        end ifdef
+    ifdef UNIX then
+--/**/  return instance()   --/*
+        return machine_func(M_INSTANCE, 0)  --*/
+    elsifdef WINDOWS then
+    if cur_pid= -1 then
+        cur_pid = define_c_func(open_dll("kernel32.dll"), "GetCurrentProcessId", {}, C_DWORD)
+        if cur_pid>=0 then
+            cur_pid = c_func(cur_pid, {})
+        end if
+    end if
+
+    return cur_pid
+    end ifdef
 end function
 
 ifdef WIN32 then
-        constant M_UNAME = define_c_func(open_dll("kernel32.dll"), "GetVersionExA", {C_POINTER}, C_INT)
+constant M_UNAME = define_c_func(open_dll("kernel32.dll"), "GetVersionExA", {C_POINTER}, C_INT)
 elsifdef UNIX then
-        constant M_UNAME = 76
+constant M_UNAME = 76
 end ifdef
 
 --**
@@ -147,65 +158,65 @@ end ifdef
 
 public function uname()
 --      ifdef WIN32 then
-                atom buf
-                sequence sbuf
-                integer maj, mine, build, plat
-                buf = allocate(148)
-                poke4(buf, 148)
-                if c_func(M_UNAME, {buf}) then
-                        maj = peek4u(buf+4)
-                        mine = peek4u(buf+8)
-                        build = peek4u(buf+12)
-                        plat = peek4u(buf+16)
-                        sbuf = {}
-                        if plat = 0 then
-                                sbuf = append(sbuf, "Win32s")
-                                sbuf = append(sbuf, sprintf("Windows %d.%d", {maj,mine}))
-                        elsif plat = 1 then
-                                sbuf = append(sbuf, "Win9x")
-                                if mine = 0 then
-                                        sbuf = append(sbuf, "Win95")
-                                elsif mine = 10 then
-                                        sbuf = append(sbuf, "Win98")
-                                elsif mine = 90 then
-                                        sbuf = append(sbuf, "WinME")
-                                else
-                                        sbuf = append(sbuf, "Unknown")
-                                end if
-                        elsif plat = 2 then
-                                sbuf = append(sbuf, "WinNT")
-                                if maj=6 and mine=1 then
-                                    sbuf = append(sbuf, "Windows7")
-                                elsif maj=6 and mine=0 then
-                                    sbuf = append(sbuf, "Vista")
-                                elsif maj=5 and (mine=1 or mine=2) then
-                                    sbuf = append(sbuf, "WinXP")
-                                elsif maj=5 and mine=0 then
-                                    sbuf = append(sbuf, "Win2K")
-                                elsif maj=4 and mine=0 then
-                                    sbuf = append(sbuf, "WinNT 4.0")
-                                elsif maj=3 and mine=51 then
-                                    sbuf = append(sbuf, "WinNT 3.51")
-                                elsif maj=3 and mine=50 then --is it 50 or 5?
-                                    sbuf = append(sbuf, "WinNT 3.5")
-                                elsif maj=3 and mine=1 then
-                                    sbuf = append(sbuf, "WinNT 3.1")
-                                else
-                                    sbuf = append(sbuf, sprintf("WinNT %d.%d", {maj,mine}))
-                                end if
-                        elsif plat = 3 then
-                                sbuf = append(sbuf, "WinCE")
-                                sbuf = append(sbuf, sprintf("WinCE %d.%d", {maj,mine}))
-                        else
-                                sbuf = append(sbuf, "Unknown Windows")
-                                sbuf = append(sbuf, sprintf("Version %d.%d", {maj,mine}))
-                        end if
-                        sbuf = append(sbuf, peek_string(buf+20))
-                        sbuf &= {plat, build, mine, maj}
-                        return sbuf
-                else
-                        return {}
-                end if
+atom buf
+sequence sbuf
+integer maj, mine, build, plat
+    buf = allocate(148)
+    poke4(buf, 148)
+    if c_func(M_UNAME, {buf}) then
+        maj = peek4u(buf+4)
+        mine = peek4u(buf+8)
+        build = peek4u(buf+12)
+        plat = peek4u(buf+16)
+        sbuf = {}
+        if plat=0 then
+            sbuf = append(sbuf, "Win32s")
+            sbuf = append(sbuf, sprintf("Windows %d.%d", {maj,mine}))
+        elsif plat=1 then
+            sbuf = append(sbuf, "Win9x")
+            if mine=0 then
+                sbuf = append(sbuf, "Win95")
+            elsif mine=10 then
+                sbuf = append(sbuf, "Win98")
+            elsif mine=90 then
+                sbuf = append(sbuf, "WinME")
+            else
+                sbuf = append(sbuf, "Unknown")
+            end if
+        elsif plat=2 then
+            sbuf = append(sbuf, "WinNT")
+            if maj=6 and mine=1 then
+                sbuf = append(sbuf, "Windows7")
+            elsif maj=6 and mine=0 then
+                sbuf = append(sbuf, "Vista")
+            elsif maj=5 and (mine=1 or mine=2) then
+                sbuf = append(sbuf, "WinXP")
+            elsif maj=5 and mine=0 then
+                sbuf = append(sbuf, "Win2K")
+            elsif maj=4 and mine=0 then
+                sbuf = append(sbuf, "WinNT 4.0")
+            elsif maj=3 and mine=51 then
+                sbuf = append(sbuf, "WinNT 3.51")
+            elsif maj=3 and mine=50 then --is it 50 or 5?
+                sbuf = append(sbuf, "WinNT 3.5")
+            elsif maj=3 and mine=1 then
+                sbuf = append(sbuf, "WinNT 3.1")
+            else
+                sbuf = append(sbuf, sprintf("WinNT %d.%d", {maj,mine}))
+            end if
+        elsif plat=3 then
+            sbuf = append(sbuf, "WinCE")
+            sbuf = append(sbuf, sprintf("WinCE %d.%d", {maj,mine}))
+        else
+            sbuf = append(sbuf, "Unknown Windows")
+            sbuf = append(sbuf, sprintf("Version %d.%d", {maj,mine}))
+        end if
+        sbuf = append(sbuf, peek_string(buf+20))
+        sbuf &= {plat, build, mine, maj}
+        return sbuf
+    else
+        return {}
+    end if
 --      elsifdef UNIX then
 --              object o = machine_func(M_UNAME, {})
 --              if atom(o) then
@@ -226,9 +237,9 @@ end function
 
 public function is_win_nt()
 --      ifdef WIN32 then
-                sequence s
-                s = uname()
-                return equal(s[1], "WinNT")
+sequence s
+    s = uname()
+    return equal(s[1], "WinNT")
 --      elsedef
 --              return -1
 --      end ifdef
@@ -279,9 +290,11 @@ end function
 -- See Also:
 --   [[:getenv]], [[:unsetenv]]
 
+--/*
 public function setenv(sequence name, sequence val, integer overwrite=1)
         return machine_func(M_SET_ENV, {name, val, overwrite})
 end function
+--*/
 
 --**
 -- Unset an environment variable
@@ -297,9 +310,11 @@ end function
 -- See Also:
 --   [[:setenv]], [[:getenv]]
 
+--/*
 public function unsetenv(sequence env)
         return machine_func(M_UNSET_ENV, {env})
 end function
+--*/
 
 --****
 -- Signature:

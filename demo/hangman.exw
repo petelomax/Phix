@@ -1,12 +1,14 @@
 
 -- hangman.exw
 
--- DEV: Contains 3 routines (rand_range, any_key, to_number) that I should probably make auto-includes.
+-- DEV: Contains 2 routines (rand_range, to_number) that I should probably make auto-includes.
 --      I guess I could also do somegthing for read_lines/get_text.
---      This is also somewhere to have a bash at implementing maps,
+--      This is also somewhere to have a bash at implementing maps, [DONE]
 --       (for now this shows how to revert to standard sequences).
 
 namespace hangman
+
+include builtins\map.e
 
 --/*
 include std/convert.e
@@ -21,13 +23,13 @@ include std/rand.e
 include std/console.e
 --*/
 
---function mask_word(sequence word, map good, integer HIDING_CHAR) --> string
-function mask_word(sequence word, sequence good, integer HIDING_CHAR) --> string
+function mask_word(sequence word, map good, integer HIDING_CHAR) --> string
+--function mask_word(sequence word, sequence good, integer HIDING_CHAR) --> string
 integer ch
     for i=1 to length(word) do
         ch = word[i]
---      if not has(good,ch) then
-        if not find(ch,good) then
+        if not has(good,ch) then
+--      if not find(ch,good) then
             word[i] = HIDING_CHAR
         end if
     end for
@@ -91,56 +93,29 @@ integer count = 0
     return count
 end function
 
---procedure update_letters(map letters, integer char)
-function update_letters(sequence letters, integer char)
---  put(letters, upper(char), 0)
-    if not find(char,letters) then
-        letters = append(letters,char)
-    end if
-    return letters
---end procedure
-end function
+procedure update_letters(map letters, integer char)
+    put(letters, upper(char), 0)
+end procedure
+--function update_letters(sequence letters, integer char)
+--  if not find(char,letters) then
+--      letters = append(letters,char)
+--  end if
+--  return letters
+--end function
 
---function update_stores(sequence word, map good, map bad, integer char) --> {map,map}
-function update_stores(sequence word, sequence good, sequence bad, integer char) --> {seq,seq}
+procedure update_stores(sequence word, map good, map bad, integer char) --> {map,map}
+--function update_stores(sequence word, sequence good, sequence bad, integer char) --> {seq,seq}
 integer ch = upper(char)
     if find(ch, word) then -- good guess
---      update_letters(good,ch)
-        good = update_letters(good,ch)
+        update_letters(good,ch)
+--      good = update_letters(good,ch)
     else
---      update_letters(bad,ch)
-        bad = update_letters(bad,ch)
+        update_letters(bad,ch)
+--      bad = update_letters(bad,ch)
     end if
-    return {good,bad}
-end function
-
---DEV nicked from std\console.e:
-procedure any_key(sequence prompt="Press Any Key to continue...", integer con = 1)
-    if not find(con, {1,2}) then
-        con = 1
-    end if
-    puts(con, prompt)
-    {} = wait_key()
-    puts(con, "\n")
 end procedure
-
---DEV nicked from std\sequence.e: (now in pflatten.e)
---/*
-function join(sequence items, object delim=" ")
-object ret
-
-    if not length(items) then return {} end if
-
-    ret = {}
-    for i=1 to length(items)-1 do
-        ret &= items[i] & delim
-    end for
-
-    ret &= items[$]
-
-    return ret
-end function
---*/
+--  return {good,bad}
+--end function
 
 constant HIDING_CHAR = '*'
 procedure start(sequence word, integer allowed_tries)
@@ -149,12 +124,12 @@ integer underscores
 integer wrong_chars
 sequence letters_so_far
 integer ch
-sequence updated
+--sequence updated
 -- members
---  map wrong_letters = new()
-sequence wrong_letters = {}
---  map right_letters = new()
-sequence right_letters = {}
+map wrong_letters = new()
+--sequence wrong_letters = {}
+map right_letters = new()
+--sequence right_letters = {}
 
     -- prep
     word = upper(word)
@@ -173,12 +148,12 @@ sequence right_letters = {}
         puts(1, "The word is:\n")
         puts(1,join(word_output," ") & "\n\n")
 
---      wrong_chars = size(wrong_letters)
-        wrong_chars = length(wrong_letters)
+        wrong_chars = size(wrong_letters)
+--      wrong_chars = length(wrong_letters)
         printf(1,"%d / %d\n\n", {wrong_chars, allowed_tries})
 
---      letters_so_far = join(sort(keys(wrong_letters))," ")
-        letters_so_far = join(sort(wrong_letters)," ")
+        letters_so_far = join(sort(keys(wrong_letters))," ")
+--      letters_so_far = join(sort(wrong_letters)," ")
         puts(1,"\t" & letters_so_far)
         ----------- decide flow -----------
         if underscores=0 then
@@ -198,9 +173,10 @@ sequence right_letters = {}
         if ch=27 then exit end if
         if ('A'<=ch and ch<='Z')
         or ('a'<=ch and ch<='z') then
-            updated = update_stores(word, right_letters, wrong_letters, ch)
-            right_letters = updated[1]
-            wrong_letters = updated[2]
+            update_stores(word, right_letters, wrong_letters, ch)
+--          updated = update_stores(word, right_letters, wrong_letters, ch)
+--          right_letters = updated[1]
+--          wrong_letters = updated[2]
         end if
     end while
     any_key()

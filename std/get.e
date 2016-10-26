@@ -3,8 +3,8 @@
 --
 namespace stdget
 
---/**/global integer GET_SHORT_ANSWER, GET_LONG_ANSWER
---/**/forward global function value(sequence st, integer start_point=1, integer answer=GET_SHORT_ANSWER)
+--!/**/global integer GET_SHORT_ANSWER, GET_LONG_ANSWER
+--!/**/forward global function value(sequence st, integer start_point=1, integer answer=GET_SHORT_ANSWER)
 public constant
     GET_SUCCESS = 0,
     GET_EOF = -1,
@@ -464,13 +464,13 @@ end function
 --****
 -- === Answer Types
 
---/**/  GET_SHORT_ANSWER = routine_id("Get")
---/**/  GET_LONG_ANSWER  = routine_id("Get2")
---/*
+--!/**/ GET_SHORT_ANSWER = routine_id("Get")
+--!/**/ GET_LONG_ANSWER  = routine_id("Get2")
+--!/*
 public constant
     GET_SHORT_ANSWER = routine_id("Get"),
     GET_LONG_ANSWER  = routine_id("Get2")
---*/
+--!*/
 
 function get_value(object target, integer start_point, integer answer_type)
     if answer_type != GET_SHORT_ANSWER and answer_type != GET_LONG_ANSWER then

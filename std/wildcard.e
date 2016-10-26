@@ -13,7 +13,9 @@ namespace wildcard
 --****
 -- === Routines
 
+--/*
 include std/text.e -- upper/lower
+--*/
 
 function qmatch(sequence p, sequence s)
 -- find pattern p in string s

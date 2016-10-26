@@ -32,9 +32,11 @@
 integer near53 = 0  -- usual/default setting for 32-bit
 integer down53 = 0  -- for truncating f.p. idx, etc
 integer trunc53 = 0 -- for poke etc
+integer up53 = 0
 integer near64 = 0  -- usual/default setting for 64-bit, unused in 32-bit
 integer down64 = 0  -- used by (32-bit) opFloor, and 64-bit for idx, etc
 integer trunc64 = 0 -- for poke etc
+integer up64 = 0
 
 --/*
 procedure :>initFPU(:>)
@@ -101,6 +103,12 @@ end procedure -- (for Edita/CtrlQ)
         mov word[near64],ax                                                             -- 7F 03
         fldcw word[near64]
     []
+        mov ax,word[down53]         --                                                  -- 7F 06
+        xor ax,0x0C00
+        mov word[up53],ax           --                                                  -- 7F 0A
+        mov ax,word[down64]         --                                                  -- 7F 07
+        xor ax,0x0C00
+        mov word[up64],ax           --                                                  -- 7F 0B
         ret
 
 --/*
@@ -110,6 +118,15 @@ end procedure -- (for Edita/CtrlQ)
     :%down53
 ------------
         fldcw word[down53]
+        ret
+
+--/*
+procedure :%up53(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%up53
+----------
+        fldcw word[up53]
         ret
 
 --/*
@@ -137,6 +154,15 @@ end procedure -- (for Edita/CtrlQ)
     :%down64
 ------------
         fldcw word[down64]
+        ret
+
+--/*
+procedure :%up64(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%up64
+------------
+        fldcw word[up64]
         ret
 
 --/*

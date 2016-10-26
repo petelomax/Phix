@@ -14,6 +14,12 @@ constant
          TAB    = '\t'
 
 --Note: lines/second values are on a 233MHz (ie 0.2GHz) six-year-old AMD K6 with 64MB ram
+
+--DEV broken (unless you disable/do not enable UTF8MODE)
+-- what we need: ascii files held as strings, unicode files as utf8 strings, but the current line
+--  should be expanded (iff any #80 spotted) to a dword-sequence. Where we currently have string,
+--  that needs to be sequence s/if not string(s) and not unicodefile[currfile] then ?9/0 end if.
+--  We should also strip the BOM. When displaying, need to pack back to utf8.
 global integer showSpecials -- set via eamenus (toggleSpecials)
                showSpecials = 0
 
@@ -38,24 +44,35 @@ global integer showSpecials -- set via eamenus (toggleSpecials)
 
 
 global function ExpandTabs(sequence text)
+--global function ExpandTabs(string text)
 -- Replace any tabs with spaces.
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- Fast (92,000 lines/second or better)
 integer tab
-    if showSpecials then
-        for i=1 to length(text) do
-            if text[i]=' ' then
-                text[i] = #B7
-            end if
-        end for
-        text = append(text,#B6) -- paragraph mark
-        while 1 do
-            tab = find(TAB,text)
-            if not tab then exit end if
-            text = text[1..tab-1]&#BB&
-                   repeat(SPACE,isTabWidth-remainder(tab-1,isTabWidth)-1)&
-                   text[tab+1..length(text)]
-        end while
-    else
+--, c2c = 0
+--  if showSpecials then
+----        for i=1 to length(text) do
+--      for i=length(text) to 1 by -1 do
+--          if text[i]=' ' then
+----                text[i] = #B7
+----                text[i..i] = "\xE2\x80\xA2"
+----                text[i..i] = "\xC2\xB0"
+--              text[i..i] = "\xC2\xB7"     -- middle dot
+--              c2c += 1
+--          end if
+--      end for
+----        text = append(text,#B6) -- paragraph mark
+--      text &= "\xC2\xB6"  -- paragraph mark
+--      while 1 do
+--          tab = find(TAB,text)
+--          if not tab then exit end if
+----            text = text[1..tab-1]&#BB&
+--          text = text[1..tab-1]&#C2&#BB&
+--                 repeat(SPACE,isTabWidth-remainder(tab-c2c-1,isTabWidth)-1)&
+--                 text[tab+1..length(text)]
+--          c2c += 1
+--      end while
+--  else
         while 1 do
             tab = find(TAB,text)
             if not tab then exit end if
@@ -63,17 +80,81 @@ integer tab
                    repeat(SPACE,isTabWidth-remainder(tab-1,isTabWidth))&
                    text[tab+1..length(text)]
         end while
-    end if
+--  end if
     while 1 do
         tab = find(#0C,text)
         if not tab then exit end if
         text[tab] = #A7                 -- form feed (page break)
+--      text[tab..tab] = "\xC2\xA7"     -- form feed (page break)
+    end while
+    return text
+end function
+
+global function ExpandTabSpecials(sequence text)
+-- Replace any tabs with spaces.
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
+-- Fast (92,000 lines/second or better)
+integer tab, ch
+--, c2c = 0
+--  if showSpecials then
+--      for i=1 to length(text) do
+        for i=length(text) to 1 by -1 do
+            ch = text[i]
+            if ch=' ' then
+--?unicodeflag
+--              if unicodeflag=? then
+--              end if
+                text[i] = #B7
+--              text[i..i] = "\xE2\x80\xA2"
+--              text[i..i] = "\xC2\xB0"
+--              text[i..i] = "\xC2\xB7"     -- middle dot
+--              c2c += 1
+            end if
+        end for
+--      tab = 1
+--      while tab<=length(text) do
+--          ch = text[tab]
+--          if ch='\t' then
+--              integer tw = isTabWidth-remainder(tab-c2c-1,isTabWidth)-1
+--              text[tab..tab] = "\xC2\xBB"&repeat(SPACE,tw)
+--              tab += tw+1
+--              c2c += 1
+--          end if
+--          tab += 1
+--      end while
+        text = append(text,#B6) -- paragraph mark
+--      text &= "\xC2\xB6"  -- paragraph mark
+        while 1 do
+            tab = find(TAB,text)
+            if not tab then exit end if
+            text = text[1..tab-1]&#BB&
+--          text = text[1..tab-1]&#C2&#BB&
+                   repeat(SPACE,isTabWidth-remainder(tab-1,isTabWidth)-1)&
+--                 repeat(SPACE,isTabWidth-remainder(tab-c2c-1,isTabWidth)-1)&
+                   text[tab+1..length(text)]
+--          c2c += 1
+        end while
+--  else
+--      while 1 do
+--          tab = find(TAB,text)
+--          if not tab then exit end if
+--          text = text[1..tab-1]&
+--                 repeat(SPACE,isTabWidth-remainder(tab-1,isTabWidth))&
+--                 text[tab+1..length(text)]
+--      end while
+--  end if
+    while 1 do
+        tab = find(#0C,text)
+        if not tab then exit end if
+        text[tab] = #A7                 -- form feed (page break)
+--      text[tab..tab] = "\xC2\xA7"     -- form feed (page break)
     end while
     return text
 end function
 
 global function ExpLength(sequence text)
 -- calculate the length ExpandTabs would return (without all that slicing)
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- Fast (147,000 lines/second or better)
 integer l
     l = 0
@@ -88,6 +169,7 @@ integer l
 end function
 
 global function ExpLength8(sequence text)
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- modified version of above for new tab8 handling
 integer l
     l = 0
@@ -104,11 +186,11 @@ end function
 
 global function leadingWhiteSpaceLength(sequence text)
 -- calculate the length of leading spaces and tabs.
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 integer l, ch
     l = 0
     for i=1 to length(text) do
         ch = text[i]
---      if ch=VK_TAB then
         if ch=TAB then
             l += isTabWidth-remainder(l,isTabWidth)
         elsif ch=' ' then
@@ -123,17 +205,20 @@ end function
 
 global function MapToByte(sequence text, integer cX)
 -- Map a screen column to a character byte.
--- text is packed.
+-- text is packed (spaces replaced with tabs), 
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- cX is zero-based (usually CursorX+Column).
 -- result is an index (1..length(text)) or zero if past/on end.
-integer l
+integer l, ch
     l = 0
     for i=1 to length(text) do
         if l=cX then return i end if
-        if text[i]=TAB then
+        ch = text[i]
+        if ch=TAB then
             l += isTabWidth-remainder(l,isTabWidth)
             if l>cX then return i end if    -- 18/5/07
         else
+--      elsif ch!=#C2 then
             l += 1
         end if
     end for
@@ -143,6 +228,7 @@ end function
 global function CursorLeft(sequence text, integer CursorX)
 -- Calculate next legal cursor position if moving left
 -- text is packed. CursorX is 0-based.
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- CursorX may be larger than ExpLength(txt)+1 (eg cursor up/down to a 
 -- shorter line), in which case ExpLength(text) will be returned (which
 -- places the cursor on the insertion point at the end of the line, past
@@ -169,6 +255,7 @@ end function
 global function WordLeft(sequence text, integer CursorX, integer alt)
 -- Calculate next word start (end if alt=1) to the left.
 -- text is packed. CursorX is 0-based.
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- -1 is returned if Cursor should go to previous line (if possible)
 -- in no way is this meant/needed to be particularly fast.
 integer l, charwidth, lt, pc, ws, ch
@@ -233,6 +320,7 @@ end function
 global function CursorRight(sequence text, integer CursorX)
 -- Calculate next legal cursor position if moving right.
 -- text is packed. CursorX is 0-based.
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- Result will not be greater than ExpLength(text), which places the cursor 
 -- on the insertion point at the end of the line, past the last character.
 -- A result of -1 is returned to signal the cursor should wrap to the start 
@@ -255,6 +343,7 @@ end function
 global function WordRight(sequence text, integer CursorX, integer alt)
 -- Calculate next word start to right.
 -- text is packed. CursorX is 0-based.
+-- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- CursorX may (specially) be -1 to indicate it should stop on
 -- a word beginning in column 1. If CursorX=0 it should not.
 -- -1 is returned if Cursor should go to next line (if possible)
@@ -566,6 +655,7 @@ global function ConvertTabs(sequence intxt, integer itw, integer otw)
 --
 -- Note: This will crash if itw is zero and a tab is present in intxt,
 --       though itw and/or otw of 0 generally/validly mean "all spaces".
+-- NB: intxt/result is ansi string or UTF32 dword-sequence, never utf8
 --
 -- Multiple spaces/tabs within double quotes are not converted.
 --

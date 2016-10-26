@@ -103,7 +103,7 @@ constant show_bad_era = 01
 --     since they are used in the following code.
 
 --/**/  -- not really needed, but avoids an opCallOnce:
---include builtins\VM\pcfuncN.e
+--include builtins\VM\pcfunc.e
 --/**/  include builtins\VM\pprntfN.e
 --/**/  include builtins\VM\psprintN.e
 --/**/  include builtins\pcurrdir.e
@@ -164,7 +164,7 @@ constant MAXLINELEN = 129   -- approximate screen/printer width
 --       to do so, and equally of course a "no limit" option is just plain daft. 
 --       Quite often, debugging can be a bit easier when this is fairly small,
 --       ie/eg 500 equates to around 10 page downs to get past a big sequence,
---       whereas, obviously, 5000 could easily make that around 100 keystrokes.
+--       whereas, obviously, 20000 could easily make that around 400 keystrokes.
 --       Equally, while 500 might be best for day-to-day development, 50,000
 --       might be more sensible on live end-user systems, to ensure you capture
 --       everything needed to diagnose some rare intermittent problem.
@@ -173,7 +173,8 @@ constant MAXLINELEN = 129   -- approximate screen/printer width
 --       as it (p.exe) struggles to give birth to some monster ex.err files, and
 --       would fully expect exponential slowdown as things get even bigger.
 --
-constant MAXLENN = 500-0    -- longest string/sequence you will ever really need
+--constant MAXLENN = 20000 -- longest string/sequence you will ever really need
+constant MAXLENN = 2000 -- longest string/sequence you will ever really need
 
 -- Note: The following may not honor MAXLENN like it should/used to (which is, if 
 --       anything, a problem in ppp.e rather than here). You may want this if, in 
@@ -792,11 +793,14 @@ constant msgs =
     -- Note that append("one","two") is {'o','n','e',"two"},
     -- whereas "one"&"two" is "onetwo", although they 
     -- give the same results if b is an atom.
- -1,--"first argument to prepend() must be sequence\n",             -- e56fatpmbs
+-- -1,--"first argument to prepend() must be sequence\n",           -- e56fatpmbs
     -- You may mean b&a instead of prepend(a,b)
     -- Note that prepend("two","one") is {"one",'t','w','o'},
     -- whereas "one"&"two" is "onetwo", although they 
     -- give the same results if b is an atom.
+ "invalid dictionary id\n",                                     -- e56idi
+    -- triggered from builtins\dict.e via :!fatalN so that
+    -- the error occurs on the calling statement.
  "invalid file name\n",                                         -- e57ifn
     -- A common cause of this is using append instead of &:
     --  append("C:\test\","fred.txt") returns the nested
@@ -889,7 +893,8 @@ constant msgs =
     -- technically -1 is also valid, and implements the same as
     -- keying 'Q' in the trace() window, ie permanently off.
  "abort() code must be integer\n",                              -- e87acmbi
- "arguments to c_func() must be atoms or strings\n",            -- e88atcfpmbaos
+ "arguments to c_%sc() must be atoms or strings\n",             -- e88atcfpmbaos(edi)
+    -- (edi=1 -> c_func, else c_proc)
  "too many parameters in call_func/proc()\n",                   -- e89tmpicfp
  "argument to profile() must be 0 or 1\n",                      -- e90atpmb01
 -- "profile internal error\n",                                  -- e91pie   [DEV]
@@ -1064,7 +1069,7 @@ constant
 --       T_callstk = 20,
          T_maintls = 21,
          T_EBP     = 22,    -- compiled/listing=0, interpreted={ebp4,esp4,sym4} (set at last possible moment)
-         T_ds4     = 23,    
+         T_ds4     = 23,    -- compiled = start of data section, same but /4 when interpreted ([T_EBP]!=0)
          T_const1  = 26
 
 --DEV should this just be a parameter to getVal?
@@ -1265,29 +1270,13 @@ integer ds4
 function getGvarValue(integer gidx)
 integer novalue
 object res
---      (maxop+gidx+2)*dsize+8
     #ilASM{
             mov [novalue],0
         [32]
---DEV gvarptr@[vsb_root+12]...
--- or symtab[T_EBP][4] (maxop of 0)
---          lea esi,[ds+16]     -- maxgvar aka gvar[0], less maxop entries
---          mov ecx,[ds+12]     -- maxop
---DEV fixme
---          add ecx,[gidx]
             mov esi,[ds4]
             mov edx,[gidx]
             shl esi,2
---          add ecx,edx
---          mov esi,[esi+ecx*4] -- ([maxgvar+(gidx+maxop)*4] == gvar[gidx])
             mov esi,[esi+edx*4+16] -- ([ds+(gidx+4)*4] == gvar[gidx])
---untried:
---          mov esi,[ds+ecx*4+16]
---27/2/15:
---          mov esi,[ebp+24]        -- vsb_root
---          mov edx,[gidx]
---          mov esi,[esi+12]        -- gvarptr
---          mov esi,[esi+edx*4-4]   -- gvar[gidx]
             cmp esi,h4
             jne @f
                 mov [novalue],1
@@ -1336,23 +1325,10 @@ object res
             mov [res],esi
         [64]
 --pop al
---          lea rsi,[ds+24]     -- maxgvar aka gvar[0], less maxop entries
---          mov rcx,[ds+16]     -- maxop
---DEV fixme
---          add rcx,[gidx]
             mov rsi,[ds4]
             mov rdx,[gidx]
             shl rsi,2
---          add rcx,rdx
---          mov rsi,[rsi+rcx*8] -- ([maxgvar+(gidx+maxop)*8] == gvar[gidx])
             mov rsi,[rsi+rdx*8+24] -- ([ds+(gidx+3)*8] == gvar[gidx])
---untried:
---          mov rax,[ds+rcx*8+24]
---27/2/15:
---          mov rsi,[rbp+48]        -- vsb_root
---          mov rdx,[gidx]
---          mov rsi,[rsi+24]        -- gvarptr
---          mov rsi,[rsi+rdx*8-8]   -- gvar[gidx]
             mov r15,h4
             cmp rsi,r15
             jne @f
@@ -1757,41 +1733,19 @@ object sr
 integer nTyp
     #ilASM{
         [32]
---          lea esi,[ds+16]     -- maxgvar aka gvar[0], less maxop entries
---          mov ecx,[ds+12]     -- maxop
---          lea eax,[esi+ecx*4] -- ([maxgvar+(maxop)*4] == gvar[0])
             mov eax,[ds4]
             shl eax,2
             add eax,16
             mov [gvar0],eax
             mov eax,[eax]
             mov [maxgvar],eax
---27/2/15:
---          mov esi,[ebp+24]        -- vsb_root
---          mov eax,[esi+12]        -- gvarptr
---          mov edx,eax
---          sub edx,4
---          mov [gvar0],eax
---          mov ecx,[eax-4]         -- maxgvar
---          mov [maxgvar],ecx
         [64]
---          lea rsi,[ds+24]     -- maxgvar aka gvar[0], less maxop entries
---          mov rcx,[ds+16]     -- maxop
---          lea rax,[rsi+rcx*8] -- ([maxgvar+(maxop)*8] == gvar[0])
             mov rax,[ds4]
             shl rax,2
             add rax,24
             mov [gvar0],rax
             mov rax,[rax]
             mov [maxgvar],rax
---27/2/15:
---          mov rsi,[rbp+48]        -- vsb_root
---          mov rax,[rsi+24]        -- gvarptr
---          mov rdx,rax
---          sub rdx,4
---          mov [gvar0],rdx
---          mov rcx,[rax-8]         -- maxgvar
---          mov [maxgvar],rcx
         []
           } 
 --DEV (untried)
@@ -2383,6 +2337,7 @@ atom gvarptr
             else
                 name = si[S_Name]
                 if atom(name) then
+                    --DEV/SUG unnamed index temps -> ioob??? (see e01tcf)
                     name = sprintf("???(symtab[%d][S_name]=%d)",{varno,si})
                 end if
                 sNTyp = si[S_NTyp]
@@ -2522,7 +2477,8 @@ atom gvarptr
         end if
     elsif msg_id=72 then        -- e72iri(edi)
         msg = sprintf(msg,or_edi)
-    elsif msg_id=6 then         -- e06ioob(edi,esi)
+    elsif msg_id=6              -- e06ioob(edi,esi)
+       or msg_id=116 then       -- e116rrnp(edi,esi)
         msg = sprintf(msg,{or_edi,or_esi})
     elsif msg_id=14 then        -- e14soa(edi)
         if or_edi>=1 and or_edi<=length(e14ops) then
@@ -2538,6 +2494,8 @@ atom gvarptr
         -- (params/locals suppressed below, since they no longer exist)
     elsif msg_id=53 then        -- e53mcat(esi,ecx)
         msg = sprintf(msg,{or_esi,or_ecx*4,or_ecx*4-or_esi})
+    elsif msg_id=88 then        -- e88atcfpmbaos(edi)
+        msg = sprintf(msg,{iff(or_esi=1?"fun":"pro")})  -- c_func|c_proc
     end if
 --?2
 --/*
@@ -3330,7 +3288,7 @@ end procedure -- (for Edita/CtrlQ)
         --  mov ecx,imm32       -- no of frames to pop to obtain an era (>=1)
         --  mov al,imm          -- error code [1..length(msgs)-1, currently 122]
         --  mov edi,ep1         -- [optional] (opUnassigned)
-        --  mov esi,ep2         -- [optional] (opUnassigned)
+        --  mov esi,ep2         -- [optional] (opUnassigned) [used for 110/ecx]
         --  jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
         [32]
           @@:
@@ -3340,6 +3298,7 @@ end procedure -- (for Edita/CtrlQ)
             sub ecx,1
             jg @b
             sub edx,1
+            mov ecx,esi
 --          jmp :!iDiag         -- fatal error (see pdiagN.e)
 --          int3
         [64]
@@ -3350,6 +3309,7 @@ end procedure -- (for Edita/CtrlQ)
             sub rcx,1
             jg @b
             sub rdx,1
+            mov rcx,rsi
 --          jmp :!iDiag         -- fatal error (see pdiagN.e)
 --          int3
         []
@@ -4028,6 +3988,21 @@ end procedure -- (for Edita/CtrlQ)
             []
                 call :%pStoreMint
                 mov al,107          -- e107ifma
+                jmp :setal
+          @@:
+            cmp edx,:!MemCopyIMA
+            jne @f
+            [32]
+                mov eax,[esp+4]
+                lea edi,[or_era]
+                sub eax,1
+            [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_era]
+                sub rax,1
+            []
+                call :%pStoreMint
+                mov al,24           -- e24imcma
                 jmp :setal
           @@:
             mov al,30

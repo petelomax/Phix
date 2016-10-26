@@ -5,11 +5,6 @@
 --  Simple recursive directory compare
 --  (quick ditty written to expediate the release, contains some code specific to that task)
 --
---/* temp:
-    initialConstant("D_NAME",           1)
-    initialConstant("D_ATTRIBUTES",     2)
-    initialConstant("D_SIZE",           3)
---*/
 
 function binary_equal(string fullpath1, string fullpath2)
 -- Check that fullpath1 and fullpath2 are binary identical
@@ -29,7 +24,8 @@ integer fn1, fn2, c, c2, res = 1
 end function
 
 procedure dirc(string dira, string dirb)
-sequence da,db,dai,dbi
+sequence da,db,dai
+object dbi
 string dai1
     da = dir(dira)
     db = dir(dirb)
@@ -53,10 +49,13 @@ string dai1
                               "graphics.htm","sysexec.htm","sysproc.htm",
                               "pminmax.e"}) then
                 dbi = dir(dirb&'\\'&dai1)
-                if length(dbi)!=1 then ?9/0 end if
-                dbi = dbi[1]
-                if dai[D_NAME]!=dbi[D_NAME] then ?9/0 end if
-                if dai[D_SIZE]!=dbi[D_SIZE]
+                if sequence(dbi) then
+                    if length(dbi)!=1 then ?9/0 end if
+                    dbi = dbi[1]
+                    if lower(dai[D_NAME])!=lower(dbi[D_NAME]) then ?9/0 end if
+                end if
+                if atom(dbi)
+                or dai[D_SIZE]!=dbi[D_SIZE]
                 or not binary_equal(dira&'\\'&dai1,dirb&'\\'&dai1) then
                     puts(1,dira&":\n")
                     ?{dai,dbi}
@@ -68,4 +67,5 @@ end procedure
 
 dirc("C:\\Program Files (x86)\\Phix6","C:\\Program Files (x86)\\Phix")
 
+puts(1,"done... (Press Enter)")
 if getc(0) then end if

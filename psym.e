@@ -1620,6 +1620,12 @@ global procedure syminit()
 --  initialConstant("E_SEQUENCE",   #08000004)
 --  initialConstant("E_OBJECT",     #09000004)
 
+    initialConstant("DLL_PROCESS_ATTACH", 1)
+    initialConstant("DLL_PROCESS_DETACH", 0)
+    initialConstant("DLL_THREAD_ATTACH",  2)
+    initialConstant("DLL_THREAD_DETACH",  3)
+
+
     Alias("bool",T_integer)
     initialConstant("NULL", 0)
     Alias("null", symlimit)
@@ -1672,6 +1678,29 @@ atom pi, inf, nan
     initialConstant("E",2.7182818284590452)
     initialConstant("INVLN10",0.43429448190325182765)
 
+--/*
+FAQ.
+Q: Why no global constant SLASH?
+A: It would not be suitable for cross-compilation use.
+    An expression such as iff(platform()=WINDOWS?'\\':'/') is 
+    evaluated once, at compile-time, whether in psym.e or test.exw,
+    however the one in psym.e would stick around a whole lot longer.
+    Suppose we added 
+        initialConstant("SLASH", iff(platform()=WINDOWS?'\\':'/'))
+    to psym.e, all would seem fine until we cross-compiled something.
+    Under format PE|ELF, when compiling find(SLASH,path), then at no
+    point would the compiler re-evaluate platform(). I suppose we
+    could somehow tag SLASH as needing re-evaluation on every use,
+    but the above initialConstant() is not the way to do that...
+    It c/would also break Phix's ability to cross-compile itself.
+    Along similar lines, I claim that "if platform()" is superior to
+    "ifdef WINDOWS", although admittedly I cannot quite formulate
+    that argument as eloquently as I would ideally like (and tend to
+    fall back on "language within a language", which is a sufficient
+    enough reason in my personal view anyway).
+    Note: a similar (but 32/64 bit) argument applies to PI, etc... 
+--*/
+
     -- from file.e:
     initialConstant("D_NAME",           1)
     initialConstant("D_ATTRIBUTES",     2)
@@ -1687,6 +1716,12 @@ atom pi, inf, nan
     initialConstant("LOCK_WAIT",        4)
     initialConstant("W_BAD_PATH",      -1)
 
+    -- from pfile.e:
+    initialConstant("FILETYPE_UNDEFINED", -1)
+    initialConstant("FILETYPE_NOT_FOUND",  0)
+    initialConstant("FILETYPE_FILE",       1)
+    initialConstant("FILETYPE_DIRECTORY",  2)
+
     -- from pdate.e:
     initialConstant("DT_YEAR",          1)
     initialConstant("DT_MONTH",         2)
@@ -1700,6 +1735,7 @@ atom pi, inf, nan
 --  -- from get.e:
     initialConstant("GET_SUCCESS",      0)
     initialConstant("GET_EOF",         -1)
+    initialConstant("GET_IGNORE",      -2)
     initialConstant("GET_FAIL",         1)
 
     -- from graphics.e:
@@ -2142,6 +2178,7 @@ if newEmit then
 --  AutoGlabel(opDcfunc,    "%opDcfunc",    "VM\\pcfuncN.e")
 --  AutoGlabel(opDcvar,     "%opDcvar",     "VM\\pcfuncN.e")
 --  AutoGlabel(opCallback,  "%opCallback",  "VM\\pcfuncN.e")
+    AutoGlabel(opCbHandler, "%cbhandler",   "VM\\pcfunc.e")
     AutoGlabel(opCallFunc,  "%opCallFunc",  "VM\\pcallfunc.e")
     AutoGlabel(opCallProc,  "%opCallProc",  "VM\\pcallfunc.e")
 
@@ -2224,6 +2261,8 @@ if newEmit then
     AutoAsm("peek8s",           S_Func,"FO",    "VM\\pMem.e",       opPeek8s,   "%opPeekNx",    E_none, T_object)
     AutoAsm("peek8u",           S_Func,"FO",    "VM\\pMem.e",       opPeek8u,   "%opPeekNx",    E_none, T_object)
     AutoAsm("peekNS",           S_Func,"FOII",  "VM\\pMem.e",       opPeekNS,   "%opPeekNx",    E_none, T_object)
+--DEV/SUG:
+--  AutoAsm("get_text",         S_Func,"FI[I]", "VM\\pfileioN.e",   opGetText,  "%opGetText",   E_none, T_object)   T_get_text = symlimit
     AutoAsm("get_text",         S_Func,"FII",   "VM\\pfileioN.e",   opGetText,  "%opGetText",   E_none, T_object)   T_get_text = symlimit
     symtab[symlimit][S_ParmN] = 1
 
@@ -2232,7 +2271,6 @@ if newEmit then
 --  AutoAsm("abort",            S_Proc,"PI",    "VM\\pAbort.e",     opAbort,    "%opAbort",     E_other,0)      T_abort = symlimit
     AutoAsm("abort",            S_Proc,"PI",    "VM\\pStack.e",     opAbort,    "%opAbort",     E_other,0)      T_abort = symlimit
     AutoAsm("bk_color",         S_Proc,"PI",    "VM\\pfileioN.e",   opBkClr,    "%opBkClr",     E_other,0)
---  AutoAsm("call_proc",        S_Proc,"PIP",   "VM\\pcallfunc.e",  opCallProc, "%opCallProc",  E_other,0)
     AutoAsm("call_proc",        S_Proc,"PIP",   "VM\\pcallfunc.e",  opCallProc, "%opCallProc",  E_all,  0)
     AutoAsm("clear_screen",     S_Proc,"P",     "VM\\pfileioN.e",   opClrScrn,  "%opClrScrn",   E_other,0)
     AutoAsm("close",            S_Proc,"PI",    "VM\\pfileioN.e",   opClose,    "%opClose",     E_other,0)
@@ -2287,8 +2325,16 @@ end if
 
     initialAutoEntry("chdir",           S_Func,"FP",    "pchdir.e",0,E_other)
     initialAutoEntry("check_break",     S_Func,"F",     "pbreak.e",0,E_other)
---DEVC not documented, incomplete
-    initialAutoEntry("copy_file",       S_Func,"FSSI",  "pcopyfile.e",0,E_other)
+--  initialAutoEntry("copy_file",       S_Func,"FSSI",  "pcopyfile.e",0,E_other)
+    initialAutoEntry("copy_file",       S_Func,"FSSI",  "pfile.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 2
+--DEV/SUG:
+--  initialAutoEntry("clear_directory", S_Func,"FS[I]", "pfile.e",0,E_other)
+    initialAutoEntry("clear_directory", S_Func,"FSI",   "pfile.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
+--  initialAutoEntry("create_directory",S_Func,"FS[II]","pfile.e",0,E_other)
+    initialAutoEntry("create_directory",S_Func,"FSII",  "pfile.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("db_create",       S_Func,"FPI",   "database.e",0,E_other)
     initialAutoEntry("db_open",         S_Func,"FPI",   "database.e",0,E_other)
     initialAutoEntry("db_select",       S_Func,"FP",    "database.e",0,E_other)
@@ -2299,16 +2345,23 @@ end if
     initialAutoEntry("db_table_size",   S_Func,"F",     "database.e",0,E_other)
     initialAutoEntry("db_compress",     S_Func,"F",     "database.e",0,E_other)
 if newEmit then
-    initialAutoEntry("define_c_func",   S_Func,"FOOPN", "VM\\pcfuncN.e",0,E_none)
-    initialAutoEntry("define_c_proc",   S_Func,"FOOP",  "VM\\pcfuncN.e",0,E_none)
+    initialAutoEntry("define_c_func",   S_Func,"FOOPN", "VM\\pcfunc.e",0,E_none)
+    initialAutoEntry("define_c_proc",   S_Func,"FOOP",  "VM\\pcfunc.e",0,E_none)
 else
     initialAutoEntry("define_c_func",   S_Func,"FOOON", "pcfunc.e",0,E_none)
     initialAutoEntry("define_c_proc",   S_Func,"FOOO",  "pcfunc.e",0,E_none)
 end if
+    initialAutoEntry("delete_file",     S_Func,"FS",    "pfile.e",0,E_none)
     initialAutoEntry("day_of_week",     S_Func,"FIII",  "pdate.e",0,E_none)
     initialAutoEntry("day_of_year",     S_Func,"FIII",  "pdate.e",0,E_none)
+    initialAutoEntry("file_exists",     S_Func,"FS",    "pfile.e",0,E_none)
     initialAutoEntry("find_any",        S_Func,"FPPI",  "pfindany.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("get_file_type",   S_Func,"FS",    "pfile.e",0,E_none)
+    Alias("file_type", symlimit)
+    initialAutoEntry("getd_index",      S_Func,"FOI",   "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("is_dict",         S_Func,"FI",    "dict.e",0,E_none)
     initialAutoEntry("is_leap_year",    S_Func,"FI",    "pdate.e",0,E_none)
     initialAutoEntry("islower",         S_Func,"FI",    "pcase.e",0,E_none)
     initialAutoEntry("isupper",         S_Func,"FI",    "pcase.e",0,E_none)
@@ -2325,12 +2378,20 @@ if newEmit then --DEV (temp) (T_find/T_match will be rqd once the asm conversion
 --  Alias("match_from", symlimit)   -- killed 3/8/15
 end if
 
+    initialAutoEntry("move_file",       S_Func,"FSSI",  "pfile.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("message_box",     S_Func,"FSSIN", "msgbox.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("new_dict",        S_Func,"FI",    "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 0
 if newEmit then
     initialAutoEntry("routine_id",      S_Func,"FP",    "VM\\prtnidN.e",0,E_none)   T_routine = symlimit
 else
     initialAutoEntry("platform",        S_Func,"F",     "platform.e",0,E_none)
+    initialAutoEntry("remove_directory",S_Func,"FSI",   "pfile.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("rename_file",     S_Func,"FSSI",  "pfile.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("routine_id",      S_Func,"FP",    "prtnid.e",0,E_none)        T_routine = symlimit
 end if
 if newEmit then
@@ -2349,7 +2410,6 @@ end if
     initialAutoEntry("task_create",     S_Func,"FIP",   "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_self",       S_Func,"F",     "VM\\pTask.e",0,E_none)
     initialAutoEntry("task_status",     S_Func,"FI",    "VM\\pTask.e",0,E_none)
-    initialAutoEntry("walk_dir",        S_Func,"FPII",  "file.e",0,E_all)
     initialAutoEntry("save_bitmap",     S_Func,"FPP",   "image.e",0,E_other)
 --DEV document/test/remove:
     initialAutoEntry("TlsAlloc",        S_Func,"F",     "ptls.ew",0,E_other)
@@ -2385,16 +2445,17 @@ end if
     initialAutoEntry("ceil",            S_Func,"FN",    "pmaths.e",0,E_none)
 if newEmit then
     --DEV or is c_func an object result?? (eg C:\Program Files\Phix\demo\SUDOKU\EuWinGUI.ew:359)
-    initialAutoEntry("c_func",          S_Func,"FIP",   "VM\\pcfuncN.e",0,E_all)
-    initialAutoEntry("call_back",       S_Func,"FO",    "VM\\pcfuncN.e",0,E_none)
+    initialAutoEntry("c_func",          S_Func,"FIP",   "VM\\pcfunc.e",0,E_all)
+    initialAutoEntry("call_back",       S_Func,"FO",    "VM\\pcfunc.e",0,E_none)
     initialAutoEntry("create_thread",   S_Func,"FIPI",  "VM\\pThreadN.e",0,E_other)
     symtab[symlimit][S_ParmN] = 2
-    initialAutoEntry("define_c_var",    S_Func,"FNS",   "VM\\pcfuncN.e",0,E_none)
-    initialAutoEntry("open_dll",        S_Func,"FP",    "VM\\pcfuncN.e",0,E_none)
+    initialAutoEntry("define_c_var",    S_Func,"FNS",   "VM\\pcfunc.e",0,E_none)
+    initialAutoEntry("exp",             S_Func,"FN",    "pmaths.e",0,E_none)
     initialAutoEntry("float32_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("float64_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("float80_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
-    initialAutoEntry("get_proc_address",S_Func,"FNS",   "VM\\pcfuncN.e",0,E_none)
+    initialAutoEntry("get_proc_address",S_Func,"FNS",   "VM\\pcfunc.e",0,E_none)
+    initialAutoEntry("open_dll",        S_Func,"FP",    "VM\\pcfunc.e",0,E_none)
 else
     initialAutoEntry("float80_to_atom", S_Func,"FP",    "pfloat.e",0,E_none)
     initialAutoEntry("c_func",          S_Func,"FIP",   "pcfunc.e",0,E_all)
@@ -2404,10 +2465,12 @@ else
 end if
     initialAutoEntry("factorial",       S_Func,"FN",    "factorial.e",0,E_none)
     initialAutoEntry("gcd",             S_Func,"FON",   "gcd.e",0,E_none)
-    initialAutoEntry("log10",           S_Func,"FN",    "log10.e",0,E_none)
+    initialAutoEntry("get_file_size",   S_Func,"FS",    "pfile.e",0,E_none)
+    Alias("file_length", symlimit)
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
-    initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
+    initialAutoEntry("log10",           S_Func,"FN",    "log10.e",0,E_none)
     initialAutoEntry("mod",             S_Func,"FNN",   "pmaths.e",0,E_none)
+    initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
     initialAutoEntry("poke_string",     S_Func,"FNIP",  "pokestr.e",0,E_other)
     initialAutoEntry("prompt_number",   S_Func,"FSP",   "get.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
@@ -2433,13 +2496,22 @@ end if
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("elapsed",         S_Func,"FN",    "pelapsed.e",0,E_none)
     initialAutoEntry("elapsed_short",   S_Func,"FN",    "pelapsed.e",0,E_none)
+    initialAutoEntry("get_file_base",   S_Func,"FS",    "pfile.e",0,E_none)
+    Alias("filebase", symlimit)
+    initialAutoEntry("get_file_path",   S_Func,"FSI",   "pfile.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("get_file_extension",S_Func,"FS",  "pfile.e",0,E_none)
+    Alias("fileext", symlimit)
 --if newEmit then
 --  initialAutoEntry("get_proper_pathN", S_Func,"FPO",  "VM\\pgetpathN.e",0,E_none)
 --  symtab[symlimit][S_ParmN] = 1
 --else
+    initialAutoEntry("get_file_name",   S_Func,"FS",    "pfile.e",0,E_none)
+    Alias("filename", symlimit)
     initialAutoEntry("get_proper_path", S_Func,"FPO",   "pgetpath.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("get_proper_dir",  S_Func,"FS",    "pgetpath.e",0,E_none)
+    initialAutoEntry("get_proper_dir",  S_Func,"FSI",   "pgetpath.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("canonical_path",  S_Func,"FSII",  "pgetpath.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
 --end if
@@ -2462,6 +2534,9 @@ else
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("sprint",          S_Func,"FO",    "psprint.e",0,E_none)
 end if
+    initialAutoEntry("to_string",       S_Func,"FOII",  "to_str.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("utf16_to_utf8",   S_Func,"FP",    "utfconv.e",0,E_none)
 
     T_AStr = symlimit
 
@@ -2481,9 +2556,10 @@ end if
     initialAutoEntry("find_replace",    S_Func,"FOPOI", "findrepl.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
     initialAutoEntry("flatten",         S_Func,"FP",    "pflatten.e",0,E_none)
-    initialAutoEntry("join",            S_Func,"FPS",   "pflatten.e",0,E_none)
+    initialAutoEntry("join",            S_Func,"FPO",   "pflatten.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("join_path",       S_Func,"FP",    "pflatten.e",0,E_none)
+    initialAutoEntry("join_path",       S_Func,"FPI",   "pflatten.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
 if newEmit then
 --  initialAutoEntry("get_position",    S_Func,"F",     "VM\\pfileioN.e",0,E_none)
 elsif hllfileio then
@@ -2523,13 +2599,20 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("split_any",       S_Func,"FPOII", "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("split_path",      S_Func,"FPI",   "psplit.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("tagset",          S_Func,"FN",    "ptagset.e",0,E_none)
     initialAutoEntry("tail",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("task_list",       S_Func,"F",     "VM\\pTask.e",0,E_none)
+    initialAutoEntry("utf8_to_utf16",   S_Func,"FP",    "utfconv.e",0,E_none)
+    initialAutoEntry("utf16_to_utf32",  S_Func,"FP",    "utfconv.e",0,E_none)
+    initialAutoEntry("utf32_to_utf16",  S_Func,"FP",    "utfconv.e",0,E_none)
 --DEV Eu4 has another 2 optional params..
     initialAutoEntry("custom_sort",     S_Func,"FIP",   "sort.e",0,E_none)
-    initialAutoEntry("ppf",             S_Func,"FO",    "ppp.e",0,E_other)
+--  initialAutoEntry("ppf",             S_Func,"FO",    "ppp.e",0,E_other)
+    initialAutoEntry("ppf",             S_Func,"FOP",   "ppp.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("ppExf",           S_Func,"FOP",   "ppp.e",0,E_other)
     initialAutoEntry("value",           S_Func,"FP",    "get.e",0,E_other)
     initialAutoEntry("video_config",    S_Func,"F",     "pscreen.e",0,E_none)
@@ -2541,7 +2624,7 @@ end if
     IAEType = T_object
 
 if newEmit then
---  initialAutoEntry("call_func",       S_Func,"FIP",   "VM\\pcfuncN.e",0,E_all)
+--  initialAutoEntry("call_func",       S_Func,"FIP",   "VM\\pcfunc.e",0,E_all)
 --  initialAutoEntry("call_func",       S_Func,"FIP",   "VM\\pcallfunc.e",0,E_all)
 --  initialAutoEntry("call_funcN",      S_Func,"FIP",   "VM\\pcallfunc.e",0,E_all)
 else
@@ -2555,6 +2638,10 @@ else
     initialAutoEntry("delete_routine",  S_Func,"FOI",   "pdelete.e",0,E_other)
 end if
     initialAutoEntry("dir",             S_Func,"FP",    "pdir.e",0,E_none)
+    initialAutoEntry("getd",            S_Func,"FOI",   "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("getd_by_index",   S_Func,"FII",   "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("getenv",          S_Func,"FS",    "penv.e",0,E_none)
     if newEmit then
         -- ("gets" done as AutoAsm above)
@@ -2653,8 +2740,14 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("trim_tail",       S_Func,"FOOI",  "ptrim.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("utf8_to_utf32",   S_Func,"FSI",   "utfconv.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("utf32_to_utf8",   S_Func,"FPI",   "utfconv.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("vlookup",         S_Func,"FOPIIO","pvlookup.e",0,E_none)
     symtab[symlimit][S_ParmN] = 4
+    initialAutoEntry("walk_dir",        S_Func,"FPIII", "file.e",0,E_all)
+    symtab[symlimit][S_ParmN] = 2
 
     -- the remainder are procedures
 
@@ -2674,11 +2767,9 @@ end if
         initialAutoEntry("close",           S_Proc,"PI",    "pfileio.e",0,E_other)
     end if
 if newEmit then
-    initialAutoEntry("c_proc",              S_Proc,"PIP",   "VM\\pcfuncN.e",0,E_all)
-    initialAutoEntry("call",                S_Proc,"PN",    "VM\\pcfuncN.e",0,E_all)
---  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcfuncN.e",0,E_all)
---  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)
---  initialAutoEntry("call_procN",          S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)
+    initialAutoEntry("c_proc",              S_Proc,"PIP",   "VM\\pcfunc.e",0,E_all)
+    initialAutoEntry("call",                S_Proc,"PN",    "VM\\pcfunc.e",0,E_all)
+--  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)  -- now opCallProc
     initialAutoEntry("crash",               S_Proc,"PPO",   "pCrashN.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("crash_file",          S_Proc,"PO",    "VM\\pDiagN.e",0,E_other)
@@ -2698,11 +2789,15 @@ end if
     initialAutoEntry("db_rename_table",     S_Proc,"PSS",   "database.e",0,E_other)
     initialAutoEntry("db_delete_record",    S_Proc,"PI",    "database.e",0,E_other)
     initialAutoEntry("db_replace_data",     S_Proc,"PIO",   "database.e",0,E_other)
+    initialAutoEntry("deld",                S_Proc,"POI",   "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
 if newEmit then
 --  initialAutoEntry("delete",              S_Proc,"PO",    "VM\\pDeleteN.e",0,E_other)
 else
     initialAutoEntry("delete",              S_Proc,"PO",    "pdelete.e",0,E_other)
 end if
+    initialAutoEntry("destroy_dict",        S_Proc,"PII",   "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("display_text_image",  S_Proc,"PPP",   "pscreen.e",0,E_other)
 if newEmit then
     initialAutoEntry("exit_thread",         S_Proc,"PI",    "VM\\pThreadN.e",0,E_other)
@@ -2741,13 +2836,18 @@ else
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("print",               S_Proc,"PIO",   "psprint.e",0,E_other)              T_print = symlimit
 end if
-    initialAutoEntry("pp",                  S_Proc,"PO",    "ppp.e",0,E_other)
+--  initialAutoEntry("pp",                  S_Proc,"PO",    "ppp.e",0,E_other)
+    initialAutoEntry("pp",                  S_Proc,"POP",   "ppp.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("ppOpt",               S_Proc,"PP",    "ppp.e",0,E_other)
     initialAutoEntry("ppEx",                S_Proc,"POP",   "ppp.e",0,E_other)
 
     initialAutoEntry("resume_thread",       S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("suspend_thread",      S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("set_system_doevents", S_Proc,"PIO",   "syswait.ew",0,E_other)
+    initialAutoEntry("setd",                S_Proc,"POOI",  "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 2
+    Alias("putd", symlimit)
     initialAutoEntry("system",              S_Proc,"PSI",   "syswait.ew",0,E_other)
     symtab[symlimit][S_ParmN] = 1
 --  initialAutoEntry("sysproc",             S_Proc,"PS",    "syswait.ew",0,E_other)
@@ -2758,6 +2858,8 @@ end if
     initialAutoEntry("task_yield",          S_Proc,"P",     "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_clock_stop",     S_Proc,"P",     "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_clock_start",    S_Proc,"P",     "VM\\pTask.e",0,E_other)
+    initialAutoEntry("traverse_dict",       S_Proc,"PII",   "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
 
 --DEV document*2
     initialAutoEntry("TlsSetValue",         S_Proc,"PIO",   "ptls.ew",0,E_other)
@@ -2774,7 +2876,6 @@ elsif hllfileio then
     initialAutoEntry("text_color",          S_Proc,"PI",    "pfileio.e",0,E_other)
     initialAutoEntry("unlock_file",         S_Proc,"PIP",   "pfileio.e",0,E_other)
 end if
-
 
     --
     -- Lastly, reserved words:

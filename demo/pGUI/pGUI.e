@@ -4,10 +4,20 @@
 -- =====
 --
 -- At last count (29/4/16) there are ~173 routines yet to be documented... [all done to IupSbox, ~line 2061] DEV
+--  (11/11/16 all done to IupSpin, ~line 2711]
 --  (none of which are used in any of the demos, and some of which may get culled)
+--  (IupLayoutDialog skipped for now)
 
 global type Ihandle(integer i)
     return i>0
+end type
+
+global type Ihandles(object o)
+    if atom(o) then return Ihandle(o) end if
+    for i=1 to length(o) do
+        if not Ihandle(o[i]) then return 0 end if
+    end for
+    return 1
 end type
 
 global type Ihandln(integer i)
@@ -53,11 +63,13 @@ type dword_seq(sequence s)  -- (technically qword_seq on 64-bit)
     return not string(s)
 end type
 
-ifdef not EU4_1 then
-public function sizeof(atom ctype)
+-- erm, there is no chance of this ever working on any flavour of OE.
+--ifdef not EU4_1 then
+--global 
+function sizeof(atom ctype)
     return and_bits(ctype, #FF)
 end function
-end ifdef
+--end ifdef
 
 function paranormalise(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 --
@@ -296,6 +308,65 @@ atom res
     return res
 end function
 
+--DEV from IUP docs:
+--/*
+The iup_isprint(key) macro informs if a key can be directly used as a printable character. 
+The iup_isXkey(key) macro informs if a given key is an extended code. 
+The iup_isShiftXkey(key) macro informs if a given key is an extended code using the Shift modifier, 
+the iup_isCtrlXkey(key) macro for the Ctrl modifier, 
+the iup_isAltXkey(key) macro for the Alt modifier, and 
+the iup_isSysXkey(key) macro for the Sys modifier. 
+To obtain a key code for a generic combination you can start with the base key from the table and combine it repeated times using the macros 
+iup_XkeyShift(key), iup_XkeyCtrl(key), iup_XkeyAlt(key) and iup_XkeySys(key).
+--*/
+
+
+global function iup_isprint(atom c)
+    return c>31 and c<127   -- K_SP..K_tidle
+end function
+
+/* from 32 to 126, all character sets are equal, the key code is the same as the ASCii character code. */
+
+global function iup_isCtrlXkey(atom c)
+    return and_bits(c, 0x20000000)!=0
+end function
+
+global function iup_isAltXkey(atom c)
+    return and_bits(c, 0x40000000)!=0
+end function
+
+global function iup_isShiftXkey(atom c)
+    return and_bits(c, 0x10000000)!=0
+end function
+
+--/*
+global function iup_isSysXkey( atom _c)
+    return and_bits( _c, 0x80000000)
+end function
+
+--*/
+global function iup_XkeyBase(atom c)
+    return and_bits(c, 0x0FFFFFFF)
+end function
+
+global function iup_XkeyCtrl(atom c)
+    return or_bits(c, 0x20000000)
+end function
+
+global function iup_XkeyAlt(atom c)
+    return or_bits(c, 0x40000000)
+end function
+
+global function iup_XkeyShift(atom c)
+    return or_bits(c, 0x10000000)
+end function
+
+--/*
+global function iup_XkeySys( atom _c)
+    return or_bits( _c, 0x80000000)
+end function
+--*/
+
 global constant
     -- Common Flags and Return Values
     IUP_ERROR       = 1,
@@ -330,13 +401,109 @@ global constant
 
     IUP_MASK_UINT = "/d+",
 
-    K_BS = 8,
-    K_TAB = '\t',       -- 9
-    K_LF = '\n',        -- 10 (0x0A)
-    K_CR = '\r',        -- 13 (0x0D)
---  K_SP = ' ',         -- 32 (0x20)
---  K_asterisk = '*',   -- 42 (0x2A)
+    K_BS = '\b',            -- 8
+    K_TAB = '\t',           -- 9
+    K_LF = '\n',            -- 10 (0x0A)
+    K_CR = '\r',            -- 13 (0x0D)
+    K_SP = ' ',             -- 32 (0x20)
+    K_exclam = '!',         -- 33 (0x21)
+    K_quotedbl = '\"',      -- 34 (0x22)
+    K_numbersign = '#',     -- 35 (0x23)
+    K_dollar = '$',         -- 36 (0x24)
+    K_percent = '%',        -- 37 (0x25)
+    K_ampersand = '&',      -- 38 (0x26)
+    K_apostrophe = '\'',    -- 39 (0x27)
+    K_parentleft = '(',     -- 40 (0x28)
+    K_parentright = ')',    -- 41 (0x29)
+    K_asterisk = '*',       -- 42 (0x2A)
+    K_plus = '+',           -- 43 (0x2B)
+    K_comma = ',',          -- 44 (0x2C)
+    K_minus = '-',          -- 45 (0x2D)
+    K_period = '.',         -- 46 (0x2E)
+    K_slash = '/',          -- 47 (0x2F)
+    K_0 = '0',              -- 48 (0x30)
+    K_1 = '1',              -- 49 (0x31)
+    K_2 = '2',              -- 50 (0x32)
+    K_3 = '3',              -- 51 (0x33)
+    K_4 = '4',              -- 52 (0x34)
+    K_5 = '5',              -- 53 (0x35)
+    K_6 = '6',              -- 54 (0x36)
+    K_7 = '7',              -- 55 (0x37)
+    K_8 = '8',              -- 56 (0x38)
+    K_9 = '9',              -- 57 (0x39)
+    K_colon = ':',          -- 58 (0x3A)
+    K_semicolon = ';',      -- 59 (0x3B)
+    K_less = '<',           -- 60 (0x3C)
+    K_equal = '=',          -- 61 (0x3D)
+    K_greater = '>',        -- 62 (0x3E)
+    K_question = '?',       -- 63 (0x3F)
+    K_at = '@',             -- 64 (0x40)
+    K_A = 'A',              -- 65 (0x41)
+    K_B = 'B',              -- 66 (0x42)
+    K_C = 'C',              -- 67 (0x43)
+    K_D = 'D',              -- 68 (0x44)
+    K_E = 'E',              -- 69 (0x45)
+    K_F = 'F',              -- 70 (0x46)
+    K_G = 'G',              -- 71 (0x47)
+    K_H = 'H',              -- 72 (0x48)
+    K_I = 'I',              -- 73 (0x49)
+    K_J = 'J',              -- 74 (0x4A)
+    K_K = 'K',              -- 75 (0x4B)
+    K_L = 'L',              -- 76 (0x4C)
+    K_M = 'M',              -- 77 (0x4D)
+    K_N = 'N',              -- 78 (0x4E)
+    K_O = 'O',              -- 79 (0x4F)
+    K_P = 'P',              -- 80 (0x50)
+    K_Q = 'Q',              -- 81 (0x51)
+    K_R = 'R',              -- 82 (0x52)
+    K_S = 'S',              -- 83 (0x53)
+    K_T = 'T',              -- 84 (0x54)
+    K_U = 'U',              -- 85 (0x55)
+    K_V = 'V',              -- 86 (0x56)
+    K_W = 'W',              -- 87 (0x57)
+    K_X = 'X',              -- 88 (0x58)
+    K_Y = 'Y',              -- 89 (0x59)
+    K_Z = 'Z',              -- 90 (0x5A)
+    K_bracketleft = '[',    -- 91 (0x5B)
+    K_backslash = '\\',     -- 92 (0x5C)
+    K_bracketright = ']',   -- 93 (0x5D)
+    K_circum = '^',         -- 94 (0x5E)
+    K_underscore = '_',     -- 95 (0x5F)
+    K_grave = '`',          -- 96 (0x60)
+    K_a = 'a',              -- 97 (0x61)
+    K_b = 'b',              -- 98 (0x62)
+    K_c = 'c',              -- 99 (0x63)
+    K_d = 'd',              -- 100 (0x64)
+    K_e = 'e',              -- 101 (0x65)
+    K_f = 'f',              -- 102 (0x66)
+    K_g = 'g',              -- 103 (0x67)
+    K_h = 'h',              -- 104 (0x68)
+    K_i = 'i',              -- 105 (0x69)
+    K_j = 'j',              -- 106 (0x6A)
+    K_k = 'k',              -- 107 (0x6B)
+    K_l = 'l',              -- 108 (0x6C)
+    K_m = 'm',              -- 109 (0x6D)
+    K_n = 'n',              -- 110 (0x6E)
+    K_o = 'o',              -- 111 (0x6F)
+    K_p = 'p',              -- 112 (0x70)
+    K_q = 'q',              -- 113 (0x71)
+    K_r = 'r',              -- 114 (0x72)
+    K_s = 's',              -- 115 (0x73)
+    K_t = 't',              -- 116 (0x74)
+    K_u = 'u',              -- 117 (0x75)
+    K_v = 'v',              -- 118 (0x76)
+    K_w = 'w',              -- 119 (0x77)
+    K_x = 'x',              -- 120 (0x78)
+    K_y = 'y',              -- 121 (0x79)
+    K_z = 'z',              -- 122 (0x7A)
+    K_braceleft = '{',      -- 123 (0x7B)
+    K_bar = '|',            -- 124 (0x7C)
+    K_braceright = '}',     -- 125 (0x7D)
+    K_tilde = '~',          -- 126 (0x7E)
+
+    K_MIDDLE = 0xFF0B,
     K_PAUSE  = 0xFF13,
+    K_SCROLL = 0xFF14,
     K_ESC    = 0xFF1B,
     K_HOME   = 0xFF50,
     K_LEFT   = 0xFF51,
@@ -346,11 +513,10 @@ global constant
     K_PGUP   = 0xFF55,
     K_PGDN   = 0xFF56,
     K_END    = 0xFF57,
-    K_MIDDLE = 0xFF0B,
     K_Print  = 0xFF61,
     K_INS    = 0xFF63,
     K_Menu   = 0xFF67,
-    K_DEL    = 0xFFFF,
+    K_NUM    = 0xFF7F,
     K_F1     = 0xFFBE,
     K_F2     = 0xFFBF,
     K_F3     = 0xFFC0,
@@ -363,7 +529,379 @@ global constant
     K_F10    = 0xFFC7,
     K_F11    = 0xFFC8,
     K_F12    = 0xFFC9,
---  K_LSHIFT, K_RSHIFT, K_LCTRL, K_RCTRL, K_LALT, K_RALT, K_SCROLL, K_NUM, K_CAPS ??
+    /* no Shift/Ctrl/Alt */
+    K_LSHIFT = 0xFFE1,
+    K_RSHIFT = 0xFFE2,
+    K_LCTRL  = 0xFFE3,
+    K_RCTRL  = 0xFFE4,
+    K_LALT   = 0xFFE9,
+    K_RALT   = 0xFFEA,
+    K_CAPS   = 0xFFE5,
+    K_DEL    = 0xFFFF,
+
+--DEV: (need testing)
+--/*
+    K_sHOME = iup_XkeyShift(K_HOME),
+    K_sUP = iup_XkeyShift(K_UP),
+    K_sPGUP = iup_XkeyShift(K_PGUP),
+    K_sLEFT = iup_XkeyShift(K_LEFT),
+    K_sMIDDLE = iup_XkeyShift(K_MIDDLE),
+    K_sRIGHT = iup_XkeyShift(K_RIGHT),
+    K_sEND = iup_XkeyShift(K_END),
+    K_sDOWN = iup_XkeyShift(K_DOWN),
+    K_sPGDN = iup_XkeyShift(K_PGDN),
+    K_sINS = iup_XkeyShift(K_INS),
+    K_sDEL = iup_XkeyShift(K_DEL),
+--*/
+    K_sSP = iup_XkeyShift(K_SP),
+--/*
+    K_sTAB = iup_XkeyShift(K_TAB),
+    K_sCR = iup_XkeyShift(K_CR),
+    K_sBS = iup_XkeyShift(K_BS),
+    K_sPAUSE = iup_XkeyShift(K_PAUSE),
+    K_sESC = iup_XkeyShift(K_ESC),
+    K_sF1 = iup_XkeyShift(K_F1),
+    K_sF2 = iup_XkeyShift(K_F2),
+    K_sF3 = iup_XkeyShift(K_F3),
+    K_sF4 = iup_XkeyShift(K_F4),
+    K_sF5 = iup_XkeyShift(K_F5),
+    K_sF6 = iup_XkeyShift(K_F6),
+    K_sF7 = iup_XkeyShift(K_F7),
+    K_sF8 = iup_XkeyShift(K_F8),
+    K_sF9 = iup_XkeyShift(K_F9),
+    K_sF10 = iup_XkeyShift(K_F10),
+    K_sF11 = iup_XkeyShift(K_F11),
+    K_sF12 = iup_XkeyShift(K_F12),
+    K_sPrint = iup_XkeyShift(K_Print),
+    K_sMenu = iup_XkeyShift(K_Menu),
+--*/
+    K_cHOME = iup_XkeyCtrl(K_HOME),
+--/*
+    K_cUP = iup_XkeyCtrl(K_UP),
+--*/
+    K_cPGUP = iup_XkeyCtrl(K_PGUP),
+--/*
+    K_cLEFT = iup_XkeyCtrl(K_LEFT),
+    K_cMIDDLE = iup_XkeyCtrl(K_MIDDLE),
+    K_cRIGHT = iup_XkeyCtrl(K_RIGHT),
+    K_csRIGHT = iup_XkeyShift(K_cRIGHT),
+--*/
+    K_cEND = iup_XkeyCtrl(K_END),
+--/*
+    K_cDOWN = iup_XkeyCtrl(K_DOWN),
+--*/
+    K_cPGDN = iup_XkeyCtrl(K_PGDN),
+--/*
+    K_cINS = iup_XkeyCtrl(K_INS),
+    K_cDEL = iup_XkeyCtrl(K_DEL),
+--*/
+    K_cSP = iup_XkeyCtrl(' '),
+    K_csSP = iup_XkeyShift(K_cSP),
+--/*
+    K_cTAB = iup_XkeyCtrl(K_TAB),
+    K_cCR = iup_XkeyCtrl(K_CR),
+    K_cBS = iup_XkeyCtrl(K_BS),
+    K_cPAUSE = iup_XkeyCtrl(K_PAUSE),
+    K_cESC = iup_XkeyCtrl(K_ESC),
+    K_cCcedilla = iup_XkeyCtrl(K_Ccedilla),
+--*/
+    K_cF1 = iup_XkeyCtrl(K_F1),
+    K_cF2 = iup_XkeyCtrl(K_F2),
+    K_cF3 = iup_XkeyCtrl(K_F3),
+    K_cF4 = iup_XkeyCtrl(K_F4),
+    K_cF5 = iup_XkeyCtrl(K_F5),
+    K_cF6 = iup_XkeyCtrl(K_F6),
+    K_cF7 = iup_XkeyCtrl(K_F7),
+    K_cF8 = iup_XkeyCtrl(K_F8),
+    K_cF9 = iup_XkeyCtrl(K_F9),
+    K_cF10 = iup_XkeyCtrl(K_F10),
+    K_cF11 = iup_XkeyCtrl(K_F11),
+    K_cF12 = iup_XkeyCtrl(K_F12),
+--/*
+    K_cPrint = iup_XkeyCtrl(K_Print),
+    K_cMenu = iup_XkeyCtrl(K_Menu),
+    K_mHOME = iup_XkeyAlt(K_HOME),
+    K_mUP = iup_XkeyAlt(K_UP),
+    K_mPGUP = iup_XkeyAlt(K_PGUP),
+    K_mLEFT = iup_XkeyAlt(K_LEFT),
+    K_mMIDDLE = iup_XkeyAlt(K_MIDDLE),
+    K_mRIGHT = iup_XkeyAlt(K_RIGHT),
+    K_cmRIGHT = iup_XkeyCtrl(K_mRIGHT),
+    K_csmRIGHT = iup_XkeyShift(K_cmRIGHT),
+    K_smRIGHT = iup_XkeyShift(K_mRIGHT),
+    K_mEND = iup_XkeyAlt(K_END),
+    K_mDOWN = iup_XkeyAlt(K_DOWN),
+    K_mPGDN = iup_XkeyAlt(K_PGDN),
+    K_mINS = iup_XkeyAlt(K_INS),
+    K_mDEL = iup_XkeyAlt(K_DEL),
+    K_mSP = iup_XkeyAlt(' '),
+    K_mTAB = iup_XkeyAlt(K_TAB),
+    K_mCR = iup_XkeyAlt(K_CR),
+    K_mBS = iup_XkeyAlt(K_BS),
+    K_mPAUSE = iup_XkeyAlt(K_PAUSE),
+    K_mESC = iup_XkeyAlt(K_ESC),
+    K_mCcedilla = iup_XkeyAlt(K_Ccedilla),
+    K_mF1 = iup_XkeyAlt(K_F1),
+    K_mF2 = iup_XkeyAlt(K_F2),
+    K_mF3 = iup_XkeyAlt(K_F3),
+    K_mF4 = iup_XkeyAlt(K_F4),
+    K_mF5 = iup_XkeyAlt(K_F5),
+    K_mF6 = iup_XkeyAlt(K_F6),
+    K_mF7 = iup_XkeyAlt(K_F7),
+    K_mF8 = iup_XkeyAlt(K_F8),
+    K_mF9 = iup_XkeyAlt(K_F9),
+    K_mF10 = iup_XkeyAlt(K_F10),
+    K_mF11 = iup_XkeyAlt(K_F11),
+    K_mF12 = iup_XkeyAlt(K_F12),
+    K_mPrint = iup_XkeyAlt(K_Print),
+    K_mMenu = iup_XkeyAlt(K_Menu),
+    K_yHOME = iup_XkeySys(K_HOME),
+    K_yUP = iup_XkeySys(K_UP),
+    K_yPGUP = iup_XkeySys(K_PGUP),
+    K_yLEFT = iup_XkeySys(K_LEFT),
+    K_yMIDDLE = iup_XkeySys(K_MIDDLE),
+    K_yRIGHT = iup_XkeySys(K_RIGHT),
+    K_yEND = iup_XkeySys(K_END),
+    K_yDOWN = iup_XkeySys(K_DOWN),
+    K_yPGDN = iup_XkeySys(K_PGDN),
+    K_yINS = iup_XkeySys(K_INS),
+    K_yDEL = iup_XkeySys(K_DEL),
+    K_ySP = iup_XkeySys(' '),
+    K_yTAB = iup_XkeySys(K_TAB),
+    K_yCR = iup_XkeySys(K_CR),
+    K_yBS = iup_XkeySys(K_BS),
+    K_yPAUSE = iup_XkeySys(K_PAUSE),
+    K_yESC = iup_XkeySys(K_ESC),
+    K_yCcedilla = iup_XkeySys(K_Ccedilla),
+    K_yF1 = iup_XkeySys(K_F1),
+    K_yF2 = iup_XkeySys(K_F2),
+    K_yF3 = iup_XkeySys(K_F3),
+    K_yF4 = iup_XkeySys(K_F4),
+    K_yF5 = iup_XkeySys(K_F5),
+    K_yF6 = iup_XkeySys(K_F6),
+    K_yF7 = iup_XkeySys(K_F7),
+    K_yF8 = iup_XkeySys(K_F8),
+    K_yF9 = iup_XkeySys(K_F9),
+    K_yF10 = iup_XkeySys(K_F10),
+    K_yF11 = iup_XkeySys(K_F11),
+    K_yF12 = iup_XkeySys(K_F12),
+    K_yPrint = iup_XkeySys(K_Print),
+    K_yMenu = iup_XkeySys(K_Menu),
+    K_sPlus = iup_XkeyShift(K_plus),
+    K_sComma = iup_XkeyShift(K_comma),
+    K_sMinus = iup_XkeyShift(K_minus),
+    K_sPeriod = iup_XkeyShift(K_period),
+    K_sSlash = iup_XkeyShift(K_slash),
+    K_sAsterisk = iup_XkeyShift(K_asterisk),
+--K_acute ('´'), K_ccedilla ('ç'), and K_diaeresis ('¨'). 
+--         #B4               #E7                    #A8
+--*/
+    K_cA = iup_XkeyCtrl('A'),
+    K_cB = iup_XkeyCtrl('B'),
+    K_cC = iup_XkeyCtrl('C'),
+    K_cD = iup_XkeyCtrl('D'),
+    K_cE = iup_XkeyCtrl('E'),
+    K_cF = iup_XkeyCtrl('F'),
+    K_cG = iup_XkeyCtrl('G'),
+    K_cH = iup_XkeyCtrl('H'),
+    K_cI = iup_XkeyCtrl('I'),
+    K_cJ = iup_XkeyCtrl('J'),
+    K_cK = iup_XkeyCtrl('K'),
+    K_cL = iup_XkeyCtrl('L'),
+    K_cM = iup_XkeyCtrl('M'),
+    K_cN = iup_XkeyCtrl('N'),
+    K_cO = iup_XkeyCtrl('O'),
+    K_cP = iup_XkeyCtrl('P'),
+    K_cQ = iup_XkeyCtrl('Q'),
+    K_cR = iup_XkeyCtrl('R'),
+    K_cS = iup_XkeyCtrl('S'),
+    K_cT = iup_XkeyCtrl('T'),
+    K_cU = iup_XkeyCtrl('U'),
+    K_cV = iup_XkeyCtrl('V'),
+    K_cW = iup_XkeyCtrl('W'),
+    K_cX = iup_XkeyCtrl('X'),
+    K_cY = iup_XkeyCtrl('Y'),
+    K_cZ = iup_XkeyCtrl('Z'),
+--/*
+    K_c1 = iup_XkeyCtrl(K_1),
+    K_c2 = iup_XkeyCtrl(K_2),
+    K_c3 = iup_XkeyCtrl(K_3),
+    K_c4 = iup_XkeyCtrl(K_4),
+    K_c5 = iup_XkeyCtrl(K_5),
+    K_c6 = iup_XkeyCtrl(K_6),
+    K_c7 = iup_XkeyCtrl(K_7),
+    K_c8 = iup_XkeyCtrl(K_8),
+    K_c9 = iup_XkeyCtrl(K_9),
+    K_c0 = iup_XkeyCtrl(K_0),
+--*/
+--  K_cPlus = iup_XkeyCtrl(K_plus)
+    K_cPlus = iup_XkeyCtrl('+'),
+--/*
+    K_cComma = iup_XkeyCtrl(K_comma),
+--*/
+--  K_cMinus = iup_XkeyCtrl(K_minus)
+    K_cMinus = iup_XkeyCtrl('-'),
+--/*
+    K_cPeriod = iup_XkeyCtrl(K_period),
+    K_cSlash = iup_XkeyCtrl(K_slash),
+    K_cSemicolon = iup_XkeyCtrl(K_semicolon),
+--*/
+--  K_cEqual = iup_XkeyCtrl(K_equal)
+    K_cEqual = iup_XkeyCtrl('='),
+--/*
+    K_cBracketleft = iup_XkeyCtrl(K_bracketleft),
+    K_cBracketright = iup_XkeyCtrl(K_bracketright),
+    K_cBackslash = iup_XkeyCtrl(K_backslash),
+    K_cAsterisk = iup_XkeyCtrl(K_asterisk),
+--*/
+    K_csA = iup_XkeyShift(K_cA),
+    K_csB = iup_XkeyShift(K_cB),
+    K_csC = iup_XkeyShift(K_cC),
+    K_csD = iup_XkeyShift(K_cD),
+    K_csE = iup_XkeyShift(K_cE),
+    K_csF = iup_XkeyShift(K_cF),
+    K_csG = iup_XkeyShift(K_cG),
+    K_csH = iup_XkeyShift(K_cH),
+    K_csI = iup_XkeyShift(K_cI),
+    K_csJ = iup_XkeyShift(K_cJ),
+    K_csK = iup_XkeyShift(K_cK),
+    K_csL = iup_XkeyShift(K_cL),
+    K_csM = iup_XkeyShift(K_cM),
+    K_csN = iup_XkeyShift(K_cN),
+    K_csO = iup_XkeyShift(K_cO),
+    K_csP = iup_XkeyShift(K_cP),
+    K_csQ = iup_XkeyShift(K_cQ),
+    K_csR = iup_XkeyShift(K_cR),
+    K_csS = iup_XkeyShift(K_cS),
+    K_csT = iup_XkeyShift(K_cT),
+    K_csU = iup_XkeyShift(K_cU),
+    K_csV = iup_XkeyShift(K_cV),
+    K_csW = iup_XkeyShift(K_cW),
+    K_csX = iup_XkeyShift(K_cX),
+    K_csY = iup_XkeyShift(K_cY),
+    K_csZ = iup_XkeyShift(K_cZ),
+    K_mA = iup_XkeyAlt('A'),
+    K_mB = iup_XkeyAlt('B'),
+    K_mC = iup_XkeyAlt('C'),
+    K_mD = iup_XkeyAlt('D'),
+    K_mE = iup_XkeyAlt('E'),
+    K_mF = iup_XkeyAlt('F'),
+    K_mG = iup_XkeyAlt('G'),
+    K_mH = iup_XkeyAlt('H'),
+    K_mI = iup_XkeyAlt('I'),
+    K_mJ = iup_XkeyAlt('J'),
+    K_mK = iup_XkeyAlt('K'),
+    K_mL = iup_XkeyAlt('L'),
+    K_mM = iup_XkeyAlt('M'),
+    K_mN = iup_XkeyAlt('N'),
+    K_mO = iup_XkeyAlt('O'),
+    K_mP = iup_XkeyAlt('P'),
+    K_mQ = iup_XkeyAlt('Q'),
+    K_mR = iup_XkeyAlt('R'),
+    K_mS = iup_XkeyAlt('S'),
+    K_mT = iup_XkeyAlt('T'),
+    K_mU = iup_XkeyAlt('U'),
+    K_mV = iup_XkeyAlt('V'),
+    K_mW = iup_XkeyAlt('W'),
+    K_mX = iup_XkeyAlt('X'),
+    K_mY = iup_XkeyAlt('Y'),
+    K_mZ = iup_XkeyAlt('Z'),
+    K_msA = iup_XkeyShift(K_mA),
+    K_msB = iup_XkeyShift(K_mB),
+    K_msC = iup_XkeyShift(K_mC),
+    K_msD = iup_XkeyShift(K_mD),
+    K_msE = iup_XkeyShift(K_mE),
+    K_msF = iup_XkeyShift(K_mF),
+    K_msG = iup_XkeyShift(K_mG),
+    K_msH = iup_XkeyShift(K_mH),
+    K_msI = iup_XkeyShift(K_mI),
+    K_msJ = iup_XkeyShift(K_mJ),
+    K_msK = iup_XkeyShift(K_mK),
+    K_msL = iup_XkeyShift(K_mL),
+    K_msM = iup_XkeyShift(K_mM),
+    K_msN = iup_XkeyShift(K_mN),
+    K_msO = iup_XkeyShift(K_mO),
+    K_msP = iup_XkeyShift(K_mP),
+    K_msQ = iup_XkeyShift(K_mQ),
+    K_msR = iup_XkeyShift(K_mR),
+    K_msS = iup_XkeyShift(K_mS),
+    K_msT = iup_XkeyShift(K_mT),
+    K_msU = iup_XkeyShift(K_mU),
+    K_msV = iup_XkeyShift(K_mV),
+    K_msW = iup_XkeyShift(K_mW),
+    K_msX = iup_XkeyShift(K_mX),
+    K_msY = iup_XkeyShift(K_mY),
+    K_msZ = iup_XkeyShift(K_mZ),
+--/*
+    K_m1 = iup_XkeyAlt(K_1),
+    K_m2 = iup_XkeyAlt(K_2),
+    K_m3 = iup_XkeyAlt(K_3),
+    K_m4 = iup_XkeyAlt(K_4),
+    K_m5 = iup_XkeyAlt(K_5),
+    K_m6 = iup_XkeyAlt(K_6),
+    K_m7 = iup_XkeyAlt(K_7),
+    K_m8 = iup_XkeyAlt(K_8),
+    K_m9 = iup_XkeyAlt(K_9),
+    K_m0 = iup_XkeyAlt(K_0),
+    K_mPlus = iup_XkeyAlt(K_plus),
+    K_mComma = iup_XkeyAlt(K_comma),
+    K_mMinus = iup_XkeyAlt(K_minus),
+    K_mPeriod = iup_XkeyAlt(K_period),
+    K_mSlash = iup_XkeyAlt(K_slash),
+    K_mSemicolon = iup_XkeyAlt(K_semicolon),
+    K_mEqual = iup_XkeyAlt(K_equal),
+    K_mBracketleft = iup_XkeyAlt(K_bracketleft),
+    K_mBracketright = iup_XkeyAlt(K_bracketright),
+    K_mBackslash = iup_XkeyAlt(K_backslash),
+    K_mAsterisk = iup_XkeyAlt(K_asterisk),
+    K_yA = iup_XkeySys(K_A),
+    K_yB = iup_XkeySys(K_B),
+    K_yC = iup_XkeySys(K_C),
+    K_yD = iup_XkeySys(K_D),
+    K_yE = iup_XkeySys(K_E),
+    K_yF = iup_XkeySys(K_F),
+    K_yG = iup_XkeySys(K_G),
+    K_yH = iup_XkeySys(K_H),
+    K_yI = iup_XkeySys(K_I),
+    K_yJ = iup_XkeySys(K_J),
+    K_yK = iup_XkeySys(K_K),
+    K_yL = iup_XkeySys(K_L),
+    K_yM = iup_XkeySys(K_M),
+    K_yN = iup_XkeySys(K_N),
+    K_yO = iup_XkeySys(K_O),
+    K_yP = iup_XkeySys(K_P),
+    K_yQ = iup_XkeySys(K_Q),
+    K_yR = iup_XkeySys(K_R),
+    K_yS = iup_XkeySys(K_S),
+    K_yT = iup_XkeySys(K_T),
+    K_yU = iup_XkeySys(K_U),
+    K_yV = iup_XkeySys(K_V),
+    K_yW = iup_XkeySys(K_W),
+    K_yX = iup_XkeySys(K_X),
+    K_yY = iup_XkeySys(K_Y),
+    K_yZ = iup_XkeySys(K_Z),
+    K_y1 = iup_XkeySys(K_1),
+    K_y2 = iup_XkeySys(K_2),
+    K_y3 = iup_XkeySys(K_3),
+    K_y4 = iup_XkeySys(K_4),
+    K_y5 = iup_XkeySys(K_5),
+    K_y6 = iup_XkeySys(K_6),
+    K_y7 = iup_XkeySys(K_7),
+    K_y8 = iup_XkeySys(K_8),
+    K_y9 = iup_XkeySys(K_9),
+    K_y0 = iup_XkeySys(K_0),
+    K_yPlus = iup_XkeySys(K_plus),
+    K_yComma = iup_XkeySys(K_comma),
+    K_yMinus = iup_XkeySys(K_minus),
+    K_yPeriod = iup_XkeySys(K_period),
+    K_ySlash = iup_XkeySys(K_slash),
+    K_ySemicolon = iup_XkeySys(K_semicolon),
+    K_yEqual = iup_XkeySys(K_equal),
+    K_yBracketleft = iup_XkeySys(K_bracketleft),
+    K_yBracketright = iup_XkeySys(K_bracketright),
+    K_yBackslash = iup_XkeySys(K_backslash),
+    K_yAsterisk = iup_XkeySys(K_asterisk),
+--*/
 
     ACTION = "ACTION",
     ACTION_CB = "ACTION_CB",
@@ -391,16 +929,18 @@ include builtins\VM\\pcmdlnN.e      -- command_line()
 include builtins\pgetpath.e         -- get_proper_dir()
 
 procedure iup_link_error(sequence name)
-    puts(1,"link error: "&name)
+    puts(1,"link error: "&name&"\n")
     ?9/0
 end procedure
 
+global -- for iup_layoutdlg.e
 function iup_c_func(atom dll, sequence name, sequence args, atom result)
     integer handle = define_c_func(dll, name, args, result)
     if handle = -1 then iup_link_error(name) end if
     return handle
 end function
 
+global -- for iup_layoutdlg.e
 function iup_c_proc(atom dll, sequence name, sequence args)
     integer handle = define_c_proc(dll, name, args)
     if handle = -1 then iup_link_error(name) end if
@@ -408,38 +948,35 @@ function iup_c_proc(atom dll, sequence name, sequence args)
 end function
 
 --constant string curr_dir = current_dir()
-string curr_dir = current_dir()
+--string curr_dir = current_dir()
 constant integer libidx = iff(platform()=WINDOWS ? 1:
                           iff(platform()=LINUX   ? 2:
                                                    9/0))
 constant sequence dirs = {"win","lnx"}
 string dll_path
-constant SLASH = iff(platform()=WINDOWS?'\\':'/')
+global constant SLASH = iff(platform()=WINDOWS?'\\':'/')
 
 function iup_open_dll(sequence libs)
---string fullpath = dll_path&libs[libidx]
 string path = libs[libidx]
 atom res
     if platform()=WINDOWS then
-        curr_dir = current_dir()
+        string curr_dir = current_dir()
         if chdir(dll_path)=0 then ?9/0 end if
---      res = open_dll(fullpath)
         path = current_dir()&SLASH&path
-    elsif platform()=LINUX then
-        path = dll_path&path
-    end if
-    res = open_dll(path)
-    if platform()=WINDOWS then
+        res = open_dll(path)
         if chdir(curr_dir)=0 then ?9/0 end if
+    elsif platform()=LINUX then
+--      for now, see demo/pGUI/lnx/installation.txt...
+--      path = dll_path&path
+        res = open_dll(path)
     end if
---  if res=0 then iup_link_error(fullpath) end if
     if res=0 then iup_link_error(path) end if
     return res
 end function
 
 constant
          D  = C_DOUBLE, 
-         F  = C_FLOAT,      -- NB: VM/pcfuncN.e may not be up to this.. [edited 25/2/16]
+         F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this.. [edited 25/2/16]
          I  = C_INT,
          L  = C_LONG,
          P  = C_POINTER, 
@@ -448,8 +985,10 @@ constant
          UL = C_ULONG,
          $
 
+global -- for iup_layoutdlg.e
 atom
-    iup,
+    iup
+atom
     xIupOpen,
     xIupClose,
 --  xIupLoad,
@@ -501,30 +1040,6 @@ atom
     xIupSetAttributes,
     xIupResetAttribute,
     xIupGetAttribute,
-     xiupAttribGet,
-     xiupAttribGetInherit,
-     xiupAttribGetInt,
-     xiupAttribGetLocal,
---   xiupAttribSetInt,
-     xiupClassRegisterGetAttribute,
-     xiupDlgListVisibleCount,
-     xiupDlgListCount,
-     xiupDlgListFirst,
-     xiupDlgListNext,
-     xiupDrawCreateCanvas,
-     xiupDrawRectangle,
-     xiupDrawLine,
-     xiupDrawSetClipRect,
-     xiupDrawImage,
-     xiupDrawGetSize,
-     xiupDrawText,
-     xiupDrawResetClip,
-     xiupDrawSelectRect,
-     xiupDrawFlush,
-     xiupDrawKillCanvas,
-     xiupRegisterFindClass,
-     xiupObjectCheck,
-     xiupFocusCanAccept,
      xIupGetAttributeId,
      xIupGetAttributeId2,
 --   xIupGetAttributes, --(deprecated)
@@ -600,7 +1115,9 @@ atom
     xIupAlarm,
     xIupMessage,
     xIupMessageDlg,
+    xIupCalendar,
     xIupColorDlg,
+    xIupDatePick,
     xIupFileDlg,
     xIupFontDlg,
     xIupGetColor,
@@ -727,6 +1244,7 @@ procedure iup_init1(nullable_string dll_root)
     if platform()=WINDOWS then
         -- Aside: normally I'd expect msvcr120.dll to be loaded from system32/syswow64, 
         --        but if someone puts copies in pGUI\win32/64, it should be alright.
+        string curr_dir = current_dir()
         if chdir(dll_path)=0 then ?9/0 end if
         if open_dll("msvcr120.dll")=0 then
             puts(1,"fatal error: msvcr120.dll could not be loaded\n")
@@ -795,30 +1313,6 @@ procedure iup_init1(nullable_string dll_root)
     xIupSetAttributes               = iup_c_proc(iup, "IupSetAttributes", {P,P})
     xIupResetAttribute              = iup_c_proc(iup, "IupResetAttribute", {P,P})
     xIupGetAttribute                = iup_c_func(iup, "IupGetAttribute", {P,P}, P)
-     xiupAttribGet                  = iup_c_func(iup, "iupAttribGet", {P,P}, P)
-     xiupAttribGetInherit           = iup_c_func(iup, "iupAttribGetInherit", {P,P}, P)
-     xiupAttribGetInt               = iup_c_func(iup, "iupAttribGetInt", {P,P}, I)
-     xiupAttribGetLocal             = iup_c_func(iup, "iupAttribGetLocal", {P,P}, P)
---   xiupAttribSetInt               = iup_c_proc(iup, "iupAttribSetInt", {P,P,I})
-     xiupClassRegisterGetAttribute  = iup_c_proc(iup, "iupClassRegisterGetAttribute", {P,P,P,P,P,P,P})
-     xiupDlgListVisibleCount        = iup_c_func(iup, "iupDlgListVisibleCount", {}, I)
-     xiupDlgListCount               = iup_c_func(iup, "iupDlgListCount", {}, I)
-     xiupDlgListFirst               = iup_c_func(iup, "iupDlgListFirst", {}, P)
-     xiupDlgListNext                = iup_c_func(iup, "iupDlgListNext", {}, P)
-     xiupDrawCreateCanvas           = iup_c_func(iup, "iupDrawCreateCanvas", {P}, P)
-     xiupDrawRectangle              = iup_c_proc(iup, "iupDrawRectangle", {P,I,I,I,I,I,I,I,I})
-     xiupDrawLine                   = iup_c_proc(iup, "iupDrawLine", {P,I,I,I,I,I,I,I,I})
-     xiupDrawSetClipRect            = iup_c_proc(iup, "iupDrawSetClipRect", {P,I,I,I,I})
-     xiupDrawImage                  = iup_c_proc(iup, "iupDrawImage", {P,P,I,I,I,P,P})
-     xiupDrawGetSize                = iup_c_proc(iup, "iupDrawGetSize", {P,P,P})
-     xiupDrawText                   = iup_c_proc(iup, "iupDrawText", {P,P,I,I,I,I,I,I,P})
-     xiupDrawResetClip              = iup_c_proc(iup, "iupDrawResetClip", {P})
-     xiupDrawSelectRect             = iup_c_proc(iup, "iupDrawSelectRect", {P,I,I,I,I})
-     xiupDrawFlush                  = iup_c_proc(iup, "iupDrawFlush", {P})
-     xiupDrawKillCanvas             = iup_c_proc(iup, "iupDrawKillCanvas", {P})
-     xiupRegisterFindClass          = iup_c_func(iup, "iupRegisterFindClass", {P}, P)
-     xiupObjectCheck                = iup_c_func(iup, "iupObjectCheck", {P}, I)
-     xiupFocusCanAccept             = iup_c_func(iup, "iupFocusCanAccept", {P}, I)
      xIupGetAttributeId             = iup_c_func(iup, "IupGetAttributeId", {P,P,I}, P)
      xIupGetAttributeId2            = iup_c_func(iup, "IupGetAttributeId2", {P,P,I,I}, P)
 --   xIupGetAttributes              = iup_c_func(iup, "IupGetAttributes", {P}, P) --(deprecated)
@@ -894,7 +1388,9 @@ procedure iup_init1(nullable_string dll_root)
     xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
     xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P})
     xIupMessageDlg      = iup_c_func(iup, "IupMessageDlg", {}, P)
+    xIupCalendar        = iup_c_func(iup, "IupCalendar", {}, I)
     xIupColorDlg        = iup_c_func(iup, "IupColorDlg", {}, P)
+    xIupDatePick        = iup_c_func(iup, "IupDatePick", {}, I)
     xIupFileDlg         = iup_c_func(iup, "IupFileDlg", {}, P)
     xIupFontDlg         = iup_c_func(iup, "IupFontDlg", {}, P)
     xIupGetColor        = iup_c_func(iup, "IupGetColor", {I,I,P,P,P}, I)
@@ -1067,8 +1563,15 @@ global function IupCreate(string name)
     return ih
 end function
 
-global procedure IupDestroy(Ihandle ih)
-    c_proc(xIupDestroy, {ih})
+global procedure IupDestroy(Ihandles ih)
+    if sequence(ih) then
+        for i=1 to length(ih) do
+            Ihandle ihi = ih[i]
+            c_proc(xIupDestroy, {ihi})
+        end for
+    else
+        c_proc(xIupDestroy, {ih})
+    end if
 end procedure
 
 global procedure IupMap(Ihandle ih)
@@ -1247,8 +1750,14 @@ global procedure IupSetStrAttributeId2(Ihandle ih, string name, integer lin, int
     c_proc(xIupSetStrAttributeId2, {ih,name,lin,col,v})
 end procedure
 
-global procedure IupSetInt(Ihandle ih, string name, integer v)
-    c_proc(xIupSetInt, {ih,name,v})
+global procedure IupSetInt(Ihandles ih, string name, integer v)
+    if sequence(ih) then
+        for i=1 to length(ih) do
+            IupSetInt(ih[i],name,v)
+        end for
+    else
+        c_proc(xIupSetInt, {ih,name,v})
+    end if
 end procedure
 
 global procedure IupSetIntId(Ihandle ih, string name, integer id, integer v)
@@ -1344,171 +1853,6 @@ end function
 global function IupGetAttributePtr(Ihandln ih, string name)
     atom ptr = c_func(xIupGetAttribute, {ih, name})
     return ptr
-end function
-
---DEV/doc
---/*
-char* iupAttribGet(Ihandle *ih, const char *name)     
-Returns the attribute from the hash table only. 
-NO inheritance, NO control implementation, NO defalt value here. 
---*/
-global function iupAttribGet(Ihandle ih, string name)
-    atom ptr = c_func(xiupAttribGet, {ih, name})
-    if ptr=NULL then return "" end if
-    return peek_string(ptr)
-end function
-
---DEV/doc
---/*
-char* iupAttribGetInherit(Ihandle *ih, const char *name)
-Returns the attribute from the hash table only, but if not defined then checks in its parent tree. 
-NO control implementation, NO defalt value here. 
-Used for EXPAND and internal attributes inside a dialog. 
---*/
-global function iupAttribGetInherit(Ihandle ih, string name)
-    atom ptr = c_func(xiupAttribGetInherit, {ih, name})
-    if ptr=NULL then return "" end if
-    return peek_string(ptr)
-end function
-
-global function iupAttribGetInheritInt(Ihandle ih, string name)
-    atom ptr = c_func(xiupAttribGetInherit, {ih, name})
-    return ptr
-end function
-
---DEV/doc
---/*
-int iupAttribGetInt(Ihandle *ih, const char *name)
-Same as iupAttribGetStr but returns an integer number. Checks also for boolean values. 
---*/
-global function iupAttribGetInt(Ihandle ih, string name)
-    atom res = c_func(xiupAttribGetInt, {ih, name})
-    return res
-end function
-
---DEV/doc
---/*
-char* iupAttribGetLocal(Ihandle *ih, const char *name)    
-Returns the attribute from the hash table as a string, but if not defined then checks in the control implementation, if still not defined then returns the registered default value if any. 
-NO inheritance here. Used only in the IupLayoutDialog. 
---*/
-global function iupAttribGetLocal(Ihandle ih, string name)
-    atom ptr = c_func(xiupAttribGetLocal, {ih, name})
-    if ptr=NULL then return "" end if
-    return peek_string(ptr)
-end function
-
---global procedure iupAttribSetInt(Ihandle ih, string name, integer i)
---  c_proc(xiupAttribSetInt, {ih, name, i})
---end procedure
-
-global function iupClassGetAttribNameInfo(atom iclass, string name)
-atom pMem = allocate(8,1)
-object def_value
-atom flags
-    c_proc(xiupClassRegisterGetAttribute,{iclass,name,NULL,NULL,pMem,NULL,pMem+4})
-    def_value = peek4u(pMem)
-    if def_value!=NULL then
-        def_value = peek_string(def_value)
-    end if
-    flags = peek4u(pMem+4)
-    return {def_value,flags}
-end function
-
-global function iupDlgListVisibleCount()
-integer res = c_func(xiupDlgListVisibleCount,{})
-    return res
-end function
-
-global function iupDlgListCount()
-integer res = c_func(xiupDlgListCount,{})
-    return res
-end function
-
-global function iupDlgListFirst()
-Ihandle ih = c_func(xiupDlgListFirst,{})
-    return ih
-end function
-
-global function iupDlgListNext()
-Ihandln ih = c_func(xiupDlgListNext,{})
-    return ih
-end function
-
-global function iupDrawCreateCanvas(Ihandle ih)
-atom dc = c_func(xiupDrawCreateCanvas,{ih})
-    return dc
-end function
-
---global function iupStrToRGB(string s)
---sequence rbg
---atom pMem = allocate(machine_word()*3)
---  if c_func(x
---end function
-
-global procedure iupDrawRectangle(atom dc, integer x1, x2, y1, y2, r, g, b, style)
-    c_proc(xiupDrawRectangle,{dc, x1, x2, y1, y2, r, g, b, style})
-end procedure
-
-global procedure iupDrawLine(atom dc, integer x1, x2, y1, y2, r, g, b, style)
-    c_proc(xiupDrawLine,{dc, x1, x2, y1, y2, r, g, b, style})
-end procedure
-
-global procedure iupDrawSetClipRect(atom dc, integer x1, x2, y1, y2)
-    c_proc(xiupDrawSetClipRect,{dc, x1, x2, y1, y2})
-end procedure
-
-global function iupDrawImage(atom dc, string name, integer make_inactive, x, y)
-integer w,h
-atom pMem = allocate(machine_word()*2)
-    c_proc(xiupDrawImage, {dc,name,make_inactive,x,y,pMem,pMem+machine_word()})
-    {w,h} = peekNS({pMem,2},machine_word(),1)
-    free(pMem)
-    return {w,h}
-end function
-
-global function iupDrawGetSize(atom dc)
-integer w,h
-atom pMem = allocate(machine_word()*2)
-    c_proc(xiupDrawGetSize, {dc,pMem,pMem+machine_word()})
-    {w,h} = peekNS({pMem,2},machine_word(),1)
-    free(pMem)
-    return {w,h}
-end function
-
-global procedure iupDrawText(atom dc, string text, integer len, x, y, r, g, b, string font)
-    c_proc(xiupDrawText,{dc, text, len, x, y, r, g, b, font})
-end procedure
-
-global procedure iupDrawResetClip(atom dc)
-    c_proc(xiupDrawResetClip,{dc})
-end procedure
-
-global procedure iupDrawSelectRect(atom dc, integer x, y, w, h)
-    c_proc(xiupDrawSelectRect,{dc, x, y, w, h})
-end procedure
-
-global procedure iupDrawFlush(atom dc)
-    c_proc(xiupDrawFlush,{dc})
-end procedure
-
-global procedure iupDrawKillCanvas(atom dc)
-    c_proc(xiupDrawKillCanvas,{dc})
-end procedure
-
-global function iupRegisterFindClass(string name)
-atom iclass = c_func(xiupRegisterFindClass,{name})
-    return iclass
-end function
-
-global function iupObjectCheck(Ihandle ih)
-integer res = c_func(xiupObjectCheck,{ih})
-    return res
-end function
-
-global function iupFocusCanAccept(Ihandle ih)
-integer res = c_func(xiupFocusCanAccept,{ih})
-    return res
 end function
 
 global function IupGetAttributeId(Ihandle ih, string name, integer id)
@@ -1851,381 +2195,6 @@ end procedure
 --  end for
 --end procedure
 
- -- pIUP\iupX.e
----------------
---
--- Copyright (C) 2008-2010 by Jeremy Cowgar <jeremy@cowgar.com>
---
--- This file is part of EuIup.
---
--- EuIup is free software: you can redistribute it and/or modify
--- it under the terms of the GNU Lesser General Public License as
--- published by the Free Software Foundation, either version 3 of
--- the License, or (at your option) any later version.
---
--- EuIup is distributed in the hope that it will be useful,
--- but WITHOUT ANY WARRANTY; without even the implied warranty of
--- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
--- GNU General Public License for more details.
---
--- You should have received a copy of the GNU Lesser General Public
--- License along with EuIup.  If not, see <http://www.gnu.org/licenses/>.
---
-
---DEV from IUP docs:
---/*
-The iup_isprint(key) macro informs if a key can be directly used as a printable character. 
-The iup_isXkey(key) macro informs if a given key is an extended code. 
-The iup_isShiftXkey(key) macro informs if a given key is an extended code using the Shift modifier, 
-the iup_isCtrlXkey(key) macro for the Ctrl modifier, 
-the iup_isAltXkey(key) macro for the Alt modifier, and 
-the iup_isSysXkey(key) macro for the Sys modifier. 
-To obtain a key code for a generic combination you can start with the base key from the table and combine it repeated times using the macros 
-iup_XkeyShift(key), iup_XkeyCtrl(key), iup_XkeyAlt(key) and iup_XkeySys(key).
---*/
-
-
-global function iup_isprint(atom c)
-    return c>31 and c<127
-end function
-
-/* from 32 to 126, all character sets are equal, the key code is the same as the ASCii character code. */
---/*
-
-global function iup_isShiftXkey( atom _c )
-    return and_bits( _c, 0x10000000 )
-end function
-
-global function iup_isCtrlXkey( atom _c )
-    return and_bits( _c, 0x20000000 )
-end function
-
-global function iup_isAltXkey( atom _c )
-    return and_bits( _c, 0x40000000 )
-end function
-
-global function iup_isSysXkey( atom _c )
-    return and_bits( _c, 0x80000000 )
-end function
-
-global function iup_XkeyBase( atom _c )
-    return and_bits( _c, 0x0FFFFFFF )
-end function
---*/
-
-global function iup_XkeyShift(atom c)
-    return or_bits(c, 0x10000000)
-end function
-
-global function iup_XkeyCtrl(atom c)
-    return or_bits(c, 0x20000000)
-end function
---/*
-global function iup_XkeyAlt( atom _c )
-    return or_bits( _c, 0x40000000 )
-end function
-
-global function iup_XkeySys( atom _c )
-    return or_bits( _c, 0x80000000 )
-end function
-
---*/
---/*
-global constant K_sHOME = iup_XkeyShift(K_HOME )
-global constant K_sUP = iup_XkeyShift(K_UP )
-global constant K_sPGUP = iup_XkeyShift(K_PGUP )
-global constant K_sLEFT = iup_XkeyShift(K_LEFT )
-global constant K_sMIDDLE = iup_XkeyShift(K_MIDDLE )
-global constant K_sRIGHT = iup_XkeyShift(K_RIGHT )
-global constant K_sEND = iup_XkeyShift(K_END )
-global constant K_sDOWN = iup_XkeyShift(K_DOWN )
-global constant K_sPGDN = iup_XkeyShift(K_PGDN )
-global constant K_sINS = iup_XkeyShift(K_INS )
-global constant K_sDEL = iup_XkeyShift(K_DEL )
---*/
-global constant K_sSP = iup_XkeyShift(' ')
-global constant K_scSP = iup_XkeyCtrl(K_sSP)
---/*
-global constant K_sTAB = iup_XkeyShift(K_TAB )
-global constant K_sCR = iup_XkeyShift(K_CR )
-global constant K_sBS = iup_XkeyShift(K_BS )
-global constant K_sPAUSE = iup_XkeyShift(K_PAUSE )
-global constant K_sESC = iup_XkeyShift(K_ESC )
-global constant K_sF1 = iup_XkeyShift(K_F1 )
-global constant K_sF2 = iup_XkeyShift(K_F2 )
-global constant K_sF3 = iup_XkeyShift(K_F3 )
-global constant K_sF4 = iup_XkeyShift(K_F4 )
-global constant K_sF5 = iup_XkeyShift(K_F5 )
-global constant K_sF6 = iup_XkeyShift(K_F6 )
-global constant K_sF7 = iup_XkeyShift(K_F7 )
-global constant K_sF8 = iup_XkeyShift(K_F8 )
-global constant K_sF9 = iup_XkeyShift(K_F9 )
-global constant K_sF10 = iup_XkeyShift(K_F10 )
-global constant K_sF11 = iup_XkeyShift(K_F11 )
-global constant K_sF12 = iup_XkeyShift(K_F12 )
-global constant K_sPrint = iup_XkeyShift(K_Print )
-global constant K_sMenu = iup_XkeyShift(K_Menu )
-global constant K_cHOME = iup_XkeyCtrl(K_HOME )
-global constant K_cUP = iup_XkeyCtrl(K_UP )
-global constant K_cPGUP = iup_XkeyCtrl(K_PGUP )
-global constant K_cLEFT = iup_XkeyCtrl(K_LEFT )
-global constant K_cMIDDLE = iup_XkeyCtrl(K_MIDDLE )
-global constant K_cRIGHT = iup_XkeyCtrl(K_RIGHT )
-global constant K_cEND = iup_XkeyCtrl(K_END )
-global constant K_cDOWN = iup_XkeyCtrl(K_DOWN )
-global constant K_cPGDN = iup_XkeyCtrl(K_PGDN )
-global constant K_cINS = iup_XkeyCtrl(K_INS )
-global constant K_cDEL = iup_XkeyCtrl(K_DEL )
---*/
-global constant K_cSP = iup_XkeyCtrl(' ')
-global constant K_csSP = iup_XkeyShift(K_cSP)
---/*
-global constant K_cTAB = iup_XkeyCtrl(K_TAB )
-global constant K_cCR = iup_XkeyCtrl(K_CR )
-global constant K_cBS = iup_XkeyCtrl(K_BS )
-global constant K_cPAUSE = iup_XkeyCtrl(K_PAUSE )
-global constant K_cESC = iup_XkeyCtrl(K_ESC )
-global constant K_cCcedilla = iup_XkeyCtrl(K_Ccedilla)
-global constant K_cF1 = iup_XkeyCtrl(K_F1 )
-global constant K_cF2 = iup_XkeyCtrl(K_F2 )
-global constant K_cF3 = iup_XkeyCtrl(K_F3 )
-global constant K_cF4 = iup_XkeyCtrl(K_F4 )
---*/
-global constant K_cF5 = iup_XkeyCtrl(K_F5 )
---/*
-global constant K_cF6 = iup_XkeyCtrl(K_F6 )
-global constant K_cF7 = iup_XkeyCtrl(K_F7 )
-global constant K_cF8 = iup_XkeyCtrl(K_F8 )
-global constant K_cF9 = iup_XkeyCtrl(K_F9 )
-global constant K_cF10 = iup_XkeyCtrl(K_F10 )
-global constant K_cF11 = iup_XkeyCtrl(K_F11 )
-global constant K_cF12 = iup_XkeyCtrl(K_F12 )
-global constant K_cPrint = iup_XkeyCtrl(K_Print )
-global constant K_cMenu = iup_XkeyCtrl(K_Menu )
-global constant K_mHOME = iup_XkeyAlt(K_HOME )
-global constant K_mUP = iup_XkeyAlt(K_UP )
-global constant K_mPGUP = iup_XkeyAlt(K_PGUP )
-global constant K_mLEFT = iup_XkeyAlt(K_LEFT )
-global constant K_mMIDDLE = iup_XkeyAlt(K_MIDDLE )
-global constant K_mRIGHT = iup_XkeyAlt(K_RIGHT )
-global constant K_mEND = iup_XkeyAlt(K_END )
-global constant K_mDOWN = iup_XkeyAlt(K_DOWN )
-global constant K_mPGDN = iup_XkeyAlt(K_PGDN )
-global constant K_mINS = iup_XkeyAlt(K_INS )
-global constant K_mDEL = iup_XkeyAlt(K_DEL )
-global constant K_mSP = iup_XkeyAlt(' ')
-global constant K_mTAB = iup_XkeyAlt(K_TAB )
-global constant K_mCR = iup_XkeyAlt(K_CR )
-global constant K_mBS = iup_XkeyAlt(K_BS )
-global constant K_mPAUSE = iup_XkeyAlt(K_PAUSE )
-global constant K_mESC = iup_XkeyAlt(K_ESC )
-global constant K_mCcedilla = iup_XkeyAlt(K_Ccedilla)
-global constant K_mF1 = iup_XkeyAlt(K_F1 )
-global constant K_mF2 = iup_XkeyAlt(K_F2 )
-global constant K_mF3 = iup_XkeyAlt(K_F3 )
-global constant K_mF4 = iup_XkeyAlt(K_F4 )
-global constant K_mF5 = iup_XkeyAlt(K_F5 )
-global constant K_mF6 = iup_XkeyAlt(K_F6 )
-global constant K_mF7 = iup_XkeyAlt(K_F7 )
-global constant K_mF8 = iup_XkeyAlt(K_F8 )
-global constant K_mF9 = iup_XkeyAlt(K_F9 )
-global constant K_mF10 = iup_XkeyAlt(K_F10 )
-global constant K_mF11 = iup_XkeyAlt(K_F11 )
-global constant K_mF12 = iup_XkeyAlt(K_F12 )
-global constant K_mPrint = iup_XkeyAlt(K_Print )
-global constant K_mMenu = iup_XkeyAlt(K_Menu )
-global constant K_yHOME = iup_XkeySys(K_HOME )
-global constant K_yUP = iup_XkeySys(K_UP )
-global constant K_yPGUP = iup_XkeySys(K_PGUP )
-global constant K_yLEFT = iup_XkeySys(K_LEFT )
-global constant K_yMIDDLE = iup_XkeySys(K_MIDDLE )
-global constant K_yRIGHT = iup_XkeySys(K_RIGHT )
-global constant K_yEND = iup_XkeySys(K_END )
-global constant K_yDOWN = iup_XkeySys(K_DOWN )
-global constant K_yPGDN = iup_XkeySys(K_PGDN )
-global constant K_yINS = iup_XkeySys(K_INS )
-global constant K_yDEL = iup_XkeySys(K_DEL )
-global constant K_ySP = iup_XkeySys(' ')
-global constant K_yTAB = iup_XkeySys(K_TAB )
-global constant K_yCR = iup_XkeySys(K_CR )
-global constant K_yBS = iup_XkeySys(K_BS )
-global constant K_yPAUSE = iup_XkeySys(K_PAUSE )
-global constant K_yESC = iup_XkeySys(K_ESC )
-global constant K_yCcedilla = iup_XkeySys(K_Ccedilla)
-global constant K_yF1 = iup_XkeySys(K_F1 )
-global constant K_yF2 = iup_XkeySys(K_F2 )
-global constant K_yF3 = iup_XkeySys(K_F3 )
-global constant K_yF4 = iup_XkeySys(K_F4 )
-global constant K_yF5 = iup_XkeySys(K_F5 )
-global constant K_yF6 = iup_XkeySys(K_F6 )
-global constant K_yF7 = iup_XkeySys(K_F7 )
-global constant K_yF8 = iup_XkeySys(K_F8 )
-global constant K_yF9 = iup_XkeySys(K_F9 )
-global constant K_yF10 = iup_XkeySys(K_F10 )
-global constant K_yF11 = iup_XkeySys(K_F11 )
-global constant K_yF12 = iup_XkeySys(K_F12 )
-global constant K_yPrint = iup_XkeySys(K_Print )
-global constant K_yMenu = iup_XkeySys(K_Menu )
-global constant K_sPlus = iup_XkeyShift(K_plus )
-global constant K_sComma = iup_XkeyShift(K_comma )
-global constant K_sMinus = iup_XkeyShift(K_minus )
-global constant K_sPeriod = iup_XkeyShift(K_period )
-global constant K_sSlash = iup_XkeyShift(K_slash )
-global constant K_sAsterisk = iup_XkeyShift(K_asterisk)
---*/
-global constant K_cA = iup_XkeyCtrl('A')
-global constant K_cB = iup_XkeyCtrl('B')
-global constant K_cC = iup_XkeyCtrl('C')
-global constant K_cD = iup_XkeyCtrl('D')
-global constant K_cE = iup_XkeyCtrl('E')
-global constant K_cF = iup_XkeyCtrl('F')
-global constant K_cG = iup_XkeyCtrl('G')
-global constant K_cH = iup_XkeyCtrl('H')
-global constant K_cI = iup_XkeyCtrl('I')
-global constant K_cJ = iup_XkeyCtrl('J')
-global constant K_cK = iup_XkeyCtrl('K')
-global constant K_cL = iup_XkeyCtrl('L')
-global constant K_cM = iup_XkeyCtrl('M')
-global constant K_cN = iup_XkeyCtrl('N')
-global constant K_cO = iup_XkeyCtrl('O')
-global constant K_cP = iup_XkeyCtrl('P')
-global constant K_cQ = iup_XkeyCtrl('Q')
-global constant K_cR = iup_XkeyCtrl('R')
-global constant K_cS = iup_XkeyCtrl('S')
-global constant K_cT = iup_XkeyCtrl('T')
-global constant K_cU = iup_XkeyCtrl('U')
-global constant K_cV = iup_XkeyCtrl('V')
-global constant K_cW = iup_XkeyCtrl('W')
-global constant K_cX = iup_XkeyCtrl('X')
-global constant K_cY = iup_XkeyCtrl('Y')
-global constant K_cZ = iup_XkeyCtrl('Z')
---/*
-global constant K_c1 = iup_XkeyCtrl(K_1)
-global constant K_c2 = iup_XkeyCtrl(K_2)
-global constant K_c3 = iup_XkeyCtrl(K_3)
-global constant K_c4 = iup_XkeyCtrl(K_4)
-global constant K_c5 = iup_XkeyCtrl(K_5)
-global constant K_c6 = iup_XkeyCtrl(K_6)
-global constant K_c7 = iup_XkeyCtrl(K_7)
-global constant K_c8 = iup_XkeyCtrl(K_8)
-global constant K_c9 = iup_XkeyCtrl(K_9)
-global constant K_c0 = iup_XkeyCtrl(K_0)
-global constant K_cPlus = iup_XkeyCtrl(K_plus )
---*/
-global constant K_cPlus = iup_XkeyCtrl('+')
---/*
-global constant K_cComma = iup_XkeyCtrl(K_comma )
-global constant K_cMinus = iup_XkeyCtrl(K_minus )
---*/
-global constant K_cMinus = iup_XkeyCtrl('-')
---/*
-global constant K_cPeriod = iup_XkeyCtrl(K_period )
-global constant K_cSlash = iup_XkeyCtrl(K_slash )
-global constant K_cSemicolon = iup_XkeyCtrl(K_semicolon )
-global constant K_cEqual = iup_XkeyCtrl(K_equal )
---*/
-global constant K_cEqual = iup_XkeyCtrl('=')
---/*
-global constant K_cBracketleft = iup_XkeyCtrl(K_bracketleft )
-global constant K_cBracketright = iup_XkeyCtrl(K_bracketright)
-global constant K_cBackslash = iup_XkeyCtrl(K_backslash )
-global constant K_cAsterisk = iup_XkeyCtrl(K_asterisk )
-global constant K_mA = iup_XkeyAlt(K_A)
-global constant K_mB = iup_XkeyAlt(K_B)
-global constant K_mC = iup_XkeyAlt(K_C)
-global constant K_mD = iup_XkeyAlt(K_D)
-global constant K_mE = iup_XkeyAlt(K_E)
-global constant K_mF = iup_XkeyAlt(K_F)
-global constant K_mG = iup_XkeyAlt(K_G)
-global constant K_mH = iup_XkeyAlt(K_H)
-global constant K_mI = iup_XkeyAlt(K_I)
-global constant K_mJ = iup_XkeyAlt(K_J)
-global constant K_mK = iup_XkeyAlt(K_K)
-global constant K_mL = iup_XkeyAlt(K_L)
-global constant K_mM = iup_XkeyAlt(K_M)
-global constant K_mN = iup_XkeyAlt(K_N)
-global constant K_mO = iup_XkeyAlt(K_O)
-global constant K_mP = iup_XkeyAlt(K_P)
-global constant K_mQ = iup_XkeyAlt(K_Q)
-global constant K_mR = iup_XkeyAlt(K_R)
-global constant K_mS = iup_XkeyAlt(K_S)
-global constant K_mT = iup_XkeyAlt(K_T)
-global constant K_mU = iup_XkeyAlt(K_U)
-global constant K_mV = iup_XkeyAlt(K_V)
-global constant K_mW = iup_XkeyAlt(K_W)
-global constant K_mX = iup_XkeyAlt(K_X)
-global constant K_mY = iup_XkeyAlt(K_Y)
-global constant K_mZ = iup_XkeyAlt(K_Z)
-global constant K_m1 = iup_XkeyAlt(K_1)
-global constant K_m2 = iup_XkeyAlt(K_2)
-global constant K_m3 = iup_XkeyAlt(K_3)
-global constant K_m4 = iup_XkeyAlt(K_4)
-global constant K_m5 = iup_XkeyAlt(K_5)
-global constant K_m6 = iup_XkeyAlt(K_6)
-global constant K_m7 = iup_XkeyAlt(K_7)
-global constant K_m8 = iup_XkeyAlt(K_8)
-global constant K_m9 = iup_XkeyAlt(K_9)
-global constant K_m0 = iup_XkeyAlt(K_0)
-global constant K_mPlus = iup_XkeyAlt(K_plus )
-global constant K_mComma = iup_XkeyAlt(K_comma )
-global constant K_mMinus = iup_XkeyAlt(K_minus )
-global constant K_mPeriod = iup_XkeyAlt(K_period )
-global constant K_mSlash = iup_XkeyAlt(K_slash )
-global constant K_mSemicolon = iup_XkeyAlt(K_semicolon )
-global constant K_mEqual = iup_XkeyAlt(K_equal )
-global constant K_mBracketleft = iup_XkeyAlt(K_bracketleft )
-global constant K_mBracketright = iup_XkeyAlt(K_bracketright)
-global constant K_mBackslash = iup_XkeyAlt(K_backslash )
-global constant K_mAsterisk = iup_XkeyAlt(K_asterisk )
-global constant K_yA = iup_XkeySys(K_A)
-global constant K_yB = iup_XkeySys(K_B)
-global constant K_yC = iup_XkeySys(K_C)
-global constant K_yD = iup_XkeySys(K_D)
-global constant K_yE = iup_XkeySys(K_E)
-global constant K_yF = iup_XkeySys(K_F)
-global constant K_yG = iup_XkeySys(K_G)
-global constant K_yH = iup_XkeySys(K_H)
-global constant K_yI = iup_XkeySys(K_I)
-global constant K_yJ = iup_XkeySys(K_J)
-global constant K_yK = iup_XkeySys(K_K)
-global constant K_yL = iup_XkeySys(K_L)
-global constant K_yM = iup_XkeySys(K_M)
-global constant K_yN = iup_XkeySys(K_N)
-global constant K_yO = iup_XkeySys(K_O)
-global constant K_yP = iup_XkeySys(K_P)
-global constant K_yQ = iup_XkeySys(K_Q)
-global constant K_yR = iup_XkeySys(K_R)
-global constant K_yS = iup_XkeySys(K_S)
-global constant K_yT = iup_XkeySys(K_T)
-global constant K_yU = iup_XkeySys(K_U)
-global constant K_yV = iup_XkeySys(K_V)
-global constant K_yW = iup_XkeySys(K_W)
-global constant K_yX = iup_XkeySys(K_X)
-global constant K_yY = iup_XkeySys(K_Y)
-global constant K_yZ = iup_XkeySys(K_Z)
-global constant K_y1 = iup_XkeySys(K_1)
-global constant K_y2 = iup_XkeySys(K_2)
-global constant K_y3 = iup_XkeySys(K_3)
-global constant K_y4 = iup_XkeySys(K_4)
-global constant K_y5 = iup_XkeySys(K_5)
-global constant K_y6 = iup_XkeySys(K_6)
-global constant K_y7 = iup_XkeySys(K_7)
-global constant K_y8 = iup_XkeySys(K_8)
-global constant K_y9 = iup_XkeySys(K_9)
-global constant K_y0 = iup_XkeySys(K_0)
-global constant K_yPlus = iup_XkeySys(K_plus )
-global constant K_yComma = iup_XkeySys(K_comma )
-global constant K_yMinus = iup_XkeySys(K_minus )
-global constant K_yPeriod = iup_XkeySys(K_period )
-global constant K_ySlash = iup_XkeySys(K_slash )
-global constant K_ySemicolon = iup_XkeySys(K_semicolon )
-global constant K_yEqual = iup_XkeySys(K_equal )
-global constant K_yBracketleft = iup_XkeySys(K_bracketleft )
-global constant K_yBracketright = iup_XkeySys(K_bracketright)
-global constant K_yBackslash = iup_XkeySys(K_backslash )
-global constant K_yAsterisk = iup_XkeySys(K_asterisk )
---*/
-
 --/*
 --
 --**
@@ -2239,9 +2208,6 @@ global function has_iup()
     return iup!=0
 end function
 --*/
-
- -- pIUP\iupX.e (done to here)
-------------------------------
 
 --constant
 --  xIupFill        = iup_c_func(iup, "IupFill", {}, P),
@@ -2316,7 +2282,6 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
---DEV doc (done to here)
 global function IupSbox(Ihandle child)
     Ihandle ih = c_func(xIupSbox, {child})
     return ih
@@ -2403,7 +2368,8 @@ global function IupGetChildCount(Ihandle ih)
     return n
 end function
 
-global function IupGetNextChild(Ihandle ih, Ihandle child)
+global function IupGetNextChild(Ihandln ih, Ihandln child)
+    if ih=NULL and child=NULL then ?9/0 end if
     Ihandln nextchild = c_func(xIupGetNextChild, {ih,child})
     return nextchild
 end function
@@ -2444,16 +2410,30 @@ global procedure IupRefreshChildren(Ihandle ih)
     c_proc(xIupRefreshChildren, {ih})
 end procedure
 
-global procedure IupUpdate(Ihandle ih)
-    c_proc(xIupUpdate, {ih})
+global procedure IupUpdate(Ihandles ih)
+    if sequence(ih) then
+        for i=1 to length(ih) do
+            Ihandle ihi = ih[i]
+            c_proc(xIupUpdate, {ihi})
+        end for
+    else
+        c_proc(xIupUpdate, {ih})
+    end if
 end procedure
 
 global procedure IupUpdateChildren(Ihandle ih)
     c_proc(xIupUpdateChildren, {ih})
 end procedure
 
-global procedure IupRedraw(Ihandle ih, bool children)
-    c_proc(xIupRedraw, {ih,children})
+global procedure IupRedraw(Ihandles ih, bool children=0)
+    if sequence(ih) then
+        for i=1 to length(ih) do
+            Ihandle ihi = ih[i]
+            c_proc(xIupRedraw, {ihi,children})
+        end for
+    else
+        c_proc(xIupRedraw, {ih,children})
+    end if
 end procedure
 
 global function IupConvertXYToPos(Ihandle ih, integer x, integer y)
@@ -2508,7 +2488,9 @@ end procedure
 --  xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I),
 --  xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P}),
 --  xIupMessageDlg      = iup_c_func(iup, "IupMessageDlg", {}, P),
+--  xIupCalendar        = iup_c_func(iup, "IupCalendar", {}, I),
 --  xIupColorDlg        = iup_c_func(iup, "IupColorDlg", {}, P),
+--  xIupDatePick        = iup_c_func(iup, "IupDatePick", {}, I),  
 --  xIupFileDlg         = iup_c_func(iup, "IupFileDlg", {}, P),
 --  xIupFontDlg         = iup_c_func(iup, "IupFontDlg", {}, P),
 --  xIupGetColor        = iup_c_func(iup, "IupGetColor", {I,I,P,P,P}, I),
@@ -2536,9 +2518,17 @@ global function IupMessageDlg()
     return ih
 end function
 
+global function IupCalendar()
+    return c_func(xIupCalendar, {})
+end function
+
 global function IupColorDlg()
     Ihandle ih = c_func(xIupColorDlg, {})
     return ih
+end function
+
+global function IupDatePick()
+    return c_func(xIupDatePick, {})
 end function
 
 global function IupFileDlg()
@@ -2658,13 +2648,13 @@ string fmts = ""
     return vals
 end function
 
-global function IupGetText(string title, string text, integer max_size=10240)
-atom pText = allocate(max_size,1)
-    mem_set(pText, 0, max_size)
-    poke(pText, text)
-    if c_func(xIupGetText, {title, pText})!=0 then
-        text = peek_string(pText)
+global function IupGetText(string title, string text)
+atom pText = allocate(10240,1)
+    poke(pText, text&0)
+    if c_func(xIupGetText, {title, pText})=0 then
+        return NULL
     end if
+    text = peek_string(pText)
     return text
 end function
 
@@ -2700,6 +2690,7 @@ sequence pOptAry = {}, marked, selected = {}
     return selected
 end function
 
+--DEV doc skipped for now (I translated this to hll somewhere)
 global function IupLayoutDialog(Ihandle dialog)
     Ihandle ih = c_func(xIupLayoutDialog, {dialog})
     return ih
@@ -2797,6 +2788,7 @@ global function IupProgressBar()
     return ih
 end function
 
+--DEV doc (done to here)
 /* Old controls, use SPIN attribute of IupText */
 global function IupSpin()
     Ihandle ih = c_func(xIupSpin, {})
@@ -2956,11 +2948,11 @@ global procedure IupConfigSetVariableDoubleId(Ihandle ih, string group, string k
     c_proc(xIupConfigSetVariableDoubleId, {ih,group,key,id,v})
 end procedure
 
-global procedure IupConfigSetVariableStr(Ihandle ih, string group, string key, string v)
+global procedure IupConfigSetVariableStr(Ihandle ih, string group, string key, nullable_string v)
     c_proc(xIupConfigSetVariableStr, {ih,group,key,v})
 end procedure
 
-global procedure IupConfigSetVariableStrId(Ihandle ih, string group, string key, integer id, string v)
+global procedure IupConfigSetVariableStrId(Ihandle ih, string group, string key, integer id, nullable_string v)
     c_proc(xIupConfigSetVariableStrId, {ih,group,key,id,v})
 end procedure
 
@@ -3004,8 +2996,10 @@ global procedure IupConfigRecentUpdate(Ihandle ih, string filename)
     c_proc(xIupConfigRecentUpdate, {ih,filename})
 end procedure
 
-global procedure IupConfigDialogShow(Ihandle ih, Ihandle dialog, string name)
-    c_proc(xIupConfigDialogShow, {ih,dialog,name})
+global procedure IupConfigDialogShow(Ihandle config, Ihandle dialog, string name, bool maximised=0)
+integer m = IupConfigGetVariableInt(config, name, "Maximized", maximised)
+    IupConfigSetVariableInt(config, name, "Maximized", m)
+    c_proc(xIupConfigDialogShow, {config,dialog,name})
 end procedure
 
 global procedure IupConfigDialogClosed(Ihandle ih, Ihandle dialog, string name)
@@ -4123,6 +4117,8 @@ global constant
     --
     CD_RED          = #FF0000,
     CD_DARK_RED     = #800000,
+    CD_ORANGE       = #FFA500,
+    CD_DARK_ORANGE  = #FF8C00,
     CD_GREEN        = #00FF00,
     CD_DARK_GREEN   = #008000,
     CD_BLUE         = #0000FF,
@@ -4138,6 +4134,8 @@ global constant
     CD_DARK_GRAY    = #808080,
     CD_GRAY         = #C0C0C0,
     CD_PARCHMENT    = #FFFFE0,
+    CD_INDIGO       = #4B0082,
+    CD_VIOLET       = #EE82EE,
 
     --
     -- Conversion Factor Constants
@@ -4222,6 +4220,7 @@ atom
     xcdCanvasSimulate,
     xcdCanvasFlush,
     xcdCanvasClear,
+    xcdClear,
     xcdCanvasSaveState,
     xcdCanvasRestoreState,
     xcdCanvasReleaseState,
@@ -4576,6 +4575,7 @@ end if
         xcdCanvasSimulate       = iup_c_func(hCd, "cdCanvasSimulate", {P,I},I)
         xcdCanvasFlush          = iup_c_proc(hCd, "cdCanvasFlush", {P})
         xcdCanvasClear          = iup_c_proc(hCd, "cdCanvasClear", {P})
+        xcdClear                = iup_c_proc(hCd, "cdClear", {})
         xcdCanvasSaveState      = iup_c_func(hCd, "cdCanvasSaveState", {P},P)
         xcdCanvasRestoreState   = iup_c_proc(hCd, "cdCanvasRestoreState", {P,P})
         xcdCanvasReleaseState   = iup_c_proc(hCd, "cdReleaseState", {P})
@@ -5074,6 +5074,10 @@ global procedure cdCanvasClear(cdCanvas hCdCanvas)
     c_proc(xcdCanvasClear, {hCdCanvas})
 end procedure
 
+global procedure cdClear()
+    c_proc(xcdClear,{})
+end procedure
+
 global function canvas_save_state(cdCanvas hCdCanvas)
     return c_func(xcdCanvasSaveState, {hCdCanvas})
 end function
@@ -5461,12 +5465,12 @@ global procedure cdCanvasEnd(cdCanvas hCdCanvas)
     c_proc(xcdCanvasEnd, {hCdCanvas})
 end procedure
 
-global procedure cdCanvasRect(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
-    c_proc(xcdCanvasRect, {hCdCanvas, minX, minY, maxX, maxY})
+global procedure cdCanvasRect(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
+    c_proc(xcdCanvasRect, {hCdCanvas, xmin, xmax, ymin, ymax})
 end procedure
 
-global procedure cdCanvasBox(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
-    c_proc(xcdCanvasBox, {hCdCanvas, minX, minY, maxX, maxY})
+global procedure cdCanvasBox(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
+    c_proc(xcdCanvasBox, {hCdCanvas, xmin, xmax, ymin, ymax})
 end procedure
 
 global procedure cdCanvasArc(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
@@ -5653,8 +5657,21 @@ global function canvas_line_cap(cdCanvas hCdCanvas, atom cap)
     return c_func(xcdCanvasLineCap, {hCdCanvas, cap})
 end function
 
-global function canvas_interior_style(cdCanvas hCdCanvas, atom style)
-    return c_func(xcdCanvasInteriorStyle, {hCdCanvas, style})
+--[integer prevstyle = cdCanvasInteriorStyle(cdCanvas canvas, integer style) [default style of CD_SOLID should be fine]]
+--/*
+--DEV implement/doc:
+int cdCanvasInteriorStyle(cdCanvas* canvas, int style)
+Configures the current style for the area filling primitives: CD_SOLID, CD_HOLLOW, CD_HATCH, CD_STIPPLE or CD_PATTERN. (0..4)
+Note that only CD_HATCH and CD_STIPPLE are affected by the backopacity. It returns the previous value. 
+Default value: CD_SOLID. Value CD_QUERY simply returns the current value.
+
+If a stipple or a pattern were not defined, when they are selected the state of the attribute is not changed. 
+
+When the style CD_HOLLOW is defined, functions cdBox and cdSector behave as their equivalent cdRect and cdArc+Lines, and the polygons with style CD_FILL behave like CD_CLOSED_LINES.
+--*/
+global function cdCanvasInteriorStyle(cdCanvas hCdCanvas, integer style)
+    integer prev = c_func(xcdCanvasInteriorStyle, {hCdCanvas, style})
+    return prev
 end function
 
 global function canvas_hatch(cdCanvas hCdCanvas, atom style)
@@ -5832,7 +5849,7 @@ end function
 --  return matrix
 --end function
 
-global procedure canvas_vector_text_size(cdCanvas hCdCanvas, atom w, atom h, string text)
+global procedure cdCanvasVectorTextSize(cdCanvas hCdCanvas, atom w, atom h, string text)
     c_proc(xcdCanvasVectorTextSize, {hCdCanvas, w, h, text})
 end procedure
 
@@ -6019,14 +6036,14 @@ atom pR, pG, pB, pA
 end procedure
 
 
-global procedure canvas_put_image_rect_map(cdCanvas hCdCanvas, atom iw, atom ih, sequence map, sequence colors,
+global procedure canvas_put_image_rect_map(cdCanvas hCdCanvas, atom iw, atom ih, sequence index, sequence colors,
                                            atom x, atom y, atom w, atom h, 
                                            atom xmin, atom xmax, atom ymin, atom ymax)
 atom pIndex, pColors
-    pColors = allocate(4*256+length(map))
+    pColors = allocate(4*256+length(index))
     pIndex = pColors+4*256
     poke4(pColors, colors)
-    poke(pIndex, map)
+    poke(pIndex, index)
     c_proc(xcdCanvasPutImageRectMap, {hCdCanvas, iw, ih, pIndex, pColors, x, y, w, h, xmin, xmax, ymin, ymax})
     free(pColors)
 end procedure
@@ -6483,16 +6500,16 @@ atom pR, pG, pB, pA
 end procedure
 
 global procedure wd_canvas_put_image_rect_map(cdCanvas hCdCanvas, atom iw, atom ih,
-        sequence map, sequence colors,
+        sequence index, sequence colors,
         atom x, atom y, atom w, atom h,
         atom xmin, atom xmax,
         atom ymin, atom ymax)
 
 atom pIndex, pColors
-    pColors = allocate(4*256+length(map))
+    pColors = allocate(4*256+length(index))
     pIndex = pColors+4*256
     poke4(pColors, colors)
-    poke(pIndex, map)
+    poke(pIndex, index)
     c_proc(xwdCanvasPutImageRectMap, {hCdCanvas, iw, ih, pIndex, pColors, x, y, w, h, xmin, xmax, ymin, ymax})
     free(pColors)
 end procedure
@@ -7444,7 +7461,6 @@ public constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --      xIupUnMapFont                     = iup_c_func(iup, "+IupUnMapFont", {P}, P),
 --      xIupFileDlg                       = iup_c_func(iup, "+IupFileDlg", {}, P),
 --      xIupMessageDlg                    = iup_c_func(iup, "+IupMessageDlg", {}, P),
---      xIupColorDlg                      = iup_c_func(iup, "+IupColorDlg", {}, P),
 --      xIupFontDlg                       = iup_c_func(iup, "+IupFontDlg", {}, P),
 --      xIupProgressDlg                   = iup_c_func(iup, "+IupProgressDlg", {}, P),
 --      xIupGetFile                       = iup_c_func(iup, "+IupGetFile", {P}, I),
@@ -7800,7 +7816,7 @@ global function iupKeyCodeToName(atom ch)
     return peek_string(pKeyName)
 end function
 
---DEV not working, not documented:
+--DEV not working, not documented: (use the new IupPlot)
 --/*
 constant iupPPlot = iup_open_dll({
                                    "iup_pplot.dll",
@@ -7925,6 +7941,152 @@ end function
 --  xwdCanvasStipple        = iup_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D}),
 --  xwdCanvasPattern        = iup_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
 --  $
+
+--/* DEV/SUG, from iup4eu3:
+    hIupSetCallbacks = define_c_func(iuplib, "IupSetCallbacks", {C_INT, C_POINTER, C_INT}, C_INT),
+    hIupColorDlg = define_c_func(iuplib, "IupColorDlg", {}, C_INT),
+    hIupGetFile = define_c_func(iuplib, "IupGetFile", {C_POINTER}, C_INT),
+    hIupGetText = define_c_func(iuplib, "IupGetText", {C_POINTER, C_POINTER}, C_INT),
+    hIupProgressDlg = define_c_func(iuplib, "IupProgressDlg", {}, C_INT),
+
+-- Associates several callbacks to an event.
+-- To define each rid use the function Icallback.
+-- Returns: the same widget handle.
+global function IupSetCallbacks(atom widget, sequence action, sequence rids)
+    return c_func(hIupSetCallbacks, {widget, allocate_string(action)} &
+        rids & {NULL})
+end function
+
+-- Creates the Colour Dialog element. It is a predefined dialog for selecting a
+-- color.
+--
+-- There are 3 versions of the dialog. One for Windows only, one for GTK only
+-- and one for all systems, but it is based on the IupColorBrowser control
+-- that depends on the CD library.
+--
+-- The Windows and GTK dialogs can be shown only with the IupPopup function.
+-- The IupColorBrowser based dialog is an IupDialog that can be shown as any
+-- regular IupDialog.
+--
+-- Returns: the identifier of the created element, or NULL if an error occurs.
+--
+-- Example:
+-- <eucode>
+-- --colordlg.exw
+--
+-- include iup.ew
+--
+-- IupOpen()
+-- 
+-- constant colordlg = IupColorDlg(),
+--        title = "IupColorDlg"
+--
+-- IupPopup(colordlg, 10, 10)
+--
+-- object res res = IupGetAttribute(colordlg, "VALUE")
+--
+-- if sequence(res) then
+--         IupMessage(title, "You chose: '" & res & "'")
+-- else
+--         IupMessage(title, "You cancelled") 
+-- end if
+--
+-- IupClose()
+-- </eucode>
+global function IupColorDlg()
+    return c_func(hIupColorDlg, {})
+end function
+
+-- Shows a modal dialog of the native interface system to select a filename.
+-- Uses the IupFileDlg element.
+--
+-- Returns: a sequence containing:
+--# a status code, whose values can be:
+--** "1": New file.
+--** "0": Normal, existing file.
+--** "-1": Operation cancelled.
+--# the name of the file selected.
+--
+-- Example:
+-- <eucode>
+-- --Example 3
+--
+-- include iup.ew
+--
+-- IupOpen()
+-- sequence name, res
+-- name = "*.txt"  -- name holds prompt
+-- res = IupGetFile(name)
+-- name = res[2]    -- name now holds chosen name
+--
+-- integer ret = res[1] -- status code
+-- if ret = 1 then
+--   IupMessage("New file", name)
+-- elsif ret = 0 then
+--   IupMessage("File already exists", name)
+-- elsif ret = -1 then
+--   IupMessage("IupGetFile", "Operation cancelled")
+-- end if
+-- IupClose()
+-- </eucode>
+global function IupGetFile(sequence filename)
+    atom pFile
+    sequence result
+    pFile = allocate_string(filename)
+    result = {c_func(hIupGetFile, {pFile}), peek_string3(pFile)}
+    free(pFile)
+    return result
+end function
+
+-- Shows a modal dialog to edit a multiline text. The parameter ##text## defines
+-- the initial value displayed in the dialog.
+-- The C function called uses ##text## to hold the returned text.
+-- Therefore it must have room for the edited string with at least
+-- ##maxsize## length.
+--
+-- Returns: a sequence containing:
+--# a status code; a non zero value if successful.
+--# the full text in the modal dialog.
+--
+-- Example:
+-- <eucode>
+-- -- Example 4
+-- -- Asking for Multiline Text
+--
+-- include iup.ew
+--
+-- procedure main()
+--     sequence resp
+--     IupOpen()
+--     resp = IupGetText("Name", "")
+--     if resp[1] = 1 then
+--         IupMessage("Thanks!", resp[2])
+--     end if
+--     IupClose()
+-- end procedure
+--
+-- main()
+-- </eucode>
+global function IupGetText(sequence title, sequence text)
+    atom ptext
+    sequence arg, result
+    ptext = allocate_string(text)
+    arg = {allocate_string(title), ptext}
+    result = {c_func(hIupGetText, arg), peek_string3(ptext)}
+    free(ptext)
+    return result
+end function
+
+-- Creates a progress dialog element. It is a predefined dialog for displaying
+-- the progress of an operation.
+-- The dialog is meant to be shown with the show functions IupShow or IupShowXY.
+--
+-- Returns: the identifier of the created element, or NULL if an error occurs.
+global function IupProgressDlg()
+    return c_func(hIupProgressDlg, {})
+end function
+
+--*/
 
 --(delete this lot (or move to another file) whenever you like)
 

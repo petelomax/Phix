@@ -1,0 +1,212 @@
+perl syntax file
+LineComment #
+#BlockComment /* */
+#               (nb for historical/compatibility reasons, Phix uses Euphoria.syn)
+#               (incorporates 01/09/2009 Eu 4.0 mods by Greg Haberek)
+#
+# About .syn files
+# ================
+# [[For an up-to-date version of these notes, always refer to Euphoria.syn]]
+# All files with a .syn extension in the /syn subdirectory are loaded when
+# the editor starts. They are reloaded if saved in the editor, which makes
+# it easy to add and test new keywords, etc.
+# Should a fatal error occur (which obviously it should not), then it may be
+# necessary to rename/move/delete/restore the offending .syn file.
+# The first line of a .syn file must be <Name> followed by " syntax file".
+# The second line may be "BlockComment" followed by start/end pair(s).
+#   eg  BlockComment /* */ <!-- --> [[ ]]
+#   Note that .syn files themselves may *NOT* contain block comments (since
+#       any and all support of them is in easynclr.e, not easynld.e).
+# The next line must be "LineComment" followed by a comment lead-in (if any).
+# This LineComment directive not only controls colourisation during editing of
+#   the files listed in the FileExtensions directive (see below), but also
+#   defines the comment method for the remainder of the .syn file.
+#       Therefore comments may not appear in a .syn file before the LineComment line.
+#       Note also that Edit/Comment and Edit/Uncomment (and the keyboard shortcuts)
+#       use the LineComment defined in None.syn when editing a .syn file (sorry!)
+#   As an example, C/C++ line comments are // so all these lines could begin with
+#   // instead of --, which is an operator in C/C++. If (eg) C.syn used -- as a
+#       line comment, it would not be possible to define -- as an operator!
+# If the programming language you are trying to support does not support line 
+#   comments (which should be very rare) then you cannot comment the syn file.
+#       (actually, worse than that, as the LineComment section is not optional..)
+#
+#
+# Sections
+# ========
+# All words beginning in column 1 (apart from comments) begin a section. 
+# The following sections should be defined:
+#               BlockComment, [optional]
+#               LineComment,
+#               TokenStart,
+#               TokenChar, [optional]
+#               TokenFirst, [optional]
+#               TokenLast, [optional]
+#               Escapes, [optional]
+#               Delimiters, [optional, except in None.syn]
+#               Braces, [optional]
+#               Operators, [optional]
+#               Illegal, [optional] and
+#               FileExtensions,
+# in that order. 
+# Then follow a number of keyword collections. The name is not "recognised"
+# apart from the fact that it begins in column 1 and is displayed in the 
+# Options/Colours window when that is opened when editing a file with one of
+# the file extensions (as defined in the FileExtensions section). These
+# section names should not contain spaces, a space is automatically inserted
+# between any lowercase character followed by an uppercase character.
+# Finally there is a Scheme section which defines the /default/ colours.
+# If a .clr file exists (eg Euphoria.clr) then it overrides these defaults.
+# Note: if you /DELETE/ sections, the .clr file may become invalid, though it
+#   should be trivial to edit it, removing the offending line(s). It is also 
+#   a good idea to copy the lines from the .clr back to the final Scheme 
+#   section of this file (which also becomes invalid if sections are removed).
+#   If you /ADD/ sections, you don't need to do anything special, except 
+#   perhaps to run Options/Colours to give new sections an appropriate colour.
+#
+
+#
+# Token characters must be specified next.
+#
+TokenStart abcedfghijklmnopqrstuvwxyz
+TokenStart ABCDEFGHIJKLMNOPQRSTUVWXYZ
+TokenChar 0123456789_
+# TokenFirst can be used to specify characters which are only valid at the start
+# of a token (eg # in #include or < in <table> [HTML]), and TokenLast can be used
+# to specify characters which terminate a token (eg > in <table> or $ in MID$), eg
+# TokenFirst #<     -- by default this set is empty
+# TokenLast >$      -- ""
+# In practice, TokenLast defines single-character tokens, so internally the
+#   syntax colouring will treat <table> as "<table" and ">". eg see Html.syn
+#
+# Whitespace is defaulted to #09101320, ie tab, lf, cr, and space. There is 
+# as yet no way to change this, though I will say it should be specified as 
+# a hexadecimal stringset rather than OS/editor/language dependent means.
+#
+# Likewise String and Character parsing is currently hard-coded (to ' and ").
+# You should not specify ' or " as delimiters or operators.
+#
+# Escape characters are defined using a single leadin followed by the valid 
+# characters which may follow (this permits \r \n \t \\ \' \" and \#):
+#
+Escapes \rnt\'"#[%./!,|)+$'&`{(w
+#
+# Next we have Delimiters, Operators, and Illegals (in that order).
+# The Delimiter section is optional (except in None.syn) and allows additional
+#       characters to be coloured as "Other". The idea is that in "integer a,integer b"
+#       then "a,integer" is not scanned as a single word, as well as colouring the ","
+#       normally as opposed to "Illegal". See easynld.e for technical details.
+# All characters used in the Operators section are automatically delimiters.
+Delimiters $:.%
+Operators ~ | ^ || && .= . , < <= > >= = != + += - -= * *= / /= .. & &= ? ; \ @ !
+
+# The Braces section begins with a digit specifying the number of nesting levels 
+# of colour required (1..7). Only pairs from ()<>[]{} are permitted. 
+# If the number of nesting levels is set above 5 you may have difficultly finding
+# enough appropriate colours to use. A lower number does not, of course, limit
+# the code that can be written, just how it is coloured. If the nesting level is
+# exceeded, inner brackets are coloured starting from 1 again. Note that if the
+# number of nesting levels is reduced, Euphoria.clr may contain invalid entries
+# such as Brace7 which must be removed manually.
+#
+Braces 7 ()[]{}
+
+#
+# FileExtensions should be specified next. This is not optional.
+#
+FileExtensions pl
+
+# The optional Indents section. If present, this section lists words and
+#       characters which affect autoindentation. The first word must be "+" or "-",
+#       any following words or characters increase or decrease the indent level,
+#       until the next "+" or "-". Please fit everything on one line.
+#
+Indents + then do else - end
+
+#
+# The remaining sections are listed in the Options/Colours window. 
+# The names used should not contain spaces; these are automatically 
+# inserted after any lower-case character which is followed by an 
+# upper-case one. Otherwise these names are entirely descriptive and 
+# are not defined or used anywhere else (though they must match entries
+# in the final Scheme and .clr files). Remember that all words
+# beginning in column 1 are interpreted as section names.
+
+ReservedWords
+#############
+    chomp
+    defined
+    eq
+    else
+    exit
+    if
+    my
+    ne
+    next
+    print
+    shift
+    split
+    strict
+    use
+    warnings
+
+Types
+#####
+        atom
+        integer
+        object
+        string
+
+BuiltinRoutines
+###############
+    AtomicSQL
+    CloseRecordset
+    Execute
+    Finish
+    GetField
+    GetFirstReturnedField
+    OpenRecordset
+    PrepareQuery
+                
+BuiltinConstants
+################
+        D_ATTRIBUTES
+        D_DAY
+        D_HOUR
+        D_MINUTE
+        D_MONTH
+        D_NAME
+        D_SECOND
+        D_SIZE
+        D_YEAR
+
+
+LibraryRoutines
+###############
+        all_palette
+
+
+#
+# The Scheme section defines the /default/ colours (and exists mainly to 
+#       simplify distribution and installation).
+# If a .clr file exists (eg Euphoria.clr) then it overrides these defaults.
+# The Options/Colours window creates/overwrites .clr files on exit.
+#
+Scheme
+        Background Silver
+        Comments Navy Italic
+        Highlight Gray
+        Strings Green
+        Symbols Blue
+        Illegals Red
+        Other Black
+        Brace1 Blue
+        Brace2 Yellow
+        Brace3 Maroon
+        Brace4 Purple
+        Brace5 Green
+        ReservedWords Teal
+        Types Teal
+        BuiltinRoutines #A86070
+        LibraryRoutines #A86070
+

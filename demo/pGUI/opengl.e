@@ -1413,7 +1413,8 @@ GlVertex4s              = validate_proc(opengl32,"glVertex4s",{C_SHORT,C_SHORT,C
 --GlVertex4sv           = validate_proc(opengl32,"glVertex4sv",{C_POINTER}),
 GlVertexPointer         = validate_proc(opengl32,"glVertexPointer", {C_INT, C_UINT, C_UINT, C_POINTER}),
 GlViewport              = validate_proc(opengl32,"glViewport",{C_INT,C_INT,C_INT,C_INT}),
-WglGetProcAddress       = validate_func(opengl32,"wglGetProcAddress", {C_POINTER}, C_POINTER)
+WglGetProcAddress       = validate_func(opengl32,"wglGetProcAddress", {C_POINTER}, C_POINTER),
+WglUseFontOutlines      = validate_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
 
 global function wglGetProcAddress(string name)
 atom addr = c_func(WglGetProcAddress,{name})
@@ -1422,6 +1423,10 @@ atom addr = c_func(WglGetProcAddress,{name})
         abort(1)
     end if
     return addr
+end function
+
+global function wglUseFontOutlines(atom glhDC, integer first, integer count, atom pFontList, atom deviation, atom extrusion, integer fmt, atom pGMF)
+    return c_func(WglUseFontOutlines,{glhDC,first,count,pFontList,deviation,extrusion,fmt,pGMF})
 end function
 
 --/*

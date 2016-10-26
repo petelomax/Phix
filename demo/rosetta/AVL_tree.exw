@@ -1,0 +1,656 @@
+--
+-- AVL_tree.exw
+-- ============
+--
+
+-- The standard distribution includes demo\rosetta\AVL_tree.exw, which contains a slightly longer but perhaps more readable version,
+--  with a command line equivalent of https://www.cs.usfca.edu/~galles/visualization/AVLtree.html and simple tree structure display.
+-- Translated from the C version at http://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+-- See also: https://en.wikipedia.org/wiki/AA_tree 
+-- This code was used as the basis for builtins\dict.e, where it got extended to allow multiple trees.
+-- It might be interesting (to someone else) to implement https://en.wikipedia.org/wiki/Day–Stout–Warren_algorithm
+
+-- This implementation retains several "halt" parameters to prevent infinite loops hanging the machine. 
+--  (I suspect the real cause is the power supply in this box nearing the end of serviceable life...)
+
+--      T1, T2 and T3 are subtrees of the tree rooted with y (on left side) 
+--      or x (on right side)           
+--                      y                               x
+--                     / \     Right Rotation          /  \
+--                    x   T3   – – – – – – – >        T1   y 
+--                   / \       < - - - - - - -            / \
+--                  T1  T2     Left Rotation            T2  T3
+--      Keys in both of the above trees follow the following order 
+--            keys(T1) < key(x) < keys(T2) < key(y) < keys(T3)
+--      So BST property is not violated anywhere.
+
+--      a) Left Left Case
+--
+--      T1, T2, T3 and T4 are subtrees.
+--               z                                      y 
+--              / \                                   /   \
+--             y   T4      Right Rotate (z)          x      z
+--            / \          - - - - - - - - ->      /  \    /  \ 
+--           x   T3                               T1  T2  T3  T4
+--          / \
+--        T1   T2
+--      b) Left Right Case
+--
+--           z                               z                           x
+--          / \                            /   \                        /  \ 
+--         y   T4  Left Rotate (y)        x    T4  Right Rotate(z)    y      z
+--        / \      - - - - - - - - ->    /  \      - - - - - - - ->  / \    / \
+--      T1   x                          y    T3                    T1  T2 T3  T4
+--          / \                        / \
+--        T2   T3                    T1   T2
+--      c) Right Right Case
+--
+--        z                                y
+--       /  \                            /   \ 
+--      T1   y     Left Rotate(z)       z      x
+--          /  \   - - - - - - - ->    / \    / \
+--         T2   x                     T1  T2 T3  T4
+--             / \
+--           T3  T4
+--      d) Right Left Case
+--
+--         z                            z                            x
+--        / \                          / \                          /  \ 
+--      T1   y   Right Rotate (y)    T1   x      Left Rotate(z)   z      y
+--          / \  - - - - - - - - ->     /  \   - - - - - - - ->  / \    / \
+--         x   T4                      T2   y                  T1  T2  T3  T4
+--        / \                              /  \
+--      T2   T3                           T3   T4
+--
+
+enum KEY=0,
+--   DATA,
+     LEFT,
+     HEIGHT,
+     RIGHT
+
+sequence tree = {}
+integer freelist = 0 
+
+/* Helper function that allocates a new node with the given key and
+    NULL left and right pointers. */
+function newNode(object key)
+integer node
+    if freelist=0 then
+        node = length(tree)+1
+        tree &= {key,NULL,1,NULL}
+    else
+        node = freelist
+        freelist = tree[freelist]
+        tree[node+KEY] = key
+        tree[node+LEFT] = NULL
+        tree[node+HEIGHT] = 1
+        tree[node+RIGHT] = NULL
+    end if
+    return node
+end function
+
+procedure freeNode(integer node)
+    if node=NULL then ?9/0 end if
+    tree[node+KEY] = freelist
+    freelist = node
+end procedure
+
+function height(integer node)
+    return iff(node=NULL?0:tree[node+HEIGHT])
+end function
+
+procedure setHeight(integer node)
+    tree[node+HEIGHT] = max(height(tree[node+LEFT]), height(tree[node+RIGHT]))+1
+end procedure
+
+function rotate(integer node, integer direction)
+--integer idirection = iff(direction=LEFT?RIGHT:LEFT)
+integer idirection = LEFT+RIGHT-direction
+integer pivot = tree[node+idirection]
+integer Temp2 = tree[pivot+direction]
+    if node = NULL then ?9/0 end if
+    if pivot = NULL then ?9/0 end if
+
+    -- Perform rotation
+    tree[pivot+direction] = node
+    tree[node+idirection] = Temp2
+ 
+    -- Update heights
+    setHeight(node)
+    setHeight(pivot)
+ 
+    -- Return new root
+    return pivot
+end function
+ 
+-- A utility function to right rotate subtree rooted with y
+-- See the diagram given above.
+function rightRotate(integer y)
+integer x = tree[y+LEFT]
+integer T2 = tree[x+RIGHT]
+ 
+if x = NULL then ?9/0 end if
+if y = NULL then ?9/0 end if
+--if T2 = NULL then ?9/0 end if
+
+    -- Perform rotation
+    tree[x+RIGHT] = y
+    tree[y+LEFT] = T2
+ 
+    -- Update heights
+    tree[y+HEIGHT] = max(height(tree[y+LEFT]), height(tree[y+RIGHT]))+1
+    tree[x+HEIGHT] = max(height(tree[x+LEFT]), height(tree[x+RIGHT]))+1
+ 
+    -- Return new root
+    return x
+end function
+ 
+-- A utility function to left rotate subtree rooted with x
+-- See the diagram given above.
+function leftRotate(integer x)
+integer y = tree[x+RIGHT]
+integer T2 = tree[y+LEFT]
+
+if x = NULL then ?9/0 end if
+if y = NULL then ?9/0 end if
+--if T2 = NULL then ?9/0 end if
+ 
+    -- Perform rotation
+    tree[y+LEFT] = x
+    tree[x+RIGHT] = T2
+ 
+    --  Update heights
+    tree[x+HEIGHT] = max(height(tree[x+LEFT]), height(tree[x+RIGHT]))+1
+    tree[y+HEIGHT] = max(height(tree[y+LEFT]), height(tree[y+RIGHT]))+1
+ 
+    -- Return new root
+    return y
+end function
+ 
+-- Get Balance factor of node N
+function getBalance(integer N)
+    return iff(N == NULL ? 0 : height(tree[N+LEFT]) - height(tree[N+RIGHT]))
+end function
+ 
+function insertNode(integer node, object key, integer halt)
+if halt>1000 then ?9/0 end if
+    /* 1.  Perform the normal BST rotation */
+    if node == NULL then
+        return newNode(key)
+    end if
+    integer c = compare(key,tree[node+KEY])
+    if c=-1 then
+        tree[node+LEFT] = insertNode(tree[node+LEFT], key, halt+1)
+    elsif c=0 then
+--      tree[node+DATA] = data
+        return node
+    else -- c=+1
+        tree[node+RIGHT] = insertNode(tree[node+RIGHT], key, halt+1)
+    end if
+
+    /* 2. Update height of this ancestor node */
+--  tree[node+HEIGHT] = max(height(tree[node+LEFT]), height(tree[node+RIGHT])) + 1
+    setHeight(node) 
+
+    /* 3. Get the balance factor of this ancestor node to check whether
+       this node became unbalanced */
+    integer balance = getBalance(node)
+ 
+if 01 then
+    if balance>1 then
+        c = compare(key,tree[tree[node+LEFT]+KEY])
+        if c=1 then
+--          tree[node+LEFT] =  leftRotate(tree[node+LEFT]);
+            tree[node+LEFT] = rotate(tree[node+LEFT],LEFT)
+        end if
+        if c!=0 then
+--          node = rightRotate(node);
+            node = rotate(node,RIGHT)
+        end if
+    elsif balance<-1 then
+        c = compare(key,tree[tree[node+RIGHT]+KEY])
+        if c=-1 then
+--          tree[node+RIGHT] = rightRotate(tree[node+RIGHT]);
+            tree[node+RIGHT] = rotate(tree[node+RIGHT],RIGHT)
+        end if
+        if c!=0 then
+--          node = leftRotate(node);
+            node = rotate(node,LEFT)
+        end if
+    end if
+else
+    -- If this node becomes unbalanced, then there are 4 cases
+ 
+    -- Left Left Case
+    if (balance > 1 and key < tree[tree[node+LEFT]+KEY]) then
+
+        node = rightRotate(node);
+ 
+    -- Right Right Case
+    elsif (balance < -1 and key > tree[tree[node+RIGHT]+KEY]) then
+
+        node = leftRotate(node);
+ 
+    -- Left Right Case
+    elsif (balance > 1 and key > tree[tree[node+LEFT]+KEY]) then
+
+        tree[node+LEFT] =  leftRotate(tree[node+LEFT]);
+        node = rightRotate(node);
+ 
+    -- Right Left Case
+    elsif (balance < -1 and key < tree[tree[node+RIGHT]+KEY]) then
+
+        tree[node+RIGHT] = rightRotate(tree[node+RIGHT]);
+        node = leftRotate(node);
+
+    end if
+end if
+ 
+    /* return the (unchanged) node pointer */
+    return node
+end function
+ 
+/* Given a non-empty binary search tree, return the node with minimum
+   key value found in that tree. Note that the entire tree does not
+   need to be searched. */
+function minValueNode(integer node)
+integer halt = 0
+if node=NULL then ?9/0 end if
+    /* loop down to find the leftmost leaf */
+    while 1 do
+        integer next = tree[node+LEFT]
+        if next = NULL then exit end if
+        node = next
+halt += 1
+if halt>1000 then ?9/0 end if
+    end while 
+    return node
+end function
+ 
+function deleteNode(integer root, object key, integer halt)
+if halt>1000 then ?9/0 end if
+    -- STEP 1: PERFORM STANDARD BST DELETE
+ 
+    if (root == NULL) then
+        return root
+ 
+    -- If the key to be deleted is smaller than the root's key,
+    -- then it lies in left subtree
+    elsif key < tree[root+KEY] then
+        tree[root+LEFT] = deleteNode(tree[root+LEFT], key, halt+1)
+ 
+    -- If the key to be deleted is greater than the root's key,
+    -- then it lies in right subtree
+    elsif key > tree[root+KEY] then
+        tree[root+RIGHT] = deleteNode(tree[root+RIGHT], key, halt+1)
+ 
+    -- if key is same as root's key, then This is the node
+    -- to be deleted
+    else
+        -- node with only one child or no child
+        if tree[root+LEFT] == NULL
+        or tree[root+RIGHT] == NULL then
+
+            integer temp = iff(tree[root+LEFT] ? tree[root+LEFT] : tree[root+RIGHT])
+ 
+            -- No child case
+            if (temp == NULL) then
+                temp = root
+                root = NULL;
+            else -- One child case
+--              *root = *temp; -- Copy the contents of the non-empty child
+                tree[root+KEY] = tree[temp+KEY]
+                tree[root+LEFT] = tree[temp+LEFT]
+                tree[root+HEIGHT] = tree[temp+HEIGHT]
+                tree[root+RIGHT] = tree[temp+RIGHT]
+            end if 
+--          free(temp);
+            freeNode(temp)
+        else
+            -- node with two children: Get the inorder successor (smallest
+            -- in the right subtree)
+            integer temp = minValueNode(tree[root+RIGHT])
+ 
+            -- Copy the inorder successor's data to this node
+            tree[root+KEY] = tree[temp+KEY]
+ 
+            -- Delete the inorder successor
+            tree[root+RIGHT] = deleteNode(tree[root+RIGHT], tree[temp+KEY], halt+1)
+        end if
+    end if
+ 
+    -- If the tree had only one node then return
+    if (root == NULL) then
+      return root
+    end if
+ 
+    -- STEP 2: UPDATE HEIGHT OF THE CURRENT NODE
+    tree[root+HEIGHT] = max(height(tree[root+LEFT]), height(tree[root+RIGHT])) + 1;
+ 
+    -- STEP 3: GET THE BALANCE FACTOR OF THIS NODE (to check whether
+    --  this node became unbalanced)
+    integer balance = getBalance(root);
+ 
+    -- If this node becomes unbalanced, then there are 4 cases
+ 
+--DEV tidy:
+    -- Left Left Case
+    if (balance > 1 and getBalance(tree[root+LEFT]) >= 0) then
+        root = rightRotate(root);
+ 
+    -- Left Right Case
+    elsif (balance > 1 and getBalance(tree[root+LEFT]) < 0) then
+
+        tree[root+LEFT] =  leftRotate(tree[root+LEFT]);
+        root = rightRotate(root);
+ 
+    -- Right Right Case
+    elsif (balance < -1 and getBalance(tree[root+RIGHT]) <= 0) then
+        root = leftRotate(root);
+ 
+    -- Right Left Case
+    elsif (balance < -1 and getBalance(tree[root+RIGHT]) > 0) then
+
+        tree[root+RIGHT] = rightRotate(tree[root+RIGHT]);
+        root = leftRotate(root);
+    end if
+ 
+    return root
+end function
+ 
+-- auxillary display and verification routines, helpful but not essential
+enum PREV,STR 
+
+procedure show_trunks(sequence trunk)
+    if length(trunk) then
+        show_trunks(trunk[PREV])
+        printf(1, "%s", trunk[STR])
+    end if
+end procedure
+ 
+-- this is very haphazzard
+procedure show_tree(integer root, sequence trunk, integer is_left, integer halt)
+if halt>1000 then ?9/0 end if
+
+    if root=NULL then if length(trunk)=0 then ?"<empty>" end if return end if
+
+    string prev_str = "    "
+    sequence new_trunk = {trunk, prev_str}
+
+    show_tree(tree[root+LEFT], new_trunk, 1, halt+1)
+ 
+    if length(trunk)=0 then
+        new_trunk[STR] = "---"
+    elsif is_left then
+        new_trunk[STR] = ".--"
+        prev_str = "   |"
+    else
+        new_trunk[STR] = "`--"
+        new_trunk[PREV][STR] = prev_str
+    end if
+ 
+    show_trunks(new_trunk)
+--  printf(1,"%d [%d] (%d)\n", {tree[root+KEY],tree[root+DATA],tree[root+HEIGHT]})
+    printf(1,"%d (%d)\n", {tree[root+KEY],tree[root+HEIGHT]})
+ 
+    if length(trunk) then new_trunk[PREV][STR] = prev_str end if
+    new_trunk[STR] = "   |"
+ 
+    show_tree(tree[root+RIGHT], new_trunk, 0, halt+1)
+
+end procedure
+
+procedure verify(integer node, integer halt)
+if halt>1000 then ?9/0 end if
+    if node!=NULL then
+        integer h0 = height(tree[node+LEFT]), 
+                h1 = height(tree[node+RIGHT]),
+                b = h0 - h1,
+                h = tree[node+HEIGHT]
+         
+        if h!=1+max(h0, h1) 
+        or b<-1 
+        or b> 1 then
+            printf(1,"node %d bad, balance %d\n", {tree[node+KEY], b})
+            show_tree(node, {}, 0, 1)
+            {} = wait_key()
+--          abort(0)
+            ?9/0
+        end if
+        verify(tree[node+LEFT],halt+1)
+        verify(tree[node+RIGHT],halt+1)
+    end if
+end procedure
+
+
+-- A utility function to print preorder traversal of the tree.
+-- The function also prints height of every node
+--procedure inOrder(integer node, integer halt)
+--if halt>1000 then ?9/0 end if
+--  if node!=NULL then
+--      inOrder(tree[node+LEFT], halt+1)
+--      printf(1, "%d ", tree[node+KEY])
+--      inOrder(tree[node+RIGHT], halt+1)
+--  end if
+--end procedure
+ 
+/* Driver program to test above function*/
+procedure main()
+integer root = NULL 
+
+if 1 then
+    -- command line equivalent of https://www.cs.usfca.edu/~galles/visualization/AVLtree.html 
+    --  (tree is displayed sideways/flipped, and the balancing is subtley different)
+    puts(1,"""
+____________Enter I5 to insert 5,
+                  I1-10 (or i 1..10) to insert 1 through 10,
+                  D7 (or d7 or d 7) to delete 7,
+                  D22-35 to delete 22 through 35,
+                  Q to quit.
+                  All values should be integer
+            """)
+    while 1 do
+        puts(1,"Insert n[..n], Delete n[..n], Quit:")
+        string ans = upper(trim(gets(0)))
+        if ans="Q" then exit end if
+        if length(ans)<1 or not find(ans[1],"ID") then
+            puts(1," - invalid\n")
+        else
+            integer a1 = ans[1]
+            ans = trim(ans[2..$])
+            sequence vals = scanf(ans,"%d")
+            if length(vals)=0 then
+                vals = scanf(ans,"%d..%d")
+                if length(vals)=0 then
+                    vals = scanf(ans,"%d-%d")
+                end if
+                if length(vals)=0 then
+                    puts(1," - invalid\n")
+                else
+                    for v = vals[1][1] to vals[1][2] do
+                        if a1='I' then
+                            root = insertNode(root,v,1)
+                        else
+                            root = deleteNode(root,v,1)
+                        end if
+                    end for
+                    puts(1,"\n")
+                    show_tree(root, {}, 0, 1)
+                end if
+            else
+                if a1='I' then
+                    root = insertNode(root,vals[1][1],1)
+                else -- a1='D'
+                    root = deleteNode(root,vals[1][1],1)
+                end if
+                puts(1,"\n")
+                show_tree(root, {}, 0, 1)
+            end if
+        end if
+    end while
+elsif 1 then
+    sequence test = shuffle(tagset(5007))
+    for i=1 to length(test) do
+        root = insertNode(root,test[i],1)
+    end for
+    test = shuffle(tagset(5000))
+    for i=1 to length(test) do
+        root = deleteNode(root,test[i],1)
+    end for
+    show_tree(root, {}, 0, 1)
+    {} = wait_key()
+else
+  /* Constructing tree given in the above figure */
+    root = insertNode(root, 9, 1)
+    root = insertNode(root, 5, 1)
+    root = insertNode(root, 10, 1)
+    root = insertNode(root, 0, 1)
+    root = insertNode(root, 6, 1)
+    root = insertNode(root, 11, 1)
+    root = insertNode(root, -1, 1)
+    root = insertNode(root, 1, 1)
+    root = insertNode(root, 2, 1)
+            verify(root,1)
+if 01 then
+--?tree
+        show_tree(root, {}, 0, 1)
+        {} = wait_key()
+end if
+
+    /* The constructed AVL Tree would be
+            9
+           /  \
+          1    10
+        /  \     \
+       0    5     11
+      /    /  \
+     -1   2    6
+    */
+ 
+    printf(1, "Pre order traversal of the constructed AVL tree is \n");
+--?tree
+--  inOrder(root,1)
+ 
+--DEV also try 9 after this, and 1 in the first place
+    root = deleteNode(root, 10, 1)
+ 
+    /* The AVL Tree after deletion of 10
+            1
+           /  \
+          0    9
+        /     /  \
+       -1    5     11
+           /  \
+          2    6
+    */
+ 
+--  printf(1, "\nPre order traversal after deletion of 10 \n");
+    printf(1, "\nafter deletion of 10 \n");
+--?tree
+--  inOrder(root,1)
+--puts(1,"\n")
+--?tree
+if 01 then
+--?tree
+        show_tree(root, {}, 0, 1)
+        {} = wait_key()
+end if
+
+    root = deleteNode(root, 9, 1)
+    printf(1, "\nafter deletion of 9 \n");
+--  inOrder(root,1)
+if 01 then
+--?tree
+        show_tree(root, {}, 0, 1)
+--      {} = wait_key()
+end if
+
+{} = wait_key() 
+end if
+end procedure
+main()
+
+abort(0)
+
+constant MAX_VAL=32
+
+integer root = NULL
+ 
+--  for x = 1 to 10*MAX_VAL do
+    for x = 1 to 10 do
+--  for x = 10 to 1 by -1 do
+        -- random insertion and deletion
+--      if rand(2)=1 then
+--          root = avl_insert(root, rand(MAX_VAL))
+--if x=8 then trace(1) end if
+            root = avl_insert(root, x)
+--      else
+--          root = avl_delete(root, rand(MAX_VAL),0)
+--      end if
+        verify(root)
+if 0 then
+--?tree
+        show_tree(root, {}, 0, 1)
+        {} = wait_key()
+end if
+    end for
+?tree
+--!/*
+?"deleting..."
+if 1 then
+--  for x = 1 to 10 do
+    for x = 10 to 1 by -1 do
+        -- random insertion and deletion
+--      if rand(2)=1 then
+--          root = avl_insert(root, rand(MAX_VAL))
+--          root = avl_insert(root, x)
+--      else
+--          root = avl_delete(root, rand(MAX_VAL),0)
+--trace(1)
+            root = avl_delete(root, x,0)
+--      end if
+        verify(root)
+if 1 then
+        show_tree(root, {}, 0, 1)
+        {} = wait_key()
+end if
+    end for
+end if
+--!*/
+ 
+    puts(1,"Tree is:\n")
+    show_tree(root, {}, 0, 1)
+ 
+    puts(1,"\nQuerying values:\n")
+    for x = 1 to MAX_VAL do
+        integer node = query(root, x)
+        if node then
+            printf(1, "%2d found: %d %d\n", {x, node, tree[node+KEY]})
+        end if
+    end for
+
+--?tree 
+    for x=1 to MAX_VAL do
+--  for x=1 to 10 do
+--  for x=10 to 1 by -1 do
+--?tree
+--?root
+--trace(1)
+        root = avl_delete(root, x,0)
+        verify(root)
+if 0 then
+printf(1,"delete(%d)\n",x)
+?tree
+?root
+        show_tree(root, {}, 0, 1)
+        {} = wait_key()
+end if
+    end for
+ 
+    puts(1,"\nAfter deleting all values, tree is:\n");
+    show_tree(root, {}, 0, 1)
+
+{} = wait_key()
+
+

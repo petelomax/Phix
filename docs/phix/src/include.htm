@@ -100,7 +100,19 @@
        </b>
         is specified it declares a local identifier that can be used to explicitly qualify global 
         symbols in the specific included file that you want to use in the main file. This can be 
-        used to disambiguate references to those symbols, or simply to promote clarity. See also
+        used to disambiguate references to those symbols, or simply to promote clarity.
+       <br>
+       <br>
+        However I feel I must say that namespaces are <b>NOT</b> an excuse for gratuitous ambiguity.
+        It is <i><b>not</b></i> cool for there to be 38 routines called "new()". It is <i><b>not</b></i> clever to
+        make someone think the code is calling a standard routine when that could not be further from the truth. 
+        The names of global routines should be meaningful in their own right. There is no sense forcing the use of
+        namespaces everywhere when you may as well include the qualifier as part of the global name. Instead of
+        date:format() and time:format() it is better to have date_format() and time_format() - if nothing else
+        the compiler will make fewer complaints, and the help lookup system will almost certainly work better.
+       <br>
+       <br>
+        See also
        <a href=scope.htm>Scope Rules</a> and note[3] below.
        <br>
        <br>
@@ -111,18 +123,19 @@
         The compiler knows enough about most files in the builtins directory to include them automatically as required.
         <br>
         <br>
-        Everything in builtins\VM is an autoinclude except for pFEH.e, optable.e, and pMemChk.e, which are really part of p.exw: 
-        pApnd.e, <wbr>pcallfunc.e, <wbr>pcfuncN.e, <wbr>pcmdlnN.e, <wbr>pDeleteN.e, <wbr>pDiagN.e, <wbr>pfileioN.e, <wbr>
+        Everything in builtins\VM is an autoinclude except for pFEH.e, optable.e, and pMemChk.e, which are really part of p.exw. 
+        There is no need to worry about or remember the names of any of: 
+        pApnd.e, <wbr>pcallfunc.e, <wbr>pcfunc.e, <wbr>pcmdlnN.e, <wbr>pDeleteN.e, <wbr>pDiagN.e, <wbr>pfileioN.e, <wbr>
         pFind.e, <wbr>pFixup.e (indirectly), <wbr>pFloatN.e, <wbr>pFPU.e (indirectly), <wbr>pHeap.e, <wbr>pInstance.e, <wbr>
         pJcc.e, <wbr>pJnotx.e, <wbr>pLen.e, <wbr>pMatch.e, <wbr>pMath.e, <wbr>pMem.e, <wbr>pMkSqN.e, <wbr>pPower.e, <wbr>
         pprntfN.e, <wbr>pProfile.e, <wbr>pRand.e, <wbr>pRepeatN.e, <wbr>pRepeN.e, <wbr>pRepsN.e, <wbr>pRmdr.e, <wbr>
         prtnidN.e, <wbr>pSleep.e, <wbr>psprintN.e, <wbr>pStack.e, <wbr>pSubseN.e, <wbr>pSubssN.e, <wbr>pThreadN.e, <wbr>
         pTime.e, <wbr>pTrace.e, <wbr>pTrig.e, <wbr>pType.e, <wbr>puts1.e (indirectly), <wbr>pUnary.e, <wbr>pUnassigned.e, <wbr>
-        and pXor.e - there is no need to worry about or remember the names of any of them.
+        and pXor.e - they are all automatically included as and only when needed.
         <br>
         <br>
         Most files in builtins\ are also autoincludes: 
-        database.e (except for db_fatal_id), <wbr>dll.e (technically empty|now in VM\pcfuncN.e), <wbr>factorial.e, <wbr>
+        database.e (except for db_fatal_id), <wbr>dll.e (technically empty|now in VM\pcfunc.e), <wbr>factorial.e, <wbr>
         file.e, <wbr>findrepl.e, <wbr>gcd.e, <wbr>get.e, <wbr>graphics.e (technically empty|now in pscreen.e/pfileioN.e/pScrollN.e), <wbr>
         image.e (apart from read_bitmap and save_bitmap, most things are now in pscreen.e anyway), <wbr>log10.e, <wbr>
         machine.e (though only int&lt;-to-&gt;bits|bytes remain), <wbr>matchrepl.e, <wbr>misc.e, <wbr>
@@ -191,16 +204,26 @@
 </i></font><font color="#008080">    include</font><font color="#000000"> arwen_misc.ew as misc
 </font><font color="#0000FF">        ?</font><font color="#000000">misc</font><font color="#0000FF">:</font><font color="#000000">hiWord</font><font color="#0000FF">(</font><font color="#000000">expr</font><font color="#0000FF">)</font>
 </pre>
-        [4]OpenEuphoria also permits a "namespace xxx" at the top of a file. Despite several reservations about such an approach,
+        [4] OpenEuphoria also permits a "namespace xxx" at the top of a file. Despite several reservations about such an approach,
         support for this has been added to Phix, however there may be some idiosyncracies, especially with regards to using a
         local namespace to qualify locally declared identifiers, that I may have missed.
         <br>
         <br>
-        [5]OpenEuphoria has implemented a peculiar mixture of export/public/import/public import/public include and other
+        [5] OpenEuphoria has implemented a peculiar mixture of export/public/import/public import/public include and other
         pointless things, that I have long suspected cripple performance and serve little or no useful purpose. Phix just 
-        treats such things as "global", with no apparent ill effects thus far. As noted elsewhere, however, the contents
-        of the OE std/ directory (and for that matter the include/ directory) are not compatible with Phix, and care must
-        be taken to avoid accidentally including them, instead of the (possibly incomplete) ones shipped with Phix.
+        treats such things as "global" (except for "export" in the context of <a href="sharedlib.htm">shared libraries</a>),
+        with no apparent ill effects thus far. As noted elsewhere, however, the contents of the OE std/ directory (and for 
+        that matter the include/ directory) are not compatible with Phix, and care must be taken to avoid accidentally 
+        including them, instead of the (possibly incomplete) ones shipped with Phix.
+        <br>
+        <br>
+        [6] OpenEuphoria has introduced countless cases of ambiguity. In the std/ directory, I can find potential clashes
+        for clear, <wbr>free, <wbr>positive_int, <wbr>add, <wbr>subtract, <wbr>diff, <wbr>set, <wbr>datetime, <wbr>compare, 
+        <wbr>get, <wbr>close, <wbr>find, <wbr>find_all, <wbr>split, <wbr>create, <wbr>close, <wbr>info, <wbr>new, <wbr>size, 
+        <wbr>format, <wbr>parse, <wbr>sum, <wbr>wrap, <wbr>encode, <wbr>decode, <wbr>is_match, and <wbr>escape. I am trying
+        to produce a Phix-compatible version of std/, however it is not a high priority and may never quite finish. I can 
+        only apologise and warn you in advance that the above may cause issues, which namespaces may or may not be able to
+        resolve. My advice is to comment out any and all include std/<wbr>*, and see what happens.
        <br>
        <br>
       </div>

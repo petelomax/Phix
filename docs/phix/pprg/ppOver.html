@@ -1,0 +1,429 @@
+<html><head><title>Print Preview and Report Generator Overview</title></head>
+<style type="text/css">
+<!--
+body        {background-color: "#D0D0D0";}
+a           {text-decoration: none;}
+a:link      {color: "#0033BB"; text-decoration: underline;}
+a:visited   {color: "#006699"; text-decoration: underline;}
+a:active    {color: red; text-decoration: underline;}
+a:hover     {color: red; text-decoration: underline;}
+a.blue    {text-decoration: none;}
+a.blue:link      {color: "#5500FF"; text-decoration: underline;}
+a.blue:visited   {color: "#5500FF"; text-decoration: underline;}
+a.blue:active    {color: red; text-decoration: underline;}
+a.blue:hover     {color: red; text-decoration: underline;}
+a.brown      {text-decoration: none;}
+a.brown:link      {color: "#993333"; text-decoration: underline;}
+a.brown:visited   {color: "#993333"; text-decoration: underline;}
+a.brown:active    {color: red; text-decoration: underline;}
+a.brown:hover     {color: red; text-decoration: underline;}
+OL.n        { list-style-type: arabic-numbers }
+OL.ua       { list-style-type: upper-alpha }
+-->
+</style>
+<style>
+BODY {SCROLLBAR-FACE-COLOR: #330066; SCROLLBAR-HIGHLIGHT-COLOR: #CCCCFF; 
+      SCROLLBAR-SHADOW-COLOR: #CCCCFF; SCROLLBAR-3DLIGHT-COLOR: #CCCCFF; 
+      SCROLLBAR-ARROW-COLOR:    #FFFFFF; SCROLLBAR-TRACK-COLOR: #CCCCFF; 
+      SCROLLBAR-DARKSHADOW-COLOR: #330066; }
+</style>
+<body>
+<a href="pprg.html">Table of Contents</a>
+<a href="ppIntro.html">Previous Page - Introduction</a>
+<a href="ppLicence.html">Next Page - Licence</a>
+<p><hr></p>
+<p align=center>
+<h2>Print Preview and Report Generator</h2>
+<h3>Overview</h3></p>
+<p><hr><p>
+<p>
+    The following interacting components are required to create a report:
+<p>
+<ol>
+<li>    A <a href="#DDict">data dictionary</a>, which defines the contents of the datastream,
+<li>    A <a href="#Layout">report layout</a>, which allows dictionary, calculated, and 
+        standard fields to be placed on the paper,
+<li>    An application program which creates a <a href="#Datastream">datastream</a>.
+</ol>
+<p>
+<p>
+<a name=DDict></a>
+<h3>The Data Dictionary</h3>
+<!------------------------->
+<p>
+        The contents of the datastream are specified in datadict.txt. For example:
+<p>
+<pre>
+            --
+            -- Example data dictionary.
+            -- =======================
+            -- Each record must begin with a unique two-character identifier.
+            --
+            
+            OH          -- sales order header
+            OHadd1 %s   -- address line 1
+            OHadd2 %s   -- address line 2
+            OHpost %s   -- postcode
+            OHdate %s   -- order date
+            OHacc  %s   -- account number
+            OHtot %9.2f -- order total
+
+            OI          -- sales order detail line
+            OIprod %s   -- product code
+            OIdesc %s   -- description
+            OIqty %8.3f -- quantity 
+            OIpri %8.2f -- price
+            OInet %8.2f -- net
+            OIvat %8.2f -- VAT
+            OItot %8.2f -- total
+</pre>
+<p>
+        This file is created by the application developer and should not be modified by the
+        end user, however they should understand the contents before attempting to
+        modify an existing report. It is of course perfectly acceptable and relatively 
+        straightforward for an application developer to programatically create datadict.txt
+        from existing data definitions in their application, though bear in mind that the
+        comments, as shown above, are actually the most useful part of this file.
+<p>
+        Each record begins with a two-character identifier and is followed by a number of 
+        fields each of which begins with the same two-character identifier, the field name, 
+        and a default field format.
+<p>
+        The above corresponds to the report application passing a structure similar to the 
+        following to the report generator:
+<p>
+<pre>
+        {{"OH", "Sunshine Garden Centre","14-18 Durnsford Road","N22 7YD",
+                "02/01/2003","217765",2041.56},
+         {"OI", "TGS-GM-22-04", "Spade - 22inch GardenMaster s/steel",
+                250, 6.95, 1737.50, 304.06, 2041.56}
+        }
+</pre>
+<p>
+        All comments and blank lines in datadict.txt, except for initial comments preceding
+        the first blank line, are displayed in the field lookup during 
+        report definition:
+<p>
+<a name=jdict></a>
+<a href="ppOver.html#jlayout">Previous ScreenShot</a>
+<a href="ppOver.html#jrecords">Next ScreenShot</a><p>
+<IMG src="images/dict.jpg"
+     alt="Dictionary Lookup.">
+<br>
+Dictionary Lookup.<br>  
+<p>
+<a name=formats></a>
+        The field format follows those used in printf:
+<p>
+<table border="0">
+<tr><th> %d <td> an integer     <th> %x <td> hexadecimal <th> %o <td> octal
+<tr><th> %f <td> floating point <th> %e <td> floating point in scientific notation
+<tr><th> %s <td> string         <th> %g <td> most appropriate of %e or %f
+</table>
+<p>
+            Field width and precision can be specified between the % and the format letter,
+            eg %8.2f indicates a floating point number with a minimum field width of 8
+            characters and a precision of 2 (ie two decimal places).
+<p>
+            The following characters may immediately follow the % character:
+            <ul>
+            <li>"-" (minus sign): the field is left-justified within the specified width.
+            <li>"0" (zero): fills the field with leading zeroes when required.
+            <li>"+" (plus sign): a plus sign should be printed for positive values.
+            </ul>
+<p>
+        The default field format does not dictate the contents of the datastream as
+        created by the application program and can be overidden on each field in the
+        report layout.
+<p>
+        Tip: use short format qualifiers (eg %s) to left-align fields. Long format (eg
+        %20s, %9.2f) right-align fields, provided that no fields are longer than the 
+        format specified. (See Faq:<a href=ppFAQ.html#align>alignment</a>.)
+        There is also a copy of the sprintf documentation from Euphoria 
+        <a href="ppRef3.html#formats">here</a>.
+<p>
+        Wherever possible, fields defined in datadict.txt should be simple text strings 
+        or atomic values. The report generator can subscript and slice but not iterate 
+        over a variable length item 
+        (See FAQ:<a href=ppFAQ.html#appfunc>appfunc</a>): it expects 
+        each element of a repeating structure to
+        be passed as a distinct record. Complex structures obviously also invite future
+        maintenance overheads.
+<p>
+<a name=loadDDict></a>
+        The routine loadDDict() is used to load the contents of datadict.txt into the 
+        layouts.edb file, alternatively this can be run manually from pptest.exw.
+        See the section on Upgrade below[DEV: not in v0.1] for further details.
+<p>
+Record type comments should be defined inline, so they appear as follows:<p>
+<a name=jrecords></a>
+<a href="ppOver.html#jdict">Previous ScreenShot</a>
+<a href="ppRef.html#jzoom">Next ScreenShot</a><p>
+<IMG src="images/records.jpg"
+     alt="Record Lookup.">
+<br>
+Record Lookup. 
+<p>
+<a name=Layout></a>
+<h3>The Report Layout</h3>
+<!----------------------->
+<p>
+        Report Layouts are created visually using the report layout designer, which allows:
+<p>
+        Boxes and lines, in any colour, pen width, or style (Solid, Dash, DashDot, etc).
+<p>
+        Bitmap graphics, resized, optionally greyscaled, in any paintmode
+        (SrcCopy, SrcPaint, etc - refer to Microsoft for details).
+<p>
+        Fixed text, datastream and calculated fields, in any face, size, and colour,
+        and with any standard text attributes (Bold, Italic, etc).
+<p>
+        Advanced features including repeating fields, variant handling, 
+        <!--line grouping,-->
+        and calculated fields are discussed at length in the Reference Section.
+<p>
+<a name=jlayout></a>
+<a href="ppIntro.html#jzoomout">Previous ScreenShot</a>
+<a href="ppOver.html#jdict">Next ScreenShot</a><p>
+<IMG src="images/layout.jpg"
+     alt="Layout Amendment.">
+<br>
+Layout Amendment. 
+<p>
+        The field under the cursor can be edited by double clicking on it, dragged to a new
+        position, deleted by dragging off the paper, or resized by selecting from the right
+        click popup menu. New fields can also be created anywhere on the paper by selecting
+        Insert from the right click popup menu.
+<p>
+        Dictionary, standard, calculated, and summation fields, can be selected by pressing
+        F1 to F4 respectively or using the first four buttons to the right of the Format
+        field. The format string is coped automatically, and the field name and any required
+        brackets and commas inserted in the Fields list. F5 or the fifth button is used
+        to define new calculated fields. This is covered in greater detail later in the 
+        Reference section.
+<p>
+<p>
+<a name=Tutorial></a>
+<h3>Running the report layout tutorial</h3>
+<!---------------------------------------->
+<p>
+        A short tutorial demonstrating the features of the layout designer can be run 
+        from pptest.exw (or pptest.exe).
+<p>
+        If you have any ideas for additional lessons, please let me know.
+<p>
+        The source of the tutorial program is released unshrouded. It may require some
+        changes to work on screen resolutions other than 1024x768. The tutorial may be
+        amended to work with a standard report from your application, if required.
+        If you make any changes, please send me a copy of the entire amended source (it
+        is <i>much</i> easier for me to merge a complete source, please don't waste time
+        composing an "insert at line 210", "replace line 327" style list, I will only 
+        throw it away and ask for the complete source). Obviously I will apply your changes
+        (within reason) so you don't have to when the next version is released, or at 
+        least limit them to setting a single flag from 0 to 1 or vice versa.
+<p>
+        The tutorial runs on top of the live software, it is not a recording. Hence you 
+        can experiment a little, but try to put the screen back as it was (and return
+        focus to the Tutorial popup) before continuing.
+<p>
+        Please note that layouts.edb should not be excessively modified before running
+        the tutorial, and that pressing various keys, using the mouse, or switching tasks
+        while a demo is running are all likely to cause an abort (the title of the 
+        Tutorial window changes to eg Hlt @ 4/17). This is to prevent the tutorial
+        inadvertently passing keystrokes or mouse events to other applications.
+        Once Hlt @ n/nn has appeared it is usually best 
+        to exit pptest.exw completely before attempting to restart the tutorial.
+<p>
+<p>
+<a name=Datastream></a><h3>The Datastream</h3>
+<p>
+        The application creates a datastream and passes it to the report generator.
+        This is a simple sequence of records, where each record begins with a fixed two
+        character identifier and is followed by fields as specified in datadict.txt.
+        All records of a particular type must be the same fixed length. For example:
+<p>
+<pre>
+        {{"OH", "Sunshine Garden Centre","14-18 Durnsford Road","N22 7YD",
+                "02/01/2003","217765",2041.56},
+         {"OI", "TGS-GM-22-04", "Spade - 22inch GardenMaster s/steel",
+                250, 6.95, 1737.50, 304.06, 2041.56}
+        }
+</pre>
+<p>
+        Some of this data is a straight copy of data held on file, other fields can be
+        calculated and/or pre-formatted in an application-specific manner.
+<p>
+        The most important consideration is that the datastream should logically match 
+        the required printing process. It is also sensible to put all the readily
+        available fields that might ever be used into the datastream as this allows
+        clients to make small changes to reports without amending the source code.
+<p>
+        The application must sort records as required when creating the datastream.
+<p>
+        The report generator checks the first item in each record is a two-character
+        string corresponding to a record definition in the data dictionary, and that
+        the record has the correct length.
+<p>
+        In the example above, OHpost is the fourth line of the OH definition, (skipping
+        any blank/comment-only lines), so to print that field the report generator simply 
+        takes the fourth entry (counting the "OH" as 1) from the record.
+<p>
+<a name=getDDidx></a>
+        Appropriate care must be taken that fields in the data dictionary do not get out
+        of step with those created by the application program. The getDDidx() function
+        can be used to return an index value for checking during datastream creation, eg:
+<p>
+<pre>
+            if getDDidx("OHtot")!=7 then error() end if     -- assertion
+                -- or --
+            if rec[getDDidx("OHtot")]!=my_order_total then error() end if
+</pre>
+<p>
+        If passed a two-character string, getDDidx returns the record length.
+        If the parameter is not recognised or has been deleted, -1 is returned.
+        Naturally it is unwise to use getDDidx("xx") to create a record of the correct
+        length and then mis-populate it/fill in only half of it, it is much more
+        sensible to code eg
+<p>
+<pre>
+            record=repeat(0,7)
+            ..fill in 7 fields..
+            if getDDidx("OH")!=length(record) then error() end if
+</pre>
+        Since that clearly delineates (for future maintenance) the lines of code which
+        must be updated.
+<p>
+        A single record can also be displayed for quick visual checking. An example of 
+        this can be seen in pptest.exw.
+<p>
+<a name=generateReport></a>
+        Once the application has created the datastream, it simply invokes the report
+        generator, eg:
+<p>
+<pre>
+            generateReport("invoice", datastream, pFlags)
+</pre>
+<p>
+        Where "invoice" is a layout previously specified using the report layout designer,
+        datastream is as just explained, and pFlags is 0, or one or more of:
+<p>
+<table border="0">
+<tr><td>    PP_DESIGNMODE   <td>(#01)   <td>Amend the layout. Note that datastream is unused,
+                                    and any other flags specified are ignored.
+<tr><td>    PP_NOPREVIEW    <td>(#02)   <td>Disables print preview, prints the report immediately.
+                                    Not honoured when in design mode, naturally.
+<tr><td>    PP_QUIETMODE    <td>(#06)   <td>Disables print preview and suppresses Printer dialogue.
+<tr><td>                    <td>        <td>WARNING: user will not be able to change the printer, 
+                                    number of copies, etc.
+<tr><td>    PP_TUTORIAL     <td>(#07)   <td>An automated demonstration of features.
+</table>
+<!-- the following are not implemented:
+<table border="0">
+<tr><td>    PP_ONEUP        <td>(#10)   <td>Reserved to force 1-up mode.
+<tr><td>    PP_TWOUP        <td>(#20)   <td>Reserved to force 2-up mode.
+<tr><td>    PP_FOURUP       <td>(#40)   <td>Reserved to force 4-up mode.
+<tr><td>    PP_EIGHTUP      <td>(#80)   <td>Reserved to force 8-up mode.
+<tr><td>    PP_NNCOPIES   <td>(#NN00)   <td>Reserved for number of copies [1..99].
+<tr><td>    PP_TEXTMODE  <td>(#10000)   <td>Reserved for text mode printing.
+<tr><td>    PP_FILEMODE  <td>(#30000)   <td>Reserved for print to file.
+</table>
+
+<pre>
+            PP_DESIGNMODE   (#01)   Amend the layout. Note that datastream is unused,
+                                    and any other flags specified are ignored.
+            PP_NOPREVIEW    (#02)   Disables print preview, prints the report immediately.
+                                    Not honoured when in design mode, naturally.
+            PP_QUIETMODE    (#06)   Disables print preview and suppresses Printer dialogue.
+                                    WARNING: user will not be able to change the printer, 
+                                    number of copies, etc.
+            PP_TUTORIAL     (#07)   An automated demonstration of features.
+            -- the following are not implemented:
+            PP_ONEUP        (#10)   Reserved to force 1-up mode.
+            PP_TWOUP        (#20)   Reserved to force 2-up mode.
+            PP_FOURUP       (#40)   Reserved to force 4-up mode.
+            PP_EIGHTUP      (#80)   Reserved to force 8-up mode.
+            PP_NNCOPIES   (#NN00)   Reserved for number of copies [1..99].
+            PP_TEXTMODE  (#10000)   Reserved for text mode printing.
+            PP_FILEMODE  (#30000)   Reserved for print to file.
+</pre>
+-->
+<p>
+        Multiple PP_ flags can be passed as a sequence or combined via or_all().
+        [<small>not relevant in v0.1; more flags are planned for later versions</small>]
+        Sharp eyed readers may have noticed that a value of #04 will logically show the
+        preview, but suppress the printer dialogue. This is not officially supported.
+<!--		Equally, PP_FILEMODE implies text mode (when they are implemented). The print to
+        file on the standard printer dialogue creates printer-specific prn or postscript
+        files (providing a suitable driver is installed), and is hence entirely distinct.
+-->
+<p>
+<p>
+        The default behaviour when 0 is passed to pFlags is: 
+            <ul>
+            <li>the report is previewed, 
+            <li>2-up printing is allowed, 
+            <li>Standard printer dialogue allows the printer and number of copies to be altered.
+            <li>However, if the report is defined with the Screen checkbox set 
+            (see <a href="ppRef.html#Zoom">The Zoom Window</a>), then it may not
+            be printed.
+            </ul>
+<p>
+<a name=onClosepprg></a>
+        Before calling generateReport, the calling application should pass a routine_id to 
+        onClose_pprg(). This is called to formally hand back focus to the application when 
+        the print preview window is closed. Without this routine, the calling application 
+        has no way of knowing when the report has finished (or been cancelled). Naturally,
+        the calling application's WinMain window should not be closed until that point.
+        An example of this can be seen in pptest.exw (actually pptwin.ew).
+<!--p>
+        TIP:
+            Excessive use of append() (or &) to build a very large datastream can have 
+            significant performance overheads. Instead use code similar to the following:
+<p>
+<pre>
+            integer dsi     -- datastream index
+                    dsi=0
+            sequence ds     -- datastream
+                     ds=repeat(0,64)
+
+            procedure addRecord(sequence record)
+                dsi+=1
+                if dsi=length(ds) then
+                    ds&=repeat(0,64)
+                end if
+                ds[dsi]=record
+                if length(record)!=getDDidx(record[1]) then error() end if
+            end procedure
+
+            function makeOHrecord()
+                ...
+            end function
+
+            ...
+
+                addRecord(makeOHrecord())
+
+            ...
+
+                generateReport("invoice",ds[1..dsi],pFlags)
+</pre>
+<p-->
+<p>
+<p>
+<!--a name=Summary></a><h3>Summary</h3>
+<p>
+    That is all that is needed to create a simple report. The example program pptest.exw
+    demonstrates most common reporting requirements, including plain text, column, 2-up,
+    multiple fonts, graphics and bitmap printing, variants and calculated fields, and 
+    layout amendment.
+<p>
+<p-->
+</body>
+<p><p><hr></p>
+<p align=center>
+<a href="pprg.html">Table of Contents</a>
+<a href="ppIntro.html">Previous Page - Introduction</a>
+<a href="ppLicence.html">Next Page - Licence</a>
+</p>
+<p><hr><p><p>
+</html>

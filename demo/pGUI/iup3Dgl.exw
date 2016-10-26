@@ -112,15 +112,12 @@ function resize_cb(Ihandle self, integer new_width, integer new_height)
     width = new_width;
     height = new_height;
     return repaint_cb(canvas);
-
--- return IUP_DEFAULT; /* return to the IUP main loop */
 end function
 
 
-function idle_cd()
+function idle_cb()
     t += 1;
     return repaint_cb(canvas);
---  return IUP_DEFAULT; /* return to the IUP main loop */
 end function
 
 function exit_cb()
@@ -134,22 +131,14 @@ function esc_close(Ihandle /*ih*/, atom c)
     return IUP_CONTINUE
 end function
 
-/*-------------------------------------------------------------------------*/
-/* Initializes the program.                                                */
-/*-------------------------------------------------------------------------*/
-
 function initDialog()
 
 Ihandle dialog;  /* dialog containing the canvas */
 
     canvas = IupGLCanvas("repaint_cb", Icallback("repaint_cb")); /* create _canvas and define its repaint callback */
---  IupSetFunction("repaint_cb", (Icallback) repaint_cb);  
---  IupSetGlobalFunction("repaint_cb", Icallback("repaint_cb"));  
---  IupSetCallback(canvas,"repaint_cb", Icallback("repaint_cb"));  
 
     IupSetAttribute(canvas,"IUP_RASTERSIZE","640x480");   /* define the size in pixels */
     IupSetAttribute(canvas,"IUP_BUFFER","IUP_DOUBLE");    /* define that this OpenGL _canvas has double buffer (front and back) */
-
 
     /* bind callback actions with callback functions */
     IupSetCallback(canvas, "RESIZE_CB",Icallback("resize_cb"));
@@ -159,17 +148,12 @@ Ihandle dialog;  /* dialog containing the canvas */
     IupSetAttribute(dialog, "TITLE", "IUP_3D_OpenGL");
 
     IupSetCallback(dialog, "CLOSE_CB", Icallback("exit_cb"));
---  IupSetFunction (IUP_IDLE_ACTION, (Icallback) idle_cd);
-    IupSetGlobalFunction("IDLE_ACTION", Icallback("idle_cd"));
---  IupSetCallback(dialog,"IUP_IDLE_ACTION", Icallback("idle_cd"));
+    IupSetGlobalFunction("IDLE_ACTION", Icallback("idle_cb"));
     IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
 
     return dialog;
 end function
 
-/*-----------------------*/
-/* Main function.        */
-/*-----------------------*/
 procedure main()
 
 Ihandle dialog;

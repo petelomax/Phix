@@ -1,14 +1,14 @@
 -- (c) Copyright - See License.txt
 --
-namespace text
+--namespace text
 
 --/**/ **NOT PHIX COMPATIBLE!**
 --DEV earein.e does not like this:
 --!/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
 --!/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)
---/**/ forward global function keyvalues(sequence source, object pair_delim = ";,",
---/**/                                   object kv_delim = ":=", object quotes =  "\"'`",
---/**/                                   object whitespace = " \t\n\r", integer haskeys = 1)
+--!/**/ forward global function keyvalues(sequence source, object pair_delim = ";,",
+--!/**/                                  object kv_delim = ":=", object quotes =  "\"'`",
+--!/**/                                  object whitespace = " \t\n\r", integer haskeys = 1)
 
 --****
 -- == Text Manipulation
@@ -99,6 +99,7 @@ include std/eds.e
 -- See Also:
 --    [[:sprintf]], [[:printf]]
 
+--/* Not Phix (defined in psprint.e)
 public function sprint(object x)
 -- Return the string representation of any Euphoria data object.
 -- This is the same as the output from print(1, x) or '?', but it's
@@ -125,6 +126,7 @@ sequence s
         return s
     end if
 end function
+--*/
 
 --/* Not Phix (defined in ptrim.e)
 --**
@@ -292,7 +294,6 @@ end function
 
 --/* not Phix
 constant TO_LOWER = 'a' - 'A'
---*/
 
 sequence lower_case_SET = {}
 sequence upper_case_SET = {}
@@ -467,7 +468,6 @@ atom
 --*/
     temp_mem = allocate(1024)
 
---/* (not used by Phix (upper/lower)
 function change_case(object x, object api)
 sequence changed_text
 integer single_char = 0
@@ -507,8 +507,8 @@ integer len
         return changed_text
     end if
 end function
---*/
 end ifdef
+--*/
 
 --**
 -- Convert an atom or sequence to lower case.
@@ -543,7 +543,7 @@ end ifdef
 --
 -- See Also:
 --   [[:upper]], [[:proper]], [[:set_encoding_properties]], [[:get_encoding_properties]]
---/* Phix: defined in builtins/pcase.e (auto-include) [DEV?]
+--/* Phix: defined in builtins/pcase.e (auto-include)
 public function lower(object x)
 -- convert atom or sequence to lower case
     if length(lower_case_SET) != 0 then
@@ -641,6 +641,7 @@ end function
 -- See Also:
 --     [[:lower]] [[:upper]]
 
+--/* Not Phix (erm)
 public function proper(sequence x)
 -- Converts text to lowercase and makes each word start with an uppercase.
 integer pos
@@ -711,6 +712,7 @@ sequence res
     end for
     return res
 end function
+--*/
 
 --**
 -- Converts a string containing Key/Value pairs into a set of
@@ -1046,19 +1048,21 @@ end function
 --  [[:quote]]
 --
 
-public function escape(sequence s, sequence what="\"")
+--/* Not Phix (erm... can do better [\r\t\n])
+global function escape(string s, string what="\"")
 sequence r = ""
 
     for i=1 to length(s) do
-        if find(s[i], what) then
-            r &= "\\"
+        integer ch = s[i]
+        if find(ch, what) then
+            r &= '\\'
         end if
-        r &= s[i]
+        r &= ch
     end for
 
     return r
 end function
-
+--*/
 
 --**
 -- Return a quoted version of the first argument.
@@ -1411,7 +1415,7 @@ end function
 --   [[:sprintf]]
 --
 
-public function format(sequence format_pattern, object arg_list = {})
+global function text_format(sequence format_pattern, object arg_list = {})
 sequence result
 integer in_token
 integer tch
@@ -1592,7 +1596,8 @@ integer bracketed
                 end if
 
                 for j=1 to length(arg_list) do
-                    if begins(idname, arg_list[j]) then
+--                  if begins(idname, arg_list[j]) then
+                    if match(idname, arg_list[j])=1 then
                         if argn=0 then
                             argn = j
                             exit
@@ -1652,8 +1657,8 @@ integer bracketed
                     tsep = format_pattern[i]
                 end if
 
---                      else
-                                -- ignore it
+--          else
+                -- ignore it
 
             end if
 
@@ -1686,7 +1691,8 @@ integer bracketed
                         if bwz!=0 and arg_list[argn]=0 then
                             argtext = ""
                         elsif binout=1 then
---/**/                      argtext = sq_add(reverse(int_to_bits(arg_list[argn], 32)),'0')              --/*
+--/**/?                     argtext = sprintf("%b", arg_list[argn])                                     --/*
+--/!**!/                    argtext = sq_add(reverse(int_to_bits(arg_list[argn], 32)),'0')              --/!*
                             argtext = stdseq:reverse( convert:int_to_bits(arg_list[argn], 32)) + '0'    --*/
                             for ib=1 to length(argtext) do
                                 if argtext[ib]='1' then
@@ -1770,7 +1776,7 @@ integer bracketed
                                     end if
                                 end if
                                 if arg_list[argn]>0 then
-                                    if psign  then
+                                    if psign then
                                         if zfill=0 then
                                             argtext = '+' & argtext
                                         elsif argtext[1]='0' then
@@ -1825,14 +1831,16 @@ integer bracketed
                                     argtext = trim(sprintf("%15.15g", tempv))
                                 end if
                             else
+--/**/                          argtext = ppf(tempv)                                            --/*
                                 argtext = pretty_sprint(tempv,
                                                         {2,0,1,1000,"%d","%.15g",32,127,1,0}
-                                                       )
+                                                       )                                        --*/
                             end if
                         else
+--/**/                          argtext = ppf(arg_list[argn])                                   --/*
                             argtext = pretty_sprint(arg_list[argn],
                                                     {2,0,1,1000,"%d","%.15g",32,127,1,0}
-                                                   )
+                                                   )                                            --*/
                         end if
                     end if
                     currargv = arg_list[argn]
@@ -1845,7 +1853,8 @@ integer bracketed
                     elsif cap='l' then
                         argtext = lower(argtext)
                     elsif cap='w' then
-                        argtext = proper(argtext)
+--DEV:
+--                      argtext = proper(argtext)
                     elsif cap=0 then
                         -- do nothing
                         cap = cap

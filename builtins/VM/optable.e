@@ -117,6 +117,7 @@ constant vm_names = {
 --                                   "%pSetDel",
                                      "%pAllocStr",
                                      "%pAllocSeq",
+                                     "%pLoadFlt",
                                      "%pStoreFlt",
                                      "%pStoreMint",
                                      "%pLoadMint",
@@ -165,9 +166,11 @@ constant vm_names = {
                                      "%opSq",
                                      "%opObj"}},
                      {"pFPU.e",     {"%down53",
+                                     "%up53",
                                      "%near53",
                                      "%trunc53",
                                      "%down64",
+                                     "%up64",
                                      "%near64",
                                      "%trunc64"}},
                      {"pFEH.e",     {">initFEH"}},      -- (same as :<exch64 on PE64)
@@ -270,7 +273,7 @@ constant vm_names = {
                                      "%opPosition"}},
 --/*
 --group3 (probably mandatory) [erm, too much hll cleanup rqd]
---                   {"pcfuncN.e",  {"%opOpenDLL",
+--                   {"pcfunc.e",   {"%opOpenDLL",
 --                                   "%opDcfunc",
 --                                   "%opDcvar",
 --                                   "%opCallback",

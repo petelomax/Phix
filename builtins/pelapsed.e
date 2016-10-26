@@ -9,10 +9,7 @@
 
 function elapzd(integer v, string d)
 -- private helper function. formats v and pluralises d by adding an "s", or not.
-    if v=1 then
-        return sprintf("%d %s",{v,d})
-    end if
-    return sprintf("%d %ss",{v,d})
+    return sprintf("%d %s%s",{v,d,iff(v=1?"":"s")})
 end function
 
 global function elapsed(atom s)
@@ -26,30 +23,18 @@ string minus = "", secs, mins
     end if
     m = floor(s/60)
     s = remainder(s,60)
-    if integer(s) then
-        secs = sprintf("%ds",s)
-    else
-        secs = sprintf("%3.2fs",s)
-    end if
+    secs = sprintf(iff(integer(s)?"%ds":"%3.2fs"),s)
     if m=0 then
         return sprintf("%s%s",{minus,secs})
     end if
     s = round(s)
-    if s=0 then
-        secs = ""
-    else
-        secs = sprintf(" and %02ds",s)
-    end if
+    secs = iff(s=0?"":sprintf(" and %02ds",s))
     h = floor(m/60)
     m = remainder(m,60)
     if h=0 then
         return sprintf("%s%s%s",{minus,elapzd(m,"minute"),secs})
     end if
-    if m=0 then
-        mins = ""
-    else
-        mins = ", "&elapzd(m,"minute")
-    end if
+    mins = iff(m=0?"":", "&elapzd(m,"minute"))
     if h<24 then
         return sprintf("%s%s%s%s",{minus,elapzd(h,"hour"),mins,secs})
     end if

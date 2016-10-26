@@ -25,19 +25,23 @@ include builtins\VM\pXor.e      -- not actually used in p.exe, but in optable fo
 
 constant half = 0.5
 
+integer e14code
+
 #ilASM{ jmp :%opRetf
 
 --DEV FIXME: (and the :!bang labels below)
     ::e14soa
         [32]
             pop edx
-            mov al,14               -- e14soa
+            mov al,14               -- e14soa(edi=?)
+            mov edi,[e14code]
             sub edx,1
 --          mov ecx,edi
             jmp :!iDiag
         [64]
             pop rdx
-            mov al,14               -- e14soa
+            mov al,14               -- e14soa(edi=?)
+            mov rdi,[e14code]
             sub rdx,1
 --          mov rcx,rdi
             jmp :!iDiag
@@ -505,6 +509,11 @@ end procedure -- (for Edita/CtrlQ)
         faddp
         ret
         
+--constant e14ops = {"add","sub","div","mul",                   -- 1,2,3,4
+--                 "remainder","floor","unary minus","not",     -- 5,6,7,8
+--                 "and_bits","or_bits","xor_bits","not_bits",  -- 9,10,11,12
+--                 "power","xor"}                               -- 13,14
+
       :%opAdd               -- [edi]:=ecx+eax
 -------------
 --  [32]
@@ -514,6 +523,7 @@ end procedure -- (for Edita/CtrlQ)
 --      mov rdx,:opAddI
 --      mov rsi,:opAddF
 --  []
+        mov [e14code],1
         jmp :opMath
 
       :%opAddi              -- [edi]:=ecx+eax, no dealloc, builtin typecheck
@@ -525,6 +535,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opAddI
         mov rsi,:opAddF
     []
+        mov [e14code],1
         jmp :opMathi
 
 --/*
@@ -551,6 +562,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opSubI
         mov rsi,:opSubF
     []
+        mov [e14code],2
         jmp :opMath
 
       :%opSubi              -- [edi]:=ecx-eax, no dealloc, builtin typecheck
@@ -562,6 +574,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opSubI
         mov rsi,:opSubF
     []
+        mov [e14code],2
         jmp :opMathi
 
 --/*
@@ -680,6 +693,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opDivI
         mov rsi,:opDivF
     []
+        mov [e14code],3
         jmp :opMath
 
       :%opDivi              -- [edi]:=ecx/eax, no dealloc, builtin typecheck
@@ -691,6 +705,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opDiviI
         mov rsi,:opDivF
     []
+        mov [e14code],3
         jmp :opMathi
 
 --/*
@@ -946,6 +961,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opMulI
         mov rsi,:opMulF
     []
+        mov [e14code],4
         jmp :opMath
 
       :%opMuli                  -- [edi]:=ecx*eax, no dealloc, builtin typecheck
@@ -957,6 +973,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opMuliI
         mov rsi,:opMulF
     []
+        mov [e14code],4
         jmp :opMathi
 
 --/*
@@ -999,6 +1016,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opAndBitsI
         mov rsi,:opAndBitsF
     []
+        mov [e14code],9
         jmp :opMath
 
 --/* (DEV/SUG)
@@ -1054,6 +1072,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opOrBitsI
         mov rsi,:opOrBitsF
     []
+        mov [e14code],10
         jmp :opMath
 
 --/*
@@ -1096,6 +1115,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,:opXorBitsI
         mov rsi,:opXorBitsF
     []
+        mov [e14code],11
         jmp :opMath
 
       }

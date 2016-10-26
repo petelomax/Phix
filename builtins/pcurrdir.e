@@ -22,7 +22,7 @@ NB: this is Phix only; it will not work on and may even crash RDS Eu (an 8-bit s
 include builtins\pgetpath.e -- not strictly necessary, but why not.
 ----/**/include builtins\pcfunc.e -- not strictly necessary, but why not.
 --include builtins\VM\pgetpathN.e -- not strictly necessary, but why not. [DEAD]
---include builtins\VM\pcfuncN.e -- not strictly necessary, but why not.
+--include builtins\VM\pcfunc.e -- not strictly necessary, but why not.
 
 integer init = 0
 atom kernel32, xGetCurrentDirectory

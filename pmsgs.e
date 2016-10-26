@@ -615,8 +615,8 @@ sequence name
                   "get_mouse", "mouse_events", "mouse_pointer",
                   "get_pixel", "pixel"}) then
         Abort("undefined:"&name&".\n\nPhix does not support DOS programming.")
-    elsif equal(name,"my_dir") then
-        Abort("undefined:"&name&".\n\nYou may have meant set_walk_dir_sort_rtn().")
+--  elsif equal(name,"my_dir") then
+--      Abort("undefined:"&name&".\n\nYou may have meant set_walk_dir_sort_rtn().")
     else
         Abort("undefined identifier "&name)
     end if
@@ -724,6 +724,8 @@ sequence errname, thisline, wi
 --integer fileno
 string fmsg
 --trace(1)
+--19/7/16:
+if batchmode then return end if
     ttidx = si[S_Name]
     errname = getname(ttidx,-2)
     if N<=T_Ainc

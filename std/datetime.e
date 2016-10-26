@@ -11,7 +11,6 @@
 namespace datetime
 --*/
 
-
 --include std/machine.e
 --include std/dll.e
 --include std/sequence.e
@@ -358,10 +357,13 @@ public enum YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS, DATE
 -- All components must be integers except
 -- seconds, as those can also be floating point values.
 
+
 public type datetime(object o)
     if atom(o) then return 0 end if
 
-    if length(o)!=6 then return 0 end if
+--type check failure, d is {2016,7,28,14,48,26,5,210}
+--  if length(o)!=6 then return 0 end if
+    if length(o)<6 then return 0 end if
 
     if not integer(o[YEAR]) then return 0 end if
 
@@ -558,15 +560,14 @@ end function
 --
 -- Example 1:
 -- <eucode>
--- dt = newdate(2010, 1, 1, 0, 0, 0)
+-- dt = new_date(2010, 1, 1, 0, 0, 0)
 -- -- dt is Jan 1st, 2010
 -- </eucode>
 --
 -- See Also:
 --     [[:from_date]], [[:from_unix]], [[:now]], [[:new_time]]
 
-public function newdate(integer year=0, integer month=0, integer day=0,
-            integer hour=0, integer minute=0, atom second=0)
+public function new_date(integer year=0, integer month=0, integer day=0,    integer hour=0, integer minute=0, atom second=0)
 datetime d
     d = {year, month, day, hour, minute, second}
     if equal(d, {0,0,0,0,0,0}) then
@@ -596,7 +597,7 @@ end function
 --     [[:from_date]], [[:from_unix]], [[:now]], [[:new]]
 
 public function new_time(integer hour, integer minute, atom second)
-    return newdate(0, 0, 0, hour, minute, second)
+    return new_date(0, 0, 0, hour, minute, second)
 end function
 
 --**
@@ -610,7 +611,7 @@ end function
 --
 -- Example 1:
 -- <eucode>
--- d = newdate(2008, 5, 2, 0, 0, 0)
+-- d = new_date(2008, 5, 2, 0, 0, 0)
 -- day = weeks_day(d) -- day is 6 because May 2, 2008 is a Friday.
 -- </eucode>
 
@@ -634,7 +635,7 @@ end function
 --
 -- Example 1:
 -- <eucode>
--- d = newdate(2008, 5, 2, 0, 0, 0)
+-- d = new_date(2008, 5, 2, 0, 0, 0)
 -- day = years_day(d) -- day is 123
 -- </eucode>
 
@@ -653,9 +654,9 @@ end function
 --
 -- Example 1:
 -- <eucode>
--- d = newdate(2008, 1, 1, 0, 0, 0)
+-- d = new_date(2008, 1, 1, 0, 0, 0)
 -- ? is_leap_year(d) -- prints 1
--- d = newdate(2005, 1, 1, 0, 0, 0)
+-- d = new_date(2005, 1, 1, 0, 0, 0)
 -- ? is_leap_year(d) -- prints 0
 -- </eucode>
 --
@@ -676,9 +677,9 @@ end function
 --
 -- Example 1:
 -- <eucode>
--- d = newdate(2008, 1, 1, 0, 0, 0)
+-- d = new_date(2008, 1, 1, 0, 0, 0)
 -- ? days_in_month(d) -- 31
--- d = newdate(2008, 2, 1, 0, 0, 0) -- Leap year
+-- d = new_date(2008, 2, 1, 0, 0, 0) -- Leap year
 -- ? days_in_month(d) -- 29
 -- </eucode>
 --
@@ -699,9 +700,9 @@ end function
 --
 -- Example 1:
 -- <eucode>
--- d = newdate(2007, 1, 1, 0, 0, 0)
+-- d = new_date(2007, 1, 1, 0, 0, 0)
 -- ? days_in_year(d) -- 365
--- d = newdate(2008, 1, 1, 0, 0, 0) -- leap year
+-- d = new_date(2008, 1, 1, 0, 0, 0) -- leap year
 -- ? days_in_year(d) -- 366
 -- </eucode>
 --
@@ -797,14 +798,14 @@ end function
 --
 -- Example 1:
 -- <eucode>
--- d = newdate(2008, 5, 2, 12, 58, 32)
+-- d = new_date(2008, 5, 2, 12, 58, 32)
 -- s = dateformat(d, "%Y-%m-%d %H:%M:%S")
 -- -- s is "2008-05-02 12:58:32"
 -- </eucode>
 --
 -- Example 2:
 -- <eucode>
--- d = newdate(2008, 5, 2, 12, 58, 32)
+-- d = new_date(2008, 5, 2, 12, 58, 32)
 -- s = dateformat(d, "%A, %B %d '%y %H:%M%p")
 -- -- s is "Friday, May 2 '08 12:58PM"
 -- </eucode>
@@ -1027,7 +1028,7 @@ integer epos
         spos += 1
     end while
 
-    return newdate(res[1], res[2], res[3], res[4], res[5], res[6])
+    return new_date(res[1], res[2], res[3], res[4], res[5], res[6])
 end function
 
 --**

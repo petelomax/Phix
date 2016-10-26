@@ -116,27 +116,8 @@
          executed to test the value of x (i.e. the new value of h1 or h2). If hour()
          returns true, execution continues normally. If hour() returns false then the
          program is aborted with a suitable diagnostic message.
-       <dl>
-        <dt>
-         <a name=can></a>
-         <b>
-          <font color="navy">Note:</font>
-         </b>
-        </dt>
-        <dd>
-         Technically a user defined type can only be used to prove an object is definitely 
-         <i>not</i> an instance of that type. While 4 is certainly an integer, it could be 
-         an hour, or a minute, or second; there is no way to tell. 
-         If a more precise implementation is required, instances must be explicitly tagged, 
-         say {HOUR,4} or {MINUTE,4} where HOUR and MINUTE are application-unique constants 
-         (you could in theory use the routine_id of the type definitions).
-         Such a scheme would only be of any value if all types throughout the application 
-         were tagged, and no untagged sequences were (permanently) kept. The remainder of 
-         this document does not generally assume such fastidiousness, and it has been my 
-         experience that such "more advanced" type systems catch <i>very few</i> extra 
-         bugs, and indeed sometimes implement more bugs than they ever catch.
-        </dd>
-       </dl>
+        <br>
+        <br>
          "hour" can be used to declare subroutine parameters as well:
 <!--eucode>
      procedure set_time(hour h)
@@ -154,8 +135,51 @@
          returns false. Subroutine parameter types are checked each time that the
          subroutine is called. This checking guarantees that a variable can never have
          a value that does not belong to the type of that variable.
-       <br>
-       <br>
+       <dl>
+        <dt>
+         <a name=can></a>
+         <b>
+          <font color="navy">Notes:</font>
+         </b>
+        </dt>
+        <dd>
+         Technically a user defined type can only be used to prove an object is definitely 
+         <i>not</i> an instance of that type. While 4 is certainly an integer, it could be 
+         an hour, or a minute, or second; there is no way to tell. 
+         If a more precise implementation is required, instances must be explicitly tagged, 
+         say {HOUR,4} or {MINUTE,4} where HOUR and MINUTE are application-unique constants 
+         (you could in theory use the routine_id of the type definitions, or strings).
+         Such a scheme might still yield "false positives" if the application contains any
+         untagged sequences. In my experience such "more advanced" type systems catch very 
+         few extra bugs, and indeed sometimes implement more bugs than they ever catch - 
+         but don&rsquo;t let my opinion dissuade you - properly tagged user defined types 
+         remain a perfectly valid tactic in the war against bugs, and indeed [temporary]
+         human-readable tags (ie strings) can greatly simplify debugging.
+<!--DEV more tests/thought required...
+         <br>
+         <br>
+         For maximum flexibility, in terms of what you can test for being a given type,
+         the type definition parameter should be declared as type object. However, that
+         can limit compiler analysis leading to fewer potentially helpful error/warning 
+         messages and possibly lower quality emitted code. 
+
+         You can also "daisy-chain" type definitions to any depth, for instance worktime, 
+         playtime, and sleeptime might be subsets of hour, and further lunchtime and 
+         breaktime might be subsets of worktime. Note that when a type routine is invoked
+         implicitly due to an assigment to a variable of that type, errors are propagated
+         Whereas "function f(hour h)" may suffer
+         a typecheck on the function definition line, "type playtime(hour h)" fails more
+         gracefully, effectively propagating the error to the offending assignment, or 
+         yielding false when it is invoked explicitly.
+
+         Using
+         object may reduce clarity and require additional explicit tests buried within
+         the body of the type declaration, whereas more restrictive parameter types, 
+         eg "type hour(integer x)" instead of "type hour(object x)", may require use of 
+         additional clauses such as "if integer(x) and hour(x) then" to avoid crashes.
+-->
+        </dd>
+       </dl>
        <a name=typechk></a>
          Unlike other languages, the type of a variable does not affect any
          calculations on the variable. Only the value of the variable matters in an
@@ -166,8 +190,8 @@
         low-level type of every value over and over and over again, and astonishingly
         as soon as they make the slightest mistake the compiler quietly "fixes" it for
         them using something called type coercion, which almost inevitably leads to a
-        catastrophic failure that is extremely difficult to track down. Obviously a
-        programmer with decades of experience handles such things with ease, but that
+        catastrophic failure that can be extremely difficult to track down. Obviously 
+        a programmer with decades of experience handles such things with ease, but that
         is clearly not the case for newcomers. Phix turns the whole notion of types on 
         it&rsquo;s head: they are there to help the programmer, not punish them, and in
         no cases whatsoever, under any circumstances, do Phix types alter the meaning
@@ -256,11 +280,11 @@
        <br>
        <br>
          For larger programs, strict type definitions can greatly aid the process
-         of debugging. Logic errors are caught close to their source and are not
-         allowed to propagate in subtle ways through the rest of the program.
+         of debugging. Logic errors are caught closer to their source and are not
+         allowed to propagate in subtle ways throughout the rest of the program.
          Furthermore, it is much easier to reason about the misbehavior of a
-         section of code when you are guaranteed that the variables involved
-         always have a legal value, if not the desired value.
+         section of code when you know the variables involved always have a 
+         legal/plausible value, albeit perhaps not precisely that desired.
        <br>
        <br>
          Types also provide meaningful, machine-checkable documentation about your

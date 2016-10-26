@@ -1,0 +1,121 @@
+--
+--  t62utf.exw
+--  ==========
+--
+--  test the utf conversion routines
+--
+
+--?"wyj\u015Bcie"
+--(\u015B -> C5 9B).
+if "wyj\u015Bcie"!={'w','y','j',#C5,#9B,'c','i','e'} then ?9/0 end if
+
+--include builtins/utfconv.e [now an autoinclude]
+
+function hex(sequence s)
+-- quick ditty, which is more useful for ?hex(..) than it is for hex(..)!=".." tests,
+--  but of course after writing the former and visually verifying, it is easier to
+--  copy/paste the text directly, than it is to reconstruct any non-text results,
+--  as I quickly found out while writing the first half dozen that way.
+    for i=1 to length(s) do
+        s[i] = sprintf("#%x",s[i])
+    end for
+    return s
+end function
+
+if utf8_to_utf32("ascii")!="ascii" then ?9/0 end if
+if not string(utf8_to_utf32("ascii")) then ?9/0 end if
+
+if utf8_to_utf32("\#FF\#7F\#DF\#BF")!={#FFFD,#7F,#7FF} then ?9/0 end if -- (#FF -> Invalid, #7F as-is, {#DF,#BF} -> #7FF)
+if utf32_to_utf8({#FFFD,#7F,#7FF})!="\#EF\#BF\#BD\#7F\#DF\#BF" then ?9/0 end if
+
+-- EXAMPLE: x = utf32_to_utf8({-5, #7F, #10FFFF, #110000})
+--            x is {INVALID_UNICODE, 127, 244, 143, 191, 191, INVALID_UNICODE}
+if utf32_to_utf8({-5, #7F, #10FFFF, #110000})!={239,191,189,127,244,143,191,191,239,191,189} then ?9/0 end if
+if utf32_to_utf8({-5, #7F, #10FFFF, #110000})!="\#EF\#BF\#BD\#7F\#F4\#8F\#BF\#BF\#EF\#BF\#BD" then ?9/0 end if
+--                                               <-invalid->  "  <-4 byte code-> <-invalid->
+
+--   The character sequence U+0041 U+2262 U+0391 U+002E "A<NOT IDENTICAL TO><ALPHA>." is encoded in UTF-8 as follows:
+--
+--     --+--------+-----+--
+--     41 E2 89 A2 CE 91 2E
+--     --+--------+-----+--
+
+if hex(utf32_to_utf8({#41,#2262,#0391,#002E}))!={"#41","#E2","#89","#A2","#CE","#91","#2E"} then ?9/0 end if
+if hex(utf8_to_utf32("\#41\#E2\#89\#A2\#CE\#91\#2E"))!= {"#41","#2262","#391","#2E"} then ?9/0 end if
+
+--   The character sequence U+D55C U+AD6D U+C5B4 (Korean "hangugeo", meaning "the Korean language") is encoded in UTF-8 as follows:
+--
+--     --------+--------+--------
+--     ED 95 9C EA B5 AD EC 96 B4
+--     --------+--------+--------
+
+if hex(utf32_to_utf8({#D55C,#AD6D,#C5B4}))!= {"#ED","#95","#9C","#EA","#B5","#AD","#EC","#96","#B4"} then ?9/0 end if
+if hex(utf8_to_utf32("\#ED\#95\#9C\#EA\#B5\#AD\#EC\#96\#B4"))!={"#D55C","#AD6D","#C5B4"} then ?9/0 end if
+
+--   The character sequence U+65E5 U+672C U+8A9E (Japanese "nihongo", meaning "the Japanese language") is encoded in UTF-8 as follows:
+--
+--     --------+--------+--------
+--     E6 97 A5 E6 9C AC E8 AA 9E
+--     --------+--------+--------
+
+if hex(utf32_to_utf8({#65E5,#672C,#8A9E}))!={"#E6","#97","#A5","#E6","#9C","#AC","#E8","#AA","#9E"} then ?9/0 end if
+if hex(utf8_to_utf32("\#E6\#97\#A5\#E6\#9C\#AC\#E8\#AA\#9E"))!={"#65E5","#672C","#8A9E"} then ?9/0 end if
+
+--   The character U+233B4 (a Chinese character meaning 'stump of tree') is encoded in UTF-8 as follows:
+--
+--     --------+--
+--     F0 A3 8E B4
+--     --------+--
+
+if hex(utf32_to_utf8({#233B4}))!={"#F0","#A3","#8E","#B4"} then ?9/0 end if
+if hex(utf8_to_utf32("\#F0\#A3\#8E\#B4"))!={"#233B4"} then ?9/0 end if
+
+-- (None of the characters C0,C1,F5-FF should appear in utf8)
+if hex(utf8_to_utf32("\#C0\#C1\#F5\#FF"))!={"#FFFD","#FFFD","#FFFD","#FFFD"} then ?9/0 end if
+
+if utf8_to_utf32("\#ED\#A1\#8C\#ED\#BE\#B4")!={#FFFD,#FFFD} then ?9/0 end if -- not {#D84C,#DFB4}, and certainly not {#233B4}
+
+if hex(utf8_to_utf32("\#00"))!={"#0"} then ?9/0 end if
+if hex(utf32_to_utf8({0}))!={"#0"} then ?9/0 end if
+if hex(utf8_to_utf32("\#C0\#80"))!={"#FFFD"} then ?9/0 end if -- (/not/ "\0")
+
+if utf8_to_utf32("/../")!="/../" then ?9/0 end if
+if hex(utf8_to_utf32("/../"))!={"#2F","#2E","#2E","#2F"} then ?9/0 end if
+if hex(utf8_to_utf32("\#2F\#2E\#2E\#2F"))!={"#2F","#2E","#2E","#2F"} then ?9/0 end if
+if hex(utf8_to_utf32("\#2F\#C0\#AE\#2E\#2F"))!={"#2F","#FFFD","#2E","#2F"} then ?9/0 end if -- (overlong #2E)
+
+if hex(utf16_to_utf32({#D808,#DF45,#3D,#52,#61}))!={"#12345","#3D","#52","#61"} then ?9/0 end if
+if hex(utf32_to_utf8({#12345,#3D,#52,#61}))!={"#F0","#92","#8D","#85","#3D","#52","#61"} then ?9/0 end if
+if hex(utf8_to_utf16("\#F0\#92\#8D\#85\#3D\#52\#61"))!={"#D808","#DF45","#3D","#52","#61"} then ?9/0 end if
+if hex(utf32_to_utf16({#12345,#3D,#52,#61}))!={"#D808","#DF45","#3D","#52","#61"} then ?9/0 end if
+
+if hex(utf32_to_utf8({#20AC}))!={"#E2","#82","#AC"} then ?9/0 end if
+if hex(utf16_to_utf8({#20AC}))!={"#E2","#82","#AC"} then ?9/0 end if
+if hex(utf8_to_utf32("\#E2\#82\#AC"))!={"#20AC"} then ?9/0 end if
+if hex(utf8_to_utf16("\#E2\#82\#AC"))!={"#20AC"} then ?9/0 end if
+
+
+--Character              Binary code point  Binary UTF-8                  Hexadecimal UTF-8
+--$     U+0024                    010 0100  00100100                            24
+--¢     U+00A2               000 1010 0010  11000010 10100010                   C2 A2
+--€     U+20AC         0010 0000 1010 1100  11100010 10000010 10101100          E2 82 AC
+--??    U+10348 0 0001 0000 0011 0100 1000  11110000 10010000 10001101 10001000 F0 90 8D 88
+if hex(utf32_to_utf8({#24,#A2,#20AC,#10348}))!={"#24","#C2","#A2","#E2","#82","#AC","#F0","#90","#8D","#88"} then ?9/0 end if
+if hex(utf32_to_utf16({#24,#A2,#20AC,#10348}))!={"#24","#A2","#20AC","#D800","#DF48"} then ?9/0 end if
+if hex(utf16_to_utf8({#24,#A2,#20AC,#D800,#DF48}))!={"#24","#C2","#A2","#E2","#82","#AC","#F0","#90","#8D","#88"} then ?9/0 end if
+
+if hex(utf8_to_utf32("\#F0\#82\#82\#AC"))!={"#FFFD"} then ?9/0 end if -- (overlong encoding of #20AC)
+
+constant 
+    UTF8    = "\#EF\#BB\#BF",
+    UTF16BE = "\#FE\#FF",
+    UTF16LE = "\#FF\#FE"
+if hex(utf8_to_utf32(UTF8))!={"#FEFF"} then ?9/0 end if                 -- (BOM equivalence)
+if hex(utf8_to_utf32(UTF16BE))!={"#FFFD","#FFFD"} then ?9/0 end if
+if hex(utf8_to_utf32(UTF16LE))!={"#FFFD","#FFFD"} then ?9/0 end if
+if hex(utf16_to_utf8({#FEFF}))!={"#EF","#BB","#BF"} then ?9/0 end if    -- (BOM equivalence)
+if hex(utf16_to_utf8({#FFFE}))!={"#EF","#BF","#BE"} then ?9/0 end if
+
+if hex(utf8_to_utf32("\#EF\#BF\#BD"))!={"#FFFD"} then ?9/0 end if       -- (INVALID equivalence)
+if hex(utf8_to_utf16("\#EF\#BF\#BD"))!={"#FFFD"} then ?9/0 end if       --  ""
+

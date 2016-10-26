@@ -17,7 +17,7 @@
             include pGUI.e
             <br>
             <br>
-            IupConfigDialogShow(Ihandle ih, Ihandle dialog, string name)
+            IupConfigDialogShow(Ihandle config, Ihandle dialog, string name, bool maximised=0)
           </font>
          </td>
         </tr>
@@ -29,9 +29,10 @@
             Call IupConfigDialogShow to show a dialog using the size and position from some previous call of IupConfigDialogClosed.
             <br>
             <br>
-            ih: Identifier of the configuration database (see <a href="IupConfig.htm">IupConfig</a>)<br>
+            config: Identifier of the configuration database (see <a href="IupConfig.htm">IupConfig</a>)<br>
             dialog: the dialog to manage the size and position<br>
-            name: a group name for this dialog
+            name: a group name for this dialog<br>
+            maximised: a default setting for the first time the dialog is used.
             <br>
             <br>
             The group name should be arbitrarily selected by the programmer to be meaningful and unique across the application,
@@ -43,10 +44,9 @@
             <br>
             <br>
             If the dialog was closed maximized it will be shown maximized. <br>
-            The default size, at the first time ever the dialog is shown, is maximized. <br>
             If your dialog is resizable and you want to avoid the last size usage because you changed the dialog layout, 
             then reset the "Width" and "Height" variables before calling IupConfigDialogShow.<br>
-            To avoid the dialog size to be maximized, set the variable "Maximized" to 0 before calling IupConfigDialogShow.
+            To use IupConfigDialogShow for a modal dialog, call it before calling IupPopup(dialog,IUP_CURRENT,IUP_CURRENT).
             <br>
             <br>
             The position is saved in the variables "X" and "Y" of the given group name. <br>
@@ -63,9 +63,7 @@
          </td>
          <td>
 <!--eucode>
-integer m = IupConfigGetVariableInt(config, "MainWindow", "Maximized", 0)
-IupConfigSetVariableInt(config, "MainWindow", "Maximized", m)
-IupConfigDialogShow(config, mainwin, "MainWindow");
+IupConfigDialogShow(config, mainwin, "MainWindow")
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> m</font><font color="#0000FF"> =</font><font color="#5E005E"> IupConfigGetVariableInt</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">,</font><font color="#008000"> "MainWindow"</font><font color="#0000FF">,</font><font color="#008000"> "Maximized"</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">)
@@ -88,7 +86,31 @@ IupConfigDialogShow(config, mainwin, "MainWindow");
           <a href="IupGetAttribute.htm">IupGetAttribute</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The maximised parameter is used internally as follows:
+<!--eucode>
+    integer m = IupConfigGetVariableInt(config, name, "Maximized", maximised)
+    IupConfigSetVariableInt(config, name, "Maximized", m)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> m</font><font color="#0000FF"> =</font><font color="#5E005E"> IupConfigGetVariableInt</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">,</font><font color="#008000"> "MainWindow"</font><font color="#0000FF">,</font><font color="#008000"> "Maximized"</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">)
+</font><font color="#5E005E">IupConfigSetVariableInt</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">,</font><font color="#008000"> "MainWindow"</font><font color="#0000FF">,</font><font color="#008000"> "Maximized"</font><font color="#0000FF">,</font><font color="#000000"> m</font><font color="#0000FF">)
+</font><font color="#5E005E">IupConfigDialogShow</font><font color="#0000FF">(</font><font color="#000000">config</font><font color="#0000FF">,</font><font color="#000000"> mainwin</font><font color="#0000FF">,</font><font color="#008000"> "MainWindow"</font><font color="#0000FF">);</font>
+</pre>
+            That is, maximised is used as the default for "m" if "Maximised" has never been set before, then "m" is applied.
+            Previously such code was required before each and every call to IupConfigDialogShow, otherwise the default would
+            be to maximise the child window, as soon as you tried using IupConfigDialogShow to re-open it in the same place.
+            Obviously, no such handling occurs in the raw C api.
+         </td>
+        </tr>
        </table>
+       <img src="Images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

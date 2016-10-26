@@ -1,0 +1,146 @@
+--
+-- 3d_text.exw
+-- ===========
+--
+-- Example of using wglUseFontOutlines to create three-dimensional (3-D) characters based on a TrueType font
+-- for use in OpenGL-rendered scenes. 
+--
+-- /Mic, 2003
+-- Translated to Phix by Pete Lomax
+INCOMPLETE, and probably windows-only....
+
+include pGUI.e
+include opengl.e
+--include glu.e
+--include winbmp.ew
+--include tga.e
+
+
+constant scrolltext = allocate_string("3D Text")
+
+atom font_list
+
+
+procedure init()
+atom font
+
+-- Make room for 128 characters (we don't need the whole charset here).
+--  font_list = gl_genLists(128)
+    font_list = glGenLists(128)
+
+--/*
+    -- Create a font
+    font = ewCreateFont(12,
+                        0,
+                        0,
+                        0,
+                        FW_BOLD,    -- Specify bold font weight
+                        1,          -- Italic flag
+                        0,
+                        0,
+                        ANSI_CHARSET,
+                        OUT_OUTLINE_PRECIS,
+                        CLIP_DEFAULT_PRECIS,
+                        ANTIALIASED_QUALITY,
+                        FF_DONTCARE,
+                        "georgia")
+
+    if ewSelectObject(glhDC, font) then
+    end if
+--*/
+
+    -- Create the 3D font.
+    if wglUseFontOutlines(glhDC,                -- Device context
+                          0,                    -- First glyph
+                          128,                  -- Number of glyphs
+                          font_list,            -- Starting display list
+                          0.001,                -- Deviation from outline
+                          0.2,                  -- Extrusion
+                          WGL_FONT_POLYGONS,    -- Build 3D characters using polygons
+                          0) then               -- Pointer to glyph metrics struct (NULL)
+    end if
+
+    -- Remove invisible faces
+    gl_enable(GL_CULL_FACE)
+
+    gl_enable(GL_LIGHT0)
+    gl_enable(GL_COLOR_MATERIAL)
+
+    gl_clearColor(0.1, 0.35, 0.4, 1.0)
+end procedure
+
+
+
+
+procedure draw()
+    gl_clear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT)
+
+    gl_matrixMode(GL_MODELVIEW)
+    gl_loadIdentity()
+    gl_matrixMode(GL_PROJECTION)
+    gl_loadIdentity()
+    glu_perspective(70, 1.33, 0.01, 20)
+
+    gl_enable(GL_LIGHTING)
+
+    gl_pushMatrix()
+
+    -- Center the text
+    gl_translatef({-1.5,-0.3,-1.8})
+
+    -- Tilt the characters
+    gl_rotatef(10, {0, 1, 0})
+    gl_rotatef(25, {1, 0, 0})
+
+    gl_color3f({1.0,0.1,0.1})
+
+    -- Render the string
+    gl_listBase(font_list)
+    gl_callLists(7, GL_UNSIGNED_BYTE, scrolltext)
+
+    gl_popMatrix()
+
+    gl_disable(GL_LIGHTING)
+
+    if ewSwapBuffers(glhDC) then
+    end if
+end procedure
+
+
+
+procedure key(integer keycode,integer /*x*/,integer /*y*/)
+    if keycode=VK_ESCAPE then
+        ewPostQuitMessage(0)
+    end if
+end procedure
+
+--/*
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+--*/
+
+
+procedure reshape(integer w,integer h)
+    gl_viewport(0,0,w,h)
+end procedure
+
+
+
+
+-- Tell EuGL to use double-buffering
+euglFlags = PFD_DOUBLEBUFFER
+
+euglDisplayFunc(routine_id("draw"))
+euglInitFunc(routine_id("init"))
+euglReshapeFunc(routine_id("reshape"))
+euglKeyboardFunc(routine_id("key"))
+
+EuGLMain(EUGL_HANDLE_EVENTS, "3D Text", 400, 288)
+
+
+

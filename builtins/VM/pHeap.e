@@ -1124,10 +1124,10 @@ end procedure -- (for Edita/CtrlQ)
 --  it may be superfluous as the callback handler should cope, but all this has changed
 --  beyond recognition since the days when pComN.ew was written... [DEV]
 --  A callback is an asynchrochronous event to Phix: when it invokes some external C/asm 
---  code, it has no idea if, when, or in what state things will be in when control gets 
+--  code, it has no idea if, when, or in what state things will be in, when control gets 
 --  to the callback handler, and it needs some way to restore a bit of sanity. Prior to 
---  multithreading, this used a local static variable in pcfuncN.e. The local integer(s)
---  local_ebp4, in call()/c_func()/c_proc(), use the trick of storing a dword-aligned 
+--  multithreading, this used a local static variable in pcfunc.e. The local integer(s)
+--  prev_ebp4, in call()/c_func()/c_proc(), use the trick of storing a dword-aligned 
 --  value /4 in an integer, and that takes care of any nesting, to any depth. 
 --  Logically, I suppose, pSetSaveEBP belongs in pStack.e - but making pGetTCB global is 
 --  not really justifiable, especially not just for this trivial little thing.
@@ -3271,6 +3271,10 @@ end procedure -- (for Edita/CtrlQ)
         test eax,eax
 --      jz :memoryallocationfailure
         jnz @f
+            mov edx,[esp+32]                -- era
+            mov al,33   -- e33maf
+            sub edx,1
+            jmp :!iDiag
             int3
       @@:
         mov ecx,[esp+24]                -- retrieve original length (ecx from the pushad)
@@ -3402,6 +3406,38 @@ end procedure -- (for Edita/CtrlQ)
         lea rax,[rax+41]                -- ref: raw plus header & type bit,
         add rsp,5*8
         ror rax,2                       -- rotated,
+    []
+        ret
+
+--/*
+procedure :%pLoadFlt(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%pLoadFlt
+---------------
+    [32]
+        -- Load [esi] into st0, whether integer or floating-point.
+        -- NB no checks are made to verify [esi] is an atom.
+        -- eax is damaged, all other registers are preserved.
+        mov eax,[esi]
+        cmp eax,h4
+        jl @f
+            fld qword[ebx+eax*4]
+            ret
+      @@:
+        fild dword[esi]
+    [64]
+        -- Load [rsi] into st0, whether integer or floating-point.
+        -- NB no checks are made to verify [rsi] is an atom.
+        -- rax is damaged, r15 set ot h4, all other registers are preserved.
+        mov rax,[rsi]
+        mov r15,h4
+        cmp rax,r15
+        jl @f
+            fld tbyte[rbx+rax*4]
+            ret
+      @@:
+        fild qword[rsi]
     []
         ret
 
@@ -3665,6 +3701,7 @@ end procedure -- (for Edita/CtrlQ)
         jle @f
             cmp byte[ebx+eax*4-1],#12
             je :LoadMintFlt
+                --DEV or should we use the carry flag??
                 pop edx
                 mov al,48               -- e48atlmmba
                 sub edx,1
@@ -3689,9 +3726,9 @@ end procedure -- (for Edita/CtrlQ)
         jle @f
             cmp byte[rbx+rax*4-1],#12
             je :LoadMintFlt
-                pop edx
+                pop rdx
                 mov al,48               -- e48atlmmba
-                sub edx,1
+                sub rdx,1
                 jmp :!iDiag
                 int3
           ::LoadMintFlt

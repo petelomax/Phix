@@ -560,52 +560,52 @@ integer rex
             if Ch='+' then
                 getCh()
                 getToken()
-                if toktype=LETTER then
-?9/0 --DEV this can be removed, I think... (only [ds+imm] allowed, for initStack/opRand only)
-                    if base=0 then
---                      base = find(ttidx,REG32)
---                      if base=0 and Z64=1 then
---                          base = find(ttidx,R64)
+--              if toktype=LETTER then
+--?9/0 --DEV this can be removed, I think... (only [ds+imm] allowed, for initStack/opRand only)
+--                  if base=0 then
+----                        base = find(ttidx,REG32)
+----                        if base=0 and Z64=1 then
+----                            base = find(ttidx,R64)
+----                        end if
+--                      base = findreg(rex)
+--                      if base=0 then
+--                          Aborp("unrecognised")
 --                      end if
-                        base = findreg(rex)
-                        if base=0 then
-                            Aborp("unrecognised")
-                        end if
-                    else
---                      idx = find(ttidx,REG32)
---                      if idx=0 and Z64=1 then
---                          idx = find(ttidx,R64)
+--                  else
+----                        idx = find(ttidx,REG32)
+----                        if idx=0 and Z64=1 then
+----                            idx = find(ttidx,R64)
+----                        end if
+--                      idx = findreg(rex)
+--                      if idx=0 then
+--                          Aborp("unrecognised")
 --                      end if
-                        idx = findreg(rex)
-                        if idx=0 then
-                            Aborp("unrecognised")
-                        end if
-                        if Ch='*' then  -- [i*s+n]
-                            getCh()
-                            getToken()
-                            if toktype!=DIGIT
-                            or not find(TokN,{2,4,8}) then
-                                Aborp("unrecognised")
-                            end if
-                            scale = TokN
-                        end if
-                    end if
-                    if Ch='+' then
-                        getCh()
-                        getToken()
-                        if toktype!=DIGIT
-                        or not find(TokN,valid_ds_offsets) then
-                            Aborp("unrecognised")
-                        end if
-                        offset = TokN
-                    end if
-                else
+--                      if Ch='*' then  -- [i*s+n]
+--                          getCh()
+--                          getToken()
+--                          if toktype!=DIGIT
+--                          or not find(TokN,{2,4,8}) then
+--                              Aborp("unrecognised")
+--                          end if
+--                          scale = TokN
+--                      end if
+--                  end if
+--                  if Ch='+' then
+--                      getCh()
+--                      getToken()
+--                      if toktype!=DIGIT
+--                      or not find(TokN,valid_ds_offsets) then
+--                          Aborp("unrecognised")
+--                      end if
+--                      offset = TokN
+--                  end if
+--              else
                     if toktype!=DIGIT
                     or not find(TokN,valid_ds_offsets) then
                         Aborp("unrecognised")
                     end if
                     offset = TokN
-                end if
+--              end if
             end if
         else
             if toktype!=DIGIT
@@ -1014,12 +1014,16 @@ integer state
                 state = symtabN[S_State]
                 if not and_bits(state,K_ridt) then
                     symtabN = {}    -- (kill refcount)
+if 01 then
+                    Or_K_ridt(ridN, K_used+S_used+K_ridt)
+else
 --                  state = or_bits(state,K_used+K_ridt)
                     state = or_bits(state,K_used+S_used+K_ridt)
 --                  state = or_bits(state,S_used+K_ridt)
 --printf(1,"pilasm.e line 1011: setting S_State/K_ridt on symtab[%d]\n",ridN)
 --Z_ridN = ridN
                     symtab[ridN][S_State] = state
+end if
                 end if
                 return {P_RID,4,ridN}
             end if
@@ -3195,6 +3199,7 @@ end if
                     else
                         ?9/0 -- sanity check (should never trigger)
                     end if
+--DEV togo??
                 elsif Ch='%' then -- opcode
                     -- eg call %opRetf (call_rel32 %isOpCode implied)
                     getCh()
@@ -4701,8 +4706,9 @@ end if
         label_fixup()           -- (also called at end of DoRoutineDef)
     end if
 
-    if SideEffects=0 then
+    if SideEffects=E_none then
         -- assume ilasm does something...
+        -- (avoid no side effect warnings on routines that use #ilASM)
         SideEffects = E_other
     end if
     emitON = wasemitON

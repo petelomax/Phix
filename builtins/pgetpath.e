@@ -43,7 +43,7 @@ include builtins\file.e
 --include builtins\VM\pHeap.e       -- allocate()
 
 ----/**/    include builtins\pcfunc.e   --DEV
---include builtins\VM\pcfuncN.e
+--include builtins\VM\pcfunc.e
 --/**/  include builtins\pcurrdir.e
 --include builtins\VM\pcurrdirN.e [DEAD, so above should be fine]
 
@@ -123,8 +123,29 @@ integer k
     return filepath
 end function
 
+function toString(sequence name)--, integer errcode)
+-- Explicitly convert a dword-sequence to an 8-bit string
+string res
+integer nlen
+object ch
+    nlen = length(name)
+    res = repeat(' ',nlen)
+    for i=1 to nlen do
+        ch = name[i]
+        if atom(ch) then
+            ch = and_bits(ch,#FF)
+            res[i] = ch
+        else
+--          fatal(errcode)
+            ?9/0
+        end if
+    end for
+    return res
+end function
+
 atom kernel32, buffer
 integer xGetLongPathName
+integer xGetShortPathName
 --integer xGetLastError
 constant MAX_PATH = 260
 
@@ -165,6 +186,9 @@ atom pFilePath
 --*/
 integer l
 sequence res
+    if not string(filepath) then
+        filepath = toString(filepath)
+    end if
     if platform()=WINDOWS then
         if not gppinit then
             --DEV locking as per pprntf.e
@@ -174,6 +198,11 @@ sequence res
                 {C_POINTER, --  LPCTSTR lpszShortPath // input
                  C_POINTER, --  LPTSTR lpszLongPath   // output
                  C_LONG},   --  DWORD cchBuffer // specifies size of *lpszLongPath
+                C_INT)  -- DWORD
+            xGetShortPathName = define_c_func(kernel32,"GetShortPathNameA",
+                {C_POINTER, --  LPCTSTR lpszLongPath // input
+                 C_POINTER, --  LPTSTR lpszShortPath   // output
+                 C_LONG},   --  DWORD cchBuffer // specifies size of *lpszShortPath
                 C_INT)  -- DWORD
 --          xGetLastError = define_c_func(kernel32, "GetLastError",
 --              {},
@@ -190,6 +219,14 @@ sequence res
 --29/7/15:
         buffer = allocate(MAX_PATH)
 
+--/**/  l = c_func(xGetShortPathName,{filepath,buffer,MAX_PATH}) --/* -- Phix
+        pFilePath = allocate_string(filepath)                        -- RDS
+        l = c_func(xGetLongPathName,{pFilePath,buffer,MAX_PATH})     -- RDS
+        free(pFilePath)                                         --*/ -- RDS
+        if l!=0 then
+            filepath = peek_string(buffer)
+        end if
+
 --/**/  l = c_func(xGetLongPathName,{filepath,buffer,MAX_PATH}) --/* -- Phix
         pFilePath = allocate_string(filepath)                        -- RDS
         l = c_func(xGetLongPathName,{pFilePath,buffer,MAX_PATH})     -- RDS
@@ -204,17 +241,90 @@ sequence res
 --pp(peek_string(buffer))
 --      return peek_string(buffer)
         free(buffer)
+--added 7/8/16: (no help with C:\Downloads)
+--      for i=length(res) to 1 by -1 do
+--          if res[i]='\\' then
+--              res = get_proper_path(res[1..i-1])&res[i..$]
+--              exit
+--          end if
+--      end for
     else -- linux
+        --
+        -- Replace any \\ in filepath with /
+        --
+        while 1 do
+            integer k = find('\\',filepath)
+            if k=0 then exit end if
+            filepath[k] = '/'
+        end while
+
+--all of this added 2/9/16:
+        --
+        -- Make sure there is a proper filepath.
+        --
+        if length(filepath)=0 or filepath[1]!='/' then
+            if atom(rootdir) or length(rootdir)=0 then
+                rootdir = current_dir()
+            end if
+            if rootdir[length(rootdir)]='/' then
+                filepath = rootdir & filepath
+            else
+                filepath = rootdir & '/' & filepath
+            end if
+        end if
+
+        --
+        -- check for and remove any /../ in filepath
+        --
+        while 1 do
+            integer k = match("/../",filepath)
+            if k=0 then exit end if
+            for j=k-1 to 1 by -1 do
+                if filepath[j]='/' then
+                    -- remove "/xxx/.." (keeping filepath[k+3]==='/')
+--/**/              filepath[j..k+2] = ""                                           --/* -- Phix
+                    filepath = filepath[1..j-1] & filepath[k+3..length(filepath)]   --*/ -- RDS
+                    k = 0 -- signal found
+                    exit
+                end if
+            end for
+            if k!=0 then
+                puts(1,"Warning, cannot cleanup "&filepath&'\n')
+--              ?9/0
+                exit
+            end if
+        end while
+        --
+        -- repeat for any /./
+        --
+        while 1 do
+            integer k = match("/./",filepath)
+            if k=0 then exit end if
+            -- remove "/." (keeping filepath[k+2]==='/')
+--/**/      filepath[k..k+1] = ""                                           --/* -- Phix
+            filepath = filepath[1..k-1] & filepath[k+2..length(filepath)]   --*/ -- RDS
+        end while
+        --
+        -- repeat for any //
+        --
+        while 1 do
+            integer k = match("//",filepath)
+            if k=0 then exit end if
+            -- remove 1st "/" of 2
+--/**/      filepath[k..k] = ""                                             --/* -- Phix
+            filepath = filepath[1..k-1] & filepath[k+1..length(filepath)]   --*/ -- RDS
+        end while
+
         res = filepath
     end if
     return res
 end function
 
-global function get_proper_dir(string filepath)
+global function get_proper_dir(string filepath, integer remove_slash=0)
     filepath = get_proper_path(filepath)
     for i=length(filepath) to 1 by -1 do
         if find(filepath[i],"\\/") then
-            filepath = filepath[1..i]
+            filepath = filepath[1..i-remove_slash]
             exit
         end if
     end for

@@ -1,8 +1,9 @@
 --DEV switch ... if ?? then break end if
+--DEV does not support "declare anywhere" properly, eg run.e/run_currfile()/hThread.
 --with trace
 --
--- earein.ew    -- Source code beautifier / re-indent
--- =========
+-- src/rein.ew  -- Source code beautifier / re-indent
+-- ===========
 --
 -- Invoked via Tools/Re-Indent source.
 -- Processes the current source, inserting and removing whitespace
@@ -239,7 +240,8 @@ integer k
         errtext &= msg
     elsif nWarns=10 then
         nWarns += 1
-        msg &= xl("further warnings suppressed\n")
+--      msg &= xl("further warnings suppressed\n")
+        msg &= "further warnings suppressed\n"
     end if
 end procedure
 
@@ -965,7 +967,11 @@ sequence oneline
                     col += 3
                     exit    -- (closing """ found)
                 end if
+                col += 1
             end while
+--29/9/16:
+            nextCh()
+            return
         end if
         while 1 do
             col += 1
@@ -1831,6 +1837,7 @@ integer wasinexpression
     wasinexpression = inexpression
     inexpression = 1
     wasNest = nest
+--DEV crash here 27/6/16:
     nest = ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
     striptrailing = 1
 if 0 then --old code
@@ -2788,9 +2795,7 @@ constant {fnames,fvalues} = columnize({{"xlSPACE",xlSPACE},
 
 constant fmt = substitute_all("""
 _____________xlSPACE: %b[No,Yes]
-             xlALGN1: %b[No,Yes]
-             xlALGN0: %b[No,Yes]
-             xlALGNO: %b[No,Yes]
+             %o|xlALGN1|xlALGN0|xlALGNO|
              Bt %u[xlGO, xlCANCL, xlHELP]
 """,fnames,fvalues)
 
@@ -2855,7 +2860,7 @@ end function
 setHandler({REIN,TIP,SPACE,ALIGN1,ALIGN0,ALIGNO,GO},
             routine_id("reinHandler"))
 --*/
-procedure ReIndent()
+global procedure ReIndent()
 --/**/sequence ext
     if currfile then
 --!/**/ ext = getFileExtension(filenames[currfile])
@@ -2874,6 +2879,6 @@ procedure ReIndent()
 --/**/  end if
     end if
 end procedure
-global constant r_ReIndent = routine_id("ReIndent")
+--global constant r_ReIndent = routine_id("ReIndent")
 
 

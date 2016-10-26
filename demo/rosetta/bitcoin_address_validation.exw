@@ -1,0 +1,307 @@
+--
+-- bitcoin_address_validation.exw
+-- ==============================
+--
+--  Uses the 32-bit windows only dll version of sha-256; see sha-256.exw for a 32/64/win/lnx version.
+--
+--DEV completely broken: nothing I have tried gets close.... (I suspect sha256 is duff)
+
+--/*
+--Initial array of round constants
+--(first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311):
+constant k = {
+   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+   0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+   0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+   0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+   0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+   0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+   0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2}
+
+function pad64(integer v)
+-- round v up to multiple of 64
+    return floor((v+63)/64)*64
+end function
+
+constant m4 = allocate(4)   -- scratch area, for uint32
+
+function uint32(atom v)
+--
+-- (note: I have experimented to call this as few times as possible. 
+--        It wouldn't hurt to perform this on every maths op, but a
+--        few leading bits in a few work fields doen't matter much.)
+--
+--  return and_bits(v,#FFFFFFFF)    -- no!
+    poke4(m4,v)
+    return peek4u(m4)
+end function
+
+function sq_uint32(sequence s)
+-- apply unit32 to all elements of s
+    for i=1 to length(s) do
+        s[i] = uint32(s[i])
+    end for
+    return s
+end function
+
+function dword(string msg, integer i)
+-- get dword as big-endian
+    return msg[i]*#1000000+msg[i+1]*#10000+msg[i+2]*#100+msg[i+3]
+end function
+
+function shr(atom v, integer bits)
+    return floor(v/power(2,bits))
+end function
+
+function ror(atom v, integer bits)
+    return or_bits(shr(v,bits),v*power(2,32-bits))
+end function
+
+function sha256(string msg)
+-- main function
+atom s0,s1,a,b,c,d,e,f,g,h,ch,temp1,maj,temp2,x
+sequence w = repeat(0,64)
+sequence res
+integer len = length(msg)+1
+--Initial hash values
+--(first 32 bits of the fractional parts of the square roots of the first 8 primes 2..19)
+atom h0 = 0x6a09e667,
+     h1 = 0xbb67ae85,
+     h2 = 0x3c6ef372,
+     h3 = 0xa54ff53a,
+     h4 = 0x510e527f,
+     h5 = 0x9b05688c,
+     h6 = 0x1f83d9ab,
+     h7 = 0x5be0cd19
+
+    -- add the '1' bit and space for size in bits, padded to multiple of 64
+    msg &= #80&repeat('\0',pad64(len+8)-len)
+    len = (len-1)*8
+    for i=length(msg) to 1 by -1 do
+        msg[i] = and_bits(len,#FF)
+        len = floor(len/#100)
+        if len=0 then exit end if
+    end for
+
+    -- Process the message in successive 512-bit (64 byte) chunks
+    for chunk=1 to length(msg) by 64 do
+        for i=1 to 16 do
+            w[i] = dword(msg,chunk+(i-1)*4)
+        end for
+        -- Extend the first 16 words into the remaining 48 words w[17..64] of the message schedule array
+        for i=17 to 64 do
+            x = w[i-15]; s0 = xor_bits(xor_bits(ror(x, 7),ror(x,18)),shr(x, 3))
+            x = w[i-2];  s1 = xor_bits(xor_bits(ror(x,17),ror(x,19)),shr(x,10))
+            w[i] = uint32(w[i-16]+s0+w[i-7]+s1)
+        end for
+        -- Initialize working variables to current hash value
+        {a,b,c,d,e,f,g,h} = {h0,h1,h2,h3,h4,h5,h6,h7}
+     
+        -- Compression function main loop
+        for i=1 to 64 do
+            s1 = xor_bits(xor_bits(ror(e,6),ror(e,11)),ror(e,25))
+            ch = xor_bits(and_bits(e,f),and_bits(not_bits(e),g))
+            temp1 = h+s1+ch+k[i]+w[i]
+            s0 = xor_bits(xor_bits(ror(a,2),ror(a,13)),ror(a,22))
+            maj = xor_bits(xor_bits(and_bits(a,b),and_bits(a,c)),and_bits(b,c))
+            temp2 = s0+maj
+     
+--          {h,g,f,e,d,c,b,a} = {g,f,e,uint32(d+temp1),c,b,a,uint32(temp1+temp2)} -- (works fine)
+            {h,g,f,e,d,c,b,a} = sq_uint32({g,f,e,d+temp1,c,b,a,temp1+temp2})
+
+        end for
+
+        -- Add the compressed chunk to the current hash value
+        {h0,h1,h2,h3,h4,h5,h6,h7} = sq_add({h0,h1,h2,h3,h4,h5,h6,h7},{a,b,c,d,e,f,g,h})
+    end for
+
+    -- Produce the final hash value (big-endian)
+    res = sq_uint32({h0, h1, h2, h3, h4, h5, h6, h7}) -- (or do sq_unit32 on the sq_add above)
+--  for i=1 to length(res) do
+--      res[i] = sprintf("%08x",res[i])
+--  end for
+--  return join(res)
+    return res
+end function
+--*/
+
+--constant SHA256_DIGEST_LENGTH = 32
+
+string coin_err
+
+constant b58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+string charmap = ""
+
+function unbase58(string s)
+string out = repeat('\0',25)
+    if length(charmap)=0 then
+        charmap = repeat('\0',256)
+        for i=1 to length(b58) do
+            charmap[b58[i]] = i
+        end for
+    end if
+    for i=1 to length(s) do
+        integer c = charmap[s[i]]
+        if c=0 then 
+            coin_err = "bad char"
+            return 0
+        end if
+        c -= 1
+        for j=25 to 1 by -1 do
+            c += 58 * out[j];
+            out[j] = and_bits(c,#FF)
+            c = floor(c/#100)
+        end for
+        if c!=0 then
+            coin_err = "address too long"
+            return 0
+        end if
+    end for
+--  return reverse(out)
+    return out
+end function
+
+--!/*
+constant lib = open_dll("SHA.DLL")  -- (32-bit windows only, as shipped)
+constant SHA_HashBlock = define_c_proc(lib,"SHA_HashBlock",{C_PTR,C_PTR,C_INT})
+
+function sha256(string s)
+atom mem = allocate(32)
+sequence res
+    c_proc(SHA_HashBlock,{s,mem,length(s)})
+    res = peek4u({mem,8})
+    free(mem)
+--  for i=1 to length(res) do
+--      res[i] = sprintf("%08x",res[i])
+--  end for
+--  return join(res)
+    return res
+end function
+--!*/
+
+--!/*
+function ashex(string s)
+string res = ""
+    for i=1 to length(s) do
+        res &= sprintf("%02x",s[i])
+        if remainder(i,4)=0 then
+            res &= ' '
+        end if
+    end for
+    return res
+end function
+--!*/
+
+--!/*
+atom mem4 = allocate(4)
+
+function reverse8(sequence s)
+atom si
+    for i=1 to length(s) do
+        si = s[i]
+        poke4(mem4,si)
+        poke(mem4,reverse(peek({mem4,4})))
+        si = peek4u(mem4)
+        s[i] = si
+    end for
+    return s
+end function
+--!*/
+
+function str8(sequence s)
+    for i=1 to length(s) do
+        s[i] = sprintf("%08x",s[i])
+    end for
+    s = join(s)
+    return s
+end function
+
+atom mem = allocate(32)
+--atom mem2 = allocate(32)
+
+procedure valid(string s)
+object dec
+sequence d1, d2
+    coin_err = "OK"
+    dec = unbase58(s)
+--?dec
+    if string(dec) then
+--?length(dec)  -- 25
+--?1
+--      c_proc(SHA_HashBlock,{dec,mem,21})
+        d1 = sha256(dec[1..21])
+--?2
+--      c_proc(SHA_HashBlock,{mem,mem2,SHA256_DIGEST_LENGTH})
+--      c_proc(SHA_HashBlock,{peek({mem,32}),mem2,SHA256_DIGEST_LENGTH})
+if 0 then
+        poke8(mem,reverse8(reverse(d1)))
+--      poke8(mem,reverse8(d1))
+--      poke8(mem,reverse(reverse8(d1)))
+--      poke8(mem,reverse8(reverse8(d1)))
+--      poke8(mem,reverse(d1))
+else
+        poke8(mem,d1)
+end if
+--?peek({mem,32})
+        d2 = sha256(peek({mem,32}))
+--?3
+ 
+--      SHA256(SHA256(dec, 21, d1), SHA256_DIGEST_LENGTH, d2);
+
+--  dec = ashex(dec)
+--  ?dec
+    ?ashex(dec)
+
+--  for i=1 to length(d1) do
+--      d1[i] = sprintf("%08x",d1[i])
+--  end for
+--  d1 = join(d1)
+    ?str8(d1)
+--
+--  for i=1 to length(d2) do
+--      d2[i] = sprintf("%08x",d2[i])
+--  end for
+--  d2 = join(d2)
+    ?str8(d2)
+
+        poke(mem,dec)
+--printf(1,"%08x, %08x\n",{peek4u(mem+21),peek4u(mem2)})
+printf(1,"%08x, %08x\n",{peek4u(mem+21),d2[8]})
+--      if peek4u(mem+21)!=peek4u(mem2) then
+--      if (mem_cmp(dec + 21, d2, 4))
+        if dec[1]!='\0'
+        or peek4u(mem+21)!=d2[8] then
+            coin_err = "bad digest"
+        end if
+--?d1
+--?d2
+    end if
+end procedure
+--return A(1) = 0 and A(22..25) = Double_Sha256(A(1..21));
+ 
+constant tests = {
+--              "1Q1pE5vPGEEMqRcVRMbtBK842Y6Pzo6nK9",
+                "1AGNa15ZQXAZUgFiqJ2i7Z2DPU2J6hW62i",
+--              "1Q1pE5vPGEEMqRcVRMbtBK842Y6Pzo6nJ9",
+--              "1AGNa15ZQXAZUgFiqJ2i7Z2DPU2J6hW62I",   -- bad char
+--              "1111111111111111111114oLvT2",
+--              "17NdbrSGoUotzeGCcMMCqnFkEvLymoou9j",
+--              "1badbadbadbadbadbadbadbadbadbadbad",
+                 $}
+        for i=1 to length(tests) do
+            valid(tests[i]);
+            printf(1,"%s: %s\n", {tests[i], coin_err})
+        end for
+
+--
+--function verify(string s)
+--!function sha256(string s)
+--!sequence res
+--  c_proc(SHA_HashBlock,{s,mem,length(s)})
+--! res = peek4u({mem,8})
+--
+----?sha256("Rosetta code")
+
+{} = wait_key()
+

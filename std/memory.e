@@ -827,6 +827,7 @@ public integer check_calls = 1
 --   [[:unregister_block]], [[:safe.e]]
 
 public procedure register_block(atom /*block_addr*/, atom /*block_len*/, integer /*protection*/ )
+--public procedure register_block(atom block_addr, atom block_len, integer protection)
     ?"register_block"
 end procedure
 
@@ -881,6 +882,7 @@ end procedure
 -- [[:register_block]], [[:unregister_block]]
 
 public function safe_address(atom /*start*/, integer /*len*/, positive_int /*action*/)
+--public function safe_address(atom start, integer len, positive_int action)
     return 1
 end function
 
@@ -889,6 +891,7 @@ public procedure check_all_blocks()
 end procedure
 
 export function prepare_block(atom addr, integer /*a*/, integer /*protection*/)
+--export function prepare_block(atom addr, integer a, integer protection)
     return addr
 end function
 
@@ -897,6 +900,7 @@ export constant leader = repeat('@', BORDER_SPACE)
 export constant trailer = repeat('%', BORDER_SPACE)
 
 export type bordered_address(atom /*addr*/)
+--export type bordered_address(atom addr)
     return 1
 end type
 

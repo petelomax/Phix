@@ -17,7 +17,8 @@ global constant newBase = 2 -- 0 = old style, with base @ ref*4-20 on seq/str
 global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 
 --global constant phixversion = {0,6,8} -- 0.6.8
-global constant phixversion = {0,6,9}   -- 0.6.9    -- 25/4/16
+--global constant phixversion = {0,6,9} -- 0.6.9    -- 25/04/16
+global constant phixversion = {0,7,0}   -- 0.7.0    -- 09/09/16
 
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...
@@ -670,17 +671,19 @@ global integer LIDX
 ----with type_check -- ineffective, need to kill the without in p.exw
 ----DEV not good on p p t8...
 --constant iNNN=1116  -- item to monitor
+--global integer iNNN = 0
 --object sNNN sNNN=0
 --type symt(sequence s)
---  if length(s)>=iNNN then
+--  if iNNN and length(s)>=iNNN then
 --      if not equal(s[iNNN],sNNN) then
 ----?1
 ----            trace(1)
 --          sNNN = s[iNNN]
 ----if sNNN=0 then ?9/0 end if
---if sequence(sNNN) then
+----if sequence(sNNN) then
 --  ?sNNN
---end if
+----end if
+--if atom(sNNN) then ?9/0 end if
 --      end if
 --  end if
 --  return 1
@@ -1009,3 +1012,8 @@ global sequence knownNames
 global integer opLntpcalled = 0 -- (skip MCHK if set)
 
 global integer use_pini_time = 0
+
+global sequence exports
+global sequence exportaddrs -- addresses of static callbacks that invoke routine symtab[exports[i]]
+                            -- (note: the first is always DllMain and includes all :>init calls)
+

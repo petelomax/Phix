@@ -1,0 +1,62 @@
+-- calendar.exw
+
+include pGUI.e
+
+function value_cb(atom ih)
+  printf(1, "VALUE_CB(%s)\n", IupGetAttribute(ih, "VALUE"))
+  return IUP_DEFAULT
+end function
+--constant cb_value = routine_id("value_cb")
+
+function set_value(atom ih)
+  IupSetAttribute(IupGetBrother(ih), "VALUE", "1970/07/11")
+--  IupSetAttribute(cal, "VALUE", "1970/07/11")
+  IupSetAttribute(IupGetBrother(IupGetBrother(ih)), "VALUE", "1970/07/11")
+--  IupSetAttribute(the_date, "VALUE", "1970/07/11")
+  return IUP_DEFAULT
+end function
+--constant value_set = routine_id("set_value")
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+procedure CalendarTest()
+Ihandle dlg, box, btn, cal, the_date
+
+  btn = IupButton("Set Value")
+  cal = IupCalendar()
+  the_date = IupDatePick()
+  IupSetAttribute(the_date, "ZEROPRECED", "Yes")
+  IupSetAttribute(the_date, "MONTHSHORTNAMES", "Yes")
+
+  box = IupVbox({btn, cal, the_date})
+  IupSetAttribute(box, "MARGIN", "10x10")
+  IupSetAttribute(box, "GAP", "10")
+--  IupSetCallback(btn, "ACTION", Icallback(value_set))
+  IupSetCallback(btn, "ACTION", Icallback("set_value"))
+--  IupSetCallback(cal, "VALUECHANGED_CB", Icallback(cb_value))
+  IupSetCallback(cal, "VALUECHANGED_CB", Icallback("value_cb"))
+--  IupSetCallback(the_date, "VALUECHANGED_CB", Icallback(value_set))
+--  IupSetCallback(the_date, "VALUECHANGED_CB", Icallback("set_value"))
+
+  dlg = IupDialog(box)
+
+  IupSetAttribute(dlg, "TITLE", "IupCalendar Test")
+  IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+  IupShow(dlg)
+end procedure
+
+procedure main()
+  IupOpen()
+
+  CalendarTest()
+
+  IupMainLoop()
+
+  IupClose()
+
+end procedure
+
+main()

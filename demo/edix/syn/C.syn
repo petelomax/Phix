@@ -1,0 +1,1133 @@
+C syntax file
+BlockComment /* */
+LineComment //
+//
+// About .syn files
+// ================
+// [[For an up-to-date version of these notes, always refer to Euphoria.syn]]
+// All files with a .syn extension in the /syn subdirectory are loaded when
+// the editor starts. They are reloaded if saved in the editor, which makes
+// it easy to add and test new keywords, etc.
+// Should a fatal error occur (which obviously it should not), then it may be
+// necessary to rename/move/delete/restore the offending .syn file.
+// The first line of a .syn file must be <Name> followed by " syntax file".
+// The second line may be "BlockComment" followed by start/end pair(s).
+//  eg  BlockComment /* */ <!-- --> [[ ]]
+//  Note that .syn files themselves may *NOT* contain block comments (since
+//        any and all support of them is in easynclr.e, not easynld.e).
+// The next line must be "LineComment" followed by a comment lead-in (if any).
+// This LineComment directive not only controls colourisation during editing of
+//  the files listed in the FileExtensions directive (see below), but also
+//  defines the comment method for the remainder of the .syn file.
+//        Therefore comments may not appear in a .syn file before the LineComment line.
+//        Note also that Edit/Comment and Edit/Uncomment (and the keyboard shortcuts)
+//        use the LineComment defined in None.syn when editing a .syn file (sorry!)
+//  As an example, C/C++ line comments are // so all these lines could begin with
+//  // instead of --, which is an operator in C/C++. If (eg) C.syn used -- as a
+//        line comment, it would not be possible to define -- as an operator!
+// If the programming language you are trying to support does not support line 
+//  comments (which should be very rare) then you cannot comment the syn file.
+//
+//
+// Sections
+// ========
+// All words beginning in column 1 (apart from comments) begin a section. 
+// The following sections should be defined:
+//                BlockComment, [optional]
+//                LineComment,
+//                TokenStart,
+//                TokenChar, [optional]
+//                TokenFirst, [optional]
+//                TokenLast, [optional]
+//                Escapes, [optional]
+//         Delimiters, [optional, except in None.syn]
+//                Braces, [optional]
+//                Operators, [optional]
+//                Illegal, [optional] and
+//                FileExtensions,
+// in that order. 
+// Then follow a number of keyword collections. The name is not "recognised"
+// apart from the fact that it begins in column 1 and is displayed in the 
+// Options/Colours window when that is opened when editing a file with one of
+// the file extensions (as defined in the FileExtensions section). These
+// section names should not contain spaces, a space is automatically inserted
+// between any lowercase character followed by an uppercase character.
+// Finally there is a Scheme section which defines the /default/ colours.
+// If a .clr file exists (eg Euphoria.clr) then it overrides these defaults.
+// Note: if you /DELETE/ sections, the .clr file may become invalid, though it
+//  should be trivial to edit it, removing the offending line(s). It is also 
+//  a good idea to copy the lines from the .clr back to the final Scheme 
+//  section of this file (which also becomes invalid if sections are removed).
+//  If you /ADD/ sections, you don't need to do anything special, except 
+//  perhaps to run Options/Colours to give new sections an appropriate colour.
+//
+
+//
+// Token characters must be specified next.
+//
+TokenStart abcedfghijklmnopqrstuvwxyz
+TokenStart ABCDEFGHIJKLMNOPQRSTUVWXYZ_#
+TokenChar 0123456789
+// TokenFirst can be used to specify characters which are only valid at the start
+// of a token (eg # in #include or < in <table> [HTML]), and TokenLast can be used
+// to specify characters which terminate a token (eg > in <table> or $ in MID$), eg
+// TokenFirst #<        // by default this set is empty
+// TokenLast >$        // ""
+// In practice, TokenLast defines single-character tokens, so internally the
+//  syntax colouring will treat <table> as "<table" and ">". eg see Html.syn
+//
+// Whitespace is defaulted to #09101320, ie tab, lf, cr, and space. There is 
+// as yet no way to change this, though I will say it should be specified as 
+// a hexadecimal stringset rather than OS/editor/language dependent means.
+//
+// Likewise String and Character parsing is currently hard-coded (to ' and ").
+// You should not specify ' or " as delimiters or operators.
+//
+// C allows \<octal>, hence the 1234567 in the following (\0 being common).
+//
+Escapes \rnt"01234567\'x
+
+// Next we have Delimiters, Operators, and Illegals (in that order).
+// The Delimiter section is optional (except in None.syn) and allows additional
+//        characters to be coloured as "Other". The idea is that in "integer a,integer b"
+//        then "a,integer" is not scanned as a single word, as well as colouring the ","
+//        normally as opposed to "Illegal". See easynld.e for technical details.
+// All characters used in the Operators section are automatically delimiters.
+Delimiters $
+Operators < <= > >= = != + += - -= * *= / /= .. & &= | || ^= ! \ ~ % ^ . ; : , ?
+
+// The Braces section begins with a digit specifying the number of nesting levels 
+// of colour required (1..7). Only pairs from ()<>[]{} are permitted. 
+// If the number of nesting levels is set above 5 you may have difficultly finding
+// enough appropriate colours to use. A lower number does not, of course, limit
+// the code that can be written, just how it is coloured. If the nesting level is
+// exceeded, inner brackets are coloured starting from 1 again.
+//
+Braces 5 ()[]{}
+
+//
+// FileExtensions should be specified next. This is not optional.
+//
+FileExtensions c h cpp cxx
+
+// The optional Indents section. If present, this section lists words and
+//        characters which affect autoindentation. The first word must be "+" or "-",
+//        any following words or characters increase or decrease the indent level,
+//        until the next "+" or "-". Please fit everything on one line.
+//
+Indents + { - }
+
+// The optional AutoComplete section. If present, this section must
+// end with a "##end AutoComplete" line. Note that any comments in this
+// section must begin in column 1, otherwise they are misinterpreted as
+// being part of the autocompletion text. For more details, please
+// see eauto.e Ideally, leave this in English, and add translations
+// in elng_XXX.txt (if not English, that is).
+//
+//AutoComplete
+//##end AutoComplete
+
+//
+// The remaining sections are listed in the Options/Colours window. 
+// The names used should not contain spaces; these are automatically 
+// inserted after any lower-case character which is followed by an 
+// upper-case one. Otherwise these names are entirely descriptive and 
+// are not defined or used anywhere else (though they must match entries
+// in the final Scheme and .clr files). Remember that all words
+// beginning in column 1 are interpreted as section names.
+
+ReservedWords
+        break
+        case
+        catch
+        class
+        continue
+        default
+        delete
+        do
+        else
+        enum
+        for
+        goto
+        if
+        new
+        private
+        protected
+        public
+        return
+        static_cast
+        std
+        switch
+        this
+        throw
+        try
+        using
+        virtual
+        while
+
+Constants
+        TRUE true
+        FALSE false
+        BS_DEFPUSHBUTTON
+        CBS_DROPDOWNLIST
+        CBN_SELCHANGE
+        CB_GETCURSEL
+        CB_GETLBTEXT
+        CB_INSERTSTRING
+        CB_SETCURSEL
+        COINIT_APARTMENTTHREADED
+        CONNECT_REDIRECT
+//DEV:
+//      CBRS_ALIGN_ANY
+//      CBRS_FLYBY
+//      CBRS_GRIPPER
+//      CBRS_SIZE_DYNAMIC
+//      CBRS_TOOLTIPS
+//      CBRS_TOP
+        CLIP_DEFAULT_PRECIS
+        CLEARTYPE_QUALITY
+        COINIT_MULTITHREADED
+        CP_ACP
+        CREATE_ALWAYS
+        CREATE_SUSPENDED
+        CS_HREDRAW
+        CS_VREDRAW
+        CSIDL_SYSTEM
+        CSIDL_PERSONAL
+        CSIDL_PROFILE
+        CSIDL_PROGRAM_FILES
+        CSIDL_PROGRAM_FILESX86
+        CSIDL_WINDOWS
+        CW_USEDEFAULT
+        DEFAULT_CHARSET
+        DEFAULT_PITCH
+        DLL_PROCESS_ATTACH
+        DLL_PROCESS_DETACH
+        DTR_CONTROL_DISABLE
+        EM_REPLACESEL
+        EM_SETSEL
+        EOF
+        ERROR_ACCESS_DENIED
+        ERROR_ALREADY_ASSIGNED
+        ERROR_ALREADY_EXISTS
+        ERROR_ARENA_TRASHED
+        ERROR_DIR_NOT_EMPTY
+        ERROR_FILE_NOT_FOUND
+        ERROR_FILE_SYSTEM_ERROR
+        ERROR_INVALID_ADDRESS
+        ERROR_INVALID_NAME
+        ERROR_NOACCESS
+        ERROR_NO_MORE_ITEMS
+        ERROR_NO_MORE_SEARCH_HANDLES
+        ERROR_PATH_NOT_FOUND
+        ERROR_SHARING_VIOLATION
+        ERROR_SUCCESS
+        ES_AUTOHSCROLL
+        ES_AUTOVSCROLL
+        ES_MULTILINE
+        ES_READONLY
+        faArchive
+        faDirectory
+        faReadOnly
+        FILE_ACTION_ADDED
+        FILE_ACTION_MODIFIED
+        FILE_ACTION_REMOVED
+        FILE_ACTION_RENAMED_NEW_NAME
+        FILE_ACTION_RENAMED_OLD_NAME
+        FILE_ATTRIBUTE_ARCHIVE
+        FILE_ATTRIBUTE_DIRECTORY
+        FILE_ATTRIBUTE_HIDDEN
+        FILE_ATTRIBUTE_NORMAL
+        FILE_ATTRIBUTE_READONLY
+        FILE_ATTRIBUTE_SYSTEM
+        FILE_FLAG_BACKUP_SEMANTICS
+        FILE_LIST_DIRECTORY
+        FILE_NOTIFY_CHANGE_ATTRIBUTES
+        FILE_NOTIFY_CHANGE_CREATION
+        FILE_NOTIFY_CHANGE_DIR_NAME
+        FILE_NOTIFY_CHANGE_FILE_NAME
+        FILE_NOTIFY_CHANGE_LAST_ACCESS
+        FILE_NOTIFY_CHANGE_LAST_WRITE
+        FILE_NOTIFY_CHANGE_SECURITY
+        FILE_NOTIFY_CHANGE_SIZE
+        FILE_SHARE_DELETE
+        FILE_SHARE_READ
+        FILE_SHARE_WRITE
+        FindExInfoStandard
+        FindExSearchLimitToDevices
+        FindExSearchLimitToDirectories
+        FindExSearchNameMatch
+        FORMAT_MESSAGE_ALLOCATE_BUFFER
+        FORMAT_MESSAGE_FROM_SYSTEM
+        FW_BOLD
+        FW_NORMAL
+        FW_REGULAR
+        GENERIC_READ
+        GENERIC_WRITE
+        GPTR
+        HCBT_ACTIVATE
+        HKEY_CURRENT_USER
+        HKEY_LOCAL_MACHINE
+        ICON_BIG
+        ICON_SMALL
+        IDABORT
+        IDCANCEL
+        IDC_ARROW
+        IDC_CMDBAR
+        IDC_COMPORT
+        IDIGNORE
+        IDLE_PRIORITY_CLASS
+        IDM_ABOUT
+        IDM_EXIT
+        IDNO
+        IDOK
+        IDRETRY
+//      IDR_MAINFRAME // mfc
+        ID_RCVTEXT
+        ID_SENDBTN
+        ILD_TRANSPARENT
+        INFINITE
+        INVALID_HANDLE_VALUE
+        KEY_ALL_ACCESS
+        KEY_READ
+        KEY_WRITE
+        LANG_NEUTRAL
+        LMEM_MOVEABLE
+        LMEM_ZEROINIT
+        LPSTR_TEXTCALLBACK
+        LVCF_FMT
+        LVCF_SUBITEM
+        LVCF_TEXT
+        LVCF_WIDTH
+        LVCFMT_LEFT
+        LVCFMT_RIGHT
+        LVIF_IMAGE
+        LVIF_PARAM
+        LVIF_STATE
+        LVIF_TEXT
+        LVIS_SELECTED
+        LVN_BEGINLABELEDIT
+        LVN_COLUMNCLICK
+        LVN_ENDLABELEDIT
+        LVN_GETDISPINFO
+        LVN_HOTTRACK
+        LVN_ITEMACTIVATE
+        LVN_ITEMCHANGED
+        LVS_EX_FULLROWSELECT
+        LVS_EX_ONECLICKACTIVATE
+        MAX_ALLOC_SIZE
+        MAX_PATH
+        MB_ABORTRETRYIGNORE
+        MB_ICONERROR
+        MB_ICONINFORMATION
+        MB_ICONWARNING
+        MB_OK
+        MB_OKCANCEL
+        MB_SETFOREGROUND
+        MB_SYSTEMMODAL
+        MB_TOPMOST
+        MB_YESNO
+        mrOk
+        MS_CTS_ON
+        NOERROR
+        NOPARITY
+        NO_ERROR
+        NO_WIN32_LEAN_AND_MEAN
+        NULL
+        ONESTOPBIT
+        OPAQUE
+        OPEN_EXISTING
+        OUT_DEFAULT_PRECIS
+        O_APPEND
+        O_BINARY
+        O_CREAT
+        O_RDWR
+        PROCESS_QUERY_INFORMATION
+        PURGE_RXCLEAR
+        PURGE_TXCLEAR
+        REG_DWORD
+        REG_OPTION_NON_VOLATILE
+        REG_SZ
+        RESOURCE_CONNECTED
+        RESOURCE_CONTEXT
+        RESOURCE_GLOBALNET
+        RESOURCE_REMEMBERED
+        RESOURCETYPE_ANY
+        RESOURCETYPE_DISK
+        RESOURCEUSAGE_ALL
+        RESOURCEUSAGE_ATTACHED
+        RESOURCEUSAGE_CONTAINER
+        RTS_CONTROL_DISABLE
+        RTS_CONTROL_HANDSHAKE
+        SETDTR
+        SHCOLSTATE_ONBYDEFAULT
+        SHCOLSTATE_SLOW
+        SHCOLSTATE_TYPE_INT
+        SHGFI_ICON
+        SHGFI_LARGEICON
+        SHGFI_OPENICON
+        SHGFI_SMALLICON
+        SHGFI_SYSICONINDEX
+        SHGFI_TYPENAME
+        SHGFI_USEFILEATTRIBUTES
+        SHIL_EXTRALARGE
+        SM_CXICON
+        SM_CYICON
+        STD_OUTPUT_HANDLE
+        STILL_ACTIVE
+        SUBLANG_DEFAULT
+        SWP_NOACTIVATE
+        SWP_NOMOVE
+        SWP_NOSIZE
+        SWP_NOZORDER
+        SW_HIDE
+        SW_SHOWDEFAULT
+        SW_SHOWMINNOACTIVE
+        SYNCHRONIZE
+        S_FALSE
+        S_IREAD
+        S_IWRITE
+        S_OK
+        TBSTYLE_FLAT
+        THREAD_PRIORITY_BELOW_NORMAL
+        TVM_EDITLABEL
+        UNLEN
+        VK_DELETE
+        VK_F2
+        VT_BSTR
+        WAIT_OBJECT_0
+        WAIT_TIMEOUT
+        WH_CBT
+        WM_ACTIVATE
+        WM_CLOSE
+        WM_COMMAND
+        WM_CREATE
+        WM_DESTROY
+        WM_ICONERASEBKGND
+        WM_NCCREATE
+        WM_NOTIFY
+        WM_SETFOCUS
+        WM_SETFONT
+        WM_SETICON
+        WM_SETTEXT
+        WM_SETTINGCHANGE
+        WM_SIZE
+        WM_USER
+        WS_CHILD
+        WS_CLIPSIBLINGS
+        WS_EX_CLIENTEDGE
+        WS_OVERLAPPEDWINDOW
+        WS_VISIBLE
+        WS_VSCROLL
+
+Preprocessor
+        #define
+        #if
+        #ifdef
+        #ifndef
+        #import
+        #include
+        #else
+        #endif
+        #pragma
+        #undef
+        defined
+        error
+        hdrstop
+        link
+        package
+        resource
+        smart_init
+        HIWORD
+        LOWORD
+        MAKELANGID
+        STRICT
+        TEXT
+        USEFORM
+        __fastcall
+        __stdcall
+        __classid
+
+Types
+        typedef
+        struct
+        const
+        static
+        unsigned
+        extern
+        bool BOOL
+        char uchar CHAR UCHAR
+        double
+        float
+        int uint INT UINT
+        int64_t
+        long ulong LONG ULONG
+        short ushort
+        string
+        time_t      // typedef long time_t; 
+        uint64_t
+        volatile
+        wchar_t
+        APIENTRY
+        BSTR
+        BYTE
+        CALLBACK
+        COLORREF
+        CRITICAL_SECTION
+        DLGPROC
+        DWORD
+        DWORD64
+        EXTINFO
+        FARPROC
+        FILE_NOTIFY_INFORMATION
+        HANDLE
+        HBRUSH
+        HCURSOR
+        HDC
+        HFONT
+        HGLOBAL
+        HHOOK
+        HICON
+        HINSTANCE
+        HIWORD
+        HKEY
+        HMODULE
+        HRESULT
+        HWND
+        LARGE_INTEGER 
+        LOGFONT 
+        LOWORD
+        LPARAM 
+        LPBYTE
+        LPCSHCOLUMNDATA
+        LPCSHCOLUMNID
+        LPCSHCOLUMNINIT
+        LPCTSTR
+        LPDWORD
+        LPOVERLAPPED
+        LPSTR 
+        LPTSTR 
+        LPVOID 
+        LPWSTR
+        LRESULT
+        LVITEM
+        LV_ITEM
+        MSG
+        NETRESOURCE
+        PROCESS_INFORMATION
+        RECT
+        REFCLSID
+        REFIID
+        SHCOLUMNINFO
+        SHFILEINFO
+        STARTUPINFO
+        STDAPI
+        STDMETHODIMP
+        TCHAR
+        VARIANT
+        VOID void
+        WIN32_FIND_DATA
+        WINAPI
+        WINDOWPLACEMENT
+        WNDCLASSW
+        WNDPROC 
+        WORD
+        WPARAM
+        __int64
+// winapi struct members...
+        dwFileAttributes
+        cFileName
+        cAlternateFileName
+        hIcon
+        HighPart
+        iIcon
+        LowPart
+        nFileSizeLow
+        nFileSizeHigh
+        QuadPart
+
+// mfc?
+        CImageList
+        CListCtrl
+        CCriticalSection
+        CFormView
+        CTime
+        CString
+
+clib
+        abort 
+        abs 
+        acos 
+        asctime 
+        asin 
+        assert 
+        atan 
+        atan2 
+        atexit 
+        atof 
+        atoi 
+        atol 
+        atoll
+        bsearch
+        bottom
+        calloc 
+        ceil 
+        clearerr 
+        clock 
+        close
+        cos 
+        cosh 
+        ctime
+        difftime 
+        div
+        exit 
+        exp
+        fabs 
+        fclose 
+        fdopen 
+        feof 
+        ferror 
+        fflush 
+        fgetc 
+        fgetpos 
+        fgets 
+        filelength
+        fileno 
+        floor 
+        fmod
+        fopen 
+        fprintf 
+        fputc 
+        fputs 
+        fread 
+        free 
+        freopen 
+        frexp 
+        fscanf 
+        fseek 
+        ftell 
+        fwrite
+        getc 
+        getenv 
+        gets 
+        gmtime
+        hypot
+        instr 
+        isalnum 
+        isalpha 
+        isascii 
+        isblank 
+        isdigit 
+        isxdigit 
+        itoa
+        labs 
+        ldexp 
+        ldiv 
+        left 
+        llabs 
+        lldiv 
+        localeconv 
+        localtime 
+        log 
+        log10 
+        longjmp
+        lstrcat 
+        lstrcmp 
+        lstrcpy 
+        lstrlen
+        malloc 
+        mblen 
+        mbstowcs 
+        mbtowc 
+        memchr 
+        memcmp 
+        memcpy 
+        memicmp 
+        memmove
+        memset 
+        mid 
+        mktime 
+        modf
+        perror 
+        pow 
+        printf 
+        putc 
+        putchar 
+        putenv 
+        puts
+        qsort
+        raise 
+        rand
+        read 
+        realloc 
+        regcomp 
+        regerror 
+        regexec 
+        regfree 
+        remove 
+        rename 
+        rewind
+        right
+        scanf 
+        setbuf 
+        setjmp 
+        setlocale 
+        setvbuf 
+        signal 
+        sin 
+        sinh 
+        sizeof 
+        snprintf 
+        sprintf
+        sqrt 
+        srand 
+        sscanf 
+        strcasecmp 
+        strcat 
+        strchr 
+        strcmp 
+        strcoll 
+        strcpy 
+        strcspn 
+        strdup
+        strerror 
+        strftime 
+        stricmp 
+        strlen 
+        strncasecmp 
+        strncat 
+        strncmp 
+        strncmpi
+        strncpy 
+        strnicmp
+        strpbrk 
+        strrchr 
+        strrev
+        strspn 
+        strstr 
+        strtod 
+        strtok 
+        strtol 
+        strtoll 
+        strtoul 
+        strtoull
+        strupr 
+        strxfrm 
+        system
+        tan 
+        tanh 
+        time 
+        tmpfile 
+        tmpnam 
+        toascii 
+        tolower 
+        top 
+        toupper
+        ungetc
+        vfprintf 
+        vfscanf 
+        vprintf 
+        vscanf 
+        vsnprintf 
+        vsprintf 
+        vsscanf
+        wctomb 
+        write
+        wsprintf 
+        wsprintfA 
+        wvsprintf
+
+        _i64toa
+        _tsplitpath_s
+        _tprintf
+        _wopen
+
+// WinAPI
+        CallNextHookEx
+        ClientToScreen
+        CloseHandle 
+        CoInitialize
+        CoInitializeEx
+        CreateDialog 
+        CreateDirectory
+        CreateEvent
+        CreateFile 
+        CreateFileA
+        CreateFontA
+        CreateFontIndirect 
+        CreateProcess
+        CreateThread
+        CreateWindow
+        CreateWindowEx
+        CreateWindowW 
+        CreateWindowExW
+        DefWindowProc
+        DeleteCriticalSection
+        DeleteFile
+        DeleteObject 
+        DestroyIcon
+        DestroyWindow 
+        DispatchMessage
+        EnableWindow
+        EnterCriticalSection
+        EscapeCommFunction
+        ExitProcess 
+        FileExists 
+        FileGetAttr
+        FindClose
+        FindCloseChangeNotification
+        FindFirstChangeNotification
+        FindFirstFile
+        FindFirstFileEx
+        FindNextChangeNotification
+        FindNextFile
+        FormatMessage
+        FreeLibrary
+        GetClientRect
+        GetCommandLine 
+        GetCommModemStatus
+        GetCommState
+        GetCurrentThreadId
+        GetCurrentTime
+        GetDC 
+        GetDiskFreeSpace
+        GetDlgItem
+        GetEnvironmentVariable
+        GetExitCodeProcess
+        GetExitCodeThread
+        GetFileSize 
+        GetLastError 
+        GetMessage 
+        GetModuleFileName
+        GetModuleHandle 
+        GetObject 
+        GetProcAddress
+        GetProcessHeap
+        GetStartupInfo 
+        GetStdHandle 
+        GetStockObject
+        GetUserName
+        GetTickCount
+        GetWindowFont
+        GetWindowPlacement
+        GetWindowRect
+        GetWindowText
+        GetWindowTextLengthW
+        GlobalAlloc
+        GlobalFree
+        HeapAlloc
+        InitCommonControlsEx
+        InitializeCriticalSection
+        KillTimer
+        LeaveCriticalSection
+        LoadCursorW
+        LoadIcon
+        LoadLibrary
+        LocalAlloc
+        LocalFree
+        LocalLock
+        MessageBox
+        MoveWindow
+        MultiByteToWideChar
+        OleInitialize
+        OleUninitialize
+        OpenProcess
+        PeekNamedPipe
+        PostMessage
+        PostQuitMessage
+        PurgeComm
+        QueryPerformanceCounter 
+        QueryPerformanceFrequency
+        ReadDirectoryChangesW
+        ReadFile
+        RegCloseKey
+        RegCreateKeyEx
+        RegEnumValue
+        RegisterClassW
+        RegOpenKeyEx
+        RegQueryValueEx
+        RegSetValueEx
+        RemoveDir
+        ResetEvent
+        ResumeThread
+        SelectObject 
+        SendDlgItemMessage
+        SendMessage 
+        SendMessageA
+        SendNotifyMessage
+        SetBkMode 
+        SetCommState
+        SetCommTimeouts
+        SetEvent
+        SetFocus
+        SetIcon
+        SetPriorityClass
+        SetTextColor 
+        SetThreadPriority
+        SetTimer
+        SetupComm
+        SetWindowPos 
+        SetWindowsHookEx
+        SetWindowText
+        ScreenToClient
+        ShellExecute
+        SHGetFileInfo
+        SHGetImageList
+        ShowWindow
+        Sleep
+        TranslateMessage
+        UnhookWindowsHookEx
+        UpdateWindow
+        VirtualAlloc 
+        VirtualFree
+        WaitForMultipleObjects
+        WaitForSingleObject
+        WaitForSingleObjectEx
+        WinMain 
+        WriteConsoleOut 
+        WriteFile
+        WNetCloseEnum
+        WNetEnumResource
+        WNetOpenEnum
+        WNetUseConnection
+        ZeroMemory
+
+Borland
+        __classid
+        __fastcall
+        __property
+        __published
+        Active
+        ActiveMDIChild
+        Add
+        AddIcon
+//      AddItem
+        AddNode
+        AddObject
+        Alignment
+        AlphaSort
+        AnsiCompareIC
+        AnsiLastChar
+        AnsiPos
+        AnsiReplaceText
+        AnsiString
+        Application
+        AutoCheck
+        BeginDrag
+        Bottom
+        c_str
+        caFree
+        Caption
+        Cascade
+        CaseSensitive
+        cd32Bit
+        Checked
+        Clear
+        Close
+        ColorDepth
+        Columns
+        CommandText
+        CommandType
+        Connected
+        Connection
+        ConnectionString
+        Contains
+        Count
+        CreateForm
+        Cut
+        Data
+        DateTimeToStr
+        Delete
+        DeleteChildren
+        Deleting
+        DoubleBuffered
+        DrawingStyle
+        dsDragLeave
+        dsTransparent
+        Duplicates
+        EditCaption
+        Enabled
+        EndDrag
+        Exception
+        Execute
+        First
+        GetHitTestInfoAt
+        GetIcon
+        GetItemAt
+        GetNextItem
+        GetNodeAt
+        Handle
+        Height
+        Icon
+        ifExactString
+        ifPartialString
+        ImageIndex
+        Images
+        Index
+        IndexOf
+        Initialize
+        Insert
+        isSelected
+        ItemIndex
+        Item
+        ItemId
+        Items
+        ItemsEx
+        LargeImages
+        LastChar
+        LastDelimiter
+        Left
+        Length
+        MakeVisible
+        MDIChildCount
+        MDIChildren
+        MenuIndex
+        mbLeft
+        mbRight
+        naAddChild
+        Now
+        Objects
+        OnClick
+        Open
+        OwnerData
+        ParamCheck
+        Parent
+        Pointer
+        Popup
+        Pos
+        Previous
+        Provider
+        Recordset
+        Remove
+        Restore
+        Run
+        sdAll
+        SelCount
+        Selected
+        SelectedIndex
+        Selection
+        SetLength
+        ShowException
+        ShowModal
+        Sleep
+        SmallImages
+        Sorted
+        ssCtrl
+        ssLeft
+        Strings
+        SubItems
+        SubString
+        tbHorizontal
+        tbVertical
+        TADOCommand
+        TADOConnection
+        TADOQuery
+        TADOTable
+        Tag
+        taRightJustify
+        TButton
+        TCheckBox
+        TCloseAction
+        TComboBox
+        TComponent
+        TDateTime
+        TDateTimePicker
+        TDragObject
+        TDragState
+        TEdit
+        Text
+        TForm
+        TFrame
+        TGroupBox
+        THeaderControl
+        THeaderSection
+        THitTests
+        TIcon
+        Tile
+        TileMode
+        TImageList
+        TimeToStr
+        TItemFind
+        TItemStates
+        Title
+        TLabel
+        TList
+        TListBox
+        TListColumn
+        TListItem
+        TListView
+        TMainMenu
+        TMemo
+        TMenuItem
+        TMessage
+        TMouseButton
+        TPageControl
+        TPanel
+        TProgressBar
+        TRadioButton
+        TRadioGroup
+        TSplitter
+        TStringGrid
+        TStringList
+//      TStrings  // DO NOT ADD THIS!
+        TTabSheet
+        TTimer
+        TToolBar
+        TToolButton
+        TTreeView
+        TObject
+        Top
+        TPoint
+        TPopupMenu
+        TRect
+        TSearchDirection
+        TShiftState
+        TStringList
+        TTreeNode
+        TTreeView
+        TViewStyle
+        TWinControl
+        TWindowState
+        UnicodeString
+        UpdateItems
+        UpperCase
+//      ViewStyle
+        Visible
+        vsIcon
+        vsList
+        vsReport
+        vsSmallIcon
+        w_str
+        WideString
+        Width
+        WindowState
+        wsNormal
+
+
+//
+// The Scheme section defines the /default/ colours (and exists mainly to 
+//        simplify distribution and installation).
+// If a .clr file exists (eg Euphoria.clr) then it overrides these defaults.
+// The Options/Colours window creates/overwrites .clr files on exit.
+//
+Scheme
+ Background Silver
+ Comments Navy Italic
+ Highlight Gray
+ CurrentLine #E9E9E9
+ Strings Green
+ Symbols Blue
+ Illegals Red
+ Other Black
+ Brace1 Blue
+ Brace2 Purple
+ Brace3 Maroon
+ Brace4 Purple
+ Brace5 Green
+ ReservedWords Teal
+ Constants Olive
+ Preprocessor Teal
+ Types #FF7171
+ clib Maroon
+ Borland #681504
+

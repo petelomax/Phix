@@ -96,11 +96,24 @@
         \e       #1B     escape (ditto \E)
         \#HH     #HH     any hexadecimal byte (Phix-only)
         \xHH     #HH     any hexadecimal byte
+        \uH4      -      any 16-bit unicode point
+        \uH8      -      any 32-bit unicode point
  </pre>
         For example, "Hello, World!\n", or '\\'. By default Edita displays character strings in green. Just as with 
         fractional results converting to floating-point automatically, setting a string element to a non-character 
         value automatically expands it to a <a href="html/glossary.htm#dwordseq">dword-sequence</a>, and if that is
         not desired you are immediately notified in a clear and no-nonsense, human-readable manner.
+        <br>
+        <br>
+        Unicode points may be specified using "\uHHHH" (must be exactly 4 hex digits) and "\UHHHHHHHH" (must be
+        exactly 8 hex digits). The compiler automatically converts such to UTF-8, though personally I suspect that
+        since the compiler supports UTF-8 source files, it is much easier to do this unicode stuff WYSIWYG-style. 
+        Note that you cannot use either \u or \U to specify UTF-16 surrogates, and of course all values outside 
+        0..#10FFFF are automatically replaced with the standard invalid character ("\#EF\#BF\#BD" aka #FFFD). 
+        Also note that \u and \U are double-quote-only - they cannot be used between single quotes. Plus of course
+        that is a general point about unicode characters: just because your episilon-cidilla-umlaut looks like a
+        single character, it is in fact a 3-byte string, and therefore cannot be single quoted, even WYSIWYG-style. 
+        See also the <a href="unicode.htm">Unicode Library Routines</a>.
        <blockquote>
         <b>Technical note</b>:
         Internally that string data example ("ABCDEFG") occupies 24 bytes whereas the sequence of (4-byte) integers 
@@ -111,10 +124,9 @@
         to tell them apart is with the <code><a href="string.htm">string</a>()</code> builtin.
         <br>
         <br>
-        Note that strings are byte-subscripted; while theoretically you may store UTF16 
-        data in a string, it is usually much easier to store and manipulate such in 
-        <a href="html/glossary.htm#dwordseq">dword-sequences</a>. The handling is however completely transparent; 
-        you quite simply should not care.
+        Note that strings are byte-subscripted; while theoretically you may store UTF16 data in a string, it is 
+        usually easier to store and manipulate such in <a href="html/glossary.htm#dwordseq">dword-sequences</a>. 
+        The handling is however completely transparent; you quite simply should not care.
         <br>
         <br>
         This (the "quite simply should not care" part) was hammered home to me when I added 
@@ -148,24 +160,17 @@
         fixed as and when reported, but failing that I would advise immediately converting any such to UTF8.
        </blockquote>
        <blockquote>
-        <b>Compatibility Note</b> OpenEuphoria allows "\uHHHH" and "\UHHHHHHHH" to specify word and dword
-        unicode characters respectively, perhaps someone felt they needed that dirty little hack because 
-        unlike Phix it does not support UTF8 source code files. Phix does not currently support this, but 
-        it may be added at some future date, for compatibility reasons. (Note that currently my knowledge
-        is limited to Windows WideString/UTF16LE, and I have no idea what to do with a 32-bit character.)
-        <br>
-        <br>
-        Also, \b is used in Phix for backspace, whereas (very oddly imo) OpenEuphoria uses it to declare
-        a mid-string binary value, eg "\b01010101" is the same as {#55} or "U", erm, hmmm. I have never
-        seen this used, but if it was byte-sized I would immediately convert it to \xHH form (by putting
-        in a leading 0 to make it 0b01010101 and then using Edita\Case\Show as Hex (Ctrl H)). Obviously,
-        on the compatibility front, you should use \x08 instead of \b, and likewise \xHH not \#HH.
+        <b>Compatibility Note</b> In Phix, \b is used for backspace, whereas (very oddly imo) OpenEuphoria uses it 
+        to declare a mid-string binary value, eg "\b01010101" is the same as {#55} or "U", erm, hmmm. I have never
+        seen this used, but if it was byte-sized I would immediately convert it to \xHH form (by putting in a 
+        leading 0 to make it 0b01010101 and then using Edita\Case\Show as Hex (Ctrl H)). Obviously, on the 
+        compatibility front, you should use \x08 instead of \b, and likewise \xHH not \#HH.
        </blockquote>
         <a name=triple></a>
-        Strings can also be entered by using triple quotes or backticks intead of double quotes to include 
-        linebreaks and avoid any backslash interpretation. If the literal begins with a newline, it is
-        discarded and any immediately following leading underscores specify a (maximum) trimming that should
-        be applied to all subsequent lines. Examples:
+        Strings can also be entered by using triple quotes or backticks intead of double quotes to include linebreaks 
+        and avoid any backslash interpretation. (On my keyboard the backtick is between the Esc and Tab keys.)
+        If the literal begins with a newline, it is discarded and any immediately following leading underscores 
+        specify a (maximum) trimming that should be applied to all subsequent lines. Examples:
 <!--eucode>
 ts = """
 this
@@ -175,11 +180,10 @@ ts = """
 _____this
      string\thing"""
 
-ts = 'this
-string\thing'
+ts = `this
+string\thing`
 
 ts = "this\nstring\\thing"
-
 </eucode-->
 <pre>
 <font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> """
@@ -190,20 +194,20 @@ string\thing"""
 _____this
      string\thing"""
 
-</font><font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> '</font><font color="#FF0000">t</font><font color="#000000">his
-</font><font color="#004080">string</font><font color="#000000">\thing</font><font color="#FF0000">'
+</font><font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> `this
+string\thing`
 
-</font><font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> "this\nstring\\thing"
-</font>
+</font><font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> "this\nstring\\thing"</font>
 </pre>
-       which are all equivalent.
+        which are all equivalent. (Tip: if you accidentally start with a quadruple quote instead of a triplequote, 
+        then the underscore thing won&rsquo;t work - which I find an easy mistake to make even if no-one else does.)
        <br>
        <br>
         On a practical note, as long as you have at least 2GB of physical memory, you 
         should experience no problems whatsoever constructing a string with 400 million
-        characters, and you could more than triple that by allocating things up front,
-        however deliberately hogging the biggest block of memory the system will allow is
-        generally considered bad programming practice, and may lead to disk thrashing.
+        characters, and you could more than triple that by allocating things up front.<br>
+        However: deliberately hogging the biggest block of memory the system will allow is
+        generally considered bad programming practice, and may lead to disk thrashing.<br>
         On 64-bit systems such limits can theoretically be multiplied by several billion. 
         As previously mentioned, pHeap.e contains the full and very scary low-down.
        <br>

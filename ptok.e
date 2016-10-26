@@ -812,6 +812,13 @@ end if
         elsif length(file)=k+6  -- ie as in "bt.exw"
           and equal(file[k+1..k+6],"bt.exw") then
             path = dir(mainpath&"bench"&SLASH&"benchtst.exw")
+        elsif length(file)=k+8  -- ie as in "edix.exw"
+          and equal(file[k+1..k+8],"edix.exw") then
+            path = dir(mainpath&"demo\\edix\\edix.exw")
+            if sequence(path) and length(path)=1 then
+                path[1][1] = mainpath&"demo\\edix\\edix.exw"
+                mainpath &= "demo\\edix\\"
+            end if
         elsif length(file)=k+9  -- ie as in "edita.exw"
           and equal(file[k+1..k+9],"edita.exw") then
 --DEV newEmit...
@@ -1271,8 +1278,15 @@ string charset, baseset
     charset[':'..'?'] = SYMBOL  -- :;<=>?
     charset['A'..'Z'] = LETTER
 --  charset['”'] = LETTER   -- for rosettacode/unicode
+    charset[#80] = LETTER   -- more unicode
+    charset[#88] = LETTER   -- more unicode
     charset[#94] = LETTER   -- for rosettacode/unicode (as ptok.e is not stored in utf8)
+    charset[#9A] = LETTER   -- for rosettacode/unicode
+    charset[#A3] = LETTER   -- for rosettacode/unicode
+    charset[#BB] = LETTER   -- for rosettacode/unicode
     charset[#CE] = LETTER   -- for rosettacode/unicode
+    charset[#CF] = LETTER
+    charset[#E2] = LETTER
 --  charset['_'] = ILLEGAL  -- Specifically checked for after 1st character of LETTER
 --  charset['_'] = USCORE
 --12/11/15:
@@ -1846,6 +1860,8 @@ integer preprocactive = 0
 
 forward procedure preprocess()
 
+include builtins\utfconv.e
+
 without trace
 global procedure getToken()
 --integer savecol
@@ -2083,11 +2099,33 @@ global procedure getToken()
 --                  Ch = TokN
 --                  col -= 1
                 elsif Ch=13 or Ch=14 then -- (ie \u or \U)
+if 1 then   -- new code (2/7/16)
+--DOC: unicode characters are converted to their utf-8 equivalents. 
+--  Note that invalid characters (>#10FFFF or #D800..#DFFF) are converted to "\#EF\#BF\#BD".
+--  Don't expect console displays (?my_unicode_string) or debug/trace screens to be pretty.
+--  When using pGUI, do not forget to add an IupSetGlobal("UTF8MODE","YES") at the start.
+                    integer nchars = (Ch-12)*4  -- (4 or 8 digits)
+                    Ch = 0
+                    for i=1 to nchars do
+                        col += 1
+                        bCh = text[col]
+                        bCh = baseset[bCh]
+                        if bCh>16 then
+                            tokcol = col
+                            Abort("hex digit expected")
+                        end if
+                        Ch = Ch*16+bCh
+                    end for
+                    string utf8 = utf32_to_utf8({Ch})
+                    Ch = utf8[$]
+                    TokStr &= utf8[1..-2]
+else -- old code
 --DEV... (of course we could just return a dword-sequence here, which would need a new type
 --        instead of DQUOTE and pmain.e to T_Dseq it instead if T_string it (tiny job), but
 --        much more significantly heavy testing of puts() etc...)
                     tokcol = col
                     Abort("Sorry, Phix does not [yet] support 2 or 4 byte unicode characters in 8-bit strings.")
+end if
                 else
                     Ch = escbyte[Ch]
                 end if
@@ -2237,6 +2275,10 @@ global procedure getToken()
             TokN = -1
             return
         end if
+--23/7/16:
+    elsif prevCh=#1A then   -- Ctrl Z
+        eof_processing()    -- (sets Ch to -1 and clears activepaths)
+        return
     else
 --DEV:::
 --puts(1,"Illegal character (eof assumed):\n")
@@ -2279,7 +2321,9 @@ global procedure MatchString(integer T_ident)
 --     It also makes the code a bit more self-documenting
 --
 --  if not equal(TokStr,x) then Expected('\"'&x&'\"') end if
-    if ttidx!=T_ident then Expected('\"'&getname(T_ident,-2)&'\"') end if
+--11/9/16:
+--  if ttidx!=T_ident then Expected('\"'&getname(T_ident,-2)&'\"') end if
+    if toktype!=LETTER or ttidx!=T_ident then Expected('\"'&getname(T_ident,-2)&'\"') end if
     getToken()
 end procedure
 
@@ -2365,15 +2409,16 @@ sequence name
                 end if
                 if ttidx=T_WIN32
                 or ttidx=T_WINDOWS then
-                    thisflag = 1    -- DEV (PE==1 && X64==0)
+--                  thisflag = 1    -- DEV (PE==1 && X64==0)
+                    thisflag = PE
                 elsif ttidx=T_LINUX
                    or ttidx=T_FREEBSD
                    or ttidx=T_SUNOS
                    or ttidx=T_OPENBSD
                    or ttidx=T_OSX
-                   or ttidx=T_EU4_1
                    or ttidx=T_UNIX then
-                    thisflag = 0    -- DEV (PE==1 && X64==0?)
+--                  thisflag = 0    -- DEV (PE==0?)
+                    thisflag = not PE
                 elsif ttidx=T_WIN32_GUI
                    or ttidx=T_WIN32_CONSOLE then
                     thisflag = OptConsole
@@ -2393,8 +2438,14 @@ sequence name
                 elsif ttidx=T_SAFE
                    or ttidx=T_DATA_EXECUTE
                    or ttidx=T_UCSTYPE_DEBUG
+                   or ttidx=T_EU4_1
                    or ttidx=T_CRASH then
                     thisflag = 0
+                elsif ttidx=T_BITS32 then
+--                  thisflag = machine_bits()=32
+                    thisflag = not X64
+                elsif ttidx=T_BITS64 then
+                    thisflag = X64
                 else
                     Aborpp("unrecognised")
                 end if
@@ -2512,7 +2563,7 @@ procedure preprocess() -- called from getToken()
 --  LINUX/FREEBSD/SUNOS/OPENBSD/OSX/UNIX are assumed FALSE/UNDEFINED
 --  WIN32_GUI/WIN32_CONSOLE are dependent on with/without console/gui,
 --      and /NOT/ on whether p.exe or pw.exe is running (**NB**). [DEV]
---  SAFE/DATA_EXECUTE/UCSTYPE_DEBUG/CRASH are assumed FALSE/UNDEFINED.
+--  SAFE/DATA_EXECUTE/UCSTYPE_DEBUG/EU4_1/CRASH are assumed FALSE/UNDEFINED.
 --  everything else is assumed FALSE/UNDEFINED.
 --  
 -- I am certainly no fan of ifdef. The popular argument that eg:

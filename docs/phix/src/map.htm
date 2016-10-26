@@ -1,0 +1,99 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">map</h1>
+      <div id="mainSection">
+        The file builtins\map.e (<i>not</i> an autoinclude) provides partial compatibility for OpenEuphoria&rsquo;s std\map.e
+        <br>
+        <br>
+        It is based on builtins\dict.e, rather than hashing.<br>
+        There is no notion of large/small maps.<br>
+        A map (-id) is just a small integer index (as per new_dict).<br>
+        There is none of that ADD/SUBTRACT/MULTIPLY/DIVIDE/APPEND/CONCAT/LEAVE nonsense.<br>
+        There is no nested_get or nested_put (for which someone should be shot?).<br>
+        There is no "new_extra" - don&rsquo;t really understand that, besides initial_size_p would be ignored.<br>
+        There is no "rehash" (obviously) or "optimise" (simply no need, period).<br>
+        There is no compare or copy (would probably be pretty trivial if needed).<br>
+        There is no "new_from_kvpairs" (ditto) or "new_from_string" (ugh, but do-able).<br>
+        for_each has no sorted order option (it alway is), nor any of that signal_boundary nonsense<br>
+        &nbsp(that someone put in and then added the signal_boundary parameter [which this does not have] to get rid of).<br>
+        There is no such thing as "raw mode"; save_map and load_map only operate on plain text files.<br>
+        Likewise there is no special handling of ,/$ but instead strings cannot be split,
+        whereas sequences that span several lines are handled quite naturally.<br>
+        Also, load_map does not support "bare strings": instead of this=that the input file must contain "this"="that".<br>
+        It returns a string error message (rather than an integer map) if it was unable to decipher anything in the input file.<br>
+        Offending items have been moved to the .syn "incompatible" section 
+        (ie nested_get/<wbr>nested_put/<wbr>new_extra/<wbr>new_from_kvpairs/<wbr>new_from_string/<wbr>optimize/<wbr>rehash).<br>
+        Finally, while clear(map m) is fine, you should really invoke destroy_dict(map m) when you have no further use for map m.
+        <br>
+        <br>
+        Despite such differences, you should be able to achieve anything you can with std\map.e on OpenEuphoria, 
+        with builtins\map.e on Phix.
+        <br>
+        <br>
+        Personally, however, I would recommend using builtins\dict.e directly.<br>
+        (You can legally pass the result from load_map as a tid to the dict
+         routines, and use it or a tid from new_dict when invoking save_map.)
+        <br>
+        <br>
+        There is NOT even the SLIGHTEST nod to making these things thread-safe, 
+        except (perhaps) as documented for the dict.e routines. Certainly the
+        routines pairs/keys/values/for_each/save_map/load_map would all require 
+        an exclusive system-wide lock for their entire duration.
+        <br>
+        <br>
+        Quick Summary (omitting any "map:" qualifiers):
+<!--eucode>
+    map m
+    bool r = map(object o)
+    map m = new()
+    put(map m, object key, object val)
+    bool b = has(map m, object key)
+    object val = get(map m, object key, object defval=0)
+    remove(map m, object key)
+    sequence full_map = pairs(map m=1)
+    sequence all_keys = keys(map m=1)
+    sequence all_vals = values(map m=1)
+    object res = for_each(map m, integer rid, object user_data=0)
+     -- [a res of 0 indicates that all items were processed]
+    integer count = size(map m=1)
+    integer count = save_map(map m, object file)
+    map m = load_map(object file)
+    clear(map m)
+    destroy_dict(map m) -- [part of dict.e]
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">    map</font><font color="#000000"> m
+</font><font color="#004080">    bool</font><font color="#000000"> r</font><font color="#0000FF"> =</font><font color="#5E005E"> map</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> o</font><font color="#0000FF">)
+</font><font color="#5E005E">    map</font><font color="#000000"> m</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">()
+</font><font color="#5E005E">    put</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> key</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> val</font><font color="#0000FF">)
+</font><font color="#004080">    bool</font><font color="#000000"> b</font><font color="#0000FF"> =</font><font color="#5E005E"> has</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> key</font><font color="#0000FF">)
+</font><font color="#004080">    object</font><font color="#000000"> val</font><font color="#0000FF"> =</font><font color="#5E005E"> get</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> key</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> defval</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">)
+</font><font color="#5E005E">    remove</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> key</font><font color="#0000FF">)
+</font><font color="#004080">    sequence</font><font color="#000000"> full_map</font><font color="#0000FF"> =</font><font color="#5E005E"> pairs</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#0000FF">)
+</font><font color="#004080">    sequence</font><font color="#000000"> all_keys</font><font color="#0000FF"> =</font><font color="#5E005E"> keys</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#0000FF">)
+</font><font color="#004080">    sequence</font><font color="#000000"> all_vals</font><font color="#0000FF"> =</font><font color="#5E005E"> values</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#0000FF">)
+</font><font color="#004080">    object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> for_each</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> rid</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> user_data</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">)
+</font><font color="#000080"><i>     -- [a res of 0 indicates that all items were processed]
+</i></font><font color="#004080">    integer</font><font color="#000000"> count</font><font color="#0000FF"> =</font><font color="#000000"> size</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#0000FF">)
+</font><font color="#004080">    integer</font><font color="#000000"> count</font><font color="#0000FF"> =</font><font color="#5E005E"> save_map</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> file</font><font color="#0000FF">)
+</font><font color="#5E005E">    map</font><font color="#000000"> m</font><font color="#0000FF"> =</font><font color="#5E005E"> load_map</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> file</font><font color="#0000FF">)
+</font><font color="#5E005E">    clear</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">)
+</font><font color="#5E005E">    destroy_dict</font><font color="#0000FF">(</font><font color="#5E005E">map</font><font color="#000000"> m</font><font color="#0000FF">)</font><font color="#000080"><i> -- [part of dict.e]</i></font>
+</pre>
+        These routines are provided for compatibility only, and any further detail is beyond the remit of such a simple wrapper shim.<br>
+        Note that size() is deliberately not syntax-coloured, because that identifier is too commonly used for other things - however
+        F1 help (on "size") does link here, but then again <a href="get.htm">get</a>() and <a href="remove.htm">remove</a>() do not
+        (and if map.e was anything but a compatibility shim, I would rename them as something that does not clash [ditto copy and compare]).
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

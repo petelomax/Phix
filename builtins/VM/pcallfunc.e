@@ -41,7 +41,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
 -- toString, that must then call fatalN(3..), and when open_dll calls
 -- OpenOneDLL, which calls toString which finally calls this, it must 
 -- do so with call fatalN(4..). There are no fatalN(1..) calls since
--- this is local and that would report an error in pcfuncN.e itself,
+-- this is local and that would report errors in pcallfunc.e itself,
 -- which is the very thing the level parameter is supposed to avoid!
 --printf(1,"fatalN(%d,%d)\n",{level,errcode})
     #ilASM{
@@ -144,6 +144,7 @@ object res
         fatalN(3,e72iri,rid)
     elsif (sNtyp=S_Proc)!=isProc then
         if sNtyp=S_Proc then
+--?9/0
             fatalN(3,e117rdnrav,rid)
         else
             fatalN(3,e118rrav,rid)
@@ -296,7 +297,6 @@ end function
 --  if call_common(rid,params,1)!=0 then ?9/0 end if
 --end procedure
 
---!/*
 #ilASM{ jmp :!opCallOnceYeNot
 --#ilASM{ jmp :fin
 
@@ -482,5 +482,5 @@ end procedure -- (for Edita/CtrlQ)
 
 --  ::fin
       }
---!*/
+
 

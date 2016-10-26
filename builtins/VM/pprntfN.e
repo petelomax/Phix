@@ -231,6 +231,8 @@ end for
                     f = (f-digit)*10
                     digit = floor(f)
                 end if
+--12/7/16:
+if digit=10 then exit end if
                 result &= digit+'0'
                 expadj += 1
             end for
@@ -382,7 +384,7 @@ procedure badfmt()
 --/**/  #ilASM{ mov al,69                       -- Phix
 --!/**/         xor edi,edi     -- ep1 unused   -- Phix
 --!/**/         xor esi,esi     -- ep2 unused   -- Phix
---DEV (this is :%pRTErn:, see also pfileioN.e for ebp/calledfrom etc)
+--DEV (this is :%pRTErn:, see also pfileioN.e for ebp/calledfrom/fatalN etc)
 --      pop edx -- era
 --      sub edx,1
 --      jmp :!iDiag
@@ -703,6 +705,7 @@ end if
                     else
                         if machine_bits()=32 then
                             if precision>16 then
+--                          if precision>17 then
                                 precision = 16
                             end if
                         else -- machine_bits()=64

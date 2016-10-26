@@ -25,7 +25,7 @@
 --  Update 7/5/16: replaced with r_xxx = routine_id("xxx") and shuffled things about.
 
 --!/**/forward global function sci_notify(atom hedit, atom data, atom notification, atom userdata)
---!/**/forward function open_file(sequence file_name, integer reload)
+--/**/forward function open_file(sequence file_name, integer reload)
 --!/**/forward global procedure reinit_all_edits()
 --!/**/forward global function get_eu_bin(sequence bin)
 --!/**/forward global function quote_spaces(sequence text)
@@ -63,6 +63,8 @@
 --!/**/forward global procedure set_top_line(integer line)
 --!/**/forward global function get_edit_text()
 --!/**/forward global procedure select_tab(integer tab)
+--forward global procedure add_recent_file(sequence filename)
+forward global procedure new_tab(sequence file_name)
 
 global constant
   window_title = "Wee Euphoria Editor",
@@ -918,6 +920,30 @@ integer pos, style, ch
     end if
     ssm(SCI_INSERTTEXT, pos+1, {ch})
     insert_chars &= ch
+end procedure
+
+procedure goto_pos(object pos, integer len=0)
+-- pos is integer position in current tab, or {"filename", pos}
+-- note: first character in document is at pos=1
+sequence prev = {ssmf(SCI_GETCURRENTPOS),
+                 ssmf(SCI_GETFIRSTVISIBLELINE)}
+
+    if sequence(pos) then
+        sequence prev_file = file_name
+        if open_file(pos[1], 0)=0 then
+            return -- file not found
+        end if
+        pos = pos[2]
+        if not equal(file_name, prev_file) then
+            -- open_file probably changed the current_tab
+            prev &= {prev_file}
+        end if
+    end if
+    tab_pos_stack[current_tab] &= {prev}
+    pos -= 1
+    ssm(SCI_SETANCHOR, pos)
+    ssm(SCI_SETCURRENTPOS, pos+len)
+    set_top_line(-1)
 end procedure
 
 -------------------------------------------------------------------
@@ -2036,6 +2062,88 @@ integer tab
     init_edit(hedit)
 end procedure
 
+global procedure save_recent_pos()
+integer idx
+    idx = find(file_name, recent_files)
+    if idx then
+        recent_pos[idx] = get_pos()
+    end if
+end procedure
+
+function save_file()
+-- returns 1 if ok, 0 on error
+atom fn, junk
+sequence text
+
+    ssm(SCI_SETSAVEPOINT, 0, 0)
+    modified = 0
+
+    fn = open(file_name, "wb")
+    if fn= -1 then
+        text = "Unable to save file. Please make sure the file location is not read-only."
+        if ui_message_box_error("Save", text) then end if
+        return 0
+    end if
+    text = get_edit_text()
+    puts(fn, text)
+    junk = where(fn)
+    close(fn)
+
+    if junk!=length(text) then
+        text = "The file could not be written completely. Please make sure there is enough free space."
+        if ui_message_box_error("Save", text) then end if
+        return 0
+    end if
+
+    update_tab_name()
+    update_tab_timestamp()
+    return 1
+end function
+
+function save_file_as() -- returns 1 if ok, 0 if cancelled/error
+object temp
+
+    temp = ui_get_save_file_name(file_name)
+    if length(temp)=0 then return 0 end if
+
+    file_name = canonical_path(temp, 0, CORRECT)
+    tab_file_names[current_tab] = file_name
+    if save_file()=0 then
+        return 0
+    end if
+    update_tab_name()
+    update_lexer()
+    return 1
+end function
+r_save_file_as = routine_id("save_fike_as")
+
+function save_if_modified(integer confirm)  -- returns 1 if ok, 0 if cancelled/error
+atom result
+sequence text
+
+    if not get_modified() and (length(file_name)!=0 or confirm) then
+        return 1
+    end if
+
+    if confirm then
+        text = ""
+        if length(file_name) then
+            text = " in " & file_name
+        end if
+        text = "The text"&text&" has changed.\n\nDo you want to save the changes?"
+        result = ui_message_box_yes_no_cancel(window_title, text)
+        if result!=1 then -- no or cancel
+            return result+1
+        end if
+    end if
+
+    if length(file_name)=0 then
+        return save_file_as()
+    end if
+    return save_file()
+end function
+r_save_if_modified = routine_id("save_if_modified")
+
 procedure close_tab()
 integer tab
 
@@ -2061,6 +2169,89 @@ integer tab
     select_tab(tab)
 end procedure
 r_close_tab = routine_id("close_tab")
+
+global procedure add_recent_file(sequence filename)
+integer idx
+    idx = find(filename, recent_files)
+    if idx then
+        -- move it to the top of the list
+        recent_files = {recent_files[idx]} & recent_files[1..idx-1] &
+                       recent_files[idx+1..length(recent_files)]
+        recent_pos = {recent_pos[idx]} & recent_pos[1..idx-1] &
+                     recent_pos[idx+1..length(recent_pos)]
+    else
+        idx = length(recent_files)
+        if idx>=max_recent_files then
+            idx -= 1
+        end if
+        recent_files = {filename} & recent_files[1..idx]
+        recent_pos = {0} & recent_pos[1..idx]
+    end if
+    ui_refresh_file_menu(recent_files)
+end procedure
+
+procedure auto_detect_indent(sequence text)
+integer i = 0, indent = 0, last = 0, tabs_used = 0, spaces_used = 0
+sequence indents = repeat(0, 8)
+integer start
+
+    start = 1
+    while i<length(text) do
+        i += 1
+        -- count spaces and tabs
+        if text[i]=' ' then
+            indent += 1
+            if remainder(indent, tab_width)=0 then
+                spaces_used += 1
+            end if
+            continue
+        end if
+        if text[i]='\t' then
+            indent += tab_width-remainder(indent, tab_width)
+            tabs_used += 1
+            continue
+        end if
+
+        -- record positive indents
+        if indent-last>=1 and indent-last<=length(indents) then
+            indents[indent-last] += 1
+        end if
+        last = indent
+        indent = 0
+
+        -- scan to end of line
+        while i<=length(text) do
+            if text[i]='\r' then
+                if i<length(text) and text[i+1]='\n' then
+                    i += 1
+                end if
+                exit
+            elsif text[i]='\n' then
+                if i<length(text) and text[i+1]='\r' then
+                    i += 1
+                end if
+                exit
+            end if
+            i += 1
+        end while
+
+        --printf(1, "%d: %s", {last, text[start..i]})
+        start = i+1
+
+    end while
+
+    -- pick the max used indent size
+    indent = 1
+    for x=2 to length(indents) do
+        if indents[x]>indents[indent] then
+            indent = x
+        end if
+    end for
+
+    ssm(SCI_SETINDENT, indent)
+    ssm(SCI_SETUSETABS, tabs_used>spaces_used)
+
+end procedure
 
 --------------------------------------
 -- file open/save
@@ -2170,81 +2361,6 @@ sequence cmdline
 end procedure
 r_open_tabs = routine_id("open_tabs")
 
--- returns 1 if ok, 0 on error
-function save_file()
-atom fn, junk
-sequence text
-
-    ssm(SCI_SETSAVEPOINT, 0, 0)
-    modified = 0
-
-    fn = open(file_name, "wb")
-    if fn= -1 then
-        text = "Unable to save file. Please make sure the file location is not read-only."
-        if ui_message_box_error("Save", text) then end if
-        return 0
-    end if
-    text = get_edit_text()
-    puts(fn, text)
-    junk = where(fn)
-    close(fn)
-
-    if junk!=length(text) then
-        text = "The file could not be written completely. Please make sure there is enough free space."
-        if ui_message_box_error("Save", text) then end if
-        return 0
-    end if
-
-    update_tab_name()
-    update_tab_timestamp()
-    return 1
-end function
-
-function save_file_as() -- returns 1 if ok, 0 if cancelled/error
-object temp
-
-    temp = ui_get_save_file_name(file_name)
-    if length(temp)=0 then return 0 end if
-
-    file_name = canonical_path(temp, 0, CORRECT)
-    tab_file_names[current_tab] = file_name
-    if save_file()=0 then
-        return 0
-    end if
-    update_tab_name()
-    update_lexer()
-    return 1
-end function
-r_save_file_as = routine_id("save_fike_as")
-
-
-function save_if_modified(integer confirm)  -- returns 1 if ok, 0 if cancelled/error
-atom result
-sequence text
-
-    if not get_modified() and (length(file_name)!=0 or confirm) then
-        return 1
-    end if
-
-    if confirm then
-        text = ""
-        if length(file_name) then
-            text = " in " & file_name
-        end if
-        text = "The text"&text&" has changed.\n\nDo you want to save the changes?"
-        result = ui_message_box_yes_no_cancel(window_title, text)
-        if result!=1 then -- no or cancel
-            return result+1
-        end if
-    end if
-
-    if length(file_name)=0 then
-        return save_file_as()
-    end if
-    return save_file()
-end function
-r_save_if_modified = routine_id("save_if_modified")
-
 function save_modified_tabs()  --returns 1 if ok, 0 if cancelled
 integer idx
 atom saved_hedit
@@ -2305,34 +2421,6 @@ atom ts
     end for
 end procedure
 r_check_externally_modified_tabs = routine_id("check_externally_modified_tabs")
-
-global procedure add_recent_file(sequence filename)
-integer idx
-    idx = find(filename, recent_files)
-    if idx then
-        -- move it to the top of the list
-        recent_files = {recent_files[idx]} & recent_files[1..idx-1] &
-                       recent_files[idx+1..length(recent_files)]
-        recent_pos = {recent_pos[idx]} & recent_pos[1..idx-1] &
-                     recent_pos[idx+1..length(recent_pos)]
-    else
-        idx = length(recent_files)
-        if idx>=max_recent_files then
-            idx -= 1
-        end if
-        recent_files = {filename} & recent_files[1..idx]
-        recent_pos = {0} & recent_pos[1..idx]
-    end if
-    ui_refresh_file_menu(recent_files)
-end procedure
-
-global procedure save_recent_pos()
-integer idx
-    idx = find(file_name, recent_files)
-    if idx then
-        recent_pos[idx] = get_pos()
-    end if
-end procedure
 
 procedure open_recent(integer idx)
 integer tab
@@ -2499,94 +2587,6 @@ sequence cmdline
                   }
                  }
     expansions = {}
-end procedure
-
-procedure auto_detect_indent(sequence text)
-integer i = 0, indent = 0, last = 0, tabs_used = 0, spaces_used = 0
-sequence indents = repeat(0, 8)
-integer start
-
-    start = 1
-    while i<length(text) do
-        i += 1
-        -- count spaces and tabs
-        if text[i]=' ' then
-            indent += 1
-            if remainder(indent, tab_width)=0 then
-                spaces_used += 1
-            end if
-            continue
-        end if
-        if text[i]='\t' then
-            indent += tab_width-remainder(indent, tab_width)
-            tabs_used += 1
-            continue
-        end if
-
-        -- record positive indents
-        if indent-last>=1 and indent-last<=length(indents) then
-            indents[indent-last] += 1
-        end if
-        last = indent
-        indent = 0
-
-        -- scan to end of line
-        while i<=length(text) do
-            if text[i]='\r' then
-                if i<length(text) and text[i+1]='\n' then
-                    i += 1
-                end if
-                exit
-            elsif text[i]='\n' then
-                if i<length(text) and text[i+1]='\r' then
-                    i += 1
-                end if
-                exit
-            end if
-            i += 1
-        end while
-
-        --printf(1, "%d: %s", {last, text[start..i]})
-        start = i+1
-
-    end while
-
-    -- pick the max used indent size
-    indent = 1
-    for x=2 to length(indents) do
-        if indents[x]>indents[indent] then
-            indent = x
-        end if
-    end for
-
-    ssm(SCI_SETINDENT, indent)
-    ssm(SCI_SETUSETABS, tabs_used>spaces_used)
-
-end procedure
-
-
--- pos is integer position in current tab, or {"filename", pos}
--- note: first character in document is at pos=1
-procedure goto_pos(object pos, integer len=0)
-sequence prev = {ssmf(SCI_GETCURRENTPOS),
-                 ssmf(SCI_GETFIRSTVISIBLELINE)}
-
-    if sequence(pos) then
-        sequence prev_file = file_name
-        if open_file(pos[1], 0)=0 then
-            return -- file not found
-        end if
-        pos = pos[2]
-        if not equal(file_name, prev_file) then
-            -- open_file probably changed the current_tab
-            prev &= {prev_file}
-        end if
-    end if
-    tab_pos_stack[current_tab] &= {prev}
-    pos -= 1
-    ssm(SCI_SETANCHOR, pos)
-    ssm(SCI_SETCURRENTPOS, pos+len)
-    set_top_line(-1)
 end procedure
 
 -- restore the previous cursor and scroll position,

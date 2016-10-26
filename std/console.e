@@ -1445,12 +1445,12 @@ end procedure
 -- Comments:
 -- * If ##data_in## is an atom or integer, it is simply displayed.
 -- * If ##data_in## is a simple text string, then ##args## can be used to
---   produce a formatted output with ##data_in## providing the [[:text:format]] string and
+--   produce a formatted output with ##data_in## providing the [[text_format]] string and
 --   ##args## being a sequence containing the data to be formatted.
 -- ** If the last character of ##data_in## is an underscore character then it
 -- is stripped off and ##finalnl## is set to zero. Thus ensuring that a new line
 -- is **not** output.
--- ** The formatting codes expected in ##data_in## are the ones used by [[:text:format]].
+-- ** The formatting codes expected in ##data_in## are the ones used by [[text_format]].
 -- It is not mandatory to use formatting codes, and if ##data_in## does not contain
 -- any then it is simply displayed and anything in ##args## is ignored.
 -- * If ##data_in## is a sequence containing floating-point numbers, sub-sequences 
@@ -1507,7 +1507,7 @@ public procedure display(object data_in, object args = 1, integer finalnl = -918
         if integer(data_in) then
             printf(1, "%d", data_in)
         else
-            puts(1, text:trim(sprintf("%15.15f", data_in), '0'))
+            puts(1, trim(sprintf("%15.15f", data_in), '0'))
         end if
 
     elsif length(data_in)>0 then
@@ -1517,7 +1517,7 @@ public procedure display(object data_in, object args = 1, integer finalnl = -918
                 finalnl = 0
             end if
 
-            puts(1, text:format(data_in, args))
+            puts(1, text_format(data_in, args))
 
         else
             if atom(args) or length(args)=0 then

@@ -196,7 +196,7 @@ public enum
 
 public constant W_BAD_PATH = -1 -- error code
 
-
+--/* Not Phix (defined in pdir.e)
 --**
 -- Return directory information for the specified file or directory.
 --
@@ -280,7 +280,6 @@ public constant W_BAD_PATH = -1 -- error code
 --   [[:walk_dir]]
 --
 
---/* Not Phix (defined in pdir.e)
 public function dir(sequence name)
 object dir_data, data, the_name, the_dir
 integer idx
@@ -330,6 +329,7 @@ integer idx
 end function
 --*/
 
+--/* Not Phix (defined in autoinclude builtins/pcurrdir.e)
 --**
 -- Return the name of the current working directory.
 --
@@ -350,13 +350,13 @@ end function
 -- See Also:
 --  [[:dir]], [[:chdir]]
 
---/* Not Phix (defined in autoinclude builtins/pcurrdir.e)
 public function current_dir()
 -- returns name of current working directory
     return machine_func(M_CURRENT_DIR, 0)
 end function
 --*/
 
+--/* not Phix (defined in autoinclude builtins/pchdir.e)
 --**
 -- Set a new value for the current directory 
 --
@@ -389,7 +389,6 @@ end function
 -- See Also:
 -- [[:current_dir]], [[:dir]]
 
---/* not Phix (defined in autoinclude builtins/pchdir.e)
 public function chdir(sequence newdir)
     return machine_func(M_CHDIR, newdir)
 end function
@@ -417,6 +416,7 @@ constant DEFAULT_DIR_SOURCE = -2
 -- it's better not to use routine_id() here,
 -- or else users will have to bind with clear routine names
 
+--/* Not Phix (defined in builtins/file.e)
 --**
 -- **Deprecated**, so therefore not documented.
 public integer my_dir = DEFAULT_DIR_SOURCE
@@ -565,7 +565,7 @@ end ifdef
     end for
     return 0
 end function
-
+--*/
 
 --**
 -- Create a new directory.
@@ -603,7 +603,7 @@ end function
 -- See Also:
 --  [[:remove_directory]], [[:chdir]]
 
---/* Nopt Phix (defined in pcreatedir.e)
+--/* Not Phix (defined in pfile.e)
 public function create_directory(sequence name, integer mode=448, integer mkparent = 1)
 atom pname, ret
 integer pos
@@ -637,6 +637,7 @@ end ifdef
 end function
 --*/
 
+--/* Not Phix: defined in pfile.e
 --**
 -- Delete a file.
 --
@@ -660,6 +661,7 @@ end ifdef
 
     return success
 end function
+--*/
 
 --**
 -- Returns the current directory, with a trailing SLASH
@@ -756,6 +758,7 @@ end function
 --- TODO
 --- copy_directory(srcpath, destpath, structonly = 0)
 
+--/* Not Phix: defined in pfile.e
 --**
 -- Clear (delete) a directory of all files, but retaining sub-directories.
 --
@@ -841,7 +844,9 @@ end ifdef
     end for
     return ret
 end function
+--*/
 
+--/* Not Phix: defined in pfile.e
 --**
 -- Remove a directory.
 --
@@ -926,7 +931,7 @@ end ifdef
     free(pname)
     return ret
 end function
-
+--*/
 
 --****
 -- === File name parsing
@@ -1043,6 +1048,7 @@ end ifdef
     return {dir_name, file_full, file_name, file_ext, drive_id}
 end function
 
+--/* Not Phix: use get_file_path
 --**
 -- Return the directory name of a fully qualified filename
 --
@@ -1077,7 +1083,9 @@ sequence data
     end if
     return data[1]
 end function
+--*/
 
+--/* Not Phix: defined (as get_file_name) in pfile.e (and aliased as filename in psym.e)
 --**
 -- Return the file name portion of a fully qualified filename
 --
@@ -1099,14 +1107,16 @@ end function
 -- See Also:
 --   [[:pathinfo]], [[:filebase]], [[:fileext]]
 
---  public function filename(sequence path)
---  sequence data
---
---      data = pathinfo(path)
---
---      return data[2]
---  end function
+public function filename(sequence path)
+sequence data
 
+    data = pathinfo(path)
+
+    return data[2]
+end function
+--*/
+
+--/* Not Phix: defined (as get_file_base) in pfile.e (and aliased as filebase in psym.e)
 --**
 -- Return the base filename of path.
 --
@@ -1127,7 +1137,6 @@ end function
 -- See Also:
 --     [[:pathinfo]], [[:filename]], [[:fileext]]
 
---/* Not Phix (defined in pfile.e)
 public function filebase(sequence path)
 sequence data
 
@@ -1137,6 +1146,7 @@ sequence data
 end function
 --*/
 
+--/* Not Phix: defined (as get_file_extension) in pfile.e (and aliased as fileext in psym.e)
 --**
 -- Return the file extension of a fully qualified filename
 --
@@ -1163,6 +1173,7 @@ sequence data
     data = pathinfo(path)
     return data[4]
 end function
+--*/
 
 --**
 -- Return the drive letter of the path on //WIN32// platforms.
@@ -1295,7 +1306,7 @@ end ifdef
     return 0
 end function
 
-
+--/* Not Phix (defined in pgetpath.e)
 --**
 -- Returns the full path and file name of the supplied file name.
 --
@@ -1428,8 +1439,9 @@ end ifdef
 
     return lPath
 end function
+--*/
 
-
+--/* Not Phix: defined (as get_file_type) in pfile.e (and aliased as file_type in psym.e)
 --****
 -- === File Types
 
@@ -1475,6 +1487,7 @@ object dirfil
         return FILETYPE_NOT_FOUND
     end if
 end function
+--*/
 
 --****
 -- === File Handling
@@ -1561,10 +1574,11 @@ public function file_timestamp(sequence fname)
 object d = dir(fname)
     if atom(d) then return -1 end if
 
-    return dt:newdate(d[1][D_YEAR], d[1][D_MONTH], d[1][D_DAY],
-                      d[1][D_HOUR], d[1][D_MINUTE], d[1][D_SECOND])
+    return dt:new_date(d[1][D_YEAR], d[1][D_MONTH], d[1][D_DAY],
+                       d[1][D_HOUR], d[1][D_MINUTE], d[1][D_SECOND])
 end function
 
+--/* Not Phix (defined in pfile.e)
 --**
 -- Copy a file.
 --
@@ -1637,7 +1651,9 @@ end ifdef
     return success
 
 end function
+--*/
 
+--/* Not Phix (defined in pfile.e)
 --**
 -- Rename a file.
 -- 
@@ -1699,6 +1715,7 @@ end ifdef
 
     return ret
 end function
+--*/
 
 ifdef LINUX then
 function xstat(atom psrc, atom psrcbuf)
@@ -1710,6 +1727,7 @@ function xstat(atom psrc, atom psrcbuf)
 end function
 end ifdef
 
+--/* Not Phix (defined in pfile.e)
 --**
 -- Move a file to another location.
 --
@@ -1830,8 +1848,9 @@ elsedef
     
     return ret
 end function
+--*/
 
-
+--/* Not Phix: defined (as get_file_size) in pfile.e (and aliased as file_length in psym.e)
 --**
 -- Return the size of a file.
 --
@@ -1854,6 +1873,7 @@ public function file_length(sequence filename)
     end if
     return list[1][D_SIZE]
 end function
+--*/
 
 --**
 -- Locates a file by looking in a set of directories for it.
@@ -1904,8 +1924,8 @@ end function
 -- </eucode>
 
 public function locate_file(sequence filename, sequence search_list = {}, sequence subdir = {})
-    object extra_paths
-    sequence this_path
+object extra_paths
+sequence this_path
     
     if absolute_path(filename) then
         return filename
@@ -1918,15 +1938,18 @@ public function locate_file(sequence filename, sequence search_list = {}, sequen
         extra_paths = canonical_path(dirname(extra_paths[2]), 1)
         search_list = append(search_list, extra_paths)
 
-        ifdef LINUX then
-            extra_paths = getenv("HOME")
-        elsifdef WIN32 then
-            extra_paths = getenv("HOMEDRIVE") & getenv("HOMEPATH")
-        end ifdef       
-            
+ifdef LINUX then
+        extra_paths = getenv("HOME")
         if sequence(extra_paths) then
             search_list = append(search_list, extra_paths & SLASH)
         end if              
+elsifdef WIN32 then
+        if sequence(getenv("HOMEDRIVE"))
+        and sequence(getenv("HOMEPATH")) then
+            extra_paths = getenv("HOMEDRIVE") & getenv("HOMEPATH")
+            search_list = append(search_list, extra_paths & SLASH)
+        end if              
+end ifdef       
                 
         search_list = append(search_list, ".." & SLASH)
         
@@ -2283,6 +2306,7 @@ public function dir_size(sequence dir_path, integer count_all = 0)
     return fc
 end function
 
+--/* Not phix (defined in pfile.e)
 --**
 -- Returns a file name that can be used as a temporary file.
 --
@@ -2387,3 +2411,5 @@ integer ret
     return randname
     
 end function
+--*/
+

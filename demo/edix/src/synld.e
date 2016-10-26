@@ -25,7 +25,7 @@ global sequence SynNames,       -- eg "Euphoria" (nb Phix uses "Euphoria")
                 Sections,       -- eg (..."Reserved Words","Builtins"...
                 WordLists,      -- eg {...{"if","then",..},{"abort","system",...
                 colourTabs,     -- eg {...Purple,           Green,...}
-                styleTabs,      -- eg {...EA_Normal,        EA_Italic,...}
+                styleTabs,      -- eg {...CD_PLAIN,         CD_ITALIC,...}
                 charMaps        -- character Types for #00..#FF
 
 global integer MAXnColours
@@ -41,7 +41,8 @@ global constant Background=1, Comments=2, Highlight=3, HighLine=4, Strings=5,
                 Illegals=6, Operators=7, URLs=8, Other=9,
                 Marginbg=10, Linenos=11, BookMarks=12
 
-global constant EA_Normal=4, EA_Bold=1, EA_Italic=2 -- So we can have Bold+Italic(=3)
+--DEV use CD_PLAIN etc...
+--global constant EA_Normal=4, EA_Bold=1, EA_Italic=2 -- So we can have Bold+Italic(=3)
 
 global constant
  TokenStart = 1,
@@ -63,7 +64,8 @@ global sequence wordChar    -- set by easynld.e (all are TokenChar, not TokenSta
 global sequence standardColourNames,standardColours
 standardColourNames={} standardColours={}
 
-procedure addStandardColour(sequence text, integer r, integer g, integer b)
+--procedure addStandardColour(sequence text, integer r, integer g, integer b)
+procedure addStandardColour(sequence text, integer b, integer g, integer r)
 integer colour
     standardColourNames = append(standardColourNames,text)
     colour = r+g*#100+b*#10000
@@ -190,7 +192,7 @@ integer lidx
         if state=0 or ch='\n' then
 --      if state=0 or lidx>length(line) then
             if state then
-                line = xlQ(line)
+--              line = xlQ(line)
                 lidx = 1
                 while lidx<=length(line) do
                     ch = line[lidx]
@@ -381,8 +383,10 @@ procedure defaultColourTab()
 --  Yellow          = rgb(255, 255,   0),
 --  CD_YELLOW       = #FFFF00,
 --  CD_DARK_YELLOW  = #808000,
-        StyleTab = repeat(EA_Normal,MAXnColours)
-        StyleTab[URLs] = 5
+--      StyleTab = repeat(EA_Normal,MAXnColours)
+        StyleTab = repeat(CD_PLAIN,MAXnColours)
+--      StyleTab[URLs] = 5
+        StyleTab[URLs] = CD_BOLD+CD_UNDERLINE
     end if
 end procedure
 
@@ -412,12 +416,14 @@ integer newcolour, k, l
         k = find(spaceOutSectionName(word),newSections)
         if k then
             sectionNo = k
-            StyleTab[sectionNo] = 4 -- set EA_Normal (thanks to Al Getz)
+--          StyleTab[sectionNo] = 4 -- set EA_Normal (thanks to Al Getz)
+            StyleTab[sectionNo] = CD_PLAIN
         else
             k = find(word,deprecated)
             if k then
                 sectionNo = find(spaceOutSectionName(replacements[k]),newSections)
-                StyleTab[sectionNo] = 4 -- set EA_Normal (thanks to Al Getz)
+--              StyleTab[sectionNo] = 4 -- set EA_Normal (thanks to Al Getz)
+                StyleTab[sectionNo] = CD_PLAIN
             else
                 k = find(word,standardColourNames)
                 if k and sectionNo then
@@ -426,7 +432,8 @@ integer newcolour, k, l
                     k = find(word,{"Bold","Italic"})
                     if k and sectionNo then
                         k = or_bits(k,StyleTab[sectionNo])
-                        StyleTab[sectionNo] = and_bits(k,3)
+--                      StyleTab[sectionNo] = and_bits(k,3)
+                        StyleTab[sectionNo] = and_bits(k,CD_BOLD_ITALIC)
                     else
                         if length(word) and word[1]='#' then
                             word = word[2..length(word)]
@@ -451,7 +458,8 @@ integer newcolour, k, l
             end if
         end if
     end while
-    StyleTab[URLs] = 5
+--  StyleTab[URLs] = 5
+    StyleTab[URLs] = CD_BOLD+CD_UNDERLINE
 end procedure
 
 --with trace
@@ -664,7 +672,7 @@ integer TokenType
                     close(f)
                     return
                 end if
-                word = KtoF(word)
+--              word = KtoF(word)
                 if length(word)=1 then  -- eg {, }
                     indentset[3] = indentset[3]&word
                     indentset[4] = indentset[4]&indentTypeSave
