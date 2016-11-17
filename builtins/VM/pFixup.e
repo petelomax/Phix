@@ -24,10 +24,19 @@ include builtins\VM\pFPU.e
         int3
 
     ::e06ioobp1WhatN
+    [32]
         sub edi,edx
         sub edi,1
+    [64]
+        sub rdi,rdx
+        sub rdi,1
+    []
     ::e06ioobp1What
+    [32]
         add edi,1
+    [64]
+        add rdi,1
+    []
     ::e06ioobWhat
         -- 0 or >length
     [32]

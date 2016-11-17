@@ -1,0 +1,200 @@
+--
+-- demo\rosetta\Compiler\cgen.exw
+-- ==============================
+--
+--  Generates 32-bit machine code (see note in vm.exw)
+--
+
+include cgen.e
+
+function get_var_name(atom addr)
+    integer n = (addr-var_mem)/4+1
+    if n<1 or n>length(vars) then ?9/0 end if
+    return vars[n]
+end function
+
+function hxl(integer pc, object oh, string fmt, sequence args={})
+-- helper routine to display the octal/hex bytes just decoded,
+-- along with the code offset and the human-readable text.
+    if length(args) then fmt = sprintf(fmt,args) end if
+    sequence octhex = {}
+    atom base = code_mem+pc
+    integer len = 0
+    if integer(oh) then -- all octal
+        for i=1 to oh do
+            octhex = append(octhex,sprintf("0o%03o",peek(base)))
+            base += 1
+        end for
+        len = oh
+    else    -- some octal and some hex
+        for i=1 to length(oh) by 2 do
+            for j=1 to oh[i] do
+                octhex = append(octhex,sprintf("0o%03o",peek(base)))
+                base += 1
+            end for
+            len += oh[i]
+            for j=1 to oh[i+1] do
+                octhex = append(octhex,sprintf("#%02x",peek(base)))
+                base += 1
+            end for
+            len += oh[i+1]
+        end for
+    end if
+    printf(output_file,"%4d: %-30s %s\n",{pc+1,join(octhex,","),fmt})
+    return len
+end function
+
+constant cccodes = {"o?" ,"no?","b?" ,"ae?","z" ,"ne" ,"be?","a?",
+--                    0  ,  1  ,  2  ,  3  ,  4 ,  5  ,  6  , 7  ,
+                    "s?" ,"ns?","pe?","po?","l" ,"ge" ,"le" ,"g" }
+--                    8  ,  9  , 10  , 11  , 12 , 13  , 14  , 15
+
+constant regs = {"eax","ecx","edx"} -- (others as/when needed)
+
+procedure decode()
+-- for a much more complete (and better organised) disassembler, see p2asm.e
+integer pc = 0, -- nb 0-based
+        opcode, xrm
+
+    while pc<length(code) do
+        opcode = peek(code_mem+pc)
+        xrm = -1
+        switch opcode do
+            case 0o150:
+                atom vaddr = peek4s(code_mem+pc+1)
+                integer n = find(vaddr,stringptrs)
+                object arg = iff(n?enquote(strings[n])
+                                  :sprintf("%d",vaddr))
+                pc += hxl(pc,{1,4},"push %s",{arg})
+            case 0o217:
+            case 0o377:
+                integer n = find(opcode,{0o217,0o377})
+                string op = {"pop","push"}[n]
+                xrm = peek(code_mem+pc+1)
+                if n!=find(xrm,{0o005,0o065}) then exit end if
+                atom addr = peek4u(code_mem+pc+2)
+                pc += hxl(pc,{2,4},"%s [%s]",{op,get_var_name(addr)})
+            case 0o061:
+            case 0o071:
+            case 0o205:
+                integer n = find(opcode,{0o061,0o071,0o205})
+                string op = {"xor","cmp","test"}[n]
+                xrm = peek(code_mem+pc+1)
+                if and_bits(xrm,0o300)!=0o300 then exit end if
+                string r1 = regs[and_bits(xrm,0o070)/0o010+1]
+                string r2 = regs[and_bits(xrm,0o007)+1]
+                pc += hxl(pc,2,"%s %s,%s",{op,r1,r2})
+            case 0o017:
+                xrm = peek(code_mem+pc+1)
+                switch xrm do
+                    case 0o224:
+                    case 0o225:
+                    case 0o234:
+                    case 0o235:
+                    case 0o236:
+                    case 0o237:
+                        string cc = cccodes[and_bits(xrm,0o017)+1]
+                        if peek(code_mem+pc+2)=0o300 then
+                            pc += hxl(pc,3,"set%s al",{cc})
+                        else
+                            exit
+                        end if
+                    case 0o204:
+                        integer offset = peek4s(code_mem+pc+2)
+                        pc += hxl(pc,{2,4},"jz %d",{pc+6+offset+1})
+                    else
+                        exit
+                end switch
+            case 0o120:
+            case 0o122:
+            case 0o130:
+            case 0o131:
+            case 0o132:
+                string op = {"push","pop"}[find(and_bits(opcode,0o070),{0o020,0o030})]
+                string reg = regs[and_bits(opcode,0o007)+1]
+                pc += hxl(pc,1,"%s %s",{op,reg})
+            case 0o231:
+                pc += hxl(pc,1,"cdq")
+            case 0o164:
+            case 0o353:
+                string jop = iff(opcode=0o164?"jz":"jmp")
+                integer offset = peek1s(code_mem+pc+1)
+                pc += hxl(pc,{1,1},"%s %d",{jop,pc+2+offset+1})
+            case 0o351:
+                integer offset = peek4s(code_mem+pc+1)
+                pc += hxl(pc,{1,4},"jmp %d",{pc+5+offset+1})
+            case 0o303:
+                pc += hxl(pc,1,"ret")
+            case 0o350:
+                integer offset = peek4s(code_mem+pc+1)
+                atom addr = offset+code_mem+pc+5
+                integer n = find(addr,builtins)
+                pc += hxl(pc,{1,4},"call :%s",{builtin_names[n]})
+            case 0o001:
+            case 0o041:
+            case 0o051:
+                integer n = find(opcode,{0o001,0o041,0o051})
+                string op = {"add","and","sub"}[n]
+                xrm = peek(code_mem+pc+1)
+                switch xrm do
+                    case 0o004:
+                        if peek(code_mem+pc+2)=0o044 then
+                            pc += hxl(pc,3,"%s [esp],eax",{op})
+                        else
+                            exit
+                        end if
+                    else
+                        exit
+                end switch
+            case 0o367:
+                xrm = peek(code_mem+pc+1)
+                if and_bits(xrm,0o300)!=0o300 then exit end if
+                integer n = find(and_bits(xrm,0o070),{0o030,0o040,0o070})
+                if n=0 then exit end if
+                string op = {"neg","mul","idiv"}[n]
+                string reg = regs[and_bits(xrm,0o007)+1]
+                pc += hxl(pc,2,"%s %s",{op,reg})
+            else
+                exit
+        end switch
+    end while
+    if pc<length(code) then
+        ?"incomplete:"
+        if xrm=-1 then
+            ?{pc+1,sprintf("0o%03o",opcode)}
+        else
+            ?{pc+1,sprintf("0o%03o 0o%03o",{opcode,xrm})}
+        end if
+    end if
+end procedure
+
+procedure main(sequence cl)
+    open_files(cl)
+    toks = lex()
+    object t = parse()
+    code_gen(t)
+    fixup()
+    decode()
+    free({var_mem,code_mem})
+    close_files()
+end procedure
+
+--main(command_line())
+--main({0,0,"deep.c"})
+main({0,0,"gcd.c"})
+--main({0,0,"factorial.c"})
+--main({0,0,"fibonacci.c"})
+--main({0,0,"FizzBuzz.c"})
+--main({0,0,"99bottles.c"})
+--main({0,0,"Mandelbrot.c"})
+--main({0,0,"negative.c"})
+--main({0,0,"primes.c"})
+--main({0,0,"test1.c","test1.asm"})
+--main({0,0,"test1.c"})
+--main({0,0,"test2.c"})
+--main({0,0,"test3.c"}) -- not compilable!
+--main({0,0,"test4.c"})
+
+?"done"
+    {} = wait_key()
+

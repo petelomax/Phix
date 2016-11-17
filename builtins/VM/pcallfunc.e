@@ -204,7 +204,7 @@ object res
                 jl @f
                     add dword[ebx+eax*4-8],1        -- increment refcount.
               @@:
-                dec ecx
+                sub ecx,1
                 jnz :paramloop
 
          ::zeroparams
@@ -258,7 +258,7 @@ je @f
                 jl @f
                     add qword[rbx+rax*4-16],1       -- increment refcount.
               @@:
-                sub ecx,1
+                sub rcx,1
                 jnz :paramloop
 
          ::zeroparams
@@ -372,7 +372,7 @@ end procedure -- (for Edita/CtrlQ)
             pop qword[rbp-8]                    --[2] args
             mov qword[rbp-16],rbx               -- isProc:=0
             mov qword[rbp+32],:callfuncret      -- return address
-            mov qword[ebp+24],rdx               -- called from address
+            mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:call_common
           ::callfuncret
             pop rdi                             --[1] addr res
@@ -472,7 +472,7 @@ end procedure -- (for Edita/CtrlQ)
             mov qword[rbp-16],1                 -- isProc:=1
 --          mov qword[rbp+32],:callprocret      -- return address
             mov qword[rbp+32],rax               -- return address
-            mov qword[ebp+24],rdx               -- called from address
+            mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:call_common
           ::callprocret
             test rax,rax

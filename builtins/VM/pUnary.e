@@ -210,7 +210,7 @@ end procedure -- (for Edita/CtrlQ)
             fistp qword[esp]    -- store as 64 bits
             call :%near53
             mov eax,[esp]       -- load top 32
---          cdq                     -- sign extend (to edx)
+--          cdq                 -- sign extend eax into edx
 --23/2/10:
 --          cmp edx,[esp+4]     -- same as low 32?
             mov edx,[esp+4]

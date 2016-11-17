@@ -815,7 +815,7 @@ global constant
 --  isApiFn         = #000101,  -- 4 byte location for indirect WinAPI call
     isAPIfn         = #000102,  -- 4 byte location from (NB existing!) import section (for fast file I/O).
     isVar           = #000200,  -- 4 byte absolute, fixup as DSvaddr+idx*4-4 (once CSvsize hence DSvaddr known).
-    isVar1          = #000201,  --  "" but with 4-byte literal yet on instruction (needed for rip addressing)
+    isVar1          = #000201,  --  "" but with 1-byte literal yet on instruction (needed for rip addressing)
     isVar4          = #000204,  --  "" but with 4-byte literal yet on instruction (needed for rip addressing)
     isVno           = #000300,  -- 4 byte symtab index (that will need mapping if the symtab is packed)
     isData          = #000400,  -- 4 byte absolute, fixup as DSvaddr+offset (eg symtabptr is mov esi/rsi,[ds+8])

@@ -313,7 +313,7 @@ end procedure -- (for Edita/CtrlQ)
         push rax                --[1] save char
         lea rcx,[rdx+1]         -- original length+1
         call :%pAllocStr        -- damages eax only
-        lea rdi,[rdi+rax*4]     -- edi -> new[1] for append, new[2] for prepend
+        lea rdi,[rdi+rax*4]     -- rdi -> new[1] for append, new[2] for prepend
         mov rcx,rdx
 ----DEV:
 --                   -- This shaves about 9% off the total time for append():
@@ -402,7 +402,7 @@ end procedure -- (for Edita/CtrlQ)
         lea rcx,[rdx+1]         -- length+1
         mov rdx,[rsp+32]        -- era
         call :%pAllocSeq        -- damages eax only
-        lea rdi,[rdi+rax*4]     -- edi->(append:new[1], or prepend:new[2])
+        lea rdi,[rdi+rax*4]     -- rdi->(append:new[1], or prepend:new[2])
         sub rcx,1
         je :ApndExpandZero      -- (append(<empty string>,<non-char>) case)
         push rax                --[3] save new ref
@@ -556,7 +556,7 @@ end procedure -- (for Edita/CtrlQ)
         add rdx,1               -- new length
         mov rcx,[rsi-32]        -- maxlen
         mov [rsi-48],rdi        -- new slack
-        mov [esi-40],rcx        -- copy maxlen
+        mov [rsi-40],rcx        -- copy maxlen
         mov rcx,[rsi-8]         -- type/delete routine
         mov rdi,[rsp+8]         -- addr p1
 --      mov [rsi-24],rdx        -- set new length
@@ -819,7 +819,7 @@ end procedure -- (for Edita/CtrlQ)
         -- recap:
         --  [p3] (increfed)     @ [rsp]
         --  addr p1 (result)    @ [rsp+8]   (with a refcount of 1)
-        --  addr p2 in edi and  @ [rsp+16]  (== addr p1) [pbr-optimise]
+        --  addr p2 in rdi and  @ [rsp+16]  (== addr p1) [pbr-optimise]
         --  addr p3             @ [rsp+24]  (!= addr p1) [non-circular]
         --  rsi = raw(p2)       = [rsp+32]  (was prepend flag of 1)
         --  era                 @ [rsp+40]
@@ -930,7 +930,7 @@ end procedure -- (for Edita/CtrlQ)
         -- recap:
         --  ref(p3) in rcx and  @ [rsp] (already incref;d) ([1] from ApndSeq)
         --  addr p1 (result)    @ [rsp+8]
-        --  addr p2 in edi and  @ [rsp+16]
+        --  addr p2 in rdi and  @ [rsp+16]
         --  addr p3             @ [rsp+24]
         --  prepend flag        @ [rsp+32]
         --  era                 @ [rsp+40]
@@ -946,7 +946,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,[rsp+40]        -- era
         call :%pAllocSeq        -- damages eax only
         push rax                --[2] save new ref
-        lea rdi,[rdi+rax*4]     -- edi -> new[1] for append, or new[2] for prepend
+        lea rdi,[rdi+rax*4]     -- rdi -> new[1] for append, or new[2] for prepend
       ::ApndNewSeqLoop
         sub rcx,1
         jz :ANSNewSeqLoopEnd
@@ -1543,11 +1543,11 @@ end if
         -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
         -- recap:
         --  addr p1,p2,p3,flag,era @ [rsp],[rsp+8],[rsp+16],[rsp+24],[rsp+32]
-        --  edi is the new length
-        --  esi is raw(p2)
-        --  ecx is raw(p3)
-        --  edx is unknown
---      --  eax is [p1] (if that is any help) [may try removing that anyway][have]
+        --  rdi is the new length
+        --  rsi is raw(p2)
+        --  rcx is raw(p3)
+        --  rdx is unknown
+--      --  rax is [p1] (if that is any help) [may try removing that anyway][have]
 --      mov rdx,rcx
         mov rdx,[rsp+32]            -- era
         push rcx
@@ -1597,11 +1597,11 @@ end if
         -- p2 is a string, p3 is a dword-sequence. Neither are length 0
         -- recap:
         --  addr p1,p2,p3,flag,era @ [rsp],[rsp+8],[rsp+16],[rsp+24],[rsp+32]
-        --  edi is the new length
-        --  esi is raw(p2)
-        --  ecx is raw(p3)
-        --  edx is addr p1 (==[esp])
-        --  eax is [p1] (if that is any help)
+        --  rdi is the new length
+        --  rsi is raw(p2)
+        --  rcx is raw(p3)
+        --  rdx is addr p1 (==[rsp])
+        --  rax is [p1] (if that is any help)
 --      mov rdx,rcx
         mov rdx,[rsp+32]            -- era
         push rcx

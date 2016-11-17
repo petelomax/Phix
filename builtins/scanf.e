@@ -2,6 +2,7 @@
 -- builtins/scanf.e
 -- ================
 --
+--  (Also implements to_number())
 --  scanf(s,fmt) attempts to find sequence params for which sprintf(fmt,params) could have produced s.
 --
 --  May return more than one set, for example 
@@ -27,7 +28,7 @@
 --  refer to printf. All characters not part of a %-group are treated as literal. There is no way to suggest, let 
 --  alone force, that say scanf("#FF","%d") should fail but scanf("255","%d") should succeed, and anything like 
 --  scanf("#FF","#%x") simply does not work (sorry), but scanf("#FF","%x") is perfectly fine, apart from the fact 
---  that sprintf("%x",#FF) produces "FF" not "#FF".
+--  that sprintf("%x",#FF) produces "FF" not "#FF". [DEV both scanf("#FF","#%x") and scanf("FF","%x") fail...]
 --
 --  Failure is indicated by {}. Otherwise each element of the results has as many elements as there were format
 --  specifications in the format string, in the same order as specfied. A perfect unique and unambiguous result
@@ -38,8 +39,8 @@
 --  (programming note: %s is all the wildcard-matching we can handle; ? and * are treated as literals.)
 --
 --
--- The real gruntwork here is recognising numbers (if you think this is complicated, search for "scanf.c").
---  Much of get_number() and completeFloat() was copied from ptok.e, should really share I spose, but
+-- The real gruntwork here is recognising numbers (if you think this is complicated, google "scanf.c").
+--  Much of get_number() and completeFloat() was copied from ptok.e, should really unify I spose, but
 --  ptok.e relies heavily on there being a \n at the end of every line, which this cannot, really.
 -- The clever bit, if you can call it that, is strings simply expand between literal matches.
 --
@@ -335,6 +336,7 @@ integer msign, base, tokvalid
             ch2 = s[sidx]
             if ch!='.' then
                 -- allow eg 65'A' to be the same as 65:
+--DEV could probably do with some more bounds checking here (spotted in passing)
                 if ch='\'' and s[sidx]=N and s[sidx+2]='\'' then
                     sidx += 3
                     return {N*msign,sidx}
@@ -378,7 +380,6 @@ integer msign, base, tokvalid
     return {}
 end function
 
---DEV doc..
 global function to_number(string s)
 sequence r
 atom N
@@ -452,7 +453,7 @@ integer goodres
         -- filter multiple results to exact matches
         goodres = 0
         for i=1 to length(res) do
-            if sprintf(fmts,res[i])=s then
+            if sprintf(fmts,res[i])==s then
                 goodres += 1
                 res[goodres] = res[i]
             end if

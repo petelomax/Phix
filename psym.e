@@ -2410,6 +2410,8 @@ end if
     initialAutoEntry("task_create",     S_Func,"FIP",   "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_self",       S_Func,"F",     "VM\\pTask.e",0,E_none)
     initialAutoEntry("task_status",     S_Func,"FI",    "VM\\pTask.e",0,E_none)
+    initialAutoEntry("to_integer",      S_Func,"FSI",   "to_int.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("save_bitmap",     S_Func,"FPP",   "image.e",0,E_other)
 --DEV document/test/remove:
     initialAutoEntry("TlsAlloc",        S_Func,"F",     "ptls.ew",0,E_other)
@@ -2734,6 +2736,7 @@ end if
     initialAutoEntry("sq_upper",        S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_lower",        S_Func,"FO",    "psqop.e",0,E_none)
 
+    initialAutoEntry("to_number",       S_Func,"FS",    "scanf.e",0,E_none)
     initialAutoEntry("trim",            S_Func,"FOOI",  "ptrim.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("trim_head",       S_Func,"FOOI",  "ptrim.e",0,E_none)

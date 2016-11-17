@@ -13,18 +13,29 @@ include builtins\VM\pFPU.e  -- :%down53 etc
 --  ::e94vhnbaavecx
 --      int3
     ::e04atssaa -- attempt to subscript an atom
---DEV [64]
+    [32]
         pop edx
         mov al,4
         sub edx,1
+    [64]
+        pop rdx
+        mov al,4
+        sub rdx,1
+    []
         jmp :!iDiag
         int3
     :!e106ioobr
         int3
     ::e05sinaa0e10
+    [32]
         pop edx
         mov al,5
         sub edx,1
+    [64]
+        pop rdx
+        mov al,5
+        sub rdx,1
+    []
         jmp :!iDiag
         int3
     ::e106ioobrp1
@@ -32,11 +43,13 @@ include builtins\VM\pFPU.e  -- :%down53 etc
     ::e03tfcmbaa
         [32]
             pop edx
-        [64]
-            pop rdx
-        []
             mov al,3        -- e03tfcmbaa
             sub edx,1
+        [64]
+            pop rdx
+            mov al,3        -- e03tfcmbaa
+            sub rdx,1
+        []
             jmp :!iDiag
             int3
 

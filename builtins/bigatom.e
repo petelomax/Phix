@@ -203,6 +203,100 @@ integer decs = length(N[DIGITS])-N[EXPONENT]-1
 end function
 --
 
+--
+-- Standardizes a bigatom.
+-- Reduces your bigatom to a shorter form, eliminating superfluous zeroes and adjusting the exponent.
+--
+function normalize(sequence N)
+sequence mantissa
+integer first, last
+
+    if N[SIGN]<SG_MINUS or N[SIGN]>SG_PLUS then
+        return NO_VALUE
+    end if
+
+    mantissa = N[DIGITS]
+    first = 1
+    last = length(mantissa)
+    while last and mantissa[last]=0 do
+        last -= 1
+    end while
+    while first<=last and mantissa[first]=0 do
+        first += 1
+    end while
+
+    if first>last or not N[SIGN] then
+        N = BA_ZERO
+    else
+        N[DIGITS]  = mantissa[first..last]
+        N[EXPONENT] -= first-1
+    end if
+
+    return N
+end function
+--
+
+
+--
+-- Returns an atom with the integer value of a string containing the
+-- representation of a number.
+--
+-- The conversion stops to find the first invalid character.
+-- Allows the use of spaces and underscores as separators groups.
+-- If the string contains a number with decimal value returns
+-- the integer part, point or comma stop the conversion.
+--
+--global 
+function int_value(sequence str)
+integer digit
+integer sign
+atom ival = 0
+
+    if not length(str) then
+        return 0
+    end if
+
+    sign = str[1]
+    sign = (sign=SPLUS)-(sign=SMINUS)
+    if sign then
+        str = str[2..$]
+    else
+        sign = 1
+    end if
+
+    for i=1 to length(str) do
+        if not integer(str[i]) then
+            exit
+        end if
+        digit = str[i]
+        if digit>='0' and digit<='9' then
+            ival = ival*10+(digit-'0')
+        elsif digit!=UNDERLINE and digit!=SPACE then
+            exit
+        end if
+    end for
+
+    return sign*ival
+end function
+--
+
+--
+-- Returns a bigatom with the value of an integer (integer)
+--
+function int_to_bigatom(integer i)
+integer sign = SG_PLUS
+sequence s
+    if i<0 then
+        sign = SG_MINUS
+    end if
+    s = sprintf("%+d", i)
+    s[1] = -1   -- (force expansion to dword-sequence)
+    s = s[2..$]
+    s = sq_sub(s,'0')
+
+    return normalize({sign, length(s)-1, s})
+end function
+--
 
 --
 -- Returns a bigatom equivalent to an integer or atom or, better yet, string.
@@ -357,6 +451,225 @@ integer cmp = compare(A, B)
 end function
 --
 
+--
+-- adds two sequences of digits
+-- returns a sequence of two elements: {carry, result}
+-- if carry is not zero it indicates the length of the result is increased by 1.
+--
+function digits_add(sequence a, sequence b)
+integer len = length(a), lenb = length(b)
+sequence result
+integer carry = 0, digit
+
+    if len<lenb then
+        a = repeat(0, lenb-len) & a
+        len = lenb
+    elsif lenb<len then
+        b = repeat(0, len-lenb) & b
+    end if
+
+    result = sq_add(a,b)
+
+    for i=len to 1 by -1 do
+        digit = result[i]+carry
+        carry = digit>9
+        if carry then
+            digit -= 10
+        end if
+        result[i] = digit
+    end for
+    if carry then
+        result = prepend(result, carry)
+    end if
+
+    return {carry, result}
+end function
+--
+
+
+--
+-- subtracts two sequences of digits
+-- returns a sequence of two elements: {negative, result}
+-- if negative is not zero it indicates that the result is negative.
+--
+function digits_sub(sequence a, sequence b)
+integer len = length(a), lenb = length(b)
+sequence result
+integer digit, neg = 0
+
+    if len<lenb then
+        a = repeat(0, lenb-len) & a
+        len = lenb
+    elsif lenb<len then
+        b = repeat(0, len-lenb) & b
+    end if
+
+    result = sq_sub(a,b)
+
+    for i=len to 1 by -1 do
+        digit = result[i]-neg
+        neg = digit<0
+        if neg then
+            digit += 10
+        end if
+        result[i] = digit
+    end for
+    -- if negative complement is 10
+    if neg then
+        result = sq_sub(9,result)      -- supplement 9
+        result = digits_add(result, {1}) -- plus 1
+        result = result[2]
+    end if
+
+    return {neg, result}
+end function
+--
+
+--
+-- multiplies two sequences of digits
+-- returns a sequence of two elements: {carry, result}
+-- if carry is not zero it indicates the result length is increased by 1.
+--
+function digits_multiply(sequence a, sequence b)
+integer lena = length(a), lenb = length(b)
+sequence partial, result = {}
+integer digit, carry
+
+    if lena<lenb then
+        {a, lena, b, lenb} = {b, lenb, a, lena}
+    end if
+
+    for i=lenb to 1 by -1 do
+        carry = 0
+        partial = sq_mul(a,b[i]) & repeat(0, lenb-i)
+        for j=lena to 1 by -1 do
+            digit = partial[j]+carry
+            carry = 0
+            if digit>9 then
+                carry = floor(digit/10)
+                digit = remainder(digit, 10)
+            end if
+            partial[j] = digit
+        end for
+        if carry then
+            partial = prepend(partial, carry)
+        end if
+        result  = digits_add(result, partial)
+        carry  += result[1]
+        result  = result[2]
+    end for
+
+    return {carry, result}
+end function
+--
+
+--
+-- expand a bigatom with all its digits
+--
+function expand(sequence N)
+sequence digits = N[DIGITS]
+integer exponent = N[EXPONENT]
+integer len = length(digits)-1
+
+    if exponent<0 then
+        digits = repeat(0, -exponent) & digits
+        N[EXPONENT] = 0
+    elsif exponent>len then
+        digits &= repeat(0, exponent-len)
+    end if
+    N[DIGITS] = digits
+
+    return N
+end function
+--
+
+--
+-- Returns a string representation of the formatted number.
+--
+-- sign:  if nonzero the sign also shows positive numbers.
+--        if zero the sign is only displayed in negative numbers.
+--
+-- decs:  is the number of decimal places displayed (rounded to the last decimal).
+--        If negative number shown with all decimals.
+--        If not, is filled with zeros or other characters until the total number of
+--        decimal requested, or trimmed and rounded to the last decimal.
+--
+-- zsign: sign put to zero when the number is less than the limits of representation
+--        but its value is not zero in the current scale.
+--
+-- all:   indicates whether to show all the numbers in decimal. Not shown if it is zero.
+--        If one, adds the decimal point and zeros up to the number of decimal places, 
+--        and if greater than one the DFCHAR character is used instead of zeros.
+--
+function make_string(sequence N, integer sign = 0, integer decs = -1, integer zsign = 0, integer all = 0)
+integer sg, exponent
+sequence digits, dcopy
+integer decsN
+integer last
+integer dp
+
+    if N[SIGN]=SG_NOVALUE then
+        return "<no_value>"
+    end if
+
+    N = expand(N)
+
+    {sg, exponent, digits} = N
+    
+    -- set the number of decimal requested
+    decsN = length(digits)-exponent-1
+    if decs<0 then
+        decs = decsN
+    end if
+
+    last = exponent+1+decs
+    if decs<decsN then
+        if digits[last+1]>=5 then
+         -- rounds the last decimal
+            digits = digits_add(digits[1..last], {1})
+            exponent += digits[1]
+            digits = digits[2]
+        else
+            digits = digits[1..last]
+        end if
+    elsif all or decsN then
+        if all=1 then
+            digits &= repeat(0, decs-decsN)
+        elsif all then
+            digits &= repeat(DFCHAR-'0', decs-decsN)
+        end if
+    end if
+
+    if compare(digits, repeat(0, length(digits)-exponent)) then
+        zsign = 0
+    end if
+
+--  digits += '0'
+--  digits = sq_add(digits,'0')
+    dcopy = digits
+    digits = repeat(' ',length(digits))     -- make string
+    for i=1 to length(digits) do
+        digits[i] = dcopy[i]+'0'
+    end for
+
+    -- put the decimal point
+    dp = exponent+2
+    if dp<=length(digits) then
+        digits = insert(digits, '.', dp)
+    end if
+
+    -- put sign
+    if sg=SG_MINUS then
+        digits = prepend(digits, SMINUS)
+    elsif sg and (sign or zsign) then
+        digits = prepend(digits, SPLUS)
+    else   --  if sign then
+        digits = prepend(digits, SZERO)
+    end if
+
+    return digits
+end function
+--
 
 -- -------------------------------------------------------------------------------------------
 
@@ -371,7 +684,7 @@ end function
 -- Returns the complete string representation of a bigatom
 --
 global function ba_sprint(bigatom N)
-sequence str = to_string(N)
+sequence str = make_string(N)
     if str[1]=SZERO then
         str = str[2..$]
     end if
@@ -392,7 +705,7 @@ end procedure
 -- Note: You need a major overhaul, it is made ??on the fly but is functional.
 --       It would be nice to integrate with other types, replace and pass all bigatoms
 --       to printf or sprintf.  Actually this function only reads the format string and
---       calls to_string() that is executed by the conversion of the number and it fits
+--       calls make_string() that is executed by the conversion of the number and it fits
 --       the size, the filling sets.
 --
 -- The format string consists of three parts: the header (the text goes ahead
@@ -549,7 +862,7 @@ integer len
         decs = scale_of(N)
     end if
 
-    str = to_string(N, sg, decs, zsign, all)
+    str = make_string(N, sg, decs, zsign, all)
 
     -- removes the sign of zero if the filling is not zero
     if str[1]=SZERO and fchar!='0' then
@@ -613,10 +926,59 @@ end procedure
 -- -------------------------------------------------------------------------------------------
 
 
+--
+-- returns both numbers with sequences of aligned and matched digits
+-- in size by adding zeros as both right and left
+-- the digits of the two numbers.
+-- Equating the exponents and the same number of digits in both mantissas.
+--
+function align(sequence A, sequence B)
+integer expA, expB, offset
+sequence digsA, digsB
+integer last
+
+    {?, expA, digsA} = A
+    {?, expB, digsB} = B
+
+    -- put zeros to the left
+    offset = expA-expB
+    if offset>0 then
+        digsB = repeat(0, offset) & digsB
+        expB += offset
+    else
+        digsA = repeat(0, -offset) & digsA
+        expA -= offset
+    end if
+
+    -- put zeros to the right
+    offset = length(digsA)-length(digsB)
+    if offset>0 then
+        digsB &= repeat(0, offset)
+    else
+        digsA &= repeat(0, -offset)
+    end if
+
+    -- delete extra zeros
+    last = length(digsA)
+    while last and digsA[last]=0 and digsB[last]=0 do
+        last -= 1
+    end while
+    A[DIGITS] = digsA[1..last]
+    B[DIGITS] = digsB[1..last]
+    A[EXPONENT] = expA
+    B[EXPONENT] = expB
+
+    return {A, B}
+end function
+--
+
+
 -- #################################
 -- ###   ARITHMETIC OPERATIONS   ###
 -- #################################
 
+
+forward global function ba_sub(object A, object B)
 
 --
 -- Returns a bigatom with the result of the sum of two numbers.
@@ -668,7 +1030,7 @@ sequence res
 
     return normalize(res)
 end function
-
+--
 
 --
 -- Returns a bigatom with the result of subtraction of two numbers.
@@ -712,6 +1074,25 @@ integer sign
     end if
 
     return normalize({sign, A[EXPONENT], res[2]})
+end function
+--
+
+--
+-- rounds the dignum digit of the mantissa of a bigatom
+-- returns a number rounded bigatom with a digit less.
+--
+function round_digits(sequence N, integer dignum)
+sequence res = N[DIGITS]
+
+    if dignum<1 or dignum>length(res) then
+        return N
+    end if
+
+    res = digits_add(res[1..dignum], {5})
+    N[EXPONENT] += res[1]
+    N[DIGITS] = res[2][1..$-1]
+
+    return normalize(N)
 end function
 --
 
@@ -782,6 +1163,47 @@ integer ndecs, len
 end function
 --
 
+--
+-- returns the integer part of a bigatom
+--
+global function ba_trunc(bigatom N)
+integer start, stop
+    if N[SIGN]=SG_NOVALUE then
+        return NO_VALUE
+    elsif N[EXPONENT]<0 then
+        return BA_ZERO
+    end if
+
+    start = N[EXPONENT]+2
+    stop = length(N[DIGITS])
+--PL 19/11/15
+--  if stop>start then
+    if stop>=start then
+        N[DIGITS] = remove(N[DIGITS],start,stop)
+    end if
+
+    return normalize(N)
+end function
+--
+
+--
+-- rounded to integer equal to or less immediately
+--
+global function ba_floor(bigatom N)
+sequence I
+
+    if N[SIGN]=SG_NOVALUE then
+        return NO_VALUE
+    end if
+
+    I = ba_trunc(N)
+    if N[SIGN]=SG_MINUS and compare(N, I) then
+        I = ba_sub(I, BA_ONE)
+    end if
+
+    return I
+end function
+--
 
 --
 -- Returns the result of integer division of two numbers.
@@ -927,6 +1349,18 @@ integer mult, len
 end function
 --
 
+--
+-- returns the absolute value of a bigatom
+--
+global function ba_abs(bigatom N)
+    if N[SIGN]=SG_MINUS then
+        N[SIGN] = SG_PLUS
+    end if
+
+    return N
+end function
+--
+
 
 -- -------------------------------------------------------------------------------------------
 
@@ -970,6 +1404,22 @@ integer cmp
 end function
 --
 
+--
+-- rounded to the immediate integer equal to or greater
+-- (ceil(x) = -floor(-x) )
+global function ba_ceil(bigatom N)
+
+    if N[SIGN]=SG_NOVALUE then
+        return NO_VALUE
+    end if
+
+    N[SIGN] = -N[SIGN]
+    N = ba_floor(N)
+    N[SIGN] = -N[SIGN]
+
+    return N
+end function
+--
 
 --
 -- my rounding function adapted to bigatom
@@ -1012,44 +1462,6 @@ sequence res
 end function
 --
 
-
---
--- returns the absolute value of a bigatom
---
-global function ba_abs(bigatom N)
-    if N[SIGN]=SG_MINUS then
-        N[SIGN] = SG_PLUS
-    end if
-
-    return N
-end function
---
-
-
---
--- returns the integer part of a bigatom
---
-global function ba_trunc(bigatom N)
-integer start, stop
-    if N[SIGN]=SG_NOVALUE then
-        return NO_VALUE
-    elsif N[EXPONENT]<0 then
-        return BA_ZERO
-    end if
-
-    start = N[EXPONENT]+2
-    stop = length(N[DIGITS])
---PL 19/11/15
---  if stop>start then
-    if stop>=start then
-        N[DIGITS] = remove(N[DIGITS],start,stop)
-    end if
-
-    return normalize(N)
-end function
---
-
-
 --
 -- returns the fractional part of a bigatom
 --
@@ -1067,47 +1479,6 @@ global function ba_frac(bigatom N)
     return normalize(N)
 end function
 --
-
-
---
--- rounded to integer equal to or less immediately
---
-global function ba_floor(bigatom N)
-sequence I
-
-    if N[SIGN]=SG_NOVALUE then
-        return NO_VALUE
-    end if
-
-    I = ba_trunc(N)
-    if N[SIGN]=SG_MINUS and compare(N, I) then
-        I = ba_sub(I, BA_ONE)
-    end if
-
-    return I
-end function
---
-
-
---
--- rounded to the immediate integer equal to or greater
--- (ceil(x) = -floor(-x) )
-global function ba_ceil(bigatom N)
-
-    if N[SIGN]=SG_NOVALUE then
-        return NO_VALUE
-    end if
-
-    N[SIGN] = -N[SIGN]
-    N = ba_floor(N)
-    N[SIGN] = -N[SIGN]
-
-    return N
-end function
---
-
-
--- -------------------------------------------------------------------------------------------
 
 
 -- #################################################
@@ -1338,6 +1709,133 @@ integer start,stop
 end function
 --
 
+-- -----------------------------------------------
+-- adapted literally an example of XDS,
+-- Modula and Oberon compiler for OS/2
+-- -----------------------------------------------
+--
+-- Calculate the number of Euler (e) with arbitrary precision
+-- proven up to one million decimals, which looked on the internet and only a diff
+-- the last decimal differed, although it takes a bit different ... lol will smoke ...
+-- according to the clear machine.
+--
+--    decs:   e number of decimal places (>=0)
+--    output: if zero returns a string if
+--            other than zero, a bigatom
+--
+--  Algorithm originally written in Algol by Serge Batalov
+--  Rewritten in Modula-2 and modified by Eugene Nalimov and Pavel Zemtsov
+--  Adapted Euphoria by Carlos J. Gómez Andreu (cargoan)
+--
+--  (I finally understood something and I put names to variables)?
+-- 
+
+--ifdef BITS64 then
+--   constant N  = 12,                 -- exponent base (multiple of 4)
+--          BASE = 1_000_000_000_000   -- base (10^N)
+--elsedef
+--   constant N = 8,                 -- (32bit)?  (down to 4 if type error)
+--          BASE = 100_000_000   -- base (10^N)
+--end ifdef
+
+--DEV:
+--integer N,BASE
+integer N
+atom BASE
+    if machine_bits()=64 then
+        N    = 12                   -- exponent base (multiple of 4)
+        BASE = 1_000_000_000_000    -- base (10^N)
+    else
+--      N    = 8                    -- (32bit)?  (down to 4 if type error)
+        N    = 4                    -- (32bit)?  (down to 4 if type error)
+--      BASE = 100_000_000          -- base (10^N)
+        BASE = 10_000               -- base (10^N)
+    end if
+
+--constant BASE = power(10, N)   -- wrong atom (that is slow)
+--
+global function euler(integer decs, integer output = 0)
+integer d
+integer size
+sequence bdigits
+sequence carries
+sequence res
+integer c = 1, bdigit = 0
+integer carry = 0
+sequence sdigit
+integer dsize
+
+    if decs<0 then
+        decs = 0
+    end if
+    d = decs
+    if remainder(decs, N) then     -- decimal multiple of N
+        d += N-remainder(decs, N)
+    end if
+
+    size = floor(d/N)+N/4
+    bdigits = repeat(0, size)    -- "digits" in base 10^N
+    carries = repeat(0, size)    -- carries
+    res = {}
+
+    if d>0 then
+        carries[1] = BASE
+        for i=1 to size do
+            while 1 do
+                c += 1
+                for j=i to size do
+                    bdigit = bdigit*BASE+carries[j]
+                    carries[j]  = floor(bdigit/c)
+                    bdigits[j] += carries[j]
+                    bdigit -= c*carries[j]
+                end for
+                if carries[i]<c then
+                    exit
+                end if
+                bdigit = 0
+            end while
+            bdigit = carries[i]
+        end for
+
+        for i=size to 1 by -1 do
+            bdigit = bdigits[i]+carry
+            carry   = floor(bdigit/BASE)
+            bdigits[i] = bdigit-carry*BASE
+        end for
+-- -----------------------------------------------------------
+--  here x is an array of decimal 'e' in base 10^N
+--  each "digit" (element) are N digits in base 10
+-- -----------------------------------------------------------
+      -- convert base 10 and save
+        for i=1 to size do
+            sdigit = repeat(0, N)
+            bdigit = bdigits[i]
+            dsize = N
+            while dsize do
+                sdigit[dsize] = remainder(bdigit, 10)
+                bdigit = floor(bdigit/10)
+                dsize -= 1
+            end while
+            res &= sdigit
+        end for
+    end if
+
+    if output then
+        res = {1, 0, 2 & res[1..decs]}
+    elsif decs then
+--      res = "  2." & res[1..decs]+'0'
+        bdigits = res
+        res = "  2."
+        for i=1 to decs do
+            res &= bdigits[i]+'0'
+        end for
+    else
+        res = "2"
+    end if
+
+    return res
+end function
+--
 
 --
 -- Returns a bigatom with the power of e (e^x)
@@ -1413,6 +1911,137 @@ integer start,stop
 end function
 --
 
+--
+-- Returns an atom with the value of a bigatom
+--
+--/*
+--  global function bigatom_to_atom(bigatom N)
+--  atom val = 0
+--  integer sg = N[SIGN]
+--  sequence digits = N[DIGITS]
+--  atom div = 10
+--
+--      if length(digits) then
+--          val = digits[1]
+--          for i=2 to length(digits) do
+--              val += digits[i]/div
+--              div *= 10
+--          end for
+--          val *= sg*power(10, N[EXPONENT])
+--      end if
+--      return val
+--  end function
+--*/
+global function bigatom_to_atom(bigatom N)
+atom val = 0
+integer sgn = N[SIGN]
+integer exponent = N[EXPONENT]
+sequence digits = N[DIGITS]
+atom div = 10
+
+    if length(digits) then
+        val = digits[1]
+        for i=2 to length(digits) do
+            if exponent>1 then
+                val = val*10+digits[i]
+                exponent -= 1
+            else
+                for j=i to length(digits) do
+                    val += digits[j]/div
+                    div *= 10
+                end for
+                exit
+            end if
+        end for
+        val *= sgn*power(10, exponent)
+    end if
+    return val
+end function
+--
+
+--
+-- raise bigatom to an integer power (one to one)
+--
+function ipower(sequence A, integer exponent)
+sequence res
+    if exponent=0 then
+        return BA_ONE
+    else
+        res = A
+        for i=2 to exponent do
+            res = ba_multiply(A, res)
+        end for
+    end if
+
+    return res
+end function
+--
+
+--
+-- decompose an integer into its prime factors
+--
+function get_factors(integer n)
+sequence flist = {}
+integer factor = 3
+
+    while not remainder(n, 2) do
+        flist &= 2
+        n /= 2
+    end while
+
+    while n>=factor do
+        while remainder(n, factor) do
+            factor += 2
+        end while
+        flist &= factor
+        n /= factor
+    end while
+    if not length(flist) then
+        flist = {n}
+    end if
+
+    return flist
+end function
+--
+
+--
+-- raise bigatom to an integer power (down into prime factors)
+-- sure there are better ways to do it, but at least gives the result
+-- exact integer exponents
+--
+function intf_power(sequence A, integer exponent)
+sequence res
+sequence factrs
+
+    if exponent=0 then
+        return  BA_ONE -- for convenience 0^0 = 1 (the neutral term multiplication)
+    end if
+
+    if A[SIGN]=SG_ZERO then
+        if exponent<0 then
+            res = NO_VALUE
+        else
+            res = BA_ZERO
+        end if
+    elsif exponent<0 then
+        res = ba_divide(BA_ONE, intf_power(A, -exponent))
+        if res[SIGN] then
+            res[SIGN] = A[SIGN]
+        end if
+    elsif equal({1}, A[DIGITS]) then
+        res = A
+        res[EXPONENT] *= exponent
+    else
+        factrs = get_factors(exponent)
+        res = A
+        for i=1 to length(factrs) do
+            res = ipower(res, factrs[i])
+        end for
+    end if
+
+    return res
+end function
+--
 
 --
 -- Returns a bigatom with the power of x (x^exp)
@@ -1606,45 +2235,6 @@ end function
 --
 
 
--- with large numbers shortcut
--- log10(x * y) = log10(x) + log10(y)
--- 123456789 = 1.23456789 * 10^8 = {1, 8, {1,2,3,4,5,6,7,8,9}}
--- log10(123456789) = 8 + 1 + log(0.123456789)
--- if x or y is a power of ten, its logarithm is the exponent and
--- just add it to the logarithm of the other number with exponent 0
--- that's not a big number and calculates faster ...
--- ... the logarithm of a small number and a sum
--- I'm surprised not to have fallen before, so simple and so effective.
---
-global function ba_log10(object x, integer bRound = 0)
-integer exponent
-sequence res
-
-integer start, stop
-
-    if not bigatom(x) then
-        x = ba_new(x)
-    end if
-
-    exponent = x[EXPONENT]+1
-    x[EXPONENT] = -1
-    res = ba_logb(x, 10, bRound)
-    res = ba_add(res, exponent)          -- the sum ignores the scale
-    if bRound then
-        res = round_digits(res, res[EXPONENT]+2+SCALE)
-    else
-        start = res[EXPONENT]+2+SCALE
-        stop = length(res[DIGITS])
-        if stop>start then
-            res[DIGITS] = remove(res[DIGITS],start,stop)
-        end if
-    end if
-
-    return normalize(res)
-end function
---
-
-
 --/*
 global function ba_log10_2(object x, integer bRound = 0)
 integer exponent
@@ -1682,665 +2272,41 @@ end function
 --
 
 
--- -------------------------------------------------------------------------------------------
-
-
-
-
--- #####################################################
--- ###   BIGATOM CONVERSION AND HANDLING FUNCTIONS   ###
--- #####################################################
-
-
+-- with large numbers shortcut
+-- log10(x * y) = log10(x) + log10(y)
+-- 123456789 = 1.23456789 * 10^8 = {1, 8, {1,2,3,4,5,6,7,8,9}}
+-- log10(123456789) = 8 + 1 + log(0.123456789)
+-- if x or y is a power of ten, its logarithm is the exponent and
+-- just add it to the logarithm of the other number with exponent 0
+-- that's not a big number and calculates faster ...
+-- ... the logarithm of a small number and a sum
+-- I'm surprised not to have fallen before, so simple and so effective.
 --
--- Returns a string representation of the formatted number.
---
--- sign:  if nonzero the sign also shows positive numbers.
---        if zero the sign is only displayed in negative numbers.
---
--- decs:  is the number of decimal places displayed (rounded to the last decimal).
---        If negative number shown with all decimals.
---        If not, is filled with zeros or other characters until the total number of
---        decimal requested, or trimmed and rounded to the last decimal.
---
--- zsign: sign put to zero when the number is less than the limits of representation
---        but its value is not zero in the current scale.
---
--- all:   indicates whether to show all the numbers in decimal. Not shown if it is zero.
---        If one, adds the decimal point and zeros up to the number of decimal places, 
---        and if greater than one the DFCHAR character is used instead of zeros.
---
-function to_string(sequence N, integer sign = 0, integer decs = -1, integer zsign = 0, integer all = 0)
-integer sg, exponent
-sequence digits, dcopy
-integer decsN
-integer last
-integer dp
-
-    if N[SIGN]=SG_NOVALUE then
-        return "<no_value>"
-    end if
-
-    N = expand(N)
-
-    {sg, exponent, digits} = N
-    
-    -- set the number of decimal requested
-    decsN = length(digits)-exponent-1
-    if decs<0 then
-        decs = decsN
-    end if
-
-    last = exponent+1+decs
-    if decs<decsN then
-        if digits[last+1]>=5 then
-         -- rounds the last decimal
-            digits = digits_add(digits[1..last], {1})
-            exponent += digits[1]
-            digits = digits[2]
-        else
-            digits = digits[1..last]
-        end if
-    elsif all or decsN then
-        if all=1 then
-            digits &= repeat(0, decs-decsN)
-        elsif all then
-            digits &= repeat(DFCHAR-'0', decs-decsN)
-        end if
-    end if
-
-    if compare(digits, repeat(0, length(digits)-exponent)) then
-        zsign = 0
-    end if
-
---  digits += '0'
---  digits = sq_add(digits,'0')
-    dcopy = digits
-    digits = repeat(' ',length(digits))     -- make string
-    for i=1 to length(digits) do
-        digits[i] = dcopy[i]+'0'
-    end for
-
-    -- put the decimal point
-    dp = exponent+2
-    if dp<=length(digits) then
-        digits = insert(digits, '.', dp)
-    end if
-
-    -- put sign
-    if sg=SG_MINUS then
-        digits = prepend(digits, SMINUS)
-    elsif sg and (sign or zsign) then
-        digits = prepend(digits, SPLUS)
-    else   --  if sign then
-        digits = prepend(digits, SZERO)
-    end if
-
-    return digits
-end function
---
-
-
---
--- Returns an atom with the value of a bigatom
---
---/*
-global function bigatom_to_atom(bigatom N)
-atom val = 0
-integer sg = N[SIGN]
-sequence digits = N[DIGITS]
-atom div = 10
-
-    if length(digits) then
-        val = digits[1]
-        for i=2 to length(digits) do
-            val += digits[i]/div
-            div *= 10
-        end for
-        val *= sg*power(10, N[EXPONENT])
-    end if
-    return val
-end function
---*/
-global function bigatom_to_atom(bigatom N)
-atom val = 0
-integer sign = N[SIGN]
-integer exponent = N[EXPONENT]
-sequence digits = N[DIGITS]
-atom div = 10
-
-    if length(digits) then
-        val = digits[1]
-        for i=2 to length(digits) do
-            if exponent>1 then
-                val = val*10+digits[i]
-                exponent -= 1
-            else
-                for j=i to length(digits) do
-                    val += digits[j]/div
-                    div *= 10
-                end for
-                exit
-            end if
-        end for
-        val *= sign*power(10, exponent)
-    end if
-    return val
-end function
---
-
-
---
--- Returns a bigatom with the value of an integer (integer)
---
-function int_to_bigatom(integer i)
-integer sign = SG_PLUS
-sequence s
-    if i<0 then
-        sign = SG_MINUS
-    end if
-    s = sprintf("%+d", i)
-    s[1] = -1   -- (force expansion to dword-sequence)
-    s = s[2..$]
-    s = sq_sub(s,'0')
-
-    return normalize({sign, length(s)-1, s})
-end function
---
-
-
---
--- Returns an atom with the integer value of a string containing the
--- representation of a number.
---
--- The conversion stops to find the first invalid character.
--- Allows the use of spaces and underscores as separators groups.
--- If the string contains a number with decimal value returns
--- the integer part, point or comma stop the conversion.
---
---global 
-function int_value(sequence str)
-integer digit
-integer sign
-atom ival = 0
-
-    if not length(str) then
-        return 0
-    end if
-
-    sign = str[1]
-    sign = (sign=SPLUS)-(sign=SMINUS)
-    if sign then
-        str = str[2..$]
-    else
-        sign = 1
-    end if
-
-    for i=1 to length(str) do
-        if not integer(str[i]) then
-            exit
-        end if
-        digit = str[i]
-        if digit>='0' and digit<='9' then
-            ival = ival*10+(digit-'0')
-        elsif digit!=UNDERLINE and digit!=SPACE then
-            exit
-        end if
-    end for
-
-    return sign*ival
-end function
---
-
-
---
--- Standardizes a bigatom.
--- Reduces your bigatom to a shorter form, eliminating superfluous zeroes and adjusting the exponent.
---
-function normalize(sequence N)
-sequence mantissa
-integer first, last
-
-    if N[SIGN]<SG_MINUS or N[SIGN]>SG_PLUS then
-        return NO_VALUE
-    end if
-
-    mantissa = N[DIGITS]
-    first = 1
-    last = length(mantissa)
-    while last and mantissa[last]=0 do
-        last -= 1
-    end while
-    while first<=last and mantissa[first]=0 do
-        first += 1
-    end while
-
-    if first>last or not N[SIGN] then
-        N = BA_ZERO
-    else
-        N[DIGITS]  = mantissa[first..last]
-        N[EXPONENT] -= first-1
-    end if
-
-    return N
-end function
---
-
-
---
--- expand a bigatom with all its digits
---
-function expand(sequence N)
-sequence digits = N[DIGITS]
-integer exponent = N[EXPONENT]
-integer len = length(digits)-1
-
-    if exponent<0 then
-        digits = repeat(0, -exponent) & digits
-        N[EXPONENT] = 0
-    elsif exponent>len then
-        digits &= repeat(0, exponent-len)
-    end if
-    N[DIGITS] = digits
-
-    return N
-end function
---
-
-
---
--- returns both numbers with sequences of aligned and matched digits
--- in size by adding zeros as both right and left
--- the digits of the two numbers.
--- Equating the exponents and the same number of digits in both mantissas.
---
-function align(sequence A, sequence B)
-integer expA, expB, offset
-sequence digsA, digsB
-integer last
-
-    {?, expA, digsA} = A
-    {?, expB, digsB} = B
-
-    -- put zeros to the left
-    offset = expA-expB
-    if offset>0 then
-        digsB = repeat(0, offset) & digsB
-        expB += offset
-    else
-        digsA = repeat(0, -offset) & digsA
-        expA -= offset
-    end if
-
-    -- put zeros to the right
-    offset = length(digsA)-length(digsB)
-    if offset>0 then
-        digsB &= repeat(0, offset)
-    else
-        digsA &= repeat(0, -offset)
-    end if
-
-    -- delete extra zeros
-    last = length(digsA)
-    while last and digsA[last]=0 and digsB[last]=0 do
-        last -= 1
-    end while
-    A[DIGITS] = digsA[1..last]
-    B[DIGITS] = digsB[1..last]
-    A[EXPONENT] = expA
-    B[EXPONENT] = expB
-
-    return {A, B}
-end function
---
-
-
---
--- adds two sequences of digits
--- returns a sequence of two elements: {carry, result}
--- if carry is not zero it indicates the length of the result is increased by 1.
---
-function digits_add(sequence a, sequence b)
-integer len = length(a), lenb = length(b)
-sequence result
-integer carry = 0, digit
-
-    if len<lenb then
-        a = repeat(0, lenb-len) & a
-        len = lenb
-    elsif lenb<len then
-        b = repeat(0, len-lenb) & b
-    end if
-
-    result = sq_add(a,b)
-
-    for i=len to 1 by -1 do
-        digit = result[i]+carry
-        carry = digit>9
-        if carry then
-            digit -= 10
-        end if
-        result[i] = digit
-    end for
-    if carry then
-        result = prepend(result, carry)
-    end if
-
-    return {carry, result}
-end function
---
-
-
---
--- subtracts two sequences of digits
--- returns a sequence of two elements: {negative, result}
--- if negative is not zero it indicates that the result is negative.
---
-function digits_sub(sequence a, sequence b)
-integer len = length(a), lenb = length(b)
-sequence result
-integer digit, neg = 0
-
-    if len<lenb then
-        a = repeat(0, lenb-len) & a
-        len = lenb
-    elsif lenb<len then
-        b = repeat(0, len-lenb) & b
-    end if
-
-    result = sq_sub(a,b)
-
-    for i=len to 1 by -1 do
-        digit = result[i]-neg
-        neg = digit<0
-        if neg then
-            digit += 10
-        end if
-        result[i] = digit
-    end for
-    -- if negative complement is 10
-    if neg then
-        result = sq_sub(9,result)      -- supplement 9
-        result = digits_add(result, {1}) -- plus 1
-        result = result[2]
-    end if
-
-    return {neg, result}
-end function
---
-
-
---
--- multiplies two sequences of digits
--- returns a sequence of two elements: {carry, result}
--- if carry is not zero it indicates the result length is increased by 1.
---
-function digits_multiply(sequence a, sequence b)
-integer lena = length(a), lenb = length(b)
-sequence partial, result = {}
-integer digit, carry
-
-    if lena<lenb then
-        {a, lena, b, lenb} = {b, lenb, a, lena}
-    end if
-
-    for i=lenb to 1 by -1 do
-        carry = 0
-        partial = sq_mul(a,b[i]) & repeat(0, lenb-i)
-        for j=lena to 1 by -1 do
-            digit = partial[j]+carry
-            carry = 0
-            if digit>9 then
-                carry = floor(digit/10)
-                digit = remainder(digit, 10)
-            end if
-            partial[j] = digit
-        end for
-        if carry then
-            partial = prepend(partial, carry)
-        end if
-        result  = digits_add(result, partial)
-        carry  += result[1]
-        result  = result[2]
-    end for
-
-    return {carry, result}
-end function
---
-
-
---
--- rounds the dignum digit of the mantissa of a bigatom
--- returns a number rounded bigatom with a digit less.
---
-function round_digits(sequence N, integer dignum)
-sequence res = N[DIGITS]
-
-    if dignum<1 or dignum>length(res) then
-        return N
-    end if
-
-    res = digits_add(res[1..dignum], {5})
-    N[EXPONENT] += res[1]
-    N[DIGITS] = res[2][1..$-1]
-
-    return normalize(N)
-end function
---
-
-
---
--- raise bigatom to an integer power (one to one)
---
-function ipower(sequence A, integer exponent)
+global function ba_log10(object x, integer bRound = 0)
+integer exponent
 sequence res
-    if exponent=0 then
-        return BA_ONE
+
+integer start, stop
+
+    if not bigatom(x) then
+        x = ba_new(x)
+    end if
+
+    exponent = x[EXPONENT]+1
+    x[EXPONENT] = -1
+    res = ba_logb(x, 10, bRound)
+    res = ba_add(res, exponent)          -- the sum ignores the scale
+    if bRound then
+        res = round_digits(res, res[EXPONENT]+2+SCALE)
     else
-        res = A
-        for i=2 to exponent do
-            res = ba_multiply(A, res)
-        end for
-    end if
-
-    return res
-end function
---
-
-
---
--- raise bigatom to an integer power (down into prime factors)
--- sure there are better ways to do it, but at least gives the result
--- exact integer exponents
---
-function intf_power(sequence A, integer exponent)
-sequence res
-sequence factrs
-
-    if exponent=0 then
-        return  BA_ONE -- for convenience 0^0 = 1 (the neutral term multiplication)
-    end if
-
-    if A[SIGN]=SG_ZERO then
-        if exponent<0 then
-            res = NO_VALUE
-        else
-            res = BA_ZERO
+        start = res[EXPONENT]+2+SCALE
+        stop = length(res[DIGITS])
+        if stop>start then
+            res[DIGITS] = remove(res[DIGITS],start,stop)
         end if
-    elsif exponent<0 then
-        res = ba_divide(BA_ONE, intf_power(A, -exponent))
-        if res[SIGN] then
-            res[SIGN] = A[SIGN]
-        end if
-    elsif equal({1}, A[DIGITS]) then
-        res = A
-        res[EXPONENT] *= exponent
-    else
-        factrs = get_factors(exponent)
-        res = A
-        for i=1 to length(factrs) do
-            res = ipower(res, factrs[i])
-        end for
     end if
 
-    return res
-end function
---
-
-
---
--- decompose an integer into its prime factors
---
-function get_factors(integer n)
-sequence flist = {}
-integer factor = 3
-
-    while not remainder(n, 2) do
-        flist &= 2
-        n /= 2
-    end while
-
-    while n>=factor do
-        while remainder(n, factor) do
-            factor += 2
-        end while
-        flist &= factor
-        n /= factor
-    end while
-    if not length(flist) then
-        flist = {n}
-    end if
-
-    return flist
-end function
---
-
-
--- -----------------------------------------------
--- adapted literally an example of XDS,
--- Modula and Oberon compiler for OS/2
--- -----------------------------------------------
---
--- Calculate the number of Euler (e) with arbitrary precision
--- proven up to one million decimals, which looked on the internet and only a diff
--- the last decimal differed, although it takes a bit different ... lol will smoke ...
--- according to the clear machine.
---
---    decs:   e number of decimal places (>=0)
---    output: if zero returns a string if
---            other than zero, a bigatom
---
---  Algorithm originally written in Algol by Serge Batalov
---  Rewritten in Modula-2 and modified by Eugene Nalimov and Pavel Zemtsov
---  Adapted Euphoria by Carlos J. Gómez Andreu (cargoan)
---
---  (I finally understood something and I put names to variables)?
--- 
-
---ifdef BITS64 then
---   constant N  = 12,                 -- exponent base (multiple of 4)
---          BASE = 1_000_000_000_000   -- base (10^N)
---elsedef
---   constant N = 8,                 -- (32bit)?  (down to 4 if type error)
---          BASE = 100_000_000   -- base (10^N)
---end ifdef
-
---DEV:
---integer N,BASE
-integer N
-atom BASE
-    if machine_bits()=64 then
-        N    = 12                   -- exponent base (multiple of 4)
-        BASE = 1_000_000_000_000    -- base (10^N)
-    else
---      N    = 8                    -- (32bit)?  (down to 4 if type error)
-        N    = 4                    -- (32bit)?  (down to 4 if type error)
---      BASE = 100_000_000          -- base (10^N)
-        BASE = 10_000               -- base (10^N)
-    end if
-
---constant BASE = power(10, N)   -- wrong atom (that is slow)
---
-global function euler(integer decs, integer output = 0)
-integer d
-integer size
-sequence bdigits
-sequence carries
-sequence res
-integer c = 1, bdigit = 0
-integer carry = 0
-sequence sdigit
-integer dsize
-
-    if decs<0 then
-        decs = 0
-    end if
-    d = decs
-    if remainder(decs, N) then     -- decimal multiple of N
-        d += N-remainder(decs, N)
-    end if
-
-    size = floor(d/N)+N/4
-    bdigits = repeat(0, size)    -- "digits" in base 10^N
-    carries = repeat(0, size)    -- carries
-    res = {}
-
-    if d>0 then
-        carries[1] = BASE
-        for i=1 to size do
-            while 1 do
-                c += 1
-                for j=i to size do
-                    bdigit = bdigit*BASE+carries[j]
-                    carries[j]  = floor(bdigit/c)
-                    bdigits[j] += carries[j]
-                    bdigit -= c*carries[j]
-                end for
-                if carries[i]<c then
-                    exit
-                end if
-                bdigit = 0
-            end while
-            bdigit = carries[i]
-        end for
-
-        for i=size to 1 by -1 do
-            bdigit = bdigits[i]+carry
-            carry   = floor(bdigit/BASE)
-            bdigits[i] = bdigit-carry*BASE
-        end for
--- -----------------------------------------------------------
---  here x is an array of decimal 'e' in base 10^N
---  each "digit" (element) are N digits in base 10
--- -----------------------------------------------------------
-      -- convert base 10 and save
-        for i=1 to size do
-            sdigit = repeat(0, N)
-            bdigit = bdigits[i]
-            dsize = N
-            while dsize do
-                sdigit[dsize] = remainder(bdigit, 10)
-                bdigit = floor(bdigit/10)
-                dsize -= 1
-            end while
-            res &= sdigit
-        end for
-    end if
-
-    if output then
-        res = {1, 0, 2 & res[1..decs]}
-    elsif decs then
---      res = "  2." & res[1..decs]+'0'
-        bdigits = res
-        res = "  2."
-        for i=1 to decs do
-            res &= bdigits[i]+'0'
-        end for
-    else
-        res = "2"
-    end if
-
-    return res
+    return normalize(res)
 end function
 --
 

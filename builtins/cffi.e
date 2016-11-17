@@ -287,12 +287,11 @@ end function
 global constant S32=1, S64=2
 
 -- a "long" is 32 bits on Windows64, but 64 bits on Linux64 (!!)
-integer L = 4
-if platform()=LINUX then
---DEV (temp)
---if 1 then
-    L = 8
-end if
+constant L = iff(platform()=WINDOWS?4:8)
+--integer L = 4
+--if platform()=LINUX then
+--  L = 8
+--end if
 
 -- entries are {name, signed, 32-bit size, 64-bit size}:
 --  (this table is my own choice of the minimal/core types)

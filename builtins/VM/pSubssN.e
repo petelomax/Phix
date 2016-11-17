@@ -69,7 +69,7 @@ end procedure -- (for Edita/CtrlQ)
             mov al,[ebx+esi*4-1]
             mov edx,[ebx+esi*4-12]  -- length
             shl esi,2
-            sub edi,1
+            sub edi,1               -- decrement edi (:-)
             test al,0x80
             jz :e04atsaa9       -- era @ [esp+ecx*4+4]
 
@@ -90,7 +90,7 @@ end procedure -- (for Edita/CtrlQ)
 
           @@:
             cmp al,0x82
-            jne :e04atsaap8         -- era @ [esp+ecx*4+8]
+            jne :e04atsaap8         -- era @ [esp+ecx*4+8] [??+4??]
             lea esi,[esi+edi]       -- address of (first) char
             sub ecx,1
             jnz :e04atsaap12        -- strings must be last segment
@@ -98,7 +98,7 @@ end procedure -- (for Edita/CtrlQ)
       ::pSubssEndWhile
         cmp edi,edx
         jbe @f              -- unsigned jump, lets 0..len through (NB jbe here)
-                            --               (we just did a dec edi)
+                            --               (we just decremented edi)
                             --               (slice start can be 1..length+1)
             mov cl,12               -- [era] @ [esp+12]
             call :%fixupSliceStart  -- idx in edi, len in edx
@@ -395,7 +395,7 @@ end procedure -- (for Edita/CtrlQ)
             add esi,1
             mov ecx,[eax-8]
             ror esi,2           -- recreated ref p2 (or ref[idx][idx2]...[idxn-1])
-            dec ecx
+            sub ecx,1
             mov [edi],esi
             jz :%pDealloc
             mov [eax-8],ecx
@@ -451,7 +451,7 @@ end procedure -- (for Edita/CtrlQ)
             mov al,[rbx+rsi*4-1]
             mov rdx,[rbx+rsi*4-24]  -- length
             shl rsi,2
-            sub rdi,1
+            sub rdi,1               -- decrement edi (:-)
             test al,0x80
             jz :e04atsaa9       -- era @ [rsp+rcx*8+8]
 
@@ -461,7 +461,7 @@ end procedure -- (for Edita/CtrlQ)
             cmp rdi,rdx
             jb @f               -- unsigned jump, lets 0..len-1 through
                                 --               (we just decremented rdi)
-                mov al,8+4+1        -- [era] is [esp+ecx*4+4], "reading from"
+                mov al,8+4+1        -- [era] is [rsp+rcx*8+8], "reading from"
                 call :%fixupIndex   -- idx-1 in rdi, len in rdx, al set
                 mov al,byte[rsi-1]  -- as we just trashed it
           @@:
@@ -472,7 +472,7 @@ end procedure -- (for Edita/CtrlQ)
 
           @@:
             cmp al,0x82
-            jne :e04atsaap8         -- era @ [esp+ecx*4+8]
+            jne :e04atsaap8         -- era @ [rsp+rcx*8+8] [??]
             lea rsi,[rsi+rdi]       -- address of (first) char
             sub rcx,1
             jnz :e04atsaap12        -- strings must be last segment
@@ -480,7 +480,7 @@ end procedure -- (for Edita/CtrlQ)
       ::pSubssEndWhile
         cmp rdi,rdx
         jbe @f              -- unsigned jump, lets 0..len through (NB jbe here)
-                            --               (we just did a dec rdi)
+                            --               (we just decremented rdi)
                             --               (slice start can be 1..length+1)
 --          mov cl,12               -- [era] @ [esp+12]
             mov cl,24               -- [era] @ [rsp+24]
@@ -567,7 +567,7 @@ end procedure -- (for Edita/CtrlQ)
         -- (this is the x:=x[i..j] case, with a refcount of 1)
         push rcx                        --[?] save new length
         xor rbx,rbx
-        mov edx,[rsp+8]                 -- slice start (0-based)
+        mov rdx,[rsp+8]                 -- slice start (0-based)
         mov rcx,[rdi-24]                -- original length
         add rdx,1
       ::pSubssDeallocPrevLoop
@@ -643,9 +643,9 @@ end procedure -- (for Edita/CtrlQ)
         ror r9,2
 --      mov [rsi-40],rdx                -- set new slack
         mov [rsi-24],rdx                -- set new length
-        mov [edi],r9                    -- new ref of shifted header -> res
+        mov [rdi],r9                    -- new ref of shifted header -> res
       ::pSubssDeallocRest
-        lea rsi,[rsi+rdx*8]             -- esi := esi[newlength+1]
+        lea rsi,[rsi+rdx*8]             -- rsi := rsi[newlength+1]
 
       ::pSubssDeallocRestLoop
         cmp rcx,rdx
@@ -730,7 +730,7 @@ end procedure -- (for Edita/CtrlQ)
         cmp rdi,r15
         jg @f
             -- p1 unassigned/integer.
-            -- can still just copy ref iff edx==length(p2) (eg x=s[1..-1])
+            -- can still just copy ref iff rdx==length(p2) (eg x=s[1..-1])
             cmp rcx,[rsi-24]
             jne :pSubssNewStr
             lea rax,[rsi+1]
@@ -808,11 +808,11 @@ end procedure -- (for Edita/CtrlQ)
         --  call pSubsss        -- [eax]=esi[edi..ecx]
 --  ::pSubssse92a       -- exception here mapped to e94vhnbaavedxesifeh
         mov edx,[ebx+esi*4-12]  -- length   (exception here mapped to e94vhnbaav(edx))
-        sub edi,1
+        sub edi,1               -- decrement edi (:-)
         shl esi,2
         cmp edi,edx
         jbe @f              -- unsigned jump, lets 0..len through (NB jbe here)
-                            --               (we just did a dec edi)
+                            --               (we just decremented edi)
                             --               (slice start can be 1..length+1)
 --          mov cl,0        -- [era] @ [esp]
             push ecx
@@ -945,12 +945,12 @@ end procedure -- (for Edita/CtrlQ)
         --  mov rdx,p1
         --  call :%pSubsss      -- [rax]=rsi[rdi..rcx] (where esi is a string)
         mov rdx,[rbx+rsi*4-24]  -- length (exceptiuon here mapped to e94vhnbaav(rdx))
-        sub rdi,1
+        sub rdi,1               -- decrement rdi (:-)
         shl rsi,2
         mov r15,h4
         cmp rdi,rdx
         jbe @f              -- unsigned jump, lets 0..len through (NB jbe here)
-                            --               (we just did a dec rdi)
+                            --               (we just decremented rdi)
                             --               (slice start can be 1..length+1)
             push rcx
 --          mov cl,0        -- [era] @ [esp]

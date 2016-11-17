@@ -1,5 +1,5 @@
 --
--- tostr.e
+-- to_str.e
 --
 -- Phix implementation of to_string (auto-include)
 --

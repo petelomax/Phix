@@ -65,7 +65,7 @@ end procedure -- (for Edita/CtrlQ)
         mov ebx,esp
         mov eax,162         -- sys_nanosleep
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx         -- (common requirement after int 0x80)
         add esp,16
     [64]
         --calling convention:

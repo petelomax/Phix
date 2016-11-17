@@ -33,13 +33,13 @@ global function allocate(atom size, integer cleanup = 0)
 atom res
     if size<0 or size!=floor(size) then
         #ilASM{
---              --DEV this should be ok on 64-bit??
---          [32]
+            [32]
                 mov ecx,1           -- no of frames to pop to obtain an era (>=2)
+            [64]
+                mov rcx,1           -- no of frames to pop to obtain an era (>=2)
+            []
                 mov al,37           -- e37atambpi (argument to allocate must be positive integer)
                 jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
---          [64]
---          []
               }
     end if
     #ilASM{

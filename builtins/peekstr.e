@@ -184,7 +184,7 @@ end function
 --  cmp edx,h4
 --  mov [edi],eax
 --  jle @f
---      dec dword[ebx+edx*4-8]
+--      sub dword[ebx+edx*4-8],1
 --      jz deallocX
 --  @@:
 --  ret
@@ -232,7 +232,7 @@ end function
 --  cmp edx,h4
 --  mov [ecx],eax
 --  jle @f
---      dec dword[ebx+edx*4-8]
+--      sub dword[ebx+edx*4-8],1
 --      jz deallocX
 --  @@:
 --  ret
@@ -279,7 +279,7 @@ end function
 --  mov [esi],eax
 --  cmp edx,h4
 --  jle @f
---      dec dword[ebx+edx*4-8]
+--      sub dword[ebx+edx*4-8],1
 --      jz deallocX
 --  @@:
 --  ret

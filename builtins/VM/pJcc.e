@@ -24,11 +24,13 @@
     ::e03tfcmbaa
         [32]
             pop edx
-        [64]
-            pop rdx
-        []
             mov al,3        -- e03tfcmbaa
             sub edx,1
+        [64]
+            pop rdx
+            mov al,3        -- e03tfcmbaa
+            sub rdx,1
+        []
             jmp :!iDiag
             int3
 
@@ -182,7 +184,7 @@ end procedure -- (for Edita/CtrlQ)
         popad
         jnz :compareSeqPop2Ret
       ::compareSeqSeqNxt
-        dec ecx
+        sub ecx,1
         jnz @b
         nop
       ::compareSeqCompareLengths
@@ -275,7 +277,7 @@ end procedure -- (for Edita/CtrlQ)
         add ecx,1       -- to get Z flag right at end
         xor eax,eax    
       ::equalStrVsSeqCharLoop
-        dec ecx
+        sub ecx,1
         jz :equalSeqRet
         lodsb       -- mov al,[esi], esi+=1
         cmp eax,[edi]
@@ -384,8 +386,6 @@ end procedure -- (for Edita/CtrlQ)
         test ah,0x80            -- type[rdi]
 --  compareSeq64Ret0:
         jnz @f
---          xor eax,eax
---          add eax,1       -- ensure Z=0   [DEV try test esi,esi, since that cannot be zero here]
             test rsi,rsi    -- ensure Z=0
             ret
       @@:
@@ -607,10 +607,8 @@ pop rsi
         ret
 
       ::equalSeq64Ret0
-        --DEV esi and edi are non-zero here, try test esi,esi
---      xor eax,eax
---      add eax,1       -- ensure Z=0
-        test esi,esi    -- ensure Z=0
+        -- (rsi is guaranteed non-0 here)
+        test rsi,rsi    -- ensure Z=0
       ::equalSeq64Ret
         ret
     []
@@ -704,13 +702,13 @@ lea edi,[edi+esi*4]
     lea edi,[edi+4]
     cmp eax,esi
     je :FindIntFound
-    dec ecx
+    sub ecx,1
     jnz @b
     xor edx,edx
     jmp @f
 
   ::FindIntFound
-    dec ecx
+    sub ecx,1
 
     sub edx,ecx
 @@:
@@ -1011,7 +1009,7 @@ popad                       -- result is Z flag
 --DEV save the base then!
     mov edi,[esp+12]                -- [1] start of sequence being searched for
   ::opFindSeqVsSeqLoop2
-    dec ecx
+    sub ecx,1
     jl :opStringFound
     lodsd       -- mov eax,[esi], esi+=4
     cmp eax,[edi]
@@ -1209,14 +1207,14 @@ sub edx,eax
   ::opMatchStrSeqFirstCharLoop
 --   repne scasb                                -- find first char, from [edi] on
 --   jnz :opMatchNotFound
---   dec edx
+--   sub edx,1
 --   jl :opMatchNotFound    -- DEV poss jl?
     mov edx,[edi]
     lea edi,[edi+4]
     cmp eax,edx
     je :opMatchStrSeqFirstCharFound
     nop
-    dec ecx
+    sub ecx,1
     jnz :opMatchStrSeqFirstCharLoop
 
     nop
@@ -1224,7 +1222,7 @@ sub edx,eax
 
   ::opMatchStrSeqFirstCharFound
 --DEV: lea edx,[ecx-1]
-    dec ecx
+    sub ecx,1
 --stack:
     mov [MatchEdxSave],ecx  -- there will be less elements left to scan in the next loop!
 mov edx,ecx
@@ -1241,7 +1239,7 @@ je :opMatchFound
     cmp eax,edx
     jne :opMatchStrSeqMismatch
     lea edi,[edi+4]
-    dec ecx
+    sub ecx,1
     jnz :opMatchStrSeqRemainingCharsLoop
 --stack:
     mov edx,[MatchEdxSave]
@@ -1596,7 +1594,7 @@ end procedure -- (for Edita/CtrlQ)
 --  mov [FltWrk],edi
 --  fild [FltWrk]
         push rdi
-        fild qword[esp]
+        fild qword[rsp]
         add rsp,8
         fld tbyte[rbx+rax*4]
         fcompp

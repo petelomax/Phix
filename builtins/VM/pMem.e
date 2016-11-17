@@ -65,11 +65,13 @@ include builtins\VM\pFPU.e  -- :%down53, :%near53
     ::epokesize
         [32]
             pop edx
-        [64]
-            pop rdx
-        []
             mov al,122      -- e122ips
             sub edx,1
+        [64]
+            pop rdx
+            mov al,122      -- e122ips
+            sub rdx,1
+        []
             jmp :!iDiag
             int3
 
@@ -282,7 +284,7 @@ end procedure -- (for Edita/CtrlQ)
             call :%down64
             fistp qword[rsp]
             call :%near64
-            pop esi
+            pop rsi
       @@:
       :!opPeekiRIMA             -- exception here mapped to e99ipmaespfeh (invalid peek memory address)
         mov al,[rsi]
@@ -952,7 +954,7 @@ end procedure -- (for Edita/CtrlQ)
                 shl rcx,1               -- (this is a better test than cmp h4)
                 jno :opPeekNxStore64    -- store #C00000000000000..#3FFFFFFFFFFFFFFF in rax as short int
 
-                fild qword[esi]
+                fild qword[rsi]
 --              jmp @f
                 add rsp,16
                 jmp :%pStoreFlt
@@ -1075,7 +1077,7 @@ end procedure -- (for Edita/CtrlQ)
                 je :opPeek8usItem64
 --            ::opPeek8ssItem64
                   :!opPeek8xsMLE264     -- exception here mapped to e99ipmaespp8feh (invalid peek memory address)
-                    fild qword[esi]
+                    fild qword[rsi]
                     jmp @f
 --                  mov [edi],rbx
 --                  call :%pStoreFlt    -- all registers preserved
@@ -1094,15 +1096,15 @@ end procedure -- (for Edita/CtrlQ)
                     push rcx
                     fild qword[rsp]
                     fild qword[rsp+8]
-                    add esp,16
+                    add rsp,16
                     fadd st0,st0
-                    pop ecx             --[3]
+                    pop rcx             --[3]
                     faddp
                   @@:
                     mov [rdi],rbx   -- 0 (for StoreFlt, since new AllocSeq contains garbage)
                     call :%pStoreFlt
-                    add esi,8
-                    add edi,8
+                    add rsi,8
+                    add rdi,8
 
           ::opPeekNxsNxt64
             sub rcx,1
@@ -1274,7 +1276,7 @@ end procedure -- (for Edita/CtrlQ)
                 add esp,12
                 jmp :opPoke8edieaxedx
           @@:
-            cdq                     -- eax -> edx:eax
+            cdq                     -- sign extend eax into edx
           ::opPoke8edieaxedx
           :!PokeN8E30               -- exception here mapped to e100ipmafeh
             mov dword[edi],eax
@@ -1312,20 +1314,20 @@ end procedure -- (for Edita/CtrlQ)
           @@:
             cmp edx,1
             jne @f
-              :!Poke1SeqE30                  -- exception here mapped to e100ipmafeh
-                stosb
+              :!Poke1SeqE30                 -- exception here mapped to e100ipmafeh
+                stosb                       -- mov [edi],al; edi+=1
                 jmp :PokeNSeqNext
           @@:
             cmp edx,2
             jne @f
-              :!Poke2SeqE30                  -- exception here mapped to e100ipmafeh
-                stosw
+              :!Poke2SeqE30                 -- exception here mapped to e100ipmafeh
+                stosw                       -- mov [edi],ax; edi+=2
                 jmp :PokeNSeqNext
           @@:
             cmp edx,4
             jne :epokesize
-              :!Poke3SeqE30                  -- exception here mapped to e100ipmafeh
-                stosd                   -- mov [edi],eax; edi+=4
+              :!Poke3SeqE30                 -- exception here mapped to e100ipmafeh
+                stosd                       -- mov [edi],eax; edi+=4
           ::PokeNSeqNext
             lea esi,[esi+4]
             sub ecx,1
@@ -1352,7 +1354,7 @@ end procedure -- (for Edita/CtrlQ)
                 add esp,8
                 jmp :Poke8sedxeax
           @@:
-            cdq                 -- eax -> edx:eax
+            cdq                 -- sign extend eax into edx
           ::Poke8sedxeax
           :!Poke8SeqE30                  -- exception here mapped to e100ipmafeh
             mov dword[edi],eax
@@ -1384,24 +1386,24 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         xor eax,eax
       ::PokeNStrLoop
-        lodsb                   -- mov al,[esi]; esi+=1
+        lodsb                       -- mov al,[esi]; esi+=1
         cmp edx,2
         jne @f
           :!PokeN2StrE30            -- exception here mapped to e100ipmafeh
-            stosw               -- mov [edi],ax; edi+=2
+            stosw                   -- mov [edi],ax; edi+=2
             jmp :PokeNStrNext
       @@:
         cmp edx,4
         jne @f
           :!PokeN4StrE30            -- exception here mapped to e100ipmafeh
-            stosd               -- mov [edi],eax; edi+=4
+            stosd                   -- mov [edi],eax; edi+=4
             jmp :PokeNStrNext
       @@:
         cmp edx,8
         jne :epokesize
           :!PokeN8StrE30            -- exception here mapped to e100ipmafeh
-            stosd
-            mov dword[edi],ebx
+            stosd                   -- mov [edi],eax; edi+=4 (+4 rsn)
+            mov dword[edi],ebx      -- hi dword of 0 (fine for char->qword)
             add edi,4
 
       ::PokeNStrNext
@@ -1410,6 +1412,7 @@ end procedure -- (for Edita/CtrlQ)
 
         nop
         ret
+
     [64]
         --calling convention
         --  mov rdi,[p1] -- addr (opUnassigned)
@@ -1495,30 +1498,30 @@ end procedure -- (for Edita/CtrlQ)
           @@:
             cmp rdx,1
             jne @f
-              :!Poke1SeqE30                  -- exception here mapped to e100ipmafeh
-                stosb
+              :!Poke1SeqE30                 -- exception here mapped to e100ipmafeh
+                stosb                       -- mov [rdi],al; rdi+=1
                 jmp :PokeNSeqNext64
           @@:
             cmp rdx,2
             jne @f
-              :!Poke2SeqE30                  -- exception here mapped to e100ipmafeh
-                stosw
+              :!Poke2SeqE30                 -- exception here mapped to e100ipmafeh
+                stosw                       -- mov [rdi],ax; rdi+=2
                 jmp :PokeNSeqNext64
           @@:
             cmp rdx,4
             jne @f
               :!Poke4SeqE30                 -- exception here mapped to e100ipmafeh
-                stosd                       -- mov [edi],eax; edi+=4
+                stosd                       -- mov [rdi],eax; rdi+=4
                 jmp :PokeNSeqNext64
 
           @@:
             cmp rdx,8
             jne :epokesize
               :!Poke8SeqE30                 -- exception here mapped to e100ipmafeh
-                stosq                       -- mov [rdi],rax; rdi+=4
+                stosq                       -- mov [rdi],rax; rdi+=8
 
           ::PokeNSeqNext64
-            sub ecx,1
+            sub rcx,1
             jnz :PokeNSeqLoop64
         nop
         ret
@@ -1536,29 +1539,29 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp rdx,1
         jne @f
-          :!PokeN1StrE30        -- exception here mapped to e100ipmafeh
+          :!PokeN1StrE30            -- exception here mapped to e100ipmafeh
             rep movsb
             ret
       @@:
         xor rax,rax
       ::PokeNStrLoop64
-        lodsb                   -- mov al,[rsi]; rsi+=1
+        lodsb                       -- mov al,[rsi]; rsi+=1
         cmp rdx,2
         jne @f
-          :!PokeN2StrE30        -- exception here mapped to e100ipmafeh
-            stosw               -- mov [rdi],ax; rdi+=2
+          :!PokeN2StrE30            -- exception here mapped to e100ipmafeh
+            stosw                   -- mov [rdi],ax; rdi+=2
             jmp :PokeNStrNext64
       @@:
         cmp rdx,4
         jne @f
-          :!PokeN4StrE30        -- exception here mapped to e100ipmafeh
-            stosd               -- mov [edi],eax; edi+=4
+          :!PokeN4StrE30            -- exception here mapped to e100ipmafeh
+            stosd                   -- mov [rdi],eax; rdi+=4
             jmp :PokeNStrNext64
       @@:
         cmp rdx,8
         jne :epokesize
           :!PokeN8StrE30            -- exception here mapped to e100ipmafeh
-            stosq
+            stosq                   -- mov [rdi],rax; rdi+=8
 
       ::PokeNStrNext64
         sub rcx,1

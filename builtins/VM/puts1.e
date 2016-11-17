@@ -22,7 +22,7 @@
 --      :%puts1rdirsi                                     puts(1,*rdi[1..rsi])  -- (64-bit char*)
 --      :%puthex32a     puthex32(a)     equivalent to     printf(1,"%08x\n",{a})    -- (atom/int)
 --      :%puthex32                                        printf(1,"%08x\n",{edx|and_bits(rdx,#FFFFFFFF)})  -- 32-bit reg
---      :%puthex64                                        printf(1,"%08x\n",{edx:eax|rdx})
+--      :%puthex64                                        printf(1,"%016x\n",{edx:eax|rdx})
 --      :%putsint       putsint(i)      equivalent to     printf(1,"%d\n",{i})
 --                                                        printf(1,"%d\n",{edx|and_bits(rdx,#FFFFFFFF)})
 --      :%getc0         getc0()         equivalent to     {} = getc(0), aka if getc(0) then end if
@@ -68,6 +68,8 @@ end procedure -- (for Edita/CtrlQ)
       :%puts1ediesi     -- (edi=raw text, esi=length)
 -------------------
         [PE32]
+--added 14/11/16:
+            call "kernel32.dll","AllocConsole"
             push -11                        -- nStdHandle (p1) (-11=STD_OUTPUT_HANDLE)
             call "kernel32.dll","GetStdHandle"
             push ebx                        -- lpOverlapped (NULL)
@@ -82,7 +84,7 @@ end procedure -- (for Edita/CtrlQ)
             mov ecx,edi             -- raw(hw) (p2)
             mov ebx,1               -- stdout (p1)
             int 0x80
-            xor ebx,ebx             -- (common requirement)
+            xor ebx,ebx             -- (common requirement after int 0x80)
 
         [64]
             -- rdi loaded
@@ -105,7 +107,9 @@ end procedure -- (for Edita/CtrlQ)
                         -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
                         -- obviously rsp is now xxx8, whatever alignment we started with
             sub rsp,8*7                     -- 5 params and space for target of r9, plus align
-            mov ecx,-11                     -- DWORD nStdHandle (p1) (--11=STD_OUTPUT_HANDLE)
+            mov rcx,-11                     -- DWORD nStdHandle (p1) (--11=STD_OUTPUT_HANDLE)
+--added 14/1/16:
+            call "kernel32.dll","AllocConsole"
             call "kernel32.dll","GetStdHandle"
             mov qword[rsp+4*8],rbx          -- LPOVERLAPPED lpOverlapped (p5) (rbx=NULL)
             lea r9,[rsp+5*8]                -- LPDWORD lpNumberOfBytesWritten (p4)
@@ -321,9 +325,6 @@ end procedure -- (for Edita/CtrlQ)
             jnz @b
         [32]
             mov eax,[esp+20]    -- putcr
-        [64]
-            mov rax,[rsp+24]    -- putcr
-        []
             mov ecx,edi
             test eax,eax
             jz @f
@@ -331,13 +332,20 @@ end procedure -- (for Edita/CtrlQ)
                 mov word[edi],0x0D0A
           @@:
             sub ecx,esp
-        [32]
             mov edi,esp
             mov esi,ecx -- (improve me, once working)
             call :%puts1ediesi
             add esp,16
             ret 4
         [64]
+            mov rax,[rsp+24]    -- putcr
+            mov rcx,rdi
+            test rax,rax
+            jz @f
+                add rcx,2
+                mov word[rdi],0x0D0A
+          @@:
+            sub rcx,rsp
             mov rdi,rsp
             mov rsi,rcx
             call :%puts1rdirsi
@@ -380,7 +388,7 @@ end procedure -- (for Edita/CtrlQ)
             lea ecx,[esp+4]         -- buf (p2)
             mov ebx,0               -- stdin (p1)
             int 0x80
-            xor ebx,ebx             -- (common requirement)
+            xor ebx,ebx             -- (common requirement after int 0x80)
             add esp,4
         [PE64]
             mov rcx,rsp -- put 2 copies of rsp onto the stack...
@@ -391,7 +399,7 @@ end procedure -- (for Edita/CtrlQ)
                         -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
                         -- obviously rsp is now xxx8, whatever alignment we started with
             sub rsp,8*7                     -- 5 params plus buffer and bytesread (no align rqd)
-            mov ecx,-10                     -- DWORD nStdHandle (p1) (-10=STD_INPUT_HANDLE)
+            mov rcx,-10                     -- DWORD nStdHandle (p1) (-10=STD_INPUT_HANDLE)
             call "kernel32.dll","GetStdHandle"
 
 -- 23/4/15:

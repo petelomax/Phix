@@ -24,62 +24,32 @@ include builtins\VM\puts1.e         -- low-level console i/o
         --      end if]
     [32]
         pop edx
-    [64]
-        pop rdx
-    []
-        jne @f
+--      jne @f
             -- [var]==h4, esi is varno
             mov al,92   -- e92vhnbaav(esi)
-            sub edx,1
-            jmp :!iDiag
-            int3
-      @@:
+        je @f
             -- type check error (edi is varno)
 --          mov al,110  -- e110tce(ecx)
             mov al,1    -- e01tcf(ecx)
             mov ecx,edi -- DEV (minor)
-            sub edx,1
-            jmp :!iDiag
-            int3
+      @@:
+        sub edx,1
+    [64]
+        pop rdx
+--      jne @f
+            -- [var]==h4, esi is varno
+            mov al,92   -- e92vhnbaav(esi)
+        je @f
+            -- type check error (edi is varno)
+--          mov al,110  -- e110tce(ecx)
+            mov al,1    -- e01tcf(ecx)
+            mov rcx,rdi -- DEV (minor)
+      @@:
+        sub rdx,1
+    []
+        jmp :!iDiag
+        int3
 
---/*
-  @@:
-    sub eax,1
-    mov [ep1],esi
-    mov [era],eax
-    mov al,92
-    jmp enumbset
-
-    trc e92movti
-e92movti:
-;;!!    trc e92movti    // wrecks the jz below!
-;   reg = loadReg(p2)                               -- mov reg,[p2]
-;   cmp_h4(reg)                                     -- cmp reg,h4
-;   storeReg(reg,p1,1,0)                            -- mov [p1],reg
-;   emitHex2(jl_rel8,?5)                            -- jl @f
-;   mov esi,p2 (if reg can be = h4)                 276         BE imm32        mov esi,imm32
-;   mov edx,p1                                      272         BA imm32        mov edx,imm32
-;   call e92movti                                   350         E8 rel32        call rel32
-
-;   mov eax,[esp]
-;   mov esi,[eax-21]
-;   jz e92vhnbaavesiesp     ; variable has not been assigned a value...
-    pop eax
-    jz @b                   ; variable has not been assigned a value...
-    ;
-    ; else type check error:
-    ;
-;   mov edx,[eax-11]
-;   sub eax,1
-    mov [ep1],edx
-    mov [era],eax
-;if newEBP (this may be a better idea!)
-;   mov al,1    -- (old code)
-;else
-    mov al,110 -- (old code)
-;end if
-    jmp enumbset
---*/
     :%pBadRetf
         [32]
 --          mov edi,[eBadRetf]          -- "eBadRetf called, return address is #"
@@ -95,7 +65,7 @@ e92movti:
 --          mov rdx,[rsp]
 --          push 1                      -- cr
 --          call :%puthex64
-            mov rdx,[esp]
+            mov rdx,[rsp]
             mov al,13                   -- e13ateafworav
             sub rdx,1
         []
@@ -179,8 +149,13 @@ e92movti:
         -- error code in al,
         -- ep1 in edi,
         -- ep2 in esi
+    [32]
         pop edx -- era
         sub edx,1
+    [64]
+        pop rdx -- era
+        sub rdx,1
+    []
         jmp :!iDiag
         int3
     :%pDiv0 
@@ -207,7 +182,13 @@ e92movti:
 --!*/
 
     :%e01tcfDivi2   -- (opDivi2)
---      int3
+--      <int>:=<odd_int>/2 ---> type check error, <int> is x.5:
+--;calling convention:
+--; mov eax,[p2]
+--; mov edx,p1
+--; sar eax,1
+--; jnc @f
+--; call :%e01tcfDivi2  -- type check error, <p1> is xxx.5
     [32]
         push eax
 --  pop ecx             ; return address
@@ -226,16 +207,10 @@ e92movti:
         fld1
         fld1
         faddp
-        fdivp
+        fdivp   -- (0.5)
         faddp
-        jmp @f
+        jmp @f  -- (type check error, <int> is x.5)
 
---;calling convention:
---; mov eax,[p2]
---; mov edx,p1
---; sar eax,1
---; jnc @f
---; call :%e01tcfDivi2  -- type check error, <p1> is xxx.5
     :%e01tcfediMul -- (opMuliii)
         [32]
 -- this might want to be push eax:ecx; fild qword[esp]...

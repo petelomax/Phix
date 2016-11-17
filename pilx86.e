@@ -6,6 +6,7 @@
 --       mov_ebpd32_i32 = {#C7,#85},    -- 0o307 0o205 d32 imm32    -- mov [ebp+d32],imm32
 --       mov_edid32_i32 = {#C7,#87},    -- 0o307 0o207 d32 imm32    -- mov [edi+d32],imm32
 --       mov_regimm32   =  #C7,         -- 0o307 0o30r imm32        -- mov reg,imm32
+with trace
 
 --
 -- pilx86.e
@@ -858,6 +859,21 @@ procedure emitHex2(integer op1, integer op2)
     x86 = append(x86,op2)
 end procedure
 
+--DEV temp replace of above... (do the same for emitHex2s)
+procedure emitHexx2(integer op1, integer op2)
+    -- emit two literal bytes
+    if not sched then
+        if lastline!=emitline then lineinfo() end if
+    end if
+    if X64 
+    and op1!=push_imm8
+    and op1!=mov_al_imm8 then
+        emitHex1(#48)
+    end if
+    x86 = append(x86,op1)
+    x86 = append(x86,op2)
+end procedure
+
 procedure emitHex2s(sequence op2)
 -- emit a two byte opcode, passed as a sequence
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
@@ -1211,7 +1227,7 @@ if not newEmit then ?9/0 end if
         if lastline!=emitline then lineinfo() end if
     end if
 --  if X64 then ?9/0 end if     -- use emit movRegVno or emitHex62vno
-    if X64=1 then
+    if X64 then
 --printf(1,"warning: emitHex5vno for newEmit (pilx86.e line 1174, emitline=%d)\n",{emitline})
         emitHex1(#48)
     end if
@@ -1258,7 +1274,7 @@ procedure cmp_h4(integer reg)
 -- reg is 0..7 for eax..edi (as returned by loadReg etc)
 -- reg is 0..15 for rax..r15 on 64-bit
 -- nb any scheduling to be done by callee
-    if newEmit and X64=1 then
+    if X64 then
         if reg=15 then ?9/0 end if  -- (got a better idea?) [push( imm)/(pop|add rsp 8) might be an option, or make r15(?) permanently h4?]
 --      yea, r15 is now permanently h4 (oops/DEV, need to do a search for r15, it get clobbered a few times...)
 --      (would also need to save/set/restore r15 in cbhandler)
@@ -1284,7 +1300,7 @@ procedure cmp_eax_srcid(integer vno)
 --  end if
 if not newEmit then ?9/0 end if --(isVno handling is only in pemit2.e)
 if lastline!=emitline then ?9/0 end if --(counts as suspicious use)
---if X64=1 then ?9/0 end if -- erm? (fine)
+--if X64 then ?9/0 end if -- erm? (fine)
     x86 &= {cmp_eax_imm32,isVno,0,0,vno}
 end procedure
 
@@ -1441,7 +1457,7 @@ integer op1, xrm
         if lastline!=emitline then lineinfo() end if
     end if
 if not newEmit then ?9/0 end if
-    if X64=1 then
+    if X64 then
         emitHex1(#48)
         xrm = 0o300+reg
 --DEV only place this is used...
@@ -2057,7 +2073,7 @@ sequence states,        -- The state table, eg if states[state] is {1,3,4,2}
                         -- makes states[state][picked]=1 and bumps other entries accordingly.
          snartitions    -- the inverse of transitions, makes states[state][picked]=4.
 
-without trace
+--without trace
 
 integer regstate    -- idx to states
 
@@ -2267,7 +2283,7 @@ end procedure
 
 procedure loadMem(integer r, integer N)
 integer k, xrm
-    if newEmit and X64=1 then
+    if X64 then
         emitHex1(#48)
         if r>7 then ?9/0 end if -- (placeholder for more code)
     end if
@@ -2412,13 +2428,12 @@ if tgtreg=edx then ?9/0 end if
         demoteReg(tgtreg)
         currreg = loadReg(src,clr)                  -- mov tgtreg,[src]
     elsif currreg!=tgtreg then
-        if newEmit and X64=1 then
+        if X64 then
             if currreg>7 then ?9/0 end if -- (placeholder for more code)
             if tgtreg>7 then ?9/0 end if -- (placeholder for more code)
-            emitHex1(#48)
         end if
         xrm = #C0 + tgtreg + currreg*8 -- 0o3ct
-        emitHex2(mov_reg,xrm)                       -- mov tgtreg,currreg
+        emitHexx2(mov_reg,xrm)                      -- mov tgtreg,currreg
 --DEV sug/untried...
         clearReg(tgtreg)
     end if
@@ -2426,7 +2441,7 @@ end procedure
 
 procedure storeMem(integer N, integer reg)
 integer k, xrm
-    if newEmit and X64=1 then
+    if X64 then
         emitHex1(#48)
         if reg>7 then ?9/0 end if   -- (placeholder for more code)
     end if
@@ -3631,7 +3646,7 @@ procedure regimm365(atom imm)
         rb = regbit[reg+1]
         schedule(rb,0,rb,pUV,1,0)
     end if
-    if newEmit and X64=1 then
+    if X64 then
         emitHex1(#48)
     end if
     xrm = #C0+mod+reg   -- 0o3mr
@@ -3664,10 +3679,7 @@ procedure reg_src2()
         end if
         op1 = mod+1         -- 0o0m1
         xrm = #C0+wrk*8+reg -- 0o3wr
-        if newEmit and X64=1 then
-            emitHex1(#48)
-        end if
-        emitHex2(op1,xrm)                           -- <op> reg,wrk
+        emitHexx2(op1,xrm)                          -- <op> reg,wrk
         -- (eg xor edi,ecx is 0o061 0o317.
         --  btw, we could equivalently say:
         --  op1 = mod+3         -- 0o0m3
@@ -3721,7 +3733,7 @@ integer sib
         rx = regbit[idx+1]
         schedule(0,rb+rx,rw,pUV,0,0)
     end if
-    if newEmit and X64=1 then
+    if X64 then
         emitHex1(#48)
     end if
     if offset>127 or offset<-128 then
@@ -3736,6 +3748,7 @@ integer sib
     end if
 end procedure
 
+--DEV inline.. and fix the emitHex2...
 procedure baseLoad632(object res, integer base, integer offset)
 --
 -- Emit a mov res,[base+offset] instruction (6, 3, or 2 bytes).
@@ -3788,7 +3801,7 @@ integer k
             xrm = 0o105 + reg*8 -- 0o1r5
             emitHex3l(lea,xrm,k)                -- lea reg,[ebp-nn]
         end if
-    elsif newEmit and X64=1 then
+    elsif X64 then
         emitHex1(#48)
         if reg>7 then ?9/0 end if -- (placeholder for more code)
         xrm = 0o005+reg*8
@@ -3804,8 +3817,8 @@ integer k
 -- 28/1/2012
 --if and_bits(symtab[N][S_State],K_Fres) then ?9/0 end if --DEV/sug xor eax,eax would be fine!
 --  if symtab[N][S_NTyp]=S_TVar then
---if X64=1 then ?9/0 end if -- might yet want #48 [DEV]
-    if newEmit and X64=1 then
+--if X64 then ?9/0 end if -- might yet want #48 [DEV]
+    if X64 then
         emitHex1(#48)
     end if
     if and_bits(symtab[N][S_State],K_Fres) then
@@ -3841,7 +3854,7 @@ integer k
 -- 28/01/2012:
 --if and_bits(symtab[N][S_State],K_Fres) then ?9/0 end if -- (push eax would be fine?)
 --  if symtab[N][S_NTyp]=S_TVar then
---if X64=1 then ?9/0 end if
+--if X64 then ?9/0 end if
     if and_bits(symtab[N][S_State],K_Fres) then
         emitHex1(push_eax)                      -- push eax
     elsif symtab[N][S_NTyp]=S_TVar then
@@ -3863,7 +3876,7 @@ end procedure
 
 procedure popvar(integer N)
 integer k
---if X64=1 then ?9/0 end if
+--if X64 then ?9/0 end if
     if and_bits(symtab[N][S_State],K_Fres) then ?9/0 end if -- (pop eax would be fine?)
     if symtab[N][S_NTyp]=S_TVar then
         k = symtab[N][S_Tidx]
@@ -3884,7 +3897,7 @@ end procedure
 
 procedure movRegImm32(integer reg, atom v)
 integer mov_reg_imm32
-    if newEmit and X64=1 then
+    if X64 then
         emitHex1(#48)
 --16/1/16:
 --      xrm = 0o300+reg
@@ -3911,7 +3924,7 @@ integer k
     isFresDest = and_bits(symtab[dest][S_State],K_Fres)
     if v=0 then
         if isFresDest then
-            if newEmit and X64=1 then
+            if X64 then
                 emitHex1(#48)
             end if
             emitHex2s(xor_eax_eax)              -- xor eax,eax
@@ -3943,7 +3956,7 @@ integer k
                 emitHex3(mov_rbpi8_r14,k)       -- mov [rbp+imm8],r14
             end if
         else
-            if X64=1 then
+            if X64 then
                 k *= 8
                 emitHex1(#48)
                 if v>#7FFFFFFF then ?9/0 end if -- placeholder for more code...
@@ -3957,7 +3970,7 @@ integer k
             end if
         end if
     else
-        if newEmit and X64=1 then
+        if X64 then
             emitHex1(#48)
         end if
         --DEV is this used anywhere else?
@@ -3972,14 +3985,14 @@ integer k
 if not newEmit then ?9/0 end if
     isFresDest = and_bits(symtab[dest][S_State],K_Fres)
     if isFresDest then
-        if newEmit and X64=1 then
+        if X64 then
             emitHex3l(#48,0o307,0o300)  -- #48 0o307 0o300 imm32        -- mov rax,imm32
         else
             emitHex1(0o270)             -- 0o270 imm32                  -- mov eax,imm32
         end if
     elsif symtab[dest][S_NTyp]=S_TVar then
         k = symtab[dest][S_Tidx]
-        if newEmit and X64=1 then
+        if X64 then
             k *= 8
             emitHex1(#48)
         else
@@ -3992,7 +4005,7 @@ if not newEmit then ?9/0 end if
             emitHex3l(0o307,0o105,k)    -- 0o307 0o105 d8 imm32     -- mov [ebp-d8],imm32
         end if
     else
-        if newEmit and X64=1 then
+        if X64 then
             emitHex1(#48)
         end if
 --if crash then
@@ -4980,10 +4993,7 @@ end if
                                     backpatch2 = length(x86)
 --DEV if prev!=edx? (just checked, it cannot be, as things stand, it seems)
                                     xrm = #D0+prev -- 0o32p
-                                    if X64 then
-                                        emitHex1(#48)
-                                    end if
-                                    emitHex2(mov_dword,xrm)                         -- mov edx,prev
+                                    emitHexx2(mov_dword,xrm)                        -- mov edx,prev
                                     emitHex5callG(opDealloc)                        -- call :%pDealloc
                                     x86[backpatch] = length(x86)-backpatch          -- @@:
                                     x86[backpatch2] = length(x86)-backpatch2
@@ -5005,20 +5015,7 @@ end if
                             -- dest:=src, src=0, ie no incref
 --if newEmit and X64 then ?9/0 end if
                             if isFresDst then -- no decref/dealloc, but incref maybe:
---DEV (spotted in passing) is this not loadToReg?
---if 1 then
                                 loadToReg(eax,src)
---else
---                              reg = loadReg(src,NOLOAD)
---                              if reg=-1 then -- not already loaded
---                                  demoteReg(eax)
---                                  reg = loadReg(src)
---                              elsif reg!=eax then
-----DEV do we need to clearReg(eax) or something here?
---                                  xrm = #C0 + reg*8 -- 0o3r0
---                                  emitHex2(mov_reg,xrm)                       -- mov eax,reg
---                              end if
---end if
                                 storeReg(ebx,src,1,0)                           -- move [src],ebx(0)
 --10/11/15:
                             elsif onDeclaration then -- no need to decref/dealloc
@@ -5032,7 +5029,7 @@ if onDeclaration=2 then
     -- pbr optimisation:
     -- (note that [src] (now in reg) may possibly be uninitialised here, 
     --                  but the callee/opCode has to deal with that)
-                                if X64=1 then ?9/0 end if -- (placeholder for more code)
+                                if X64 then ?9/0 end if -- (placeholder for more code)
                                 storeImm(src,#40000000)                         -- mov [src],h4
 else
                                 zero(src)                                       -- mov [src],ebx(0)
@@ -5085,9 +5082,9 @@ else
 end if
                                     emitHex6j(jnz_rel32,0)                          -- jnz @f [sj NOT ok]
                                     backpatch2 = length(x86)
-                                    xrm = #D0+prev -- 0o32p
 --DEV use mov_reg?/if not already edx
-                                    emitHex2(mov_dword,xrm)                         -- mov edx,prev
+                                    xrm = #D0+prev -- 0o32p
+                                    emitHexx2(mov_dword,xrm)                        -- mov edx,prev
                                     emitHex5callG(opDealloc)                        -- call :%pDealloc
                                     x86[backpatch] = length(x86)-backpatch          -- @@:
                                     x86[backpatch2] = length(x86)-backpatch2
@@ -5122,7 +5119,7 @@ if not newEmit and ssNTyp1=S_Const and and_bits(state1,K_noclr) then
                                 if symtab[dest][S_NTyp]=S_TVar then
 --DEV storeconstref(dest,src)?
                                     k = symtab[dest][S_Tidx]
-                                    if newEmit and X64=1 then
+                                    if X64 then
                                         k *=8
                                     else
                                         k *=4
@@ -5276,12 +5273,9 @@ end if
                             end if
                             emitHex6j(jnz_rel32,0)                      -- jnz @f [sj NOT ok]
                             backpatch2 = length(x86)
---DEV (spotted in passing) surely mov edx,prev?!
                             if prev!=edx then
---01/08/2013:
---                              xrm = #C2 + reg*8 -- 0o3r2
                                 xrm = #C2 + prev*8 -- 0o3r2
-                                emitHex2(mov_reg,xrm)                   -- mov edx,reg
+                                emitHexx2(mov_reg,xrm)                  -- mov edx,prev
                             end if
                             emitHex5callG(opDealloc)                    -- call :%pDealloc
                             x86[backpatch] = length(x86)-backpatch      -- @@:
@@ -5366,12 +5360,9 @@ end if
                                         demoteReg(eax)
                                         reg = loadReg(src)                      -- mov eax,[src]
                                     elsif reg!=eax then
-                                        if newEmit and X64=1 then
-                                            emitHex1(#48)
-                                        end if
 --DEV
                                         xrm = #C0 + reg*8 -- 0o3r0
-                                        emitHex2(mov_reg,xrm)                   -- mov eax,reg
+                                        emitHexx2(mov_reg,xrm)                  -- mov eax,reg
                                     end if
                                 end if
                             else
@@ -5411,7 +5402,7 @@ if and_bits(state1,K_rtn) then ?9/0 end if
                                 elsif reg!=eax then
 --DEV
                                     xrm = #C0 + reg*8 -- 0o3r0
-                                    emitHex2(mov_reg,xrm)                       -- mov eax,reg
+                                    emitHexx2(mov_reg,xrm)                      -- mov eax,reg
                                 end if
 --                              storeReg(ebx,src,1,0)
                             end if
@@ -5486,7 +5477,7 @@ end if
                                 elsif reg!=eax then
 --DEV do we need to clearReg(eax) or something here?
                                     xrm = #C0 + reg*8 -- 0o3r0
-                                    emitHex2(mov_reg,xrm)           -- mov eax,reg
+                                    emitHexx2(mov_reg,xrm)          -- mov eax,reg
                                 end if
                                 -- (erm, this might be unnecessary)
 -- 28/2/2012 seems so!
@@ -5646,7 +5637,7 @@ end if
                     if first>0 then
                         movRegImm32(ecx,ltot)                           -- mov ecx,no of params
                     else
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         if sched then
@@ -5699,7 +5690,7 @@ end if -- NOLT
 --          if schidx then schend() end if  -- isAddr not relocatable (yet)
                     schend() -- isAddr not relocatable (yet?)
                 end if
-if newEmit and X64=1 then
+if X64 then
                 emitHex1(#48)
                 emitHex7a(mov_ebpd8_i32,32,5)                       -- mov [rbp+32],<return addr>
 else
@@ -5748,7 +5739,7 @@ end if
             storeDest()
             --else
             if not isGscan then
-if newEmit and X64=1 then
+if X64 then
                 emitHex1(#48)
                 emitHex3(mov_edi_ebpd8,40) -- mov rdi,[rbp+40] ; prev_ebp
 else
@@ -5765,7 +5756,7 @@ end if
                 baseLoad632(eax,edi,k)                          -- mov eax,[edi+imm]
                 if ltype!=T_integer then
                     if pbr=2 then
-if newEmit and X64=1 then
+if X64 then
 --done, but [DEV] needs r15 handling in pcfunc.e, cbhandler, etc..
 --  printf(1,"pbr=2 incomplete line 5565 in pilx86.e, emitline=%d\n",{emitline})
 --/*
@@ -5779,7 +5770,7 @@ or
         storeMem(dest,r15)                          -- mov [dest],eax but with edi instead of ebp (and allow "[edi]")
 --procedure storeMem(integer N, integer reg)
 integer k, xrm
---  if newEmit and X64=1 then
+--  if X64 then
 --      emitHex1(#48) -- might want to be #4C?
         emitHex1(#49)
 --      if reg>7 then ?9/0 end if   -- (placeholder for more code)
@@ -5826,7 +5817,7 @@ end if
                         if sched then
                             schedule(0,0,ebxbit,pUV,1,0)
                         end if
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_ebx_ebx)                  -- xor ebx,ebx
@@ -5887,13 +5878,7 @@ end if
             if NOLT=0 or bind or lint then
                 ltCtrl(pc)
             end if -- NOLT
-            if not isGscan then --  if emitline=0 then trace(1) end if
---if pc=366 and vi=613 then
---  trace(1)
---end if
---if pc=53 then trace(1) end if
---?pc
---trace(1)
+            if not isGscan then
                 stmt = s5[pc-1]
                 switch_flags = 0
                 fallthrew = 0
@@ -5980,9 +5965,17 @@ end if
                                 -- check all jumps act on same var:
                                 tvar = s5[npc+4]
                                 if svar=0 then
+--                              if svar=0 and symtab[tvar][S_]=T_integer then
                                     svar = tvar
                                     src2 = svar
                                     getSrc2()
+--13/11/16:
+                                    if slroot2!=T_integer then
+                                        swecode = 2
+                                        switchable = 0
+                                        tlink = pc
+                                        exit
+                                    end if
                                     swroot = slroot2
                                     swmin = smin2   -- \ scratch
                                     swmax = smax2   -- /  vars
@@ -6000,8 +5993,10 @@ end if
                                 if opcode=opJeq then
                                     -- opJeq,ifMerge,tgt,link,p2,p3,tii,bothInit
                                     -- check rhs is init, save/collect isInteger
+                                    tii = s5[npc+6]
                                     bothInit = s5[npc+7]
-                                    if not bothInit then
+                                    if not tii
+                                    or not bothInit then
                                         swecode = 3
                                         switchable = 0
                                         tlink = pc
@@ -6022,13 +6017,12 @@ end if
                                         --      src2 is say "fred", just skip
                                         --      the test instead. ditto opJne]
                                         -- (ie, the tryme above/below, methinks)
---trace(1)
-if and_bits(slroot2,swroot) then
-                                        swecode = 4
-                                        switchable = 0
-                                        tlink = pc
-                                        exit
-end if
+                                        if and_bits(slroot2,swroot) then
+                                            swecode = 4
+                                            switchable = 0
+                                            tlink = pc
+                                            exit
+                                        end if
                                     end if
                                     npc += 8
                                 else -- opJnot (treat "not i or" as "i=0 or")
@@ -6060,6 +6054,8 @@ end if
                             elsif opcode=opJne          -- eg "i=1 then"        \ must be
                                or opcode=opJif then     -- eg "not i then"      /  last
                                 -- ("not i then" is equivalent to "i=0 then")
+                                -- opJne,ifMerge,tgt,link,p2,p3,tii,bothInit
+                                -- opJif,ifMerge,tgt,link,p1,oii,lastparam
 
                                 if s5[npc+1]!=ifMerge then
                                     swecode = 5
@@ -6074,6 +6070,13 @@ end if
                                     svar = tvar
                                     src2 = svar
                                     getSrc2()
+--13/11/16:
+                                    if slroot2!=T_integer then
+                                        swecode = 2
+                                        switchable = 0
+                                        tlink = pc
+                                        exit
+                                    end if
                                     swroot = slroot2
                                     swmin = smin2
                                     swmax = smax2
@@ -6120,7 +6123,6 @@ end if
 --DEV 7/12/10 (else not last)
 --if 0 then
                                 if s5[link-3]!=npc+3 then
---trace(1)
                                     swecode = 8
                                     switchable = 0
                                     tlink = pc
@@ -6146,13 +6148,12 @@ end if
                                     getSrc2()
                                     if slroot2!=T_integer or smin2!=smax2 then
                                         --[DEV: as above]
---trace(1)
-if and_bits(slroot2,swroot) then
-                                        swecode = 10
-                                        switchable = 0
-                                        tlink = pc
-                                        exit
-end if
+                                        if and_bits(slroot2,swroot) then
+                                            swecode = 10
+                                            switchable = 0
+                                            tlink = pc
+                                            exit
+                                        end if
                                     end if
                                     npc += 8
                                 else -- opJif (treat "not i then" as "i=0 then")
@@ -6889,7 +6890,7 @@ end if
                             if sched then
                                 sch00n = schoon
                             end if
-                            if newEmit and X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             if ltot then
@@ -6931,7 +6932,7 @@ end if
                             if sched then
                                 schend() -- isAddr not relocatable (yet?)
                             end if
-if X64=1 then
+if X64 then
                             emitHex1(#48)
                             emitHex7a(mov_ebpd8_i32,32,5)           -- mov [rbp+32],<return addr>
 else
@@ -6977,7 +6978,7 @@ end if
 --                                  def = loadReg(src2)                 -- mov def,[src2]
                                     def = loadReg(src2,CLEAR)           -- mov def,[src2]
                                     wrk = spareReg(0)
-if newEmit and X64=1 then
+if X64 then
                                     sibLoad743(wrk,by4,def,ebx,-24)     -- mov wrk,[rbx+def*4-24]
 else
                                     sibLoad743(wrk,by4,def,ebx,-12)     -- mov wrk,[ebx+def*4-12]
@@ -7221,16 +7222,15 @@ end if
                             schend()
                         end if
                         backpatch = emitHex5addr()                          -- push <return addr>
-if newEmit then
---                      movRegVno
+--if newEmit then
                         emitHex5vno(push_imm32,src)                         -- push var no
-else
-                        if src>=-128 and src<=127 then
-                            emitHex2(push_imm8,src)
-                        else
-                            emitHex5w(push_imm32,src)                       -- push var no
-                        end if
-end if
+--else
+--                      if src>=-128 and src<=127 then
+--                          emitHex2(push_imm8,src)
+--                      else
+--                          emitHex5w(push_imm32,src)                       -- push var no
+--                      end if
+--end if
 --                      emitHex5v(push_imm32,sudt-1)                        -- push addr typecheck res
                         if q86>1 then
 --  ?"9/0 (x86 4185)\n" -- separate chain for isIL[a]?
@@ -7390,7 +7390,7 @@ end if
                                 rw = regbit[wrk+1]
                                 schedule(rb+rw,0,0,pUV,1,0)
                             end if
-                            if newEmit and X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             op1 = mod+1         -- 0o071
@@ -7434,7 +7434,7 @@ if ssNTyp2=S_Const and and_bits(state2,K_noclr) then
 --                      emitHex5w(mov_edi_imm32,smin2)              -- mov edi,imm32
                         movRegImm32(edi,smin2)                      -- mov edi,imm32
             else
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_edi_edi)                      -- xor edi,edi
@@ -7469,7 +7469,7 @@ if ssNTyp1=S_Const and and_bits(state1,K_noclr) then
 --                      emitHex5w(mov_eax_imm32,smin)               -- mov eax,imm32
                         movRegImm32(eax,smin)                       -- mov eax,imm32
             else
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)                      -- xor eax,eax
@@ -7711,199 +7711,100 @@ end if
                             end if
                         end if
                         if opcode=opSubse1ip then
---                          if newBase then
-                                if idx=-1               -- not already set
-                                and smin2!=smax2 then   -- not a fixed value
-                                    idx = loadReg(src2,CLEAR) -- idx (if we can't use a fixed literal offset)
-                                end if
-                                reg = loadReg(src)      -- mov reg,[s]
-                                if idx!=-1 then
-                                    -- Desired value is at [reg*4+idx*4-4], which can be done 3 ways:
-                                    --  1: reg+=idx;    mov reg,[ebx+reg*4-4]
-                                    --  2: idx+=reg;    mov idx,[ebx+idx*4-4]
-                                    --  3: res=idx+reg; mov res,[ebx+res*4-4]
-                                    -- since 3 uses more registers and adds an extra clock/dependency,
-                                    -- and "s" is more likely to be reused than "idx", we go option 2:
-                                    -- 64bit:
-                                    --  2: idx*=8;      mov idx,[idx+reg*4-8]
-                                    if sched then
-                                        rb = regbit[reg+1]
-                                        rx = regbit[idx+1]
-                                        schedule(rb+rx,0,rx,pUV,1,0)
-                                    end if
-if X64=1 then
---printf(1,"checkme: line 7635 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
-                                    xrm = 0o340+idx
-                                    emitHex4l(#48,#C1,xrm,3)                -- shl idx,3
-                                    sibLoad743(idx,by4,reg,idx,-8)          -- mov idx,[idx+reg*4-8]        [AGI..]
-else
-                                    k = idx*8           -- 0o0i0
-                                    xrm = #C0+k+reg     -- 0o3ir
---(#03 = m_add+3):
-                                    emitHex2(#03,xrm)                       -- add idx,reg                  dependency?
-                                    sibLoad743(idx,by4,idx,ebx,-4)          -- mov idx,[ebx+idx*4-4]        [AGI..]
-end if
-                                else
-                                    -- Desired value is at [reg*4+smin2*4-4]. We may even avoid AGI,
-                                    --  if s/reg was already loaded. Use idx as res to match above.
-                                    idx = spareReg(1)   -- for result
---DEV 12/10:
---                                  idx = spareReg(0)   -- for result
-if X64=1 then
-                                    smin2 = (smin2-1)*8
--- removed 20/8/15:
---                                  emitHex1(#48)
-                                    sibLoad743(idx,by4,reg,ebx,smin2)       -- mov idx,[ebx+reg*4+smin2]
-else
-                                    smin2 = (smin2-1)*4
-                                    sibLoad743(idx,by4,reg,ebx,smin2)       -- mov idx,[ebx+reg*4+smin2]
-end if
-                                end if
-                                tmpd = 0
-                                if dname=-1 then
-                                    transtmpfer(0,idx)
-                                end if
-                                if dest then
-                                    storeReg(idx,dest,1,0)                  -- mov [dest],idx
---12/10:
-                                    if dname!=-1 then
-                                        transtmpfer(0,idx)
-                                    end if
-                                    dest = 0    -- flag code as inlined
-                                end if
---                          else -- not newBase (old code):
---                              reg = loadReg(src,CLEAR)    -- s (about to be clobbered)
---                              if idx=-1                   -- not already set
---                              and smin2!=smax2 then       -- not a fixed value
---                                  idx = loadReg(src2)     -- idx (if we can't use a fixed literal offset)
---                              end if
---                              if ssNTyp1!=S_Const or and_bits(state1,K_litnoclr)!=K_litnoclr then
---                                  sibLoad743(reg,by4,reg,ebx,-20)             -- mov reg,[ebx+reg*4-20]       ; base [AGI..]
---                                  if idx!=-1 then
---                                      sibLoad743(reg,by4,idx,reg,-4)          -- mov reg,[reg+idx*4-4]        [AGI..]
---                                  else
---                                      smin2 = (smin2-1)*4 -- displacement in bytes (>=0)
---                                      baseLoad632(reg,reg,smin2)              -- mov reg,[reg+smin2]          [AGI?]
---                                  end if
---                              else
---
---                                  -- no need to load base separately,
---                                  -- however it's (reg+idx)*4 time for this bit...
---                                  -- ... one dependency plus one AGI remains better
---                                  --     than two back-to-back AGI stalls though...
---
---                                  if idx!=-1 then
---                                      if sched then
---                                          rb = regbit[reg+1]
---                                          rx = regbit[idx+1]
---                                          schedule(rb+rx,0,rb,pUV,0,0)
---                                      end if
---                                      xrm = #C0+reg*8+idx -- 0o3ri
-----(#03 = m_add+3):
---                                      emitHex2(#03,xrm)                       -- add reg,idx                  dependency
---                                      smin2 = -4
---                                  else
---                                      smin2 = (smin2-1)*4
---                                  end if
---                                  sibLoad743(reg,by4,reg,ebx,smin2)           -- mov reg,[ebx+reg*4+smin2]    [AGI..]
---                              end if
---                              tmpd = 0
---                              if dname=-1 then
---                                  transtmpfer(0,reg)
---                                  -- (schoonOK)
---                              end if
---                              if dest then
---                                  storeReg(reg,dest,1,0)                          -- mov [dest],reg
-----12/10:
---                                  if dname!=-1 then
---                                      transtmpfer(0,reg)
---                                  end if
---                                  dest = 0    -- flag code as inlined
---                              end if
---                          end if -- newBase
-                        elsif opcode=opSubse1is then
---                          if newBase then
-                                if idx=-1               -- not already set
-                                and smin2!=smax2 then   -- not a fixed value
-                                    idx = loadReg(src2) -- idx (if we can't use a fixed literal offset)
-                                end if
-                                reg = loadReg(src)      -- s
+                            if idx=-1               -- not already set
+                            and smin2!=smax2 then   -- not a fixed value
+                                idx = loadReg(src2,CLEAR) -- idx (if we can't use a fixed literal offset)
+                            end if
+                            reg = loadReg(src)      -- mov reg,[s]
+                            if idx!=-1 then
+                                -- Desired value is at [reg*4+idx*4-4], which can be done 3 ways:
+                                --  1: reg+=idx;    mov reg,[ebx+reg*4-4]
+                                --  2: idx+=reg;    mov idx,[ebx+idx*4-4]
+                                --  3: res=idx+reg; mov res,[ebx+res*4-4]
+                                -- since 3 uses more registers and adds an extra clock/dependency,
+                                -- and "s" is more likely to be reused than "idx", we go option 2:
+                                -- 64bit:
+                                --  2: idx*=8;      mov idx,[idx+reg*4-8]
                                 if sched then
                                     rb = regbit[reg+1]
-                                    schedule(0,0,edxbit,pUV,1,0)
+                                    rx = regbit[idx+1]
+                                    schedule(rb+rx,0,rx,pUV,1,0)
                                 end if
-                                if newEmit and X64=1 then
-                                    emitHex1(#48)
-                                end if
-                                emitHex2s(xor_edx_edx)                          -- xor edx,edx
-                                if idx!=-1 then
-                                    -- nb idx is used as base below
-                                    smin2 = -1
-                                else
-                                    smin2 -= 1
-                                    idx = ebx   -- the usual 0 base
-                                end if
-                                sibLoad743(dl,by4,reg,idx,smin2)                -- mov dl,[base+reg*4+smin2]
-                                tmpd = 0
-                                if dname=-1 then        -- a temp
-                                    transtmpfer(0,edx)
-                                    -- (sch00nOK)
-                                end if
-                                if dest then
-                                    storeReg(edx,dest,1,0)                      -- mov [dest],edx
---12/10
-                                    if dname!=-1 then
-                                        transtmpfer(0,edx)
-                                    end if
-                                    dest = 0    -- flag code as inlined
-                                end if
---                          else -- not newBase (old code)
---                              reg = loadReg(src,CLEAR)    -- s    (about to be clobbered)
---                              if idx=-1               -- not already set
---                              and smin2!=smax2 then   -- not a fixed value
---                                  idx = loadReg(src2) -- idx (if we can't use a fixed literal offset)
---                              end if
---                              if sched then
---                                  rb = regbit[reg+1]
---                                  schedule(edxbit,0,edxbit,pUV,0,0)
---                              end if
---                              if newEmit and X64=1 then
+if X64 then
+--printf(1,"checkme: line 7635 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
+                                xrm = 0o340+idx
+                                emitHex4l(#48,#C1,xrm,3)                -- shl idx,3
+                                sibLoad743(idx,by4,reg,idx,-8)          -- mov idx,[idx+reg*4-8]        [AGI..]
+else
+                                k = idx*8           -- 0o0i0
+                                xrm = #C0+k+reg     -- 0o3ir
+--(#03 = m_add+3):
+                                emitHexx2(#03,xrm)                      -- add idx,reg                  dependency?
+                                sibLoad743(idx,by4,idx,ebx,-4)          -- mov idx,[ebx+idx*4-4]        [AGI..]
+end if
+                            else
+                                -- Desired value is at [reg*4+smin2*4-4]. We may even avoid AGI,
+                                --  if s/reg was already loaded. Use idx as res to match above.
+                                idx = spareReg(1)   -- for result
+--DEV 12/10:
+--                                  idx = spareReg(0)   -- for result
+if X64 then
+                                smin2 = (smin2-1)*8
+-- removed 20/8/15:
 --                                  emitHex1(#48)
---                              end if
---                              emitHex2s(xor_edx_edx)                          -- xor edx,edx
---                              if ssNTyp1!=S_Const or and_bits(state1,K_litnoclr)!=K_litnoclr then
---                                  sibLoad743(reg,by4,reg,ebx,-20)             -- mov reg,[ebx+reg*4-20]       ; base
---                                  if idx!=-1 then
---                                      sibLoad743(dl,0,idx,reg,-1)             -- mov dl,[reg+idx-1]       [AGI..]
---                                  else
---                                      smin2 -= 1
---                                      baseLoad632(dl,reg,smin2)               -- mov dl,[reg+d32]     [AGI..]
---                                  end if
---                              else    -- no need to load base separately
---                                  -- (we may avoid AGI if s and idx were already loaded)
---                                  if idx!=-1 then
---                                      -- nb idx used as base below
---                                      smin2 = -1
---                                  else
---                                      smin2 -= 1
---                                      idx = ebx   -- the usual 0 base
---                                  end if
---                                  sibLoad743(dl,by4,reg,idx,smin2)            -- mov dl,[base+reg*4+smin2]
---                              end if
---                              tmpd = 0
---                              if dname=-1 then        -- a temp
---                                  transtmpfer(0,edx)
---                                  -- (sch00nOK)
---                              end if
---                              if dest then
---                                  storeReg(edx,dest,1,0)                              -- mov [dest],edx
-----12/10:
---                                  if dname!=-1 then
---                                      transtmpfer(0,edx)
---                                  end if
---                                  dest = 0    -- flag code as inlined
---                              end if
---                          end if -- newBase
+                                sibLoad743(idx,by4,reg,ebx,smin2)       -- mov idx,[ebx+reg*4+smin2]
+else
+                                smin2 = (smin2-1)*4
+                                sibLoad743(idx,by4,reg,ebx,smin2)       -- mov idx,[ebx+reg*4+smin2]
+end if
+                            end if
+                            tmpd = 0
+                            if dname=-1 then
+                                transtmpfer(0,idx)
+                            end if
+                            if dest then
+                                storeReg(idx,dest,1,0)                  -- mov [dest],idx
+--12/10:
+                                if dname!=-1 then
+                                    transtmpfer(0,idx)
+                                end if
+                                dest = 0    -- flag code as inlined
+                            end if
+                        elsif opcode=opSubse1is then
+                            if idx=-1               -- not already set
+                            and smin2!=smax2 then   -- not a fixed value
+                                idx = loadReg(src2) -- idx (if we can't use a fixed literal offset)
+                            end if
+                            reg = loadReg(src)      -- s
+                            if sched then
+                                rb = regbit[reg+1]
+                                schedule(0,0,edxbit,pUV,1,0)
+                            end if
+                            if X64 then
+                                emitHex1(#48)
+                            end if
+                            emitHex2s(xor_edx_edx)                          -- xor edx,edx
+                            if idx!=-1 then
+                                -- nb idx is used as base below
+                                smin2 = -1
+                            else
+                                smin2 -= 1
+                                idx = ebx   -- the usual 0 base
+                            end if
+                            sibLoad743(dl,by4,reg,idx,smin2)                -- mov dl,[base+reg*4+smin2]
+                            tmpd = 0
+                            if dname=-1 then        -- a temp
+                                transtmpfer(0,edx)
+                                -- (sch00nOK)
+                            end if
+                            if dest then
+                                storeReg(edx,dest,1,0)                      -- mov [dest],edx
+--12/10
+                                if dname!=-1 then
+                                    transtmpfer(0,edx)
+                                end if
+                                dest = 0    -- flag code as inlined
+                            end if
                         end if
                     end if
                 end if
@@ -7937,13 +7838,9 @@ end if
                     if tmpd then
                         if tmpr>=0 then
                             if tmpr!=edi then
-                                if X64=1 then
---printf(1,"checkme: line 7714 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
-                                    emitHex1(#48)
-                                end if
 --DEV is this right?/use mov_reg (ok, that would be mov_reg,0o3t7, no matter)
-                                xrm = #F8+tmpr -- 0o37t
-                                emitHex2(mov_dword,xrm)             -- mov edi,tmpr
+                                xrm = 0o370+tmpr -- 0o37t
+                                emitHexx2(mov_dword,xrm)            -- mov edi,tmpr
                             end if
                         else
 --                          emitHex5w(mov_edi_imm32,tmpv)           -- mov edi,imm32
@@ -8242,7 +8139,7 @@ end if
                                     movRegImm32(edx,nmax)                   -- mov edx,imm32
                                 else
                                     --DEV what about neg reg instead??
-                                    if newEmit and X64=1 then
+                                    if X64 then
                                         emitHex1(#48)
                                     end if
                                     emitHex2s(xor_edx_edx)                  -- xor edx,edx
@@ -8253,10 +8150,7 @@ end if
                                 end if
                                 op1 = m_sub+1   -- 0o051
                                 xrm = #C2+reg*8 -- 0o3r2
-                                if newEmit and X64=1 then
-                                    emitHex1(#48)
-                                end if
-                                emitHex2(op1,xrm)                           -- sub edx,reg
+                                emitHexx2(op1,xrm)                          -- sub edx,reg
                                 reg = edx
                             end if
                             if dname=-1 and dtype=T_integer and dmax!=MAXINT and dmin!=MININT then
@@ -8284,10 +8178,7 @@ end if
                                 end if
 --DEV use mov_reg?
                                 xrm = #D0+reg   -- 0o32r
-                                if newEmit and X64=1 then
-                                    emitHex1(#48)
-                                end if
-                                emitHex2(mov_dword,xrm)                         -- mov edx,reg
+                                emitHexx2(mov_dword,xrm)                        -- mov edx,reg
                             end if
                             --                      storeReg(reg,dest,1,1)                          -- mov [dest],reg
                             --DEV if we reg=loadReg(src2,CLEAR) above (ie for sub as well as add):
@@ -8297,7 +8188,7 @@ end if
                             if sched then
                                 schedule(edxbit,0,edxbit,pU,1,0) -- treat following as one instruction:
                             end if
-                            if newEmit and X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(shl_edx_1)                            -- shl edx,1
@@ -8508,6 +8399,9 @@ end if
 --  @@:
 --  sar eax,k
 -- else
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(sar_eax_1)                        -- sar eax,1
                             if sched then
                                 schedule(0,0,0,pV,1,0)  -- treat next pair as one instruction
@@ -8537,18 +8431,41 @@ end if
 if 1 then -- new code 2/11/15
                             clearReg(ecx)   -- (btw, this block leaves edi intact)
                             clearReg(esi)
+--DEV cdq??
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(mov_eax_edx)                              -- mov eax,edx
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex3(sar_edx_imm8,#1F)                          -- sar edx,31
+-- </cdq>
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(test_ecx_ecx)                             -- test ecx,ecx (check for /0)
                             emitHex6j(jnz_rel32,0)                              -- jnz @f [sj OK]
                             backpatch = length(x86)
                             emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pDiagN.e)
                             x86[backpatch] = length(x86)-backpatch              -- @@:
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(idiv_ecx)                                 -- idiv ecx [eax:edx/=ecx; eax:=quotient, edx:=remainder]
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(mov_esi_eax)                              -- mov esi,eax
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(test_edx_edx)                             -- test edx,edx
                             emitHex6j(jnz_rel32,0)      -- if rmdr, not int     -- jnz @f (call e01, dest is flt) [sj OK]
                             backpatch = length(x86)
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(shl_esi_1)                                -- shl esi,1
                             emitHex6j(jno_rel32,0)      -- >31 bit result       -- jno @f [sj OK]
                                                         -- (can only happen for -#40000000/-1, btw)
@@ -8559,11 +8476,20 @@ if 1 then -- new code 2/11/15
                                 -- fatal error, does not return. (calc [edi]=(eax*ecx+edx)/ecx, as a float, and tcf it.)
                             x86[backpatch] = length(x86)-backpatch              -- @@:
                             storeReg(eax,dest,1,1)                          -- mov [dest],eax
-else
+else -- (old code)
                             clearReg(ecx)   -- (btw, this block leaves esi,edi intact)
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(mov_eax_edx)                              -- mov eax,edx
 --                      clearReg(eax) not needed, storeReg(,,,1,) below
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex3(sar_edx_imm8,#1F)                          -- sar edx,31
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(test_ecx_ecx)                             -- test ecx,ecx (check for /0)
 --                      emitHex2(jnz_rel8,5)                                -- jnz @f [sj OK] (nb above)
 --DEVBPM backpatch me: [DONE]
@@ -8575,13 +8501,25 @@ else
                             -- fatal error, does not return. (if [src2]=0 attempt to divide by zero,
                             -- else calculate [dest]=[src]/[src2], as a float, and tcf it.)
                             x86[backpatch] = length(x86)-backpatch              -- @@:
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(idiv_ecx)                                 -- idiv ecx
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(mov_ecx_eax)                              -- mov ecx,eax
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(test_edx_edx)                             -- test edx,edx
 --DEVBPM backpatch me: [DONE] (backwards)
 --                          emitHex6j(jnz_rel32,-17)    -- if rmdr, not int     -- jnz (call e01, dest is flt) [sj OK]
                             emitHex6j(jnz_rel32,0)      -- if rmdr, not int     -- jnz (call e01, dest is flt) [sj OK]
                             x86[length(x86)] = backpatch-length(x86)
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(shl_ecx_1)                                -- shl ecx,1
 --DEVBPM backpatch me: [DONE] (backwards)
 --                          emitHex6j(jo_rel32,-25)                             -- jo (call e01, dest too big) [sj OK]
@@ -8609,7 +8547,7 @@ end if
                 getSrc()
                 getSrc2()
                 -- calculate all four corners of the matrix to cover sign issues:
-                --  (examples/rationale can be found in t49rmdr.exw)
+                --  (examples/rationale can be found in t49ginfo.exw)
                 w = smin*smin2
                 nMin = w
                 nMax = w
@@ -8695,18 +8633,12 @@ end if
                                 rb = regbit[reg+1]
                                 schedule(rb,0,rb,pU,1,0)
                             end if
-                            xrm = #E0+reg -- 0o34r, shl/reg
-                            if X64=1 then
-                                emitHex1(#48)
-                            end if
-                            emitHex2(#D1,xrm)                           -- shl reg,1
-                            xrm = #D0+reg -- 0o32r
-                            if X64=1 then
-                                emitHex1(#48)
-                            end if
-                            emitHex2(mov_dword,xrm)                     -- mov edx,reg
+                            xrm = 0o340+reg -- 0o34r, shl/reg
+                            emitHexx2(0o321,xrm)                        -- shl reg,1
+                            xrm = 0o320+reg -- 0o32r
+                            emitHexx2(mov_dword,xrm)                    -- mov edx,reg
                             storeReg(reg,dest,1,0)                      -- mov [dest],reg
-                            if X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(shl_edx_1)                        -- shl edx,1
@@ -8754,28 +8686,46 @@ end if
                             end if
                             if sched then
                                 schend()    -- (may possibly schedule more here, up to je,
-                                    --  and that store eax, but je..jo non-sched.
-                                    --  I doubt such would be worthwhile, though.)
+                                            --  and that store eax, but je..jo non-sched.
+                                            --  I doubt such would be worthwhile, though.)
                             end if
-                            if X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(imul_ecx)                         -- imul ecx
                             leamov(edi,dest)                            -- lea edi,[dest]/mov edi,dest (addr result)
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(mov_ecx_edx)                      -- mov ecx,edx
-                            emitHex1(cdq)                               -- cdq
+                            if X64 then
+                                emitHex1(#48)
+                            end if
+                            emitHex1(cdq)                               -- cdq (cqo on 64-bit)
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(cmp_ecx_edx)                      -- cmp ecx,edx  -- >32 bits?
 --DEVBPM backpatch me: [DONE]
                             emitHex6j(je_rel32,0)                       -- je @f [sj OK]
                             backpatch = length(x86)
                             emitHex5callG(opMuliii)                     -- call :%e01tcfediMul
+                            -- ^ fatal error, does not return (loads ecx:eax as 64-bit float)
                             x86[backpatch] = length(x86)-backpatch      -- @@:
-                            -- fatal error, does not return (loads ecx:eax as 64-bit float)
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(mov_esi_eax)                      -- mov esi,eax
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(shl_esi_1)                        -- shl esi,1
 --DEVBPM backpatch me: (backwards) [DONE]
                             emitHex6j(jo_rel32,0)                       -- jo (call e01tcfediMul) [sj OK]
                             x86[length(x86)] = backpatch-length(x86)
+                            if X64 then
+                                emitHex1(#48)
+                            end if
                             emitHex2s(mov_medi_eax)                     -- mov [edi],eax
 --7/12/2011:
 --                          storeReg(eax,dest,0,0) -- just record the fact that eax==[dest]
@@ -8822,10 +8772,14 @@ end if
                         schedule(rb,0,rb,pU,1,0)
                     end if
                     xrm = #F8+reg -- 0o37r, sar/reg
+--DEV where is src2 set?! (spotted in passing) (is opDivf2 actually in use?)
                     src2 -= 1
                     if src2=1 then
-                        emitHex2(#D1,xrm)                           -- sar reg,1
+                        emitHexx2(0o321,xrm)                        -- sar reg,1
                     elsif src2 then
+                        if X64 then
+                            emitHex1(#48)
+                        end if
                         emitHex3l(#C1,xrm,src2)                     -- sar reg,nn
                     end if
                     storeReg(reg,dest,1,0)                          -- mov [dest],reg
@@ -9144,11 +9098,8 @@ end if  -- NOLT
                             end if
                             schedule(regbit[reg+1],0,0,pUV,1,0)
                         end if
-                        if newEmit and X64=1 then
-                            emitHex1(#48)
-                        end if
-                        xrm = #C0+reg*9 -- 0o3rr
-                        emitHex2(test_reg_reg,xrm)                  -- test reg,reg
+                        xrm = 0o300+reg*9 -- 0o3rr
+                        emitHexx2(test_reg_reg,xrm)                 -- test reg,reg
                     end if
                 else    -- not init/stype>T_atom; use opcode.
                     if tmpd then ?9/0 end if
@@ -9157,7 +9108,7 @@ end if  -- NOLT
                     end if
                     loadToReg(eax,src)              -- mov eax,[src]
                     storeReg(eax,src,0,1)           -- just record that now eax==[src]
-                    if newEmit and X64=1 then
+                    if X64 then
                         emitHex1(#48)
                     end if
                     movRegVno(edx,src)              -- mov e/rdx,src
@@ -9224,7 +9175,7 @@ end if  -- NOLT
 --    (it probably makes absolutely no measurable difference anyway...)
 --                      wrk = spareReg(1)   --DEV 0 might prove better? - prolly about to use it rsn!!
                             wrk = spareReg(0)   --DEV 0 might prove better? - prolly about to use it rsn!!
-if newEmit and X64=1 then
+if X64 then
 --removed 20/8/15:
 --                          emitHex1(#48)
                             sibLoad743(wrk,by4,reg,ebx,-24)                 -- mov wrk,[rbx+reg*4-24]
@@ -9362,7 +9313,7 @@ end if
                     schend()
                 end if
                 if opcode=opApnd then
-                    if newEmit and X64=1 then
+                    if X64 then
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_eax_eax)                      -- xor eax,eax (eax:=0)
@@ -9631,23 +9582,22 @@ end if
                 if ref!=-1
                 and ref!=esi then
                     xrm = #C6 + ref*8 -- 0o3r6
-                    if newEmit and X64=1 then
+                    if X64 then
                         if ref>7 then ?9/0 end if -- (placeholder for more code)
 --                      if rep>7 then ?9/0 end if -- (placeholder for more code)
-                        emitHex1(#48)
                     end if
                     if rep=esi then
-                        emitHex2(xchg,xrm)                      -- xchg ref,rep(=esi)
+                        emitHexx2(xchg,xrm)                     -- xchg ref,rep(=esi)
                         rep = ref
                         -- in case ref==ecx:
                         storeReg(rep,src2,0,1) -- (rep==[src2])
                     elsif idx=esi then
-                        emitHex2(xchg,xrm)                      -- xchg ref,idx(=esi)
+                        emitHexx2(xchg,xrm)                     -- xchg ref,idx(=esi)
                         idx = ref
                         -- in case idx==edi:
                         storeReg(idx,src,0,1) -- (idx==[src])
                     else
-                        emitHex2(mov_reg,xrm)                   -- mov esi,ref
+                        emitHexx2(mov_reg,xrm)                  -- mov esi,ref
                     end if
                     ref = esi
                     storeReg(esi,dest,0,1) -- (esi==[dest])
@@ -9655,18 +9605,17 @@ end if
                 if rep!=-1
                 and rep!=ecx then
                     xrm = #C1 + rep*8 -- 0o3r1
-                    if newEmit and X64=1 then
+                    if X64 then
                         if rep>7 then ?9/0 end if -- (placeholder for more code)
 --                      if tgtreg>7 then ?9/0 end if -- (placeholder for more code)
-                        emitHex1(#48)
                     end if
                     if idx=ecx then
-                        emitHex2(xchg,xrm)                      -- xchg rep,idx(=ecx)
+                        emitHexx2(xchg,xrm)                     -- xchg rep,idx(=ecx)
                         idx = rep
                         -- in case idx==edi:
                         storeReg(idx,src,0,1) -- (idx==[src])
                     else
-                        emitHex2(mov_reg,xrm)                   -- mov ecx,rep
+                        emitHexx2(mov_reg,xrm)                  -- mov ecx,rep
                     end if
                     rep = ecx
                     storeReg(ecx,src2,0,1) -- (ecx==[src2])
@@ -9674,38 +9623,13 @@ end if
                 if idx!=-1
                 and idx!=edi then
                     xrm = #C7 + idx*8 -- 0o3r7
-                    if newEmit and X64=1 then
+                    if X64 then
                         if idx>7 then ?9/0 end if -- (placeholder for more code)
-                        emitHex1(#48)
                     end if
-                    emitHex2(mov_reg,xrm)                       -- mov edi,idx
+                    emitHexx2(mov_reg,xrm)                      -- mov edi,idx
                     idx = edi
                     storeReg(edi,src,0,1) -- (edi==[src])
                 end if
---              if ref!=-1 then
---                  if ref!=esi then
---                      xrm = #C6 + ref*8 -- 0o3r6
---                      emitHex2(mov_reg,xrm)           -- mov esi,ref
---                      storeReg(esi,dest,0,1)  -- just record that esi==[dest]
---                      ref = esi
---                  end if
---              end if
---              if rep!=-1 then
---                  if rep!=ecx then
---                      xrm = #C1 + rep*8 -- 0o3r1
---                      emitHex2(mov_reg,xrm)       -- mov ecx,rep
---                      storeReg(ecx,src2,0,1)  -- just record that ecx==[src2]
---                      rep = ecx
---                  end if
---              end if
---              if idx!=-1 then
---                  if idx!=edi then
---                      xrm = #C7 + idx*8 -- 0o3r7
---                      emitHex2(mov_reg,xrm)       -- mov edi,idx
---                      storeReg(edi,src,0,1)   -- just record that edi==[src]
---                      idx = edi
---                  end if
---              end if
 
 --              if tmpd then
 --                  if tmpd!=src then ?9/0 end if
@@ -9713,12 +9637,11 @@ if idx!=edi then
                 if tmpd=src then
                     if tmpr>=0 then
                         if tmpr!=edi then
-                            xrm = #F8+tmpr  -- 0o37r
-                            if newEmit and X64=1 then
+                            xrm = 0o370+tmpr    -- 0o37r
+                            if X64 then
                                 if tmpr>7 then ?9/0 end if -- (placeholder for more code)
-                                emitHex1(#48)
                             end if
-                            emitHex2(mov_dword,xrm)     -- mov edi,tmpr
+                            emitHexx2(mov_dword,xrm)    -- mov edi,tmpr
                         end if
                     else
 --                      emitHex5w(mov_edi_imm32,tmpv)   -- mov edi,imm32
@@ -9863,6 +9786,9 @@ end if -- NOLT
                         -- NB: src is determined from [esp]-9 on error [DEV testme]
                         --  edx is now 0/1, and eax is still [src]
                         storeReg(eax,src,0,1) -- just record that eax==[src]
+                        if X64 then
+                            emitHex1(#48)
+                        end if
                         emitHex2s(test_edx_edx)                     -- test edx,edx
                         bcode = 4-invert    -- invert=jz[3], not invert=jnz[4] (idx to ccde)
                     else -- isInit
@@ -10276,16 +10202,9 @@ end if -- NOLT (opLoopTop should not actually be emitted?)
                     end if
                     emitHex6j(jnz_rel32,0)                      --   jnz @f [sj NOT ok]
                     backpatch2 = length(x86)
---                  if prev!=edx then
---                      xrm = #C2 + prev*8 -- 0o3r2
---                      emitHex2(mov_reg,xrm)                   -- mov edx,reg
---                  end if
                     if prev!=edx then
-                        if X64 then
-                            emitHex1(#48)
-                        end if
-                        xrm = #D0+prev  -- 0o32r
-                        emitHex2(mov_dword,xrm)                 -- mov edx,reg
+                        xrm = 0o320+prev    -- 0o32r
+                        emitHexx2(mov_dword,xrm)                -- mov edx,reg
                     end if
                     emitHex5callG(opDealloc)                    -- call :%pDealloc
                     x86[backpatch] = length(x86)-backpatch
@@ -10299,7 +10218,7 @@ end if -- NOLT (opLoopTop should not actually be emitted?)
                         cmp_h4(reg)                             -- cmp reg,h4
                         emitHex6j(jl_rel32,0)                   -- jl @f [sj prolly ok]
                         backpatch = length(x86)
-                        emitHex2(mov_al_imm8,120)               -- mov al,120 (for e120fle[init])
+                        emitHexx2(mov_al_imm8,120)              -- mov al,120 (for e120fle[init])
                         movRegVno(edi,p1)                       -- ep1 (=var no of init)
                         movRegImm32(esi,1)                      -- "init"
                         emitHex5callG(opRTErn)
@@ -10328,7 +10247,7 @@ end if -- NOLT (opLoopTop should not actually be emitted?)
                         cmp_h4(stepreg)                         -- cmp stepreg,h4
                         emitHex6j(jl_rel32,0)                   -- jl @f [sj prolly ok]
                         backpatch = length(x86)
-                        emitHex2(mov_al_imm8,120)               -- mov al,120 (for e120fle[step])
+                        emitHexx2(mov_al_imm8,120)              -- mov al,120 (for e120fle[step])
                         movRegVno(edi,src2)                     -- ep1 (=var no of step)
                         movRegImm32(esi,4)                      -- "step"
                         emitHex5callG(opRTErn)
@@ -10349,7 +10268,7 @@ or isFLOAT(smax+smax2) then
                         cmp_h4(limitreg)                        -- cmp limitreg,h4
                         emitHex6j(jl_rel32,0)                   -- jl @f [sj prolly ok]
                         backpatch = length(x86)
-                        emitHex2(mov_al_imm8,120)               -- mov al,120 (for e120fle[limit])
+                        emitHexx2(mov_al_imm8,120)              -- mov al,120 (for e120fle[limit])
                         movRegVno(edi,src)                      -- ep1 (=var no of limit)
                         movRegImm32(esi,2)                      -- "limit"
                         emitHex5callG(opRTErn)
@@ -10399,7 +10318,7 @@ or isFLOAT(smax+smax2) then
                     emitHex2s(shl_edx_1)                        -- shl edx,1
                     emitHex6j(jno_rel32,0)                      -- jno @f [sj prolly ok]
                     backpatch = length(x86)
-                    emitHex2(mov_al_imm8,121)                   -- mov al,121 (for e121flelimstep)
+                    emitHexx2(mov_al_imm8,121)                  -- mov al,121 (for e121flelimstep)
                     movRegVno(edi,src)                          -- ep1 (=var no of limit)
                     movRegImm32(esi,src2)                       -- ep2 (=var no of step)
                     emitHex5callG(opRTErn)
@@ -10425,11 +10344,8 @@ end if
                             if limitreg=-1 then -- limit not loaded, use smin
                                 cmp_imm32(reg,smin)             -- cmp init,imm32
                             else
-                                if X64 then
-                                    emitHex1(#48)
-                                end if
                                 xrm = 0o300+reg*8+limitreg
-                                emitHex2(cmp_reg_reg,xrm)       -- cmp init,limit
+                                emitHexx2(cmp_reg_reg,xrm)      -- cmp init,limit
                             end if
                             emitHex6j(jg_rel32,0)               -- jg endfor [sj NOT ok]
                         end if
@@ -10455,11 +10371,8 @@ end if
                             if limitreg=-1 then -- limit not loaded, use smin
                                 cmp_imm32(reg,smin)             -- cmp init,imm32
                             else
-                                if X64 then
-                                    emitHex1(#48)
-                                end if
                                 xrm = 0o300+reg*8+limitreg
-                                emitHex2(cmp_reg_reg,xrm)       -- cmp init,limit
+                                emitHexx2(cmp_reg_reg,xrm)      -- cmp init,limit
                             end if
                             emitHex6j(jl_rel32,0)               -- jl endfor [sj NOT ok]
                         end if
@@ -10467,11 +10380,8 @@ end if
                     end if
                 elsif reg=-1 and limitreg=-1 then
                     if stepreg=-1 then ?9/0 end if --DEV?
-                    if X64 then
-                        emitHex1(#48)
-                    end if
                     xrm = #C0+stepreg*9 -- 0o3ss
-                    emitHex2(test_reg_reg,xrm)                  -- test stepreg,stepreg
+                    emitHexx2(test_reg_reg,xrm)                 -- test stepreg,stepreg
                     if nMin=smin then
                         -- one iteration, just check stepreg is not 0
                         emitHex6j(jnz_rel32,0)                  -- jnz looptop [sj NOT ok]
@@ -10492,18 +10402,15 @@ end if
                         emitHex6j(jnz_rel32,0)                  -- jnz endfor [sj NOT ok]
                         backpatch = length(x86)
                     end if
-                    emitHex2(mov_al_imm8,120)                   -- mov al,120 (for e120fle[step])
+                    emitHexx2(mov_al_imm8,120)                  -- mov al,120 (for e120fle[step])
                     movRegVno(edi,src2)                         -- ep1 (=var no of step)
                     movRegImm32(esi,4)                          -- "step"
                     emitHex5callG(opRTErn)
                     x86[backpatch2] = length(x86)-backpatch2    -- looptop:
                 else
                     if stepreg=-1 then ?9/0 end if --DEV?
-                    if X64 then
-                        emitHex1(#48)
-                    end if
-                    xrm = #C0+stepreg*9 -- 0o3ss
-                    emitHex2(test_reg_reg,xrm)                  -- test stepreg,stepreg
+                    xrm = 0o300+stepreg*9 -- 0o3ss
+                    emitHexx2(test_reg_reg,xrm)                 -- test stepreg,stepreg
                     if iroot!=T_integer     -- init not integer
                     or slroot!=T_integer    -- limit not integer
                     or nMax>smin then       -- init can be > limit
@@ -10517,11 +10424,8 @@ end if
                             if limitreg=-1 then -- limit not loaded, use smin
                                 cmp_imm32(reg,smin)             -- cmp init,imm32
                             else
-                                if X64 then
-                                    emitHex1(#48)
-                                end if
                                 xrm = 0o300+reg*8+limitreg
-                                emitHex2(cmp_reg_reg,xrm)       -- cmp init,limit
+                                emitHexx2(cmp_reg_reg,xrm)      -- cmp init,limit
                             end if
                             emitHex6j(jle_rel32,0)              -- jle looptop [sj NOT ok]
                         end if
@@ -10542,7 +10446,7 @@ end if
                     -- jz e121flelimstep:
                     emitHex6j(jnz_rel32,0)                      -- jnz @f [sj NOT ok]
                     backpatch3 = length(x86)
-                    emitHex2(mov_al_imm8,120)                   -- mov al,120 (for e121fle[step])
+                    emitHexx2(mov_al_imm8,120)                  -- mov al,120 (for e121fle[step])
                     movRegVno(edi,src2)                         -- ep1 (=var no of step) [==0]
                     movRegImm32(esi,4)                          -- "step" (as part of error msg)
                     emitHex5callG(opRTErn)                      -- fatal error
@@ -10559,11 +10463,8 @@ end if
                             if limitreg=-1 then -- limit not loaded, use smin
                                 cmp_imm32(reg,smin)             -- cmp init,imm32
                             else
-                                if X64 then
-                                    emitHex1(#48)
-                                end if
                                 xrm = 0o300+reg*8+limitreg
-                                emitHex2(cmp_reg_reg,xrm)       -- cmp init,limit
+                                emitHexx2(cmp_reg_reg,xrm)      -- cmp init,limit
                             end if
                             emitHex6j(jl_rel32,backpatch)       -- jl endfor [sj NOT ok]
                         end if
@@ -10701,12 +10602,9 @@ end if
                     if sched then
                         schedule(rb+regbit[lim+1],0,0,pUV,1,0)
                     end if
-                    if newEmit and X64=1 then
-                        emitHex1(#48)
-                    end if
                     xrm = #C0+reg*8+lim -- 0o3rl
 -- (#3B = m_cmp+3):
-                    emitHex2(#3B,xrm)                           -- cmp reg,lim
+                    emitHexx2(0o073,xrm)                        -- cmp reg,lim
 --end if
                     storeReg(reg,p2,1,1)                        -- mov [p2],reg (control var)
 
@@ -10743,19 +10641,15 @@ end if
                         rs = regbit[step+1]
                         schedule(rb+rs,0,rb,pUV,1,0)
                     end if
---maybe (not seen yet, untested)
---                  if newEmit and X64=1 then
---                      emitHex1(#48)
---                  end if
-                    xrm = #C0+step*8+reg --0o3sr
+                    xrm = 0o300+step*8+reg --0o3sr
 -- (#01 = m_add+1):
-                    emitHex2(#01,xrm)                           -- add reg,step
+                    emitHexx2(0o001,xrm)                        -- add reg,step
                     if sched then
                         schedule(rs,0,0,pUV,1,0)
                     end if
                     if smin<=0 and smax>=0 then
-                        xrm = #C0+step*9 -- 0o3ss
-                        emitHex2(test_reg_reg,xrm)              -- test step,step
+                        xrm = 0o300+step*9 -- 0o3ss
+                        emitHexx2(test_reg_reg,xrm)             -- test step,step
                     end if
                     storeReg(reg,p2,1,1)                        -- mov [p2],reg (control var)
                     if sched then
@@ -10772,8 +10666,7 @@ end if
                             emitHex6j(jns_rel32,0)      -- jns positive_step (one less jump needed for +ve steps)
                             backpatch2 = length(x86)
                         end if
---#48?
-                        emitHex2(#3B,xrm)               -- cmp reg,lim
+                        emitHexx2(0o073,xrm)            -- cmp reg,lim
 --DEVBPM backpatch me: [DONE]
 --printf(1,"backpatch line 10592 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
 --                      joffset = tgt-(length(x86)+6)
@@ -10793,8 +10686,7 @@ end if
                         end if
                     end if
                     if smax>=0 then
---#48?
-                        emitHex2(#3B,xrm)               -- cmp reg,lim
+                        emitHexx2(0o073,xrm)            -- cmp reg,lim
 --DEVBPM backpatch me: [DONE]
 --printf(1,"backpatch line 10608 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
 --                      joffset = tgt-(length(x86)+6)
@@ -10907,7 +10799,7 @@ end while
 ----                pc += k+3
 --              x86 &= s5[npc..pc]
 --DEV/SUG: (failed miserably... tests pass but breaks self-host??) (still 2/3...)
---              if newEmit and X64=1 then
+--              if X64 then
 --                  emitHex1(#48)
 --              end if
 --              emitHex2s(xor_ebx_ebx)                          -- xor ebx,ebx
@@ -11019,11 +10911,8 @@ end while
                 getSrc2()
                 ref = loadReg(src2,NOLOAD)
                 if ref=eax then
-                    if X64 then
-                        emitHex1(#48)
-                    end if
                     xrm = #C2 + ref*8 -- 0o3r2
-                    emitHex2(mov_reg,xrm)                   -- mov edx,ref
+                    emitHexx2(mov_reg,xrm)                  -- mov edx,ref
                     ref = edx
                     clearReg(edx)
                 end if
@@ -11039,7 +10928,7 @@ end while
                         if smin2 then
                             movRegImm32(edx,smin2)              -- mov edx,imm32
                         else
-                            if newEmit and X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(xor_edx_edx)              -- xor edx,edx
@@ -11048,11 +10937,8 @@ end while
                         loadMem(edx,src2)                       -- mov edx,[src2] (object to print)
                     else
                         if ref=eax then ?9/0 end if             -- sanity check (cannot happen)
-                        xrm = #C2 + ref*8 -- 0o3r2
-                        if newEmit and X64=1 then
-                            emitHex1(#48)
-                        end if
-                        emitHex2(mov_reg,xrm)                   -- mov edx,ref
+                        xrm = 0o302 + ref*8 -- 0o3r2
+                        emitHexx2(mov_reg,xrm)                  -- mov edx,ref
                     end if
                 end if
                 emitHex5callG(opPuts)                           -- call :%opPuts
@@ -11292,20 +11178,23 @@ end if
                         if tmpd then
                             if tmpr>=0 then
                                 if tmpr!=ecx then
-                                    xrm = #C8+tmpr  -- 0o31r
-                                    emitHex2(mov_dword,xrm)         -- mov ecx,tmpr
+                                    xrm = 0o310+tmpr    -- 0o31r
+                                    emitHexx2(mov_dword,xrm)        -- mov ecx,tmpr
                                 end if
                             else
                                 ?9/0    --should have got smin=smax above
                             end if
                             tmpd = 0
                         else
-                            loadToReg(ecx, src2)                    -- mov ecx,[src2]   init int
+                            loadToReg(ecx,src2)                 -- mov ecx,[src2]   init int
                         end if
 --                      emitHex5w(mov_eax_imm32,1)              -- mov eax,1
                         movRegImm32(eax,1)                      -- mov eax,1
                 --DEV (untried, in place of clearReg(ecx) above:)
                 --      storeReg(ecx,src2,0,1)
+                        if X64 then
+                            emitHex1(#48)
+                        end if
                         emitHex2s(shl_eax_cl)                   -- shl eax,cl
                         storeReg(eax,dest,1,1)                  -- mov [dest],eax
                         dest = 0
@@ -11332,8 +11221,8 @@ if tmpd then
                 if sched then
                     schedule(regbit[tmpr+1],0,ecxbit,pUV,0,0)
                 end if
-                xrm = #C8+tmpr  -- 0o31r
-                emitHex2(mov_dword,xrm)                         -- mov ecx,tmpr
+                xrm = 0o310+tmpr    -- 0o31r
+                emitHexx2(mov_dword,xrm)                        -- mov ecx,tmpr
         end if
     else
                 if sched then
@@ -11364,7 +11253,7 @@ end if -- tmpd
                 if and_bits(state1,K_rtn+K_Fres) then ?9/0 end if
                 if slroot=T_integer and smin=smax then
                     if smin=0 then
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)                  -- xor eax,eax
@@ -11378,6 +11267,7 @@ end if -- tmpd
                     schend()
                 end if
                 emitHex5callG(opPow)
+--trace(1)
     end if -- dest!=0
                 reginfo = 0 -- all regs trashed
             end if
@@ -11611,7 +11501,8 @@ end if
                     if sched then
                         schend()
                     end if
-                    emitHex5w(mov_eax_imm32,103)        -- e103atgrondb0esp
+--                  emitHex5w(mov_eax_imm32,103)        -- e103atgrondb0esp
+                    emitHexx2(mov_al_imm8,103)          -- e103atgrondb0esp
                     emitHex5callG(opRTErn)
                     opcode = opRTErn    -- for opLabel
                 else
@@ -11653,7 +11544,7 @@ if useAndBits then
                                 clearReg(eax)
                                 bmin2 -= 1
                                 if bmin2 then
-                                    if X64=1 then
+                                    if X64 then
                                         emitHex1(#48)
                                     end if
                                     emitHex5w(and_eax_imm32,bmin2)              -- and eax,imm32
@@ -11714,7 +11605,7 @@ else -- not useAndBits
                             end if
 --                          if smin2>0 then
                             if bmin2>0 then     -- always +ve
-                                if newEmit and X64=1 then
+                                if X64 then
                                     emitHex1(#48)
                                 end if
                                 emitHex2s(xor_edx_edx)                      -- xor edx,edx
@@ -11723,7 +11614,7 @@ else -- not useAndBits
 --                              emitHex5w(mov_edx_imm32,-1)                 -- mov edx,-1
                                 movRegImm32(edx,-1)                         -- mov edx,-1
                             else                -- must test for 0/sign-extend
-                                if newEmit and X64=1 then
+                                if X64 then
                                     emitHex1(#48)
                                 end if
                                 emitHex2s(test_ecx_ecx)                     -- test ecx,ecx
@@ -11734,19 +11625,20 @@ else -- not useAndBits
                                 emitHex6j(jnz_rel32,0)                      -- jnz @f
                                 backpatch = length(x86)
                                 -- e103atgrondb0esp  ; attempt to get remainder of a number divided by 0
-                                emitHex5w(mov_eax_imm32,103)
+--                              emitHex5w(mov_eax_imm32,103)
+                                emitHexx2(mov_al_imm8,103)                  -- e103atgrondb0esp
                                 emitHex5callG(opRTErn) -- (fatal error)
                                 x86[backpatch] = length(x86)-backpatch      -- @@:
-                                if newEmit and X64=1 then
+                                if X64 then
                                     emitHex1(#48)
                                 end if
                                 emitHex2s(mov_edx_eax)                      -- mov edx,eax
-                                if newEmit and X64=1 then
+                                if X64 then
                                     emitHex1(#48)
                                 end if
                                 emitHex3(sar_edx_imm8,#1F)                  -- sar edx,31
                             end if
-                            if X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(idiv_ecx)                             -- idiv ecx
@@ -11781,154 +11673,82 @@ end if -- useAndBits
                 end if -- not /0 case
             end if
 
-        elsif opcode=opUminus           -- 84
-           or opcode=opNot then         -- 52
+        elsif opcode=opNot then         -- 52
             dest = s5[pc+1]
             src = s5[pc+2]
             pc += 3
             getSrc()
             getDest()
---if isGscan then
-            if opcode=opNot then
---              slroot = T_integer
-                if and_bits(slroot,T_atom)=T_integer then
-                    -- not(0)=1, not(true)=0, else 0..1
-                    if smin=0 and smax=0 then
-                        smin = 1
-                        smax = 1
---                  elsif (smin<0 and smax<0)
---                     or (smin>0 and smax>0) then
-                    elsif smax<0 or smin>0 then
-                        smin = 0
-                        smax = 0
-                    else
-                        smin = 0
-                        smax = 1
-                    end if
-                end if
-                slroot = T_integer
-            else -- opUminus
-                slroot = and_bits(slroot,T_atom)
-                if slroot=T_integer then
-                    if smin>MININT then
-                        nmax = -smin
-                    else
-                        nmax = MAXINT
-                    end if
-                    if smax>MININT then
-                        smin = -smax
-                    end if
-                    smax = nmax
+            if and_bits(slroot,T_atom)=T_integer then
+                -- not(0)=1, not(true)=0, else 0..1
+                if smin=0 and smax=0 then
+                    smin = 1
+                    smax = 1
+--              elsif (smin<0 and smax<0)
+--                 or (smin>0 and smax>0) then
+                elsif smax<0 or smin>0 then
+                    smin = 0
+                    smax = 0
+                else
+                    smin = 0
+                    smax = 1
                 end if
             end if
+            slroot = T_integer
             sltype = slroot
             storeDest()
-            --opNot:        ; [edi]=not([esi]), ie sets [edi] to 0 or 1
-            --opUminus:     ; [edi] = -[esi]
-
-            --else
+            -- [edi]=not([esi]), ie sets [edi] to 0 or 1
             if not isGscan then
                 getSrc()
-                if opcode=opUminus then
-                    if dtype=T_integer
-                    and slroot=T_integer
-                    and smin!=MININT then
-                        if smin=smax then
-                            smin = -smin
-                            if dname=-1 then        -- a temp
-                                transtmpfer(smin,-1)
-                            end if
-                            if dest then
-                                storeImm(dest,smin)                                 -- mov [dest],imm32
-                                if reginfo then clearMem(dest) end if
-                                if dname!=-1 then
-                                    transtmpfer(smin,-1)
-                                end if
-                                dest = 0
-                            end if
-                        else
-                            wrk = loadReg(src,CLEAR)            -- mov wrk,[src]
-                            if sched then
-                                rw = regbit[wrk+1]
-                                schedule(rw,0,rw,pUV,1,0)
-                            end if
-                            if X64=1 then
-                                emitHex1(#48)
-                            end if
-                            xrm = #D8+wrk -- 0o33w, neg/wrk
-                            emitHex2(#F7,xrm)                   -- neg wrk
-                            if dname=-1 then -- a temp
-                                transtmpfer(0,wrk)
-                            end if
-                            if dest then
-                                storeReg(wrk,dest,1,0)          -- mov [dest],wrk   ; 0 or 1
-                                if dname!=-1 then
-                                    transtmpfer(0,wrk)
-                                end if
-                                dest = 0
-                            end if
+                if dtype=T_integer and slroot<=T_atom then
+                    if slroot=T_integer and smin=smax then
+                        smin = not(smin)    -- (smin:=0/1)
+                        if dname=-1 then    -- a temp
+                            transtmpfer(smin,-1)
                         end if
-                    end if
-                else    -- opNot
-                    if dtype=T_integer and slroot<=T_atom then
-                        if slroot=T_integer and smin=smax then
-                            smin = not(smin)    -- (smin:=0/1)
-                            if dname=-1 then    -- a temp
+                        if dest then
+                            storeImm(dest,smin)                                 -- mov [dest],imm32
+                            if reginfo then clearMem(dest) end if
+                            if dname!=-1 then
                                 transtmpfer(smin,-1)
                             end if
-                            if dest then
-                                storeImm(dest,smin)                                 -- mov [dest],imm32
-                                if reginfo then clearMem(dest) end if
-                                if dname!=-1 then
-                                    transtmpfer(smin,-1)
-                                end if
-                                dest = 0
-                            end if
-                        else
-                            -- inline (dest is int and no need to check for sequence op)
-                            wrk = loadReg(src)                  -- [mov wrk,[src]]
-                            if sched then
-                                schedule(0,0,edxbit,pUV,1,0)
-                            end if
-                            if newEmit and X64=1 then
-                                emitHex1(#48)
-                            end if
-                            emitHex2s(xor_edx_edx)              -- xor edx,edx
-                            if sched then
-                                rw = regbit[wrk+1]
-                                schedule(rw,0,0,pUV,1,0)
-                            end if
-                            xrm = #C0+wrk*9 -- 0o3ww
-                            if newEmit and X64=1 then
-                                emitHex1(#48)
-                            end if
-                            emitHex2(test_reg_reg,xrm)          -- test wrk,wrk
-                            if sched then
-                                schedule(0,0,edxbit,pUV,1,0)
-                            end if
-                            xrm = #C2 -- 0o302
-                            emitHex3(sete,xrm)                  -- sete dl
-                            if dname=-1 then -- a temp
+                            dest = 0
+                        end if
+                    else
+                        -- inline (dest is int and no need to check for sequence op)
+                        wrk = loadReg(src)                  -- [mov wrk,[src]]
+                        if sched then
+                            schedule(0,0,edxbit,pUV,1,0)
+                        end if
+                        if X64 then
+                            emitHex1(#48)
+                        end if
+                        emitHex2s(xor_edx_edx)              -- xor edx,edx
+                        if sched then
+                            rw = regbit[wrk+1]
+                            schedule(rw,0,0,pUV,1,0)
+                        end if
+                        xrm = 0o300+wrk*9 -- 0o3ww
+                        emitHexx2(test_reg_reg,xrm)         -- test wrk,wrk
+                        if sched then
+                            schedule(0,0,edxbit,pUV,1,0)
+                        end if
+                        xrm = #C2 -- 0o302
+                        emitHex3(sete,xrm)                  -- sete dl
+                        if dname=-1 then -- a temp
+                            transtmpfer(0,edx)
+                        end if
+                        if dest then
+                            storeReg(edx,dest,1,0)          -- mov [dest],edx   ; 0 or 1
+--12/10
+                            if dname!=-1 then
                                 transtmpfer(0,edx)
                             end if
-                            if dest then
-                                storeReg(edx,dest,1,0)          -- mov [dest],edx   ; 0 or 1
---12/10
-                                if dname!=-1 then
-                                    transtmpfer(0,edx)
-                                end if
-                                dest = 0
-                            end if
+                            dest = 0
                         end if
-                    end if --dtype=T_integer and slroot<=T_atom
-                end if-- opUminus/opNot
+                    end if
+                end if --dtype=T_integer and slroot<=T_atom
                 if dest then -- (not inlined)
---;calling convention:                              octal:         binary:          code:
---; mov edi,p1          ; address of target         277         BF imm32        mov edi,imm32
---; mov ecx,[p2]        ; ref p2                    213 015     8B 0D m32       mov ecx,[m32]
---; call opUminus                                   350         E8 rel32        call rel32
---;   nb: p2 obtained from [esp]-9 on error
---;   all registers trashed unless result is integer, else result in ecx
 --;calling convention:                              octal:         binary:          code:
 --; mov edi,p1      ; result location (->0/1)       277         BF imm32        mov edi,imm32
 --; mov ecx,[p2]    ; source ref                    213 015     8B 0D m32       mov ecx,[m32]
@@ -11947,16 +11767,104 @@ end if -- useAndBits
                     if sched then
                         schend()
                     end if
-                    emitHex5callG(opcode)                           -- call opUminus/opNot
+                    emitHex5callG(opcode)                           -- call opNot
                     if dtype=T_integer then
                         clearReg(edi)
-                        if opcode=opUminus then
-                            res = ecx
-                        else -- opNot
-                            res = eax
+                        -- just record that eax==[dest], and remove any existing use of eax
+                        storeReg(eax,dest,0,1)
+                    else
+                        -- (all regs are trashed if dealloc gets called)
+                        reginfo = 0
+                    end if
+                end if -- dest=0
+            end if
+
+        elsif opcode=opUminus then      -- 84
+            dest = s5[pc+1]
+            src = s5[pc+2]
+            pc += 3
+            getSrc()
+            getDest()
+            slroot = and_bits(slroot,T_atom)
+            if slroot=T_integer then
+                if smin>MININT then
+                    nmax = -smin
+                else
+                    nmax = MAXINT
+                end if
+                if smax>MININT then
+                    smin = -smax
+                end if
+                smax = nmax
+            end if
+            sltype = slroot
+            storeDest()
+            -- [edi] = -[esi]
+            if not isGscan then
+                getSrc()
+                if dtype=T_integer
+                and slroot=T_integer
+--11/11/16:
+--              and smin!=MININT then
+                and smin>MININT
+                and smax<=MAXINT then
+                    if smin=smax then
+                        smin = -smin
+                        if dname=-1 then        -- a temp
+                            transtmpfer(smin,-1)
                         end if
-                        -- just record that res==[dest], and remove any existing use of res(eax or ecx)
-                        storeReg(res,dest,0,1)
+                        if dest then
+                            storeImm(dest,smin)                                 -- mov [dest],imm32
+                            if reginfo then clearMem(dest) end if
+                            if dname!=-1 then
+                                transtmpfer(smin,-1)
+                            end if
+                            dest = 0
+                        end if
+                    else
+                        wrk = loadReg(src,CLEAR)            -- mov wrk,[src]
+                        if sched then
+                            rw = regbit[wrk+1]
+                            schedule(rw,0,rw,pUV,1,0)
+                        end if
+                        xrm = 0o330+wrk -- 0o33w, neg/wrk
+                        emitHexx2(0o367,xrm)                -- neg wrk
+                        if dname=-1 then -- a temp
+                            transtmpfer(0,wrk)
+                        end if
+                        if dest then
+                            storeReg(wrk,dest,1,0)          -- mov [dest],wrk   ; 0 or 1
+                            if dname!=-1 then
+                                transtmpfer(0,wrk)
+                            end if
+                            dest = 0
+                        end if
+                    end if
+                end if
+                if dest then -- (not inlined)
+--;calling convention:                              octal:         binary:          code:
+--; mov edi,p1          ; address of target         277         BF imm32        mov edi,imm32
+--; mov ecx,[p2]        ; ref p2                    213 015     8B 0D m32       mov ecx,[m32]
+--; call opUminus                                   350         E8 rel32        call rel32
+--;   nb: p2 obtained from [esp]-9 on error
+--;   all registers trashed unless result is integer, else result in ecx
+                    if sched then
+                        sch00n = schoon
+                        schedule(0,0,edibit,pUV,0,0)
+                    end if
+                    leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
+                    if sched then
+                        schedule(0,0,eaxbit,pUV,0,src)
+                    end if
+                    loadToReg(ecx,src)                              -- mov ecx,[src]
+                    if sched then
+                        schend()
+                    end if
+                    emitHex5callG(opcode)                           -- call opUminus
+                    if dtype=T_integer then
+                        clearReg(edi)
+                        -- just record that ecx==[dest], and remove any existing use of ecx
+                        storeReg(ecx,dest,0,1)
                     else
                         -- (all regs are trashed if dealloc gets called)
                         reginfo = 0
@@ -12089,7 +11997,7 @@ end if -- useAndBits
 --DEV/SUG improve this... (put the check for 0/xor inside movRegImm32, but search first)
                             movRegImm32(edi,smin2)                  -- mov edi,imm32
                         else
-                            if newEmit and X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(xor_edi_edi)                  -- xor edi,edi
@@ -12104,7 +12012,7 @@ end if -- useAndBits
                         if smin2 then
                             movRegImm32(ecx,smin2)              -- mov ecx,imm32
                         else
-                            if newEmit and X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(xor_ecx_ecx)              -- xor ecx,ecx
@@ -12156,7 +12064,7 @@ else
                         if slroot2=T_integer and smin2=smax2 then
                             -- a known integer value
                             if smin2>=-128 and smin2<=127 then
-                                emitHex2(push_imm8,smin2)
+                                emitHexx2(push_imm8,smin2)
                             else
                                 emitHex5w(push_imm32,smin2)         -- push imm32
                             end if
@@ -12213,7 +12121,7 @@ end if
                     if slroot=T_integer and smin=smax then
                         -- a known integer value
                         if smin>-128 and smin<=127 then
-                            emitHex2(push_imm8,smin)
+                            emitHexx2(push_imm8,smin)
                         else
                             emitHex5w(push_imm32,smin)          -- push imm32
                         end if
@@ -12702,9 +12610,9 @@ end if
                             rs = regbit[res+1]
                             schedule(0,0,rs,pUV,1,0)
                         end if
-                        xrm = #C0+res*9 -- 0o3rr
+                        xrm = 0o300+res*9 -- 0o3rr
 -- (#31 = m_xor+1):
-                        emitHex2(#31,xrm)                               -- xor res,res
+                        emitHexx2(0o061,xrm)                            -- xor res,res
                         mod = m_cmp
                         if tmpd=-1 then
                             regimm365(smin2)                            -- cmp reg,imm
@@ -12714,8 +12622,8 @@ end if
                                 schedule(rb+rw,0,0,pUV,1,0)
                             end if
                             op1 = mod+1         -- 0o071
-                            xrm = #C0+wrk*8+reg -- 0o3wr
-                            emitHex2(op1,xrm)                           -- cmp reg,wrk
+                            xrm = 0o300+wrk*8+reg -- 0o3wr
+                            emitHexx2(op1,xrm)                          -- cmp reg,wrk
                         end if
                         if sched then
                             schedule(rs,0,rs,pNP,1,0)
@@ -12767,6 +12675,9 @@ end if
                         emitHex5callG(opJeq)                            -- call :%opJccE  (opJne would do the same)
                     else
                         emitHex5callG(opJle)                            -- call :%opJcc   (opJlt/opJge/opJgt "")
+                    end if
+                    if X64 then
+                        emitHex1(#48)
                     end if
                     emitHex2s(mov_eax_ebx)                              -- mov eax,ebx(0)
                     if not isInt then
@@ -13205,7 +13116,7 @@ end if
                     if smin then
                         movRegImm32(eax,smin)                   -- mov eax,imm32
                     else
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)                  -- xor eax,eax
@@ -13261,7 +13172,7 @@ printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit, pilx86.e line 13580\
                     reg = loadReg(src)                              -- mov reg,[src]
                     wrk = spareReg(1)   --DEV 0 might prove better? - prolly about to use it rsn!!
                                     -- (again, need to collect metrics before deciding)
-if newEmit and X64=1 then
+if X64 then
                     sibLoad743(wrk,by4,reg,ebx,-24)                 -- mov wrk,[rbx+reg*4-24]
 else
                     sibLoad743(wrk,by4,reg,ebx,-12)                 -- mov wrk,[ebx+reg*4-12]
@@ -13300,8 +13211,8 @@ end if
                     end if
                     schedule(regbit[wrk+1],0,0,pUV,1,0)
                 end if
-                xrm = #C0+wrk*9 -- 0o3ww
-                emitHex2(test_reg_reg,xrm)              -- test wrk,wrk
+                xrm = 0o300+wrk*9 -- 0o3ww
+                emitHexx2(test_reg_reg,xrm)             -- test wrk,wrk
 
                 bcode = 4-invert    -- invert=jz[3], not invert=jnz[4]  (idx to ccde)
                 tmpd = 0    -- DEV could do better! (as noted above, getSrc/slen)
@@ -13378,7 +13289,7 @@ end if
                     if slroot=T_integer and smin=smax then
                         -- a known integer value
                         if smin>=-128 and smin<=127 then
-                            emitHex2(push_imm8,smin)
+                            emitHexx2(push_imm8,smin)
                         else
                             emitHex5w(push_imm32,smin)          -- push imm32
                         end if
@@ -13583,19 +13494,22 @@ end if
                                 schedule(rx,0,rx,pUV,1,0)
                             end if
                             xrm = #E0+idx -- 0o34i, shl/idx
-if newEmit and X64=1 then
-                            emitHex3l(#C1,xrm,3)                    -- shl idx,3
+if X64 then
+                            if X64 then
+                                emitHex1(#48)
+                            end if
+                            emitHex3l(0o301,xrm,3)                  -- shl idx,3
                             if sched then
                                 schedule(0,rs+rx,0,pUV,1,0)
                             end if
-                            sib = #80+reg*8+idx -- 0o2ri, idx+reg*4
+                            sib = 0o200+reg*8+idx -- 0o2ri, idx+reg*4
                             emitHex5sib(cmpd_sibd8i8,sib,-8,0)      -- cmp dword[idx+reg*4-8],0
 else
-                            emitHex3l(#C1,xrm,2)                    -- shl idx,2
+                            emitHex3l(0o301,xrm,2)                  -- shl idx,2
                             if sched then
                                 schedule(0,rs+rx,0,pUV,1,0)
                             end if
-                            sib = #80+reg*8+idx -- 0o2ri, idx+reg*4
+                            sib = 0o200+reg*8+idx -- 0o2ri, idx+reg*4
                             emitHex5sib(cmpd_sibd8i8,sib,-4,0)      -- cmp dword[idx+reg*4-4],0
 end if
                         end if
@@ -13695,7 +13609,7 @@ end if
                         if sched then
                             schedule(0,0,ecxbit,pUV,1,0)
                         end if
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_ecx_ecx)                          -- xor ecx,ecx
@@ -13704,7 +13618,7 @@ end if
                         if sched then
                             schedule(0,0,eaxbit,pUV,1,0)
                         end if
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)                          -- xor eax,eax
@@ -13874,7 +13788,7 @@ end if
                 getSrc()
                 if slroot=T_integer and smin=smax then
                     if smin=0 then
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)                  -- xor eax,eax
@@ -14067,7 +13981,7 @@ end if
                         if smin then
                             movRegImm32(ecx,smin)       -- mov ecx,imm32
                         else
-                            if newEmit and X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(xor_ecx_ecx)      -- xor ecx,ecx
@@ -14077,7 +13991,7 @@ end if
                         loadToReg(ecx,src)              -- mov ecx,[src]
                     end if
                 else
-                    if newEmit and X64=1 then
+                    if X64 then
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_ecx_ecx)              -- xor ecx,ecx
@@ -14103,7 +14017,7 @@ end if
                         if smin then
                             movRegImm32(edx,smin)       -- mov edx,imm32
                         else
-                            if newEmit and X64=1 then
+                            if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex2s(xor_edx_edx)      -- xor edx,edx
@@ -14160,7 +14074,7 @@ end if
                         if sched then
                             schedule(0,0,ecxbit,pUV,1,0)
                         end if
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_ecx_ecx)                  -- xor ecx,ecx
@@ -14169,7 +14083,7 @@ end if
                         if sched then
                             schedule(0,0,eaxbit,pUV,1,0)
                         end if
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)                  -- xor eax,eax
@@ -14186,7 +14100,7 @@ end if
                     emitHex6j(jle_rel32,0)                      -- jl @f [sj OK]
                     backpatch = length(x86)
                     xrm = #83+reg*8 -- 0o2r3, ebx+reg*4
-if newEmit and X64=1 then
+if X64 then
 --                      if p1size=8 then
 --                          s5 &= 0o335
 --                          mod = 0
@@ -14204,15 +14118,12 @@ end if
                     -- (note that fistp dword stores eg 2155085935 as #80000000, not #8074006F)
                     emitHex3l(#DF,#3C,#24)                      -- fistp qword[esp]
                     emitHex1(pop_eax+reg)                       -- pop reg
-if newEmit and X64=1 then
+                    if X64=0 then
+                        emitHex3(add_esp_imm8,4)                -- add esp,4
+                    end if
                     x86[backpatch] = length(x86)-backpatch      -- @@:
-                    emitHex1(#48)
-else
-                    emitHex3(add_esp_imm8,4)                    -- add esp,4
-                    x86[backpatch] = length(x86)-backpatch      -- @@:
-end if
                     xrm = res*8+reg -- 0o0sr
-                    emitHex2(mov_byte,xrm)                      -- mov res8,[reg]
+                    emitHexx2(mov_byte,xrm)                     -- mov res8,[reg]
                     storeReg(res,dest,1,1)                      -- mov [dest],res
                 else    -- not S_Init (the b in a=peek(b))
                     if sched then
@@ -14322,7 +14233,7 @@ or opcode=opPokeN then
                     movRegImm32(ecx,4)                  -- mov ecx,4
                 elsif opcode=opPoke8 then
                     movRegImm32(ecx,8)                  -- mov ecx,8
-                    if newEmit and X64=1 then
+                    if X64 then
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_edx_edx)              -- xor edx,edx
@@ -14336,7 +14247,7 @@ or opcode=opPokeN then
                     else
                         loadToReg(ecx,src)              -- mov ecx,[src]
                     end if
-                    if newEmit and X64=1 then
+                    if X64 then
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_edx_edx)              -- xor edx,edx
@@ -14380,7 +14291,7 @@ if not newEmit then ?9/0 end if
                 loadToReg(edi,src)                      -- mov edi,[src]
                 movRegImm32(ecx,size)                   -- mov ecx,1/2/4/8
                 if size=8 then
-                    if newEmit and X64=1 then
+                    if X64 then
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_edx_edx)              -- xor edx,edx
@@ -14406,7 +14317,7 @@ if not newEmit then ?9/0 end if
                 loadToReg(edi,src)                      -- mov edi,[src]
                 movRegImm32(ecx,size)                   -- mov ecx,1/2/4/8
                 if size=8 then
-                    if newEmit and X64=1 then
+                    if X64 then
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_edx_edx)              -- xor edx,edx
@@ -14506,7 +14417,7 @@ printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit, pilx86.e line 15009\
                 getSrc2()
                 if slroot2=T_integer and smin2=smax2 then
                     if smin2=0 then
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_ecx_ecx)                  -- xor ecx,ecx
@@ -14656,7 +14567,7 @@ if not newEmit then ?9/0 end if
             if not isGscan then
 --puts(1,"opInit in pilx86.e doing nowt (line 13215)\n")
 --DEV try removing this:
-                if X64=1 then
+                if X64 then
 --                  sub rsp,8   -- align stack
 --                  emitHex1(push_eax)                  -- align stack
 --                  sub_rsp_imm8    = {#48,#83,#EC},    -- #48 0o203 0o354 imm8         -- sub Rsp,imm8
@@ -14671,12 +14582,18 @@ if not newEmit then ?9/0 end if
 --temp!:
 --emitHex1(0o314) -- int3
 --emitHex1(pushad) -- pushad
-emitHex1(push_esi) -- push esi
+--if length(glblused) then  -- (added 10/11/16 [no help])
+--emitHex1(push_esi) -- push esi
+                integer pushesi = 0
 
                 for lblidx=1 to length(glblused) do
                     if and_bits(glblused[lblidx],G_init) then
 --                      x86 &= {call_rel32,isJmpG,0,0,lblidx}
 if PE=0 or X64=0 or glblname[lblidx]!=">initFEH" then
+    if pushesi=0 then
+        emitHex1(push_esi) -- push esi
+        pushesi = 1
+    end if
                         emitHex5callG(0,lblidx)
 end if
 --                      tt[aatidx[opInit]+EQ] = lblidx
@@ -14684,7 +14601,10 @@ end if
                     end if
                 end for
 --emitHex1(popad) -- popad
-emitHex1(pop_esi) -- pop esi
+if pushesi then
+    emitHex1(pop_esi) -- pop esi
+end if
+--end if
                 if DLL then
 --DEV if no DllMain, we could just emit mov eax,1 ret (and reset exportaddr)...
                     if length(exports)=0
@@ -14749,7 +14669,7 @@ if X64 then ?9/0 end if
                 getSrc()
                 if slroot=T_integer and smin=smax then
                     if smin=0 then
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)              -- xor eax,eax
@@ -14798,7 +14718,7 @@ if X64 then ?9/0 end if
                 markConstUsed(src)
                 if slroot=T_integer and smin=smax then
                     if smin=0 then
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_ecx_ecx)                  -- xor ecx,ecx
@@ -14828,7 +14748,7 @@ if X64 then ?9/0 end if
                 if slroot=T_integer and smin=smax then
 --                  ?9/0
 --                  if smin=0 then
---                      if newEmit and X64=1 then
+--                      if X64 then
 --                          emitHex1(#48)
 --                      end if
 --                      emitHex2s(xor_ecx_ecx)                  -- xor ecx,ecx
@@ -14955,7 +14875,7 @@ if X64 then ?9/0 end if
                 if and_bits(state2,K_Fres) then ?9/0 end if
                 if slroot2=T_integer and smin2=smax2 then
                     if smin2=0 then
-                        if newEmit and X64=1 then
+                        if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_edx_edx)                  -- xor edx,edx
@@ -14986,7 +14906,7 @@ if X64 then ?9/0 end if
                 loadToReg(eax,src2)                             -- mov eax,[rid]
 --              if slroot2=T_integer and smin2=smax2 then
 --                  if smin2=0 or and_bits(state2,K_rtn)=0 then
-----                        if newEmit and X64=1 then
+----                        if X64 then
 ----                            emitHex1(#48)
 ----                        end if
 ----                        emitHex2s(xor_eax_eax)                  -- xor eax,eax

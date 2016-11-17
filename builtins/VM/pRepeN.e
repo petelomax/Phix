@@ -239,8 +239,8 @@ end procedure -- (for Edita/CtrlQ)
         cmp rdi,rdx         -- cmp idx,length
         jb @f               -- unsigned jump, lets 0..len-1 through
             add rcx,1
-            mov al,8+4+0        -- [era] @ [esp+ecx*4+4], "assigning to"
-            call :%fixupIndex   -- idx-1 in edi, len in edx, al set
+            mov al,8+4+0        -- [era] @ [rsp+rcx*8+8], "assigning to"
+            call :%fixupIndex   -- idx-1 in rdi, len in rdx, al set
             sub rcx,1
       @@:
         --
@@ -275,7 +275,7 @@ end procedure -- (for Edita/CtrlQ)
             sub rcx,1
             jnz @b
 
-        pop rsi                 --[4] NB esi:=edi!
+        pop rsi                 --[4] NB rsi:=rdi!
         pop rdi                 --[3] idx
         pop rcx                 --[2] remainding idx
 
@@ -312,7 +312,7 @@ end procedure -- (for Edita/CtrlQ)
             int3
       @@:
         sub rcx,1
-        jnz :e04atsaa9          -- must be last index, era @ [esp+ecx*4+4]
+        jnz :e04atsaa9          -- must be last index, era @ [esp+ecx*4+4] [??]
         mov rcx,[rsp+8]         -- replacement (from calling convention)
         xor rbx,rbx
         cmp rcx,255
@@ -613,7 +613,7 @@ mov al, byte[ebx+esi*4-1]   -- type byte
         cmp rdi,rdx                 -- if idx is -ve/float/oob then longhand
         jb @f
             mov al,4+0              -- [era] @ [esp+8] "assigning to"
-            call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
+            call :%fixupIndex       -- idx-1 in rdi, len in rdx, not idx addr in rbx, al set
       @@:
         cmp qword[rbx+rsi*4-16],1   -- if refcount!=1 then clone
         jne :opRepe1Clone
@@ -878,7 +878,7 @@ end procedure -- (for Edita/CtrlQ)
 --20/6/16:
 --          mov al,2+0              -- [era] @ [esp+4] "assigning to"
             mov al,4+0              -- [era] @ [esp+8] "assigning to"
-            call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
+            call :%fixupIndex       -- idx-1 in rdi, len in rdx, not idx addr in rbx, al set
             lea rax,[rbx+rsi*4]     -- as we just trashed it
       @@:
         cmp qword[rbx+rsi*4-16],1   -- if refcount!=1 then clone
@@ -904,7 +904,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,[rsp+8]             --[0]
         lea rdi,[rax+rdi*2]         -- after shl2 below will effectively be ...
         shl rsi,2                   -- src base
-        shl rdi,2                   -- rep addr ... [eax*4(new base)+edi*8(idx->qwords)]
+        shl rdi,2                   -- rep addr ... [rax*4(new base)+rdi*8(idx->qwords)]
         mov [rdx],rax               -- replace it now (WOW! no AGI!)
         shl rax,2                   -- new base
       @@:
@@ -915,7 +915,7 @@ end procedure -- (for Edita/CtrlQ)
             sub rcx,1
             jnz @b
 --      pop qword[rdi]              --[1] rep
-        pop eax
+        pop rax
         add rsp,8                   --[0] discard
         mov [rdi],rax
         ret
@@ -989,7 +989,7 @@ end procedure -- (for Edita/CtrlQ)
 --20/6/16 (spotted in passing, opposite of several others that needed doing)
 --          mov al,4+0              -- [era] @ [esp+8] "assigning to"
             mov al,2+0              -- [era] @ [esp+4] "assigning to"
-            call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
+            call :%fixupIndex       -- idx-1 in rdi, len in rdx, not idx addr in rbx, al set
             pop rax
       @@:
         cmp rcx,255

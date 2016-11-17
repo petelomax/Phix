@@ -67,7 +67,7 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
             sub edx,1
         [64]
             mov rdx,[rsp+32]        -- era
-            mov rcx,[rsp]           -- (edi already set)
+            mov rcx,[rsp]           -- (rdi already set)
             mov al,9                -- e09slin(rdi,rcx)
             sub rdx,1
         []
@@ -99,7 +99,7 @@ end procedure -- (for Edita/CtrlQ)
         jl :e04atsaam4          -- attempt to subscript an atom, era @ [esp+ecx*4-4]?
         push eax                --[1] ref addr, in case we need to clone...
         mov al,[ebx+esi*4-1]
-        sub edi,1
+        sub edi,1               -- decrement edi (:-)
         mov edx,[ebx+esi*4-12]  -- length
         shl esi,2
 
@@ -110,7 +110,7 @@ end procedure -- (for Edita/CtrlQ)
 
         cmp edi,edx
         jb @f                   -- unsigned jump, lets 0..len-1 through
-                                --               (we just did a dec edi)
+                                --               (we just decremented edi)
 --DEV +8..
             mov al,8+4+0        -- [era] @ [esp+ecx*4+4], "assigning to"
             call :%fixupIndex   -- idx-1 in edi, len in edx, al set
@@ -174,7 +174,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp edi,edx
         jbe @f                  -- unsigned jump, lets 0..len through (NB jbe here)
-                                --               (we just did a dec edi)
+                                --               (we just decremented edi)
                                 --               (slice start can be 1..length+1)
 --DEV +12
 --          mov cl,8                -- [era] @ [esp+8]
@@ -885,7 +885,7 @@ end procedure -- (for Edita/CtrlQ)
         jl :e04atsaam4          -- attempt to subscript an atom, era @ [esp+ecx*4-4]?
         push rax                --[1] ref addr, in case we need to clone...
         mov al,[rbx+rsi*4-1]
-        sub rdi,1
+        sub rdi,1               -- decrement rdi (:-)
 --      mov rdx,[rbx+rsi*4-12]  -- length
         mov rdx,[rbx+rsi*4-24]  -- length
         shl rsi,2
@@ -897,9 +897,8 @@ end procedure -- (for Edita/CtrlQ)
 
         cmp rdi,rdx
         jb @f                   -- unsigned jump, lets 0..len-1 through
-                                --               (we just did a dec edi)
---DEV +8..
-            mov al,8+4+0        -- [era] @ [esp+ecx*4+4], "assigning to"
+                                --               (we just decremented rdi)
+            mov al,8+4+0        -- [era] @ [rsp+rcx*8+8?], "assigning to"
             call :%fixupIndex   -- idx-1 in rdi, len in rdx, al set
       @@:
         --
@@ -963,7 +962,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp rdi,rdx
         jbe @f                  -- unsigned jump, lets 0..len through (NB jbe here)
-                                --               (we just did a dec rdi)
+                                --               (we just decremented rdi)
                                 --               (slice start can be 1..length+1)
 --DEV +12
 --          mov cl,8                -- [era] @ [esp+8]
@@ -989,8 +988,8 @@ end procedure -- (for Edita/CtrlQ)
         mov rdi,[rsp+40]        -- rep ref
         --
         --  al: type byte ([esi-1])
-        --  rcx: slice length [also in esp+4]
-        --  rdx: ref length [also in esp]
+        --  rcx: slice length [also in rsp+8]
+        --  rdx: ref length [also in rsp]
         --  rdi: rep ref
         --  rsi: raw(ref)
         --  [rsp] ref length
@@ -1161,7 +1160,7 @@ end procedure -- (for Edita/CtrlQ)
                 jnz :opRepsSeqStrLoop64
 
 --          jmp :opRepsPop664
-            add esp,48
+            add rsp,48
             ret
 
       ::opRepsSeqMultiRef64
@@ -1467,11 +1466,10 @@ end procedure -- (for Edita/CtrlQ)
 --      add rdx,[rsp+24]
 --      add rdx,[rsp+16]            -- slice start, 0-based
         mov rcx,[rsp]               -- source ref length
---      shl edx,2                   -- (lea edx,newseq[slice start], doing both ref->raw and idx->dwords at the same time)
         shl rdx,3                   -- idx->qwords
         shl rax,2                   -- ref->raw
-        add rdx,rax                 -- (lea edx,newseq[slice start])
-        xor eax,eax
+        add rdx,rax                 -- (lea rdx,newseq[slice start])
+        xor rax,rax
       @@:
             lodsb                   -- mov al,[rsi], rsi+=1
             stosq                   -- mov [rdi],rax, rdi+=8
@@ -1517,9 +1515,9 @@ end procedure -- (for Edita/CtrlQ)
             sub qword[rsi-16],1         -- non-1 so no need to dealloc
             xchg rax,rdi
             mov rdx,[rsp+16]            -- slice start (0-based)
-            shl rdi,2
+            shl rdi,2                   -- ref -> raw
             mov rcx,[rsp]               -- original source length (all of it)
-            add rdx,rdi                 -- (lea edx,newstr[slicestart])
+            add rdx,rdi                 -- (lea rdx,newstr[slicestart])
             add rcx,1                   -- and the trailing null
             rep movsb
             mov rdi,rdx

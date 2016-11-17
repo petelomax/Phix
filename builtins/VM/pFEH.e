@@ -80,13 +80,14 @@ integer finit = 0
         xor edx, edx 
         int 0x80
         add esp,16
-        xor ebx,ebx
+        xor ebx,ebx             -- (common requirement after int 0x80)
 -- nah, methinks we want sigaction...
 --      --; install signal handler 
 --      mov eax,48  -- SYSCALL_SIGNAL ( syscall to function signal() )
 --      mov ebx,11  -- signal id SIGSEGV 
 --      mov ecx,:my_signal_handler 
 --      int 0x80 
+--      xor ebx,ebx             -- (common requirement after int 0x80)
 --48        sys_signal                  0x30    int sig                 __sighandler_t handler  -                       -                       -               kernel/signal.c:2683
 --67        sys_sigaction               0x43    int sig                 const struct old_sigaction *act struct old_sigaction *oact  -           -               arch/mips/kernel/signal.c:300
 --119       sys_sigreturn               0x77    struct pt_regs *regs    -                       -                       -                       -               arch/alpha/kernel/entry.S:758

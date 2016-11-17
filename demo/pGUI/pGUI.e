@@ -4355,8 +4355,8 @@ atom
     --
     xcdCanvasGetFontDim,
     xcdCanvasGetTextSize,
---  xcdCanvasGetTextBox,
-    xcdfCanvasGetTextBox,
+    xcdCanvasGetTextBox,
+--  xcdfCanvasGetTextBox,
     xcdCanvasGetTextBounds,
     xcdCanvasGetColorPlanes,
 
@@ -4713,8 +4713,8 @@ end if
         --
         xcdCanvasGetFontDim     = iup_c_proc(hCd, "cdCanvasGetFontDim", {P,P,P,P,P})
         xcdCanvasGetTextSize    = iup_c_proc(hCd, "cdCanvasGetTextSize", {P,P,P,P})
---      xcdCanvasGetTextBox     = iup_c_proc(hCd, "cdCanvasGetTextBox", {P,P,I,I,P,P,P,P})
-        xcdfCanvasGetTextBox    = iup_c_proc(hCd, "cdfCanvasGetTextBox", {P,D,D,P,P,P,P,P})
+        xcdCanvasGetTextBox     = iup_c_proc(hCd, "cdCanvasGetTextBox", {P,P,I,I,P,P,P,P})
+--      xcdfCanvasGetTextBox    = iup_c_proc(hCd, "cdfCanvasGetTextBox", {P,D,D,P,P,P,P,P})
         xcdCanvasGetTextBounds  = iup_c_proc(hCd, "cdCanvasGetTextBounds", {P,I,I,P,P})
         xcdCanvasGetColorPlanes = iup_c_func(hCd, "cdCanvasGetColorPlanes", {P},I)
 
@@ -5924,15 +5924,28 @@ sequence text_size
     return text_size    -- {width, height}
 end function
 
+--global function cdCanvasGetTextBox(cdCanvas hCdCanvas, atom x, atom y, string text)
+--atom pXmin, pXmax, pYmin, pYmax
+--sequence box
+--  pXmin = allocate(32)
+--  pXmax = pXmin+8
+--  pYmin = pXmax+8
+--  pYmax = pYmin+8
+--  c_proc(xcdfCanvasGetTextBox, {hCdCanvas, x, y, text, pXmin, pXmax, pYmin, pYmax})
+--  box = iup_peek_double({pXmin, 4})
+--  free(pXmin)
+--  return box
+--end function
+
 global function cdCanvasGetTextBox(cdCanvas hCdCanvas, atom x, atom y, string text)
 atom pXmin, pXmax, pYmin, pYmax
 sequence box
-    pXmin = allocate(32)
-    pXmax = pXmin+8
-    pYmin = pXmax+8
-    pYmax = pYmin+8
-    c_proc(xcdfCanvasGetTextBox, {hCdCanvas, x, y, text, pXmin, pXmax, pYmin, pYmax})
-    box = iup_peek_double({pXmin, 4})
+    pXmin = allocate(16)
+    pXmax = pXmin+4
+    pYmin = pXmax+4
+    pYmax = pYmin+4
+    c_proc(xcdCanvasGetTextBox, {hCdCanvas, x, y, text, pXmin, pXmax, pYmin, pYmax})
+    box = peek4s({pXmin, 4})
     free(pXmin)
     return box
 end function

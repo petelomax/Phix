@@ -516,13 +516,13 @@ end procedure -- (for Edita/CtrlQ)
 
       :%opAdd               -- [edi]:=ecx+eax
 -------------
---  [32]
+    [32]
         mov edx,:opAddI
         mov esi,:opAddF
---  [64]
---      mov rdx,:opAddI
---      mov rsi,:opAddF
---  []
+    [64]
+        mov rdx,:opAddI
+        mov rsi,:opAddF
+    []
         mov [e14code],1
         jmp :opMath
 
@@ -588,7 +588,7 @@ end procedure -- (for Edita/CtrlQ)
         add esp,4               -- trash return address (opMathIII)
         test ecx,ecx
         jz :e02atdb0            -- attempt to divide by 0
-        cdq
+        cdq                     -- sign extend eax into edx
         idiv ecx
 --      mov ecx,eax
         test edx,edx            -- check remainder is zero
@@ -617,7 +617,7 @@ end procedure -- (for Edita/CtrlQ)
         add rsp,8               -- trash return address (opMathIII)
         test rcx,rcx
         jz :e02atdb0            -- attempt to divide by 0
-        cqo
+        cqo                     -- sign extend rax into rdx
         idiv rcx
         test rdx,rdx            -- check remainder is zero
 --      jz opMathIII
@@ -645,7 +645,7 @@ end procedure -- (for Edita/CtrlQ)
         add esp,4               -- trash return address (opMathIII)
         test ecx,ecx
         jz :e02atdb0            -- attempt to divide by 0
-        cdq
+        cdq                     -- sign extend eax into edx
         idiv ecx
         mov ecx,eax
         test edx,edx            -- check remainder is zero
@@ -672,7 +672,7 @@ end procedure -- (for Edita/CtrlQ)
         add rsp,8               -- trash return address (opMathIII)
         test rcx,rcx
         jz :e02atdb0            -- attempt to divide by 0
-        cqo
+        cqo                     -- sign extend rax into rdx
         idiv rcx
         mov rcx,rax
         test rdx,rdx            -- check remainder is zero
@@ -727,7 +727,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov eax,esi             -- (nop except when from opDivfSubecxm1)
                 test ecx,ecx
                 jz :e02atdb0pop
-                cdq
+                cdq                     -- sign extend eax into edx
                 idiv ecx
                 mov ecx,eax
                 ret
@@ -768,7 +768,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov rax,rsi             -- (nop except when from opDivfSubecxm1)
                 test rcx,rcx
                 jz :e02atdb0pop
-                cqo
+                cqo                     -- sign extend rax into rdx
                 idiv rcx
                 mov rcx,rax
                 ret
@@ -900,7 +900,7 @@ end procedure -- (for Edita/CtrlQ)
         push eax
         imul ecx
         mov esi,edx
-        cdq
+        cdq                 -- sign extend eax into edx
         cmp esi,edx         -- check for 32-bit result
         je @f
             fild dword[esp]
@@ -916,7 +916,7 @@ end procedure -- (for Edita/CtrlQ)
         push rax
         imul rcx
         mov rsi,rdx
-        cqo
+        cqo                 -- sign extend rax into rdx
         cmp rsi,rdx         -- check for 32-bit result
         je @f
             fild qword[rsp]
@@ -935,13 +935,13 @@ end procedure -- (for Edita/CtrlQ)
     [32]
         imul ecx
         mov ecx,edx
-        cdq
+        cdq                     -- sign extend eax into edx
         cmp ecx,edx
         mov ecx,eax
     [64]
         imul rcx
         mov rcx,rdx
-        cqo
+        cqo                     -- sign extend rax into rdx
         cmp rcx,rdx
         mov rcx,rax
     []
@@ -1018,19 +1018,6 @@ end procedure -- (for Edita/CtrlQ)
     []
         mov [e14code],9
         jmp :opMath
-
---/* (DEV/SUG)
-      :%opAndBitsi              -- [edi]:=ecx+eax, no dealloc, builtin typecheck
---------------
-    [32]
-        mov edx,:opAndBitsI
-        mov esi,:opAndBitsiF
-    [64]
-        mov rdx,:opAndBitsI
-        mov rsi,:opAndBitsiF
-    []
-        jmp :opMathi
---*/
 
 --/*
 procedure :%opOrBits(:%)

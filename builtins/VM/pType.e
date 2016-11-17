@@ -5,7 +5,7 @@
 --  implements :%opInt, :%opAtom, :%opStr, :%opSq, and :%opObj, aka [edi]:=<type>(eax)
 --
 --  NB: opSeq, implemented via :%opScmp in pJcc.e, is "dest = (p1=p2)", whereas opSq as 
---      defined below is "dest = sequence(p1)", obviously they must not be confused.
+--      defined below is "dest = sequence(p1)", and obviously they must not be confused.
 --
 --  The vast majority of builtin type tests are implemented via opJtyp, which uses
 --  :%opInt0/Atom0/Sq0/Str0(Obj0? DEV) as defined in pJcc.e rather than these.

@@ -2274,7 +2274,8 @@ atom gvarptr
     elsif msg_id=30 then    -- e30ume
         -- Map any machine exceptions that occur on add1 (refcount) 
         --  followed by a "helper" cmp eax,<varno>; ==> to e92:
-        if machine_bits()=32 then
+--17/11/16 afaik, we still use cmp eax,imm32, not cmp rax, but I think we got rid of all inc.
+--      if machine_bits()=32 then
             x6 = peek({or_era,6})
     --      --  inc dword[ebx+src*4-8]      377104 2s3 F8
             --  add dword[ebx+src*4-8],1    203104 2s3 F8 01
@@ -2290,23 +2291,23 @@ atom gvarptr
                     msg = msgs[92]
                 end if
             end if
-        else
---  add qword[rbx+rcx*4-16],1             ;#0042D0E9: 48:203104213 F0 01         u  00 0A  3   6      
---  cmp eax,662                           ;#0042D0EF: 075 96020000               vu 00 01  1   8      
-            x6 = peek({or_era,7})
-            if x6[1]=#48
-            and x6[2]=0o203
-            and x6[3]=0o104
-            and and_bits(x6[4],0o307)=0o203         -- sib(maybe!) of 0o2s3,
-            and x6[5]=#F0                           -- displacement is -16
-            and x6[6]=#01 then                      -- literal imm8 of 1
-                if x6[7]=cmp_eax_imm32 then
-                    or_esi = peek4u(or_era+7)
-                    msg_id = 92
-                    msg = msgs[92]
-                end if
-            end if
-        end if
+--      else
+----    add qword[rbx+rcx*4-16],1             ;#0042D0E9: 48:203104213 F0 01         u  00 0A  3   6      
+----    cmp eax,662                           ;#0042D0EF: 075 96020000               vu 00 01  1   8      
+--          x6 = peek({or_era,7})
+--          if x6[1]=#48
+--          and x6[2]=0o203
+--          and x6[3]=0o104
+--          and and_bits(x6[4],0o307)=0o203         -- sib(maybe!) of 0o2s3,
+--          and x6[5]=#F0                           -- displacement is -16
+--          and x6[6]=#01 then                      -- literal imm8 of 1
+--              if x6[7]=cmp_eax_imm32 then
+--                  or_esi = peek4u(or_era+7)
+--                  msg_id = 92
+--                  msg = msgs[92]
+--              end if
+--          end if
+--      end if
         if msg_id=30 then
 --          if xceptn=#C0000005-#100000000 then
 --              wmsg = "[MEMORY VIOLATION]"
@@ -3365,7 +3366,7 @@ end procedure -- (for Edita/CtrlQ)
             lea rdi,[or_ecx]
             call :%pStoreMint   -- [or_ecx]:=rcx
             xor rax,rax         -- rdx is not available, unless first moved!
-            lea edi,[or_edx]
+            lea rdi,[or_edx]
             call :%pStoreMint   -- [or_edx]:=0
             mov rax,rdx         -- era
             lea rdi,[or_era]
@@ -3529,16 +3530,16 @@ end procedure -- (for Edita/CtrlQ)
             mov rax,[rsi+176]   -- rdi
             lea rdi,[or_edi]
             call :%pStoreMint
-            mov rax,[rsi+160]   -- ebp
+            mov rax,[rsi+160]   -- rbp
             shr rax,2
             mov [or_ebp],rax
-            mov rax,[rsi+152]   -- esp
+            mov rax,[rsi+152]   -- rsp
             lea rdi,[or_esp]
             call :%pStoreMint
-            mov rax,[rsi+168]   -- esi
+            mov rax,[rsi+168]   -- rsi
             lea rdi,[or_esi]
             call :%pStoreMint
---          mov rsp,[esi+152]   -- (already done in pFEH.e)
+--          mov rsp,[rsi+152]   -- (already done in pFEH.e)
 --          mov rbp,[rsi+160]   -- (already done in pFEH.e)
             xor rax,rax
             mov r15,h4
@@ -3621,7 +3622,7 @@ end procedure -- (for Edita/CtrlQ)
             mov rax,[rsi+0xA0]  -- rsp
             lea rdi,[or_esp]
             call :%pStoreMint
-            mov rax,[rsi+0x70]  -- esi
+            mov rax,[rsi+0x70]  -- rsi
             lea rdi,[or_esi]
             call :%pStoreMint
 --          mov rsp,[rsi+0xA0]  -- (already done in pFEH.e)
@@ -3647,52 +3648,60 @@ end procedure -- (for Edita/CtrlQ)
             jne @f
               [32]
                 mov eax,[esp+4]
-              [64]
-                mov rax,[rsp+8]
-              []
                 lea edi,[or_era]
                 sub eax,1
+              [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_era]
+                sub rax,1
+              []
                 call :%pStoreMint
-                mov eax,106         -- e106ioob(edi,edx) or e94vhnbaav(ecx)
+                mov al,106      -- e106ioob(edi,edx) or e94vhnbaav(ecx)
                 jmp :setal
           @@:
             cmp edx,:!Jccp2Intp3Ref
             jne @f
               [32]
                 mov eax,[esp+4]
-              [64]
-                mov rax,[rsp+8]
-              []
                 lea edi,[or_era]
                 sub eax,1
+              [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_era]
+                sub rax,1
+              []
                 call :%pStoreMint
-                mov eax,92          -- e92vhnbaav(esi)
+                mov al,92           -- e92vhnbaav(esi)
                 jmp :setal
           @@:
             cmp edx,:!opXore92a
             jne @f
               [32]
                 mov eax,[esp+4]
-              [64]
-                mov rax,[rsp+8]
-              []
                 lea edi,[or_era]
                 sub eax,1
+              [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_era]
+                sub rax,1
+              []
                 call :%pStoreMint
-                mov eax,91          -- e91vhnbaav(ecx) (ecx is var no)
+                mov al,91           -- e91vhnbaav(ecx) (ecx is var no)
                 jmp :setal
           @@:
             cmp edx,:%opPpndSA
             jne @f
               [32]
                 mov eax,[esp+20]
-              [64]
-                mov rax,[rsp+40]
-              []
                 lea edi,[or_era]
                 sub eax,1
+              [64]
+                mov rax,[rsp+40]
+                lea rdi,[or_era]
+                sub rax,1
+              []
                 call :%pStoreMint
-                mov eax,93          -- e93vhnbaav(edi) (edi is var no)
+                mov al,93           -- e93vhnbaav(edi) (edi is var no)
                 jmp :setal
           @@:
 
@@ -3709,13 +3718,15 @@ end procedure -- (for Edita/CtrlQ)
                 je :e94vhnbaavedx
               [32]
                 mov eax,[esp+4]
-              [64]
-                mov rax,[rsp+8]
-              []
                 lea edi,[or_era]
                 sub eax,1
+              [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_era]
+                sub rax,1
+              []
                 call :%pStoreMint
-                mov eax,36          -- e36loaaind
+                mov al,36           -- e36loaaind
                 jmp :setal
           @@:
             cmp edx,:!pSubsse94
@@ -3761,25 +3772,29 @@ end procedure -- (for Edita/CtrlQ)
                 je :e94vhnbaavedx
               [32]
                 mov eax,[esp+4]
-              [64]
-                mov rax,[rsp+8]
-              []
                 lea edi,[or_era]
                 sub eax,1
+              [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_era]
+                sub rax,1
+              []
                 call :%pStoreMint
-                mov eax,04          -- e04atsaa
+                mov al,04           -- e04atsaa
                 jmp :setal
 
           ::e94vhnbaavedx
               [32]
                 mov eax,[esp+4]
-              [64]
-                mov rax,[rsp+8]
-              []
                 lea edi,[or_era]
                 sub eax,1
+              [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_era]
+                sub rax,1
+              []
                 call :%pStoreMint
-                mov eax,94          -- e94vhnbaav(edx)
+                mov al,94           -- e94vhnbaav(edx)
                 jmp :setal
           @@:
 --/*
@@ -3806,10 +3821,14 @@ end procedure -- (for Edita/CtrlQ)
 --              mov eax,[esp+12]    -- return address (of :%pGetPool call)
 --              mov eax,[esp+12]
                 mov eax,[esp+16]
+                lea edi,[or_edi]
+                sub eax,1
               [64]
 --              mov rax,[rsp+8*11]  -- return address (of :%pGetPool call)
 --              mov rax,[rsp+80]
                 mov rax,[rsp+88]
+                lea rdi,[or_edi]
+                sub rax,1
               []
 --              cmp edx,
 --pAllocStr
@@ -3818,12 +3837,9 @@ end procedure -- (for Edita/CtrlQ)
 --pAlloc
 --newVSB
 --allocate()
-                lea edi,[or_edi]
---              lea edi,[or_era]
-                sub eax,1
                 call :%pStoreMint
 --              mov [or_ecx],1
-                mov eax,32          -- e32hc(era,edi)
+                mov al,32           -- e32hc(era,edi)
                 jmp :setal
           @@:
             cmp edx,:!GetPoolnotTCBa
@@ -3831,28 +3847,31 @@ end procedure -- (for Edita/CtrlQ)
               [32]
 --              mov eax,[esp+8]
                 mov eax,[esp+12]
+                lea edi,[or_edi]
+                sub eax,1
               [64]
 --              mov rax,[rsp+80]
                 mov rax,[rsp+88]
+                lea rdi,[or_edi]
+                sub rax,1
               []
---              lea edi,[or_era]
-                lea edi,[or_edi]
-                sub eax,1
                 call :%pStoreMint
-                mov eax,32          -- e32hc(era,edi)
+                mov al,32           -- e32hc(era,edi)
                 jmp :setal
           @@:
             cmp edx,:!FreePoole32a
             jne @f
               [32]
                 mov eax,[esp+4]
-              [64]
-                mov rax,[rsp+8]
-              []
                 lea edi,[or_edi]
                 sub eax,1
+              [64]
+                mov rax,[rsp+8]
+                lea rdi,[or_edi]
+                sub rax,1
+              []
                 call :%pStoreMint
-                mov eax,32          -- e32hc(era,edi)
+                mov al,32           -- e32hc(era,edi)
                 jmp :setal
           @@:
             [32]
@@ -3872,7 +3891,7 @@ end procedure -- (for Edita/CtrlQ)
                 lea edi,[or_era]
                 sub eax,1
                 call :%pStoreMint
-                mov eax,99          -- e99ipma
+                mov al,99           -- e99ipma
                 jmp :setal
           @@:
             cmp edx,:!opPeek1xsMLE
@@ -3891,7 +3910,7 @@ end procedure -- (for Edita/CtrlQ)
                 lea edi,[or_era]
                 sub eax,1
                 call :%pStoreMint
-                mov eax,99          -- e99ipma
+                mov al,99           -- e99ipma
                 jmp :setal
             [64]
             cmp edx,:!opPeek1xMLE64
@@ -3907,10 +3926,10 @@ end procedure -- (for Edita/CtrlQ)
               ::e99atom
 --              mov rax,[rsp+16]
                 mov rax,[rsp+24]
-                lea edi,[or_era]
+                lea rdi,[or_era]
                 sub rax,1
                 call :%pStoreMint
-                mov eax,99          -- e99ipma
+                mov al,99           -- e99ipma
                 jmp :setal
           @@:
             cmp edx,:!opPeek1xsMLE64
@@ -3926,10 +3945,10 @@ end procedure -- (for Edita/CtrlQ)
               ::e99seq
 --              mov rax,[rsp+32]
                 mov rax,[rsp+40]
-                lea edi,[or_era]
+                lea rdi,[or_era]
                 sub rax,1
                 call :%pStoreMint
-                mov eax,99          -- e99ipma
+                mov al,99           -- e99ipma
                 jmp :setal
             []
           @@:
@@ -3968,7 +3987,7 @@ end procedure -- (for Edita/CtrlQ)
                 sub eax,1
             [64]
                 mov rax,[rsp+8]
-                lea edi,[or_era]
+                lea rdi,[or_era]
                 sub rax,1
             []
                 call :%pStoreMint

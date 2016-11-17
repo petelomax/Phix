@@ -880,17 +880,18 @@ end procedure
             --
             -- Auto-aligning the stack to a 16-byte boundary
             -- =============================================
-            --  (this may or may not be a good idea, assumes stack is 8-byte aligned)
-            --      mov reg,rsp         -- (if you got one to spare, obviously, else a)
-            --      push rsp            -- (push rsp; push qword[rsp] pair will do, but)
-            --      push reg            -- (that way causes an AGI stall, on the [rsp].)
+            --      mov reg,rsp         -- (if you have one to spare, obviously, else a
+            --      push rsp            --  push rsp; push qword[rsp] pair will do, but
+            --      push reg            --  that way causes an AGI stall, on the [rsp].)
             --      -- (there are now two copies of the original rsp on the stack, doh)
             --      or rsp,8            -- [rsp] is now 1st or 2nd copy:
             --                          -- if on entry rsp was xxx8: both copies remain on the stack
             --                          -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them
             --                          -- obviously rsp is now xxx8, whatever alignment we started with
             --      sub rsp,8*<odd>     -- (realign the stack as you normally would, including shadow space)
-            --      <code>
+            --      ...
+            --      <##code##>
+            --      ...
             --  --  add rsp,8*<odd>
             --  --  pop rsp             -- restore, equivalent to rsp += (either #08 or #10)
             --      mov rsp,[rsp+8*odd] -- equivalent to the add/pop
@@ -1038,7 +1039,7 @@ end procedure -- (for Edita/CtrlQ)
 --DEV libc/getpid()
             mov eax,20              -- sys_getpid()
             int 0x80
-            xor ebx,ebx
+            xor ebx,ebx             -- (common requirement after int 0x80)
         [PE64]
             mov rax,rsp -- put 2 copies of rsp onto the stack...
             push rsp
@@ -1210,30 +1211,6 @@ end procedure
     []
         ret
         
-----/*
---procedure :%pRestoreSaveEBP(:%)
---end procedure
-----*/
---  :%pRestoreSaveEBP
--------------------
---      -- on call_back, restore ebp in a thread safe manner
---  [32]
-----        push ebp
---      call :pGetTCB
---      mov edx,ebp
---      mov ebp,[esi+264]       -- SaveEBP
-----        pop dword[esi+264]      -- SaveEBP
---      shr edx,2
---  [64]
-----        push rdx
---      call :pGetTCB
---      mov rdx,rbp
---      mov ebp,[esi+1008]      -- SaveEBP
-----        pop qword [esi+1008]    -- SaveEBP
---      shr rdx,2
---  []
---      ret
-
 --/*
 procedure :%pGetpGtcb(:%)
 end procedure -- (for Edita/CtrlQ)  [I quickly tired of keying CtrlQ/<stare blankly>/AltS]
@@ -1365,7 +1342,7 @@ end procedure -- (for Edita/CtrlQ)
                     mov edx,2           -- val
                     xor esi,esi         -- no timeout
                     int 0x80            -- futex_wait(ecx,2)
-                    xor ebx,ebx
+                    xor ebx,ebx         -- (common requirement after int 0x80)
                     mov ecx,[esp]
                     jmp :xchg2
               ::futex_locked
@@ -1500,7 +1477,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov ecx,#81         -- FUTEX_WAKE(1) or FUTEX_PRIVATE_FLAG(128)
                 mov edx,1           -- val
                 int 0x80            -- futex_wake(ecx,1)
-                xor ebx,ebx
+                xor ebx,ebx         -- (common requirement after int 0x80)
           @@:
             ret
 
@@ -1740,7 +1717,7 @@ end procedure -- (for Edita/CtrlQ)
             sub eax,28  -- (superblock header + pRoot + era)
             cmp dword[esi],#00484253    -- dwMagic ("SBH\0")
             jne :notSBH
---          cdq
+--          cdq                         -- eax -> edx:eax (sign extend)
             xor edx,edx
             idiv ecx
             test edx,edx
@@ -1777,7 +1754,7 @@ end procedure -- (for Edita/CtrlQ)
             sub rax,48  -- (superblock header + pRoot + era)
             cmp dword[r8],#00484253     -- dwMagic ("SBH\0")
             jne :notSBH
---          cdq
+--          cdq                         -- ?eax -> edx:eax (sign extend)
             xor rdx,rdx
             idiv rcx
             test rdx,rdx
@@ -2058,7 +2035,9 @@ end procedure -- (for Edita/CtrlQ)
             mov rax,[rsi*4+rdi+496]         -- is pNofl[idx]!=0?
             test rax,rax
             jz @f
-                mov [rsi*4+rdi+496],ebx     -- pNofl[idx]:=0
+--6/11/16:
+--              mov [rsi*4+rdi+496],ebx     -- pNofl[idx]:=0
+                mov [rsi*4+rdi+496],rbx     -- pNofl[idx]:=0
                 push rdi                    -- [2] idx*8
                 push rdx                    -- [3] block size
                 push rax                    -- [4] list head
@@ -2089,7 +2068,9 @@ end procedure -- (for Edita/CtrlQ)
         pop rax
 --DEV 9/10/14 (spotted in passing)
 --      mov [ebx+esi*4+16],rax              -- [1] new nStatus
-        mov [ebx+esi*4+24],rax              -- [1] new nStatus
+--6/11/16 (DEV: did I replace the pop because pilasm.e was[/is] not coping with it??)
+--      mov [ebx+esi*4+24],rax              -- [1] new nStatus
+        mov [rbx+rsi*4+24],rax              -- [1] new nStatus
     []
         ret
 
@@ -2583,7 +2564,7 @@ sub edx,1
             mov eax,12288   -- (block size[10])
     [64]
         mov rdi,[rsp+56]    -- [2?] idx*8
-        mov rax,[esp+72]    -- [3?] rqd size
+        mov rax,[rsp+72]    -- [3?] rqd size
         cmp rdi,64
         jae @f
             mov rdi,64
@@ -2737,7 +2718,7 @@ end procedure -- (for Edita/CtrlQ)
         mov [rsp+16],rdx    -- [5] save block size
         mov [rsp+24],rdi    -- [4] save idx*8
 
-        lea ecx,[rbx+rsi*4+968]         -- csLock
+        lea rcx,[rbx+rsi*4+968]         -- csLock
         cmp dword[rbx+rsi*4],#00424354  -- dwMagicT ("TCB\0")
 --      jne :notTCB
         je @f
@@ -3019,8 +3000,8 @@ end procedure -- (for Edita/CtrlQ)
         lea rsi,[rax+rdx]           -- rsi:=address of block to put on freelist
         cmp [rcx*4+rdi+32],rbx      -- check pFree[idx] is zero
         jne :pfreeidxnz             -- (if not, why we split bigger block?)
-        mov [rax+rdx+8],rbx         -- esi.pNext:=0 (w/o agi stall)
-        mov [rax+rdx+16],rbx        -- esi.pPrev:=0 ("")
+        mov [rax+rdx+8],rbx         -- rsi.pNext:=0 (w/o agi stall)
+        mov [rax+rdx+16],rbx        -- rsi.pPrev:=0 ("")
         mov [rcx*4+rdi+32],rsi      -- pFree[idx](which was null):=2nd half
     []
         -- and carry on splitting as many times as required
@@ -3477,7 +3458,7 @@ end procedure -- (for Edita/CtrlQ)
             sub dword[ebx+edx*4-8],1
             jne @f
 --          push dword[esp+40]
-            push dword[esp+32]
+            push dword[esp+32]  -- era
             call :%pDealloc0
       @@:
         popad
@@ -3515,12 +3496,14 @@ end procedure -- (for Edita/CtrlQ)
 --      mov r15,h4
         cmp rdx,r15
         jle @f
-            sub qword[ebx+edx*4-16],1
+--6/11/16:
+--          sub qword[ebx+edx*4-16],1
+            sub qword[rbx+rdx*4-16],1
             jne @f
-            push rdi
-            push qword[rsp+40]
+            push rdi            -- save
+            push qword[rsp+40]  -- era
             call :%pDealloc0
-            pop rdi
+            pop rdi             -- restore
       @@:
         pop rsi
         pop rax
@@ -3751,7 +3734,7 @@ end procedure -- (for Edita/CtrlQ)
         --
         -- called when a refcount [ebx+edx*4-8] drops to zero.
         -- Note the refcount itself need not actually be 0 when this is called,
-        --     ie: "dec reg; jz deallocX; mov[ebx+edx*4-8],reg" is permitted.
+        --      ie "sub reg,1; jz deallocX; mov[ebx+edx*4-8],reg" is permitted.
         -- Invoke opDealloc iff era==[esp], ie when inlined and all those final
         --  jmp/jz from opcodes, otherwise push the era and invoke opDealloc0.
         -- All registers are trashed (except for esp and ebx[==0 on entry/exit]).
@@ -3939,7 +3922,7 @@ end procedure -- (for Edita/CtrlQ)
 --              popad
                 pop rdi
                 pop rsi
-                pop edx
+                pop rdx
                 test rsi,rsi            -- if no parent quit
                 jz :dret
                 mov rdx,rsi             -- raw address
@@ -4153,7 +4136,7 @@ end procedure -- (for Edita/CtrlQ)
 --  call wait_key
 --  call opFreeCons
 --;DEV??? (if close() is now in hll)
---  call opClosem1
+--  call opClosem9
 --  invoke ExitProcess,1
 
 --!*/

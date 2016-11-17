@@ -1,0 +1,48 @@
+--
+-- demo\\rosetta\\Compiler\\lex.exw
+-- ================================
+--
+--(included in distribution as demo\rosetta\Compiler\lex.exw, which contains some additional sanity checks)
+
+-- Deviates from the task requirments in that it is written in a modular form so that the output
+-- from one stage can be used directly in the next, rather than re-loading from a human-readable
+-- form. If required, demo\rosetta\Compiler\extra.e contains some code that achieves the latter.
+-- Code to print the human readable forms is likewise kept separate from any re-usable parts.
+
+include lex.e
+
+procedure main(sequence cl)
+    open_files(cl)
+    sequence toks = lex()
+    integer tok
+    object v
+    for i=1 to length(toks) do
+        {tok_line,tok_col,tok,v} = toks[i]
+        switch tok do
+            case tk_Identifier: v = sprintf(" %s",v)
+            case tk_Integer:    v = sprintf(" %5d",v)
+            case tk_String:     v = sprintf(" %s",enquote(v))
+            else                v = ""
+        end switch
+        printf(output_file, "%5d  %5d %-10s%s\n", {tok_line,tok_col,tkNames[tok],v})
+    end for
+    close_files()
+end procedure
+
+--main(command_line())
+--main({0,0,"99bottles.c","test1.lex"})
+--main({0,0,"count.c","test1.lex"})
+--main({0,0,"deep.c","test1.lex"})
+--main({0,0,"factorial.c","test1.lex"})
+--main({0,0,"fibonacci.c","test1.lex"})
+--main({0,0,"FizzBuzz.c","test1.lex"})
+--main({0,0,"gcd.c","test1.lex"})
+--main({0,0,"Mandelbrot.c","test1.lex"})
+--main({0,0,"negative.c","test1.lex"})
+--main({0,0,"primes.c","test1.lex"})
+--main({0,0,"test1.c","test1.lex"})
+--main({0,0,"test2.c","test1.lex"})
+--main({0,0,"test3.c","test1.lex"})
+main({0,0,"test4.c"})
+?"done"
+{} = wait_key()

@@ -211,7 +211,7 @@ include builtins\pGUI.e
 
 constant RotateBackground = 0   -- development option (verify redraw is kept to a minimum)
 
-constant UseNativeDialog = 01   -- DEV option (windows only[?])
+constant UseNativeDialog = 0    -- DEV option (windows only[?])
 
 include builtins\fileopenN.ew   --                  ""
 
@@ -3751,17 +3751,22 @@ end if
                     end if
                     if bkColour!=ColourTab[Background] then
 --                      cdCanvasSetBackground(cddbuffer, bkColour)
+--?bkColour
                         cdCanvasSetForeground(cddbuffer, bkColour)
                         atom {xmin, xmax, ymin, ymax} = cdCanvasGetTextBox(cddbuffer, x, y, txt)
+--?{xmin, xmax, ymin, ymax}
                         cdCanvasBox(cddbuffer, xmin, xmax, ymin, ymax)
 --DEV
 --                      cdCanvasSetBackground(cddbuffer, ColourTab[Background])
 --                      cdCanvasSetBackground(cddbuffer, CD_GRAY)
                     end if
+--?chunk[c+1]
                     cdCanvasSetForeground(cddbuffer, chunk[c+1])
                     thisFont = chunk[c+3]
                     if fontstyle!=thisFont then
                         cdCanvasFont(cddbuffer, fontname, thisFont, fontsize)
+--DEV tryme (and get rid of the reset below)
+                        fontstyle = thisFont
                     end if
 --                      void = c_func(xSetBkColor, {mDC, bkColour})
 --                      if lastFont!=chunk[c+3] then
@@ -3785,9 +3790,9 @@ end if
                     {w} = cdCanvasGetTextSize(cddbuffer,txt)
 --                  x += chunklen*CharWidth
                     x += w
-                    if fontstyle!=thisFont then
-                        cdCanvasFont(cddbuffer, fontname, fontstyle, fontsize)
-                    end if
+--                  if fontstyle!=thisFont then
+--                      cdCanvasFont(cddbuffer, fontname, fontstyle, fontsize)
+--                  end if
 --else
 ----                        void = c_func(xGetTextExtentPoint32,{mDC,mem+offset*2,chunklen,pSize})
 --                      pSize = allocate_Point()    -- (same size as SIZE)
@@ -4033,6 +4038,7 @@ function map_cb(Ihandle ih)
 --  cdCanvasFont(cddbuffer, "Consolas", CD_PLAIN, fontsize)
     cdCanvasFont(cddbuffer, fontname, CD_PLAIN, fontsize)
     fontstyle = CD_PLAIN
+--  cdCanvasFont(cddbuffer, fontname, fontstyle, fontsize)
     {charwidth,charheight} = cdCanvasGetTextSize(cddbuffer,"I")
 --?{charwidth,charheight}
     cdCanvasLineWidth(cddbuffer, 2) 
@@ -5032,6 +5038,7 @@ procedure zoom(integer adj)
         fontsize += adj
         cdCanvasFont(cddbuffer, fontname, CD_PLAIN, fontsize)
         fontstyle = CD_PLAIN
+--      cdCanvasFont(cddbuffer, fontname, fontstyle, fontsize)
         {charwidth,charheight} = cdCanvasGetTextSize(cddbuffer,"I")
         appUpdateRender()
     end if

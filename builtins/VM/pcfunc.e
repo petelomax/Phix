@@ -429,8 +429,8 @@ procedure Tinit()
         mov dword[ebp+16],:cleanupret       -- return address
         jmp $_il                            -- jmp code:c_cleanup
       [64]
-        mov rdx,routine_id(c_cleanup)       -- mov edx,imm32 (sets K_ridt)
-        mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[c_cleanup][S_Ltot])
+        mov rdx,routine_id(c_cleanup)       -- mov rdx,imm32 (sets K_ridt)
+        mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[c_cleanup][S_Ltot])
         call :%opFrame
         mov qword[rbp+32],:cleanupret       -- return address
         jmp $_il                            -- jmp code:c_cleanup
@@ -751,7 +751,7 @@ end procedure -- (for Edita/CtrlQ)
                     sub esp,8
                     fld qword[ebx+eax*4]
                     fistp qword[esp]
-                    dec dword[ebx+eax*4-8]
+                    sub dword[ebx+eax*4-8],1
                     jnz @f
                         mov edx,eax
                         push dword[esp+40]              -- era
@@ -798,7 +798,7 @@ end procedure -- (for Edita/CtrlQ)
             [64]
 
                 push rax                -- routine number
-                xor rdx,rdx             -- edx:=0
+                xor rdx,rdx             -- rdx:=0
                 call :%pSetSaveEBP      -- (rax<-pTCB.SaveEBP<-rdx, all regs trashed)
                 call :%pGetSymPtr       -- (mov rsi,[ds+8])
                 pop rdx                 -- routine number
@@ -812,7 +812,7 @@ end procedure -- (for Edita/CtrlQ)
                 push rsi                --[1] save symtab[rtnid]
                 mov rdi,[rbx+rsi*4+64]  -- rdi:=rsi[S_ParmN=9]
                 mov rcx,[rbx+rsi*4+72]  -- rcx:=rsi[S_Ltot=10]
-                push rdi                --[2] push edi (no of params [min==max])
+                push rdi                --[2] push rdi (no of params [min==max])
 
                 call :%opFrame          -- (with rcx==number of params+locals, rdx==routine no)
 
@@ -820,7 +820,7 @@ end procedure -- (for Edita/CtrlQ)
                 -- Set params, converting any big 32-bit values to floats
                 --
                 mov rdi,rbp             -- (addr first param)
-                pop rcx                 --[2] pop ecx (no of params)
+                pop rcx                 --[2] pop rcx (no of params)
                 mov r15,h4
                 test rcx,rcx
                 jz :zeroparams
@@ -1083,8 +1083,13 @@ integer convention
                 mov dword[rdi+1],ecx    --          imm32 (routine no)
                 sub rax,rdi
                 mov byte[rdi+5],0o350   -- call (#E8)
-                mov dword[rdi+11],rax   --      off32 (:%cbhandler)
-                mov byte[rdi+5],0o303   -- ret (#C3)
+--DEV... (we might want to mov ecx,imm64; mov eax,id; call ecx; ret, and/or try jmp ecx...)
+--       (maybe: mov ecx,:%cbhandler; mov eax,id; call ecx - but that might not work for dlls)
+--              mov dword[rdi+11],rax   --      off32 (:%cbhandler)
+--              mov dword[rdi+11],eax   --      off32 (:%cbhandler)
+                mov dword[rdi+6],eax    --      off32 (:%cbhandler)
+--              mov byte[rdi+5],0o303   -- ret (#C3)
+                mov byte[rdi+10],0o303  -- ret (#C3)
 --          [ELF64]
 --              pop al  -- for certain, the above "mov [rsp+16+64],rcx" etc is wrong... (as marked) [DEV]
             []
@@ -1760,7 +1765,7 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                     cmp rax,r14
                     jae :intres         -- (#C0000000..#FFFFFFFF)
                         push rax
-                        fild qword[esp]
+                        fild qword[rsp]
                         pop rax -- (discard)
                         jmp :cstore
             @@:
@@ -1808,7 +1813,7 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                     cwde                                    -- (ax->eax) [in range -32768..32767]
 --                  and rax,0xFFFF
                     cdqe                                    -- (nb does not list right in FDBG)
-                    jmp :intres
+                    jmp :intres                             -- ( - but it seems fine in x64dbg)
             @@:
                 cmp rdx,0x02000001  -- (C_UCHAR)
                 jne @f
@@ -1824,7 +1829,7 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
 --              jne @f
 --                  cbw                                     -- (al->ax)
 --                  cwde                                    -- (ax->eax) [in range -128..127]
---                  cdqe
+--                  cdqe                                    -- (eax->rax)
 --                  jmp :intres
 --          @@:
 --              cmp rdx,0x02000001  -- (C_UCHAR)
@@ -1903,7 +1908,7 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
             xor rbx,rbx     -- (Phix likes it zero!)
             shl rcx,2
             mov rdx,[prev_ebp4]
-            mov esp,rcx
+            mov rsp,rcx
             shl rdx,2
             call :%pSetSaveEBP      -- (rax<-pTCB.SaveEBP<-rdx, all regs trashed)
 

@@ -169,8 +169,6 @@ end procedure -- (for Edita/CtrlQ)
         pop eax
         rep stosb
         mov [edi],bl
---29/7/15:
---      ret
         jmp :repdealloc
 
       ::repeatRef
@@ -215,8 +213,6 @@ end procedure -- (for Edita/CtrlQ)
         pop rax
         rep stosb
         mov [rdi],bl
---29/7/15:
---      ret
         jmp :repdealloc
 
       ::repeatRef
@@ -230,7 +226,6 @@ end procedure -- (for Edita/CtrlQ)
         lea rdi,[rbx+rax*4]
         pop rax
         rep stosq
---29/7/15:
       ::repdealloc
         cmp rdx,r15
         jle @f

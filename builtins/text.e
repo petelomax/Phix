@@ -3,6 +3,14 @@
 --namespace text
 
 --!/**/ **NOT PHIX COMPATIBLE!**
+
+-- I started this (builtins\text.e) while failing to get gtk on windows working. 
+-- You should probably consider it incomplete/abandoned.
+--
+-- My current thinking is: get gtk working on Phix on Linux (after IUP), and 
+--  only then (if successful) return to trying to get it to work on Windows,
+--  at which point this (builtins\text.e) may yet prove valuable.
+
 --DEV earein.e does not like this:
 --!/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
 --!/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)

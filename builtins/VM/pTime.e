@@ -63,7 +63,7 @@ constant ONETHOUSAND = 1000 -- (so we can fild it, rather than push/fild/pop)
         xor ebx,ebx
         mov eax,13      -- sys_time
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx     -- (common requirement after int 0x80)
         push ebx
         push eax
         fild qword[esp]
@@ -142,7 +142,7 @@ end procedure -- (for Edita/CtrlQ)
         xor ebx,ebx
         mov eax,13      -- sys_time
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx     -- (common requirement after int 0x80)
         push ebx
         push eax
     [32]

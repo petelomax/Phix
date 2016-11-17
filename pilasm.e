@@ -1025,7 +1025,9 @@ else
                     symtab[ridN][S_State] = state
 end if
                 end if
-                return {P_RID,4,ridN}
+--8/11/16:
+--              return {P_RID,4,ridN}
+                return {P_RID,iff(Z64?8:4),ridN}
             end if
             vtype = symtabN[S_vtype]
             if vtype=T_N then
@@ -1979,8 +1981,8 @@ end if
                or ttidx=T_xor
                or ttidx=T_cmp
                or ttidx=T_test then
---if fileno=4 then
---if emitON then trace(1) end if
+--if fileno=1 then
+--  if emitON then trace(1) end if
 --end if
                 op = ttidx
                 mod = find(ttidx,{T_add,T_or,T_adc,T_sbb,T_and,T_sub,T_xor,T_cmp})-1
@@ -2045,7 +2047,10 @@ end if
 --if p2type=P_LBL then trace(1) end if
 --DEV: may want moving outside p1type tests, or duplicating on (some of) the other branches.
                         rex = 0
-                        if p1size=8 then
+--10/11/16:
+--                      if p1size=8 then
+                        if p1size=8
+                        or p1size=9 then
                             if Z64!=1 then ?9/0 end if
 --if p2type!=P_LBL then
 --if p2type=P_LBL then trace(1) end if
@@ -2057,7 +2062,11 @@ end if
                         if reg>7 then
                             if Z64!=1 then ?9/0 end if
 -- help, this is getting desperate!
-if p2type=P_IMM then
+--11/11/16:
+--if p2type=P_IMM then
+if p2type=P_IMM
+or p2type=P_LBL
+or p2type=P_GBL then
                             rex = or_bits(rex,#41)
 else
                             rex = or_bits(rex,#44)
@@ -2219,6 +2228,10 @@ end if
 --end if
                         elsif p2type=P_RAW then
                             {scale,idx,base,offset} = p2details
+--6/11/16: (wrong one, already done)
+--                          if p1size=8 then
+--                              s5 &= #48
+--                          end if
                             s5 &= 0o213
                             emit_ds_xrm_sib(reg,scale,idx,base,offset)
                         elsif p2type=P_LBL then
@@ -2465,8 +2478,13 @@ end if
                                 ?9/0 -- sanity check (should never trigger)
                             end if
                         elsif p2type=P_RID then
-                            -- 0o27r imm32                  -- mov r32,imm32
-                            xrm = 0o270+reg
+                            if p1size=8 then
+                                s5 &= 0o307
+                                xrm = 0o300+reg
+                            else
+                                -- 0o27r imm32                  -- mov r32,imm32
+                                xrm = 0o270+reg
+                            end if
 --                          s5 &= {xrm,isVno,0,0,p2details}
                             s5 &= {xrm,isVno,0,0,and_bits(p2details,#3FFFFFFF)}
                         elsif p2type=P_VAR then
@@ -2820,7 +2838,9 @@ end if
                             or sType=S_Const then
                                 if op=T_mov then
                                     -- 0o307 0o005 m32 i32                          -- mov [m32],imm32
-if Z64=1 then
+--10/11/16:
+--if Z64=1 then
+if X64=1 then
                                     s5 &= {0o307,0o005,isVar4,0,0,N}
 else
                                     s5 &= {0o307,0o005,isVar,0,0,N}
@@ -2885,6 +2905,10 @@ end if
                     elsif p1type=P_RAW then
                         if p2type!=P_REG then ?9/0 end if   -- placeholder for more code
                         {scale,idx,base,offset} = p1details
+--6/11/16:
+                        if p1size=8 then
+                            s5 &= #48
+                        end if
                         reg = p2details-1
                         s5 &= 0o211
                         emit_ds_xrm_sib(reg,scale,idx,base,offset)
@@ -2965,6 +2989,10 @@ end if
                         if p2size!=1 or p2details!=2 then
                             Aborp("cl expected")
                         end if
+                        if p1size=8 then
+                            if Z64!=1 then ?9/0 end if
+                            s5 &= #48
+                        end if
 --                      xrm = 0o340+reg
                         xrm = 0o300+mod*8+reg
                         s5 &= {0o323,xrm}
@@ -3019,10 +3047,13 @@ end if
                         rex = #48
                     end if
                     if p1type=P_REG then
+--DEV tryme (save some unnecessary rex bytes, may need that rex=#49)
+--                      rex = 0
                         reg = p1details-1
                         if reg>7 then
 --                          rex = or_bits(rex,#44)
                             rex = or_bits(rex,#41)
+--                          rex = #49
                             reg -= 8
                         end if
                         -- 0o12r                -- push r32
@@ -3123,7 +3154,7 @@ end if
 if newEmit and X64=1 then
                         if p1size!=8 then ?9/0 end if
 ----    s5 &= #48
-    s5 &= #67
+    s5 &= #67   -- (0o147)
 --  printf(1,"pilasm.e line 3627: please check list.asm (tokline=%d) for pop[mem]\n",{tokline})
 else
                         if p1size!=4 then ?9/0 end if   -- use a pop/mov pair, for now... [DEV]

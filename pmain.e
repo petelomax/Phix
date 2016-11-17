@@ -3340,6 +3340,36 @@ object Default
                     getToken()
                     MatchChar(')')
 --!*/
+--13/11/16:
+--!/*
+                elsif N=T_platform then
+                    if PE then
+                        Default = T_win32
+                    else
+                        Default = T_linux
+                    end if
+                    getToken()
+                    MatchChar('(')
+                    MatchChar(')')
+                elsif N=T_machine_bits then
+                    if X64 then
+                        Default = addUnnamedConstant(64, T_integer)
+                    else
+                        Default = addUnnamedConstant(32, T_integer)
+                    end if
+                    getToken()
+                    MatchChar('(')
+                    MatchChar(')')
+                elsif N=T_machine_word then
+                    if X64 then
+                        Default = addUnnamedConstant(8, T_integer)
+                    else
+                        Default = addUnnamedConstant(4, T_integer)
+                    end if
+                    getToken()
+                    MatchChar('(')
+                    MatchChar(')')
+--!*/
                 else
                     Aborp("unsupported")
                 end if
@@ -9578,6 +9608,8 @@ integer elsevalid   -- initially 2, == first conditional test,
                     -- then 1 until we find an "else",
                     -- then 0 to force "if else else" to error.
 
+integer casefound = 0   -- added 2/11/16
+
 integer wasSideEffects
 --integer plain, testfor
 integer switchtop, ctrlink, elsectrl, ctrltyp, withsaid
@@ -9712,6 +9744,7 @@ integer link
            or ttidx=T_else
            or ttidx=T_default then
             if ttidx=T_case then
+                casefound = 1
                 MatchString(T_case)
             end if
             if ttidx=T_else
@@ -10015,6 +10048,11 @@ end if
         if NOLT=0 or bind or lint then
             ltCtrl(ctrlink)
         end if -- NOLT
+    end if
+
+--2/11/16:
+    if casefound=0 then
+        MatchString(T_case) -- fatal error
     end if
 
     MatchString(T_end)

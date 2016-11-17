@@ -1,6 +1,13 @@
 --
 -- src/find.e
 --
+--DEV/SUG: option: skip comment-lines 
+--                    Note: This is specifically not "skip comments", but 
+--                          "skip lines with LineComment in column 1",
+--                          where LineComment is as defined in Xxx.syn.
+--                          It was originally implemented to ease the 
+--                          pain of searching listing files rather than 
+--                          source files. (DEV fif too?)
 
 Ihandln find_dlg = NULL
 Ihandle find_txt, find_case

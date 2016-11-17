@@ -2,10 +2,13 @@
 -- demo\rosetta\sha-256asm.exw
 -- ===========================
 --
+--DEV/SUG:
+--include builtins\sha256.e
+
 -- fairly faithful rendition of https://en.wikipedia.org/wiki/SHA-2
 --  with slightly improved names (eg s0 -> sigma0) from elsewhere.
 --  Using a big block of highly optimised inline assembly (#ilASM).
---  See sha-256.exw for a slightly saner hll version.
+--  See demo\rosetta\sha-256.exw for a slightly saner hll version.
 
 -- sha-256 initializes the hashing constants with these 8 dwords
 constant integer sha_init4 = floor(allocate(8*4)/4)
@@ -189,7 +192,7 @@ integer block_offset
 --; b = a
 --; a = t1 + t2
 
-    xor ecx, ecx        -- for i=0 to 63
+    xor ecx, ecx        -- for i=0 to 63 [actually 0 to 252 by 4]
 @@: 
     -- ebx(sigma1) := (e ror 6) xor (e ror 11) xor (e ror 25)
     mov ebx, [esp+24]   -- e
@@ -270,7 +273,7 @@ integer block_offset
 
     add ecx, 4
     cmp ecx, 256
-    jnz @b              -- end for (i=0 to 63)
+    jnz @b              -- end for (i=0 to 63) [actually 0 to 252 by 4]
 
     -- add working variables to hash value
 

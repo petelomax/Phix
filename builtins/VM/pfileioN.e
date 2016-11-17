@@ -163,10 +163,10 @@ This will not work on RDS Eu/OpenEuphoria!!
 --  each file handle should be owned exclusively by a single thread, or covered
 --  by appropriate critical section handling (ie enter_cs).
 --
---  Clearly close(-1) and flush(-1) could wreak havoc in a multithreaded program.
---  The main thread executes a close(-1) on termination; it is entirely up to the 
+--  Clearly close(-9) and flush(-9) could wreak havoc in a multithreaded program.
+--  The main thread executes a close(-9) on termination; it is entirely up to the 
 --  programmer to ensure any and all child threads (that use file i/o) properly 
---  terminate before exiting(/letting that close(-1) transpire). [DEV write a demo]
+--  terminate before exiting(/letting that close(-9) transpire). [DEV write a demo]
 --
 --  Obviously there should be no problem with one thread creating/processing a 
 --  file and then "handing it over" to another thread, but sharing may require 
@@ -1016,7 +1016,7 @@ integer iThis
                     mov eax,INVALID_HANDLE_VALUE
               @@:
                 lea edi,[fhandle]
-                xor ebx,ebx
+                xor ebx,ebx                     -- (common requirement after int 0x80)
                 call :%pStoreMint               -- [edi]:=eax as 31-bit int or float if needed
 --      mov eax,6   -- sys_close
 --      int 0x80
@@ -1156,7 +1156,7 @@ integer iThis
                 mov ebx,eax
                 mov eax,197 -- sys_fstat64
                 int 0x80
-                xor ebx,ebx
+                xor ebx,ebx                 -- (common requirement after int 0x80)
                 cmp eax, -4069 
                 jbe @f
                     mov al,64               -- e64sfooa: "seek fail on open append"
@@ -1353,7 +1353,7 @@ integer fmode = 0
                 shl rdx,3
               @@:
                 mov rdi,[fdtbl]
-                mov rsi,[rdi*4+rdx-8]   -- esi:=fdtbl[fidx] (nb fidx=fn-2)
+                mov rsi,[rdi*4+rdx-8]   -- rsi:=fdtbl[fidx(=fn-2)]
                 cmp rdi,[fdtbl]
                 jne @b
                 mov [iThis],rsi
@@ -1447,7 +1447,7 @@ end procedure -- (for Edita/CtrlQ)
             mov ecx,edi         -- buffer
 --          mov edx,[esi+FEND]  -- (already set [and not 0])
             int 0x80
-            xor ebx,ebx
+            xor ebx,ebx         -- (common requirement after int 0x80)
             pop esi             -- restore
             pop edi             -- restore
             cmp eax, -4069 
@@ -1815,13 +1815,13 @@ integer iThis
                     mov eax,6   -- sys_close
                     mov ebx,[ebx+esi*4+HNDL]
                     int 0x80
-                    xor ebx,ebx
+                    xor ebx,ebx             -- (common requirement after int 0x80)
                 [64]
                     mov rdx,[fidx]
                     shl rdx,3
                   @@:
                     mov rdi,[fdtbl]
-                    mov rsi,[rdx+rdi*4-8]   -- esi:=fdtbl[fidx]
+                    mov rsi,[rdx+rdi*4-8]   -- rsi:=fdtbl[fidx]
                     cmp rdi,[fdtbl]
                     jne @b
                     mov rax,[rbx+rsi*4+MODE64]
@@ -1831,7 +1831,7 @@ integer iThis
                     test rax,F_DIRTY
                     jz @f
                         push rsi
-                        xor rdi,rdi         -- mov edi,0 (F_CLOSED)
+                        xor rdi,rdi         -- mov rdi,0 (F_CLOSED)
                         shl rsi,2
                         call :%n_flush_rsirdi   -- (preserves rsi, ..., but we damaged it)
                         pop rsi
@@ -1869,7 +1869,7 @@ integer iThis
         end if
     end if
 end procedure
---DEV set callback here... (for opClosem1)
+--DEV set callback here... (for opClosem9)
 
 
 --DEV builtin? [DONE]
@@ -2007,7 +2007,7 @@ integer iThis
                 shl rdx,3
               @@:
                 mov rdi,[fdtbl]
-                mov rsi,[rdi*4+rdx-8]   -- esi:=fdtbl[fidx]
+                mov rsi,[rdi*4+rdx-8]   -- rsi:=fdtbl[fidx]
                 cmp rdi,[fdtbl]
                 jne @b
                 mov rax,[rbx+rsi*4+MODE64]
@@ -2099,7 +2099,7 @@ integer iThis
                 mov esi,esp         -- *result
                 mov edi,2           -- SEEK_END
                 int 0x80
-                xor ebx,ebx
+                xor ebx,ebx         -- (common requirement after int 0x80)
                 cmp eax, -4069 
                 jbe @f
                     -- return 1
@@ -2132,7 +2132,7 @@ integer iThis
                 cmp rax,0
                 jne @f
                     -- return 1
-                    mov eax,1
+                    mov rax,1
                     jmp :%opRetf
               @@:
                 mov rcx,[rsp+32]
@@ -2154,7 +2154,7 @@ integer iThis
                 cmp rax, -1
                 jne @f
                     -- return 1
-                    mov eax,1
+                    mov rax,1
                     jmp :%opRetf
               @@:
                 mov [rbx+r12*4+POSN64],qword 1
@@ -2269,7 +2269,7 @@ integer iThis
             mov esi,esp         -- *result
             mov edi,0           -- SEEK_SET
             int 0x80
-            xor ebx,ebx
+            xor ebx,ebx         -- (common requirement after int 0x80)
             cmp eax, -4069 
             jbe @f
                 -- return 1
@@ -2334,7 +2334,7 @@ integer iThis
             cmp rax, -1
             jne @f
                 -- return 1
-                mov eax,1
+                mov rax,1
                 jmp :%opRetf
           @@:
             mov [rbx+r12*4+POSN64],qword 1
@@ -2556,7 +2556,7 @@ end function
             mov ecx,edi
             mov edx,BUFFERSIZE32
             int 0x80
-            xor ebx,ebx
+            xor ebx,ebx             -- (common requirement after int 0x80)
 --          cmp eax, -4069 
 --          jbe @f
 --              mov eax,INVALID_HANDLE_VALUE
@@ -2615,7 +2615,7 @@ end function
         -- if dest is integer, result in rcx, range -1..255, done by opGetc in pilx86.e
         push qword[rdi]
         push rdi
-        lea rcx,[rbx+rax*8]                     -- ecx:=fn*8 [fn->0-based byte idx+24]
+        lea rcx,[rbx+rax*8]                     -- rcx:=fn*8 [fn->0-based byte idx+24]
         mov rdi,[fdtbl]
         sub rax,3 -- [fn->0-based idx]
         jb :getc0
@@ -2700,7 +2700,7 @@ end function
             add rax,rcx -- frealposn += fend
             mov rcx,rbx -- rcx:=0
             mov [rsi+RPOS64],rax
-            mov eax,1
+            mov rax,1
 --          mov [rsi+POSN64],rax
       ::notfull
         mov cl,byte[rsi+rax+BUFF64-1]
@@ -2867,7 +2867,7 @@ end procedure -- (for Edita/CtrlQ)
         mov ecx,esp
         mov edx,1
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx     -- (common requirement after int 0x80)
         pop ecx         -- buffer (1 byte)
         test eax,eax
         jle :retm1
@@ -3028,7 +3028,7 @@ end function
                 mov ecx,edi
                 mov edx,BUFFERSIZE32
                 int 0x80
-                xor ebx,ebx
+                xor ebx,ebx             -- (common requirement after int 0x80)
                 test eax,eax
                 jle :exitwhile
                 mov dword[esi+FEND],eax
@@ -3250,7 +3250,7 @@ adc ecx, ebx
 --              add rsp,8*5
 --              pop rsp
                 mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-                test eax,eax
+                test rax,rax
                 jz :exitwhile
                 mov rdx,[rsi+FEND64]
                 cmp rdx,0
@@ -3282,7 +3282,7 @@ adc ecx, ebx
             --  partial result in [rsp+8], becomes [rsp+16] rsn (may still be -1)
             --
             lea rsi,[rsi+rdi+BUFF64-1]
-            mov rcx,rbx -- ecx:=0 (bytes to copy)
+            mov rcx,rbx -- rcx:=0 (bytes to copy)
             push rsi
             sub rdx,rdi -- <bytes left - 1>
           @@:
@@ -3508,7 +3508,7 @@ end procedure -- (for Edita/CtrlQ)
             mov ecx,esp
             mov edx,1
             int 0x80
-            xor ebx,ebx
+            xor ebx,ebx     -- (common requirement after int 0x80)
             pop ecx         -- buffer (1 byte)
             test eax,eax
             jg @f
@@ -3548,7 +3548,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov ecx,esp
                 mov edx,1
                 int 0x80
-                xor ebx,ebx
+                xor ebx,ebx     -- (common requirement after int 0x80)
                 pop ecx         -- buffer (1 byte, discard)
               [32]
                 jmp :addlf
@@ -3604,7 +3604,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov ecx,esp         -- buffer
                 mov edx,3           -- count
                 int 0x80
-                xor ebx,ebx
+                xor ebx,ebx         -- (common requirement after int 0x80)
             [32]
                 pop eax         -- (discard buffer [0x21082008])
 --                  end if
@@ -3665,6 +3665,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov ecx,esp         -- buffer
                 mov edx,1           -- count
                 int 0x80
+                xor ebx,ebx         -- (common requirement after int 0x80)
             [32]
                 pop eax -- (discard buffer)
 --              end if
@@ -3867,7 +3868,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov [rsp+32],rbx                        -- lpvReserved (NULL)
                 lea r9,[rsp+40]                         -- lpcchWritten
                 mov r8,3                                -- cchToWrite (3)
-                lea edx,[rsp+48]                        -- lpvBuffer
+                lea rdx,[rsp+48]                        -- lpvBuffer
                 mov rcx,[stdout]                        -- hConsoleOutput
                 call "kernel32.dll","WriteConsoleA"
 --              add rsp,8*7
@@ -3937,7 +3938,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov [rsp+32],rbx                        -- lpvReserved (NULL)
                 lea r9,[rsp+40]                         -- lpcchWritten
                 mov r8,1                                -- cchToWrite (1)
-                lea edx,[rsp+48]                        -- lpvBuffer (the stored rcx)
+                lea rdx,[rsp+48]                        -- lpvBuffer (the stored rcx)
                 mov rcx,[stdout]                        -- hConsoleOutput
                 call "kernel32.dll","WriteConsoleA"
 --              add rsp,8*7
@@ -4074,7 +4075,7 @@ end procedure
                 lea esi,[esi+POSL]  -- *result (also targets [esi+POSH])
                 mov edi,0           -- SEEK_SET
                 int 0x80
-                xor ebx,ebx
+                xor ebx,ebx         -- (common requirement after int 0x80)
                 pop esi             -- restore
             [32]
                 pop edx -- restore
@@ -4156,7 +4157,7 @@ end procedure
         cmp rax,[fdmax]
         jae :getce58bfnNP
       @@:
-        mov rsi,[rdi*4+rcx-24]                  -- esi:=fdtbl[fn-2]
+        mov rsi,[rdi*4+rcx-24]                  -- rsi:=fdtbl[fn-2]
         cmp rdi,[fdtbl]
         je @f
             mov rdi,[fdtbl]
@@ -4217,7 +4218,7 @@ end procedure
                 cmp rax, -1
                 jne @f
                     -- return 1
-                    mov eax,1
+                    mov rax,1
                     jmp :%opRetf
               @@:
                 mov [rbx+r12*4+POSN64],qword 1
@@ -4231,7 +4232,7 @@ end procedure
       @@:
         cmp rdx,r15
         jl @f
-            -- nb: pilx86.e is expected to opUnassigned edx (and eax)
+            -- nb: pilx86.e is expected to opUnassigned rdx (and rax)
             cmp byte[rbx+rdx*4-1],#12
             jne :putstr                 -- (may jump to putsq, after getting the length)
             fld tbyte[rbx+rdx*4]
@@ -4351,7 +4352,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov eax,4           -- sys_write
                 xchg ecx,edx        -- buffer<->count
                 int 0x80
-                xor ebx,ebx
+                xor ebx,ebx         -- (common requirement after int 0x80)
             [32]
                 ret
           ::putstrinbuffer
@@ -4819,7 +4820,7 @@ end procedure -- (for Edita/CtrlQ)
         mov ecx,esp         -- buffer
         mov edx,1           -- count
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx         -- (common requirement after int 0x80)
     [32]
         pop edx     -- discard (one byte) buffer
         ret
@@ -4829,7 +4830,7 @@ end procedure -- (for Edita/CtrlQ)
         jg @f
             pop rdx
             mov al,59   -- e59wfmfao: "wrong file mode for attempted operation"
-            sub edx,1
+            sub rdx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
             int3
       @@:
@@ -4865,8 +4866,7 @@ end procedure -- (for Edita/CtrlQ)
                     -- if on entry rsp was xxx8: both copies remain on the stack
                     -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
                     -- obviously rsp is now xxx8, whichever alignment we started with
---      sub rsp,8*6     -- minimum 4 param shadow space, lpOverlapped, align, and buffer(/edx already pushed)
-        sub rsp,8*7     -- minimum 4 param shadow space, lpOverlapped, align, and buffer(/edx already pushed)
+        sub rsp,8*7     -- minimum 4 param shadow space, lpOverlapped, align, and buffer(/rdx already pushed)
         mov [rsp+48],rdx
         mov [rsp+32],rbx                -- lpOverlapped (NULL)
 --      mov r9,rbx                      -- lpNumberOfBytesWritten (NULL)    -- NO!
@@ -4943,7 +4943,7 @@ end procedure -- (for Edita/CtrlQ)
         mov eax,4           -- sys_write
         xchg ecx,edx        -- buffer<->count
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx         -- (common requirement after int 0x80)
     [64]
         add rsp,8 -- (discard the rdx we pushed above)
         mov rcx,[rbx+rdx*4-24]      -- length
@@ -5051,7 +5051,7 @@ end procedure -- (for Edita/CtrlQ)
         mov ecx,edx     -- buffer
         mov edx,1
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx     -- (common requirement after int 0x80)
     [32]
         pop eax         -- discard buffer
         pop ecx         -- restore
@@ -5219,7 +5219,7 @@ end function
         mov ecx,esp         -- buffer
         mov edx,1           -- count
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx         -- (common requirement after int 0x80)
         test eax,eax
         pop eax
         jg @f
@@ -5445,7 +5445,7 @@ end function
         mov ecx,esp         -- buffer
         mov edx,1           -- count
         int 0x80
-        xor ebx,ebx
+        xor ebx,ebx         -- (common requirement after int 0x80)
         test eax,eax
         pop eax
         jg @f
@@ -5727,7 +5727,7 @@ if platform()=WINDOWS then
 --              mov ebx,eax
 --              mov eax,197 -- sys_fstat64
 --              int 0x80
---              xor ebx,ebx
+--              xor ebx,ebx             -- (common requirement after int 0x80)
 ----                cmp eax, -4069 
 ----                jbe @f
 ----                    mov al,64               -- e64sfooa: "seek fail on open append"
@@ -5874,7 +5874,7 @@ end if
             int 0x80
             -- 0=success, -1=error => 1,0
             add eax,1
-            xor ebx,ebx
+            xor ebx,ebx                 -- (common requirement after int 0x80)
             mov [res],eax
         [PE64]
             sub rsp,sizeof_OVERLAPPED64
@@ -6214,7 +6214,7 @@ integer iThis
                 shl rdx,3
               @@:
                 mov rdi,[fdtbl]
-                mov rsi,[rdx+rdi*4-8]   -- esi:=fdtbl[fidx]
+                mov rsi,[rdx+rdi*4-8]   -- rsi:=fdtbl[fidx]
                 cmp rdi,[fdtbl]
                 jne @b
                 mov rax,[rbx+rsi*4+MODE64]
@@ -6276,7 +6276,7 @@ integer iThis
             mov ebx,[ebx+esi*4+HNDL]        -- fd
             mov ecx,esp                     -- stat64
             int 0x80
-            xor ebx,ebx
+            xor ebx,ebx                     -- (common requirement after int 0x80)
 --              cmp eax, -4069 
 --              jbe @f
 --                  mov al,?64              -- ?
@@ -6401,7 +6401,7 @@ integer iThis
 --          jbe @f
 --              mov eax,INVALID_HANDLE_VALUE
 --        @@:
-            xor ebx,ebx
+            xor ebx,ebx                 -- (common requirement after int 0x80)
             test eax,eax
             jle :retZ2
         [64]
@@ -6718,8 +6718,8 @@ integer posX,posY
             mov ax,[rdi+CSBI_CPOSX]
             mov cx,[rdi+CSBI_CPOSY]
 --        @@:
-            mov [posX],eax
-            mov [posY],ecx
+            mov [posX],rax
+            mov [posY],rcx
             add rsp,sizeof_CSBI64
         [ELF64]
             --DEV ditto
@@ -6804,7 +6804,7 @@ procedure fwrap(integer flag)
             je @f
                 mov rdx,ENABLE_WRAP_AT_EOL_OUTPUT
           @@:
-            -- edx is now "desired", eax is "actual" (one bit only)
+            -- rdx is now "desired", rax is "actual" (one bit only)
             cmp rax,rdx
             mov rax,[rsp+32]
             je @f
@@ -7081,18 +7081,18 @@ integer res
             mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","GetConsoleScreenBufferInfo"
---          test eax,eax
+--          test rax,rax
 --          jz ??? [DEV]
-            mov edx,[newrows]
-            shl edx,16
-            mov dx,[edi+CSBI_SIZEX]                         -- dwSize (a COORD of {X,newrows})
+            mov rdx,[newrows]
+            shl rdx,16
+            mov dx,[rdi+CSBI_SIZEX]                         -- dwSize (a COORD of {X,newrows})
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","SetConsoleScreenBufferSize"
             -- (ignore error, instead just return how things ended up)
             mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","GetConsoleScreenBufferInfo"
---          test eax,eax
+--          test rax,rax
 --          jz ??? [DEV]
             xor rax,rax
             mov ax,[rdi+CSBI_SIZEY]
@@ -7165,7 +7165,7 @@ procedure set_console_color(integer color, integer cmode)
             mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","GetConsoleScreenBufferInfo"
---          test eax,eax
+--          test rax,rax
 --          jz ??? [DEV]
             xor rax,rax
             mov rcx,[color]
@@ -7188,7 +7188,7 @@ procedure set_console_color(integer color, integer cmode)
 --          add rsp,8*5
 --          pop rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
---          test eax,eax
+--          test rax,rax
 --          jz ??? [DEV]
             add rsp,sizeof_CSBI64
         [ELF32]
@@ -7297,7 +7297,7 @@ procedure fclear_screen()
             mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
             mov rcx,[stdout]                                -- hConsoleOutput
             call "kernel32.dll","GetConsoleScreenBufferInfo"
---          test eax,eax
+--          test rax,rax
 --          jz ??? [DEV]
             xor rax,rax
             xor rcx,rcx
@@ -7601,6 +7601,19 @@ end procedure -- (for Edita/CtrlQ)
           ::flushret2
             ret
 
+    :!opClosem9
+---------------
+        [32]
+            push dword[esp]
+            mov eax,-9
+        [64]
+            push qword[rsp]
+            mov rax,-9
+        []
+            cmp [finit],0
+            jne @f
+                ret
+          @@:
 --/*
 procedure :%opClose(:%)
 end procedure -- (for Edita/CtrlQ)
@@ -7722,7 +7735,7 @@ end procedure -- (for Edita/CtrlQ)
             jmp $_il                            -- jmp code:fseek
           ::seekret     
             pop rdi                             --[2] addr res
-            pop rdx                             --[1] prev (equiv to mov edx,[edi])
+            pop rdx                             --[1] prev (equiv to mov rdx,[rdi])
             mov [rdi],rax
             cmp rdx,r15
             jle @f
@@ -7796,7 +7809,7 @@ end procedure -- (for Edita/CtrlQ)
             jmp $_il                            -- jmp code:fwhere
           ::whereret    
             pop rdi                             --[2] addr res
-            pop rdx                             --[1] prev (equiv to mov edx,[edi])
+            pop rdx                             --[1] prev (equiv to mov rdx,[rdi])
             mov [rdi],rax
             cmp rdx,r15
             jle @f
@@ -7877,7 +7890,7 @@ end procedure -- (for Edita/CtrlQ)
           @@:
             cmp rcx,r15
             jl @f
---              add qword[ebx+rcx*4-16],1
+--              add qword[rbx+rcx*4-16],1
                 int3
           @@:
             cmp rsi,r15
@@ -7901,7 +7914,7 @@ end procedure -- (for Edita/CtrlQ)
             jmp $_il                            -- jmp code:flock_file
           ::lockret
             pop rdi                             --[2] addr res
-            pop rdx                             --[1] prev (equiv to mov edx,[edi])
+            pop rdx                             --[1] prev (equiv to mov rdx,[rdi])
             mov [rdi],rax
             cmp rdx,r15
             jle @f
@@ -8055,7 +8068,7 @@ end procedure -- (for Edita/CtrlQ)
             jmp $_il                            -- jmp code:fget_text
           ::gtret
             pop rdi                             --[2] addr res
-            pop rdx                             --[1] prev (equiv to mov edx,[edi])
+            pop rdx                             --[1] prev (equiv to mov rdx,[rdi])
             mov [rdi],rax
             cmp rdx,r15
             jle @f
@@ -8108,7 +8121,7 @@ end procedure -- (for Edita/CtrlQ)
             jmp $_il                            -- jmp code:fget_position
           ::getposret
             pop rdi                             --[2] addr res
-            pop rdx                             --[1] prev (equiv to mov edx,[edi])
+            pop rdx                             --[1] prev (equiv to mov rdx,[rdi])
             mov [rdi],rax
             cmp rdx,r15
             jle @f
@@ -8312,7 +8325,7 @@ end procedure -- (for Edita/CtrlQ)
             jmp $_il                            -- jmp code:ftext_rows
           ::textrowsret
             pop rdi                             --[2] addr res
-            pop rdx                             --[1] prev (equiv to mov edx,[edi])
+            pop rdx                             --[1] prev (equiv to mov rdx,[rdi])
             mov [rdi],rax
             cmp rdx,r15
             jle @f

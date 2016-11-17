@@ -33,7 +33,7 @@ include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
 procedure :%opSetRand(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
-  :%opSetRand       -- [rseed] := eax
+  :%opSetRand       -- [edi] := time()
 -------------
     [32]
         --calling convention:
@@ -238,6 +238,10 @@ end procedure -- (for Edita/CtrlQ)
         --
 --      mov rax,[rseed]
         mov eax,dword[ds+4]     -- (I don't really care if hi_dword contains 0 or crud, btw)
+--10/11/16:
+mov rcx,rax
+shl rcx,32
+or rax,rcx
         mov rcx,rax
         shl rcx,13
         xor rax,rcx

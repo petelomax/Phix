@@ -81,7 +81,7 @@ end procedure -- (for Edita/CtrlQ)
 --DEV
 --    :!opSubsee92a             -- exception here mapped to opSubsee92aedxfeh
         mov edx,[ebx+eax*4-12]  -- length
-        lea edi,[edi-1]
+        lea edi,[edi-1]         -- decrement edi (oh, nice comment!! :-)
         cmp byte[ebx+eax*4-1],0x80
         lea eax,[ebx+eax*4]
         jne :opSubseStr
@@ -138,7 +138,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp edi,edx
         jb @f                   -- unsigned jump, lets 0..len-1 through
-                                --               (we just did a dec edi)
+                                --               (we just decremented edi)
             push eax
             mov al,4+1          -- [era] @ [esp+8], "reading from"
             call :%fixupIndex   -- idx-1 in edi, len in edx, (not: idx addr in ebx), al set
@@ -188,13 +188,13 @@ end procedure -- (for Edita/CtrlQ)
       @@:
 --      mov rdx,[rbx+rax*4-12]  -- length
         mov rdx,[rbx+rax*4-24]  -- length
-        lea rdi,[rdi-1]
+        lea rdi,[rdi-1]         -- decrement rdi (oh, nice comment!! :-)
         cmp byte[rbx+rax*4-1],0x80
         lea rax,[rbx+rax*4]
         jne :opSubseStr
         cmp rdi,rdx
         jb @f                   -- unsigned jump, lets 0..len-1 through
-                                --              (we just decremented edi)
+                                --              (we just decremented rdi)
             push rax
             add rcx,1
             mov al,8+4+1        -- [era] @ [rsp+rcx*8], "reading from"
@@ -249,7 +249,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp rdi,rdx
         jb @f                   -- unsigned jump, lets 0..len-1 through
-                                --               (we just did a dec rdi)
+                                --               (we just decremented rdi)
             push rax
             mov al,4+1          -- [era] @ [rsp+16], "reading from"
             call :%fixupIndex   -- idx-1 in rdi, len in rdx, (not: idx addr in rbx), al set
@@ -322,7 +322,7 @@ end procedure -- (for Edita/CtrlQ)
         jle @f
             mov edi,[ebx+edx*4-8]   -- decref in edi
             mov [ecx],eax
-            dec edi
+            sub edi,1
             jz :%pDealloc
             mov [ebx+edx*4-8],edi
             ret

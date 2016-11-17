@@ -36,11 +36,11 @@ integer pos
                 pos = match(delimiter, source, start)
                 if pos=0 then exit end if
                 if no_empty=0 or pos-1>=start then
+                    limit -= 1
+                    if limit=0 then exit end if
                     ret = append(ret, source[start..pos-1])
                 end if
                 start = pos+length(delimiter)
-                limit -= 1
-                if limit=0 then exit end if
             end while
         else
             start = 1
@@ -48,11 +48,11 @@ integer pos
                 pos = find(delimiter, source, start)
                 if pos=0 then exit end if
                 if no_empty=0 or pos-1>=start then
+                    limit -= 1
+                    if limit=0 then exit end if
                     ret = append(ret, source[start..pos-1])
                 end if
                 start = pos+1
-                limit -= 1
-                if limit=0 then exit end if
             end while
         end if
 

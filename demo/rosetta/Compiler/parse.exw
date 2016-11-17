@@ -1,0 +1,52 @@
+--
+-- demo\\rosetta\\Compiler\\parse.exw
+-- ==================================
+--
+include parse.e
+
+procedure print_ast(object t)
+    if t == NULL then
+        printf(output_file,";\n")
+    else
+        integer ttype = t[1]
+        printf(output_file,tkNames[ttype])
+        if ttype=tk_Identifier then
+            printf(output_file," %s\n",t[2])
+        elsif ttype=tk_Integer then
+            printf(output_file," %d\n",t[2])
+        elsif ttype=tk_String then
+            printf(output_file," %s\n",enquote(t[2]))
+        else
+            printf(output_file,"\n")
+            print_ast(t[2])
+            print_ast(t[3])
+        end if
+    end if
+end procedure
+
+procedure main(sequence cl)
+    open_files(cl)
+    toks = lex()
+    object t = parse()
+    print_ast(t)
+    close_files()
+end procedure
+
+--main(command_line())
+--main({0,0,"test1.c","test1.ast"})
+--main({0,0,"test2.c"})
+main({0,0,"test3.c"}) -- not parseable!
+--main({0,0,"test4.c"})
+--main({0,0,"deep.c"})
+--main({0,0,"gcd.c"})
+--main({0,0,"factorial.c"})
+--main({0,0,"fibonacci.c"})
+--main({0,0,"FizzBuzz.c"})
+--main({0,0,"99bottles.c"})
+--main({0,0,"Mandelbrot.c"})
+--main({0,0,"negative.c","test1.ast"})
+--main({0,0,"primes.c","test1.ast"})
+
+?"done"
+    {} = wait_key()
+

@@ -247,7 +247,7 @@ end procedure -- (for Edita/CtrlQ)
 --  jne ???
         pop rdx                         -- restore
         pop rcx                         -- restore
-        test eax,eax
+        test rax,rax
         jz :trimStackPop
         mov [rdi+8],rax                 -- set prev_block's vsb_next
         mov [rax],rdi                   -- set new_block's vsb_prev
@@ -468,17 +468,16 @@ qword [...]=0 end of envirnment
 procedure :%opGetArg(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
-:%opGetArgELF       -- (meaningless/same as opFrame on PE/WINDOWS)
+:%opGetArgELF       -- (meaningless on PE/WINDOWS)
 -------------
     [ELF32]
 --:%opGetArgELF32
         mov eax,[pArg]
-        ret
     [ELF64]
 --:%opGetArgELF64
         mov rax,[pArg]
-        ret
     []
+        ret
 
 --makeFrameX:
 --  mov esi,[esp]       -- grab a copy of the "called from" address, for use in debug reporting
@@ -662,7 +661,7 @@ je @f
 --DEV (untried)
 --        push rdx
 --        mov rdx,[rsp+8]
-          call :newVSB              -- sets eax (new vsb_root)
+          call :newVSB              -- sets rax (new vsb_root)
 --        pop rdx
           mov rdi,rax
 --DEV have I gone mad here?
@@ -681,7 +680,7 @@ je @f
         mov [rsi+24],rax            -- called from address
         mov [rsi+32],rax            -- return address (see note above)
         mov [rsi+40],rbp            -- prev_ebp
-        mov [esi+48],rdi            -- vsb_root
+        mov [rsi+48],rdi            -- vsb_root
 --DEV test: (removed 6/3/16 - NB callback error handling now relies on rdx being preserved)
 --lea rdx,[rdi+11240]
         mov rax,h4
@@ -747,17 +746,17 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,[ds+8]              -- symtabptr
         xor rbx,rbx
 --DEV try nop nop
-        mov rdx,[rdx+rdi*8-8]       -- symtab[edi]              (AGI unavoidable... unless fixup does it!)
+        mov rdx,[rdx+rdi*8-8]       -- symtab[rdi]              (AGI unavoidable... unless fixup does it!)
 --!     mov rdx,[rdx+r12]
 --DEV try nop nop nop
-        mov rax,[rbx+rdx*4+24]      -- symtab[edi][S_State=4]   (AGI unavoidable...)
-        mov rcx,[rbx+rdx*4+80]      -- symtab[edi][S_il=11] - execute after makeFrame
+        mov rax,[rbx+rdx*4+24]      -- symtab[rdi][S_State=4]   (AGI unavoidable...)
+        mov rcx,[rbx+rdx*4+80]      -- symtab[rdi][S_il=11] - execute after makeFrame
         test rax,#800               -- K_ran
         jnz :justRetX               -- already called!
         pop rsi                     -- return address === called from addr
         add rax,#800
-        push rcx                    -- symtab[edi][S_il] - execute after makeFrame
-        mov [rbx+rdx*4+24],rax      -- update symtab[edi][S_State]
+        push rcx                    -- symtab[rdi][S_il] - execute after makeFrame
+        mov [rbx+rdx*4+24],rax      -- update symtab[rdi][S_State]
         xor rcx,rcx                 -- no of params (0)
         mov rdx,rdi
         push rsi
@@ -1229,7 +1228,7 @@ end procedure -- (for Edita/CtrlQ)
             mov al,1
 --DEV pdiag?
 --          jmp :enumbset
-            sub edx,1
+            sub rdx,1
             jmp :!iDiag
             int3 
       @@:
@@ -1437,7 +1436,7 @@ end procedure -- (for Edita/CtrlQ)
         sub rcx,1
         cmp rdi,r15
         jle @f
-            mov rdx,[rbx+rdi*8+8]       -- symtab[ecx][S_NTyp]
+            mov rdx,[rbx+rdi*8+8]       -- symtab[rcx][S_NTyp]
             cmp rdx,1                   -- <=2 (S_Const or S_GVar2)
             jne :opAgvar
                 test qword[rbx+rdi*8+24],#200   -- K_noclr
@@ -1446,18 +1445,20 @@ end procedure -- (for Edita/CtrlQ)
             cmp rdx,2
             jg @f
                 -- S_Const w/o K_noclr and all S_Gvar2
-                mov rax,[rsi+22*8]      -- eax:=symtab[T_ds4=23]
-                mov rdi,[rbx+rdi*8+40]  -- edi:=symtab[rdi][S_Slink]
+                mov rax,[rsi+22*8]      -- rax:=symtab[T_ds4=23]
+                mov rdi,[rbx+rdi*8+40]  -- rdi:=symtab[rcx][S_Slink]
                 cmp [rsi+21*8],rbx      -- symtab[T_EBP=22]=0?
                 je :compiled
                     shl rax,2
               ::compiled
-                mov rdx,[rax+rdi*8+32]  -- edx:=gvar[symtab[ecx][S_Slink]]
+                mov rdx,[rax+rdi*8+32]  -- rdx:=gvar[symtab[rcx][S_Slink]]
                 cmp rdx,r15
                 jle @f
                     sub qword[rbx+rdx*4-16],1
                     jnz @f
-                        mov [rax+rdi*8+32],ebx
+--6/11/16:
+--                      mov [rax+rdi*8+32],ebx
+                        mov [rax+rdi*8+32],rbx
 --                      pushad
                         push rsi
                         push rcx
@@ -1538,12 +1539,12 @@ end procedure -- (for Edita/CtrlQ)
         jl @f
             int3    -- abort code must be integer [DEV]
       @@:
-        mov edx,[esi+84]            -- edx:=symtab[T_EBP=22]
         mov ecx,[nocleanup]
-        test edx,edx
-        jz @f
+        mov edx,[esi+84]            -- edx:=symtab[T_EBP=22]
         test ecx,ecx
         jnz @f
+        test edx,edx
+        jz @f
             -- interpreted
             mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
             lea esp,[ebx+ecx*4-8]
@@ -1551,6 +1552,11 @@ end procedure -- (for Edita/CtrlQ)
           ::Exit0
             xor eax,eax
       @@:
+--29/10/16:
+        push eax
+        call :!opClosem9
+        add esp,4
+        pop eax
     [64]
         mov r15,h4
         mov rsi,[ds+8]              -- rsi:=raw addr of symtab[1]
@@ -1558,21 +1564,26 @@ end procedure -- (for Edita/CtrlQ)
         jl @f
             int3    -- abort code must be integer [DEV]
       @@:
-        mov rdx,[rsi+168]           -- rdx:=symtab[T_EBP=22]
         mov rcx,[nocleanup]
-        test rdx,rdx
-        jz @f
+        mov rdx,[rsi+168]           -- rdx:=symtab[T_EBP=22]
         test rcx,rcx
         jnz @f
+        test rdx,rdx
+        jz @f
             -- interpreted
             mov rcx,[rbx+rdx*4+8]   -- symtab[T_EBP][2] = esp4
             lea rsp,[rbx+rcx*4-16]
---DEV (temp) for now, abort meands abort (see exit_cb in edix)
+--DEV (temp) for now, abort means abort (see exit_cb in edix)
 --          ret
 jmp @f
           ::Exit0
             xor rax,rax
       @@:
+--29/10/16:
+        push rax
+        call :!opClosem9
+        add rsp,8
+        pop rax
     []
 
 
@@ -1606,7 +1617,7 @@ jmp @f
         mov ebx,eax                     -- error_code (p1)
         mov eax,1                       -- sys_exit(ebx=int error_code)
         int 0x80
---      xor ebx,ebx                     -- (common requirement)
+--      xor ebx,ebx                     -- (common requirement after int 0x80)
     [ELF64]
         mov rdi,rax                     -- error_code (p1)
         mov rax,60                      -- sys_exit(rdi=int error_code)
@@ -1636,7 +1647,7 @@ end if
     @@:
 
     push edx
-    call opClosem1
+    call opClosem9
 cmp [ebpidx],0
 jne @f
     call opFreeCons

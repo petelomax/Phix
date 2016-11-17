@@ -1,0 +1,84 @@
+--
+-- demo\rosetta\Compiler\interp.exw
+-- ================================
+
+include parse.e
+
+sequence vars = {},
+         vals = {}
+
+function var_idx(sequence inode)
+    if inode[1]!=tk_Identifier then ?9/0 end if
+    string ident = inode[2]
+    integer n = find(ident,vars)
+    if n=0 then
+        vars = append(vars,ident)
+        vals = append(vals,0)
+        n = length(vars)
+    end if
+    return n
+end function
+
+function interp(object t)
+    if t!=NULL then
+        integer ntype = t[1]
+        object t2 = t[2], 
+               t3 = iff(length(t)=3?t[3]:0)
+        switch ntype do
+            case tk_Sequence:       {} = interp(t2) {} = interp(t3)
+            case tk_assign:         vals[var_idx(t2)] = interp(t3)
+            case tk_Identifier:     return vals[var_idx(t)]
+            case tk_Integer:        return t2
+            case tk_String:         return t2
+            case tk_lt:             return interp(t2) < interp(t3)
+            case tk_add:            return interp(t2) + interp(t3)
+            case tk_sub:            return interp(t2) - interp(t3)
+            case tk_while:          while interp(t2) do {} = interp(t3) end while
+            case tk_Prints:         puts(1,interp(t2))
+            case tk_Printi:         printf(1,"%d",interp(t2))
+            case tk_putc:           printf(1,"%c",interp(t2))
+            case tk_and:            return interp(t2) and interp(t3)
+            case tk_or:             return interp(t2) or interp(t3)
+            case tk_le:             return interp(t2) <= interp(t3)
+            case tk_ge:             return interp(t2) >= interp(t3)
+            case tk_ne:             return interp(t2) != interp(t3)
+            case tk_gt:             return interp(t2) > interp(t3)
+            case tk_mul:            return interp(t2) * interp(t3)
+            case tk_div:            return trunc(interp(t2)/interp(t3))
+            case tk_mod:            return remainder(interp(t2),interp(t3))
+            case tk_if:             {} = interp(t3[iff(interp(t2)?2:3)])
+            case tk_not:            return not interp(t2)
+            case tk_neg:            return - interp(t2)
+            else
+                error("unknown node type")
+        end switch
+    end if
+    return NULL
+end function
+
+procedure main(sequence cl)
+    open_files(cl)
+    toks = lex()
+    object t = parse()
+    {} = interp(t)
+    close_files()
+end procedure
+
+--main(command_line())
+--main({0,0,"deep.c"})
+--main({0,0,"gcd.c"})
+--main({0,0,"factorial.c"})
+--main({0,0,"fibonacci.c"})
+--main({0,0,"FizzBuzz.c"})
+--main({0,0,"99bottles.c"})
+--main({0,0,"Mandelbrot.c"})
+main({0,0,"negative.c"})
+--main({0,0,"primes.c"})
+--main({0,0,"test1.c"})
+--main({0,0,"test2.c"})
+--main({0,0,"test3.c"}) -- not runnable!
+--main({0,0,"test4.c"})
+
+?"done"
+    {} = wait_key()
+

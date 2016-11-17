@@ -1,0 +1,56 @@
+--
+-- demo\rosetta\Compiler\vm.exw
+-- ============================
+--
+--  Since we have generated executable machine code, the virtual machine, such as it is, is just 
+--  the higher level implementations of printc/i/s, see setbuiltins() in cgen.e
+--  Otherwise the only difference between this and cgen.exw is call(code_mem) instead of decode().
+--
+--  A quick test (calculating fib(44) 10^6 times) suggests ~500 times faster than interp.exw - 
+--  which is to be expected given that a single add instruction (1 clock) here is implemented as 
+--  at least three (and quite possibly five!) resursive calls to interp() in the other.
+
+
+format PE32
+--format ELF32
+--  Note: cgen generates 32-bit machine code, which cannot be executed directly from a 64-bit interpreter.
+--        You can however, via the magic of either the above format directives, use a 64-bit version of
+--        Phix to compile this (just add a -c command line option) to a 32-bit executable, which can.
+--        It would not be particularly difficult to emit 32 or 64 bit code, but some source code files 
+--        would, fairly obviously, then be very nearly twice as long, and a fair bit harder to read.
+
+
+include cgen.e
+
+procedure main(sequence cl)
+    open_files(cl)
+    toks = lex()
+    object t = parse()
+    code_gen(t)
+    fixup()
+    if machine_bits()=32 then
+        -- ^ as per note above
+        call(code_mem)
+    end if
+    free({var_mem,code_mem})
+    close_files()
+end procedure
+
+--main(command_line())
+main({0,0,"deep.c"})
+--main({0,0,"gcd.c"})
+--main({0,0,"factorial.c"})
+--main({0,0,"fibonacci.c"})
+--main({0,0,"FizzBuzz.c"})
+--main({0,0,"99bottles.c"})
+--main({0,0,"Mandelbrot.c"})
+--main({0,0,"negative.c"})
+--main({0,0,"primes.c"})
+--main({0,0,"test1.c","test1.asm"})
+--main({0,0,"test2.c"})
+--main({0,0,"test3.c"}) -- not compilable!
+--main({0,0,"test4.c"})
+
+?"done"
+    {} = wait_key()
+

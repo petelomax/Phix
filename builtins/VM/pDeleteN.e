@@ -344,8 +344,8 @@ end procedure
 --          --  mov rdx,ref         -- (refcount set to 2)
 --          --  call [pDelRtn]      -- ~==delete(rdx) [pDelRtn] is ::opDelete
 --          push rdx                            --[1] o
---          mov rdx,routine_id(delete)          -- mov edx,imm32 (sets K_ridt)
---          mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdelete][S_Ltot])
+--          mov rdx,routine_id(delete)          -- mov rdx,imm32 (sets K_ridt)
+--          mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[fdelete][S_Ltot])
 --          call :%opFrame
 --          mov rdx,[rsp+8]
 --          pop qword[rbp]                      --[1] addr
@@ -637,14 +637,14 @@ end procedure -- (for Edita/CtrlQ)
                 add qword[rbx+rax*4-16],1
           @@:
             push rax                            --[1] o
-            mov rdx,routine_id(fdelete)         -- mov edx,imm32 (sets K_ridt)
---          mov rdx,routine_id(delete)          -- mov edx,imm32 (sets K_ridt)
-            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdelete][S_Ltot])
+            mov rdx,routine_id(fdelete)         -- mov rdx,imm32 (sets K_ridt)
+--          mov rdx,routine_id(delete)          -- mov rdx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[fdelete][S_Ltot])
             call :%opFrame
             mov rdx,[rsp+8]
             pop qword[rbp]                      --[1] addr
             mov qword[rbp+32],:delret           -- return address
-            mov qword[ebp+24],rdx               -- called from address
+            mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:fdelete
         []
           ::delret
