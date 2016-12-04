@@ -63,6 +63,7 @@ procedure DBopen()
 integer errCode, retries
 sequence winTxt
 atom t
+    if DB_BROKEN then ?9/0 end if
     if not isOpen then
         retries = 0
         sleep(0)
@@ -117,8 +118,10 @@ integer errCode
 --sequence data
 --sequence name -- [DEV] not string
 
+    if DB_BROKEN then ?9/0 end if
 --  pguifullpath = path&pdemoEDB
-    pdemofullpath = path&pdemoEDB
+--  pdemofullpath = path&pdemoEDB
+    pdemofullpath = join_path({path,pdemoEDB})
     dmap = {}
 
     errCode = db_open(pdemofullpath,DB_LOCK_EXCLUSIVE)
@@ -126,11 +129,11 @@ integer errCode
         if errCode = DB_LOCK_FAIL then
 --          void = proemh("Error","pgui.edb locked, aborting",0)  abort(0)
 --          void = messageBox("Error","pgui.edb locked, aborting",0)  abort(0)
-            IupMessage("Error",pdemoEDB&" locked, aborting") abort(0)
+            IupMessage("Error",pdemofullpath&" locked, aborting") abort(0)
         elsif db_create(pdemofullpath,DB_LOCK_EXCLUSIVE)!=DB_OK then
 --          void = proemh("Error","error creating pgui.edb",0)  ?9/0
 --          void = messageBox("Error","error creating pgui.edb",0)  ?9/0
-            IupMessage("Error","error creating "&pdemoEDB) ?9/0
+            IupMessage("Error","error creating "&pdemofullpath) ?9/0
         end if
     end if
     isOpen = 1
@@ -215,6 +218,7 @@ integer k
     k = db_find_key(path)
     if k<0 then
         k = db_table_size()+1
+--?{"pgdbAddDir",path,k}
         if db_insert(path,k)!=DB_OK then
 --          DBfatal("error inserting record",CRASH)
 --          return
@@ -229,8 +233,8 @@ end procedure
 global function pgdbGetFileInfo(integer k, sequence name)
 --sequence data
 object data
-    k = dmap[k]
     SelectTable(Tfiles)
+    k = dmap[k]
     k = db_find_key({k,name})
     if k>0 then
         data = db_record_data(k)
@@ -258,6 +262,7 @@ if length(fileinfo)!=3 then ?9/0 end if
     k = dmap[k]
     SelectTable(Tfiles)
     r = db_find_key({k,name})
+--?{"pgdbSetFileInfo",k,name,fileinfo,r}
     if r>0 then
 --      data = db_record_data(r)
 --      data[1] = dateinfo

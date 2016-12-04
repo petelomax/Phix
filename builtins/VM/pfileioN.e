@@ -26,7 +26,6 @@ This will not work on RDS Eu/OpenEuphoria!!
 --*/
 --without debug -- (barely measurable savings, but [DEV] will want for release?)
 
---  STATUS: EXPERIMENTAL/IN PROGRESS [DEV] [EXCELLENT, UP TO SPEED! 23/6/2013] [gets finished 30/6; puts probably needed soon [DONE]]
 --
 --  <glossary>
 --      When I say "the asm", I tend to mean the older closed source backend,
@@ -5213,6 +5212,7 @@ end function
 --3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
 --? sys_poll?
         -- (this may block...) [DEV testme, ie that get_key() yields -1 and carries on]
+--/*
         push ebx            -- reserve space for buffer (1 byte really)
         mov eax,3           -- sys_read
         mov ebx,[stdin]     -- fd
@@ -5225,6 +5225,397 @@ end function
         jg @f
             mov eax,-1
       @@:
+--*/
+--/!*
+        xor eax,eax
+      ::xGetOrWait
+        push eax
+        sub esp,36          -- termios struct
+        xor ebx,ebx         -- stdin (0)
+        mov ecx,0x5401      -- TCGETS 
+        mov edx,esp
+        mov eax,54          -- sys_ioctl 
+        int 0x80 
+        and dword[esp+12],#FFFFFFF5     -- not(ICANON or ECHO)   ;turn off echo 
+        mov eax,[esp+36]
+--DEV... broken/may be wrong offsets/still echoes (pretty sure 23 is TIME)
+        mov byte[esp+22],al             -- VMIN                  ;turn off canonical mode 
+        mov byte[esp+23],al             -- VTIME     ;we dont want to wait for keystrokes 
+        xor ebx,ebx         -- stdin (0)
+        mov ecx,0x5402      -- TCSETS
+        mov edx,esp
+        mov eax,54          -- sys_ioctl 
+        int 0x80 
+        xor ebx,ebx         -- (common requirement after int 0x80)
+
+        push ebx            -- reserve space for buffer (1 byte really)
+        mov eax,3           -- sys_read
+        mov ebx,[stdin]     -- fd
+        mov ecx,esp         -- buffer
+        mov edx,1           -- count
+        int 0x80
+        xor ebx,ebx         -- (common requirement after int 0x80)
+        test eax,eax
+        pop eax
+        jg @f
+            mov eax,-1
+      @@:
+
+        or dword[esp+12],#0000000A  -- (ICANON or ECHO)  ;turn on echo 
+        mov byte[esp+22],1          -- VMIN              ;turn on canonical mode 
+--(to mirror OE:[?])
+--      mov byte[esp+23],1          -- VTIME             ;wait for keystrokes 
+        xor ebx,ebx         -- stdin (0)
+        mov ecx,0x5402      -- TCSETS
+        mov edx,esp
+        push eax
+        mov eax,54          -- sys_ioctl 
+        int 0x80 
+        xor ebx,ebx         -- (common requirement after int 0x80)
+        pop eax
+        add esp,40
+--*!/
+--/*
+see also: http://stackoverflow.com/questions/24419077/reading-input-from-keyboard-with-x64-linux-syscalls-assembly/24422643#24422643
+typedef unsigned char   cc_t;
+typedef unsigned int    speed_t;
+typedef unsigned int    tcflag_t;
+
+#define NCCS 19
+struct termios {
+        tcflag_t c_iflag;               /* input mode flags */
+        tcflag_t c_oflag;               /* output mode flags */
+        tcflag_t c_cflag;               /* control mode flags */
+        tcflag_t c_lflag;               /* local mode flags */
+        cc_t c_line;                    /* line discipline */
+        cc_t c_cc[NCCS];                /* control characters */
+};
+
+termios:        times 36 db 0
+stdin:          equ 0
+ICANON:         equ 1<<1
+ECHO:           equ 1<<3
+
+canonical_off:
+        call read_stdin_termios
+
+        ; clear canonical bit in local mode flags
+        push rax
+        mov eax, ICANON
+        not eax
+        and [termios+12], eax   -- c_lflag
+        pop rax
+
+        call write_stdin_termios
+        ret
+
+echo_off:
+        call read_stdin_termios
+
+        ; clear echo bit in local mode flags
+        push rax
+        mov eax, ECHO
+        not eax
+        and [termios+12], eax
+        pop rax
+
+        call write_stdin_termios
+        ret
+
+canonical_on:
+        call read_stdin_termios
+
+        ; set canonical bit in local mode flags
+        or dword [termios+12], ICANON
+
+        call write_stdin_termios
+        ret
+
+echo_on:
+        call read_stdin_termios
+
+        ; set echo bit in local mode flags
+        or dword [termios+12], ECHO
+
+        call write_stdin_termios
+        ret
+
+read_stdin_termios:
+        push rax
+        push rbx
+        push rcx
+        push rdx
+
+        mov eax, 36h
+        mov eax, 54     -- sys_ioctl
+        mov ebx, stdin
+        mov ecx, 5401h
+        mov edx, termios
+        int 80h
+
+        pop rdx
+        pop rcx
+        pop rbx
+        pop rax
+        ret
+
+write_stdin_termios:
+        push rax
+        push rbx
+        push rcx
+        push rdx
+
+        mov eax, 36h
+        mov ebx, stdin
+        mov ecx, 5402h
+        mov edx, termios
+        int 80h
+
+        pop rdx
+        pop rcx
+        pop rbx
+        pop rax
+        ret
+
+(#define VMIN 6)
+(#define ICANON 0000002)
+(#define ECHO   0000010)    -- octal 8!!
+/* tcsetattr uses these */
+((#define TCSANOW       0))
+from be_execute.c:
+void echo_wait()
+// sets tty to wait for input and echo keystrokes
+{
+        newtty.c_lflag |= ICANON;
+        newtty.c_lflag |= ECHO;   // turns on echo
+        newtty.c_cc[VMIN] = 1;    // wait for input
+        tcsetattr(STDIN_FILENO, TCSANOW, &newtty);
+}
+
+void noecho(int wait)
+// sets tty to not echo keystrokes, and either wait for input or not
+{
+        newtty.c_lflag &= ~ICANON;
+        newtty.c_lflag &= ~ECHO;   // turns off echo
+        newtty.c_cc[VMIN] = wait;  // wait for input, if wait = 1
+        tcsetattr(STDIN_FILENO, TCSANOW, &newtty);
+}
+#endif
+
+void InitGraphics()
+/* initialize for graphics */
+{
+#ifdef EUNIX
+        // save initial tty state
+        tcgetattr(STDIN_FILENO, &savetty);
+
+        // set up tty for no echo
+        newtty = savetty;
+        newtty.c_cc[VTIME] = 0;
+        //noecho(0); // necessary?
+#endif
+
+        NewConfig(FALSE);
+
+}
+
+and something from fasmboard:
+
+
+;this proggy mainly shows the next char in 1 second after you typed 
+;i hate to see characters "being typed" while im not touching the keyboard 
+;so i added a buffer flush code 
+;i hope it would help someone 
+
+;equates are stolen from asmutils include files (os_linux.inc) 
+;some of them also can be found at www.lxhp.in-berlin.de/lhpioctl.html 
+;but they are well hidden so try searching the document for "termios" 
+
+;i came across this info after examining "snake" proggie in asmutils. 
+;here the keyword is "non-canonical". after googling for "canonical tty" 
+;i found this addr http://ou800doc.caldera.com/en/SDK_sysprog/_TTY_in_Canonical_Mode.html 
+;check out the link topright says "terminal device control" you should see 
+;a lot of good docs here 
+
+;also check out http://ou800doc.caldera.com/en/man/html.7/termio.7.html 
+;for better explanations for termios 
+
+;hold down the key to see what happens. ESC to quit. 
+
+;i apologize for my poor programming skills but i mainly tried to 
+;write more understandable code for newbies like me 
+
+
+format ELF executable 
+
+entry start 
+
+TCGETS    equ 0x5401 
+TCSETS    equ 0x5402 
+TCFLSH    equ 0x540b 
+          TCIOFLUSH equ 2          ;flush both input output 
+          TCOFLUSH  equ 1          ;flush output 
+          TCIFLUSH  equ 0          ;flush input 
+ICANON    equ 2 
+ECHO      equ 8 
+STDIN     equ 0 
+STDOUT    equ 1 
+SYS_NANOSLEEP equ 162 
+SYS_IOCTL equ 54 
+SYS_READ  equ 3 
+SYS_WRITE equ 4 
+SYS_EXIT  equ 1 
+
+section readable writeable 
+start: 
+
+call begingetkey         ;enter non-canonical mode 
+                         ;close local echo 
+mainloop: 
+mov ebx,timer            ;wait a little to fill keyboard buffer 
+mov ecx,timer2           ;simulate a time consuming process 
+mov eax,SYS_NANOSLEEP 
+int 0x80 
+
+mov ebx,STDIN 
+mov ecx,key 
+mov edx,1 
+mov eax,SYS_READ 
+int 0x80 
+push eax                 ;number of read bytes 
+
+mov ebx,STDIN            ;flush extra chars written to the 
+mov ecx,TCFLSH           ;buffer while we hold down the key 
+mov edx,TCIOFLUSH        ;in fact i dont know how it really effects 
+mov eax,SYS_IOCTL        ;but i prefer to flush both buffers 
+int 0x80                 ;it seems ok for this code 
+
+pop eax 
+test eax,eax             ;read anything? 
+jz mainloop 
+
+cmp byte [key],0x1b      ;ESC key quit 
+jz quitloop 
+inc byte [key]           ;just to see WE are echoing 
+                         ;show next char 
+mov ebx,STDOUT 
+mov ecx,key 
+mov edx,1 
+mov eax,SYS_WRITE 
+int 0x80 
+
+jmp mainloop 
+
+quitloop: 
+
+call endgetkey           ;restore previous state and quit 
+
+mov eax,ebx 
+mov eax,SYS_EXIT 
+int 0x80 
+
+
+begingetkey: 
+        mov ebx,STDIN             ;get old state here 
+        mov ecx,TCGETS 
+        mov edx,old_termios 
+        mov eax,SYS_IOCTL 
+        int 0x80 
+
+        mov ecx,19                ;and make a copy 
+        mov esi,old_termios 
+        mov edi,new_termios 
+        rep movsb 
+
+        and [new_termios.c_lflag],dword not(ICANON or ECHO)   ;turn off echo 
+        mov byte [new_termios.VMIN],0                    ;turn off canonical mode 
+        mov byte [new_termios.VTIME],0                   ;we dont want to wait for keystrokes 
+
+        mov ebx,STDIN 
+        mov ecx,TCSETS 
+        mov edx,new_termios 
+        mov eax,SYS_IOCTL 
+        int 0x80 
+        ret 
+
+endgetkey:                                                 ;clean up 
+        mov ebx,STDIN 
+        mov ecx,TCSETS 
+        mov edx,old_termios 
+        mov eax,SYS_IOCTL 
+        int 0x80 
+        ret 
+
+timer:               ;timespec structure 
+        dd 1         ;seconds 
+        dd 0         ;nanoseconds 
+timer2: 
+        dd 1 
+        dd 0 
+
+old_termios:         ;termios structure NOT termio 
+.c_iflag: 
+          rd 1      ;0
+.c_oflag: 
+          rd 1      ;4
+.c_cflag: 
+          rd 1      ;8
+.c_lflag: 
+          rd 1      ;12
+;.c_cc 
+       rb 4 
+       .VMIN: 
+               rb 1
+       .VTIME: 
+               rb 1
+       rb 13 
+new_termios: 
+.c_iflag: 
+          rd 1 
+.c_oflag: 
+          rd 1 
+.c_cflag: 
+          rd 1 
+.c_lflag: 
+          rd 1      ;12
+;.c_cc 
+       .VINTR: 
+               rb 1 ;16
+       .VQUIT: 
+               rb 1 ;17
+       .VERASE: 
+               rb 1 ;18
+       .VKILL: 
+               rb 1 ;19
+       .VEOF: 
+               rb 1 ;20
+       .VMIN:          ;in canonical mode VEOL 
+               rb 1 ;21
+       .VTIME:         ;in canonical mode VEOL2 
+               rb 1 ;22
+       .VSWTCH: 
+               rb 1 
+       .VSTRT: 
+               rb 1 
+       .VSTOP: 
+               rb 1 
+       .VSUSP: 
+               rb 1 
+       .VDSUSP: 
+               rb 1 
+       .VREPRINT: 
+               rb 1 
+       .VDISCARD: 
+               rb 1 
+       .VWERASE: 
+               rb 1 
+       .VLNEXT: 
+               rb 1 
+               rb 3       ;reserved 
+key: 
+           rb 1 
+
+--*/
     [32]
         pop edi
         mov edx,[edi]
@@ -5309,6 +5700,9 @@ end function
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --0     sys_read                unsigned int fd         char *buf                       size_t count
+--DEV see [ELF32]
+--(16   sys_ioctl               unsigned int fd         unsigned int cmd                unsigned long arg)
+
         push rbx                -- buffer
         mov rax,0               -- sys_read
         mov rdi,[stdin]         -- fd
@@ -5439,6 +5833,7 @@ end function
 --                                  eax     ebx                     ecx                     edx                     esi                     edi
 --3     sys_read                    0x03    unsigned int fd         char *buf               size_t count            -                       -               fs/read_write.c:391
         -- DEV either this or get_key() must be wrong... [test this does not return -1!]
+--/*
         push ebx            -- reserve space for buffer (1 byte really)
         mov eax,3           -- sys_read
         mov ebx,[stdin]     -- fd
@@ -5451,6 +5846,9 @@ end function
         jg @f
             mov eax,-1
       @@:
+--*/
+        mov eax,1
+        jmp :xGetOrWait
     [32]
         pop edi
         mov edx,[edi]
@@ -6692,8 +7090,8 @@ integer posX,posY
             add esp,sizeof_CSBI
         [ELF32]
             --DEV OpenEuphoria maintains screen_line/col..
-            mov [posX],1
-            mov [posY],1
+            mov [posX],ebx
+            mov [posY],ebx
         [PE64]
             sub rsp,sizeof_CSBI64
             mov rdi,rsp
@@ -6723,8 +7121,8 @@ integer posX,posY
             add rsp,sizeof_CSBI64
         [ELF64]
             --DEV ditto
-            mov [posX],1
-            mov [posY],1
+            mov [posX],rbx
+            mov [posY],rbx
         []
           }
 --  if platform()=WINDOWS then
@@ -7227,6 +7625,29 @@ procedure set_console_color(integer color, integer cmode)
 --          pop al
         []
           }
+    if platform()=LINUX then
+        string txt
+        color = and_bits(color,#0F)
+        if cmode=BACKGROUNDCOLOR then
+            if color>7 then
+                color = 100+and_bits(color,7)
+            else
+                color = 40+color
+            end if
+            txt = sprintf("\E[%dm", {color})
+        else -- TEXTCOLOR
+            integer bold
+            if color>7 then
+                bold = 1    -- bold on (bright)
+                color = 30+and_bits(color,7)
+            else
+                bold = 22   -- bold off
+                color = 30+color
+            end if
+            txt = sprintf("\E[%d;%dm", {bold,color})
+        end if
+        puts(1,txt)
+    end if
 end procedure
 
 --  opName("opBkClr",opBkClr,2)
@@ -7351,6 +7772,9 @@ procedure fclear_screen()
         [ELF64]
 --          pop al
           }
+    if platform()=LINUX then
+        puts(1,"\E[2J") -- clear screen
+    end if
 end procedure
 
 --  opName("opFreeCons",opFreeCons,1)
@@ -7466,6 +7890,9 @@ integer coord
                   }
             fatalN(2,e108pe,coord)
         end if
+    elsif platform()=LINUX then
+        string txt = sprintf("\E[%d;%dH", {line, col})
+        puts(1,txt)
     end if
 end procedure
 
@@ -8084,7 +8511,7 @@ end procedure -- (for Edita/CtrlQ)
 --*/
     :%opGetPos
 --------------
-        --  The "glue" needed to allow get_text() to be put in the optable.
+        --  The "glue" needed to allow get_position() to be put in the optable.
         [32]
             -- calling convention
             --  lea edi,[res]       -- result location

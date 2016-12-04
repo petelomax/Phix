@@ -211,7 +211,7 @@ include builtins\pGUI.e
 
 constant RotateBackground = 0   -- development option (verify redraw is kept to a minimum)
 
-constant UseNativeDialog = 0    -- DEV option (windows only[?])
+constant UseNativeDialog = 01   -- DEV option (windows only[?])
 
 include builtins\fileopenN.ew   --                  ""
 
@@ -526,6 +526,7 @@ constant ANSI    = 0,   -- (ie 8-bit chars)
 --  straightforward, the important question is whether there is any real need.)
 
 include src/auto.e
+--DEV after main/IupOpen...
 include src/synld.e
 include src/synclr.e as synclr
 include src/dateadj.e
@@ -4963,9 +4964,6 @@ function exit_cb(Ihandle /*item_exit*/)
     IupConfigDialogClosed(config, dlg, "MainWindow");
     {} = IupConfigSave(config);
     IupDestroy(config);
---DEV (temp, until I fix the bug in the 64-bit interpreter)
-if machine_bits()=64 then abort(0) end if   -- no help!! (needed a hack in pStack/opAbort...)
---if machine_bits()=64 then ?"abort(0)" end if  -- no help!!
     return IUP_CLOSE;
 end function
 constant cb_exit = Icallback("exit_cb")
@@ -6021,7 +6019,9 @@ function motion_cb(Ihandle /*ih*/, integer x, integer y, atom pStatus)
         x = floor(x/charwidth)-marginRqd
 --      y = TopLine+floor(y/charheight)
         y = floor(y/charheight)+TopLine
-        if x>=0 and y<length(filetext[currfile]) then
+--DEV 2/12/16:
+--      if x>=0 and y<length(filetext[currfile]) then
+        if x>=0 and and y>0 and y<length(filetext[currfile]) then
             if not iup_isalt(pStatus) then
                 x = min(x,ExpLength(filetext[currfile][y+1]))
             end if
@@ -7304,7 +7304,10 @@ function tabchange_cb(atom /*self*/, atom new_tab, atom old_tab)
 --18/7/16:
     integer fidx = IupGetInt(new_tab,"FILEIDX")
 --  savecurr()  -- no help...
+--2/12/16:
+if fidx!=0 then
     changeTo(fidx)
+end if
 
 --DEV I should probably have a posmap[] to do this... (and get rid of FILEIDX)
     for pos=0 to IupGetInt(tabs,"COUNT")-1 do
@@ -7452,7 +7455,7 @@ procedure main()
     config = IupConfig()
     IupSetAttribute(config, "APP_NAME", "edix")
     integer errcode = IupConfigLoad(config)
-    if errcode!=0 then ?9/0 end if
+--  if errcode!=0 then ?9/0 end if
 
     clipboard = IupClipboard()
 

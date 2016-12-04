@@ -92,7 +92,11 @@ global procedure maybe_any_key(string prompt="Press Any Key to continue...", int
           }
     any_key(prompt, con)
     #ilASM{
+        [PE32,PE64]
         ::no_console
+        [ELF32]
+        [ELF64]
+        []
           }
 end procedure
 

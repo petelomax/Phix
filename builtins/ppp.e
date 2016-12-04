@@ -41,7 +41,7 @@
 --   Lines are wrapped at 78 characters.
 --   Display is paused every 23 lines.
 --   Strings are printed as double-quoted ascii, eg "abc".
---    Values in the range #20 to #FF are treated as ascii.
+--    Values in the range #20 to #7F are treated as ascii.
 --   Integers are printed using a "%d" format.
 --   Floating point numbers are printed using a "%g" format.
 --   Date handling is turned off by default.
@@ -111,7 +111,7 @@
 --          pp_FltFmt       Float format, default "%.10g"
 --                          Both pp_IntFmt and pp_FltFmt can contain extra text,
 --                          eg "#%08x (integer)", "%04.1 km", or "%.2f US$"
---          pp_Ascii        Min/max ascii character, default {' ',#FF}
+--          pp_Ascii        Min/max ascii character, default {' ',#7F}
 --                          If sequences are passed, they define ranges.
 --                          Eg, for ISO 8859-1, use {{#20,#A0},{#7E,#FF}},
 --                          since characters 0..31 and 127..159 are system codes.
@@ -221,7 +221,7 @@ integer ppp_StrFmt      -- 0=text as strings, -1 without quotes,
 integer ppp_Init   ppp_Init    =  0
 
 object  ppp_Ascii       -- low ascii [ranges]
---      ppp_Ascii={#20,#FF}
+--      ppp_Ascii={#20,#7F}
 sequence ppp_IntFmt     -- integer display format
 --       ppp_IntFmt="%d"
 sequence ppp_FltFmt     -- float display format
@@ -549,12 +549,13 @@ end procedure
 
 procedure pp_Init()
     ppp_Nest = 0
-    ppp_Ascii = {#20,#FF}
+--simplified 24/11/16:
+--  ppp_Ascii = {#20,#FF}
 --DEV/SUG
-    if platform()=LINUX then
+--  if platform()=LINUX then
 --      ppp_Ascii = {{#20,#A0},{#7E,#FF}}
         ppp_Ascii = {#20,#7F}
-    end if
+--  end if
     ppp_IntFmt = "%d"
     ppp_FltFmt = "%.10g"
     ppp_Date = ""
@@ -647,7 +648,7 @@ global procedure ppOpt(sequence options)
 --                      Both pp_IntFmt and pp_FltFmt can contain extra text,
 --                      eg "#%08x (integer)", "%04.1 km", or "%.2f US$"
 --
---      pp_Ascii        min/max ascii character, default {' ',#FF}
+--      pp_Ascii        min/max ascii character, default {' ',#7F}
 --                      if sequences are passed, they define ranges.
 --                      Eg, for ISO 8859-1, use {{#20,#A0},{#7E,#FF}},
 --                      since characters 0..31 and 127..159 are system codes.

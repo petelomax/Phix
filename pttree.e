@@ -1216,6 +1216,7 @@ global constant T_bswap         = 5024  tt_stringF("bswap",T_bswap)
 global constant T_BITS32        = 5052  tt_stringF("BITS32",T_BITS32)
 global constant T_BITS64        = 5064  tt_stringF("BITS64",T_BITS64)
 global constant T_DLLMAIN       = 5092  tt_stringF("DllMain",T_DLLMAIN)
+global constant T_movd          = 5100  tt_stringF("movd",T_movd)
 
 --global constant T_DLLATTACH       = 5098  tt_stringF("DLL_PROCESS_ATTACH",T_DLLATTACH)
 --global constant T_movq            = 4912  tt_stringF("movq",T_movq)

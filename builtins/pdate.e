@@ -173,7 +173,9 @@ sequence res
         mins = remainder(xSystemTime,60)
         xSystemTime = floor(xSystemTime/60)
         hour = remainder(xSystemTime,24)
-        xSystemTime = floor(xSystemTime/24)
+--27/11/16:
+--      xSystemTime = floor(xSystemTime/24)
+        xSystemTime = floor(xSystemTime/24)+1
         year = 1970
         while 1 do
             diy = 365+is_leap_year(year)

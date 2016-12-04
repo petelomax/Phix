@@ -1553,10 +1553,16 @@ end procedure -- (for Edita/CtrlQ)
             xor eax,eax
       @@:
 --29/10/16:
-        push eax
-        call :!opClosem9
-        add esp,4
-        pop eax
+        push eax                    -- save
+        --
+        -- If pfileioN.e has not been included this resolves to "call 0", aka "push <addr next instruction>"
+        --  whereas, obviously, if pfileioN.e /has/ been included this does the expected thing, however it
+        --  (ie ":!opClosem9") deliberately leaves the return address on the stack, for the "add esp,4" 
+        --  after the call.
+        --
+        call :!opClosem9            -- (duplicates return addr, if called)
+        add esp,4                   -- (discard "", or a call 0's "this")
+        pop eax                     -- restore
     [64]
         mov r15,h4
         mov rsi,[ds+8]              -- rsi:=raw addr of symtab[1]
@@ -1573,9 +1579,9 @@ end procedure -- (for Edita/CtrlQ)
             -- interpreted
             mov rcx,[rbx+rdx*4+8]   -- symtab[T_EBP][2] = esp4
             lea rsp,[rbx+rcx*4-16]
---DEV (temp) for now, abort means abort (see exit_cb in edix)
---          ret
-jmp @f
+--DEV (temp) for now, abort means abort (see exit_cb in edix) [FIXED]
+            ret
+--jmp @f
           ::Exit0
             xor rax,rax
       @@:
@@ -1588,18 +1594,20 @@ jmp @f
 
 
     [PE32]
+        cmp eax,259
+        jne @f
+--          mov al,?? -- e??ia259: "illegal: abort(259)\n"
+            int3    -- [DEV]
+      @@:
         push eax                        -- uExitCode (for ExitProcess)
-        --
-        -- If pfileioN.e has not been included this resolves to "call 0", aka "push <addr next instruction>"
-        --  whereas, obviously, if pfileioN.e /has/ been included this does the expected thing, however it
-        --  (ie ":!opClosem9") deliberately leaves the return address on the stack, for the "add esp,4" 
-        --  after the call.
-        --
---          call :!opClosem9                -- (duplicates return addr, if called)
---          add esp,4                       -- (discard "", or a call 0's "this")
         call "kernel32.dll","ExitProcess"
 --          ret
     [PE64]
+        cmp rax,259
+        jne @f
+--          mov al,?? -- e??ia259: "illegal: abort(259)\n"
+            int3    -- [DEV]
+      @@:
         mov rcx,rsp -- put 2 copies of rsp onto the stack...
         push rsp
         push rcx

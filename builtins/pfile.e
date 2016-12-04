@@ -14,6 +14,7 @@ procedure initf()
     W = (platform()=WINDOWS)
     SLASH = iff(W?'\\':'/')
 --  atom lib = open_dll(iff(W?"kernel32":""))   -- libc.so? libc.dylib?
+    enter_cs()
     atom lib = open_dll(iff(W?"kernel32":"libc.so"))
     xGetFileAttributes  = iff(W?define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT)
                                :define_c_func(lib, "access", {C_POINTER, C_INT}, C_INT))
@@ -27,6 +28,7 @@ procedure initf()
                                :define_c_func(lib, "mkdir", {C_POINTER, C_INT}, C_INT))
     xRemoveDirectory    = iff(W?define_c_func(lib, "RemoveDirectoryA", {C_POINTER}, C_BOOL)
                                :define_c_func(lib, "rmdir", {C_POINTER}, C_INT))
+    leave_cs()
 end procedure
 
 global function file_exists(string name)

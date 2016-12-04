@@ -1,0 +1,1338 @@
+--
+-- named_pipes.exw
+-- ===============
+--
+--DEV:
+--#withtype bool
+
+constant plat = platform()
+--constant plat = LINUX
+
+include builtins\cffi.e
+
+--DEV/SUG:
+function define_win_cffi_func(string lib, string cdef)
+--  if platform()=WINDOWS then
+    if plat=WINDOWS then
+        return define_cffi_func(lib,cdef)
+    end if
+    return 0
+end function
+-- Creates an instance of a named pipe and returns a handle for subsequent pipe operations. 
+-- A named pipe server process uses this function either to create the first instance of a specific named pipe 
+-- and establish its basic attributes or to create a new instance of an existing named pipe.
+constant tCreateNamedPipe = """
+HANDLE WINAPI CreateNamedPipe(
+  _In_      LPCTSTR lpName,
+  _In_      DWORD dwOpenMode,
+  _In_      DWORD dwPipeMode,
+  _In_      DWORD nMaxInstances,
+  _In_      DWORD nOutBufferSize,
+  _In_      DWORD nInBufferSize,
+  _In_      DWORD nDefaultTimeOut,
+  _In_opt_  LPSECURITY_ATTRIBUTES lpSecurityAttributes
+);"""
+
+set_unicode(0) -- use CreateNamedPipeA
+constant xCreateNamedPipe = define_win_cffi_func("kernel32.dll",tCreateNamedPipe)
+
+-- lpName: Must start with the 9 characters shown, with no \ after the 9th char, and not be longer than 256 chars.
+string szPipename = `\\.\pipe\mynamedpipe`
+
+-- dwOpenMode: CreateNamedPipe fails if dwOpenMode specifies anything other than 0 or the flags listed below.
+global constant
+    -- dwOpenMode must specify one of the following pipe access modes. The same mode must be specified for each instance of the pipe.
+    PIPE_ACCESS_DUPLEX  = 3,    -- The pipe is bi-directional; both server and client processes can read from and write to the pipe. 
+                                -- This mode gives the server the equivalent of GENERIC_READ and GENERIC_WRITE access to the pipe. 
+                                -- The client can specify GENERIC_READ or GENERIC_WRITE, or both, when it connects to the pipe using the CreateFile function. 
+    PIPE_ACCESS_INBOUND = 1,    -- The flow of data in the pipe goes from client to server only. 
+                                -- This mode gives the server the equivalent of GENERIC_READ access to the pipe. 
+                                -- The client must specify GENERIC_WRITE access when connecting to the pipe. 
+                                -- If the client must read pipe settings by calling the GetNamedPipeInfo or GetNamedPipeHandleState functions, 
+                                -- the client must specify GENERIC_WRITE and FILE_READ_ATTRIBUTES access when connecting to the pipe. 
+    PIPE_ACCESS_OUTBOUND = 2,   -- The flow of data in the pipe goes from server to client only. 
+                                -- This mode gives the server the equivalent of GENERIC_WRITE access to the pipe. 
+                                -- The client must specify GENERIC_READ access when connecting to the pipe. 
+                                -- If the client must change pipe settings by calling the SetNamedPipeHandleState function, 
+                                -- the client must specify GENERIC_READ and FILE_WRITE_ATTRIBUTES access when connecting to the pipe. 
+
+    -- dwOpenMode can also include one or more of the following flags, which enable the write-through and overlapped modes. 
+    --            These modes can be different for different instances of the same pipe.
+    FILE_FLAG_FIRST_PIPE_INSTANCE = 0x00080000, -- If you attempt to create multiple instances of a pipe with this flag, creation of the first 
+                                                -- instance succeeds, but creation of the next instance fails with ERROR_ACCESS_DENIED.
+                                                -- This flag is not supported until Windows 2000 SP2 and Windows XP.
+    FILE_FLAG_WRITE_THROUGH       = 0x80000000  -- Write-through mode is enabled. This mode affects only write operations on byte-type pipes and, 
+                                                -- then, only when the client and server processes are on different computers. 
+                                                -- If this mode is enabled, functions writing to a named pipe do not return until the data written 
+                                                -- is transmitted across the network and is in the pipe's buffer on the remote computer. 
+                                                -- If this mode is not enabled, the system enhances the efficiency of network operations by buffering 
+                                                -- data until a minimum number of bytes accumulate or until a maximum time elapses.
+constant
+    FILE_FLAG_OVERLAPPED          = 0x40000000  -- Overlapped mode is enabled. If this mode is enabled, functions performing read, write, and connect 
+                                                -- operations that may take a significant time to be completed can return immediately. 
+                                                -- This mode enables the thread that started the operation to perform other operations while the 
+                                                -- time-consuming operation executes in the background. For example, in overlapped mode, a thread can 
+                                                -- handle simultaneous input and output (I/O) operations on multiple instances of a pipe or perform 
+                                                -- simultaneous read and write operations on the same pipe handle. 
+                                                -- If overlapped mode is not enabled, functions performing read, write, and connect operations on the 
+                                                -- pipe handle do not return until the operation is finished. The ReadFileEx and WriteFileEx functions 
+                                                -- can only be used with a pipe handle in overlapped mode. The ReadFile, WriteFile, ConnectNamedPipe, 
+                                                -- and TransactNamedPipe functions can execute either synchronously or as overlapped operations. 
+
+    -- dwOpenMode can also include any combination of the following security access modes.
+    --            These modes can be different for different instances of the same pipe.
+--  WRITE_DAC               = 0x00040000,   -- The caller will have write access to the named pipe's discretionary access control list (ACL).
+--  WRITE_OWNER             = 0x00080000,   -- The caller will have write access to the named pipe's owner.
+--  ACCESS_SYSTEM_SECURITY  = 0x01000000,   -- The caller will have write access to the named pipe's SACL.
+                                            -- For more information, see Access-Control Lists (ACLs) and SACL Access Right. 
+global constant
+-- dwPipeMode: CreateNamedPipe fails if dwOpenMode specifies anything other than 0 or the flags listed below.
+    -- One of the following type modes can be specified. The same type mode must be specified for each instance of the pipe.
+    PIPE_TYPE_BYTE          = 0x00000000,   -- Data is written to the pipe as a stream of bytes. This mode cannot be used with PIPE_READMODE_MESSAGE. 
+                                            -- The pipe does not distinguish bytes written during different write operations. 
+    PIPE_TYPE_MESSAGE       = 0x00000004,   -- Data is written to the pipe as a stream of messages. 
+                                            -- The pipe treats the bytes written during each write operation as a message unit. 
+                                            -- The GetLastError function returns ERROR_MORE_DATA when a message is not read completely. 
+                                            -- This mode can be used with either PIPE_READMODE_MESSAGE or PIPE_READMODE_BYTE. 
+
+    -- One of the following read modes can be specified. Different instances of the same pipe can specify different read modes.
+    PIPE_READMODE_BYTE      = 0x00000000,   -- Data is read from the pipe as a stream of bytes. 
+                                            -- This mode can be used with either PIPE_TYPE_MESSAGE or PIPE_TYPE_BYTE.
+    PIPE_READMODE_MESSAGE   = 0x00000002,   -- Data is read from the pipe as a stream of messages. 
+                                            -- This mode can be only used if PIPE_TYPE_MESSAGE is also specified.
+
+    -- One of the following wait modes can be specified. Different instances of the same pipe can specify different wait modes.
+    PIPE_WAIT               = 0x00000000,   -- Blocking mode is enabled. 
+                                            -- When the pipe handle is specified in the ReadFile, WriteFile, or ConnectNamedPipe function, the operations 
+                                            -- are not completed until there is data to read, all data is written, or a client is connected. 
+                                            -- Use of this mode can mean waiting indefinitely in some situations for a client process to perform an action. 
+    PIPE_NOWAIT             = 0x00000001,   -- Nonblocking mode is enabled. 
+                                            -- In this mode, ReadFile, WriteFile, and ConnectNamedPipe always return immediately. 
+                                            -- Note that nonblocking mode is supported for compatibility with Microsoft LAN Manager version 2.0 and should 
+                                            -- not be used to achieve asynchronous I/O with named pipes. 
+                                            -- For more information on asynchronous pipe I/O, see Synchronous and Overlapped Input and Output. 
+
+    -- One of the following remote-client modes can be specified. Different instances of the same pipe can specify different remote-client modes.
+    PIPE_ACCEPT_REMOTE_CLIENTS = 0x00000000,    -- Connections from remote clients can be accepted and checked against the security descriptor for the pipe.
+                                                -- Windows Server 2003 and Windows XP/2000:  This flag is not supported.
+    PIPE_REJECT_REMOTE_CLIENTS = 0x00000008,    -- Connections from remote clients are automatically rejected.
+                                                -- Windows Server 2003 and Windows XP/2000:  This flag is not supported. 
+                                                -- To achieve the same results, deny access to the pipe to the NETWORK ACE.
+
+    PIPE_UNLIMITED_INSTANCES = 255
+-- nMaxInstances: The maximum number of instances that can be created for this pipe. 
+--                The first instance of the pipe can specify this value; the same number must be specified for other instances of the pipe. 
+--                Acceptable values are in the range 1 through PIPE_UNLIMITED_INSTANCES (255). 
+--                If this parameter is PIPE_UNLIMITED_INSTANCES, the number of pipe instances that can be created is limited only by system resources. 
+--                If nMaxInstances>PIPE_UNLIMITED_INSTANCES, the return value is INVALID_HANDLE_VALUE and GetLastError returns ERROR_INVALID_PARAMETER. 
+-- nOutBufferSize: The number of bytes to reserve for the output buffer. For a discussion on sizing named pipe buffers, see the following Remarks section.
+-- nInBufferSize: The number of bytes to reserve for the input buffer. For a discussion on sizing named pipe buffers, see the following Remarks section.
+-- nDefaultTimeOut: The default time-out value, in milliseconds, if the WaitNamedPipe function specifies NMPWAIT_USE_DEFAULT_WAIT. 
+--                  Each instance of a named pipe must specify the same value. 
+--                  A value of zero will result in a default time-out of 50 milliseconds.
+-- lpSecurityAttributes: A pointer to a SECURITY_ATTRIBUTES structure that specifies a security descriptor for the new named pipe and determines whether 
+--                       child processes can inherit the returned handle. If lpSecurityAttributes is NULL, the named pipe gets a default security descriptor 
+--                       and the handle cannot be inherited. The ACLs in the default security descriptor for a named pipe grant full control to the 
+--                       LocalSystem account, administrators, and the creator owner. They also grant read access to members of the Everyone group and the anonymous account. 
+-- Return value: If the function succeeds, the return value is a handle to the server end of a named pipe instance.
+--               If the function fails, the return value is INVALID_HANDLE_VALUE. To get extended error information, call GetLastError. 
+-- Remarks: To create an instance of a named pipe by using CreateNamedPipe, the user must have FILE_CREATE_PIPE_INSTANCE access to the named pipe object. 
+--          If a new named pipe is being created, the access control list (ACL) from the security attributes parameter defines the discretionary access control for the named pipe. 
+--          
+--  All instances of a named pipe must specify the same pipe type (byte-type or message-type), pipe access (duplex, inbound, or outbound), instance count, and time-out value. 
+--  If different values are used, this function fails and GetLastError returns ERROR_ACCESS_DENIED. 
+--
+--  A client process connects to a named pipe by using the CreateFile or CallNamedPipe function. 
+--  The client side of a named pipe starts out in byte mode, even if the server side is in message mode. 
+--  To avoid problems receiving data, set the client side to message mode as well. 
+--  To change the mode of the pipe, the pipe client must open a read-only pipe with GENERIC_READ and FILE_WRITE_ATTRIBUTES access. 
+--
+--  The pipe server should not perform a blocking read operation until the pipe client has started. 
+--  Otherwise, a race condition can occur. 
+--  This typically occurs when initialization code, such as the C run-time, needs to lock and examine inherited handles.
+--
+--  Every time a named pipe is created, the system creates the inbound and/or outbound buffers using nonpaged pool, which is the physical memory used by the kernel. 
+--  The number of pipe instances (as well as objects such as threads and processes) that you can create is limited by the available nonpaged pool. 
+--  Each read or write request requires space in the buffer for the read or write data, plus additional space for the internal data structures.
+--
+--  The input and output buffer sizes are advisory. The actual buffer size reserved for each end of the named pipe is either the system default, 
+--  the system minimum or maximum, or the specified size rounded up to the next allocation boundary. The buffer size specified should be small enough 
+--  that your process will not run out of nonpaged pool, but large enough to accommodate typical requests.
+--
+--  Whenever a pipe write operation occurs, the system first tries to charge the memory against the pipe write quota. 
+--  If the remaining pipe write quota is enough to fulfill the request, the write operation completes immediately. 
+--  If the remaining pipe write quota is too small to fulfill the request, the system will try to expand the buffers to accommodate the data using nonpaged pool reserved for the process. 
+--  The write operation will block until the data is read from the pipe so that the additional buffer quota can be released. 
+--  Therefore, if your specified buffer size is too small, the system will grow the buffer as needed, but the downside is that the operation will block. 
+--  If the operation is overlapped, a system thread is blocked; otherwise, the application thread is blocked.
+--
+--  To free resources used by a named pipe, the application should always close handles when they are no longer needed, which is accomplished either by calling 
+--  the CloseHandle function or when the process associated with the instance handles ends. 
+--  Note that an instance of a named pipe may have more than one handle associated with it. 
+--  An instance of a named pipe is always deleted when the last handle to the instance of the named pipe is closed. 
+
+procedure validate_pipename(string szPipename)
+    if length(szPipename)>256 then ?9/0 end if
+    if length(szPipename)<10 then ?9/0 end if
+    if szPipename[1..9]!=`\\.\pipe\` then ?9/0 end if
+    if find('\\',szPipename,10)!=0 then ?9/0 end if
+end procedure
+
+function create_named_pipe(string szPipename, atom dwOpenMode, integer dwPipeMode,
+                           integer nMaxInstances=PIPE_UNLIMITED_INSTANCES,
+                           integer nOutBufferSize=0, integer nInBufferSize=0,
+                           integer nDefaultTimeOut=1000, atom lpSecurityAttributes=NULL)
+--
+-- for now, FILE_FLAG_OVERLAPPED is not supported - let me know if you need it.
+--  ( I plan to use threads with blocking calls for all this stuff anyway )
+--
+atom hPipe
+    validate_pipename(szPipename)
+    -- dwOpenMode must specify FILE_FLAG_(DUPLEX|INBOUND|OUTBOUND):
+    if and_bits(dwOpenMode,#3)=0 then ?9/0 end if
+    -- (test and) remove this only if someone actually needs it:
+    if and_bits(dwOpenMode,FILE_FLAG_OVERLAPPED) then ?9/0 end if   -- not tested [DEV]
+    if and_bits(dwPipeMode,#F)!=dwPipeMode then ?9/0 end if
+    -- nMaxInstances must be 0..255(255=PIPE_UNLIMITED_INSTANCES):
+    if nMaxInstances<=0 then ?9/0 end if
+    if nMaxInstances>PIPE_UNLIMITED_INSTANCES then ?9/0 end if
+    -- and we may as well verify that sizes/timeout are not negative:
+    if nOutBufferSize<0 then ?9/0 end if
+    if nInBufferSize<0 then ?9/0 end if
+    if nDefaultTimeOut<0 then ?9/0 end if
+    -- (ps: I fully expect the compiler to optimise away most of the above)
+    hPipe = c_func(xCreateNamedPipe,{szPipename, dwOpenMode, dwPipeMode,
+                                     nMaxInstances, nOutBufferSize, nInBufferSize,
+                                     nDefaultTimeOut, lpSecurityAttributes})
+    return hPipe
+end function
+
+constant tGetLastError = """
+DWORD WINAPI GetLastError(void);"""
+constant xGetLastError = define_win_cffi_func("kernel32.dll",tGetLastError)
+
+constant tConnectNamedPipe = """
+BOOL WINAPI ConnectNamedPipe(
+  _In_         HANDLE hNamedPipe,
+  _Inout_opt_  LPOVERLAPPED lpOverlapped
+);"""
+constant xConnectNamedPipe = define_win_cffi_func("kernel32.dll",tConnectNamedPipe)
+
+constant ERROR_PIPE_CONNECTED = 535
+
+--function connect_named_pipe(atom hPipe, atom pOverlapped=NULL)
+function connect_named_pipe(atom hPipe)
+-- (FILE_FLAG_OVERLAPPED not tested/permitted yet)
+--  bool res = c_func(xConnectNamedPipe,{szPipename,pOverlapped})
+bool res = c_func(xConnectNamedPipe,{hPipe,NULL})
+    if res=0 and c_func(xGetLastError,{})=ERROR_PIPE_CONNECTED then
+        res = 1
+    end if
+    return res
+end function
+
+constant tReadFile = """
+BOOL WINAPI ReadFile(
+  _In_         HANDLE hFile,
+  _Out_        LPVOID lpBuffer,
+  _In_         DWORD nNumberOfBytesToRead,
+  _Out_opt_    LPDWORD lpNumberOfBytesRead,
+  _Inout_opt_  LPOVERLAPPED lpOverlapped
+);"""
+constant xReadFile = define_win_cffi_func("kernel32.dll",tReadFile)
+
+function read_pipe(atom hPipe, atom pBuffer, integer dwSize, atom pBytesRead)
+bool bRes = c_func(xReadFile,{hPipe,pBuffer,dwSize,pBytesRead,NULL})
+    return bRes
+end function
+
+constant tWriteFile = """
+BOOL WINAPI WriteFile(
+  _In_         HANDLE hFile,
+  _In_         LPCVOID lpBuffer,
+  _In_         DWORD nNumberOfBytesToWrite,
+  _Out_opt_    LPDWORD lpNumberOfBytesWritten,
+  _Inout_opt_  LPOVERLAPPED lpOverlapped
+);"""
+constant xWriteFile = define_win_cffi_func("kernel32.dll",tWriteFile)
+
+--function write_pipe(atom hPipe, atom pBuffer, integer dwSize, atom pBytesWritten)
+function write_pipe(atom hPipe, string msg, atom pBytesWritten)
+--  bool bRes = c_func(xWriteFile,{hPipe,pBuffer,dwSize,pBytesWritten,NULL})
+bool bRes = c_func(xWriteFile,{hPipe,msg,length(msg),pBytesWritten,NULL})
+    return bRes
+end function
+
+constant tFlushFileBuffers = """
+BOOL WINAPI FlushFileBuffers(
+  _In_  HANDLE hFile
+);"""
+constant xFlushFileBuffers = define_win_cffi_func("kernel32.dll",tFlushFileBuffers)
+
+constant tDisconnectNamedPipe = """
+BOOL WINAPI DisconnectNamedPipe(
+  _In_  HANDLE hNamedPipe
+);"""
+constant xDisconnectNamedPipe = define_win_cffi_func("kernel32.dll",tDisconnectNamedPipe)
+
+constant tCloseHandle = """
+BOOL WINAPI CloseHandle(
+  _In_  HANDLE hObject
+);"""
+constant xCloseHandle = define_win_cffi_func("kernel32.dll",tCloseHandle)
+
+constant tCallNamedPipe = """
+BOOL WINAPI CallNamedPipe(
+  _In_   LPCTSTR lpNamedPipeName,
+  _In_   LPVOID lpInBuffer,
+  _In_   DWORD nInBufferSize,
+  _Out_  LPVOID lpOutBuffer,
+  _In_   DWORD nOutBufferSize,
+  _Out_  LPDWORD lpBytesRead,
+  _In_   DWORD nTimeOut
+);"""
+constant xCallNamedPipe = define_win_cffi_func("kernel32.dll",tCallNamedPipe)
+
+global constant NMPWAIT_NOWAIT           = 0x00000001,  -- Does not wait for the named pipe. If the named pipe is not available, the function returns an error.
+                NMPWAIT_WAIT_FOREVER     = 0xffffffff,  -- Waits indefinitely.
+                NMPWAIT_USE_DEFAULT_WAIT = 0x00000000   -- Uses the default time-out specified in a call to the CreateNamedPipe function. 
+
+function call_named_pipe(string szPipename, string msg)
+    validate_pipename(szPipename)
+    atom pBuffer = allocate(1024)
+    atom pBytesRead = allocate(4)
+    integer lm = length(msg)
+    bool bRes = c_func(xCallNamedPipe,{szPipename,msg,length(msg),pBuffer,1024,pBytesRead,NMPWAIT_USE_DEFAULT_WAIT})
+    string res = ""
+    if bRes then
+        integer bytesread = peek4s(pBytesRead)
+        res = peek({pBuffer,bytesread})
+    end if
+    free(pBuffer)
+    free(pBytesRead)
+    return res
+end function
+
+-- Credit: serialise/peek_object are based on routines originally written by Jordah Feruson
+
+--Note: To allow IPC to work between 32 and 64-bit programs, integers are limited to 53-bit and floats are limited to 64-bit.
+--      Most cases are just minor discrepancies, but also outright failure on atoms outside the 1e308 range, even 64<->64.
+--      As per phix.chm/core/atoms/accuracy that means ints are limited to 9,007,199,254,740,992 (#20_0000_0000_0000), and
+--      it may also be worth your while skimming peek()/Technicalia to get the full picture - namely 53 bits of accuracy,
+--      though technically it is the use of a 32-bit compatible byte stream format, rather than direct use of peek8, etc.
+
+constant CHAR = 1,  -- (15 = -ve 1 byte int)
+         WORD = 2,  -- (14 = -ve 2 byte int)
+         LONG = 4,  -- (12 = -ve 4 byte int)
+         DBL  = 8,
+--       NULL = 0,  -- (type 0 means implied 0)
+         SEQ = #10,
+         STR = #20
+
+function serialise(object x, integer seqtype=0)
+-- yields a (32-bit compatible) byte stream for any Phix object, suitable for poking to memory etc.
+integer xtype
+string s
+    if atom(x) then
+        integer Sign = sign(x)
+        atom a = abs(x)
+        if integer(a) and a<=#FFFF then
+            if a=NULL then
+                xtype = NULL
+--              s = {}
+                s = ""
+            elsif a<=#FF then
+                xtype = CHAR*Sign
+--              s = {a}
+                s = ""&a
+            else
+                xtype = WORD*Sign
+--              s = {and_bits(a, #FF),floor(a/#100)}
+                s = and_bits(a, #FF)&floor(a/#100)
+            end if
+        elsif a=floor(a) and a<=#FFFFFFFF then
+            xtype = LONG*Sign
+--          s = int_to_bytes(a)
+--          s = int_to_bytestr(a)   -- (SUG?)
+            atom pMem4 = allocate(4)
+            poke4(pMem4,a)
+            s = peek({pMem4,4})
+            free(pMem4)
+        else
+            xtype = DBL
+            s = atom_to_float64(x)
+        end if
+        if xtype<0 then
+            xtype += #10
+        end if
+        xtype += seqtype
+        s = prepend(s,xtype)
+    else
+        integer len = length(x)
+        if string(x) then
+            s = serialise(len,STR) & x
+        else
+            s = serialise(len,SEQ)
+            for n=1 to len do
+                s &= serialise(x[n])
+            end for
+        end if
+    end if
+    return s
+end function
+
+function peek_obj(atom mem)
+-- (recursive part of peek_object, yielding {mem,x})
+sequence s
+integer byte, Sign
+atom a
+    byte = peek(mem)
+    mem += CHAR
+    integer xtype = and_bits(byte,#F)
+    integer seqtype = and_bits(byte,#30)
+    if xtype>DBL then
+        xtype = #10-xtype
+        Sign = -1
+    else
+        Sign = 1
+    end if
+    if xtype=NULL then
+        a = 0
+    elsif xtype=CHAR then
+        a = peek(mem)*Sign
+        mem += CHAR
+    elsif xtype=WORD then
+        a = peek2u(mem)*Sign
+        mem += WORD
+    elsif xtype=LONG then
+        a = peek4u(mem)*Sign
+        mem += LONG
+    elsif xtype=DBL then
+        a = float64_to_atom(peek({mem,DBL}))
+        mem += DBL
+    else
+        ?9/0
+    end if
+    if seqtype then
+        if seqtype=STR then
+            s = peek({mem,a})
+            mem += a
+        elsif seqtype=SEQ then
+            s = repeat(0,a)
+            for i=1 to a do
+                {mem,s[i]} = peek_obj(mem)
+            end for
+        else
+            ?9/0
+        end if
+        return {mem,s}
+    end if
+    return {mem,a}
+end function
+
+function peek_object(atom mem)
+-- reconstruct a Phix object from a byte stream in memory.
+object res
+    {mem,res} = peek_obj(mem) -- (not that we need mem anymore)
+    return res
+end function
+
+if "not"="yet" then
+--object x = {"Mario",-2.5571,"Jordah",3.01,#10000,{"x",1,{'c','y'}}}
+--object x = PI
+object x = "this"
+?x
+string s = serialise(x)
+atom mem = allocate(length(s))
+    poke(mem,s)
+    ? peek_object(mem)
+    free(mem)
+end if
+
+procedure main()
+sequence cl = command_line()
+atom hPipe
+string msg = "??"
+    if not find("-client",cl) then
+--  if 0 then
+        puts(1,"Server\n")
+--      atom dwOpenMode = or_all({FILE_FLAG_OVERLAPPED,PIPE_ACCESS_DUPLEX})
+if plat=WINDOWS then
+        atom dwOpenMode = or_all({PIPE_ACCESS_DUPLEX})
+        integer dwPipeMode = or_all({PIPE_TYPE_MESSAGE,PIPE_READMODE_MESSAGE,PIPE_WAIT})
+        hPipe = create_named_pipe(szPipename,dwOpenMode,dwPipeMode)
+end if
+--                                     PIPE_UNLIMITED_INSTANCES, 0, 0, 1000, NULL)
+
+        string cmd = iff(cl[1]!=cl[2]?sprintf("\"%s\" \"%s\" -client",cl)
+                                     :sprintf("\"%s\" -client",cl))
+        {} = system_exec(cmd,8)
+--DEV timeout? (apparently not)
+if plat=WINDOWS then
+        if connect_named_pipe(hPipe) then
+            atom pBuffer = allocate(1024)
+            atom pBytesRead = allocate(4)
+            if read_pipe(hPipe,pBuffer,1024,pBytesRead) then
+                integer bytesread = peek4s(pBytesRead)
+                msg = peek({pBuffer,bytesread})
+                free(pBuffer)
+                free(pBytesRead)
+                string reply = "default answer from server"
+--                            12345678901234567890123456 length=26
+                atom pBytesWritten = allocate(4)
+                bool res = write_pipe(hPipe,reply,pBytesWritten)
+                if not res or peek4s(pBytesWritten)!=length(reply) then ?9/0 end if
+                free(pBytesWritten)
+                if not c_func(xFlushFileBuffers,{hPipe}) then ?9/0 end if
+            end if
+            if not c_func(xDisconnectNamedPipe,{hPipe}) then ?9/0 end if
+        end if
+        if not c_func(xCloseHandle,{hPipe}) then ?9/0 end if
+end if
+--DEV 
+        ?msg
+--      atom hWnd = IupGetInt(dialog,"HWND")
+--      send_copydata_message(hWnd, msg) [DEAD]
+    else
+        puts(1,"Client\n")
+--      sleep(1)
+--      CallNamedPipeA(szPipename, &inbuf, sizeof(inbuf), &outbuf, sizeof(outbuf),
+--                   &dwBytesRead, NMPWAIT_WAIT_FOREVER);
+if plat=WINDOWS then
+        string reply = call_named_pipe(szPipename,"This is the client")
+--                                                 123456789012345678   -- length=18
+        ?reply
+end if
+    end if
+end procedure
+--if "not"="yet" then
+    main()
+    --end if
+    ?"done"
+    {} = wait_key()
+
+--/*
+Hi Antonio,
+I have been thinking about ipc, implemented as a (blocking) worker thread and how to communicate 
+with the main GUI thread when a message is recieved. I found the 2008/12 thread with IupAsync and
+had a look at how that was implemented... and then I started looking intently at WM_COPYDATA...
+which I managed to convince myself would be a pretty good windows-only solution... and then I
+started looking at the mentioned g_idle_add, and realised how non-thread-safe it would be to try
+and get to that via IupSetFunction (because of the iupTableRemove()/iupTableSetFunc()) and then
+finally I looked at iupdrvSetIdleFunction() in both iupgtkloop.c and iupwinloop.c
+
+It appears that the calls to iupdrvSetIdleFunction() are thread safe*. I can see that quite clearly 
+in iupwin_loop.c but I'm not at all familiar with g_idle_add etc as used in iupgtkloop.c (ditto
+XtRemoveWorkProc/XtAppAddWorkProc in iupmotloop.c), and judging from the way those xxx_idle_cb 
+are casually set to NULL in said files, would hazard table updates may not be necessary anyway?
+
+Lastly I realised that if you had to go via idle_cb on Linux, but WM_COPYDATA on Windows, then 
+best programming practice would be "invoke idle_cb from COPYDATA_CB", so why not go direct?
+
+After all that, it seems we just need to export iupdrvSetIdleFunction() as IupSetIdleFunction()?
+
+Three other quick points: I think it would be fair to say it is the programmer's responsibility 
+to put the message somwhere idle_cb can find it, thread-safely (and nothing to do with IUP). 
+It may also be the case that idle_cb exiting and nullifying xxx_idle_cb may overlap with another 
+thread setting it, and again it would be reasonable to require the programmer to start a timer 
+on exit from idle_cb to re-check things (once) say 0.5s later (also nothing to do with IUP).
+*By thread safe I meant as in two threads setting a static int. They may over-clobber such that
+a reader never gets to see both, but otherwise nothing catastrophic should happen. In this case
+I am thinking two threads simultaneously setting a static var with the same value anyway.
+[Update: a quick google suggests g_idle_add and XtAppAddWorkProc are indeed thread safe.]
+
+Pete
+
+Hi Antonio,
+I have been thinking about ipc, implemented as a (blocking) worker thread and how to communicate 
+with the main GUI thread when a message is recieved. I found the 2008/12 thread with IupAsync and
+had a look at how that was implemented... and then I started looking intently at WM_COPYDATA...
+
+It seems I can easily send a WM_COPYDATA with IUP_DATA and have the existing COPYDATA_CB check for
+IUP_IPC:<data> (because that's what I supply, and there is not much danger of that overlapping with
+your average command_line). Now, as far as ipc is concerned, I do not expect it to be part of IUP, 
+and given that I have to load kernel32/CreateNamedPipe (and presumably at some point clib/mkfifo) 
+etc, doing the same for SendMessage is no big deal - however I suspect that is not the case for a 
+more typical worker thread.
+
+In the 2008/12 thread there was mention of g_idle_add, which I see can/must be achieved with a 
+standard IupSetFunction("IDLE_ACTION",idle_cb) call, except I imagine that is not thread-safe,
+esp the iupTableRemove()/iupTableSetFunc() that it contains. However it appears that the calls 
+to iupdrvSetIdleFunction() are thread safe. I can see that quite clearly in iupwin_loop.c but
+I'm not at all familiar with g_idle_add etc as used in iupgtkloop.c, and judging from the way
+that gtk_idle_cb/win_idle_cb are casually set to NULL in said files, would hazard those table 
+updates may not be necessary anyway. 
+
+Do you think it would be possible to have an official routine which does a SendMessage/
+iupdrvSetIdleFunction() as appropriate for each platform? It might prove rather trivial?
+
+Some further remarks regarding Linux: I think it would be fair to say it is the programmer's 
+responsibility to get the message somwhere idle_cb can find it, thread-safely.
+It may also be the case that idle_cb exiting and nullifying gtk_idle_cb may overlap with
+another thread setting it, and again it would be reasonable to require the programmer to
+start a timer on exit from idle_cb to re-check things (once) say 0.5s later.
+Lastly one for Windows, in the form of advice to any would-be users: It would be better 
+programming practice for COPYDATA_CB to start the idle process or invoke idle_cb directly,
+and that way pick up the message from the same place that you would leave it for Linux.
+
+Pete
+
+DEAD:
+constant tSendMessage = """
+LRESULT WINAPI SendMessage(
+  _In_  HWND hWnd,
+  _In_  UINT Msg,
+  _In_  WPARAM wParam,
+  _In_  LPARAM lParam
+);"""
+constant xSendMessage = define_win_cffi_func("user32.dll",tSendMessage)
+
+constant WM_COPYDATA = 0x004A
+
+constant tCOPYDATASTRUCT = """
+typedef struct tagCOPYDATASTRUCT {
+  ULONG_PTR dwData;
+  DWORD     cbData;
+  PVOID     lpData;
+} COPYDATASTRUCT, *PCOPYDATASTRUCT;"""
+constant idCOPYDATASTRUCT = define_struct(tCOPYDATASTRUCT)
+
+function RawStringPtr(string s)     -- (copy of IupRawStringPtr from pGUI.e)
+--
+-- Returns a raw string pointer for s, somewhat like allocate_string(s), but using the existing memory.
+-- NOTE: The return is only valid as long as the value passed as the parameter remains in scope.
+--       In particular, callbacks must make a semi-permanent copy somewhere other than locals/temps.
+--
+atom res
+    #ilASM{
+        [32]
+            mov eax,[s]
+            lea edi,[res]
+            shl eax,2
+        [64]
+            mov rax,[s]
+            lea rdi,[res]
+            shl rax,2
+        []
+            call :%pStoreMint
+          }
+    return res
+end function
+
+--DEV the idea is for the COPYDATA_CB to spot say "IPC:" at the start of msg and act accordingly...
+procedure send_copydata_message(atom hWnd, string msg)
+atom pCDS = allocate_struct(idCOPYDATASTRUCT)
+    --DEV IPC_DATA... (call IPC_CB)
+    set_struct_field(idCOPYDATASTRUCT,pCDS,"dwData",RawStringPtr("IUP_DATA"))
+    set_struct_field(idCOPYDATASTRUCT,pCDS,"cbData",length(msg))
+    set_struct_field(idCOPYDATASTRUCT,pCDS,"lpData",RawStringPtr(msg))
+    {} = c_func(xSendMessage,{hWnd,WM_COPYDATA,NULL,pCDS})
+    free(pCDS)
+end procedure
+if "not"="yet" then
+    send_copydata_message(NULL, "")
+end if
+</DEAD>
+
+static void winGlobalFindFirstInstance(const char* name)
+{
+  HWND hWnd = winGlobalFindWindow(name);
+  if (hWnd)
+  {
+    int len;
+    LPTSTR cmdLine = GetCommandLine();
+
+    SetForegroundWindow(hWnd);
+
+    /* Command line is not empty. Send it to the first instance. */ 
+    len = lstrlen(cmdLine);
+    if (len != 0) 
+    {
+      COPYDATASTRUCT cds;
+      cds.dwData = (ULONG_PTR)"IUP_DATA";
+      cds.cbData = (len+1)*sizeof(TCHAR);
+      cds.lpData = cmdLine;
+      SendMessage(hWnd, WM_COPYDATA, 0, (LPARAM)&cds);
+    }
+  }
+}
+--*/
+--/*
+include arwen.ew
+
+constant cl = command_line(),
+         bServer = not find("-client",cl),
+--       szPipename = "\\\\.\\pipe\\mynamedpipe",
+         szPipename = `\\.\pipe\mynamedpipe`,
+         {mwidth,mheight} = {400,100},
+         main = create(Window,"",0,0,10,10,mwidth,mheight,0),
+         mainHwnd = getHwnd(main)
+
+function mainHandler(integer id, integer msg, atom wParam, object lParam)
+    if id or object(lParam) then end if
+--  if msg=WM_SIZE then
+--      if id=main then
+--          -- resize the toolbar control (dev ??)
+--          void = c_func(xMoveWindow, {mainHwnd, 0, 0, lParam[3], mheight, 1})
+--      end if
+--  end if
+    if msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(main)
+    end if
+    return 0
+end function
+setHandler(main,routine_id("mainHandler"))
+
+procedure Main()
+    if bServer then
+        setText(main,"Server")
+        --DEV in IdleHandler?
+        if cl[1]!=cl[2] then    -- (if compiled, you have to create a client by hand)
+--          system(sprintf("\"%s\" \"%s\" -client",cl),2)
+            {} = system_exec(sprintf("\"%s\" \"%s\" -client",cl),8)
+        end if
+    else
+        setText(main,"Client")
+        void = c_func(xMoveWindow, {mainHwnd, 110, 110, mwidth, mheight, 1})
+    end if
+    WinMain(main, SW_NORMAL)
+end procedure
+Main()
+--*/
+
+--/*
+if pipe does not exist, create it and spawn a second copy of this program
+void __fastcall TfrmMainBar::ConnectToDatabase()
+{
+char    inbuf[512];
+wchar_t outbuf[512];
+bool    ret;
+LPSTR   lpszPipeName = "\\\\.\\pipe\\AHFSUserCommand";
+DWORD   dwBytesRead;
+AnsiString szConn;
+
+  //
+  // the connection string is obtained from C:\Utilities\ODBC\DBConnection.txt
+  //
+//  if (this->blLog) { this->LogFile("ConnectToDatabase enter"); }
+  strcpy(inbuf,"DBConnection:");
+  CallNamedPipeA(lpszPipeName, &inbuf, sizeof(inbuf), &outbuf, sizeof(outbuf),
+                 &dwBytesRead, NMPWAIT_WAIT_FOREVER);
+  WideCharToMultiByte(CP_ACP, 0, outbuf, -1, inbuf, 512, NULL, NULL);
+
+  szConn = AnsiString(inbuf);
+
+  if (szConn.Length()==0)
+  {
+    MessageBox(NULL,"DBConnection connection string error","Error",MB_OK);
+    // (check that C:\Utilities\ODBC\DBConnection.txt exists; it should only
+    //  have Admin access rights. Also check AHFService.exe >= 13/6/11)
+  }
+  else
+  {
+    this->pSQL=new SQLUpdater(szConn, this);
+  }
+//  if (this->blLog) { this->LogFile("ConnectToDatabase exit"); }
+}
+//---------------------------------------------------------------------------
+void __fastcall TfrmClientManager::LoadClientData()
+{
+const int BUFLEN = 512;
+
+char    inbuf[BUFLEN];
+wchar_t outbuf[BUFLEN];
+LPSTR   lpszPipeName = "\\\\.\\pipe\\AHFSUserCommand";
+DWORD   dwBytesRead;
+AnsiString szSQL;
+
+  //
+  // the connection string is obtained from C:\Utilities\ODBC\DBConnection.txt
+  //
+  strcpy(inbuf,"DBConnection:");  // (not LookupDB, as we are to update it)
+  CallNamedPipeA(lpszPipeName, &inbuf, sizeof(inbuf), &outbuf, sizeof(outbuf),
+                 &dwBytesRead, NMPWAIT_WAIT_FOREVER);
+  WideCharToMultiByte(CP_ACP, 0, outbuf, -1, inbuf, BUFLEN, NULL, NULL);
+
+  AnsiString szConn = AnsiString(inbuf);
+
+  if ( (szConn.Length()==0) ||
+       (szConn.AnsiCompareIC(AnsiString("UNRECOGNISED TAG"))==0) )
+  {
+    MessageBox(NULL,szConn.c_str(),"DBConnection string error",MB_OK);
+    // (check that C:\Utilities\ODBC\DBConnection.txt exists; it should only
+    //  have Admin access rights. Also check AHFService.exe >= 13/6/11)
+    throw "LoadClientData: DBConnection string error";
+  }
+
+    this->szInfoPipeName = AnsiString("\\\\.\\pipe\\AppHandler-");
+    this->szInfoPipeName += AnsiString(dwSessionId);
+
+    for(nLoop=0; nLoop<AHPM_NUM_INFO_THREADS; nLoop++)
+    {
+      this->hInfoThreads[nLoop] = CreateThread(NULL, 0, AHPMInfoThread, this, 0, &dwThreadId);
+    }
+
+DWORD WINAPI AHPMInfoThread(void *lParam)
+{
+ProcessManager *pPM = static_cast <ProcessManager *>(lParam);
+
+  return pPM->InfoThread();
+}
+
+
+DWORD WINAPI ProcessManager::InfoThread(void)
+{
+DWORD         dwRc = 0;
+BOOL          blRet;
+HANDLE        hEvents[2] = {NULL, NULL};
+HANDLE        hPipe;
+OVERLAPPED    os;
+DWORD         dwReadSize;
+DWORD         dwWriteSize;
+DWORD         cbRead;
+DWORD         cbWritten;
+DWORD         dwWait;
+char          *pInput = NULL;
+char          *pOutput = NULL;
+char          *pArgs;
+char          baAction[32];
+DWORD         dwProcessId;
+RegisteredApplication *pRegApp = NULL;
+
+  hEvents[0] = this->hTerminationEvent;
+  hEvents[1] = CreateEvent(NULL, TRUE, FALSE, NULL);
+  if(hEvents[1])
+  {
+    hPipe = CreateNamedPipe(this->szInfoPipeName.c_str(),
+                            FILE_FLAG_OVERLAPPED|PIPE_ACCESS_DUPLEX,
+                       PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+                            PIPE_UNLIMITED_INSTANCES, 0, 0, 1000, NULL);
+
+    if(hPipe!=INVALID_HANDLE_VALUE)
+    {
+      while (1)
+      {
+        memset(&os, 0, sizeof(OVERLAPPED));
+        os.hEvent = hEvents[1];
+        ResetEvent( hEvents[1] );
+
+        // wait for a connection...
+        ConnectNamedPipe(hPipe, &os);
+
+        if (GetLastError()==ERROR_IO_PENDING)
+        {
+          dwWait = WaitForMultipleObjects(2, hEvents, FALSE, INFINITE);
+          if (dwWait!=WAIT_OBJECT_0+1) // not overlapped i/o event - error occurred,
+          {
+            break;                     // or server stop signaled
+          }
+        }
+
+//this->LogFile("InfoThread begin");
+        // init the overlapped structure
+        memset(&os, 0, sizeof(OVERLAPPED));
+        os.hEvent = hEvents[1];
+        ResetEvent( hEvents[1] );
+
+        // grab whatever's coming through the pipe...
+        dwReadSize = 0;
+        pInput = NULL;
+        blRet = ReadFile(hPipe,          // file to read from
+                         NULL,           // address of input buffer
+                         0,              // number of bytes to read
+                         &cbRead,        // number of bytes read
+                         &os);           // overlapped stuff, not needed
+
+        if ( (blRet==false) && (GetLastError()==ERROR_IO_PENDING) )
+        {
+          dwWait = WaitForMultipleObjects(2, hEvents, FALSE, INFINITE);
+          if (dwWait!=WAIT_OBJECT_0+1) // not overlapped i/o event - error occurred,
+          {
+            break;                     // or server stop signaled
+          }
+        }
+
+        blRet = PeekNamedPipe(hPipe, NULL, 0, NULL, &dwReadSize, &cbRead);
+        pInput = (char *)calloc(dwReadSize, 1);
+        if (pInput)
+        {
+          blRet = ReadFile(hPipe, pInput, dwReadSize, &cbRead, &os);
+          if (blRet)
+          {
+            strncpy(baAction, pInput, 31);
+            pArgs = strchr(pInput, 0x00);
+            if (pArgs) { pArgs++; }
+            if (sscanf(pArgs, "%u", &dwProcessId)==1)
+            {
+              pRegApp = this->FindRegAppFromProcId(dwProcessId);
+              pArgs = strchr(pArgs, 0x00);
+              if (pArgs) { pArgs++; }
+              if (pRegApp)
+              {
+                if (strcmp(baAction, "GetMergedEnvironment")==0)
+                {
+                  pOutput = pRegApp->GetMergedEnvironment(pArgs);
+                  dwWriteSize = 0;
+                  if (pOutput)
+                  {
+                    pArgs = pOutput;
+                    while ((*pArgs)!=0x00)
+                    {
+                      pArgs = strchr(pArgs, 0x00);
+                      pArgs++;
+                    }
+                    dwWriteSize = ((DWORD)(pArgs)-(DWORD)(pOutput))+1;
+                  }
+                  else
+                  {
+//                    MessageBox(NULL, "Could not GetMergedEnvironment for Registered Application", "ERROR", MB_OK);
+                  }
+                }
+              }
+              else
+              {
+//                MessageBox(NULL, "Could not Find RegisteredApp from ProcessId", "ERROR", MB_OK);
+              }
+            }
+            else
+            {
+//              MessageBox(NULL, "Could not Get Action and ProcessId from Pipe Read", "ERROR", MB_OK);
+            }
+          }
+          if (pOutput==NULL)
+          {
+            pOutput = pInput;
+            dwWriteSize = 0;
+          }
+          memset(&os, 0, sizeof(OVERLAPPED));
+          os.hEvent = hEvents[1];
+          ResetEvent( hEvents[1] );
+
+          // send it back out...
+          blRet = WriteFile(hPipe,            // file to write to
+                            pOutput,          // address of output buffer
+                            dwWriteSize,      // number of bytes to write
+                            &cbWritten,       // number of bytes written
+                            &os);             // overlapped stuff, not needed
+
+          if ( (blRet==false) && (GetLastError()==ERROR_IO_PENDING) )
+          {
+            dwWait = WaitForMultipleObjects(2, hEvents, FALSE, INFINITE);
+            if (dwWait!=WAIT_OBJECT_0+1) // not overlapped i/o event - error occurred,
+            {
+              break;                     // or server stop signaled
+            }
+          }
+          if (pOutput!=pInput)
+          {
+            if (pRegApp!=NULL)
+            {
+              pRegApp->FreeMergedEnvironment(pOutput);
+            }
+            else
+            {
+              LocalFree(pOutput);
+            }
+          }
+          pOutput = NULL;
+          free(pInput);
+          pInput = NULL;
+        }
+        DisconnectNamedPipe(hPipe);
+//this->LogFile("InfoThread end");
+      } // loop for another client
+      CloseHandle(hPipe);
+    }
+    CloseHandle(hEvents[1]);
+  }
+  return(dwRc);
+}
+
+void __fastcall itio_UserData::LoadUserData(TForm *pForm)
+{
+const int BUFLEN = 512;
+
+char    inbuf[BUFLEN];
+wchar_t outbuf[BUFLEN];
+LPSTR   lpszPipeName = "\\\\.\\pipe\\AHFSUserCommand";
+DWORD   dwBytesRead;
+AnsiString szSQL;
+
+  //
+  // the connection string is obtained from C:\Utilities\ODBC\LookupDB.txt
+  //
+  strcpy(inbuf,"LookupDB:"); // (use the read-only copy)
+  CallNamedPipeA(lpszPipeName, &inbuf, sizeof(inbuf), &outbuf, sizeof(outbuf),
+                 &dwBytesRead, NMPWAIT_WAIT_FOREVER);
+  WideCharToMultiByte(CP_ACP, 0, outbuf, -1, inbuf, BUFLEN, NULL, NULL);
+
+  AnsiString szConn = AnsiString(inbuf);
+
+
+      szMsg.sprintf(pFmt,this->nVersion);
+      szPipeName.sprintf("\\\\.\\pipe\\AppHandler-%d",dwSessionId);
+      blRes = CallNamedPipeA(szPipeName.c_str(), szMsg.c_str(), szMsg.Length(),
+                  &outbuf, sizeof(outbuf), &dwBytesRead, NMPWAIT_WAIT_FOREVER);
+      if (blRes==false)
+
+DWORD __fastcall itio_Loader::LoadUserData()
+{
+const int BUFLEN = 512;
+
+char    inbuf[BUFLEN];
+wchar_t outbuf[BUFLEN];
+LPSTR   lpszPipeName = "\\\\.\\pipe\\AHFSUserCommand";
+DWORD   dwBytesRead;
+UnicodeString szSQL;
+
+  EnterCriticalSection(&this->csUserThread);
+  //
+  // the connection string is obtained from C:\Utilities\ODBC\LookupDB.txt
+  //
+  strcpy(inbuf,"DBConnection:");  // (not LookupDB, as we are to update it)
+  CallNamedPipeA(lpszPipeName, &inbuf, sizeof(inbuf), &outbuf, sizeof(outbuf),
+                 &dwBytesRead, NMPWAIT_WAIT_FOREVER);
+  UnicodeString szConn = UnicodeString(outbuf);
+--*/
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--/*
+
+#include <windows.h> 
+#include <stdio.h> 
+#include <tchar.h>
+#include <strsafe.h>
+
+#define BUFSIZE 512
+ 
+DWORD WINAPI InstanceThread(LPVOID); 
+VOID GetAnswerToRequest(LPTSTR, LPTSTR, LPDWORD); 
+ 
+int _tmain(VOID) 
+{ 
+   BOOL   fConnected = FALSE; 
+   DWORD  dwThreadId = 0; 
+   HANDLE hPipe = INVALID_HANDLE_VALUE, hThread = NULL; 
+   LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
+ 
+// The main loop creates an instance of the named pipe and 
+// then waits for a client to connect to it. When the client 
+// connects, a thread is created to handle communications 
+// with that client, and this loop is free to wait for the
+// next client connect request. It is an infinite loop.
+ 
+   for (;;) 
+   { 
+      _tprintf( TEXT("\nPipe Server: Main thread awaiting client connection on %s\n"), lpszPipename);
+      hPipe = CreateNamedPipe( 
+          lpszPipename,             // pipe name 
+          PIPE_ACCESS_DUPLEX,       // read/write access 
+          PIPE_TYPE_MESSAGE |       // message type pipe 
+          PIPE_READMODE_MESSAGE |   // message-read mode 
+          PIPE_WAIT,                // blocking mode 
+          PIPE_UNLIMITED_INSTANCES, // max. instances  
+          BUFSIZE,                  // output buffer size 
+          BUFSIZE,                  // input buffer size 
+          0,                        // client time-out 
+          NULL);                    // default security attribute 
+
+      if (hPipe == INVALID_HANDLE_VALUE) 
+      {
+          _tprintf(TEXT("CreateNamedPipe failed, GLE=%d.\n"), GetLastError()); 
+          return -1;
+      }
+ 
+      // Wait for the client to connect; if it succeeds, 
+      // the function returns a nonzero value. If the function
+      // returns zero, GetLastError returns ERROR_PIPE_CONNECTED. 
+ 
+      fConnected = ConnectNamedPipe(hPipe, NULL) ? 
+         TRUE : (GetLastError() == ERROR_PIPE_CONNECTED); 
+ 
+      if (fConnected) 
+      { 
+         printf("Client connected, creating a processing thread.\n"); 
+      
+         // Create a thread for this client. 
+         hThread = CreateThread( 
+            NULL,              // no security attribute 
+            0,                 // default stack size 
+            InstanceThread,    // thread proc
+            (LPVOID) hPipe,    // thread parameter 
+            0,                 // not suspended 
+            &dwThreadId);      // returns thread ID 
+
+         if (hThread == NULL) 
+         {
+            _tprintf(TEXT("CreateThread failed, GLE=%d.\n"), GetLastError()); 
+            return -1;
+         }
+         else CloseHandle(hThread); 
+       } 
+      else 
+        // The client could not connect, so close the pipe. 
+         CloseHandle(hPipe); 
+   } 
+
+   return 0; 
+} 
+ 
+DWORD WINAPI InstanceThread(LPVOID lpvParam)
+// This routine is a thread processing function to read from and reply to a client
+// via the open pipe connection passed from the main loop. Note this allows
+// the main loop to continue executing, potentially creating more threads of
+// of this procedure to run concurrently, depending on the number of incoming
+// client connections.
+{ 
+   HANDLE hHeap      = GetProcessHeap();
+   TCHAR* pchRequest = (TCHAR*)HeapAlloc(hHeap, 0, BUFSIZE*sizeof(TCHAR));
+   TCHAR* pchReply   = (TCHAR*)HeapAlloc(hHeap, 0, BUFSIZE*sizeof(TCHAR));
+
+   DWORD cbBytesRead = 0, cbReplyBytes = 0, cbWritten = 0; 
+   BOOL fSuccess = FALSE;
+   HANDLE hPipe  = NULL;
+
+   // Do some extra error checking since the app will keep running even if this
+   // thread fails.
+
+   if (lpvParam == NULL)
+   {
+       printf( "\nERROR - Pipe Server Failure:\n");
+       printf( "   InstanceThread got an unexpected NULL value in lpvParam.\n");
+       printf( "   InstanceThread exitting.\n");
+       if (pchReply != NULL) HeapFree(hHeap, 0, pchReply);
+       if (pchRequest != NULL) HeapFree(hHeap, 0, pchRequest);
+       return (DWORD)-1;
+   }
+
+   if (pchRequest == NULL)
+   {
+       printf( "\nERROR - Pipe Server Failure:\n");
+       printf( "   InstanceThread got an unexpected NULL heap allocation.\n");
+       printf( "   InstanceThread exitting.\n");
+       if (pchReply != NULL) HeapFree(hHeap, 0, pchReply);
+       return (DWORD)-1;
+   }
+
+   if (pchReply == NULL)
+   {
+       printf( "\nERROR - Pipe Server Failure:\n");
+       printf( "   InstanceThread got an unexpected NULL heap allocation.\n");
+       printf( "   InstanceThread exitting.\n");
+       if (pchRequest != NULL) HeapFree(hHeap, 0, pchRequest);
+       return (DWORD)-1;
+   }
+
+   // Print verbose messages. In production code, this should be for debugging only.
+   printf("InstanceThread created, receiving and processing messages.\n");
+
+// The thread's parameter is a handle to a pipe object instance. 
+ 
+   hPipe = (HANDLE) lpvParam; 
+
+// Loop until done reading
+   while (1) 
+   { 
+   // Read client requests from the pipe. This simplistic code only allows messages
+   // up to BUFSIZE characters in length.
+      fSuccess = ReadFile( 
+         hPipe,        // handle to pipe 
+         pchRequest,    // buffer to receive data 
+         BUFSIZE*sizeof(TCHAR), // size of buffer 
+         &cbBytesRead, // number of bytes read 
+         NULL);        // not overlapped I/O 
+
+      if (!fSuccess || cbBytesRead == 0)
+      {   
+          if (GetLastError() == ERROR_BROKEN_PIPE)
+          {
+              _tprintf(TEXT("InstanceThread: client disconnected.\n"), GetLastError()); 
+          }
+          else
+          {
+              _tprintf(TEXT("InstanceThread ReadFile failed, GLE=%d.\n"), GetLastError()); 
+          }
+          break;
+      }
+
+   // Process the incoming message.
+      GetAnswerToRequest(pchRequest, pchReply, &cbReplyBytes); 
+ 
+   // Write the reply to the pipe. 
+      fSuccess = WriteFile( 
+         hPipe,        // handle to pipe 
+         pchReply,     // buffer to write from 
+         cbReplyBytes, // number of bytes to write 
+         &cbWritten,   // number of bytes written 
+         NULL);        // not overlapped I/O 
+
+      if (!fSuccess || cbReplyBytes != cbWritten)
+      {   
+          _tprintf(TEXT("InstanceThread WriteFile failed, GLE=%d.\n"), GetLastError()); 
+          break;
+      }
+  }
+
+// Flush the pipe to allow the client to read the pipe's contents 
+// before disconnecting. Then disconnect the pipe, and close the 
+// handle to this pipe instance. 
+ 
+   FlushFileBuffers(hPipe); 
+   DisconnectNamedPipe(hPipe); 
+   CloseHandle(hPipe); 
+
+   HeapFree(hHeap, 0, pchRequest);
+   HeapFree(hHeap, 0, pchReply);
+
+   printf("InstanceThread exitting.\n");
+   return 1;
+}
+
+VOID GetAnswerToRequest( LPTSTR pchRequest, 
+                         LPTSTR pchReply, 
+                         LPDWORD pchBytes )
+// This routine is a simple function to print the client request to the console
+// and populate the reply buffer with a default data string. This is where you
+// would put the actual client request processing code that runs in the context
+// of an instance thread. Keep in mind the main thread will continue to wait for
+// and receive other client connections while the instance thread is working.
+{
+    _tprintf( TEXT("Client Request String:\"%s\"\n"), pchRequest );
+
+    // Check the outgoing message to make sure it's not too long for the buffer.
+    if (FAILED(StringCchCopy( pchReply, BUFSIZE, TEXT("default answer from server") )))
+    {
+        *pchBytes = 0;
+        pchReply[0] = 0;
+        printf("StringCchCopy failed, no outgoing message.\n");
+        return;
+    }
+    *pchBytes = (lstrlen(pchReply)+1)*sizeof(TCHAR);
+}
+
+--*/
+
+--/*
+#include <windows.h> 
+#include <stdio.h>
+#include <conio.h>
+#include <tchar.h>
+
+#define BUFSIZE 512
+ 
+int _tmain(int argc, TCHAR *argv[]) 
+{ 
+   HANDLE hPipe; 
+   LPTSTR lpvMessage=TEXT("Default message from client."); 
+   TCHAR  chBuf[BUFSIZE]; 
+   BOOL   fSuccess = FALSE; 
+   DWORD  cbRead, cbToWrite, cbWritten, dwMode; 
+   LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
+
+   if( argc > 1 )
+      lpvMessage = argv[1];
+ 
+// Try to open a named pipe; wait for it, if necessary. 
+ 
+   while (1) 
+   { 
+      hPipe = CreateFile( 
+         lpszPipename,   // pipe name 
+         GENERIC_READ |  // read and write access 
+         GENERIC_WRITE, 
+         0,              // no sharing 
+         NULL,           // default security attributes
+         OPEN_EXISTING,  // opens existing pipe 
+         0,              // default attributes 
+         NULL);          // no template file 
+ 
+   // Break if the pipe handle is valid. 
+ 
+      if (hPipe != INVALID_HANDLE_VALUE) 
+         break; 
+ 
+      // Exit if an error other than ERROR_PIPE_BUSY occurs. 
+ 
+      if (GetLastError() != ERROR_PIPE_BUSY) 
+      {
+         _tprintf( TEXT("Could not open pipe. GLE=%d\n"), GetLastError() ); 
+         return -1;
+      }
+ 
+      // All pipe instances are busy, so wait for 20 seconds. 
+ 
+      if ( ! WaitNamedPipe(lpszPipename, 20000)) 
+      { 
+         printf("Could not open pipe: 20 second wait timed out."); 
+         return -1;
+      } 
+   } 
+ 
+// The pipe connected; change to message-read mode. 
+ 
+   dwMode = PIPE_READMODE_MESSAGE; 
+   fSuccess = SetNamedPipeHandleState( 
+      hPipe,    // pipe handle 
+      &dwMode,  // new pipe mode 
+      NULL,     // don't set maximum bytes 
+      NULL);    // don't set maximum time 
+   if ( ! fSuccess) 
+   {
+      _tprintf( TEXT("SetNamedPipeHandleState failed. GLE=%d\n"), GetLastError() ); 
+      return -1;
+   }
+ 
+// Send a message to the pipe server. 
+ 
+   cbToWrite = (lstrlen(lpvMessage)+1)*sizeof(TCHAR);
+   _tprintf( TEXT("Sending %d byte message: \"%s\"\n"), cbToWrite, lpvMessage); 
+
+   fSuccess = WriteFile( 
+      hPipe,                  // pipe handle 
+      lpvMessage,             // message 
+      cbToWrite,              // message length 
+      &cbWritten,             // bytes written 
+      NULL);                  // not overlapped 
+
+   if ( ! fSuccess) 
+   {
+      _tprintf( TEXT("WriteFile to pipe failed. GLE=%d\n"), GetLastError() ); 
+      return -1;
+   }
+
+   printf("\nMessage sent to server, receiving reply as follows:\n");
+ 
+   do 
+   { 
+   // Read from the pipe. 
+ 
+      fSuccess = ReadFile( 
+         hPipe,    // pipe handle 
+         chBuf,    // buffer to receive reply 
+         BUFSIZE*sizeof(TCHAR),  // size of buffer 
+         &cbRead,  // number of bytes read 
+         NULL);    // not overlapped 
+ 
+      if ( ! fSuccess && GetLastError() != ERROR_MORE_DATA )
+         break; 
+ 
+      _tprintf( TEXT("\"%s\"\n"), chBuf ); 
+   } while ( ! fSuccess);  // repeat loop if ERROR_MORE_DATA 
+
+   if ( ! fSuccess)
+   {
+      _tprintf( TEXT("ReadFile from pipe failed. GLE=%d\n"), GetLastError() );
+      return -1;
+   }
+
+   printf("\n<End of message, press ENTER to terminate connection and exit>");
+   _getch();
+ 
+   CloseHandle(hPipe); 
+ 
+   return 0; 
+}
+
+--*/

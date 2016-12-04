@@ -8,12 +8,22 @@
 --  Mind you, the "Memory Use At The Lowest Level" stuff is probably worthwhile skimming,
 --  but even I do not trouble myself to remember the precise details of all of it.
 --
+--DEV/SUG:
+--  Running an strace on ./phix demo/pGUI/gears.exw creates a report with 140,000 getpid() in it.
+--  That is almost certainly from pThread.e/pGetThread; it is probably worth making pStack.e save
+--  it in vsb_root+nn (and duplicate it when a new vsb is created), at least temporarily, and in
+--  fact no reason not to do the same for kernel32/GetCurrentThreadId calls, and then pGetThread
+--  could be inlined/removed (taking the opportunity to alleviate any AGI stalls).
+--  There are really only 4 places it is called (6 if you account for 32/64 bit), and while
+--  you're at it, you could also (on Windows) try the mov eax,fs:[0x24] thing.
+--
 -- Technical note
 -- ==============
 --  Low-level errors in this code are almost always extremely serious and mapping them
 --  to some hll source code line is not typically very helpful. For instance a heap
 --  corruption is quite likely to be detected on some subsequent and entirely innocent
 --  statement, and pointing the programmer at that will often hinder rather than help.
+--  [update: as this matures, it seems that showing both might be increasingly useful]
 --  These routines are written in a "fast fail" style.
 --
 --
@@ -930,13 +940,14 @@ end procedure
             --  but ebx/esi/edi/ebp are preserved. No floating point registers are preserved.
 --DEV this lot needs replacing: calls to libiup.so routines completely obliterate memory allocated as below,
 --      apparently sys_brk is "old hat" and "mmap with anon mapping" would be better.
---      See http://man7.org/linux/man-pages/man2/mmap.2.html and builtins\syswait.ew for some examples of [ELF32/64]
---      inline assembler calling libc funcs directly.
+--      See http://man7.org/linux/man-pages/man2/mmap.2.html 
+--      Also, builtins\syswait.ew has examples of [ELF32/64] inline assembler calling libc funcs directly (call "libc.so.6","fork"),
+--      and builtins\pcfunc.e has a few from libdl (call "libdl.so.2", "dlopen").
 --      [plain old malloc is also an option, but I read it (sometimes) uses mmap internally anyway, and it does not have the protection
 --       flags that might prove useful, then again it does have mcheck/mprobe... It has also occurred to me that the problem might be 
 --       that libiup.so uses malloc/mmap and whichever it uses assumes it does all the sys_brks, so that may force our hand.]
 
---!/*
+--/*
             push eax            -- save size
             -- call sys_brk(0) to find the current location of the program break
             xor ebx,ebx
@@ -961,7 +972,7 @@ end procedure
             -- return previous program break (or 0)
             mov eax,ecx
             add esp,4           -- discard size
---!*/
+--*/
 
 --void *mmap(void *addr(NULL), size_t length, int prot, int flags, int fd, off_t offset);
 -- PROT_EXEC=4 | PROT_READ=1 | PROT_WRITE=2; 7=RWX
@@ -979,6 +990,11 @@ end procedure
             call "libc.so.6","mmap"
             add esp,24
 --*/
+--void * malloc (size_t size)
+            push eax
+            call "libc.so.6","malloc"
+            add esp,4
+
         [ELF64]
             -- standard (kernel) calling convention applies: 
             -- syscall number in rax (see docs\lsct64.txt)
@@ -987,7 +1003,7 @@ end procedure
             -- rbx/rbp/r12/r13/r14/r15 are preserved
             -- In the case of C library calls (eg call "libc.so.6","printf"), rax/rcx/rdx/rsi/rdi/r8..r11 
             --  are damaged, but rbx/rbp/r12..r15 are preserved. No floating point registers are preserved.
---!/*
+--/*
             push rax                -- save length
 --          mov r14,rax             -- save length
             -- call sys_brk(0) to find the current location of the program break
@@ -1008,7 +1024,7 @@ end procedure
 --  Function parameter                              4th     3rd     2nd     1st                     5th     6th                                                     N/A
 --  Return register                 1st                     2nd                                                                                                     N/A
 --  Kernel parameter                #NR                     3rd     2nd     1st                     5th     6th     4th                                             N/A
---!*/
+--*/
 --/*
             push 0                  -- offset (ignored)
             push -1                 -- fd (ignored)
@@ -1019,6 +1035,11 @@ end procedure
             call "libc.so.6","mmap"
             add rsp,48
 --*/
+--void * malloc (size_t size)
+--untried:
+            push rax
+            call "libc.so.6","malloc"
+            add rsp,8
         []
             ret
 
@@ -1643,7 +1664,10 @@ end procedure -- (for Edita/CtrlQ)
             mov esi,eax
             lea ecx,[ebx+edi*4+240]     -- csLock
             cmp dword[ebx+edi*4+236],#00424343  -- dwMagicC ("CCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je @f
+                int3
+          @@:
 -->         cmp dword[ebx+edi*4+264],#00424345  -- dwMagicE ("ECB\0")
             cmp dword[ebx+edi*4+272],#00424345  -- dwMagicE ("ECB\0")
             jne :notECB
@@ -1689,9 +1713,15 @@ end procedure -- (for Edita/CtrlQ)
             mov rsi,rax
             lea rcx,[rbx+rdi*4+968]     -- csLock
             cmp dword[rbx+rdi*4+960],#00424342  -- dwMagicB ("BCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je @f
+                int3
+          @@:
             cmp dword[rbx+rdi*4+964],#00424343  -- dwMagicC ("CCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je @f
+                int3
+          @@:
 -->         cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
             cmp dword[rcx+56],#00424345         -- dwMagicE ("ECB\0")
             jne :notECB
@@ -2125,9 +2155,9 @@ end procedure -- (for Edita/CtrlQ)
             jmp :!iDiag
             int3
         nop
-      ::notCCB
-        int3
-        nop
+--    ::notCCB
+--      int3
+--      nop
       ::notECB
         int3
         nop
@@ -2227,7 +2257,10 @@ sub edx,1
             shl ecx,2
             add ecx,240     -- csLock
             cmp dword[ecx-4],#00424343      -- dwMagicC ("CCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je :CCBok
+                int3
+          ::CCBok
 -->         cmp dword[ecx+24],#00424345     -- dwMagicE ("ECB\0")
             cmp dword[ecx+32],#00424345     -- dwMagicE ("ECB\0")
             jne :notECB
@@ -2237,9 +2270,15 @@ sub edx,1
             shl rcx,2
             add rcx,968     -- csLock
             cmp dword[rcx-8],#00424342      -- dwMagicB ("BCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je :CCBok
+                int3
+          ::CCBok
             cmp dword[rcx-4],#00424343      -- dwMagicC ("CCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je :CCBok2
+                int3
+          ::CCBok2
 -->         cmp dword[rcx+40],#00424345     -- dwMagicE ("ECB\0")
             cmp dword[rcx+56],#00424345     -- dwMagicE ("ECB\0")
             jne :notECB
@@ -2439,7 +2478,10 @@ sub edx,1
             push ebx        -- [5] temp result
             lea ecx,[ebx+esi*4+240]             -- pGtcb.csLock
             cmp dword[ebx+esi*4+236],#00424343  -- dwMagicC ("CCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je @f
+                int3
+          @@:
 -->         cmp dword[ecx+24],#00424345         -- dwMagicE ("ECB\0")
             cmp dword[ecx+32],#00424345         -- dwMagicE ("ECB\0")
             jne :notECB
@@ -2453,9 +2495,15 @@ sub edx,1
             mov [rsp],rbx       -- temp result
             lea rcx,[rbx+rsi*4+968]     -- pGtcb.csLock
             cmp dword[rbx+rsi*4+960],#00424342  -- dwMagicB ("BCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je @f
+                int3
+          @@:
             cmp dword[rbx+rsi*4+964],#00424343  -- dwMagicC ("CCB\0")
-            jne :notCCB
+--          jne :notCCB
+            je @f
+                int3
+          @@:
 -->         cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
             cmp dword[rcx+56],#00424345         -- dwMagicE ("ECB\0")
             jne :notECB
@@ -2579,7 +2627,10 @@ sub edx,1
         add eax,20                  -- sizeof(Superblock Header)
         lea ecx,[ebx+esi*4+240]     -- pTCB.csLock
         cmp dword[ebx+esi*4+236],#00424343  -- dwMagicC ("CCB\0")
-        jne :notCCB
+--      jne :notCCB
+        je @f
+            int3
+      @@:
 -->     cmp dword[ecx+24],#00424345         -- dwMagicE ("ECB\0")
         cmp dword[ecx+32],#00424345         -- dwMagicE ("ECB\0")
         jne :notECB
@@ -2596,9 +2647,15 @@ sub edx,1
 --      add rax,32                  -- sizeof(Superblock Header)
         lea rcx,[rbx+rsi*4+968]     -- pTCB.csLock
         cmp dword[rbx+rsi*4+960],#00424342  -- dwMagicB ("BCB\0")
-        jne :notCCB
+--      jne :notCCB
+        je @f
+            int3
+      @@:
         cmp dword[rbx+rsi*4+964],#00424343  -- dwMagicC ("CCB\0")
-        jne :notCCB
+--      jne :notCCB
+        je @f
+            int3
+      @@:
 -->     cmp dword[rcx+40],#00424345         -- dwMagicE ("ECB\0")
         cmp dword[rcx+56],#00424345         -- dwMagicE ("ECB\0")
         jne :notECB
@@ -2706,7 +2763,10 @@ end procedure -- (for Edita/CtrlQ)
             int3
       @@:
         cmp dword[ecx-4],#00424343      -- dwMagicC ("CCB\0")
-        jne :notCCB
+--      jne :notCCB
+        je @f
+            int3
+      @@:
 -->     cmp dword[ecx+24],#00424345     -- dwMagicE ("ECB\0")
         cmp dword[ecx+32],#00424345     -- dwMagicE ("ECB\0")
         jne :notECB
@@ -2730,9 +2790,15 @@ end procedure -- (for Edita/CtrlQ)
             int3
       @@:
         cmp dword[rcx-8],#00424342      -- dwMagicB ("BCB\0")
-        jne :notCCB
+--      jne :notCCB
+        je @f
+            int3
+      @@:
         cmp dword[rcx-4],#00424343      -- dwMagicC ("CCB\0")
-        jne :notCCB
+--      jne :notCCB
+        je @f
+            int3
+      @@:
 -->     cmp dword[rcx+40],#00424345     -- dwMagicE ("ECB\0")
         cmp dword[rcx+56],#00424345     -- dwMagicE ("ECB\0")
         jne :notECB
@@ -3177,7 +3243,10 @@ pop ecx
         lea esi,[ebx+edx*4+128]     -- locate pNofl (before edx gets damaged!)
         lea ecx,[ebx+edx*4+240]     -- csLock
         cmp dword[ebx+edx*4+236],#00424343  -- dwMagicC ("CCB\0")
-        jne :notCCB
+--      jne :notCCB
+        je @f
+            int3
+      @@:
 -->     cmp dword[ecx+24],#00424345 -- dwMagicE ("ECB\0")
         cmp dword[ecx+32],#00424345 -- dwMagicE ("ECB\0")
         jne :notECB
@@ -3191,10 +3260,18 @@ pop ecx
       @@:
         lea rsi,[rbx+rdx*4+496]     -- locate pNofl (before rdx gets damaged!)
         lea rcx,[rbx+rdx*4+968]     -- csLock
-        cmp dword[rbx+rdx*4-960],#00424342  -- dwMagicB ("BCB\0")
-        jne :notCCB
+--23/11/16!
+--      cmp dword[rbx+rdx*4-960],#00424342  -- dwMagicB ("BCB\0")
+        cmp dword[rbx+rdx*4+960],#00424342  -- dwMagicB ("BCB\0")
+--      jne :notCCB
+        je @f
+            int3
+      @@:
         cmp dword[rcx-4],#00424343  -- dwMagicC ("CCB\0")
-        jne :notCCB
+--      jne :notCCB
+        je @f
+            int3
+      @@:
 -->     cmp dword[rcx+40],#00424345 -- dwMagicE ("ECB\0")
         cmp dword[rcx+56],#00424345 -- dwMagicE ("ECB\0")
         jne :notECB

@@ -411,7 +411,9 @@ atom res,           -- result
         {fi1,fi2} = fi
         len += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi1,-1,NULL,0})
         len += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi2,-1,NULL,0})
-        straddr += 8
+--22/11/16:
+--      straddr += 8
+        straddr += machine_word()*2
     end for
 --  rlen = straddr+len*2
 --  res = allocate(rlen)
@@ -421,12 +423,18 @@ atom res,           -- result
     for i=1 to length(filters) do
         fi = filters[i]
         {fi1,fi2} = fi
-        poke4(ptraddr,straddr)
-        ptraddr += 4
+--22/11/16:
+--      poke4(ptraddr,straddr)
+        pokeN(ptraddr,straddr,machine_word())
+--22/11/16:
+--      ptraddr += 4
+        ptraddr += machine_word()
         len = c_func(xMultiByteToWideChar,{CP_UTF8,0,fi1,-1,NULL,0})
         straddr += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi1,-1,straddr,len})*2
-        poke4(ptraddr,straddr)
-        ptraddr += 4
+--      poke4(ptraddr,straddr)
+        pokeN(ptraddr,straddr,machine_word())
+--      ptraddr += 4
+        ptraddr += machine_word()
         len = c_func(xMultiByteToWideChar,{CP_UTF8,0,fi2,-1,NULL,0})
         straddr += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi2,-1,straddr,len})*2
     end for
@@ -709,7 +717,9 @@ global function cominvk(atom pInterface,integer vIdx,sequence params, integer bD
 --  for that matter, I nearly forgot about our very own, create_com_object().   [?]
 -- Other possibilities and parameters are documented in cominvk_imm() above.
 --
-    return cominvk_imm(peek4u(pInterface),vIdx,params,bDebug)
+--22/11/16:
+--  return cominvk_imm(peek4u(pInterface),vIdx,params,bDebug)
+    return cominvk_imm(peekNS(pInterface,machine_word(),0),vIdx,params,bDebug)
 end function
 
 

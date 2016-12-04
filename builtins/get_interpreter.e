@@ -1,116 +1,76 @@
 --
 -- get_interpreter.e
 --
---DEV incomplete, broken on 64 bit... (see edita/CDmessage)
+--  Implements get_interpreter(), see docs for details.
+--
+--DEV make this a standard builtin? (see also demo/PGUI/pdemo.exw and filedump.exw)
 
---/*
-sequence interpreter
-
--- returns a list of interpreters that exist on disk
-function get_interpreters()
-sequence paths, try, exe, bin, result = {}
---integer index
-
-    string ext = get_file_extension(file_name)
-    if find(ext, {"ew","exw"}) then
---      bin = {"euiw", "eui", "exw", "ex"}
-        bin = {"pw", "p", "exw", "ex"}
-    else
---      bin = {"eui", "euiw", "ex", "exw"}
-        bin = {"p", "pw", "ex", "exw"}
-    end if
-    if platform()=LINUX then
---      bin = append(bin, "exu")
-        bin = append(bin, "phix")
-    end if
-    paths = parse_eu_cfg(dirname(file_name) & SLASH & "eu.cfg")
-    paths &= include_paths(0) -- fallback to running interpreter
-    for i=1 to length(paths) do
-        try = paths[i]
-        if try[$]=SLASH then
-            try = try[1..$-1]
-        end if
-        for j=1 to length(bin) do
---/**/      exe = try & "..\\bin\\"&bin[j]                  --/*
-            exe = try & join_path({"..", "bin", bin[j]})    --*/
-            if platform()=WINDOWS then
-                exe &= ".exe"
-            end if
-            exe = canonical_path(exe)
-            if not find(exe, result) and file_exists(exe) then
-                result = append(result, exe)
-            end if
-        end for
-    end for
-    if length(interpreter) and not find(interpreter, result) then
-        result = prepend(result, interpreter)
-    end if
-    return result
+function matchew(string path, string endswith)
+    if length(endswith)=0 then return 1 end if
+    sequence segments = split_path(path)
+    return length(segments) and lower(segments[$])=lower(endswith)
 end function
 
-            elsif equal(key, "interpreter") then
-                if not find(val, {"eui","euiw","ex","exw"}) then
-                    interpreter = val
-                end if
---*/
-
-function add_paths(sequence pathset, sequence paths)
+function add_paths(sequence pathset, sequence paths, string endswith="")
     for i=1 to length(paths) do
         string path = paths[i]
-        if not find(path,pathset) then
+        if length(path)
+        and not find(path,pathset)
+        and matchew(path,endswith)
+        and get_file_type(path)=FILETYPE_DIRECTORY then
             pathset = append(pathset,path)
         end if
     end for
     return pathset
 end function
 
---function validexe(string s, sequence vset)
---function validexe(string s, sequence vset, integer plat=platform())
-function validexe(string s, sequence vset, integer plat=platform())
---function validexe(string s, integer plat=platform())
--- s is a filename such as "p.exe"
---sequence vset -- permitted filenames
-integer nlen,n  -- (development versions)
---  if platform()=WINDOWS then
-    if plat=WINDOWS then
---      vset = {"pw.exe","p.exe","pw64.exe","p64.exe","pth.exe"}
-        {nlen,n} = {7,3}
-    else -- platform()=LINUX
---      vset = {"phix","pth"}
-        {nlen,n} = {5,5}
-    end if
+function validexe(string s, sequence vset)
+--
+-- Just ensures that a filename is reasonable
+--
+-- s is a (path-less) filename such as "p.exe"
+-- vset is a list of permitted filenames (platform dependent)
+--
     if find(s,vset) then
         return 1
-    elsif length(s)=nlen
-      and find(s[n],"123456789") then
-        -- Feel free to ignore this part
-        -- (I use pw1.exe..pw9.exe when developing phix,
-        --  and phix1..phix9 when doing so on Linux)
-        s[n..n] = ""
-        if s=vset[1] then
-            return 1
+    else
+        string vs1 = vset[1]        -- "pw.exe"/"phix"
+        integer nlen = length(vs1), --     6       4
+                n = 9-nlen          --     3       5
+        if length(s)=nlen+1
+        and find(s[n],"123456789") then
+            -- Feel free to ignore this part
+            -- (I use pw1.exe..pw9.exe when developing phix,
+            --  and phix1..phix9 when doing so on Linux, so
+            --  that any running apps need not be shutdown.)
+            s[n..n] = ""
+            if s=vs1 then
+                return 1
+            end if
         end if
     end if
     return 0
 end function
 
---function ibits(string filepath)
 function ibits(string filepath, integer plat=platform())
--- filepath should be a fully qualified filename, verfied by validexe().
--- returns 32 or 64 by examining low-level headers, or 0 if 
---  the file is corrupt, empty, or otherwise not recognised.
+--
+-- filepath should be a fully qualified filename, of FILETYPE_FILE.
+-- returns 32 or 64 by examining low-level headers, or 0 if the file is 
+-- corrupt, empty, for a different platform, or otherwise not recognised.
+--
+-- DEV/SUG may also be sensible to verify data section starts "Phix"?
+--
 integer fn = open(filepath,"rb")
 integer bits = 0
---  if platform()=WINDOWS then
     if plat=WINDOWS then
         if seek(fn,#80)=SEEK_OK then
             sequence s6 = {}
             for i=1 to 6 do
                 s6 = append(s6,getc(fn))
             end for
-            if s6="PE\0\0\x01\x4C" then
+            if s6="PE\0\0\x4C\x01" then
                 bits = 32
-            elsif s6="PE\0\0\x86\x64" then
+            elsif s6="PE\0\0\x64\x86" then
                 bits = 64
             end if
         end if
@@ -129,106 +89,75 @@ integer bits = 0
     return bits
 end function
 
---DEV make this a standard builtin? (see also demo/PGUI/pdemo.exw and filedump.exw)
+--/* seems ok:
+constant itestset = {{"C:\\Program Files (x86)\\Phix\\pw.exe",WINDOWS},
+                     {"C:\\Program Files (x86)\\Phix\\pth.exe",WINDOWS},
+                     {"C:\\Program Files (x86)\\Phix\\phix",LINUX}}
+for i=1 to length(itestset) do
+    ?{itestset[i],ibits(itestset[i][1],itestset[i][2])}
+end for
+--*/
 
--- Note this routine should forever be considered experimental/work in progress.
--- Every situation/installation/platform is subtly different, and this routine
--- is expected to require more than its fair share of tweaks and adjustments.
--- It is however much better than starting from scratch every time you need
--- something along these lines.
-
-function get_interpreter(integer mb=machine_bits(), integer plat=platform())
+global function get_interpreter(integer enquote=0, object mb=machine_bits(), integer plat=platform())
 -- returns "" on failure
 sequence vset   -- permitted filenames
 string filepath
     sequence cl = command_line()
     string res = cl[1]
     string file = get_file_name(res)
---  -- <hack>
---  --  I make copies of pw.exe as pw2.exe..pw9.exe, so that my work on
---  --  Phix does not immediately clobber anything, or need all running
---  --  apps to be closed before compilation can complete. Typically, I
---  --  might have a few apps running with pw7.exe, fix something, then
---  --  create pw8.exe, and change any and all "Run With" to use that.
---  --  (ie Edita/Edix, menu/taskbar shortcuts, registry entries, etc.)
---  --  (Will also do ph1ix -> phix. A messed up file==no matter.)
---  if length(file)>3 then
---      integer ch = file[3]
---      if ch>='0' and ch<='9' then
---          file[3..3] = ""     -- eg/ie "pw7.exe" -> "pw.exe"
---      end if
---  end if
---  -- </hack>
---  if find(file,{"pw.exe","p.exe","phix"}) then
---      return res
---  end if
---  res = get_file_path(res,dropslash:=0)
---  integer k = match(iff(platform()=WINDOWS?"\\phix\\":"/phix/"),lower(res))
---  if k!=0 then
---      res = res[1..k+5]   -- eg/ie ../Phix/demo/pGUI/ -> ../Phix/
---  end if
     sequence cpaths = split_path(res)
     string crun = cpaths[$]
     cpaths = cpaths[1..$-1]
     cpaths = cpaths[1..find("demo",lower(cpaths))-1]
-    res = join_path(cpaths,1)
---  if not validexe(crun) then
---      crun = "pw.exe"
---  end if
+    res = join_path(cpaths,1)   -- eg/ie ../Phix/demo/pGUI/ -> ../Phix/
 
---
-    if platform()=WINDOWS then
-        vset = {"pw.exe","p.exe","pw64.exe","p64.exe","pth.exe"}
---      nlen,n = {7,3}
+    if plat=WINDOWS then
+        vset = {"pw.exe","p.exe","pw64.exe","p64.exe","pw32.exe","p32.exe","pth.exe"}
     else -- platform()=LINUX
-        vset = {"phix","pth"}
---      nlen,n = {5,5}
+        vset = {"phix","phix64","phix32","pth"}
     end if
-    if validexe(crun,vset) then
-        filepath = join_path({res,crun})
-    else
-        string maybe = ""
+    filepath = join_path({res,crun})
+    if not validexe(crun,vset)
+    or get_file_type(filepath)!=FILETYPE_FILE
+    or ibits(filepath,plat)!=mb then
+
         sequence paths = {res}
         paths = add_paths(paths,{current_dir()})
---      if platform()=WINDOWS then
         if plat=WINDOWS then
             paths = add_paths(paths,{"C:\\Program Files (x86)\\Phix"})
             paths = add_paths(paths,{"C:\\Program Files\\Phix"})
-            paths = add_paths(paths,split(getenv("PATH"),';'))
---          file = join_path({res,"pw.exe"})
---          if is_file(file) then return file end if
---          file = join_path({current_dir(),"pw.exe"})
---          if is_file(file) then return file end if
---          file = "C:\\Program Files (x86)\\Phix\\pw.exe"  -- 32 bit?
---          if is_file(file) then return file end if
---          file = "C:\\Program Files\\Phix\\pw.exe"        -- 64 bit?
---          if is_file(file) then return file end if
---          sequence paths = split(getenv("PATH"),';')
+            paths = add_paths(paths,split(getenv("PATH"),';'),"phix")
         else
---          file = join_path({res,"phix"})
---          if is_file(file) then return file end if
---          file = join_path({current_dir(),"phix"})
---          if is_file(file) then return file end if
-            --DEV?? %HOME/phix/phix? ~/phix/phix? /usr/bin/phix/phix?
+            --DEV?? %HOME%/phix/phix? ~/phix/phix? /usr/bin/phix/phix?
+        end if
+
+        string maybe = "", definately = ""
+        integer mbmb = sequence(mb)
+        if mbmb then
+            mb = mb[1]
         end if
         for i=1 to length(paths) do
             for j=1 to length(vset) do
-                filepath = join_path({paths[i],vset[i]})
-                if file_exists(filepath) 
-                and get_file_type(filepath)=FILETYPE_FILE then
-                    maybe = filepath
---                  if ibits(filepath)=machine_bits() then
-                    if ibits(filepath,plat)=mb then
-                        exit
+                filepath = join_path({paths[i],vset[j]})
+                if get_file_type(filepath)=FILETYPE_FILE then
+                    integer mbi = ibits(filepath,plat)
+                    if mbi!=0 then
+                        maybe = filepath
+                        if mbi=mb then
+                            definately = maybe
+                            exit
+                        end if
                     end if
                 end if
             end for
+            if length(definately) then exit end if
         end for
-        filepath = maybe
+        filepath = iff(mbmb?definately:maybe)
     end if
---DEV optional??
-    if find(' ',filepath) then
-        filepath = '\"' & filepath & '\"'
+    if enquote then
+        if find(' ',filepath) then
+            filepath = '\"' & filepath & '\"'
+        end if
     end if
     return filepath
 end function

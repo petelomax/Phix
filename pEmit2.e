@@ -3458,7 +3458,8 @@ end if
                 if k!=-1 then
                     dsidx = length(data_section)+1+(S_Name+4)*dsize
 if k>length(IdLinks) then
-    printf(1,"oops, bad IdLinks index, symtab[%d], line 3432 pEmit2.e\n",i)
+--  printf(1,"oops, bad IdLinks index, symtab[%d], line 3432 pEmit2.e\n",i)
+    printf(1,"oops, bad IdLinks index, symtab[%d(%d)], line 3432 pEmit2.e\n",{i,symtabmap[i]})
 --  si[S_Name] = "***OOPS***"
     si[S_Name] = 0
 else

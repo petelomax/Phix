@@ -693,8 +693,8 @@ global constant
     K_sPeriod = iup_XkeyShift(K_period),
     K_sSlash = iup_XkeyShift(K_slash),
     K_sAsterisk = iup_XkeyShift(K_asterisk),
---K_acute ('´'), K_ccedilla ('ç'), and K_diaeresis ('¨'). 
---         #B4               #E7                    #A8
+--K_acute (#B4), K_ccedilla (#E7), and K_diaeresis (#A8). 
+--                                          
 --*/
     K_cA = iup_XkeyCtrl('A'),
     K_cB = iup_XkeyCtrl('B'),
@@ -3353,12 +3353,12 @@ procedure iup_image_init()
                               "libiupim.dylib"})
 
         hIm = iup_open_dll({"im.dll",
-                            "?libiupcd.so",
-                            "?libiupcd.dylib"})
+                            "libim.so",
+                            "libim.dylib"})
 
         hImProcess = iup_open_dll({"im_process.dll",
-                                   "?libiupweb.so",
-                                   "?libiupweb.dylib"})
+                                   "libim_process.so",
+                                   "libim_process.dylib"})
 
         xIupImage                   = iup_c_func(iup, "IupImage", {I,I,P}, P)
         xIupImageRGB                = iup_c_func(iup, "IupImageRGB", {I,I,P}, P)
@@ -4489,12 +4489,12 @@ procedure iup_init_cd()
                                "libiupcd.dylib"})
 
         hCdGL = iup_open_dll({"cdgl.dll",
-                              "?libiupcd.so",
-                              "?libiupcd.dylib"})
+                              "libcdgl.so",
+                              "libcdgl.dylib"})
 
         hCdIm = iup_open_dll({"cdim.dll",
-                              "?libiupcd.so",
-                              "?libiupcd.dylib"})
+                              "libcdim.so",
+                              "libcdim.dylib"})
 
         --
         -- Version Information Routines
@@ -5021,8 +5021,8 @@ end function
 --procedure iup_init_cdim()
 --  if hCdIm=0 then
 --      hCdIm = iup_open_dll({"cdim.dll",
---                            "?libiupcd.so",
---                            "?libiupcd.dylib"})
+--                            "libcdim.so",
+--                            "libcdim.dylib"})
 --      xcdContextImImage           = iup_c_func(hCdIm, "cdContextImImage", {}, P)
 --      xcdCanvasPutImImage         = iup_c_proc(hCdIm, "cdCanvasPutImImage", {P,P,I,I,I,I})
 --  end if
@@ -6929,8 +6929,8 @@ atom hOle = 0,
 procedure iup_init_ole()
     if hOle=0 then
         hOle = iup_open_dll({"iupole.dll",
-                             "libiupole.so",
-                             "libiupole.dylib"})
+                             "?libiupole.so",
+                             "?libiupole.dylib"})
 
         xIupOleControlOpen  = iup_c_proc(hOle, "IupOleControlOpen", {})
         xIupOleControl      = iup_c_func(hOle, "IupOleControl", {P},P)

@@ -343,6 +343,7 @@ end function
 procedure check(object o, integer level)
 -- (if any more types are added here, ensure c_func copes with the new return type,
 --  also see that routine for some possible future types we might one day need.)
+--/* not thread safe??
     if not find(o, {C_CHAR,C_UCHAR,
                     C_SHORT,C_USHORT,
                     C_INT,C_UINT,
@@ -353,6 +354,15 @@ procedure check(object o, integer level)
                     C_FLOAT,C_DOUBLE}) then
 --                  E_INTEGER,E_ATOM,
 --                  E_SEQUENCE,E_OBJECT}) then
+--*/
+    if  o!=C_CHAR
+    and o!=C_UCHAR
+    and o!=C_SHORT
+    and o!=C_USHORT
+    and o!=C_INT
+    and o!=C_UINT
+    and o!=C_FLOAT
+    and o!=C_DOUBLE then
         fatalN(level,e74dcfpe)
     end if
 end procedure
@@ -380,6 +390,11 @@ sequence previd,    -- table of all previous call_backs created (id)
 integer tinit
         tinit = 0
 
+integer tcs         -- (added 25/11/16)
+--DEV...
+integer tmax = 0    -- length(table), but thread-safe.
+--(integer fdmax = 0    -- length(fdtbl), but thread-safe.)
+
 --procedure resett()
 --  table = {}
 --  previd = {}
@@ -387,6 +402,7 @@ integer tinit
 --end procedure
 
 procedure c_cleanup()
+    enter_cs(tcs)
     if tinit then
         for i=1 to length(prevcb) do
             free(prevcb[i])
@@ -394,15 +410,19 @@ procedure c_cleanup()
 --      resett()
         tinit = 0
     end if
+    leave_cs(tcs)
 end procedure
 
 procedure Tinit()
 --  resett()
+    -- Note: this /should/ be thread safe, because pThread.e calls it!
+    tinit = 1
+    tcs = init_cs()
     table = {}
+    tmax = 0
     previd = {}
     prevcb = {}
-    tinit = 1
---DEV tryme (and get rid of :%SetCCleanup)
+--DEV tryme (and get rid of :%SetCCleanup) [erm, will not work because not "final"...]
 --  table = delete_routine(table,routine_id("c_cleanup"))
 --!/*
     --
@@ -463,6 +483,7 @@ procedure Tinit()
           }
 --!*/
 end procedure
+--if not tinit then Tinit() end if  -- (not necessary)
 
 global function define_c_func(object lib, object fname, sequence args, atom return_type)
 --
@@ -591,12 +612,13 @@ integer level = 2+(return_type=0)
         check(return_type,2)
     end if
 
---DEV locking...
---  enter_cs()
     if not tinit then Tinit() end if
+--DEV locking...
+    enter_cs(tcs)
     table = append(table,{name,addr,args,return_type,convention})
-    res = length(table)
---  leave_cs()
+    tmax = length(table)
+    res = tmax
+    leave_cs(tcs)
     return res
 end function
 
@@ -1094,9 +1116,11 @@ integer convention
 --              pop al  -- for certain, the above "mov [rsp+16+64],rcx" etc is wrong... (as marked) [DEV]
             []
         }
---DEV locking
+--DEV locking (added 25/11/16)
+        enter_cs(tcs)
         previd = append(previd,id)
         prevcb = append(prevcb,r)
+        leave_cs(tcs)
     else
         r = prevcb[k]
     end if
@@ -1226,15 +1250,42 @@ integer esp4
           @@:
         []
           }
-    if tinit=0 or rid<1 or rid>length(table) then
+--  if tinit=0 or rid<1 or rid>length(table) then
+    if tinit=0 or rid<1 or rid>tmax then
         fatalN(3,e72iri,rid)
     end if
+--DEV locking?? (maybe something like pfileio?) [untried, refcounts anyway...]
+    enter_cs(tcs)
     tr = table[rid]
+--  #ilASM{
+--      [32]
+--          mov edx,[rid]
+--          shl edx,2
+--        @@:
+--          mov edi,[table]
+--          mov esi,[edi*4+edx-4]       -- esi:=table[rid]
+--          cmp edi,[table]
+--          jne @b
+--          add dword[ebx+esi*4-8],1    -- incref
+--          mov [tr],esi
+--      [64]
+--          mov rdx,[rid]
+--          shl rdx,3
+--        @@:
+--          mov rdi,[table]
+--          mov rsi,[rdi*4+rdx-8]       -- rsi:=table[rid]
+--          cmp rdi,[table]
+--          jne @b
+--          add qword[rbx+rsi*4-16],1   -- incref
+--          mov [tr],rsi
+--        }
     name = tr[T_name]
     addr = tr[T_address]
     argdefs = tr[T_args]
     return_type = tr[T_return_type]
     convention = tr[T_convention]
+    tr = {}
+    leave_cs(tcs)
 
     --20/8/15: (ensure shadow space and align)
     if machine_bits()=64 then
@@ -1307,8 +1358,10 @@ integer esp4
                             push [argi]
                         []
                     }
+--DEV todo...
             elsif argdefi=#03000008                                 -- C_DOUBLE
                or (argdefi=#03000004 and machine_bits()=64) then    -- C_FLOAT
+--          elsif argdefi=#03000008 then                            -- C_DOUBLE
                 #ilASM{
                         [32]
                             sub esp,8
@@ -1318,6 +1371,111 @@ integer esp4
                             sub rsp,8
                             fild qword[argi]
                             fstp qword[rsp]
+                        []
+                    }
+                -- (technically this should probably be done just before the "call rax" in c_func/proc,
+                --  but as we won't damage them (ie xmm0..xmm3/7) before that, this should be fine.)
+                if machine_bits()=64 then
+                    if i<=4 then
+                        if i=1 then
+                            #ilASM{
+                                    [64]
+                                        movsd xmm0,qword[rsp]
+                                    []
+                                  }
+                        elsif i=2 then
+                            #ilASM{
+                                    [64]
+                                        movsd xmm1,qword[rsp]
+                                    []
+                                  }
+                        elsif i=3 then
+                            #ilASM{
+                                    [64]
+                                        movsd xmm2,qword[rsp]
+                                    []
+                                  }
+                        elsif i=4 then
+                            #ilASM{
+                                    [64]
+                                        movsd xmm3,qword[rsp]
+                                    []
+                                  }
+                        else
+                            ?9/0
+                        end if
+                        #ilASM{
+                                [64]
+                                    add rsp,8
+                                []
+                              }
+--DEV elsif??
+                    elsif platform()=LINUX and i<=8 then
+                        if i=5 then
+                            #ilASM{
+                                    [64]
+                                        movsd xmm4,qword[rsp]
+                                    []
+                                }
+                        elsif i=6 then
+                            #ilASM{
+                                    [64]
+                                        movsd xmm5,qword[rsp]
+                                    []
+                                }
+                        elsif i=7 then
+                            #ilASM{
+                                    [64]
+                                        movsd xmm6,qword[rsp]
+                                    []
+                                }
+                        elsif i=8 then
+                            #ilASM{
+                                    [64]
+                                        movsd xmm7,qword[rsp]
+                                    []
+                                }
+                        else
+                            ?9/0
+                        end if
+                        #ilASM{
+                                [64]
+                                    add rsp,8
+                                []
+                              }
+                    elsif argdefi=#03000004 then
+                        #ilASM{
+                                [64]
+                                    fld qword[rsp]
+-- removed 25/11/16:
+--                                  add rsp,4
+                                    fstp dword[rsp]
+                                []
+                              }
+                    end if
+                end if
+            elsif argdefi=#03000004 then -- (and machine_bits()=32) -- C_FLOAT
+--DEV todo:
+--if machine_bits()=32 then
+                #ilASM{
+                        [32]
+                            sub esp,4
+                            fild dword[argi]
+                            fstp dword[esp]
+--                      [64]
+--                          sub rsp,4
+--                          fild qword[argi]
+--                          fstp dword[rsp]
+                        []
+                    }
+--DEV todo:
+--/*
+else
+                #ilASM{
+                        [64]
+                            sub rsp,8
+                            fild qword[argi]
+                            fstp dword[rsp]
                         []
                     }
                 -- (technically this should probably be done just before the "call rax" in c_func/proc,
@@ -1389,28 +1547,9 @@ integer esp4
                                     add rsp,8
                                 []
                               }
-                    elsif argdefi=#03000004 then
-                        #ilASM{
-                                [64]
-                                    fld qword[rsp]
-                                    add rsp,4
-                                    fstp dword[rsp]
-                                []
-                              }
                     end if
-                end if
-            elsif argdefi=#03000004 then -- (and machine_bits()=32) -- C_FLOAT
-                #ilASM{
-                        [32]
-                            sub esp,4
-                            fild dword[argi]
-                            fstp dword[esp]
---                      [64]
---                          sub rsp,4
---                          fild qword[argi]
---                          fstp dword[rsp]
-                        []
-                    }
+end if
+--*/
             else
                 ?9/0
             end if
@@ -1441,6 +1580,7 @@ integer esp4
                             push rax
                         []
                     }
+--DEV as above
             elsif argdefi=#03000008     -- C_DOUBLE
                or (argdefi=#03000004 and machine_bits()=64) then
                 #ilASM{
@@ -1527,7 +1667,8 @@ integer esp4
                         #ilASM{
                                 [64]
                                     fld qword[rsp]
-                                    add rsp,4
+-- removed 25/11/16:
+--                                  add rsp,4
                                     fstp dword[rsp]
                                 []
                               }
@@ -1579,6 +1720,11 @@ integer esp4
             fatalN(3,e88atcfpmbaos,flag)
         end if
     end for
+--DEV/SUG??
+--  enter_cs(tcs)
+--  name = 0
+--  argdefs = 0 -- {}
+--  leave_cs(tcs)
     return {return_type,addr,esp4}
 end function
 
@@ -1794,16 +1940,17 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                     jmp :cstore
             @@:
                 cmp rdx,0x03000004  -- (C_FLOAT)
-                je :cstore
+                je :cstorexmm0
                 cmp rdx,0x03000008  -- (C_DOUBLE)
                 jne @f
-            ::cstore
+            ::cstorexmm0
 -- 14/2/16: (certainly C_DOUBLE, not necessarily C_FLOAT?) [25/2, I think it's the same]
                     sub rsp,8
                     movsd qword[rsp],xmm0
                     fld qword[rsp]
                     add rsp,8
 -- (14/2/16 ends)
+            ::cstore
                     lea rdi,[res]
                     call :%pStoreFlt                    -- ([rdi]:=ST0)
                     jmp :done
@@ -1849,6 +1996,10 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
 
             []
         }
+--DEV overkill??
+--  enter_cs(tcs)
+--  addr = 0
+--  leave_cs(tcs)
     return res
 end function
 
@@ -1914,6 +2065,10 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
 
         []
           }
+--DEV overkill??
+--  enter_cs(tcs)
+--  addr = 0
+--  leave_cs(tcs)
 end procedure
 
 

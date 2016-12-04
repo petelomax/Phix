@@ -4,31 +4,6 @@
 --
 -- The Phix dir function.
 --
---/* DEV (from the mailing list, no changes attempted)
-DerekParnell said...
-kat said...
-
-Is calling a .zip file a dir a random thing in Euphoria?
-
-No. It only seems to happen for directory names that end with ".zip".
-
-I believe this is actually a Windoze bug.
-
-From http://msdn.microsoft.com/en-us/library/aa364428(v=vs.85).aspx
-msdn said...
-
-Note In rare cases or on a heavily loaded system, file attribute information on NTFS file systems 
-may not be current at the time this function is called. To be assured of getting the current NTFS 
-file system file attributes, call the GetFileInformationByHandle function.
-
-Likewise, from http://msdn.microsoft.com/en-us/library/windows/desktop/aa364418(v=vs.85).aspx
-msdn said...
-
-If you are writing a 32-bit application to list all the files in a directory and the application 
-may be run on a 64-bit computer, you should call the Wow64DisableWow64FsRedirectionfunction before 
-calling FindFirstFile and call Wow64RevertWow64FsRedirection after the last call to FindNextFile. 
-For more information, see File System Redirector.
---*/
 
 --/**/-- not strictly necessary, but reduces opCallOnce/fwd calls/onDeclaration
 include builtins\wildcard.e -- wildcard_file()
@@ -61,8 +36,9 @@ constant
 --  STwMillisecs        = 14,   --  WORD wMilliseconds
     STsize = 16,
 
---  INVALID_HANDLE_VALUE = -1
-    INVALID_HANDLE_VALUE = #FFFFFFFF    -- 1/5/09
+    INVALID_HANDLE_VALUE = -1,
+--  INVALID_HANDLE_VALUE = #FFFFFFFF,   -- 1/5/09
+    ERROR_FILE_NOT_FOUND = 2
 
 integer dinit dinit = 0
 atom kernel32
@@ -71,61 +47,77 @@ atom xFindFirstFile, xFindNextFile, xFindClose,
 sequence attrbits
 sequence attrchar
 
-procedure initD() -- (platform()=WINDOWS only)
---if platform()!=WINDOWS then
---  puts(1,"pdir.e not linux\n")
---end if
+atom libc,
+     xopendir,
+     xreaddir,
+     xclosedir,
+     xlocaltime
+
+procedure initD()
+    if platform()=WINDOWS then
 --DEV locking as per pprntf
-    kernel32 = open_dll("kernel32.dll")
+        -- added 25/11/16:
+        enter_cs()
+        kernel32 = open_dll("kernel32.dll")
 
---#without reformat
-    xFindFirstFile = define_c_func(kernel32,"FindFirstFileA",
-        {C_POINTER, --  LPCTSTR  lpFileName, // address of name of file to search for
-         C_POINTER},--  LPWIN32_FIND_DATA  lpFindFileData   // address of returned information
-        C_POINTER)  -- HANDLE for FindNextFile/FindClose
+    --#without reformat
+        xFindFirstFile = define_c_func(kernel32,"FindFirstFileA",
+            {C_PTR,     --  LPCTSTR  lpFileName, // address of name of file to search for
+             C_PTR},    --  LPWIN32_FIND_DATA  lpFindFileData   // address of returned information
+    --      C_PTR)      -- HANDLE for FindNextFile/FindClose
+            C_INT)      -- HANDLE for FindNextFile/FindClose
 
-    xFindNextFile = define_c_func(kernel32,"FindNextFileA",
-        {C_POINTER, --  HANDLE  hFindFile, // handle of search
-         C_POINTER},--  LPWIN32_FIND_DATA lpFindFileData // address of structure for data on found file
-        C_INT)      -- BOOL
+        xFindNextFile = define_c_func(kernel32,"FindNextFileA",
+            {C_PTR,     --  HANDLE  hFindFile, // handle of search
+             C_PTR},    --  LPWIN32_FIND_DATA lpFindFileData // address of structure for data on found file
+            C_INT)      -- BOOL
 
-    xFindClose = define_c_func(kernel32,"FindClose",
-        {C_POINTER},--  HANDLE  hFindFile   // file search handle 
-        C_INT)      -- BOOL
+        xFindClose = define_c_func(kernel32,"FindClose",
+            {C_PTR},    --  HANDLE  hFindFile   // file search handle 
+            C_INT)      -- BOOL
 
-    xFileTimeToLocalFileTime = define_c_func(kernel32,"FileTimeToLocalFileTime",
-        {C_POINTER, --  CONST FILETIME *  lpFileTime,   // address of UTC file time to convert
-         C_POINTER},--  LPFILETIME  lpLocalFileTime     // address of converted file time
-        C_INT)      -- BOOL
+        xFileTimeToLocalFileTime = define_c_func(kernel32,"FileTimeToLocalFileTime",
+            {C_PTR,     --  CONST FILETIME *  lpFileTime,   // address of UTC file time to convert
+             C_PTR},    --  LPFILETIME  lpLocalFileTime     // address of converted file time
+            C_INT)      -- BOOL
 
-    xFileTimeToSystemTime = define_c_func(kernel32,"FileTimeToSystemTime",
-        {C_POINTER, --  CONST FILETIME *  lpFileTime,   // pointer to file time to convert
-         C_POINTER},--  LPSYSTEMTIME  lpSystemTime  // pointer to structure to receive system time
-        C_INT)      -- BOOL
---#with reformat
+        xFileTimeToSystemTime = define_c_func(kernel32,"FileTimeToSystemTime",
+            {C_PTR,     --  CONST FILETIME *  lpFileTime,   // pointer to file time to convert
+             C_PTR},    --  LPSYSTEMTIME  lpSystemTime  // pointer to structure to receive system time
+            C_INT)      -- BOOL
+    --#with reformat
 
-    attrbits = {#01,#02,#04,#00,#10,#20}    -- no volume_id
-    attrchar = {'r','h','s','v','d','a'}
+        attrbits = {#01,#02,#04,#00,#10,#20}    -- no volume_id
+        attrchar = {'r','h','s','v','d','a'}
 
-    dinit = 1
+        dinit = 1
+        leave_cs()
+    else
+        libc = open_dll("libc.so.6")
+        xopendir    = define_c_func(libc, "opendir", {C_PTR}, C_PTR)
+        xreaddir    = define_c_func(libc, "readdir", {C_PTR}, C_PTR)
+        xclosedir   = define_c_func(libc, "closedir", {C_PTR}, C_INT)
+        xlocaltime  = define_c_func(libc, "localtime", {C_PTR}, C_PTR)
+        dinit = 1
+    end if
 end procedure
 
 --DEV new builtin? [done for newEmit]
 --DEV quick fix, needs properly sorting out:
 --function peek2u(object addr)
-function peek2uX(object addr)
-sequence res
-    if atom(addr) then
-        return peek(addr)+peek(addr+1)*256
-    end if
-    res = repeat(0,addr[2])
-    addr = addr[1]
-    for i=1 to length(res) do
-        res[i] = peek(addr)+peek(addr+1)*256
-        addr += 2
-    end for
-    return res
-end function
+--function peek2uX(object addr)
+--sequence res
+--  if atom(addr) then
+--      return peek(addr)+peek(addr+1)*256
+--  end if
+--  res = repeat(0,addr[2])
+--  addr = addr[1]
+--  for i=1 to length(res) do
+--      res[i] = peek(addr)+peek(addr+1)*256
+--      addr += 2
+--  end for
+--  return res
+--end function
 
 function ConvertAttributes(integer c)
 --
@@ -141,6 +133,91 @@ integer b
         end if
     end for
     return res
+end function
+
+--Linux:
+--constant W = machine_bits()=64
+ 
+constant                --   64  32
+--  DIRENT_INO      = iff(W?  0,  0), -- ino_t 
+--  DIRENT_OFF      = iff(W?  8,  4), -- off_t 
+--  DIRENT_RECLEN   = iff(W? 16,  8), -- unsigned short int 
+--  DIRENT_TYPE     = iff(W? 18, 10), -- unsigned char 
+--  DIRENT_NAME     = iff(W? 19, 11), -- char[256] 
+    DIRENT_TYPE     = 10, -- unsigned char 
+    DIRENT_NAME     = 11, -- char[256] 
+--  SIZEOF_DIRENT   = iff(W?280,272) 
+$
+
+constant DT_DIR = #04   -- (the only DIRENT_TYPE setting we care about)
+
+-- NB: from experimentation, and not tested on 64 bit:
+--                             64  32
+--DEV I thought these would be resolved at compile-time...
+--constant ST_SIZE    = iff(W? 48: 44),
+--       ST_MTIME     = iff(W? 76: 72),
+--       SIZEOFSTAT64 = iff(W?144:104)
+constant ST_SIZE      = 44,
+         ST_MTIME     = 72,
+         SIZEOFSTAT64 = 104
+
+--/*
+struct tm {
+   int tm_sec;         /* seconds,  range 0 to 59          */
+   int tm_min;         /* minutes, range 0 to 59           */
+   int tm_hour;        /* hours, range 0 to 23             */
+   int tm_mday;        /* day of the month, range 1 to 31  */
+   int tm_mon;         /* month, range 0 to 11             */
+   int tm_year;        /* The number of years since 1900   */
+   int tm_wday;        /* day of the week, range 0 to 6    */
+   int tm_yday;        /* day in the year, range 0 to 365  */
+   int tm_isdst;       /* daylight saving time             */
+};
+--*/
+constant
+    TM_SECS = 0,
+    TM_MINS = 4,
+    TM_HOUR = 8,
+    TM_DAY  = 12,
+    TM_MNTH = 16,
+    TM_YEAR = 20
+--  TM_DOW  = 24,
+--  TM_DOY  = 28
+
+function stat(string name, atom pBuff)  -- (Linux ony)
+--DEV this should probably use libc, but good enough for now
+integer statres
+    #ilASM{
+        [ELF32]
+            mov eax,[pBuff]
+            call :%pLoadMint
+            mov ebx,[name]
+            mov ecx,eax         -- struct stat64 *statbuf
+            shl ebx,2           -- char *filename
+            mov eax,195         -- sys_stat64
+            int 0x80
+            xor ebx,ebx         -- (common requirement after int 0x80)
+            mov [statres],1
+            cmp eax, -4069 
+            jbe @f
+                mov [statres],ebx
+          @@:
+        [ELF64]
+            mov rax,[pBuff]
+            call :%pLoadMint
+            mov rdi,[name]
+            mov rsi,rax         -- struct stat *statbuf
+            shl rdi,2           -- char *filename
+            mov rax,4           -- sys_stat
+            syscall
+            mov [statres],1
+            or rax,rax 
+            jns @f
+                mov [statres],rbx
+          @@:
+        []
+          }
+    return statres
 end function
 
 --/* Not required for Phix (defined psym.e):
@@ -209,9 +286,9 @@ sequence res, this, attr
 object pattern
 atom xSystemTime, xLocalFileTime, xFindData
 
+    if not dinit then initD() end if
     if platform()=WINDOWS then
         xFindData = allocate(FDsize)
-        if not dinit then initD() end if
         slash = '\\'
         rslash = '/'
     elsif platform()=LINUX then
@@ -247,8 +324,17 @@ atom xSystemTime, xLocalFileTime, xFindData
             --
 --DEV:      if list_directory then
             lpPath = allocate_string(path)
+--?path
+--if path="C:\\Program Files\\Phix\\pw.exe" then
+--  ?1
+--end if
             h = c_func(xFindFirstFile,{lpPath,xFindData})
-            if h!=INVALID_HANDLE_VALUE then
+--?h
+--21/11/16:
+--          if h!=INVALID_HANDLE_VALUE then
+            if h!=INVALID_HANDLE_VALUE
+            and h!=ERROR_FILE_NOT_FOUND
+            and h!=NULL then
                 if and_bits(peek(xFindData+FDwFileAttributes),#10) then
                     path &= slash&"*.*"
                     pattern = "*.*"
@@ -262,8 +348,13 @@ atom xSystemTime, xLocalFileTime, xFindData
 --"argument to dir must be string\n",   -- e68atcdmbs
         lpPath = allocate_string(path)
         h = c_func(xFindFirstFile,{lpPath,xFindData})
+--?{h}
         free(lpPath)
-        if h=INVALID_HANDLE_VALUE then
+-- 21/11/16:
+--      if h=INVALID_HANDLE_VALUE then
+        if h=INVALID_HANDLE_VALUE
+        or h=ERROR_FILE_NOT_FOUND
+        or h=NULL then
             free(xFindData)
             return -1
         end if
@@ -278,15 +369,15 @@ atom xSystemTime, xLocalFileTime, xFindData
                 size = peek4s(xFindData+FDnFileSizeHigh)*#100000000+peek4u(xFindData+FDnFileSizeLow)
                 attr = ConvertAttributes(peek4u(xFindData+FDwFileAttributes))
 --DEV root&this?
-                res = append(res,{this,                                 -- D_NAME = 1,
-                                  attr,                                 -- D_ATTRIBUTES = 2,
-                                  size,                                 -- D_SIZE = 3,
-                                  peek2uX(xSystemTime+STwYear),         -- D_YEAR = 4,
-                                  peek2uX(xSystemTime+STwMonth),        -- D_MONTH = 5,
-                                  peek2uX(xSystemTime+STwDay),          -- D_DAY = 6,
-                                  peek2uX(xSystemTime+STwHour),         -- D_HOUR = 7,
-                                  peek2uX(xSystemTime+STwMinute),       -- D_MINUTE = 8,
-                                  peek2uX(xSystemTime+STwSecond)})      -- D_SECOND = 9
+                res = append(res,{this,                             -- D_NAME = 1,
+                                  attr,                             -- D_ATTRIBUTES = 2,
+                                  size,                             -- D_SIZE = 3,
+                                  peek2u(xSystemTime+STwYear),      -- D_YEAR = 4,
+                                  peek2u(xSystemTime+STwMonth),     -- D_MONTH = 5,
+                                  peek2u(xSystemTime+STwDay),       -- D_DAY = 6,
+                                  peek2u(xSystemTime+STwHour),      -- D_HOUR = 7,
+                                  peek2u(xSystemTime+STwMinute),    -- D_MINUTE = 8,
+                                  peek2u(xSystemTime+STwSecond)})   -- D_SECOND = 9
             end if
             if not c_func(xFindNextFile,{h,xFindData}) then exit end if
         end while
@@ -295,67 +386,81 @@ atom xSystemTime, xLocalFileTime, xFindData
         free(xLocalFileTime)
         free(xFindData)
     elsif platform()=LINUX then
+
+ 
+--function listdir(sequence path)
+        atom dirp, dirent 
+        atom pBuff = allocate(SIZEOFSTAT64)
+        integer statres, year, month, day, hour, minutes, seconds
+--, dow, doy
+--      atom size
+        string name
+--      , attr
+--      sequence res = {}
+        res = {}
+ 
+        dirp = c_func(xopendir, {path}) 
+        if dirp=NULL then 
+            statres = stat(path, pBuff)
+            if statres=0 then
+                free(pBuff)
+                return -1
+            end if
+            name = get_file_name(path)
+            attr = ""
+        end if 
+         
+        while 1 do
+            if dirp!=NULL then
+                dirent = c_func(xreaddir,{dirp})
+                if dirent=NULL then exit end if
+                name = peek_string(dirent+DIRENT_NAME)
+                string fullpath = join_path({path,name})
+                statres = stat(fullpath, pBuff)
+                integer t = peek(dirent+DIRENT_TYPE)
+                attr = iff(t=DT_DIR?"d":"")
+            end if
+--DEV not tried...
+--          if wildcard_file(pattern,name) then
+                if statres=0 then
+                    size = 0
+                    seconds = 0
+                    minutes = 0
+                    hour = 0
+                    day = 0
+                    month = 0
+                    year = 0
+--          dow = 0
+--          doy = 0
+                else
+                    -- Aside: this use on 32bit is noted in the docs of peek8s.
+                    size    = peek8s(pBuff+ST_SIZE)
+                    atom pTime = c_func(xlocaltime,{pBuff+ST_MTIME})
+                    seconds = peek4s(pTime+TM_SECS)
+                    minutes = peek4s(pTime+TM_MINS)
+                    hour    = peek4s(pTime+TM_HOUR)
+                    day     = peek4s(pTime+TM_DAY)
+                    month   = peek4s(pTime+TM_MNTH)+1
+                    year    = peek4s(pTime+TM_YEAR)+1900
+--          dow     = peek4s(pTime+TM_DOW)
+--          doy     = peek4s(pTime+TM_DOY)
+                end if
+                res = append(res,{name,attr,size,year,month,day,hour,minutes,seconds})
+--          end if
+--      printf( 1, "%s [%s] ", {name,attr} ) 
+--      ?{size,year,month,day,hour,minutes,seconds}--,dow,doy}
+--      dirent = readdir( dirp ) 
+            if dirp=NULL then exit end if
+--      statres = 0
+        end while 
+        if dirp!=NULL then
+            {} = c_func(xclosedir,{dirp})
+        end if
+        free(pBuff)
+--  return res
+--end function 
+
 --/*
-struc dirent
-{
-.d_ino           rd 1 
-.d_off           rd 1 
-.d_reclen        rw 1 
-.d_name          rb 256
-} 
-
-        mov     eax, SYS_OPEN                                   ; open a direcory located one level up    
-        mov     ebx, filename_s
-        xor     ecx, ecx
-        mov     edx, S_IRWXU
-        int     0x80
-        ccall   error_chk, <"SYS_OPEN has failed: ">, exit
-
-        mov     ebx, eax                                        ; read available directories
-        mov     eax, SYS_GETDENTS
-        mov     ecx, _dirent
-        mov     edx, sizeof.dirent                              ; try to read at least one directory entry
-        int     0x80
-        ccall   error_chk, <"SYS_GETDENTS has failed: ">, exit
-        test    eax, eax
-        je      exit
-        mov     [bytes_read], eax
-
-        mov     esi,  _dirent                                   ; parse through dir enries and print their names 
-
-print_dir:
-        lea     edi, [esi+dirent.d_name]
-
-        xor     edx, edx
-        xor     eax, eax
-@@:     inc     edx
-        scasb
-        jne     @b
-        mov     [edi-1], byte 0xa
-
-        mov     eax, SYS_WRITE
-        mov     ebx, STDOUT
-        lea     ecx, [esi+dirent.d_name]
-        int     0x80
-   
-        add     si, [esi+dirent.d_reclen]                       ; get offset of the next entry
-
-        mov     eax, esi
-        sub     eax, _dirent
-        cmp     eax, [bytes_read]                               ; make sure we are in bounds
-        jb      print_dir
-                    
-exit:   mov     eax, SYS_EXIT
-        xor     ebx, ebx
-        int     0x80
-
-section '.data' writeable
-
-filename_s  db "../",0
-
-bytes_read      rd 1
-_dirent         dirent
---*/    
         if lp and path[lp]=slash then
 --          path &= "*.*"
             pattern = "*.*"
@@ -365,6 +470,7 @@ _dirent         dirent
         end if
 --          if wildcard_file(pattern,this) then
         ?9/0    
+--*/    
     end if
     return res
 end function

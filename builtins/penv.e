@@ -21,6 +21,7 @@ atom xGetEnvironmentVar,
 procedure Einit()
 -- (platform()=WINDOWS only)
 --DEV locking as per pprntf
+    enter_cs()
     kernel32 = open_dll("kernel32.dll")
 --#without reformat
     xGetEnvironmentVar = define_c_func(kernel32,"GetEnvironmentVariableA",
@@ -34,6 +35,7 @@ procedure Einit()
         C_INT)      -- BOOL 
 --#with reformat
     eInit = 1
+    leave_cs()
 end procedure
 
 --DEV doc/psym:

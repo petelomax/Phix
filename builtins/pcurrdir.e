@@ -32,6 +32,8 @@ integer l
 string res
     if not init then
         if platform()=WINDOWS then
+            -- added 25/11/16:
+            enter_cs()
 --#without reformat
             kernel32 = open_dll("kernel32.dll")
             xGetCurrentDirectory = define_c_func(kernel32, "GetCurrentDirectoryA",
@@ -39,6 +41,7 @@ string res
                  C_PTR}, -- LPTSTR lpBuffer     // address of buffer for current directory
                 C_INT)   -- DWORD
 --#with reformat
+            leave_cs()
         end if
         init = 1
     end if

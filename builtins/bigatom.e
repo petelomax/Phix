@@ -26,7 +26,7 @@
 --
 --    The function b_a_exp() adapted from the BC manpages.
 --
---    The function euler() on the algorithm I have no idea, taken from an example in Modula-2
+--    The function ba_euler() on the algorithm I have no idea, taken from an example in Modula-2
 --    a Modula-old Oberon compiler that has a looooong time, used in OS / 2 called XDS.
 --    The original algorithm was written in Algol by Serge Batalov, rewritten in Modula-2
 --    and amended by Eugene Nalimov and Pavel Zemtsov.
@@ -121,7 +121,6 @@ end type
 -- -------------------------------------------------------------------------------------------
 
 
--- scale
 integer SCALE = 25    -- number of decimal places (positions or digits)
 integer SC_MODE = 1   -- 0 positions are not 0 are digits
 
@@ -166,7 +165,7 @@ integer DFCHAR = SPACE  -- decimal filling character (format 'c')
 --
 --    Returns a sequence with the previous values: {scale, mode}
 --
-global function scale(object decs = -1, integer mode = -1)
+global function ba_scale(object decs = -1, integer mode = -1)
 sequence prev = {SCALE, SC_MODE}
 
     if sequence(decs) then
@@ -197,7 +196,7 @@ end function
 -- Returns the scale of a bigatom
 -- (the number of decimals)
 --
-global function scale_of(bigatom N)
+global function ba_scale_of(bigatom N)
 integer decs = length(N[DIGITS])-N[EXPONENT]-1
     return decs*(decs>0)
 end function
@@ -859,7 +858,7 @@ integer len
     end if
 
     if decs<0 then
-        decs = scale_of(N)
+        decs = ba_scale_of(N)
     end if
 
     str = make_string(N, sg, decs, zsign, all)
@@ -1303,8 +1302,8 @@ integer mult, len
         A[SIGN] *= signB
         res = A
     else
-        ndecs = scale_of(A)
-        decsB = scale_of(B)
+        ndecs = ba_scale_of(A)
+        decsB = ba_scale_of(B)
         if ndecs<decsB then
             ndecs = decsB
         end if
@@ -1649,7 +1648,7 @@ constant BLIMIT = {1,0,{1,1}}   -- 1.1
 -- (the one that has best taken with bigatoms)
 --
 global function ba_log(object x, integer bRound = 0)
-sequence sc = scale(SCALE+4, 0)
+sequence sc = ba_scale(SCALE+4, 0)
 --sequence limit, ln_limit
 sequence ln_limit
 sequence res, curr, prev, inc
@@ -1693,7 +1692,7 @@ integer start,stop
         end while
     end if
 
-    {} = scale(sc)  -- (restore original settings)
+    {} = ba_scale(sc)   -- (restore original settings)
 
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
@@ -1754,7 +1753,7 @@ atom BASE
 
 --constant BASE = power(10, N)   -- wrong atom (that is slow)
 --
-global function euler(integer decs, integer output = 0)
+global function ba_euler(integer decs, integer output = 0)
 integer d
 integer size
 sequence bdigits
@@ -1860,7 +1859,7 @@ integer start,stop
     end if
 
     if equal(x, BA_ONE) then
-        return euler(SCALE, 1)  -- much faster
+        return ba_euler(SCALE, 1)   -- much faster
     end if
 
     if x[SIGN]=SG_MINUS then
@@ -1868,7 +1867,7 @@ integer start,stop
         x[SIGN] = -x[SIGN]
     end if
 
-    sc = scale(SCALE+2, 0)
+    sc = ba_scale(SCALE+2, 0)
 
     while compare(x, BA_ONE)=SG_PLUS do
         mult += 1
@@ -1895,7 +1894,7 @@ integer start,stop
         res = ba_divide(BA_ONE, res)
     end if
 
-    {} = scale(sc)  -- (restore original settings)
+    {} = ba_scale(sc)   -- (restore original settings)
 
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
@@ -2154,7 +2153,7 @@ end function
 --
 global function ba_root(object x, object exponent, integer bRound = 0)
 sequence res
-sequence sc = scale(SCALE+1)
+sequence sc = ba_scale(SCALE+1)
 
 integer start,stop
 
@@ -2172,7 +2171,7 @@ integer start,stop
                 res = ba_divide(BA_ONE, ba_power(x, 1/ -exponent), bRound)
             end if
 
-            {} = scale(sc)  -- (restore original settings)
+            {} = ba_scale(sc)   -- (restore original settings)
 
             start = res[EXPONENT]+2+SCALE
             stop = length(res[DIGITS])
@@ -2189,7 +2188,7 @@ integer start,stop
         if atom(exponent) and exponent=2 then
             res = ba_sqrt(x)
 
-            {} = scale(sc)  -- (restore original settings)
+            {} = ba_scale(sc)   -- (restore original settings)
 
             if bRound then
                 res = round_digits(res, res[EXPONENT]+2+SCALE)
@@ -2218,7 +2217,7 @@ integer start,stop
         res = ba_divide(BA_ONE, ba_power(x, ba_divide(BA_ONE, exponent)))
     end if
 
-    {} = scale(sc)  -- (restore original settings)
+    {} = ba_scale(sc)   -- (restore original settings)
 
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
@@ -2316,9 +2315,9 @@ end function
 
 
 /*
---scale(20)
+--ba_scale(20)
 
-sequence s = euler(100000)
+sequence s = ba_euler(100000)
 for i = 1 to length(s)-2 by 50 do
     puts(1, s[i..i+49]&10)
 end for
@@ -2335,7 +2334,7 @@ integer count
 --ifdef TEST then
 if 0 then
     puts(1, "\nDid you know...\n\n")
-    {} = scale(decs)
+    {} = ba_scale(decs)
     ba = ba_sqrt(n)
 --?ba
     printf(1, "The square root of %d with %d decimals is:\n\t%s\n\n",
@@ -2348,13 +2347,13 @@ if 0 then
     ba = ba_logb(n, 10)
     ba_printf(1, "And its logarithm is:\n\t%.100aB\n\n", ba)
     decs = 843
-    {} = scale(decs)
+    {} = ba_scale(decs)
     ba = ba_exp("1")
     printf(1, "And that 'e' with %d decimals is:\n\t%s\n", {decs, ba_sprint(ba)})
 --end ifdef
 
 --ifdef TEST2 then
-    {} = scale(100, 1)
+    {} = ba_scale(100, 1)
     t0 = time()
     -- exp = -1 and cut
     ba_printf(1,"\nba_log10('9999999999999999'):\n\t%B\n", ba_log10("9999999999999999"))
@@ -2382,7 +2381,7 @@ if 0 then
     decs = 1_000_000
 --  decs = 1_000_000
     t0 = time()
-    s = euler(decs)
+    s = ba_euler(decs)
     printf(1, "'e' with %d decimals in: %.3f sec.\n", {decs, time()-t0})
     f = open("e-1millon.txt", "w")
     count = 0

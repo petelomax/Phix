@@ -141,6 +141,17 @@ Version 0.6.7
             unused warnings, such as constant TextLabel = create(Label,...).
             [E_other stems, I believe, from the 09/02/2016 bugfix. It replaces
              E-none in any routine of said that has any #ilASM in it.]
+17/11/2016  You can now use platform(), machine_bits(), and machine_word() as
+            parameter defaults (optimised to literal integers in pmain.e/
+            getOneDefault). Also, a switch with no case statements now triggers
+            an error (because pilx86.e cannot cope, and besides it is bit like 
+            having an if/elsif/else/end if with no if, no elsif, and maybe no
+            else). New builtins to_integer() and to_number(). Files are now
+            properly flushed/closed when an app terminates. Several x64 asm
+            fixes (far too many to list, though many were just minor glitches
+            in the list.asm files). Discovered rand() was really pants on x64,
+            rax is now initialised with seed<<32|seed, iyswim. puts1.e was
+            mutely displaying nothing, so it now does an AllocConsole first.
 
 Version 0.6.6
 =============

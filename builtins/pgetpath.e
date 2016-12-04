@@ -192,6 +192,7 @@ sequence res
     if platform()=WINDOWS then
         if not gppinit then
             --DEV locking as per pprntf.e
+            enter_cs()
             kernel32 = open_dll("kernel32")
 --#without reformat
             xGetLongPathName = define_c_func(kernel32,"GetLongPathNameA",
@@ -211,6 +212,7 @@ sequence res
 --          buffer = allocate(MAX_PATH)
 --#with reformat
             gppinit = 1
+            leave_cs()
         end if
 --puts(1,"get_proper_path, filepath:\n")
 --pp(filepath)

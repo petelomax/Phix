@@ -1379,6 +1379,7 @@ GlTexCoord2f            = validate_proc(opengl32,"glTexCoord2f",{C_FLOAT,C_FLOAT
 --GlTexCoord4sv         = validate_proc(opengl32,"glTexCoord4sv",{C_POINTER}),
 GlTexEnvi               = validate_proc(opengl32,"glTexEnvi",{C_INT,C_INT,C_INT}),
 GlTexEnvf               = validate_proc(opengl32,"glTexEnvf",{C_INT,C_INT,C_FLOAT}),
+--GlTexEnvf             = validate_proc(opengl32,"glTexEnvf",{C_INT,C_INT,C_DOUBLE}),
 GlTexGeni               = validate_proc(opengl32,"glTexGeni",{C_INT,C_INT,C_INT}),
 --GlTexImage1D          = validate_proc(opengl32,"glTexImage1D",repeat(C_INT,7) & C_POINTER),
 GlTexImage2D            = validate_proc(opengl32,"glTexImage2D",repeat(C_INT,8) & C_POINTER),
@@ -1413,11 +1414,14 @@ GlVertex4s              = validate_proc(opengl32,"glVertex4s",{C_SHORT,C_SHORT,C
 --GlVertex4sv           = validate_proc(opengl32,"glVertex4sv",{C_POINTER}),
 GlVertexPointer         = validate_proc(opengl32,"glVertexPointer", {C_INT, C_UINT, C_UINT, C_POINTER}),
 GlViewport              = validate_proc(opengl32,"glViewport",{C_INT,C_INT,C_INT,C_INT}),
-WglGetProcAddress       = validate_func(opengl32,"wglGetProcAddress", {C_POINTER}, C_POINTER),
-WglUseFontOutlines      = validate_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
+--WglGetProcAddress     = validate_func(opengl32,"wglGetProcAddress", {C_POINTER}, C_POINTER),
+sglGetProcAddress = iff(platform()=WINDOWS?"wglGetProcAddress":"glXGetProcAddress")
+XglGetProcAddress       = validate_func(opengl32,sglGetProcAddress, {C_POINTER}, C_POINTER)
+--WglUseFontOutlines        = validate_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
 
+--global function xglGetProcAddress(string name)    --DEV rename as this/docs:
 global function wglGetProcAddress(string name)
-atom addr = c_func(WglGetProcAddress,{name})
+atom addr = c_func(XglGetProcAddress,{name})
     if addr<=0 then
         IupMessage("Error", "Couldn't find " & name)
         abort(1)
@@ -1425,7 +1429,13 @@ atom addr = c_func(WglGetProcAddress,{name})
     return addr
 end function
 
+--1/12/16 (WglUseFontOutlines is Windows-only)
+atom WglUseFontOutlines = NULL
 global function wglUseFontOutlines(atom glhDC, integer first, integer count, atom pFontList, atom deviation, atom extrusion, integer fmt, atom pGMF)
+    if WglUseFontOutlines=NULL then
+        if platform()!=WINDOWS then ?9/0 end if
+        WglUseFontOutlines = validate_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
+    end if
     return c_func(WglUseFontOutlines,{glhDC,first,count,pFontList,deviation,extrusion,fmt,pGMF})
 end function
 

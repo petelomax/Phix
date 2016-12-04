@@ -2509,7 +2509,10 @@ end if
 --  symtab[symlimit][S_ParmN] = 1
 --else
     initialAutoEntry("get_file_name",   S_Func,"FS",    "pfile.e",0,E_none)
-    Alias("filename", symlimit)
+--removed 25/11/16
+--  Alias("filename", symlimit)
+    initialAutoEntry("get_interpreter", S_Func,"FIOI",  "get_interpreter.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("get_proper_path", S_Func,"FPO",   "pgetpath.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("get_proper_dir",  S_Func,"FSI",   "pgetpath.e",0,E_none)
@@ -2546,11 +2549,11 @@ end if
     IAEType = T_sequence
 
     initialAutoEntry("columnize",       S_Func,"FPOO",  "pcolumn.e",0,E_none)
-if newEmit then
+--if newEmit then
     initialAutoEntry("command_line",    S_Func,"F",     "VM\\pcmdlnN.e",0,E_none)   T_command_line = symlimit
-else
-    initialAutoEntry("command_line",    S_Func,"F",     "pcmdln.e",0,E_none)        T_command_line = symlimit
-end if
+--else
+--  initialAutoEntry("command_line",    S_Func,"F",     "pcmdln.e",0,E_none)        T_command_line = symlimit
+--end if
     initialAutoEntry("date",            S_Func,"F",     "pdate.e",0,E_none)         Z_command_line = 0
     initialAutoEntry("db_table_list",   S_Func,"F",     "database.e",0,E_none)
     initialAutoEntry("factors",         S_Func,"FNI",   "pfactors.e",0,E_none)

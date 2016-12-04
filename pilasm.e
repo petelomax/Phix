@@ -4397,6 +4397,16 @@ end if
 --; 163 --  movaps xmm1,[esi+#010] -- 0x0F, 0o50, 0o116, 0x10, //copy more
 --;     0F  28  r   MOVAPS  xmm     xmm/m128        Move Aligned Packed Single-FP Values
 --; 66  0F  28  r   MOVAPD  xmm     xmm/m128        Move Aligned Packed Double-FP Values    
+
+--          elsif ttidx=T_movd then
+--00000000004012FB | 66 0F 6E 05 19 0D 00 00    | movd xmm0,dword ptr ds:[40201C]         |
+--0000000000401303 | B8 00 00 00 00         | mov eax,0                               |
+--0000000000401308 | 66 0F 6E C8                | movd xmm1,eax                           |
+--000000000040130C | B8 00 00 00 00         | mov eax,0                               |
+--0000000000401311 | 66 0F 6E D0                | movd xmm2,eax                           |
+--0000000000401315 | B8 00 00 80 3F         | mov eax,3F800000                        |
+--000000000040131A | 66 0F 6E D8                | movd xmm3,eax                           |
+--                   66 0F 6E 04 24             | movd xmm0,dword[rsp]
             elsif ttidx=T_prefetchnta then
                 {p1type,p1size,p1details} = get_operand(P_MEM)
 --              if not find(p1size,{0,1,4,8}) then ?9/0 end if  -- sanity check (should never trigger)

@@ -441,7 +441,8 @@ integer tmp
 
     if not init2 then
 -- [DEV] technically this isn't thread safe... (code shown commented out should be enough, once those routines work)
---      enter_cs()
+        -- (uncommented 25/11/16)
+        enter_cs()
 --DEV make INF a builtin (like PI), ditto NAN:
 --      inf = 1e300*1e300
         #ilASM{ fld1
@@ -465,8 +466,8 @@ integer tmp
 
         bases = {10,16,8,2}
         hexchar = "0123456789ABCDEFabcdef"
---      leave_cs()
         init2 = 1
+        leave_cs()
     end if
     nxt = 1
 --  result = ""

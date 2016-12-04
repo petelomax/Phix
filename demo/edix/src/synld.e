@@ -513,7 +513,8 @@ integer TokenType
         charMap[129..256] = TokenChar -- #7F to #FF really
     end if
 
-    fullname = initialcurrentdir&"syn\\"&name&".syn"
+--  fullname = initialcurrentdir&"syn\\"&name&".syn"
+    fullname = join_path({initialcurrentdir,"syn",name&".syn"})
     f = open(fullname,"rb")
     if f=-1 then
         fatal("cannot open file \""&fullname&"\"")

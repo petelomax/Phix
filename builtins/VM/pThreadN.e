@@ -29,60 +29,71 @@ atom kernel32,
     xCloseHandle,
     xGetLastError
 
+sequence suspended,     -- list of suspended thread-ids
+         suspendcs      -- corresponding critical sections
+integer susp_cs         -- thread-safe access to ""
+
 procedure t_init()
-puts(1,"pThreadN.e not linux\n")
-    kernel32 = open_dll("kernel32.dll")
+--puts(1,"pThreadN.e not linux\n")
+    if platform()=WINDOWS then
+        --DEV we might be able to get rid of these...
+        kernel32 = open_dll("kernel32.dll")
 
-    xCreateEvent = define_c_func(kernel32,"CreateEventA",
-        {C_PTR,     --  LPSECURITY_ATTRIBUTES  lpEventAttributes, // address of security attributes  
-         C_INT,     --  BOOL  bManualReset, // flag for manual-reset event 
-         C_INT,     --  BOOL  bInitialState, // flag for initial state 
-         C_PTR},    --  LPCTSTR  lpName     // address of event-object name  
-        C_PTR)      -- HANDLE
+        xCreateEvent = define_c_func(kernel32,"CreateEventA",
+            {C_PTR,     --  LPSECURITY_ATTRIBUTES  lpEventAttributes, // address of security attributes  
+             C_INT,     --  BOOL  bManualReset, // flag for manual-reset event 
+             C_INT,     --  BOOL  bInitialState, // flag for initial state 
+             C_PTR},    --  LPCTSTR  lpName     // address of event-object name  
+            C_PTR)      -- HANDLE
 
-    xSetEvent = define_c_func(kernel32,"SetEvent",
-        {C_PTR},    --  HANDLE  hEvent      // handle of event object 
-        C_INT)      -- BOOL
+        xSetEvent = define_c_func(kernel32,"SetEvent",
+            {C_PTR},    --  HANDLE  hEvent      // handle of event object 
+            C_INT)      -- BOOL
 
-    xResetEvent = define_c_func(kernel32,"ResetEvent",
-        {C_PTR},    --  HANDLE  hEvent      // handle of event object 
-        C_INT)      -- BOOL
+        xResetEvent = define_c_func(kernel32,"ResetEvent",
+            {C_PTR},    --  HANDLE  hEvent      // handle of event object 
+            C_INT)      -- BOOL
 
-    xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
-        {C_PTR,     --  HANDLE hObject, // handle of object to wait for
-         C_LONG},   --  DWORD dwTimeout // time-out interval in milliseconds
-        C_LONG)     -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, WAIT_TIMEOUT, or WAIT_FAILED
+        xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
+            {C_PTR,     --  HANDLE hObject, // handle of object to wait for
+             C_LONG},   --  DWORD dwTimeout // time-out interval in milliseconds
+            C_LONG)     -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, WAIT_TIMEOUT, or WAIT_FAILED
 
---  xCreateThread = define_c_func(kernel32,"CreateThread",
---      {C_PTR,     --  LPSECURITY_ATTRIBUTES  lpThreadAttributes,  // address of thread security attributes  
---       C_LONG,    --  DWORD  dwStackSize, // initial thread stack size, in bytes 
---       C_PTR,     --  LPTHREAD_START_ROUTINE  lpStartAddress,     // address of thread function 
---       C_PTR,     --  LPVOID  lpParameter,        // argument for new thread 
---       C_LONG,    --  DWORD  dwCreationFlags,     // creation flags 
---       C_PTR},    --  LPDWORD  lpThreadId         // address of returned thread identifier 
---      C_PTR)      -- HANDLE
+--      xCreateThread = define_c_func(kernel32,"CreateThread",
+--          {C_PTR,     --  LPSECURITY_ATTRIBUTES  lpThreadAttributes,  // address of thread security attributes  
+--           C_LONG,    --  DWORD  dwStackSize, // initial thread stack size, in bytes 
+--           C_PTR,     --  LPTHREAD_START_ROUTINE  lpStartAddress,     // address of thread function 
+--           C_PTR,     --  LPVOID  lpParameter,        // argument for new thread 
+--           C_LONG,    --  DWORD  dwCreationFlags,     // creation flags 
+--           C_PTR},    --  LPDWORD  lpThreadId         // address of returned thread identifier 
+--          C_PTR)      -- HANDLE
 
-    xGetExitCodeThread = define_c_func(kernel32,"xGetExitCodeThread",
-        {C_PTR,     --  _In_     HANDLE hThread
-         C_PTR},    --  _Out_  LPDWORD lpExitCode
-        C_INT)      -- BOOL        
+        xGetExitCodeThread = define_c_func(kernel32,"xGetExitCodeThread",
+            {C_PTR,     --  _In_     HANDLE hThread
+             C_PTR},    --  _Out_  LPDWORD lpExitCode
+            C_INT)      -- BOOL        
 
+        xSuspendThread = define_c_func(kernel32,"SuspendThread",
+            {C_PTR},    --  _In_     HANDLE hThread
+            C_INT)      -- DWORD       
+               
+        xResumeThread = define_c_func(kernel32,"ResumeThread",
+            {C_PTR},    --  _In_     HANDLE hThread
+            C_INT)      -- DWORD       
 
-    xSuspendThread = define_c_func(kernel32,"SuspendThread",
-        {C_PTR},    --  _In_     HANDLE hThread
-        C_INT)      -- DWORD       
-           
-    xResumeThread = define_c_func(kernel32,"ResumeThread",
-        {C_PTR},    --  _In_     HANDLE hThread
-        C_INT)      -- DWORD       
+        xCloseHandle = define_c_func(kernel32,"CloseHandle",
+            {C_PTR},    --  HANDLE  hObject     // handle of object to close  
+            C_INT)      -- BOOL
 
-    xCloseHandle = define_c_func(kernel32,"CloseHandle",
-        {C_PTR},    --  HANDLE  hObject     // handle of object to close  
-        C_INT)      -- BOOL
+        xGetLastError = define_c_func(kernel32,"GetLastError",
+            {},
+            C_INT)      -- DWORD
 
-    xGetLastError = define_c_func(kernel32,"GetLastError",
-        {},
-        C_INT)      -- DWORD
+    else -- LINUX
+        suspended = {}
+        suspendcs = {}
+        susp_cs = init_cs()
+    end if
 
     init = 1
 end procedure
@@ -91,12 +102,18 @@ type bool(integer flag)
     return (flag=0 or flag=1)
 end type
 
-procedure start_thread(sequence s)
+procedure start_thread(sequence s, integer cs=0)
 -- internal routine, see create_thread()
 integer rid
 sequence params
     if length(s)!=2 then ?9/0 end if
     {rid,params} = s
+    if cs!=0 then
+        -- linux implementation of CREATE_SUSPENDED
+        enter_cs(cs)
+        leave_cs(cs)
+        delete_cs(cs)
+    end if
     call_proc(rid,params)
 end procedure
 
@@ -110,13 +127,21 @@ global function create_thread(integer rid, sequence params, integer flags=0)
 --                          --  does not run until resume_thread() called. 
 -- 
 atom hThread
+integer cs = 0
 --  if not init then t_init() end if    -- (not needed)
+    if not init then t_init() end if
     params = {rid,params}   -- (btw, this gets freed at the end of start_thread() above)
+    if platform()=LINUX then
+        if flags=CREATE_SUSPENDED then
+            cs = init_cs()
+            enter_cs(cs)
+        end if
+    end if
     #ilASM{
         [PE32]
             mov eax,[params]
             mov ecx,[flags]
-            mov [params],ebx                    --  mov [params],0  (without any ref counting)
+            mov [params],ebx                    -- mov [params],0   (without any ref counting)
             jmp :createthread
 
           ::threadproc
@@ -156,7 +181,45 @@ atom hThread
             lea edi,[hThread]
             call :%pStoreFlt                    -- ([edi]:=st0, as 31 bit int if possible)
         [ELF32]
-            pop al
+            mov eax,[params]
+            jmp :createthread
+
+          ::threadproc
+            call :%pNewStack                    -- (still has a dummy T_maintls, btw)
+            --
+            -- NB: we now have NO ACCESS to /ANY/ params or local variables.
+            --  (except for a copy of params and cs as left on the stack)
+            --
+            mov edx,routine_id(start_thread)    -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
+            call :%opFrame
+            pop dword[ebp]                      --[1] {rid,params}
+            pop dword[ebp-4]                    --[2] cs
+            mov dword[ebp+16],:threadret        -- return address
+            jmp $_il                            -- jmp code:start_thread
+
+         ::threadret
+            call :%pFreeStack
+            xor ebx,ebx 
+            mov eax,1                           -- sys_exit
+            int 0x80 
+
+          ::createthread
+            mov [params],ebx                    -- mov [params],0   (without any ref counting)
+            push [cs]
+            push eax                            --[1] params
+            call "libc.so.6","fork"
+            test eax,eax
+            jz :threadproc
+            xor ebx,ebx
+            add esp,8
+            push ebx
+            push eax                            -- (unsigned extend)
+            fild qword[esp]
+            add esp,8
+            lea edi,[hThread]
+            call :%pStoreFlt                    -- ([edi]:=st0, as 31 bit int if possible)
+
         [PE64]
             mov rax,[params]
             mov rcx,[flags]
@@ -164,12 +227,14 @@ atom hThread
             jmp :createthread
 
           ::threadproc
+            mov [rsp],rcx
+--          push rcx            
             call :%pNewStack                    -- (still has a dummy T_maintls, btw)
             --
             -- NB: we now have NO ACCESS to /ANY/ params or local variables.
             --  (except for a copy of lpParameter as passed to kernel32:CreateThread)
             --
-            add rsp,8                           -- discard return address (into knl32)
+--          add rsp,8                           -- discard return address (into knl32)
             mov rdx,routine_id(start_thread)    -- mov edx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
@@ -193,9 +258,9 @@ atom hThread
 --          mov rsp,[rsp+8*5]
 
           ::createthread
-            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            mov rdx,rsp -- put 2 copies of rsp onto the stack...
             push rsp
-            push rcx
+            push rdx
             or rsp,8    -- [rsp] is now 1st or 2nd copy:
                         -- if on entry rsp was xxx8: both copies remain on the stack
                         -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
@@ -217,29 +282,51 @@ atom hThread
             fild qword[rsp]
             add rsp,8
             lea rdi,[hThread]
-            call :%pStoreFlt                    -- ([rdi]:=st0, as 31 bit int if possible)
+            call :%pStoreFlt                    -- ([rdi]:=st0, as 63 bit int if possible)
         [ELF64]
             pop al
         []
            }
+    if platform()=LINUX then
+        if flags=CREATE_SUSPENDED then
+            enter_cs(susp_cs)
+            suspended = append(suspended,hThread)
+            suspendcs = append(suspendcs,cs)
+            leave_cs(susp_cs)
+        end if
+    end if
     return hThread
 end function
 
 global procedure suspend_thread(atom hThread)
 atom dwError
     if not init then t_init() end if
-    if c_func(xSuspendThread,{hThread})=-1 then
-        dwError = c_func(xGetLastError,{})
-        ?9/0
+    if platform()=WINDOWS then
+        if c_func(xSuspendThread,{hThread})=-1 then
+            dwError = c_func(xGetLastError,{})
+            ?9/0
+        end if
+    else -- LINUX
+        ?9/0 -- not supported
     end if
 end procedure
 
 global procedure resume_thread(atom hThread)
 atom dwError
     if not init then t_init() end if
-    if c_func(xResumeThread,{hThread})=-1 then
-        dwError = c_func(xGetLastError,{})
-        ?9/0
+    if platform()=WINDOWS then
+        if c_func(xResumeThread,{hThread})=-1 then
+            dwError = c_func(xGetLastError,{})
+            ?9/0
+        end if
+    else
+        enter_cs(susp_cs)
+        integer k = find(hThread,suspended)
+        if k=0 then ?9/0 end if
+        leave_cs(suspendcs[k])  -- release start_thread()
+        suspended[k..k] = {}
+        suspendcs[k..k] = {}
+        leave_cs(susp_cs)
     end if
 end procedure
 
@@ -252,10 +339,48 @@ atom dwError
         end for
     else
         if not init then t_init() end if
-        dwError = c_func(xWaitForSingleObject,{hThread,INFINITE})
-        if dwError!=WAIT_OBJECT_0 then  -- [WAIT_FAILED?]
-            dwError = c_func(xGetLastError,{})
-            ?9/0
+        if platform()=WINDOWS then
+            dwError = c_func(xWaitForSingleObject,{hThread,INFINITE})
+            if dwError!=WAIT_OBJECT_0 then  -- [WAIT_FAILED?]
+                dwError = c_func(xGetLastError,{})
+                ?9/0
+            end if
+        else
+            #ilASM{
+                [ELF32]
+                    mov eax,[hThread]
+                    call :%pLoadMint
+--                  push ebx
+                    mov ecx,esp
+                    push 2                      -- options (WUNTRACED)
+--                  push ecx                    -- int *wstatus
+                    push ebx                    -- int *wstatus
+                    push eax                    -- pid
+                    call "libc.so.6","waitpid"
+--                  add esp,16
+                    add esp,12
+                [ELF64]
+                    pop al
+                []
+                  }
+--              do {
+--                 w = waitpid(cpid, &wstatus, WUNTRACED | WCONTINUED);
+--                 if (w == -1) {
+--                     perror("waitpid");
+--                     exit(EXIT_FAILURE);
+--                 }
+--
+--                 if (WIFEXITED(wstatus)) {
+--                     printf("exited, status=%d\n", WEXITSTATUS(wstatus));
+--                 } else if (WIFSIGNALED(wstatus)) {
+--                     printf("killed by signal %d\n", WTERMSIG(wstatus));
+--                 } else if (WIFSTOPPED(wstatus)) {
+--                     printf("stopped by signal %d\n", WSTOPSIG(wstatus));
+--                 } else if (WIFCONTINUED(wstatus)) {
+--                     printf("continued\n");
+--                 }
+--             } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
+--             exit(EXIT_SUCCESS);
         end if
     end if
 end procedure
@@ -268,7 +393,9 @@ global procedure exit_thread(integer ecode)
             call :%pFreeStack
             call "kernel32.dll","ExitThread"
         [ELF32]
-            pop al
+            xor ebx,ebx 
+            mov eax,1                           -- sys_exit
+            int 0x80 
         [PE64]
             push qword[ecode]                   -- dwExitCode
             call :%pFreeStack
@@ -276,7 +403,9 @@ global procedure exit_thread(integer ecode)
             sub rsp,8*5                         -- minimum 4 param shadow space, and align
             call "kernel32.dll","ExitThread"    -- ExitThread(0)
         [ELF64]
-            pop al
+            xor rbx,rbx 
+            mov rax,60                          -- sys_exit
+            syscall
         []
            }
 end procedure
@@ -284,13 +413,39 @@ end procedure
 global function get_thread_exitcode(atom hThread)
 atom pExitCode, dwExitCode
     if not init then t_init() end if
-    pExitCode = allocate(4)
-    if c_func(xGetExitCodeThread,{hThread,pExitCode})=0 then
-        dwExitCode = c_func(xGetLastError,{}) --[only WAIT_FAILED]
-        ?9/0
+    if platform()=WINDOWS then
+        pExitCode = allocate(4)
+        if c_func(xGetExitCodeThread,{hThread,pExitCode})=0 then
+            dwExitCode = c_func(xGetLastError,{}) --[only WAIT_FAILED]
+            ?9/0
+        end if
+        dwExitCode = peek4u(pExitCode)
+        free(pExitCode)
+    else
+        #ilASM{
+            [ELF32]
+                mov eax,[hThread]
+                call :%pLoadMint
+                push ebx
+                mov ecx,esp
+                push 3                      -- options (WUNTRACED|WNOHANG)
+                push ecx                    -- int *wstatus
+                push eax                    -- pid
+                call "libc.so.6","waitpid"
+                add esp,12
+                lea edi,[dwExitCode]
+                pop eax
+                call :%pStoreMint
+            [ELF64]
+                pop al
+            []
+              }
+            if and_bits(dwExitCode,0o177)=0 then
+                return floor(dwExitCode/#80)
+            else
+                return 0
+            end if
     end if
-    dwExitCode = peek4u(pExitCode)
-    free(pExitCode)
     return dwExitCode
 end function
 
@@ -308,7 +463,11 @@ global function create_event(object name=0, bool manualreset=0, bool initialstat
 -- (it is quite reasonable to store the result in an atom and debug any type checks)
 --
     if not init then t_init() end if
-    return c_func(xCreateEvent,{NULL,manualreset,initialstate,name})
+    if platform()=WINDOWS then
+        return c_func(xCreateEvent,{NULL,manualreset,initialstate,name})
+    else
+        return 9/0
+    end if
 --atom hRes = ""
 --  if hRes=NULL then
 --      return {c_func(xGetLastError,{})}
@@ -320,9 +479,13 @@ global function set_event(atom hEvent)
 -- returns true on success, else false (call GetLastError for details)
 -- returns 0 on success, else an error code
     if not init then t_init() end if
---  return c_func(xSetEvent,{hEvent})
-    if not c_func(xSetEvent,{hEvent}) then
-        return c_func(xGetLastError,{})
+    if platform()=WINDOWS then
+--      return c_func(xSetEvent,{hEvent})
+        if not c_func(xSetEvent,{hEvent}) then
+            return c_func(xGetLastError,{})
+        end if
+    else
+        ?9/0
     end if
     return 0
 end function
@@ -330,11 +493,20 @@ end function
 global function reset_event(atom hEvent)
 -- returns true on success, else false (call GetLastError for details)
     if not init then t_init() end if
-    return c_func(xResetEvent,{hEvent})
+    if platform()=WINDOWS then
+        return c_func(xResetEvent,{hEvent})
+    else
+        return 9/0
+    end if
 end function
 
 global function close_handle(atom hObject)
-    return c_func(xCloseHandle,{hObject})
+--  if not init then t_init() end if
+    if platform()=WINDOWS then
+        return c_func(xCloseHandle,{hObject})
+    else
+        return 9/0
+    end if
 end function
 
 --=========================

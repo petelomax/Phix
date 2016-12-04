@@ -32,14 +32,15 @@ When a file is selected it shows the source code, which ideally starts with a he
 
 Note: mandle, combo, and takeuchi are used in "p -test" and should not have a final wait_key() or similar.
 
-Using %dbit %s interpreter, crun is %s
+Using %dbit %s interpreter, crun is %s,
+croot is %s
 """		
 
 global procedure Help()
 string msg = sprintf(htxt,
                      {machine_bits(),
                       iff(platform()=WINDOWS?"Windows":"Linux"),
-                      crun})
+                      crun,croot})
     IupMessage("Demos",msg)
 end procedure
 
@@ -92,7 +93,9 @@ object text
     if k=0 then
         directories = append(directories,path)
         k = length(directories)
-        pgdbAddDir(path)
+        if not DB_BROKEN then
+            pgdbAddDir(path)
+        end if
     end if
     d = dir(path)
     if atom(d) then
@@ -103,13 +106,25 @@ object text
             sequence di = d[i]
             name = di[D_NAME]
             if find('d',di[D_ATTRIBUTES]) then
-                if match("demo",lower(name))
+--              if (match("demo",lower(name)) and platform()=WINDOWS)
+                if (match("demo",lower(name)) and platform()=LINUX)
                 or match("rosetta",lower(name))
                 or match("pgui",lower(name)) then
-                    dload(path&"\\"&name)
+--                  dload(path&"\\"&name)
+                    dload(join_path({path,name}))
                 end if
-            elsif match(".exw",lower(name)) then
-                object fi = pgdbGetFileInfo(k,name)
+            elsif match(".exw",lower(name))=length(name)-3
+--DEV or use eg --#windows only (/--#linux only)??
+--            and (platform()=WINDOWS or not find(name,{"dos.exw","enumfont.exw","enumproc.exw",
+              and (platform()=LINUX or not find(name,{"dos.exw","enumfont.exw","enumproc.exw",
+                                                        "HelloUTF8.exw","msgbox.exw",
+                                                        "taskwire.exw","test9.exw","window.exw",
+                                                        "winwire.exw","viewppm.exw","2048.exw",
+                                                        "animate_pendulum.exw","Animation.exw",
+                                                        "draw_cuboid.exw","honeycomb.exw",
+                                                        "Sudoku.exw","sha-256dll.exw",
+                                                        "named_pipes.exw"})) then
+                object fi = iff(DB_BROKEN?0:pgdbGetFileInfo(k,name))
                 if sequence(fi) then
                     lastrun = fi[1]
 --DEV
@@ -528,7 +543,10 @@ atom t = time()
     modifieds = {}
     sizes = {}
 --  pgdbinit(croot&"\\demo\\arwendemo\\pgui\\")
-    pgdbinit(croot&"\\demo\\pGUI\\pdemo\\")
+--  pgdbinit(croot&"\\demo\\pGUI\\pdemo\\")
+    if not DB_BROKEN then
+        pgdbinit(join_path({croot,"demo","pGUI","pdemo"},1))
+    end if
 --  dload(croot&"demo")
     dload(join_path({croot,"demo"}))
     tags = tagset(length(files))
@@ -550,6 +568,29 @@ atom t = time()
     return sprintf("%d files discovered in %3.2f seconds",{length(files),time()-t})
 end function
 
+--/*
+-- Aside: possible overlap with the enquote param of get_interpreter(),
+--        but these are quite different to the ones in Compiler/core.e
+function enquote(string s)
+    if find(' ',s) then
+        s = '\"' & s & '\"'
+    end if
+    return s
+--  return sprintf("\"%s\"",substitute(s,"\n","\\n"))
+end function
+
+function unquote(string s)
+    if s[1]='\"' then
+        if s[$]!='\"' or length(s)<=2 then ?9/0 end if
+        s = s[2..-2]
+    end if
+    return s
+--  if s[s]!='\"' then ?9/0 end if
+--  if s[$]!='\"' then ?9/0 end if
+--  s = substitute(s[2..-2],"\\n","\n")
+--  return s
+end function
+--*/
 constant rNORM = 0, rCOPY = 1, rEDIX = 2
 
 global procedure Run(integer option=rNORM)
@@ -571,9 +612,12 @@ sequence d
         else
             fileinfo[fidx][1] = d
         end if
-        pgdbSetFileInfo(k,name,fileinfo[fidx])
+        if not DB_BROKEN then
+            pgdbSetFileInfo(k,name,fileinfo[fidx])
+        end if
         IupUpdate(matrix)
-        path = directories[k]&"\\"&name
+--      path = directories[k]&"\\"&name
+        path = join_path({directories[k],name})
         if option=rCOPY then
             cmd = crun
             if IupGetGlobal("SHIFTKEY")="OFF" then
@@ -612,6 +656,8 @@ if 0 then
 else
                 cmd = sprintf("%s \"%s\\demo\\edita\\edita.exw\" %s",{crun,croot,path})
 --              cmd = sprintf("%s \"%s\\demo\\edix\\edix.exw\" %s",{crun,croot,path})
+--              string edix = enquote(join_path({croot,"demo","edix","edix.exw"}))
+--              cmd = sprintf("%s %s %s",{crun,edix,path})
 end if
             else
                 cmd = crun&" "&path
@@ -839,14 +885,16 @@ global procedure Amend(integer use_mouse=0)
         string name = files[l][T_name]
         string path = files[l][T_path]
         integer k = find(path,directories)
-        pgdbSetFileInfo(k,name,fi)
+        if not DB_BROKEN then
+            pgdbSetFileInfo(k,name,fi)
+        end if
         fileinfo[l] = fi
         IupUpdate(matrix)
 --?"amended..."
 --?"what is tr?" ans: tags[row] (which has become l = tags[l] above)
 --/*
     k = find(path,directories)
-                object fi = pgdbGetFileInfo(k,name)
+                object fi = iff(DB_BROKEN?0:pgdbGetFileInfo(k,name))
                     lastrun = fi[1]
                     broken = iff(length(fi)>=2?fi[2]:0)
                     text = iff(length(fi)>=3?fi[3]:"")
@@ -868,7 +916,9 @@ global procedure Amend(integer use_mouse=0)
         else
             fileinfo[fidx][1] = d
         end if
-        pgdbSetFileInfo(k,name,fileinfo[fidx])
+        if not DB_BROKEN then
+            pgdbSetFileInfo(k,name,fileinfo[fidx])
+        end if
 
     object fi = fileinfo[l]
 
@@ -886,7 +936,9 @@ global procedure Amend(integer use_mouse=0)
 --          if not equal(fi[c],o) then
 --              fi[c] = o
 --              fileinfo[tr] = fi
---              pgdbSetFileInfo(files[tr][T_path],files[tr][T_name],fi)
+--              if not DB_BROKEN then
+--                  pgdbSetFileInfo(files[tr][T_path],files[tr][T_name],fi)
+--              end if
 --          end if
     end if
 

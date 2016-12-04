@@ -180,6 +180,8 @@ integer pArg4,W,N
     if platform()=WINDOWS then
         if not init then
 --DEV requires locking as per pprntf.e:
+            -- added 25/11/16:
+            enter_cs()
             xKernel32 = open_dll("kernel32")
             if xKernel32=0 then xKernel32 = 9/0 end if
 --#without reformat
@@ -204,6 +206,7 @@ integer pArg4,W,N
 --          dotEXE = allocate_string(".exe")
 --          pFilePart = allocate(4)
             init = 1
+            leave_cs()
         end if
 
         dotEXE = allocate_string(".exe")

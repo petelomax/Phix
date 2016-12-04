@@ -4,6 +4,7 @@
 --
 --  Included as demo\rosetta\crc32.exw, which also includes a thread-safe version
 
+--/*
 sequence table
 integer have_table = 0
 
@@ -37,7 +38,7 @@ atom crc
 --atom ti
  
     if have_table=0 then make_crc() end if
- 
+
     crc = #FFFFFFFF
     for i=1 to length(s) do
 --      byte = s[i]
@@ -51,10 +52,12 @@ atom crc
             crc += #100000000
         end if
     end for
-    return not_bits(crc)
+--  return not_bits(crc)
+    return and_bits(not_bits(crc),#FFFFFFFF)
 end function
+--*/
 
---/*
+--/!*
 -- The following version should be thread-safe, and only lock during initialisation, but free(pMemCRC4*4) should be called at shutdown.
 --  (it is the hidden reference counts of sequence table [entries] that make the above version non-thread-safe, btw, whereas
 --   in the following code there simply aren't any reference counts that could be shared/accessed by more than one thread.)
@@ -108,11 +111,12 @@ atom crc
             crc += #100000000
         end if
     end for
-    return not_bits(crc)
+--  return not_bits(crc)
+    return and_bits(not_bits(crc),#FFFFFFFF)
 end function
 
 --  ... free(pMemCRC4*4)
---*/
+--*!/
  
 string s = "The quick brown fox jumps over the lazy dog"
 printf(1,"The CRC of %s is %08x\n",{s,crc32(s)})

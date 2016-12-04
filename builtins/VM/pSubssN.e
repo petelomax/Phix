@@ -451,7 +451,7 @@ end procedure -- (for Edita/CtrlQ)
             mov al,[rbx+rsi*4-1]
             mov rdx,[rbx+rsi*4-24]  -- length
             shl rsi,2
-            sub rdi,1               -- decrement edi (:-)
+            sub rdi,1               -- decrement rdi (:-)
             test al,0x80
             jz :e04atsaa9       -- era @ [rsp+rcx*8+8]
 

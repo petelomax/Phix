@@ -7,7 +7,12 @@
 --DEV:
 -- It would be nice to find some way to make countlines block properly when the queue is empty.
 -- It would be nice for countlines to signal completion by a better means than terminating.
+-- There are still some instabilities here:
+--  exit_thread() can crash trying to call a delete_routine of 1 (bad ref counting).
+--  also from inside "--DEV requires locking as per pprntf.e:" of command_line().
+--  (so I suspect the solution involves properly addressing all such cases)
 
+--/!*
 -- Busy wait version:
 atom frThread,  -- file reader thread
      lcThread   -- line counter thread
@@ -19,19 +24,22 @@ integer linecount = 1
 
 procedure readfile()
 object line
-integer fn = open(command_line()[2],"r")
+integer fn = open(substitute(command_line()[2],".exe",".exw"),"r")
     while 1 do
         line = gets(fn)
         enter_cs(qlock)
         queue = append(queue,line)
+        line = atom(line)   -- kill refcount!
         leave_cs(qlock)
-        if atom(line) then exit end if
+--      if atom(line) then exit end if
+        if line then exit end if
     end while
     close(fn)
     wait_thread(lcThread)
     printf(1,"Lines read: %d\n",linecount)
     exit_thread(0)
 end procedure
+constant r_readfile = routine_id("readfile")
 
 procedure countlines()
 object line
@@ -48,13 +56,15 @@ object line
             if atom(line) then exit end if
 --          ?line
             linecount += 1
+--?linecount
         end if
     end while
     exit_thread(0)
 end procedure
+constant r_countlines = routine_id("countlines")
 
-frThread = create_thread(routine_id("readfile"),{})
-lcThread = create_thread(routine_id("countlines"),{})
+lcThread = create_thread(r_countlines,{})
+frThread = create_thread(r_readfile,{})
 
 wait_thread(frThread)
 puts(1,"done")
@@ -62,7 +72,7 @@ puts(1,"done")
 {} = wait_key()
 --include test\t02parms.exw
 abort(0)
-
+--*!/
 
 -- Simple lock-step strategy:
 --  say we have three cards: Red, Green, and Blue (in a children's game).
@@ -92,7 +102,9 @@ integer redlock = init_cs(),
         bluelock = init_cs()
 
 function alternate(integer havelock)
-integer needlock = iff(havelock=redlock?greenlock:iff(havelock=greenlock?bluelock:redlock))
+integer needlock = iff(havelock=redlock?greenlock:
+                   iff(havelock=greenlock?bluelock:
+                   iff(havelock=bluelock?redlock:9/0)))
     enter_cs(needlock)
     leave_cs(havelock)
     return needlock     -- (the new havelock)
@@ -109,7 +121,7 @@ integer linecount = 1
 procedure readfile()
 object line
 integer havelock = bluelock     -- this gets first go
-integer fn = open(command_line()[2],"r")
+integer fn = open(substitute(command_line()[2],".exe",".exw"),"r")
     enter_cs(bluelock)
     resume_thread(lcThread)
     while linecount!=0 do       -- initial sync
@@ -119,9 +131,11 @@ integer fn = open(command_line()[2],"r")
         line = gets(fn)
         enter_cs(qlock)
         queue = append(queue,line)
+        line = atom(line)   -- kill refcount!
         leave_cs(qlock)
         havelock = alternate(havelock)
-        if atom(line) then exit end if
+--      if atom(line) then exit end if
+        if line then exit end if
     end while
     havelock = alternate(havelock)
     printf(1,"Lines read: %d\n",linecount)
@@ -143,7 +157,7 @@ integer havelock = greenlock    -- this gets second go
         queue = queue[2..$]
         leave_cs(qlock)
         if atom(line) then exit end if
-        ?line
+--      ?line
         linecount += 1
     end while
     leave_cs(havelock)
@@ -156,12 +170,12 @@ lcThread = create_thread(routine_id("countlines"),{},CREATE_SUSPENDED)
 resume_thread(frThread)
 
 wait_thread(frThread)
-puts(1,"done")
+puts(1,"done2")
 
 {} = wait_key()
 --include test\t02parms.exw
 abort(0)
-
+--*!/
 
 -- Queue-less lock-step strategy:
 -- In this version the need for a locked queue is eliminated, by deferring the release of the other
@@ -174,7 +188,9 @@ integer redlock = init_cs(),
         bluelock = init_cs()
 
 function alternate(integer prevlock, integer havelock)
-integer needlock = iff(havelock=redlock?greenlock:iff(havelock=greenlock?bluelock:redlock))
+integer needlock = iff(havelock=redlock?greenlock:
+                   iff(havelock=greenlock?bluelock:
+                   iff(havelock=bluelock?redlock:9/0)))
     if prevlock!=0 then
         leave_cs(prevlock)
     end if
@@ -193,7 +209,7 @@ integer linecount = 1
 procedure readfile()
 integer havelock = bluelock     -- this gets first go
 integer prevlock = 0
-integer fn = open(command_line()[2],"r")
+integer fn = open(substitute(command_line()[2],".exe",".exw"),"r")
     enter_cs(bluelock)
     resume_thread(lcThread)
     while linecount!=0 do       -- initial sync
@@ -235,9 +251,9 @@ lcThread = create_thread(routine_id("countlines"),{},CREATE_SUSPENDED)
 resume_thread(frThread)
 
 wait_thread(frThread)
-puts(1,"done")
+puts(1,"done3")
 
 {} = wait_key()
-include test\t02parms.exw
+--include test\t02parms.exw
 abort(0)
 

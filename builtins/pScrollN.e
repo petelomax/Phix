@@ -160,3 +160,128 @@ atom pDword, pCSBI, pSMALLRECT, pCHARINFO
     free(pDword)
 end procedure
 
+--/*
+from be_machine.c: (honestly, not worth it) [DEV/doc]
+#ifdef EUNIX
+        short c1;
+        short r1;
+        int t;
+        int i;
+        int j;
+        int b;
+        int prev_t;
+        int prev_b;
+        int fg;
+        int newl;
+        int bg;
+        char c;
+        char linebuff[200 + 1];
+        int lbi;
+        // save the current position
+        r1 = screen_line;
+        c1 = screen_col;
+        fg = current_fg_color;
+        bg = current_bg_color;
+        prev_t = -1;
+        prev_b = -1;
+        if (abs(amount) > abs(bottom - top)) {
+                // clear the window
+                blank_lines(top-1, bottom-top+1);
+        }
+        else if (amount > 0) {
+                // copy some lines up
+                for (i = top; i <= bottom - amount; i++) {
+                        SetPosition(i, 1);
+                        newl = i - 1;
+                        lbi = 0;
+                        for (j = 0; j < col_max; j++) {
+                                screen_image[newl][j] = screen_image[newl+amount][j];
+                                t = screen_image[newl][j].fg_color;
+                                b = screen_image[newl][j].bg_color;
+                                if (t != prev_t) {
+                                        if (lbi) {
+                                          linebuff[lbi] = 0;
+                                          iputs(linebuff , stdout);
+                                          iflush(stdout);
+                                          lbi = 0;
+                                        }
+                                        SetTColor(t);
+                                        prev_t = t;
+                                }
+                                if (b != prev_b) {
+                                        if (lbi) {
+                                          linebuff[lbi] = 0;
+                                          iputs(linebuff , stdout);
+                                          iflush(stdout);
+                                          lbi = 0;
+                                        }
+                                        SetBColor(b);
+                                        prev_b = b;
+                                }
+                                c = screen_image[newl][j].ascii;
+                                if (c == 0)
+                                  c = ' ';
+                                linebuff[lbi] = c;
+                                lbi++;
+                        }
+                        linebuff[lbi] = 0;
+                        iputs(linebuff , stdout);
+                        iflush(stdout);
+                }
+                // put blank lines at bottom
+                SetBColor(bg);
+                blank_lines(bottom-amount, amount);
+                iflush(stdout);
+        }
+        else if (amount < 0) {
+                // copy some lines down
+                for (i = bottom; i >= top-amount; i--) {
+                        SetPosition(i, 1);
+                        newl = i - 1;
+                        lbi = 0;
+                        for (j = 0; j < col_max; j++) {
+                                screen_image[newl][j] = screen_image[newl+amount][j];
+                                t = screen_image[newl][j].fg_color;
+                                b = screen_image[newl][j].bg_color;
+                                if (t != prev_t) {
+                                        if (lbi) {
+                                          linebuff[lbi] = 0;
+                                          iputs(linebuff , stdout);
+                                          iflush(stdout);
+                                          lbi = 0;
+                                        }
+                                        SetTColor(t);
+                                        prev_t = t;
+                                }
+                                if (b != prev_b) {
+                                        if (lbi) {
+                                          linebuff[lbi] = 0;
+                                          iputs(linebuff , stdout);
+                                          iflush(stdout);
+                                          lbi = 0;
+                                        }
+                                        SetBColor(b);
+                                        prev_b = b;
+                                }
+                                c = screen_image[newl][j].ascii;
+                                if (c == 0)
+                                  c = ' ';
+                                linebuff[lbi] = c;
+                                lbi++;
+                        }
+                        linebuff[lbi] = 0;
+                        iputs(linebuff , stdout);
+                        iflush(stdout);
+                }
+                // put blanks lines at top
+                SetBColor(bg);
+                blank_lines(top-1, -amount);
+                iflush(stdout);
+        }
+        // restore the current position
+        SetPosition(r1, c1);
+        SetTColor(fg); // bg will be restored already
+        current_fg_color = fg;
+        current_bg_color = bg;
+#endif
+--*/

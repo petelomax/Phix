@@ -19,6 +19,8 @@
 -- map qu to ? (already done!!)
 -- make it more forgiving if src has a tailing blank line... (nah)
  
+-- For the web version: create html/images, and copy phix.htm to index.htm (see installation.txt)
+
 -- Quick ref (for want of anywhere better to put it)
 --  It's -> It&rsquo;s
 --  '\'' -> '\&#39;'    (when syntax colouring goes wrong)
@@ -32,6 +34,7 @@
 --  &#8226; (bullet)
 
 constant justcompile = 0    -- (occasionally helpful if you need to manually edit something)
+                            -- (nb windows only!)
 constant replaceprewithcode = 0
 constant displaycompileprogress = 0
 
@@ -59,7 +62,9 @@ procedure fatal(string msg)
 end procedure
 
 procedure readtoc()
-integer fn = open("src\\toc.txt","r")
+string tocname = join_path({current_dir(),"src","toc.txt"})
+string idxname = join_path({current_dir(),"src","index.txt"})
+integer fn = open(tocname,"r")
 object line
 integer ch
 string filename
@@ -72,7 +77,7 @@ sequence keywords -- (for duplicate checking)
 integer startidx, endidx, k
 
     puts(1,"Reading files...\n")
-    if fn=-1 then fatal("error opening src\\toc.txt\n") end if
+    if fn=-1 then fatal(sprintf("error opening %s\n",{tocname})) end if
     while 1 do
         line = trim_tail(gets(fn))
         if atom(line) then exit end if
@@ -103,8 +108,8 @@ integer startidx, endidx, k
 
     index = {}
     keywords = {}
-    fn = open("src\\index.txt","rb")
-    if fn=-1 then fatal("error opening src\\index.txt\n") end if
+    fn = open(idxname,"rb")
+    if fn=-1 then fatal(sprintf("error opening %s\n",{idxname})) end if
 --newEmit:
 --  text = gets({fn,-2})
     text = get_text(fn)
@@ -154,7 +159,8 @@ integer startidx, endidx, k
     descriptions = repeat("",length(tocf))
     for i=1 to length(tocf) do
         filename = tocf[i]
-        filename = "src\\"&filename&".htm" 
+--      filename = "src\\"&filename&".htm" 
+        filename = join_path({current_dir(),"src",filename&".htm"}) 
         fn = open(filename,"r")
         if fn=-1 then fatal("error opening "&filename&"\n") end if
         content = ""
@@ -207,7 +213,8 @@ integer startidx, endidx, k
         end if
     end for
     for i=1 to length(stubnames) do
-        filename = "src\\"&stubnames[i]&".htm" 
+--      filename = "src\\"&stubnames[i]&".htm" 
+        filename = join_path({current_dir(),"src",stubnames[i]&".htm"}) 
         fn = open(filename,"r")
         if fn=-1 then fatal("error opening "&filename&"\n") end if
         content = ""
@@ -306,7 +313,7 @@ string filename
     for i=1 to length(tocf) do
         filename = tocf[i]
         if i!=1 then
-            filename = "html\\"&filename
+            filename = join_path({"html",filename})
         end if
         filename &= ".htm"
         fn = open(filename,"w")
@@ -434,12 +441,12 @@ string cmd, cd
 --  system(cmd,2)
     if getc(0) then end if
 end procedure
-if justcompile then
-    compile()
-    abort(0)
-end if
 
-readtoc()
-writefiles()
-writehhck()
-compile()
+if not justcompile then
+    readtoc()
+    writefiles()
+    writehhck()
+end if
+if platform()=WINDOWS then
+    compile()
+end if

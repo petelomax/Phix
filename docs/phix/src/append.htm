@@ -13,7 +13,7 @@
           <b>Syntax:</b>
          </td>
          <td>
-          sequence s2 = append(sequence s1, object x)
+          sequence s2 = append(object s1, object x)
          </td>
         </tr>
         <tr>
@@ -21,8 +21,8 @@
           <b>Description:</b>
          </td>
          <td>Create a new sequence identical to s1 but with x added on the end
-             as the last element. The length of s2 will be
-          <b>always be one more than</b>
+             as the last element.<br>
+             The length of s2 will be <b>always be one more than</b>
           <a href="length.htm">length(s1)</a>, unless s1 is an atom, in which 
             case the length of s2 will be 2.
          </td>
@@ -32,13 +32,13 @@
           <b>Comments:</b>
          </td>
          <td>If x is an atom this is the same as <code>s2 = s1 & x</code>. 
-          <b>If x is a sequence it is definitely not the same.</b>
+          <b>If x is a sequence it is definitely not the same.</b><br>
           Although s1 is typically a sequence, and historically it had to be, it can
           now also be an atom, which can simplify certain algorithms.
           <br>
           <br>
             The extra storage is allocated automatically and very
-             efficiently with Phix&rsquo;s dynamic storage allocation.
+             efficiently with Phix&rsquo;s dynamic storage allocation.<br>
              The case where s1 and s2 are actually the same variable
              (as in Example 1 below) is highly optimized.
           <br>
@@ -47,6 +47,8 @@
             list or table. When constructing strings, <a href="concatenation.htm">concatenation 
             ('&')</a> should be used instead - even though append() is technically valid in 
             some character-by-character cases, using concatenation makes the intent clearer.
+            Also note that concatenation must be used when the intent is to add more than one
+            element (or character) to a list or table (or string), in a single operation.
          </td>
         </tr>
         <tr>
@@ -65,7 +67,7 @@ x = {}
 for i=1 to 10 do
     x = append(x, i)
 end for
--- x is now {1,2,3,4,5,6,7,8,9,10}
+-- x is now {1,2,3,4,5,6,7,8,9,10} (or use tagset(10))
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> x
@@ -73,7 +75,7 @@ x</font><font color="#0000FF"> = {}
 </font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 10</font><font color="#008080"> do
 </font><font color="#000000">    x</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">)
 </font><font color="#008080">end for
-</font><font color="#000080"><i>-- x is now {1,2,3,4,5,6,7,8,9,10}</i></font>
+</font><font color="#000080"><i>-- x is now {1,2,3,4,5,6,7,8,9,10} (or use tagset(10))</i></font>
 </pre>
          </td>
         </tr>
@@ -109,16 +111,25 @@ x</font><font color="#0000FF"> = {</font><font color="#008000">"fred"</font><fon
          <td valign=top>
           <b>Example 3:</b>
          </td>
+         <td> Watch out for this common mistake:
+         </td>
+        </tr>
+        <tr>
+         <td></td>
          <td>
 <!--eucode>
 append({1,2,3}, {4,5})   -- {1, 2, 3, {4,5}}
+append("abc", "de")      -- {'a','b','c',"de"}
 -- Compare with concatenation:
 {1,2,3} & {4,5}          -- {1, 2, 3, 4, 5}
+"abc" & "de"             -- "abcde"
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#7060A8">append</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- {1, 2, 3, {4,5}}
+</i></font><font color="#7060A8">append</font><font color="#0000FF">(</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#008000"> "de"</font><font color="#0000FF">)     </font><font color="#000080"><i> -- {'a','b','c',"de"}
 -- Compare with concatenation:
-</i></font><font color="#0000FF">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">} &amp; {</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">}         </font><font color="#000080"><i> -- {1, 2, 3, 4, 5}</i></font>
+</i></font><font color="#0000FF">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">} &amp; {</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">}         </font><font color="#000080"><i> -- {1, 2, 3, 4, 5}
+</i></font><font color="#008000">"abc"</font><font color="#0000FF"> &amp;</font><font color="#008000"> "de"            </font><font color="#000080"><i> -- "abcde"</i></font>
 </pre>
          </td>
         </tr>
@@ -129,7 +140,8 @@ append({1,2,3}, {4,5})   -- {1, 2, 3, {4,5}}
          <td>
           <a href="prepend.htm">prepend</a>,
           <a href="concatenation.htm">concatenation operator &</a>,
-          <a href="seqformation.htm">sequence-formation operator</a>
+          <a href="seqformation.htm">sequence-formation operator</a>,
+          <a href="tagset.htm">tagset</a>
          </td>
         </tr>
        </table>

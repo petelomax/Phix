@@ -1,35 +1,65 @@
 --
 -- demo\rosetta\Inverted_index.exw
--- ================================
+-- ===============================
 --
 -- Loads all text files in demo\rosetta\ and builds a list of filenames and 
 -- a dictionary of {word,file_indexes}, before a handful of quick tests.
 -- Might be better (and almost as easy) for the dictionary values to be say
 -- {total_count, {file nos}, {file counts}}.
 
+-- Modified from the original posting, as I occasionally actually use this.
+-- DEV Note this does not fare particularly well on utf8 files.
+-- DEV could we make use of this in Edix? 
+--      [Tools/Inverted Index -> select dir, [rescan], enter whole word[s]]
+--  A full recursive scan of Phix\\ takes ~12s, which is rather pleasing - BOLLOCKS - was not recursing!!
+
 integer word_count = 0
+integer word_unique = 0
 
 sequence filenames = {}
+sequence filetimes = {}
+sequence filecounts = {}
 
 function is_ascii(string txt)
+integer cr=0, lf=0
+    if length(txt)>=3
+    and equal(txt[1..3],{#EF,#BB,#BF}) then
+        -- already UTF8
+        return 2
+    end if
     for i=1 to length(txt) do
         integer ch = txt[i]
-        if ch='\0' or ch>=#7F then return 0 end if
+        if ch='\0' or ch>=#7F then
+--      if ch='\0' or ch>=#FF then
+--      if ch='\0' then
+--          if not find(ch,"³¾€¡…‰‹ƒ¹") then
+--          if not find(ch,"“”—–­’•£ŠšÀàËëÖöŒœÁáÌì×÷ŸÿÂâÍíØøÃãÎîÙùÄäÏïÚúÅåÐðÛûÆæÑñÜüÇçÒòÝýÈèÓóÞþÉéÔôÊêÕõ") then
+                ?{ch,cr,lf}
+                return 0
+--          end if
+        elsif ch='\r' then
+            cr += 1
+        elsif ch='\n' then
+            lf += 1
+        end if
     end for
     return 1
 end function
 
-procedure add_words(string name, sequence words)
+procedure add_words(string name, sequence words, atom t0)
     filenames = append(filenames,name)
+    filecounts = append(filecounts,length(words))
     integer fn = length(filenames)
     for i=1 to length(words) do
-        string word = words[i]
-        if word[1]>='a'         -- skip numbers
+        sequence word = words[i]
+        if word[1]>='A'         -- skip numbers
         and word[1]<='z' then
+            word_count += 1
             integer node = getd_index(word)
             if node=0 then  -- not present
+--?word
                 setd(word,{fn})
-                word_count += 1
+                word_unique += 1
             else
                 sequence val = getd_by_index(node)
                 if find(fn,val)=0 then
@@ -38,20 +68,65 @@ procedure add_words(string name, sequence words)
             end if
         end if
     end for
+    filetimes = append(filetimes,time()-t0)
 end procedure
 
-procedure load_directory()
-sequence d = dir(".")
+sequence exts = {}
+
+procedure load_directory(string directory_name, integer recursive=0)
+sequence d = dir(directory_name)
     for i=1 to length(d) do
-        if not find('d',d[i][D_ATTRIBUTES])     -- skip directories
-        and d[i][D_SIZE]<1024*1024*1024 then    -- and files > 1GB
-            string name = d[i][D_NAME]
-            integer fn = open(name,"rb")
-            string txt = lower(get_text(fn))
-            close(fn)
-            if is_ascii(txt) then               -- skip any bitmaps etc
-                sequence words = split_any(txt,"\0\r\n\t !\"#$%&\'()*+,-./:;<=>?@[\\]^`{|}~",0,1)
-                add_words(name,words)
+        string name = d[i][D_NAME]
+        if find('d',d[i][D_ATTRIBUTES]) then    -- skip directories
+            if recursive
+            and not find(name,{".","..",".hg","backup","libxlsxwriter","x64dbg",
+                               "fdbg0025","fdbg0024","7z1506-extra","editaX",
+                               "iup-3.16_Docs","cd-5.9_Docs","win32lib6x","win32dibdemo",
+                               "win32libex-mercurial-aaba13384b53ac5aed5a1f7fc37acf4f97cbbe63",
+                               "wee36","elf","fasm","Fresh","DEAD","misc","leech","libcurl",
+                               "tzdata2015f","sulaiman","of","EuGTK4.11.10","EuGTK_4.3.2",
+                               "pIUP"}) then
+--?name
+                load_directory(join_path({directory_name,name},1),1)
+            end if
+        elsif d[i][D_SIZE]<1024*1024*1024 then  -- and files > 1GB
+            string ext = get_file_extension(name)
+            if not find(ext,{"","a","ani","asm","avi","bin","bmp","bz2","chm","chw","cur","dat","db","dll","doc","docx","dylib","edb","err","exe","exp",
+                                "fas","fpr","gif","glade","hgignore","hlp","icns","ico","img","inc","info","jar","jpeg","jpg","lib","lnk","mid","mo","msi",
+                                "o","obj","ocx","pdb","pdf","pdn","pif","png","ppm","ppt","pre","rar","reg","res","rtf","scr","so","sql","sqlite","svn-base",
+                                "t0","t1","t2","tar","tbl","tga","tgz","tmp","ttf","tws","vcl","wav","wmv","xcf","xexe","xls","zip","7z","gz"})
+--and lower(name)="opengl.asm"
+--and ext="asm"
+            and not find(name,{"list.asm","ildump.txt","ltdiag.txt","e-1millon.txt","mlijobs.txt",
+                               "p.asm","p64.asm","p7.asm","list3.asm","list2.asm",
+                               "t58tmp.txt","t01.txt","t18bad.txt","t18good.txt","t00.txt",
+                               "pops2.e","abgte.html","p6.exw","p-old.exw","p8.exw","p6tok.e"}) then
+
+if not find(ext,exts) then
+    ?ext
+    exts = append(exts,ext)
+end if
+--              integer fn = open(name,"rb")
+--              integer fn = open(directory_name&name,"rb")
+                string fullpath = join_path({directory_name,name})
+--?fullpath
+                integer fn = open(fullpath,"rb")
+                sequence txt = lower(get_text(fn))
+                close(fn)
+                integer flag = is_ascii(txt)
+                if flag!=0 then             -- skip any bitmaps etc
+--?name
+atom t0 = time()
+                    if flag=2 then
+                        txt[1..3] = "   "
+                        txt = utf8_to_utf32(txt)
+                    end if
+                    sequence words = split_any(txt,"\0\r\n\t !\"#$%&\'()*+,-./:;<=>?@[\\]^`{|}~“”—–­’•£×÷",0,1)
+--                  add_words(name,words,t0)
+                    add_words(fullpath,words,t0)
+else
+    ?fullpath
+                end if
             end if
         end if
     end for
@@ -60,7 +135,7 @@ end procedure
 function lookup(sequence words)
 sequence files = {}     -- indexes to filenames
     for i=1 to length(words) do
-        string word = words[i]
+        string word = lower(words[i])
         integer node = getd_index(word)
         if node=0 then return {} end if
         sequence val = getd_by_index(node)
@@ -81,14 +156,40 @@ sequence files = {}     -- indexes to filenames
     return files
 end function
 
-load_directory()
-?word_count
-?lookup({"load_directory"})     -- should only be this file
-?lookup({"dir"})                -- currently two use this
-?lookup({"lower"})              -- currently four use this
-?lookup({"lower","dir"})        -- currently two use both
-?lookup({"dir","lower"})        -- should be the same two
-?lookup({"ban"&"anafish"})      -- should be none ({})
+function by_time(integer i, integer j)
+integer res = compare(filetimes[i],filetimes[j])
+    if res=0 then
+        res = compare(filenames[i],filenames[j])
+    end if
+    return -res
+end function
+
+atom t0 = time()
+--load_directory(".")
+--load_directory("..\\..\\",1)
+load_directory(join_path({"..",".."},1),1)
+printf(1,"Total %,d words, of which %,d unique, in %d files in %3.2fs\n",{word_count,word_unique,length(filenames),time()-t0})
+--DEV (edix)
+-- Error: file contains non-ansi characters (line nnn)
+--          [save as UTF8] [Cancel/Goto Line]
+--?"“”—–­’•£×÷"&-1
+--?utf32_to_utf8("“”—–­’•£×÷",2)
+if 0 then
+    printf(1,"Slowest files:\n")
+    sequence tags = custom_sort(routine_id("by_time"),tagset(length(filetimes)))
+    for i=1 to 10 do
+        integer ti = tags[i]
+        printf(1,"%20s: %3.2fs, %,d words\n",{filenames[ti],filetimes[ti],filecounts[ti]})
+    end for
+end if
+--?lookup({"load_directory"})   -- should only be this file
+--?lookup({"dir"})              -- currently two use this
+--?lookup({"lower"})                -- currently four use this
+--?lookup({"lower","dir"})      -- currently two use both
+--?lookup({"dir","lower"})      -- should be the same two
+--?lookup({"ban"&"anafish"})        -- should be none ({})
+--?lookup({"OpenGL"}) -- {}
+--?lookup({"PE64"})
 {} = wait_key()
 
 --/*
@@ -99,5 +200,1176 @@ load_directory()
 {"Inverted_index.exw","viewppm.exw"}
 {"Inverted_index.exw","viewppm.exw"}
 {}
+
+"bash"
+"html"
+"h"
+"c"
+"w"
+"bc"
+"he"
+"e"
+"txt"
+"config-a-linux"
+"conf"
+"pl"
+243
+"..\\..\\asm\\elf\\lscr\\bin\\fasm2gas.pl"
+"xbm"
+243
+"..\\..\\asm\\elf\\mandelbrot\\mandelbrot32\\lscr\\bin\\fasm2gas.pl"
+"php"
+243
+"..\\..\\asm\\elf\\mandelbrot\\mandelbrot64\\lscr\\bin\\fasm2gas.pl"
+"sx"
+"htm"
+"vim"
+"bat"
+"fasm"
+"k0mpy1e"
+"sample"
+"sample0"
+"sample1"
+"bug"
+"ash"
+"exw"
+"py"
+226
+"..\\..\\asm\\fasm\\test\\pefile.py"
+"md"
+226
+"..\\..\\asm\\Fresh\\doc\\FreshLibRef.md"
+"css"
+250
+"..\\..\\bench\\Big_e\\BIG_E.EX"
+"def"
+190
+"..\\..\\bench\\constants.ew"
+233
+"..\\..\\bench\\misc_arwen.e"
+225
+"..\\..\\bench\\shootout\\partial-sums.ex"
+225
+"..\\..\\bench\\shootout\\README.txt"
+237
+"..\\..\\builtins\\bigatom-test.exw"
+243
+"..\\..\\builtins\\bigatom.e"
+154
+"..\\..\\builtins\\pcase8.e"
+151
+"..\\..\\builtins\\timedate.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc-old.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc2.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfuncN.e"
+163
+"..\\..\\builtins\\VM\\DEAD\\pHeapO.e"
+163
+"..\\..\\builtins\\VM\\DEAD\\pppN.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\XpcaseN.e"
+190
+"..\\..\\demo\\arwen\\Constants.ew"
+233
+"..\\..\\demo\\arwen\\misc_arwen.e"
+176
+"..\\..\\demo\\Arwen32dibdemo\\a32dgeom.ew"
+"pro"
+154
+"..\\..\\demo\\Arwen32dibdemo\\ex.pro"
+176
+"..\\..\\demo\\Arwen32dibdemo\\manip.exw"
+190
+"..\\..\\demo\\arwendemo\\ConnectNamedPipe.htm"
+154
+"..\\..\\demo\\arwendemo\\ex.pro"
+146
+"..\\..\\demo\\arwendemo\\filedump.exw"
+146
+"..\\..\\demo\\arwendemo\\filedumpN.exw"
+154
+"..\\..\\demo\\arwendemo\\pet.exw"
+"bak"
+"prj"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\Common_COM_HRESULTs.txt"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\COM_Error_Codes.txt"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\COM_ISupportErrorInfo_interface.txt"
+"cnt"
+"csv"
+232
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32memory.ew"
+234
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32resources.ew"
+163
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32utils.e"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\HRESULT_codes.txt"
+227
+"..\\..\\demo\\arwenpcomdemo\\eucomnew\\w32memory.ew"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucomnew\\w32utils.e"
+250
+"..\\..\\demo\\arwenpcomdemo\\fo.txt"
+
+"bash"
+"html"
+"h"
+"c"
+"w"
+"bc"
+"he"
+"e"
+"txt"
+"config-a-linux"
+"conf"
+"pl"
+243
+"..\\..\\asm\\elf\\lscr\\bin\\fasm2gas.pl"
+"xbm"
+243
+"..\\..\\asm\\elf\\mandelbrot\\mandelbrot32\\lscr\\bin\\fasm2gas.pl"
+"php"
+243
+"..\\..\\asm\\elf\\mandelbrot\\mandelbrot64\\lscr\\bin\\fasm2gas.pl"
+"sx"
+"htm"
+"vim"
+"bat"
+"fasm"
+"k0mpy1e"
+"sample"
+"sample0"
+"sample1"
+"bug"
+"ash"
+"exw"
+"py"
+226
+"..\\..\\asm\\fasm\\test\\pefile.py"
+"md"
+226
+"..\\..\\asm\\Fresh\\doc\\FreshLibRef.md"
+"css"
+250
+"..\\..\\bench\\Big_e\\BIG_E.EX"
+"def"
+190
+"..\\..\\bench\\constants.ew"
+233
+"..\\..\\bench\\misc_arwen.e"
+225
+"..\\..\\bench\\shootout\\partial-sums.ex"
+225
+"..\\..\\bench\\shootout\\README.txt"
+237
+"..\\..\\builtins\\bigatom-test.exw"
+243
+"..\\..\\builtins\\bigatom.e"
+154
+"..\\..\\builtins\\pcase8.e"
+151
+"..\\..\\builtins\\timedate.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc-old.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc2.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfuncN.e"
+163
+"..\\..\\builtins\\VM\\DEAD\\pHeapO.e"
+163
+"..\\..\\builtins\\VM\\DEAD\\pppN.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\XpcaseN.e"
+190
+"..\\..\\demo\\arwen\\Constants.ew"
+233
+"..\\..\\demo\\arwen\\misc_arwen.e"
+176
+"..\\..\\demo\\Arwen32dibdemo\\a32dgeom.ew"
+"pro"
+154
+"..\\..\\demo\\Arwen32dibdemo\\ex.pro"
+176
+"..\\..\\demo\\Arwen32dibdemo\\manip.exw"
+190
+"..\\..\\demo\\arwendemo\\ConnectNamedPipe.htm"
+154
+"..\\..\\demo\\arwendemo\\ex.pro"
+146
+"..\\..\\demo\\arwendemo\\filedump.exw"
+146
+"..\\..\\demo\\arwendemo\\filedumpN.exw"
+154
+"..\\..\\demo\\arwendemo\\pet.exw"
+"bak"
+"prj"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\Common_COM_HRESULTs.txt"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\COM_Error_Codes.txt"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\COM_ISupportErrorInfo_interface.txt"
+"cnt"
+"csv"
+232
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32memory.ew"
+234
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32resources.ew"
+163
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32utils.e"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\HRESULT_codes.txt"
+227
+"..\\..\\demo\\arwenpcomdemo\\eucomnew\\w32memory.ew"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucomnew\\w32utils.e"
+250
+"..\\..\\demo\\arwenpcomdemo\\fo.txt"
+163
+"..\\..\\demo\\b\\bbad.txt"
+163
+"..\\..\\demo\\b\\bgood.txt"
+163
+"..\\..\\demo\\b\\w32support.e"
+227
+"..\\..\\demo\\bignum\\bigatom-test.ex"
+243
+"..\\..\\demo\\bignum\\bigatom.e"
+243
+"..\\..\\demo\\bignum\\english.e"
+227
+"..\\..\\demo\\bignum\\spanish.e"
+235
+"..\\..\\demo\\clocks\\roundclock3\\clockfac.e"
+235
+"..\\..\\demo\\clocks\\roundclock3\\clockface.e"
+"1st"
+234
+"..\\..\\demo\\edita\\eamenus.ew"
+"ini"
+246
+"..\\..\\demo\\edita\\lang\\elng_DEU.txt"
+"exh"
+243
+"..\\..\\demo\\edita\\lang\\elng_ESN.txt"
+243
+"..\\..\\demo\\edita\\lang\\elng_ESO.txt"
+228
+"..\\..\\demo\\edita\\lang\\elng_FIN.txt"
+231
+"..\\..\\demo\\edita\\lang\\elng_FRA.txt"
+249
+"..\\..\\demo\\edita\\lang\\elng_ITA.txt"
+235
+"..\\..\\demo\\edita\\lang\\elng_NLD.txt"
+227
+"..\\..\\demo\\edita\\lang\\elng_PTG.txt"
+229
+"..\\..\\demo\\edita\\lang\\iso3166.txt"
+174
+"..\\..\\demo\\edita\\readme.txt"
+"clr"
+"syn"
+"js"
+246
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_DEU.txt"
+243
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ESN.txt"
+243
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ESO.txt"
+228
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_FIN.txt"
+231
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_FRA.txt"
+249
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ITA.txt"
+235
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_NLD.txt"
+227
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_PTG.txt"
+229
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\iso3166.txt"
+
+"ex"
+250
+"..\\..\\bench\\Big_e\\BIG_E.EX"
+"def"
+190
+"..\\..\\bench\\constants.ew"
+233
+"..\\..\\bench\\misc_arwen.e"
+225
+"..\\..\\bench\\shootout\\partial-sums.ex"
+225
+"..\\..\\bench\\shootout\\README.txt"
+237
+"..\\..\\builtins\\bigatom-test.exw"
+243
+"..\\..\\builtins\\bigatom.e"
+154
+"..\\..\\builtins\\pcase8.e"
+151
+"..\\..\\builtins\\timedate.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc-old.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfunc2.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\pcfuncN.e"
+163
+"..\\..\\builtins\\VM\\DEAD\\pHeapO.e"
+163
+"..\\..\\builtins\\VM\\DEAD\\pppN.e"
+154
+"..\\..\\builtins\\VM\\DEAD\\XpcaseN.e"
+190
+"..\\..\\demo\\arwen\\Constants.ew"
+233
+"..\\..\\demo\\arwen\\misc_arwen.e"
+176
+"..\\..\\demo\\Arwen32dibdemo\\a32dgeom.ew"
+"pro"
+154
+"..\\..\\demo\\Arwen32dibdemo\\ex.pro"
+176
+"..\\..\\demo\\Arwen32dibdemo\\manip.exw"
+190
+"..\\..\\demo\\arwendemo\\ConnectNamedPipe.htm"
+154
+"..\\..\\demo\\arwendemo\\ex.pro"
+146
+"..\\..\\demo\\arwendemo\\filedump.exw"
+146
+"..\\..\\demo\\arwendemo\\filedumpN.exw"
+154
+"..\\..\\demo\\arwendemo\\pet.exw"
+"bak"
+"prj"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\Common_COM_HRESULTs.txt"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\COM_Error_Codes.txt"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\COM_ISupportErrorInfo_interface.txt"
+"cnt"
+"csv"
+232
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32memory.ew"
+234
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32resources.ew"
+163
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32utils.e"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucom\\HRESULT_codes.txt"
+227
+"..\\..\\demo\\arwenpcomdemo\\eucomnew\\w32memory.ew"
+226
+"..\\..\\demo\\arwenpcomdemo\\eucomnew\\w32utils.e"
+250
+"..\\..\\demo\\arwenpcomdemo\\fo.txt"
+163
+"..\\..\\demo\\b\\bbad.txt"
+163
+"..\\..\\demo\\b\\bgood.txt"
+163
+"..\\..\\demo\\b\\w32support.e"
+227
+"..\\..\\demo\\bignum\\bigatom-test.ex"
+243
+"..\\..\\demo\\bignum\\bigatom.e"
+243
+"..\\..\\demo\\bignum\\english.e"
+227
+"..\\..\\demo\\bignum\\spanish.e"
+235
+"..\\..\\demo\\clocks\\roundclock3\\clockfac.e"
+235
+"..\\..\\demo\\clocks\\roundclock3\\clockface.e"
+"1st"
+234
+"..\\..\\demo\\edita\\eamenus.ew"
+"ini"
+246
+"..\\..\\demo\\edita\\lang\\elng_DEU.txt"
+"exh"
+243
+"..\\..\\demo\\edita\\lang\\elng_ESN.txt"
+243
+"..\\..\\demo\\edita\\lang\\elng_ESO.txt"
+228
+"..\\..\\demo\\edita\\lang\\elng_FIN.txt"
+231
+"..\\..\\demo\\edita\\lang\\elng_FRA.txt"
+249
+"..\\..\\demo\\edita\\lang\\elng_ITA.txt"
+235
+"..\\..\\demo\\edita\\lang\\elng_NLD.txt"
+227
+"..\\..\\demo\\edita\\lang\\elng_PTG.txt"
+229
+"..\\..\\demo\\edita\\lang\\iso3166.txt"
+174
+"..\\..\\demo\\edita\\readme.txt"
+"clr"
+"syn"
+"js"
+246
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_DEU.txt"
+243
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ESN.txt"
+243
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ESO.txt"
+228
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_FIN.txt"
+231
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_FRA.txt"
+249
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ITA.txt"
+235
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_NLD.txt"
+227
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_PTG.txt"
+229
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\iso3166.txt"
+"sty"
+226
+"..\\..\\demo\\1\\demos\\test230.glade"
+163
+"..\\..\\demo\\hangman.exw"
+166
+"..\\..\\demo\\jd.exw"
+172
+"..\\..\\demo\\leech\\leech2.exw"
+169
+"..\\..\\demo\\leech\\p14.htm"
+160
+"..\\..\\demo\\leech\\temp.htm"
+
+"..\\..\\demo\\bignum\\english.e"
+227
+"..\\..\\demo\\bignum\\spanish.e"
+235
+"..\\..\\demo\\clocks\\roundclock3\\clockfac.e"
+235
+"..\\..\\demo\\clocks\\roundclock3\\clockface.e"
+"1st"
+234
+"..\\..\\demo\\edita\\eamenus.ew"
+"ini"
+246
+"..\\..\\demo\\edita\\lang\\elng_DEU.txt"
+"exh"
+243
+"..\\..\\demo\\edita\\lang\\elng_ESN.txt"
+243
+"..\\..\\demo\\edita\\lang\\elng_ESO.txt"
+228
+"..\\..\\demo\\edita\\lang\\elng_FIN.txt"
+231
+"..\\..\\demo\\edita\\lang\\elng_FRA.txt"
+249
+"..\\..\\demo\\edita\\lang\\elng_ITA.txt"
+235
+"..\\..\\demo\\edita\\lang\\elng_NLD.txt"
+227
+"..\\..\\demo\\edita\\lang\\elng_PTG.txt"
+229
+"..\\..\\demo\\edita\\lang\\iso3166.txt"
+174
+"..\\..\\demo\\edita\\readme.txt"
+"clr"
+"syn"
+"js"
+246
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_DEU.txt"
+243
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ESN.txt"
+243
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ESO.txt"
+228
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_FIN.txt"
+231
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_FRA.txt"
+249
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ITA.txt"
+235
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_NLD.txt"
+227
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_PTG.txt"
+229
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\iso3166.txt"
+163
+"..\\..\\demo\\hangman.exw"
+166
+"..\\..\\demo\\jd.exw"
+172
+"..\\..\\demo\\leech\\leech2.exw"
+169
+"..\\..\\demo\\leech\\p14.htm"
+160
+"..\\..\\demo\\leech\\temp.htm"
+234
+"..\\..\\demo\\pGUI\\cdtest.exw"
+186
+"..\\..\\demo\\pGUI\\simple_paint.exw"
+
+174
+"..\\..\\demo\\edita\\readme.txt"
+"clr"
+"syn"
+"js"
+246
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_DEU.txt"
+243
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ESN.txt"
+243
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ESO.txt"
+228
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_FIN.txt"
+231
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_FRA.txt"
+249
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_ITA.txt"
+235
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_NLD.txt"
+227
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\elng_PTG.txt"
+229
+"..\\..\\demo\\edix\\src\\DEAD\\lang\\iso3166.txt"
+163
+"..\\..\\demo\\hangman.exw"
+166
+"..\\..\\demo\\jd.exw"
+172
+"..\\..\\demo\\leech\\leech2.exw"
+169
+"..\\..\\demo\\leech\\p14.htm"
+160
+"..\\..\\demo\\leech\\temp.htm"
+234
+"..\\..\\demo\\pGUI\\cdtest.exw"
+186
+"..\\..\\demo\\pGUI\\simple_paint.exw"
+191
+"..\\..\\demo\\qb2.exw"
+"sln"
+255
+"..\\..\\demo\\QD\\qd\\qd.rc"
+"vcxproj"
+"filters"
+"user"
+246
+"..\\..\\demo\\raytrace\\ASM.E"
+"gitignore"
+233
+"..\\..\\demo\\rosetta\\Bitmap_BezierCubic.exw"
+233
+"..\\..\\demo\\rosetta\\Bitmap_BezierQuadratic.exw"
+"ast"
+252
+"..\\..\\demo\\rosetta\\crc\\bit\\bit.htm"
+179
+"..\\..\\demo\\rosetta\\Inverted_index.exw"
+
+
+234
+"..\\..\\demo\\pGUI\\cdtest.exw"
+186
+"..\\..\\demo\\pGUI\\simple_paint.exw"
+191
+"..\\..\\demo\\qb2.exw"
+"sln"
+255
+"..\\..\\demo\\QD\\qd\\qd.rc"
+"vcxproj"
+"filters"
+"user"
+246
+"..\\..\\demo\\raytrace\\ASM.E"
+"gitignore"
+233
+"..\\..\\demo\\rosetta\\Bitmap_BezierCubic.exw"
+233
+"..\\..\\demo\\rosetta\\Bitmap_BezierQuadratic.exw"
+"ast"
+252
+"..\\..\\demo\\rosetta\\crc\\bit\\bit.htm"
+179
+"..\\..\\demo\\rosetta\\Inverted_index.exw"
+"s"
+0
+"..\\..\\demo\\SUDOKU\\DIABOLICAL.S"
+0
+"..\\..\\demo\\SUDOKU\\EASY.S"
+0
+"..\\..\\demo\\SUDOKU\\MODERATE.S"
+"sud"
+0
+"..\\..\\demo\\SUDOKU\\TOUGH.S"
+0
+"..\\..\\demo\\SUDOKU\\world.s"
+"cmd"
+234
+"..\\..\\demo\\tee\\cdtest.exw"
+"hgtags"
+"bi"
+"bie"
+"vbp"
+"vbw"
+146
+"..\\..\\demo\\tee\\ghaberek-editor-feea1e43a3b8\\iup\\samples\\button.c"
+227
+"..\\..\\demo\\tee\\ghaberek-editor-feea1e43a3b8\\iup\\samples\\list3.c"
+"cxx"
+186
+"..\\..\\demo\\tee\\simple_paint.c"
+186
+"..\\..\\demo\\tee\\simple_paint.exw"
+233
+"..\\..\\demo\\thes1.txt"
+169
+"..\\..\\demo\\tinEWGdemo\\Designer.exw"
+173
+"..\\..\\demo\\tinEWGdemo\\designer.rc"
+"tf1"
+128
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf1"
+"tf2"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf2"
+"tf3"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf3"
+"tf4"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf4"
+"tf5"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf5"
+"tf6"
+150
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf6"
+"tf9"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf9"
+"tfa"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfA"
+"tfb"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfB"
+"tfc"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfC"
+"tfh"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfH"
+252
+"..\\..\\demo\\tinEWGdemo\\sstin\\sstin.exw"
+173
+"..\\..\\demo\\tinEWGdemo\\sstin\\sstin.rc"
+173
+"..\\..\\demo\\tinEWGdemo\\tindemo\\capture.exw"
+252
+"..\\..\\demo\\tinEWGdemo\\tindemo\\sstin\\sstin.exw"
+173
+"..\\..\\demo\\tinEWGdemo\\tindemo\\sstin\\sstin.rc"
+149
+"..\\..\\demo\\tt\\tttest.exw"
+246
+"..\\..\\demo\\raytrace\\ASM.E"
+"gitignore"
+233
+"..\\..\\demo\\rosetta\\Bitmap_BezierCubic.exw"
+233
+"..\\..\\demo\\rosetta\\Bitmap_BezierQuadratic.exw"
+"ast"
+252
+"..\\..\\demo\\rosetta\\crc\\bit\\bit.htm"
+179
+"..\\..\\demo\\rosetta\\Inverted_index.exw"
+"s"
+0
+"..\\..\\demo\\SUDOKU\\DIABOLICAL.S"
+0
+"..\\..\\demo\\SUDOKU\\EASY.S"
+0
+"..\\..\\demo\\SUDOKU\\MODERATE.S"
+"sud"
+0
+"..\\..\\demo\\SUDOKU\\TOUGH.S"
+0
+"..\\..\\demo\\SUDOKU\\world.s"
+"cmd"
+234
+"..\\..\\demo\\tee\\cdtest.exw"
+"hgtags"
+"bi"
+"bie"
+"vbp"
+"vbw"
+146
+"..\\..\\demo\\tee\\ghaberek-editor-feea1e43a3b8\\iup\\samples\\button.c"
+227
+"..\\..\\demo\\tee\\ghaberek-editor-feea1e43a3b8\\iup\\samples\\list3.c"
+"cxx"
+186
+"..\\..\\demo\\tee\\simple_paint.c"
+186
+"..\\..\\demo\\tee\\simple_paint.exw"
+233
+"..\\..\\demo\\thes1.txt"
+169
+"..\\..\\demo\\tinEWGdemo\\Designer.exw"
+173
+"..\\..\\demo\\tinEWGdemo\\designer.rc"
+"tf1"
+128
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf1"
+"tf2"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf2"
+"tf3"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf3"
+"tf4"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf4"
+"tf5"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf5"
+"tf6"
+150
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf6"
+"tf9"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf9"
+"tfa"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfA"
+"tfb"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfB"
+"tfc"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfC"
+"tfh"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfH"
+252
+"..\\..\\demo\\tinEWGdemo\\sstin\\sstin.exw"
+173
+"..\\..\\demo\\tinEWGdemo\\sstin\\sstin.rc"
+173
+"..\\..\\demo\\tinEWGdemo\\tindemo\\capture.exw"
+252
+"..\\..\\demo\\tinEWGdemo\\tindemo\\sstin\\sstin.exw"
+173
+"..\\..\\demo\\tinEWGdemo\\tindemo\\sstin\\sstin.rc"
+149
+"..\\..\\demo\\tt\\tttest.exw"
+
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf9"
+"tfa"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfA"
+"tfb"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfB"
+"tfc"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfC"
+"tfh"
+0
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfH"
+252
+"..\\..\\demo\\tinEWGdemo\\sstin\\sstin.exw"
+173
+"..\\..\\demo\\tinEWGdemo\\sstin\\sstin.rc"
+173
+"..\\..\\demo\\tinEWGdemo\\tindemo\\capture.exw"
+252
+"..\\..\\demo\\tinEWGdemo\\tindemo\\sstin\\sstin.exw"
+173
+"..\\..\\demo\\tinEWGdemo\\tindemo\\sstin\\sstin.rc"
+149
+"..\\..\\demo\\tt\\tttest.exw"
+
+231
+"..\\..\\demo\\Win32Demo\\sintaxColor.exw"
+232
+"..\\..\\demo\\win32lib\\w32memory.ew"
+163
+"..\\..\\demo\\win32lib\\w32utils.e"
+234
+"..\\..\\demo\\win32lib\\win32lib.ew"
+163
+"..\\..\\demo\\win32lib\\win32lib.ewx"
+163
+"..\\..\\demo\\win32lib6\\w32support.e"
+176
+"..\\..\\docs\\phix\\src\\a32dgeom.htm"
+243
+"..\\..\\docs\\phix\\src\\bigatom.htm"
+147
+"..\\..\\docs\\phix\\src\\callbacks.htm"
+163
+"..\\..\\docs\\phix\\src\\clean.htm"
+226
+"..\\..\\docs\\phix\\src\\dox.txt"
+151
+"..\\..\\docs\\phix\\src\\enter_cs.htm"
+149
+"..\\..\\docs\\phix\\src\\glFrustum.htm"
+149
+"..\\..\\docs\\phix\\src\\glRotate.htm"
+149
+"..\\..\\docs\\phix\\src\\glTranslate.htm"
+146
+"..\\..\\docs\\phix\\src\\IupDialog.htm"
+146
+"..\\..\\docs\\phix\\src\\IupGetGlobal.htm"
+146
+"..\\..\\docs\\phix\\src\\IupHide.htm"
+169
+"..\\..\\docs\\phix\\src\\IupImageLibOpen.htm"
+146
+"..\\..\\docs\\phix\\src\\IupListDialog.htm"
+243
+"..\\..\\docs\\phix\\src\\IupMatrixEx.htm"
+146
+"..\\..\\docs\\phix\\src\\IupSetAttribute.htm"
+146
+"..\\..\\docs\\phix\\src\\IupTree.htm"
+246
+"..\\..\\docs\\phix\\src\\logicops.htm"
+146
+"..\\..\\docs\\phix\\src\\toc.txt"
+169
+"..\\..\\docs\\tiny.htm"
+251
+"..\\..\\e02.exw"
+148
+"..\\..\\ptok.e"
+163
+"..\\..\\std\\convert.e"
+154
+"..\\..\\temp.txt"
+241
+"..\\..\\test\\t37misc.exw"
+162
+"..\\..\\test\\t62utf.exw"
+163
+"..\\..\\test\\t99errs.exw"
+
+
+{234,6,6}
+"..\\..\\demo\\pGUI\\cdtest.exw"
+{186,1903,1903}
+"..\\..\\demo\\pGUI\\simple_paint.exw"
+{191,97,97}
+"..\\..\\demo\\qb2.exw"
+"sln"
+{255,0,0}
+"..\\..\\demo\\QD\\qd\\qd.rc"
+"vcxproj"
+"filters"
+"user"
+{246,539,539}
+"..\\..\\demo\\raytrace\\ASM.E"
+"gitignore"
+{233,6,6}
+"..\\..\\demo\\rosetta\\Bitmap_BezierCubic.exw"
+{233,6,6}
+"..\\..\\demo\\rosetta\\Bitmap_BezierQuadratic.exw"
+"ast"
+{252,5,5}
+"..\\..\\demo\\rosetta\\crc\\bit\\bit.htm"
+{179,34,34}
+"..\\..\\demo\\rosetta\\Inverted_index.exw"
+"s"
+{0,0,0}
+"..\\..\\demo\\SUDOKU\\DIABOLICAL.S"
+{0,0,0}
+"..\\..\\demo\\SUDOKU\\EASY.S"
+{0,0,0}
+"..\\..\\demo\\SUDOKU\\MODERATE.S"
+"sud"
+{0,0,0}
+"..\\..\\demo\\SUDOKU\\TOUGH.S"
+{0,0,0}
+"..\\..\\demo\\SUDOKU\\world.s"
+"cmd"
+{234,6,6}
+"..\\..\\demo\\tee\\cdtest.exw"
+"hgtags"
+"bi"
+"bie"
+"vbp"
+"vbw"
+{146,0,135}
+"..\\..\\demo\\tee\\ghaberek-editor-feea1e43a3b8\\iup\\samples\\button.c"
+{227,0,107}
+"..\\..\\demo\\tee\\ghaberek-editor-feea1e43a3b8\\iup\\samples\\list3.c"
+"cxx"
+{186,2152,2152}
+"..\\..\\demo\\tee\\simple_paint.c"
+{186,2134,2134}
+"..\\..\\demo\\tee\\simple_paint.exw"
+{233,6261,6261}
+"..\\..\\demo\\thes1.txt"
+{169,2,2}
+"..\\..\\demo\\tinEWGdemo\\Designer.exw"
+{173,48,48}
+"..\\..\\demo\\tinEWGdemo\\designer.rc"
+"tf1"
+{128,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf1"
+"tf2"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf2"
+"tf3"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf3"
+"tf4"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf4"
+"tf5"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf5"
+"tf6"
+{150,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf6"
+"tf9"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tf9"
+"tfa"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfA"
+"tfb"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfB"
+"tfc"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfC"
+"tfh"
+{0,0,0}
+"..\\..\\demo\\tinEWGdemo\\res\\ewgdbk.tfH"
+{252,144,144}
+"..\\..\\demo\\tinEWGdemo\\sstin\\sstin.exw"
+{173,54,54}
+"..\\..\\demo\\tinEWGdemo\\sstin\\sstin.rc"
+{173,223,223}
+"..\\..\\demo\\tinEWGdemo\\tindemo\\capture.exw"
+{252,144,144}
+"..\\..\\demo\\tinEWGdemo\\tindemo\\sstin\\sstin.exw"
+{173,54,54}
+"..\\..\\demo\\tinEWGdemo\\tindemo\\sstin\\sstin.rc"
+{231,1,1}
+"..\\..\\demo\\Win32Demo\\sintaxColor.exw"
+{154,1246,1246}
+"..\\..\\demo\\win32lib\\ex.pro"
+{232,1565,1565}
+"..\\..\\demo\\win32lib\\w32memory.ew"
+{163,422,422}
+"..\\..\\demo\\win32lib\\w32utils.e"
+{234,5870,5870}
+"..\\..\\demo\\win32lib\\win32lib.ew"
+{163,1786,1786}
+"..\\..\\demo\\win32lib\\win32lib.ewx"
+{163,327,327}
+"..\\..\\demo\\win32lib6\\w32support.e"
+{176,16,16}
+"..\\..\\docs\\phix\\src\\a32dgeom.htm"
+{243,8,8}
+"..\\..\\docs\\phix\\src\\bigatom.htm"
+{147,87,87}
+"..\\..\\docs\\phix\\src\\callbacks.htm"
+{163,17,17}
+"..\\..\\docs\\phix\\src\\clean.htm"
+{226,82,82}
+"..\\..\\docs\\phix\\src\\dox.txt"
+{151,61,61}
+"..\\..\\docs\\phix\\src\\enter_cs.htm"
+{149,62,62}
+"..\\..\\docs\\phix\\src\\glFrustum.htm"
+{149,51,51}
+"..\\..\\docs\\phix\\src\\glRotate.htm"
+{149,56,56}
+"..\\..\\docs\\phix\\src\\glTranslate.htm"
+{146,134,134}
+"..\\..\\docs\\phix\\src\\IupDialog.htm"
+{146,42,42}
+"..\\..\\docs\\phix\\src\\IupGetGlobal.htm"
+{146,28,28}
+"..\\..\\docs\\phix\\src\\IupHide.htm"
+{169,72,72}
+"..\\..\\docs\\phix\\src\\IupImageLibOpen.htm"
+{146,32,32}
+"..\\..\\docs\\phix\\src\\IupListDialog.htm"
+{243,43,43}
+"..\\..\\docs\\phix\\src\\IupMatrixEx.htm"
+{146,128,128}
+"..\\..\\docs\\phix\\src\\IupSetAttribute.htm"
+{146,1025,1025}
+"..\\..\\docs\\phix\\src\\IupTree.htm"
+{246,93,93}
+"..\\..\\docs\\phix\\src\\logicops.htm"
+{146,1639,1639}
+"..\\..\\docs\\phix\\src\\toc.txt"
+{160,199,199}
+"..\\..\\docs\\retrospectivebikes.html"
+{169,1481,1481}
+"..\\..\\docs\\tiny.htm"
+{251,3276,3276}
+"..\\..\\e02.exw"
+{163,520,520}
+"..\\..\\std\\convert.e"
+{154,3,3}
+"..\\..\\temp.txt"
+{241,79,79}
+"..\\..\\test\\ex.pro"
+"exm"
+{241,86,86}
+"..\\..\\test\\t37misc.exw"
+{162,99,99}
+"..\\..\\test\\t62utf.exw"
+{163,96,96}
+"..\\..\\test\\t99errs.exw"
+{151,1459,1459}
+
+>
+"bash"
+"html"
+"h"
+"c"
+"w"
+"bc"
+"he"
+"e"
+"txt"
+"exw"
+"ew"
+"ex"
+"bat"
+"def"
+{190,2708,2708}
+"..\\..\\bench\\constants.ew"
+{233,157,157}
+"..\\..\\bench\\misc_arwen.e"
+{237,14,14}
+"..\\..\\builtins\\bigatom-test.exw"
+{243,1,1}
+"..\\..\\builtins\\bigatom.e"
+{154,16,16}
+"..\\..\\builtins\\pcase8.e"
+{151,248,248}
+"..\\..\\builtins\\timedate.e"
+"htm"
+{190,2708,2708}
+"..\\..\\demo\\arwen\\Constants.ew"
+{233,157,157}
+"..\\..\\demo\\arwen\\misc_arwen.e"
+{176,96,96}
+"..\\..\\demo\\Arwen32dibdemo\\a32dgeom.ew"
+"pro"
+{154,162,162}
+"..\\..\\demo\\Arwen32dibdemo\\ex.pro"
+{176,52,52}
+"..\\..\\demo\\Arwen32dibdemo\\manip.exw"
+{190,68,68}
+"..\\..\\demo\\arwendemo\\ConnectNamedPipe.htm"
+{154,1031,1031}
+"..\\..\\demo\\arwendemo\\ex.pro"
+{146,5078,5078}
+"..\\..\\demo\\arwendemo\\filedump.exw"
+{146,6732,6732}
+"..\\..\\demo\\arwendemo\\filedumpN.exw"
+{154,316,316}
+"..\\..\\demo\\arwendemo\\pet.exw"
+"py"
+"bak"
+"prj"
+{226,133,133}
+"..\\..\\demo\\arwenpcomdemo\\eucom\\Common_COM_HRESULTs.txt"
+{226,771,771}
+"..\\..\\demo\\arwenpcomdemo\\eucom\\COM_Error_Codes.txt"
+{226,209,209}
+"..\\..\\demo\\arwenpcomdemo\\eucom\\COM_ISupportErrorInfo_interface.txt"
+"cnt"
+"css"
+"csv"
+{232,1553,1553}
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32memory.ew"
+{234,660,660}
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32resources.ew"
+{163,422,422}
+"..\\..\\demo\\arwenpcomdemo\\eucom\\flat\\w32utils.e"
+{226,2344,2344}
+"..\\..\\demo\\arwenpcomdemo\\eucom\\HRESULT_codes.txt"
+{227,1559,1559}
+"..\\..\\demo\\arwenpcomdemo\\eucomnew\\w32memory.ew"
+{226,421,421}
+"..\\..\\demo\\arwenpcomdemo\\eucomnew\\w32utils.e"
+{250,18837,18837}
+"..\\..\\demo\\arwenpcomdemo\\fo.txt"
+{163,1337,1337}
+"..\\..\\demo\\b\\bbad.txt"
+{163,1337,1337}
+"..\\..\\demo\\b\\bgood.txt"
+{163,327,327}
+"..\\..\\demo\\b\\w32support.e"
+{227,0,17}
+"..\\..\\demo\\bignum\\bigatom-test.ex"
+{243,1,1}
+"..\\..\\demo\\bignum\\bigatom.e"
+{243,1,1}
+"..\\..\\demo\\bignum\\english.e"
+{227,1,1}
+"..\\..\\demo\\bignum\\spanish.e"
+{235,0,2}
+"..\\..\\demo\\clocks\\roundclock3\\clockfac.e"
+{235,0,2}
+"..\\..\\demo\\clocks\\roundclock3\\clockface.e"
+"1st"
+{234,1016,1016}
+"..\\..\\demo\\edita\\eamenus.ew"
+"ini"
+{246,9,9}
+"..\\..\\demo\\edita\\lang\\elng_DEU.txt"
+"exh"
+{243,35,35}
+"..\\..\\demo\\edita\\lang\\elng_ESN.txt"
+{243,19,19}
+"..\\..\\demo\\edita\\lang\\elng_ESO.txt"
+{228,15,15}
+"..\\..\\demo\\edita\\lang\\elng_FIN.txt"
+{231,16,16}
+"..\\..\\demo\\edita\\lang\\elng_FRA.txt"
+{249,250,250}
+"..\\..\\demo\\edita\\lang\\elng_ITA.txt"
+{235,25,25}
+"..\\..\\demo\\edita\\lang\\elng_NLD.txt"
+{227,15,15}
+"..\\..\\demo\\edita\\lang\\elng_PTG.txt"
+{229,352,352}
+"..\\..\\demo\\edita\\lang\\iso3166.txt"
+{174,640,640}
+"..\\..\\demo\\edita\\readme.txt"
+
 --*/
 

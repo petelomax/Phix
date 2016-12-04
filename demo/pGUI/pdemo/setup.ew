@@ -387,6 +387,7 @@ integer k
     return {parts,phixes}
 end function
 
+--DEV/tryme is this not join(parts,";")?
 function joinpath(sequence parts)
 -- not to be confused with join_path()!
 string res
@@ -1483,7 +1484,7 @@ procedure Setup()
     end if
 end procedure
 
-function enquote(string s)
+function escape(string s)
 -- backslash-escape " and \ in (ansi) string s
 integer ch
 string res
@@ -1651,7 +1652,7 @@ string line
             putw(fn,sprintf("[-%s%s]\n\n",{HKCU,PHKCU}))
         else
             putw(fn,sprintf("[%s%s]\n",{HKCU,PHKCU}))
-            putw(fn,sprintf("\"Path\"=\"%s\"\n\n",{enquote(HKCUPath)}))
+            putw(fn,sprintf("\"Path\"=\"%s\"\n\n",{escape(HKCUPath)}))
         end if
     end if
 
@@ -1713,7 +1714,7 @@ string line
             end if
             if string(subname) then
                 putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s\\%s]\n",{subkey,DefaultIcon}))
-                putw(fn,sprintf("@=\"%s\"\n\n",{enquote(subname)}))
+                putw(fn,sprintf("@=\"%s\"\n\n",{escape(subname)}))
             else
                 putw(fn,sprintf("[-HKEY_CLASSES_ROOT\\%s\\%s]\n\n",{subkey,DefaultIcon}))
             end if
@@ -1745,7 +1746,7 @@ string line
                     end if
                     putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s\\shell\\%s]\n\n",{subkey,verb}))
                     putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s\\shell\\%s\\command]\n",{subkey,verb}))
-                    putw(fn,sprintf("@=\"%s\"\n\n",{enquote(subname)}))
+                    putw(fn,sprintf("@=\"%s\"\n\n",{escape(subname)}))
                 else
                     putw(fn,sprintf("[-HKEY_CLASSES_ROOT\\%s\\shell\\%s]\n\n",{subkey,verb}))
                 end if
@@ -2022,8 +2023,8 @@ Ihandle --runBtn, flbl, helpBtn, closeBtn, rlfhc, tab1, tab2, box,
     lpad2 = IupLabel()
     actdd = IupList()
     IupSetAttribute(actdd,"DROPDOWN","YES")
-    IupSetInt(actdd,"VISIBLEITEMS",length(actset)+1)    -- [no idea why it needs the +1]
 --  IupSetInt(actdd,"VISIBLEITEMS",length(actset))
+    IupSetInt(actdd,"VISIBLEITEMS",length(actset)+1)    -- [no idea why it needs the +1]
     for i=1 to length(actset) do
         IupSetAttributeId(actdd, "", i, actset[i])
     end for

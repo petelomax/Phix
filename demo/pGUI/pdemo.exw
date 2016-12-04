@@ -12,8 +12,10 @@
 -- Known bugs:
 --  You can drag/resize column 0 [FIXED]
 
+global constant DB_BROKEN = (platform()=LINUX)      --DEV temporary measure
+
 --hitlist:
--- get popup menus working
+-- get popup menus working [DONE]
 -- load directories [DONE]
 -- 
 
@@ -21,7 +23,6 @@
 --#withtype Ihandle
 
 include pGUI.e
---include ../demo/pGUI/pGUI.e
 --include builtins\sort.e       -- (not strictly necessary)
 
 global Ihandle dlg, tabs, matrix, ftxt, pt, statusbar, clipboard
@@ -33,26 +34,21 @@ include pdemo\demo.ew as demo
 include pdemo\setup.ew as setup
 
 function key_cb(Ihandle /*ih*/, atom c)
---function keypress_cb(Ihandle /*ih*/, atom c, integer press)
---DEV F1, 
---  if press then
-        if IupGetInt(tabs,"VALUEPOS")=0 then    -- demos
-            if    c=K_F1 then demo:Help()
-            elsif c=K_F2 then demo:Amend()
-            elsif c=K_F5 then demo:Run()
-            elsif IupGetFocus()!=ftxt -- (managed via VALUECHANGED_CB)
-              and (c=K_DEL or 
-                   c=K_BS or 
-                   iup_isprint(c)) then
-                demo:filterkey(c)
-            end if
-        else                                    -- settings
+    if IupGetInt(tabs,"VALUEPOS")=0 then    -- demos
+        if    c=K_F1 then demo:Help()
+        elsif c=K_F2 then demo:Amend()
+        elsif c=K_F5 then demo:Run()
+        elsif IupGetFocus()!=ftxt -- (managed via VALUECHANGED_CB)
+          and (c=K_DEL or 
+               c=K_BS or 
+               iup_isprint(c)) then
+            demo:filterkey(c)
         end if
---  end if
+    else                                    -- settings
+    end if
     return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
 end function
 constant cb_key = Icallback("key_cb")
---constant cb_keypress = Icallback("keypress_cb")
 
 function close_cb(Ihandle /*ih*/)
     return IUP_CLOSE
@@ -101,7 +97,13 @@ Ihandle runBtn, flbl, helpBtn, closeBtn, rlfhc, tab1, tab2, box
 --      lpad2, actdd, bOK, bHelp
 
     sequence cl = command_line()
-
+if 1 then
+    crun = get_interpreter(1)
+    croot = get_proper_dir(cl[1])
+    sequence cpaths = split_path(croot)
+    cpaths = cpaths[1..find("demo",cpaths)-1]
+    croot = join_path(cpaths,1)
+else
 --DEV/SUG:
 if 1 then
 -- get_interpreter()??
@@ -115,7 +117,7 @@ if 1 then
     if not validexe(crun) then
         crun = "pw.exe"
     end if
-crun = "pth.exe"
+--crun = "pth.exe"
     crun = join_path({croot,crun})
 else    
     crun = cl[1]
@@ -135,6 +137,7 @@ end if
     if find(' ',crun) then
         crun = '\"' & crun & '\"'
     end if
+end if
 
     string dll_path = get_proper_dir(cl[2])
     if lower(dll_path[-5..-2])="phix" then
@@ -201,7 +204,6 @@ end if
     IupSetCallback(dlg, "RESIZE_CB", demo:cb_resize)
 
     IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
---  IupSetCallback(dlg, "KEYPRESS_CB", cb_keypress)
 
     clipboard = IupClipboard()
 

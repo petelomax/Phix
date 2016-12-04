@@ -311,10 +311,9 @@ end procedure
 
 global procedure cursor(integer style)
 -- choose a cursor style
-atom xCCI
-    if not iinit then initI() end if
     if platform()=WINDOWS then
-        xCCI = allocate(sizeof_CCI)
+        if not iinit then initI() end if
+        atom xCCI = allocate(sizeof_CCI)
         poke4(xCCI+CCI_bVisible,(style!=0x02000))
         if    style=#0607 then style = 12
         elsif style=#0507 then style = 25
@@ -325,7 +324,7 @@ atom xCCI
         void = c_func(xSetConsoleCursorInfo,{stdout,xCCI})
         free(xCCI)
     elsif platform()=LINUX then
-        ?9/0 -- DEV
+        -- Documented as doing nothing on Linux (==OE)
     else
         ?9/0
     end if
@@ -333,7 +332,7 @@ end procedure
 
 
 global function video_config()
--- (supported for VC_LINES and VC_COLUMNS use only.)
+-- (supported for VC_LINES/VC_COLUMNS and VC_SCRNLINES/VC_SCRNCOLS use only.)
 integer x,y,mx,my
 sequence res
 atom xCSBI

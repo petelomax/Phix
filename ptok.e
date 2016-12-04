@@ -1277,7 +1277,6 @@ string charset, baseset
     charset['0'..'9'] = DIGIT
     charset[':'..'?'] = SYMBOL  -- :;<=>?
     charset['A'..'Z'] = LETTER
---  charset['”'] = LETTER   -- for rosettacode/unicode
     charset[#80] = LETTER   -- more unicode
     charset[#88] = LETTER   -- more unicode
     charset[#94] = LETTER   -- for rosettacode/unicode (as ptok.e is not stored in utf8)

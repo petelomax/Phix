@@ -12,8 +12,11 @@ atom xCopyFile
 
 procedure Init()
 puts(1,"pcopyfile.e not linux\n")
-atom kernel32 = open_dll("kernel32")
+    -- added 25/11/16:
+    enter_cs()
+    atom kernel32 = open_dll("kernel32")
     xCopyFile = define_c_func(kernel32, "CopyFileA", {C_PTR, C_PTR, C_LONG},C_LONG)
+    leave_cs()
     init = 1
 end procedure
 --**
