@@ -785,10 +785,12 @@ end function
 -- See Also:
 --              [[:cos]], [[:PI]], [[:arctan]]
 
+--/*
 public function arccos(trig_range x)
 --  returns angle in radians
     return HALFPI - 2 * arctan(x / (1.0 + sqrt(1.0 - x * x)))
 end function
+--*/
 
 --**
 -- Return an angle given its sine.
@@ -818,10 +820,12 @@ end function
 -- See Also:
 --              [[:arccos]], [[:arccos]], [[:sin]]
 
+--/*
 public function arcsin(trig_range x)
 --  returns angle in radians
     return 2 * arctan(x / (1.0 + sqrt(1.0 - x * x)))
 end function
+--*/
 
 --**
 -- Calculate the arctangent of a ratio.
@@ -976,9 +980,11 @@ end function
 -- See Also:
 --              [[:log]]
 
+--/*
 public function log10(object x1)
     return log(x1) * INVLN10
 end function
+--*/
 
 --**
 -- Computes some power of E.
@@ -1002,9 +1008,11 @@ end function
 -- See Also:
 --              [[:log]]
 
+--/*
 public function exp(atom x)
         return power(E, x)
 end function
+--*/
 
 --****
 -- Signature:
@@ -1744,6 +1752,7 @@ end function
 -- </eucode>
 --
 
+--/*
 public function gcd(atom p, atom q)
 atom r
         
@@ -1778,7 +1787,7 @@ atom r
         end if
     end while
 end function
-
+--*/
 
 --****
 -- Floating Point

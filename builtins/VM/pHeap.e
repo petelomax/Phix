@@ -996,6 +996,7 @@ end procedure
             add esp,4
 
         [ELF64]
+pop al  -- calling convention is going to be hopelessly wrong in almost all cases!
             -- standard (kernel) calling convention applies: 
             -- syscall number in rax (see docs\lsct64.txt)
             -- first 6 parameters are passed in rdi/rsi/rdx/rcx(or r10 for system calls)/r8/r9 (or xmm0..7).
@@ -1026,6 +1027,7 @@ end procedure
 --  Kernel parameter                #NR                     3rd     2nd     1st                     5th     6th     4th                                             N/A
 --*/
 --/*
+--void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
             push 0                  -- offset (ignored)
             push -1                 -- fd (ignored)
             push #22                -- MAP_ANONYMOUS | MAP_PRIVATE

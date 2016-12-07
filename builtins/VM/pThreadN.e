@@ -808,4 +808,178 @@ void ErrorHandler(LPTSTR lpszFunction)
 }
 
 --*/
+--/*
+from fasmboard: (64 bit... grr)
 
+use64 
+
+BASE=0x400000 
+OFFSETOF equ -BASE+ 
+ELF64_PHEADER_ENTRY_SIZE = 56 
+org BASE 
+
+Elf64_EHdr: 
+db 0x7F, "ELF", 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; 
+dw 2                                                       ;ET_EXEC 
+dw 62                                                       ;AMD64/EM64T 
+dd 1                                                    ; 
+dq _start                                          ;entrypoint 
+dq OFFSETOF Elf64_PHdr                                    
+dq 0 
+dd 0 
+dw Elf64_EHdr.SIZE 
+dw ELF64_PHEADER_ENTRY_SIZE 
+dw Elf64_PHdr.SIZE/ELF64_PHEADER_ENTRY_SIZE 
+dw 0, 0, 0 
+.SIZE=$-Elf64_EHdr 
+
+
+Elf64_PHdr: 
+;PT_PHDR                                         ;not needed 
+;dd 6 
+;dd 4 
+;dq OFFSETOF Elf64_PHdr 
+;dq Elf64_PHdr, 0 
+;dq Elf64_PHdr.SIZE 
+;dq Elf64_PHdr.SIZE 
+;dq 8 
+
+;PT_INTERP 
+dd 3                                                  ;mandatory - full path to our interpreter 
+dd 4                                                       ;ro 
+dq OFFSETOF _interpreter_name_                            
+dq _interpreter_name_, 0 
+dq _interpreter_name_.SIZE, _interpreter_name_.SIZE 
+dq 1                                                     ;1-byte alignment 
+
+;PT_DYNAMIC 
+dd 2                                                    ;mandatory - needed by interpreter 
+dd 4                                                      ;ro 
+dq OFFSETOF _dynamic_ 
+dq _dynamic_, 0 
+dq _dynamic_.SIZE, _dynamic_.SIZE 
+dq 8                                                    ;8-bytes alignment 
+
+;PT_LOAD 
+dd 1                                                      ;mandatory - which area of file to load 
+dd 7                                                 ;wrx 
+dq OFFSETOF Elf64_EHdr                                  ;just load all contents of file 
+dq BASE, 0 
+dq FILE.SIZE, FILE.SIZE                                         
+dq 0x100000                                         ;1-MiB alignment 
+.SIZE=$-Elf64_PHdr 
+
+_start: 
+    
+    ;push r12 
+    xor r12, r12 
+     
+_create_thread: 
+    cmp r12d, 100 
+    je _exit 
+    inc r12 
+
+--int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+--                        void *(*start_routine) (void *), void *arg);
+    xor rsi, rsi                    -- (arg2)
+    push rax 
+    mov rdi, rsp                    -- (arg1)
+    mov edx, _thread_routine_       -- (arg3)
+    mov rcx, r12                    -- (arg4)
+    call [_pthread_create_] 
+    test rax, rax 
+    mov rsi, rax 
+    pop rax 
+    jnz _exit_error 
+    jmp _create_thread 
+
+_exit_error: 
+    mov edi, error_msg 
+    -- (PL: rsi is error number)
+    call [_printf_] 
+_exit: 
+    mov eax, 60                                 ;sys_exit 
+    syscall 
+
+;void thread_routine(void *); 
+_thread_routine_: 
+--int printf(const char *format, ...);
+    mov rsi, rdi            -- (arg2)
+    mov rdx, [fs:0]         -- (arg3)
+    mov edi, thread_msg     -- (arg1)
+    xor eax, eax            -- (0 floating point args)
+    call [_printf_] 
+    ret 
+
+thread_msg db "Thread %d with thread pointer = %p", 10, 0 
+error_msg db "pthread_create fails with error %d", 10, 0 
+
+align 8 
+_printf_                 dq ? 
+_pthread_create_        dq ? 
+
+align 8 
+_dynamic_ : 
+dq 1, _strtab_.libc           ;DT_NEEDED 
+dq 1, _strtab_.libpthread ;DT_NEEDED 
+dq 5, _strtab_                    ;DT_STRTAB 
+dq 6, _symtab_                    ;DT_SYMTAB 
+dq 10, _strtab_.SIZE              ;DT_STRSZ 
+dq 11, 24                  ;DT_SYMENT 
+dq 7, _rela_                      ;DT_RELA 
+dq 8, _rela_.SIZE           ;DT_RELASZ 
+dq 9, 24                  ;DT_RELAENT 
+dq 0, 0                          ;terminator 
+.SIZE=$-_dynamic_ 
+
+_strtab_: 
+.null=$-_strtab_ 
+    db 0 
+.libc=$-_strtab_ 
+    db "libc.so.6", 0 
+.libpthread=$-_strtab_ 
+    db "libpthread.so.0", 0 
+.printf=$-_strtab_ 
+    db "printf", 0 
+.pthread_create=$-_strtab_ 
+    db "pthread_create", 0 
+.SIZE=$-_strtab_ 
+
+align 4 
+_symtab_: 
+.null=($-_symtab_)/24 
+    rb 24 
+.printf=($-_symtab_)/24 
+    dd _strtab_.printf      ;strtab_index 
+    db 1 shl 4 + 2         ;info=GLOBAL,STT_FUNCTION 
+    db 0                   ;other 
+    dw 0                      ;shndx=SHN_UNDEF 
+    dq 0, 0                 ;value=unknown,size=unknown 
+.pthread_create=($-_symtab_)/24 
+    dd _strtab_.pthread_create 
+    db 1 shl 4 + 2        ;GLOBAL,STT_FUNCTION 
+    db 0 
+    dw 0 
+    dq 0, 0 
+
+.SIZE=$-_symtab_ 
+
+align 8 
+_rela_: 
+.printf: 
+    dq _printf_                             ;reloc addess 
+    dq _symtab_.printf shl 32 + 1           ;symtab_index shl 32 + type 
+    dq 0                                    ;addend 
+.pthread_create:  
+    dq _pthread_create_ 
+    dq _symtab_.pthread_create shl 32 + 1 
+    dq 0 
+
+.SIZE=$-_rela_ 
+
+_interpreter_name_ db "/lib/ld-linux-x86-64.so.2", 0 
+.SIZE=$-_interpreter_name_ 
+
+FILE.SIZE=$-BASE 
+
+--*/

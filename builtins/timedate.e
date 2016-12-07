@@ -1859,7 +1859,39 @@ end function
 --if isLeap(2004)!=1 then ?9/0 end if
 --if isLeap(2100)!=0 then ?9/0 end if
 
---global function timediff(timedate td1, timedate td2)
---  return timedate_to_seconds(td2)-timedate_to_seconds(td1)
---end function
+--DEV doc:
+global function timedate_diff(timedate td1, timedate td2)
+    return timedate_to_seconds(td2)-timedate_to_seconds(td1)
+end function
+--/* test code:
+include builtins/timedate.e
 
+set_timedate_formats({"DD/MM/YYYY","Dddd, Mmmm dd yyyy"},2)
+
+constant BIRTH_DATE = parse_date_string("28/6/1950")
+constant DATE2 = date()
+ 
+constant secs = timedate_diff(BIRTH_DATE, DATE2)
+constant days = floor(secs/(24*60*60))
+ 
+constant d3 = adjust_timedate(BIRTH_DATE, secs)
+ 
+printf(1, "There are %d days between %s and %s. \n\n",  
+          {days, 
+            format_timedate(BIRTH_DATE),  
+            format_timedate(DATE2) 
+          }) 
+           
+printf(1, "%s plus %d days = %s. \n\n",  
+          {format_timedate(BIRTH_DATE), days,  
+           format_timedate(d3 ) 
+          })           
+
+-- output: 
+ 
+-- There are 24268 days between  Wednesday, June 28 1950 and Tuesday, December 06 2016  
+ 
+-- Wednesday, June 28 1950 plus 24268 days = Tuesday, December 06 2016  
+{} = wait_key()
+abort(0)
+--*/
