@@ -37,12 +37,13 @@ without trace
 -- only translate user messages, not support messages.
 
 --/* 4.0.2
-include builtins\machine.e
+include ..\..\builtins\machine.e
+include ..\..\builtins\pgetpath.e
 --*/
 
 global sequence initialcurrentdir
 
-include builtins\file.e
+include ..\..\builtins\file.e
 
 global function cleanUpPath(sequence name)
 integer k   

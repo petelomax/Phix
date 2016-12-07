@@ -61,8 +61,9 @@ end procedure
 --global function reverse_subset(sequence s, integer pFrom = 1, integer pTo = -1)
 --global function reverse(sequence s, integer pFrom = 1, integer pTo = -1)
 global function reverse(sequence src, sequence pFromTo = {1,-1})
-integer {pFrom,pTo} = pFromTo, len = length(src)
-integer lowr, uppr, midpoint
+--integer {pFrom,pTo} = pFromTo, len = length(src)
+integer pFrom = pFromTo[1], pTo = pFromTo[2], len = length(src)
+integer uppr, midpoint
 sequence res
 
     if pFrom<0 then

@@ -372,7 +372,8 @@ global function value(sequence str)
     return Get()
 end function
 
-global function prompt_number(string prompt, sequence range={})
+--global function prompt_number(string prompt, sequence range={})
+global function prompt_number(sequence prompt, sequence range={})
 -- Prompt the user to enter a number. 
 -- A range of allowed values may be specified.
 integer error_status
@@ -383,7 +384,10 @@ object answer
         answer = gets(0) -- make sure whole line is read
         puts(1, '\n')
 
-        {error_status,answer} = value(answer)
+--      {error_status,answer} = value(answer)
+        answer = value(answer)
+        error_status = answer[1]
+        answer = answer[2]
         if error_status!=GET_SUCCESS 
         or sequence(answer) then
             puts(1, "A number is expected - try again\n")
@@ -399,7 +403,8 @@ object answer
     end while
 end function
 
-global function prompt_string(string prompt)
+--global function prompt_string(string prompt)
+global function prompt_string(sequence prompt)
 -- Prompt the user to enter a string
 object answer
 

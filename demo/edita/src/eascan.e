@@ -1284,7 +1284,8 @@ object cv1
         return 0
 --18/07/2013:
     elsif cv1=DQUOTE then
-        return constval[2][2..-2]   -- strip quotes
+--      return constval[2][2..-2]   -- strip quotes
+        return constval[2][2..$-1]  -- strip quotes
 --  elsif find(cv1,{DQUOTE,SQUOTE,HEXDEC,DIGIT,FLOAT}) then
     elsif find(cv1,{SQUOTE,HEXDEC,DIGIT,FLOAT}) then
         return constval[2]

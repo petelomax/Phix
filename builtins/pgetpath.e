@@ -29,11 +29,11 @@
 --!/**/without debug
 --
 --/*
-include builtins\machine.e
-include builtins\dll.e
-include builtins\sort.e
-include builtins\misc.e
-include builtins\file.e
+include machine.e
+include dll.e
+include sort.e
+include misc.e
+include file.e
 --*/
 --with trace
 
@@ -189,10 +189,11 @@ sequence res
     if not string(filepath) then
         filepath = toString(filepath)
     end if
-    if platform()=WINDOWS then
+--  if platform()=WINDOWS then
+    if platform()=WIN32 then
         if not gppinit then
             --DEV locking as per pprntf.e
-            enter_cs()
+--/**/      enter_cs()
             kernel32 = open_dll("kernel32")
 --#without reformat
             xGetLongPathName = define_c_func(kernel32,"GetLongPathNameA",
@@ -212,7 +213,7 @@ sequence res
 --          buffer = allocate(MAX_PATH)
 --#with reformat
             gppinit = 1
-            leave_cs()
+--/**/      leave_cs()
         end if
 --puts(1,"get_proper_path, filepath:\n")
 --pp(filepath)
@@ -323,7 +324,7 @@ sequence res
 end function
 
 global function get_proper_dir(string filepath, integer remove_slash=0)
-    filepath = get_proper_path(filepath)
+    filepath = get_proper_path(filepath,0)
     for i=length(filepath) to 1 by -1 do
         if find(filepath[i],"\\/") then
             filepath = filepath[1..i-remove_slash]
@@ -333,12 +334,16 @@ global function get_proper_dir(string filepath, integer remove_slash=0)
     return filepath
 end function
 
+--/* -- Defined in psym.e for Phix
+constant CORRECT = 2
+--*/
+
 -- (sequence filepath should be fine, but needs testing and I'm not convinced that
 --  get_proper_path deals well with dword_sequences/errors on nested subsequences)
 global function canonical_path(string path_in, integer is_directory=0, integer case_flags=CORRECT)
     if is_directory then end if -- suppress warnings
     if case_flags!=CORRECT then ?9/0 end if
 --  if case_flags!=2 then ?9/0 end if
-    return get_proper_path(path_in)
+    return get_proper_path(path_in,0)
 end function
 
