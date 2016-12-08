@@ -1314,6 +1314,7 @@ end procedure -- (for Edita/CtrlQ)
             ret
 
 --      [ELF]
+-- (it may be easier/better to just call "libpthread.so.0","pthread_mutex_lock")
 --          --/*
 --            -- credit: "futexes are tricky" by Ulrich Drepper (futex3 code)
 --            int val = 0;

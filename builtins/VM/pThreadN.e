@@ -2,8 +2,7 @@
 -- pThreadN.e
 -- ==========
 --
--- Phix implementation of threads
---  (NB subject to change when linux version gets implemented)
+--  Phix implementation of threads
 --
 
 --now defined in psym.e:
@@ -102,12 +101,13 @@ type bool(integer flag)
     return (flag=0 or flag=1)
 end type
 
-procedure start_thread(sequence s, integer cs=0)
+procedure start_thread(sequence s)
 -- internal routine, see create_thread()
 integer rid
 sequence params
-    if length(s)!=2 then ?9/0 end if
-    {rid,params} = s
+integer cs
+    if length(s)!=3 then ?9/0 end if
+    {rid,params,cs} = s
     if cs!=0 then
         -- linux implementation of CREATE_SUSPENDED
         enter_cs(cs)
@@ -130,13 +130,13 @@ atom hThread
 integer cs = 0
 --  if not init then t_init() end if    -- (not needed)
     if not init then t_init() end if
-    params = {rid,params}   -- (btw, this gets freed at the end of start_thread() above)
     if platform()=LINUX then
         if flags=CREATE_SUSPENDED then
             cs = init_cs()
             enter_cs(cs)
         end if
     end if
+    params = {rid,params,cs}    -- (btw, this gets freed at the end of start_thread() above)
     #ilASM{
         [PE32]
             mov eax,[params]
@@ -148,11 +148,11 @@ integer cs = 0
             call :%pNewStack                    -- (still has a dummy T_maintls, btw)
             --
             -- NB: we now have NO ACCESS to /ANY/ params or local variables.
-            --  (except for a copy of lpParameter as passed to kernel32:CreateThread)
+            --  (except for a copy of params as passed to kernel32:CreateThread)
             --
             add esp,4                           -- discard return address (into knl32)
             mov edx,routine_id(start_thread)    -- mov edx,imm32 (sets K_ridt)
-            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[start_thread][S_Ltot])
             call :%opFrame
             pop dword[ebp]                      --[1] {rid,params}
             mov dword[ebp+16],:threadret        -- return address
@@ -181,6 +181,8 @@ integer cs = 0
             lea edi,[hThread]
             call :%pStoreFlt                    -- ([edi]:=st0, as 31 bit int if possible)
         [ELF32]
+--DEV there is a list of non-thread-safe functions at https://www.unmanarc.com/v1/2013/08/cc-p-thread-code-safety-avoiding-race-conditions/
+--  (one that struck me was localtime, used in pdir.e)
             mov eax,[params]
             jmp :createthread
 
@@ -188,37 +190,42 @@ integer cs = 0
             call :%pNewStack                    -- (still has a dummy T_maintls, btw)
             --
             -- NB: we now have NO ACCESS to /ANY/ params or local variables.
-            --  (except for a copy of params and cs as left on the stack)
+            --  (except for a copy of params as passed to pthread_create)
             --
             mov edx,routine_id(start_thread)    -- mov edx,imm32 (sets K_ridt)
-            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[start_thread][S_Ltot])
             call :%opFrame
-            pop dword[ebp]                      --[1] {rid,params}
-            pop dword[ebp-4]                    --[2] cs
+            mov eax,[esp+4]                     --[1] {rid,params,cs}
+            mov [ebp],eax
             mov dword[ebp+16],:threadret        -- return address
             jmp $_il                            -- jmp code:start_thread
 
          ::threadret
             call :%pFreeStack
             xor ebx,ebx 
-            mov eax,1                           -- sys_exit
-            int 0x80 
+--          mov eax,1                           -- sys_exit
+--          int 0x80 
+            push ebx
+            call "libpthread.so.0","pthread_exit"
 
           ::createthread
             mov [params],ebx                    -- mov [params],0   (without any ref counting)
-            push [cs]
-            push eax                            --[1] params
-            call "libc.so.6","fork"
-            test eax,eax
-            jz :threadproc
+            push ebx                            -- space for thread_id
+            mov esi, esp
+            push eax                            -- *arg [params]
+            push :threadproc                    -- start_routine
+            push ebx                            -- *attr [NULL]
+            push esi                            -- *thread
+            call "libpthread.so.0","pthread_create"
+            add esp,16
             xor ebx,ebx
-            add esp,8
-            push ebx
-            push eax                            -- (unsigned extend)
-            fild qword[esp]
-            add esp,8
+            test eax,eax
+            jz @f
+                int3
+          @@:
+            pop eax
             lea edi,[hThread]
-            call :%pStoreFlt                    -- ([edi]:=st0, as 31 bit int if possible)
+            call :%pStoreMint                   -- ([edi]:=eax, as float if rqd)
 
         [PE64]
             mov rax,[params]
@@ -236,7 +243,7 @@ integer cs = 0
             --
 --          add rsp,8                           -- discard return address (into knl32)
             mov rdx,routine_id(start_thread)    -- mov edx,imm32 (sets K_ridt)
-            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[start_thread][S_Ltot])
             call :%opFrame
             pop qword[rbp]                      --[1] {rid,params}
             mov qword[rbp+32],:threadret        -- return address
@@ -284,11 +291,57 @@ integer cs = 0
             lea rdi,[hThread]
             call :%pStoreFlt                    -- ([rdi]:=st0, as 63 bit int if possible)
         [ELF64]
-            pop al
+            mov rcx,[params]
+            jmp :createthread
+
+          ::threadproc
+            call :%pNewStack                    -- (still has a dummy T_maintls, btw)
+            --
+            -- NB: we now have NO ACCESS to /ANY/ params or local variables.
+            --  (except for a copy of params as passed to pthread_create)
+            --
+            mov rdx,routine_id(start_thread)    -- mov rdx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[start_thread][S_Ltot])
+            call :%opFrame
+            mov rax,[rsp+8]                     --[1] {rid,params,cs}
+            mov [rbp],rax
+            mov qword[rbp+32],:threadret        -- return address
+            jmp $_il                            -- jmp code:start_thread
+
+         ::threadret
+            call :%pFreeStack
+            xor rdi,rdi 
+            call "libpthread.so.0","pthread_exit"
+
+          ::createthread
+            mov [params],rbx                    -- mov [params],0   (without any ref counting)
+--int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+--                        void *(*start_routine) (void *), void *arg);
+--  xor rsi, rsi                    -- (arg2)
+--  push rax 
+--  mov rdi, rsp                    -- (arg1)
+--  mov edx, _thread_routine_       -- (arg3)
+--  mov rcx, r12                    -- (arg4)
+--  call [_pthread_create_] 
+            push rbx                            -- space for thread_id
+--          <rcx already set>                   -- *arg [params]
+            mov rdx, :threadproc                -- start_routine
+            mov rsi,ebx                         -- *attr [NULL]
+            mov rdi,rsp                         -- *thread
+            call "libpthread.so.0","pthread_create"
+            xor rbx,rbx
+            test rax,rax
+            jz @f
+                int3
+          @@:
+            pop rax
+            lea rdi,[hThread]
+            call :%pStoreMint                   -- ([rdi]:=rax, as float if rqd)
         []
            }
     if platform()=LINUX then
         if flags=CREATE_SUSPENDED then
+            -- add entries for resume_thread
             enter_cs(susp_cs)
             suspended = append(suspended,hThread)
             suspendcs = append(suspendcs,cs)
@@ -324,14 +377,13 @@ atom dwError
         integer k = find(hThread,suspended)
         if k=0 then ?9/0 end if
         leave_cs(suspendcs[k])  -- release start_thread()
-        suspended[k..k] = {}
-        suspendcs[k..k] = {}
+        suspended[k..k] = {}    --  (no further use)
+        suspendcs[k..k] = {}    -- [delete_cs()'d in start_thread()]
         leave_cs(susp_cs)
     end if
 end procedure
 
 global procedure wait_thread(object hThread)
---atom pExitCode
 atom dwError
     if sequence(hThread) then
         for i=1 to length(hThread) do
@@ -345,42 +397,26 @@ atom dwError
                 dwError = c_func(xGetLastError,{})
                 ?9/0
             end if
+            if not c_func(xCloseHandle,{hThread}) then
+                ?9/0
+            end if
         else
             #ilASM{
                 [ELF32]
                     mov eax,[hThread]
                     call :%pLoadMint
---                  push ebx
-                    mov ecx,esp
-                    push 2                      -- options (WUNTRACED)
---                  push ecx                    -- int *wstatus
-                    push ebx                    -- int *wstatus
-                    push eax                    -- pid
-                    call "libc.so.6","waitpid"
---                  add esp,16
-                    add esp,12
+                    push ebx                            -- *retval [NULL]
+                    push eax                            -- thread
+                    call "libpthread.so.0","pthread_join"
+                    add esp,8
+                    test eax,eax
+                    jz @f
+                        int3
+                  @@:
                 [ELF64]
                     pop al
                 []
                   }
---              do {
---                 w = waitpid(cpid, &wstatus, WUNTRACED | WCONTINUED);
---                 if (w == -1) {
---                     perror("waitpid");
---                     exit(EXIT_FAILURE);
---                 }
---
---                 if (WIFEXITED(wstatus)) {
---                     printf("exited, status=%d\n", WEXITSTATUS(wstatus));
---                 } else if (WIFSIGNALED(wstatus)) {
---                     printf("killed by signal %d\n", WTERMSIG(wstatus));
---                 } else if (WIFSTOPPED(wstatus)) {
---                     printf("stopped by signal %d\n", WSTOPSIG(wstatus));
---                 } else if (WIFCONTINUED(wstatus)) {
---                     printf("continued\n");
---                 }
---             } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
---             exit(EXIT_SUCCESS);
         end if
     end if
 end procedure
@@ -394,8 +430,10 @@ global procedure exit_thread(integer ecode)
             call "kernel32.dll","ExitThread"
         [ELF32]
             xor ebx,ebx 
-            mov eax,1                           -- sys_exit
-            int 0x80 
+--          mov eax,1                           -- sys_exit
+--          int 0x80 
+            push ebx
+            call "libpthread.so.0","pthread_exit"
         [PE64]
             push qword[ecode]                   -- dwExitCode
             call :%pFreeStack
@@ -427,14 +465,24 @@ atom pExitCode, dwExitCode
                 mov eax,[hThread]
                 call :%pLoadMint
                 push ebx
-                mov ecx,esp
-                push 3                      -- options (WUNTRACED|WNOHANG)
-                push ecx                    -- int *wstatus
-                push eax                    -- pid
-                call "libc.so.6","waitpid"
-                add esp,12
-                lea edi,[dwExitCode]
+--              mov ecx,esp
+--              push 3                      -- options (WUNTRACED|WNOHANG)
+--              push ecx                    -- int *wstatus
+--              push eax                    -- pid
+--              call "libc.so.6","waitpid"
+--              add esp,12
+--              push ecx
+--              push eax
+                push esp                            -- *retval
+                push eax                            -- thread
+                call "libpthread.so.0","pthread_join"
+                add esp,8
+                test eax,eax
+                jz @f
+                    int3
+              @@:
                 pop eax
+                lea edi,[dwExitCode]
                 call :%pStoreMint
             [ELF64]
                 pop al
@@ -516,88 +564,6 @@ end function
 
 --  The following are not thread safe:
 --
---  1) Reference Counting (in progress).
---      Throughout the backend and in all emitted code, I need to replace eg
---
---          sub dword[ebx+edx*4-8],1
---
---      with
---      
---          mov eax,-1 ; (any spare reg will do)
---          lock xadd dword[ebx+edx*4-8],eax
---
---      If you see any "*4-8]" that I missed, let me know.
---      There are also some similar changes to the automatic memory leak
---      checking code/tallies.
---
---          --      If two or more threads refer to the same (file-level) variable/data, 
---          --      even in an apparently "read only" fashion, they will require locking 
---          --      to prevent reference counting mishaps:
---          --
---          --          Thread 1                            Thread 2
---          --          var1 = X -- incref X
---          --          ...                                 ...
---          --          var1 = 0 -- decref X                var2 = X -- incref X
---          --                      -- ie read 2                        -- ie read 2
---          --                      --   write 1                        --   write 3    
---          --      At the start of the last line the data held in X has a refcount of 2 
---          --      (one for X and one for var1). When both are finished it should be 2
---          --      (one for X and one for var2). However if both manage to read the 2 at 
---          --      the same time, the refcount is going to end up either 1 or 3, wrong.
---          --
---          --          <aside>
---          --              It is possible that replacing eg
---          --
---          --                  sub [refcount],1
---          --                  jnz @f
---          --                      call dealloc
---          --                 @@:
---          --
---          --              with
---          --
---          --                 tryagain:
---          --                  mov edx,[refcount]      ; will become new value
---          --                  mov eax,[refcount]      
---          --                  mov ecx,[refcount]
---          --                  sub edx,1
---          --                  lock cmpxchg [refcount],edx
---          --  or?             lock cmpxchg edx,[refcount]
---          --                  cmp eax,ecx
---          --                  jne tryagain
---            "cmpxchg" compares the value in the AL, AX, or EAX register with the
---          destination operand. If the two values are equal, the source operand is
---          loaded into the destination operand. Otherwise, the destination operand is
---          loaded into the AL, AX, or EAX register. The destination operand may be a
---          general register or memory, the source operand must be a general register.
---
---              cmpxchg dl,bl    ; compare and exchange with register
---              cmpxchg [bx],dx  ; compare and exchange with memory
---
---          --                  
---          --          </aside>
---          --
---          --      Note it is the data itself, not a particular variable, that matters.
---          --      The same can be true of literal constants; if you replace X above
---          --      with "some string" the same problem occurs. ("constant" is really 
---          --      just a compiler directive; an early version of Phix attempted to 
---          --      avoid pointlessly refcounting constants, but generally they make
---          --      up a tiny fraction of the total and any additional checking cost
---          --      more than it saved. Literals are just "unamed constant variables",
---          --      in fact when the compiler sees constant Name = "Pete", it first
---          --      creates an unnamed symtab entry for "Pete", and then realises it
---          --      can put "Name" on that entry rather then create another entry.)
---          --
---          --      If the data is going to vary over time, locking is the only way
---          --      to prevent such mishaps. For finalised data (including literals)
---          --      the unique routine above may offer an alternative solution.
---          --
---DEV undo some of this: [NO!!]
---      Comparing builtins\pprntf.e with builtins\pprntf-old.e may offer
---      some clues for making legacy code thread-safe. It is interesting
---      to note that it is the initialisation of inf/nan/bases/hexchar
---      that is thread-unsafe, rather than their use. I would also agree 
---      that nan() not "nan" verges on the ridiculous, but hey, it works.
---
 --  2) The GUI.
 --      I suspect this is true of any programming language.
 --      In particular I have made no attempt to make arwen/win32lib/etc
@@ -650,336 +616,4 @@ end function
 --      --DEV needs locking as per pprntf
 
 
---/* from MSDN:
 
-#include <windows.h>
-#include <tchar.h>
-#include <strsafe.h>
-
-#define MAX_THREADS 3
-#define BUF_SIZE 255
-
-DWORD WINAPI MyThreadFunction( LPVOID lpParam );
-void ErrorHandler(LPTSTR lpszFunction);
-
-// Sample custom data structure for threads to use.
-// This is passed by void pointer so it can be any data type
-// that can be passed using a single void pointer (LPVOID).
-typedef struct MyData {
-    int val1;
-    int val2;
-} MYDATA, *PMYDATA;
-
-
-int _tmain()
-{
-    PMYDATA pDataArray[MAX_THREADS];
-    DWORD   dwThreadIdArray[MAX_THREADS];
-    HANDLE  hThreadArray[MAX_THREADS]; 
-
-    // Create MAX_THREADS worker threads.
-
-    for( int i=0; i<MAX_THREADS; i++ )
-    {
-        // Allocate memory for thread data.
-
-        pDataArray[i] = (PMYDATA) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(MYDATA));
-
-        if( pDataArray[i] == NULL )
-        {
-           // If the array allocation fails, the system is out of memory
-           // so there is no point in trying to print an error message.
-           // Just terminate execution.
-            ExitProcess(2);
-        }
-
-        // Generate unique data for each thread to work with.
-
-        pDataArray[i]->val1 = i;
-        pDataArray[i]->val2 = i+100;
-
-        // Create the thread to begin execution on its own.
-
-        hThreadArray[i] = CreateThread( 
-            NULL,                   // default security attributes
-            0,                      // use default stack size  
-            MyThreadFunction,       // thread function name
-            pDataArray[i],          // argument to thread function 
-            0,                      // use default creation flags 
-            &dwThreadIdArray[i]);   // returns the thread identifier 
-
-
-        // Check the return value for success.
-        // If CreateThread fails, terminate execution. 
-        // This will automatically clean up threads and memory. 
-
-        if (hThreadArray[i] == NULL) 
-        {
-           ErrorHandler(TEXT("CreateThread"));
-           ExitProcess(3);
-        }
-    } // End of main thread creation loop.
-
-    // Wait until all threads have terminated.
-
->   WaitForMultipleObjects(MAX_THREADS, hThreadArray, TRUE, INFINITE);
-
-    // Close all thread handles and free memory allocations.
-
-    for(int i=0; i<MAX_THREADS; i++)
-    {
-        CloseHandle(hThreadArray[i]);
-        if(pDataArray[i] != NULL)
-        {
-            HeapFree(GetProcessHeap(), 0, pDataArray[i]);
-            pDataArray[i] = NULL;    // Ensure address is not reused.
-        }
-    }
-
-    return 0;
-}
-
-
-DWORD WINAPI MyThreadFunction( LPVOID lpParam ) 
-{ 
-    HANDLE hStdout;
-    PMYDATA pDataArray;
-
-    TCHAR msgBuf[BUF_SIZE];
-    size_t cchStringSize;
-    DWORD dwChars;
-
-    // Make sure there is a console to receive output results. 
-
-    hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
-    if( hStdout == INVALID_HANDLE_VALUE )
-        return 1;
-
-    // Cast the parameter to the correct data type.
-    // The pointer is known to be valid because 
-    // it was checked for NULL before the thread was created.
- 
-    pDataArray = (PMYDATA)lpParam;
-
-    // Print the parameter values using thread-safe functions.
-
-    StringCchPrintf(msgBuf, BUF_SIZE, TEXT("Parameters = %d, %d\n"), 
-        pDataArray->val1, pDataArray->val2); 
-    StringCchLength(msgBuf, BUF_SIZE, &cchStringSize);
-    WriteConsole(hStdout, msgBuf, (DWORD)cchStringSize, &dwChars, NULL);
-
-    return 0; 
-} 
-
-
-
-void ErrorHandler(LPTSTR lpszFunction) 
-{ 
-    // Retrieve the system error message for the last-error code.
-
-    LPVOID lpMsgBuf;
-    LPVOID lpDisplayBuf;
-    DWORD dw = GetLastError(); 
-
-    FormatMessage(
-        FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-        FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL,
-        dw,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPTSTR) &lpMsgBuf,
-        0, NULL );
-
-    // Display the error message.
-
-    lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT, 
-        (lstrlen((LPCTSTR) lpMsgBuf) + lstrlen((LPCTSTR) lpszFunction) + 40) * sizeof(TCHAR)); 
-    StringCchPrintf((LPTSTR)lpDisplayBuf, 
-        LocalSize(lpDisplayBuf) / sizeof(TCHAR),
-        TEXT("%s failed with error %d: %s"), 
-        lpszFunction, dw, lpMsgBuf); 
-    MessageBox(NULL, (LPCTSTR) lpDisplayBuf, TEXT("Error"), MB_OK); 
-
-    // Free error-handling buffer allocations.
-
-    LocalFree(lpMsgBuf);
-    LocalFree(lpDisplayBuf);
-}
-
---*/
---/*
-from fasmboard: (64 bit... grr)
-
-use64 
-
-BASE=0x400000 
-OFFSETOF equ -BASE+ 
-ELF64_PHEADER_ENTRY_SIZE = 56 
-org BASE 
-
-Elf64_EHdr: 
-db 0x7F, "ELF", 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0  ; 
-dw 2                                                       ;ET_EXEC 
-dw 62                                                       ;AMD64/EM64T 
-dd 1                                                    ; 
-dq _start                                          ;entrypoint 
-dq OFFSETOF Elf64_PHdr                                    
-dq 0 
-dd 0 
-dw Elf64_EHdr.SIZE 
-dw ELF64_PHEADER_ENTRY_SIZE 
-dw Elf64_PHdr.SIZE/ELF64_PHEADER_ENTRY_SIZE 
-dw 0, 0, 0 
-.SIZE=$-Elf64_EHdr 
-
-
-Elf64_PHdr: 
-;PT_PHDR                                         ;not needed 
-;dd 6 
-;dd 4 
-;dq OFFSETOF Elf64_PHdr 
-;dq Elf64_PHdr, 0 
-;dq Elf64_PHdr.SIZE 
-;dq Elf64_PHdr.SIZE 
-;dq 8 
-
-;PT_INTERP 
-dd 3                                                  ;mandatory - full path to our interpreter 
-dd 4                                                       ;ro 
-dq OFFSETOF _interpreter_name_                            
-dq _interpreter_name_, 0 
-dq _interpreter_name_.SIZE, _interpreter_name_.SIZE 
-dq 1                                                     ;1-byte alignment 
-
-;PT_DYNAMIC 
-dd 2                                                    ;mandatory - needed by interpreter 
-dd 4                                                      ;ro 
-dq OFFSETOF _dynamic_ 
-dq _dynamic_, 0 
-dq _dynamic_.SIZE, _dynamic_.SIZE 
-dq 8                                                    ;8-bytes alignment 
-
-;PT_LOAD 
-dd 1                                                      ;mandatory - which area of file to load 
-dd 7                                                 ;wrx 
-dq OFFSETOF Elf64_EHdr                                  ;just load all contents of file 
-dq BASE, 0 
-dq FILE.SIZE, FILE.SIZE                                         
-dq 0x100000                                         ;1-MiB alignment 
-.SIZE=$-Elf64_PHdr 
-
-_start: 
-    
-    ;push r12 
-    xor r12, r12 
-     
-_create_thread: 
-    cmp r12d, 100 
-    je _exit 
-    inc r12 
-
---int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
---                        void *(*start_routine) (void *), void *arg);
-    xor rsi, rsi                    -- (arg2)
-    push rax 
-    mov rdi, rsp                    -- (arg1)
-    mov edx, _thread_routine_       -- (arg3)
-    mov rcx, r12                    -- (arg4)
-    call [_pthread_create_] 
-    test rax, rax 
-    mov rsi, rax 
-    pop rax 
-    jnz _exit_error 
-    jmp _create_thread 
-
-_exit_error: 
-    mov edi, error_msg 
-    -- (PL: rsi is error number)
-    call [_printf_] 
-_exit: 
-    mov eax, 60                                 ;sys_exit 
-    syscall 
-
-;void thread_routine(void *); 
-_thread_routine_: 
---int printf(const char *format, ...);
-    mov rsi, rdi            -- (arg2)
-    mov rdx, [fs:0]         -- (arg3)
-    mov edi, thread_msg     -- (arg1)
-    xor eax, eax            -- (0 floating point args)
-    call [_printf_] 
-    ret 
-
-thread_msg db "Thread %d with thread pointer = %p", 10, 0 
-error_msg db "pthread_create fails with error %d", 10, 0 
-
-align 8 
-_printf_                 dq ? 
-_pthread_create_        dq ? 
-
-align 8 
-_dynamic_ : 
-dq 1, _strtab_.libc           ;DT_NEEDED 
-dq 1, _strtab_.libpthread ;DT_NEEDED 
-dq 5, _strtab_                    ;DT_STRTAB 
-dq 6, _symtab_                    ;DT_SYMTAB 
-dq 10, _strtab_.SIZE              ;DT_STRSZ 
-dq 11, 24                  ;DT_SYMENT 
-dq 7, _rela_                      ;DT_RELA 
-dq 8, _rela_.SIZE           ;DT_RELASZ 
-dq 9, 24                  ;DT_RELAENT 
-dq 0, 0                          ;terminator 
-.SIZE=$-_dynamic_ 
-
-_strtab_: 
-.null=$-_strtab_ 
-    db 0 
-.libc=$-_strtab_ 
-    db "libc.so.6", 0 
-.libpthread=$-_strtab_ 
-    db "libpthread.so.0", 0 
-.printf=$-_strtab_ 
-    db "printf", 0 
-.pthread_create=$-_strtab_ 
-    db "pthread_create", 0 
-.SIZE=$-_strtab_ 
-
-align 4 
-_symtab_: 
-.null=($-_symtab_)/24 
-    rb 24 
-.printf=($-_symtab_)/24 
-    dd _strtab_.printf      ;strtab_index 
-    db 1 shl 4 + 2         ;info=GLOBAL,STT_FUNCTION 
-    db 0                   ;other 
-    dw 0                      ;shndx=SHN_UNDEF 
-    dq 0, 0                 ;value=unknown,size=unknown 
-.pthread_create=($-_symtab_)/24 
-    dd _strtab_.pthread_create 
-    db 1 shl 4 + 2        ;GLOBAL,STT_FUNCTION 
-    db 0 
-    dw 0 
-    dq 0, 0 
-
-.SIZE=$-_symtab_ 
-
-align 8 
-_rela_: 
-.printf: 
-    dq _printf_                             ;reloc addess 
-    dq _symtab_.printf shl 32 + 1           ;symtab_index shl 32 + type 
-    dq 0                                    ;addend 
-.pthread_create:  
-    dq _pthread_create_ 
-    dq _symtab_.pthread_create shl 32 + 1 
-    dq 0 
-
-.SIZE=$-_rela_ 
-
-_interpreter_name_ db "/lib/ld-linux-x86-64.so.2", 0 
-.SIZE=$-_interpreter_name_ 
-
-FILE.SIZE=$-BASE 
-
---*/

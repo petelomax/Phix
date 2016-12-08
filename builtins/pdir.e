@@ -95,8 +95,10 @@ procedure initD()
     else
         libc = open_dll("libc.so.6")
         xopendir    = define_c_func(libc, "opendir", {C_PTR}, C_PTR)
+        -- (not thread safe, may want to use readdir_r?)
         xreaddir    = define_c_func(libc, "readdir", {C_PTR}, C_PTR)
         xclosedir   = define_c_func(libc, "closedir", {C_PTR}, C_INT)
+        -- (not thread safe, may want to use localtime_r?)
         xlocaltime  = define_c_func(libc, "localtime", {C_PTR}, C_PTR)
         dinit = 1
     end if
