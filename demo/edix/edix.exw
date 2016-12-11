@@ -2857,7 +2857,11 @@ end procedure
 --(used by eaisense... [DEV])
 --global 
 procedure selectWord(integer SelectWord)
--- select the word under the cursor, if any.
+--
+-- Select the word under the cursor, if any.
+-- In all cases, selX and CursorX are set, but if the parameter SelectWord is 0, 
+--  it is being called from intellisense and hence selON should /not/ be set.
+--
 sequence oneline
 integer ch, dotfound, isnumber, validhex, lch
     if currfile then
@@ -3202,7 +3206,7 @@ function convertCase(sequence strings, integer method)
 --      {"this is some text, which might be several",
 --       "lines long. Matches getSelection/Paste, etc."}
 --
--- Note that strings[i] is ansi or utf32 (should not be utf8)
+-- Note that strings[i] is ansi or utf32 (should not be utf8 or utf16)
 --
 -- method may be LOWER, UPPER, CAPITALISE, SENTENCE, or INVERT.
 --
@@ -5904,67 +5908,159 @@ end function
 --end function
 --constant cb_info = Icallback("info_cb")
 
+Ihandln tmenu = NULL, t_new, t_open, t_save, t_close
+--t_reopen, 
+
+procedure show_tmenu(integer pos)
+-- pos is >=0 for a mouse right click, -1 for keyboard
+integer x, y
+Ihandle tab
+    tip_visible = 0
+    if tmenu=NULL then
+--      tmenu = IupMenu({IupMenuItem("New",cb_new),
+--                       IupMenuItem("Open",cb_open),
+--                       IupMenuItem("ReOpen"),
+--                       IupMenuItem("Save",cb_save),
+--                       IupMenuItem("Close")})
+--      tmenu = IupMenu({menu_item("New\t\tCtrl N",         "PNG_FileNew",    cb_new,    1),
+--                       menu_item("Open\tCtrl O",          "PNG_FileOpen",   cb_open,   1),
+--                       menu_item("ReOpen\tCtrl Shift O",  "PNG_FileReOpen", cb_reopen, 1),
+--                       menu_item("Save\t\tCtrl S",        "PNG_FileSave",   cb_save,   1),
+--                       menu_item("Close\t\tCtrl F4",      "PNG_FileClose",  cb_close,  1)})
+        --DEV/DOC/TEST:
+        --  When you right click on a file tab a small menu appears.
+        --  The Close option is self explanatory. The New and Open options use the 
+        --  directory from the file tab, which may be different to that of the
+        --  current open file (if one of the "background" tabs is clicked on).
+        --  The Save option is only active when the file actually needs to be
+        --  saved, which means only "[untitled]" for any background tabs, in
+        --  which case it is effectively a "Save as" operation anyway.
+        --  (Edita also had reopen/save as, which have been deemed to be
+        --   of no use now that files are always saved on tab switch.)
+        t_new    = menu_item("New\t\tCtrl N",           "PNG_FileNew",    cb_new,    1)
+        t_open   = menu_item("Open\tCtrl O",            "PNG_FileOpen",   cb_open,   1)
+--      t_reopen = menu_item("ReOpen\tCtrl Shift O",    "PNG_FileReOpen", cb_reopen, 1)
+        t_save   = menu_item("Save\t\tCtrl S",          "PNG_FileSave",   cb_save,   1)
+        t_close  = menu_item("Close\t\tCtrl F4",        "PNG_FileClose",  cb_close,  1)
+        tmenu = IupMenu({t_new,
+                         t_open,
+--                       t_reopen,  -- (no use anymore, if not currfile)
+                         t_save,
+                         t_close})
+    end if
+    if pos>=0 then
+        tab = IupGetChild(tabs,pos)
+        {x,y} = IupGetIntInt(NULL,"CURSORPOS")
+    else
+        tab = IupGetAttributeHandle(tabs, "VALUE")
+        -- unfortunately there is no easy way to obtain the tab title position,
+        -- so this just plants it with top left in the middle of the tab bar.
+        {x,y} = sq_add({0,10},
+                sq_add(IupGetIntInt(tabs,"SCREENPOSITION"),
+                sq_floor_div(IupGetIntInt(tabs,"CLIENTSIZE"),2)))
+    end if
+    tabfile = IupGetInt(tab,"FILEIDX")  -- (for New,Open,etc)
+    -- (Now that autosaveontabswitch is now permanently on, "save" is only valid
+    --  for right clicks on the current tab, and of course if that needs saving.
+    --  However, [untitled] tabs, for which "save" is really "save_as" anyway,
+    --  must also have the option enabled even when not the current open tab.)
+    integer active = (tabfile=currfile and actionsave[currfile]!=actionptr[currfile])
+    if match(untitled,filenames[tabfile])=1 then active = 1 end if
+    IupSetInt(t_save,"ACTIVE",active)
+    IupPopup(tmenu, x, y)
+    tabfile = 0
+end procedure
+
+function tab_rightclick_cb(Ihandle /*tabs*/, integer pos)
+--ih: identifier of the element that activated the event.
+--pos: the tab position (0-based)
+    show_tmenu(pos)
+    return IUP_DEFAULT
+end function
+
 Ihandln cmenu = NULL
 Ihandle cm_cut, cm_cuta, cm_cutp, cm_copy, cm_copya, cm_copyp, cm_paste--, cm_info
 
-function canvas_button_cb(Ihandle ih, integer button, integer pressed, integer x, integer y, atom pStatus)
---?{"canvas_button_cb",button,IUP_BUTTON1,IUP_BUTTON1,selON,{selX,selY,CursorX,CursorY}}
+procedure set_cmenu(integer shift)
+    if cmenu=NULL then
+        cm_cut   = menu_item("Cu&t\tCtrl X",                "PNG_EditCut",      cb_cut,     1)
+        cm_cuta  = menu_item("Cut Append\tCtrl Shift X",    "PNG_EditCuta",     cb_cuta,    1)
+        cm_cutp  = menu_item("Cut Prepend\tAlt Shift X",    "PNG_EditCutp",     cb_cutp,    1)
+        cm_copy  = menu_item("&Copy\tCtrl C",               "PNG_EditCopy",     cb_copy,    1)
+        cm_copya = menu_item("Copy Append\tCtrl Shift C",   "PNG_EditCopya",    cb_copya,   1)
+        cm_copyp = menu_item("Copy Prepend\tAlt Shift C",   "PNG_EditCopyp",    cb_copyp,   1)
+        cm_paste = menu_item("&Paste\tCtrl V",              "PNG_EditPaste",    cb_paste,   1)
+--      cm_info  = menu_item("info",                        "PNG_EditInfo",     cb_info,    0)
+--      cmenu = IupMenu({cm_cut, cm_cuta, cm_cutp, cm_copy, cm_copya, cm_copyp, cm_paste, cm_info})
+        cmenu = IupMenu({cm_cut, cm_cuta, cm_cutp, cm_copy, cm_copya, cm_copyp, cm_paste})
+    end if
+--  integer isclip = length(IupGetAttribute(clipboard,"TEXT"))!=0
+    integer isclip = IupGetInt(clipboard, "TEXTAVAILABLE")
+    integer sel = (currfile and selON and (selX!=CursorX or selY!=CursorY))
+--  integer selclip = (sel and isclip)
+--  IupSetInt(cm_cut,"ACTIVE",sel)
+--  IupSetInt(cm_cuta,"ACTIVE",selclip)
+--  IupSetInt(cm_cutp,"ACTIVE",selclip)
+--  IupSetInt(cm_copy,"ACTIVE",sel)
+--  IupSetInt(cm_copya,"ACTIVE",selclip)
+--  IupSetInt(cm_copyp,"ACTIVE",selclip)
+    IupSetInt({cm_cut,cm_copy},"ACTIVE",sel)
+    IupSetInt({cm_cuta,cm_cutp,cm_copya,cm_copyp},"ACTIVE",sel and isclip)
+    IupSetInt(cm_paste,"ACTIVE",currfile and isclip)
+-->[DEV info"" - better yet, if Shift down, and word at x,y is coloured -> cb_info (inlined?)..]
+    if shift then end if --DEV
+end procedure
 
+function canvas_button_cb(Ihandle ih, integer button, integer pressed, integer x, integer y, atom pStatus)
+--
 -- Note: If you select some text (with the mouse or keyboard) and right click on it, the pop-up appears, fine.
 --       Now, if you right-click somewhere else, the selection changes - that was not planned, I have no idea
 --       how/why/where it reselects, but it is perfectly reasonable and hence will simply be left like that.
 --       (Actually, I now know it is because IUP sends a mouse move message, but I'm still leaving it as is.)
-
-    if button=IUP_BUTTON1 then  -- left mouse button
-        if currfile 
-        and pressed=1 then
-            x = floor(x/charwidth)-marginRqd
-            y = TopLine+floor(y/charheight)
-            if x>=0 and y<length(filetext[currfile]) then
-                x = min(x,ExpLength(filetext[currfile][y+1]))
-                startSelection(iup_isshift(pStatus),iup_isalt(pStatus))
---?{x,y}
-                CursorX = x
-                CursorY = y
-                appUpdateRender()
-                update_statusbar()
+--       (And the "problem" only occurs if you right-click elsewhere while cmenu is actually shown on-screen)
+--
+    if currfile then
+        if button=IUP_BUTTON1 then  -- left mouse button
+            if iup_isdouble(pStatus) then
+                selectWord(1)
+            elsif pressed=1 then
+                x = floor(x/charwidth)-marginRqd
+                y = TopLine+floor(y/charheight)
+                if x>=0 and y<length(filetext[currfile]) then
+                    x = min(x,ExpLength(filetext[currfile][y+1]))
+                    startSelection(iup_isshift(pStatus),iup_isalt(pStatus))
+                    CursorX = x
+                    CursorY = y
+                    appUpdateRender()
+                    update_statusbar()
+                end if
             end if
+        elsif button=IUP_BUTTON3    -- right mouse button
+          and pressed=0 then        -- (on release)
+            set_cmenu(iup_isshift(pStatus))
+            -- (I think ih is always canvas here)
+--          {x,y} = sq_add({x,y},IupGetIntInt(ih,"SCREENPOSITION"))
+            {x,y} = sq_add({x,y},IupGetIntInt(canvas,"SCREENPOSITION"))
+            IupPopup(cmenu, x, y);
         end if
-    elsif button=IUP_BUTTON3    -- right mouse button
-      and pressed=0 then        -- (on release)
-        if cmenu=NULL then
-            cm_cut   = menu_item("Cu&t\tCtrl X",                "PNG_EditCut",      cb_cut,     1)
-            cm_cuta  = menu_item("Cut Append\tCtrl Shift X",    "PNG_EditCuta",     cb_cuta,    1)
-            cm_cutp  = menu_item("Cut Prepend\tAlt Shift X",    "PNG_EditCutp",     cb_cutp,    1)
-            cm_copy  = menu_item("&Copy\tCtrl C",               "PNG_EditCopy",     cb_copy,    1)
-            cm_copya = menu_item("Copy Append\tCtrl Shift C",   "PNG_EditCopya",    cb_copya,   1)
-            cm_copyp = menu_item("Copy Prepend\tAlt Shift C",   "PNG_EditCopyp",    cb_copyp,   1)
-            cm_paste = menu_item("&Paste\tCtrl V",              "PNG_EditPaste",    cb_paste,   1)
---          cm_info  = menu_item("info",                        "PNG_EditInfo",     cb_info,    0)
---          cmenu = IupMenu({cm_cut, cm_cuta, cm_cutp, cm_copy, cm_copya, cm_copyp, cm_paste, cm_info})
-            cmenu = IupMenu({cm_cut, cm_cuta, cm_cutp, cm_copy, cm_copya, cm_copyp, cm_paste})
-        end if
---      integer isclip = length(IupGetAttribute(clipboard,"TEXT"))!=0
-        integer isclip = IupGetInt(clipboard, "TEXTAVAILABLE")
-        integer sel = (currfile and selON and (selX!=CursorX or selY!=CursorY))
---      integer selclip = (sel and isclip)
---      IupSetInt(cm_cut,"ACTIVE",sel)
---      IupSetInt(cm_cuta,"ACTIVE",selclip)
---      IupSetInt(cm_cutp,"ACTIVE",selclip)
---      IupSetInt(cm_copy,"ACTIVE",sel)
---      IupSetInt(cm_copya,"ACTIVE",selclip)
---      IupSetInt(cm_copyp,"ACTIVE",selclip)
-        IupSetInt({cm_cut,cm_copy},"ACTIVE",sel)
-        IupSetInt({cm_cuta,cm_cutp,cm_copya,cm_copyp},"ACTIVE",sel and isclip)
-        IupSetInt(cm_paste,"ACTIVE",currfile and isclip)
--->[DEV info"" - better yet, if Ctrl down, and word at x,y is coloured -> cb_info (inlined?)..]
-        {x,y} = sq_add({x,y},IupGetIntInt(ih,"SCREENPOSITION"))
-        IupPopup(cmenu, x, y);
-    end if
---  IupDestroy(menu);
 --?{"canvas_button_cb",button,IUP_BUTTON1,IUP_BUTTON1,selON,{selX,selY,CursorX,CursorY}}
+    end if
     return IUP_DEFAULT
 end function
+
+procedure menu_key(integer ctrl, integer shift, integer alt)
+    if ctrl then
+        -- tab menu
+        show_tmenu(-1)
+    elsif not alt then
+        -- edit area menu
+        set_cmenu(shift)
+        integer x = (CursorX+marginRqd)*charwidth
+        integer y = (CursorY-TopLine+1)*charheight
+        {x,y} = sq_add({x,y},IupGetIntInt(canvas,"SCREENPOSITION"))
+        IupPopup(cmenu, x, y)
+    end if
+end procedure
 
 function scroll_cb(Ihandle ih, integer op, atom posx, atom posy)
     posx = IupGetDouble(ih,"POSX")
@@ -7185,10 +7281,8 @@ function key_cb(Ihandle ih, atom c)
             case K_DEL: backdel(base,ctrl,shift,alt)
             case K_HOME: homekey(ctrl,shift,alt)
             case K_END: endkey(ctrl,shift,alt)
-            case K_LSHIFT,K_RSHIFT,K_LCTRL,K_RCTRL,
-                 K_LALT,K_RALT,K_NUM,K_SCROLL,K_CAPS:
-                break   -- [DEV] temp, to avoid TITLE update
 --          case K_Menu: CSM(ctrl,shift,alt)
+            case K_Menu: menu_key(ctrl,shift,alt)
 --          case K_F1: F1help(ctrl,shift,alt)
 --          case K_F2: F2mark(ctrl,shift,alt)
             case K_F3: fdlg:F3find(ctrl,shift)
@@ -7199,6 +7293,9 @@ function key_cb(Ihandle ih, atom c)
 --          case '<','>': comment_indent(base,ctrl,shift,alt)
 --          case '-','+': fold(base,ctrl,shift,alt)
 --          case '[',']': bracket(base,ctrl,shift,alt)
+            case K_LSHIFT,K_RSHIFT,K_LCTRL,K_RCTRL,
+                 K_LALT,K_RALT,K_NUM,K_SCROLL,K_CAPS:
+                break   -- [DEV] temp, to avoid TITLE update
             default:
             switch c do
 --DEV ctrl shift L is line numbers: (do we even want them optional??)
@@ -7319,60 +7416,6 @@ end if
 
     appUpdateRender()
 
-    return IUP_DEFAULT
-end function
-
-Ihandln tmenu = NULL, t_new, t_open, t_save, t_close
---t_reopen, 
-
-function tab_rightclick_cb(Ihandle ih, integer pos)
---ih: identifier of the element that activated the event.
---pos: the tab position (0-based)
-    tip_visible = 0
-    if tmenu=NULL then
---      tmenu = IupMenu({IupMenuItem("New",cb_new),
---                       IupMenuItem("Open",cb_open),
---                       IupMenuItem("ReOpen"),
---                       IupMenuItem("Save",cb_save),
---                       IupMenuItem("Close")})
---      tmenu = IupMenu({menu_item("New\t\tCtrl N",         "PNG_FileNew",    cb_new,    1),
---                       menu_item("Open\tCtrl O",          "PNG_FileOpen",   cb_open,   1),
---                       menu_item("ReOpen\tCtrl Shift O",  "PNG_FileReOpen", cb_reopen, 1),
---                       menu_item("Save\t\tCtrl S",        "PNG_FileSave",   cb_save,   1),
---                       menu_item("Close\t\tCtrl F4",      "PNG_FileClose",  cb_close,  1)})
-        --DEV/DOC/TEST:
-        --  When you right click on a file tab a small menu appears.
-        --  The Close option is self explanatory. The New and Open options use the 
-        --  directory from the file tab, which may be different to that of the
-        --  current open file (if one of the "background" tabs is clicked on).
-        --  The Save option is only active when the file actually needs to be
-        --  saved, which means only "[untitled]" for any background tabs, in
-        --  which case it is effectively a "Save as" operation anyway.
-        --  (Edita also had reopen/save as, which have been deemed to be
-        --   of no use now that files are always saved on tab switch.)
-        t_new    = menu_item("New\t\tCtrl N",           "PNG_FileNew",    cb_new,    1)
-        t_open   = menu_item("Open\tCtrl O",            "PNG_FileOpen",   cb_open,   1)
---      t_reopen = menu_item("ReOpen\tCtrl Shift O",    "PNG_FileReOpen", cb_reopen, 1)
-        t_save   = menu_item("Save\t\tCtrl S",          "PNG_FileSave",   cb_save,   1)
-        t_close  = menu_item("Close\t\tCtrl F4",        "PNG_FileClose",  cb_close,  1)
-        tmenu = IupMenu({t_new,
-                         t_open,
---                       t_reopen,  -- (no use anymore, if not currfile)
-                         t_save,
-                         t_close})
-    end if
-    integer {x,y} = IupGetIntInt(NULL,"CURSORPOS")
---  tpos = pos+1    -- (for New,Open,etc)
-    tabfile = IupGetInt(IupGetChild(ih,pos),"FILEIDX")  -- (for New,Open,etc)
-    -- (Now that autosaveontabswitch is now permanently on, "save" is only valid
-    --  for right clicks on the current tab, and of course if that needs saving.
-    --  However, [untitled] tabs, for which "save" is really "save_as" anyway,
-    --  must also have the option enabled even when not the current open tab.)
-    integer active = (tabfile=currfile and actionsave[currfile]!=actionptr[currfile])
-    if match(untitled,filenames[tabfile])=1 then active = 1 end if
-    IupSetInt(t_save,"ACTIVE",active)
-    IupPopup(tmenu, x, y)
-    tabfile = 0
     return IUP_DEFAULT
 end function
 

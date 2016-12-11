@@ -2362,7 +2362,8 @@ function iLayoutContextMenuAdd_CB(Ihandle menu)
 
   IupStoreGlobal("PARENTDIALOG", old_parent_dlg)
 
-  if ret!=-1 then
+--  if ret!=-1 then
+  if ret>0 then
 --  Ihandle ret_ih = NULL;
     integer add_child = IupGetInt(menu, "_IUP_ADDCHILD");
     Ihandle new_ih = IupCreate(class_list[ret]);

@@ -1415,7 +1415,7 @@ GlVertex4s              = validate_proc(opengl32,"glVertex4s",{C_SHORT,C_SHORT,C
 GlVertexPointer         = validate_proc(opengl32,"glVertexPointer", {C_INT, C_UINT, C_UINT, C_POINTER}),
 GlViewport              = validate_proc(opengl32,"glViewport",{C_INT,C_INT,C_INT,C_INT}),
 --WglGetProcAddress     = validate_func(opengl32,"wglGetProcAddress", {C_POINTER}, C_POINTER),
-sglGetProcAddress = iff(platform()=WINDOWS?"wglGetProcAddress":"glXGetProcAddress")
+sglGetProcAddress = iff(platform()=WINDOWS?"wglGetProcAddress":"glXGetProcAddress"),
 XglGetProcAddress       = validate_func(opengl32,sglGetProcAddress, {C_POINTER}, C_POINTER)
 --WglUseFontOutlines        = validate_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
 
@@ -1441,13 +1441,13 @@ end function
 
 --/*
 function link_glext_func(string name, sequence args, atom result)
-atom addr = c_func(WglGetProcAddress,{name})
+atom addr = c_func(XglGetProcAddress,{name})
     return define_c_func({},addr,args,result)
 end function
 --*/
 
 function link_glext_proc(string name, sequence args)
-atom addr = c_func(WglGetProcAddress,{name})
+atom addr = c_func(XglGetProcAddress,{name})
     return define_c_proc({},addr,args)
 end function
 

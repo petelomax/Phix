@@ -1197,9 +1197,11 @@ object name -- for debugging only
 sequence tr -- table[rid], ie {name,addr,args,return_type,convention}
 atom addr
 --DEV/temp:
+--/*
 string memory_corruption = "pcfunc.e: memory corruption at #"
 string pGtcb4eq = ", pGtcb*4=#"
 string diffis = ", diff="
+--*/
 integer esp4
 
     #ilASM{ e_all               -- set "all side-effects"
@@ -1215,6 +1217,7 @@ integer esp4
             mov [esp4],rax
           }
 
+--/*
 --DEV (temp, getting e36loaaind on lnx, presumably "table" has been clobbered)
     #ilASM{
         [ELF32]
@@ -1250,6 +1253,7 @@ integer esp4
           @@:
         []
           }
+--*/
 --  if tinit=0 or rid<1 or rid>length(table) then
     if tinit=0 or rid<1 or rid>tmax then
         fatalN(3,e72iri,rid)
@@ -1359,9 +1363,9 @@ integer esp4
                         []
                     }
 --DEV todo...
-            elsif argdefi=#03000008                                 -- C_DOUBLE
-               or (argdefi=#03000004 and machine_bits()=64) then    -- C_FLOAT
---          elsif argdefi=#03000008 then                            -- C_DOUBLE
+--          elsif argdefi=#03000008                                 -- C_DOUBLE
+--             or (argdefi=#03000004 and machine_bits()=64) then    -- C_FLOAT
+            elsif argdefi=#03000008 then                            -- C_DOUBLE
                 #ilASM{
                         [32]
                             sub esp,8
@@ -1404,12 +1408,12 @@ integer esp4
                         else
                             ?9/0
                         end if
-                        #ilASM{
-                                [64]
-                                    add rsp,8
-                                []
-                              }
---DEV elsif??
+-- removed 11/12/16 (opengl)
+--                      #ilASM{
+--                              [64]
+--                                  add rsp,8
+--                              []
+--                            }
                     elsif platform()=LINUX and i<=8 then
                         if i=5 then
                             #ilASM{
@@ -1438,25 +1442,26 @@ integer esp4
                         else
                             ?9/0
                         end if
-                        #ilASM{
-                                [64]
-                                    add rsp,8
-                                []
-                              }
-                    elsif argdefi=#03000004 then
-                        #ilASM{
-                                [64]
-                                    fld qword[rsp]
--- removed 25/11/16:
---                                  add rsp,4
-                                    fstp dword[rsp]
-                                []
-                              }
+-- removed 11/12/16 (opengl)
+--                      #ilASM{
+--                              [64]
+--                                  add rsp,8
+--                              []
+--                            }
+--                  elsif argdefi=#03000004 then
+--                      #ilASM{
+--                              [64]
+--                                  fld qword[rsp]
+---- removed 25/11/16:
+----                                    add rsp,4
+--                                  fstp dword[rsp]
+--                              []
+--                            }
                     end if
                 end if
             elsif argdefi=#03000004 then -- (and machine_bits()=32) -- C_FLOAT
 --DEV todo:
---if machine_bits()=32 then
+if machine_bits()=32 then
                 #ilASM{
                         [32]
                             sub esp,4
@@ -1469,7 +1474,7 @@ integer esp4
                         []
                     }
 --DEV todo:
---/*
+--!/*
 else
                 #ilASM{
                         [64]
@@ -1480,76 +1485,77 @@ else
                     }
                 -- (technically this should probably be done just before the "call rax" in c_func/proc,
                 --  but as we won't damage them (ie xmm0..xmm3/7) before that, this should be fine.)
-                if machine_bits()=64 then
-                    if i<=4 then
-                        if i=1 then
-                            #ilASM{
-                                    [64]
-                                        movsd xmm0,qword[rsp]
-                                    []
-                                  }
-                        elsif i=2 then
-                            #ilASM{
-                                    [64]
-                                        movsd xmm1,qword[rsp]
-                                    []
-                                  }
-                        elsif i=3 then
-                            #ilASM{
-                                    [64]
-                                        movsd xmm2,qword[rsp]
-                                    []
-                                  }
-                        elsif i=4 then
-                            #ilASM{
-                                    [64]
-                                        movsd xmm3,qword[rsp]
-                                    []
-                                  }
-                        else
-                            ?9/0
-                        end if
+                if i<=4 then
+                    if i=1 then
                         #ilASM{
                                 [64]
-                                    add rsp,8
+                                    movd xmm0,dword[rsp]
                                 []
                               }
-                    elsif platform()=LINUX and i<=8 then
-                        if i=5 then
-                            #ilASM{
-                                    [64]
-                                        movsd xmm4,qword[rsp]
-                                    []
-                                }
-                        elsif i=6 then
-                            #ilASM{
-                                    [64]
-                                        movsd xmm5,qword[rsp]
-                                    []
-                                }
-                        elsif i=7 then
-                            #ilASM{
-                                    [64]
-                                        movsd xmm6,qword[rsp]
-                                    []
-                                }
-                        elsif i=8 then
-                            #ilASM{
-                                    [64]
-                                        movsd xmm7,qword[rsp]
-                                    []
-                                }
-                        else
-                            ?9/0
-                        end if
+                    elsif i=2 then
                         #ilASM{
                                 [64]
-                                    add rsp,8
+                                    movd xmm1,dword[rsp]
                                 []
                               }
+                    elsif i=3 then
+                        #ilASM{
+                                [64]
+                                    movd xmm2,dword[rsp]
+                                []
+                              }
+                    elsif i=4 then
+                        #ilASM{
+                                [64]
+                                    movd xmm3,dword[rsp]
+                                []
+                              }
+                    else
+                        ?9/0
                     end if
+-- removed 11/12/16 (opengl)
+--                  #ilASM{
+--                          [64]
+--                              add rsp,8
+--                          []
+--                        }
+                elsif platform()=LINUX and i<=8 then
+                    if i=5 then
+                        #ilASM{
+                                [64]
+                                    movd xmm4,dword[rsp]
+                                []
+                            }
+                    elsif i=6 then
+                        #ilASM{
+                                [64]
+                                    movd xmm5,dword[rsp]
+                                []
+                            }
+                    elsif i=7 then
+                        #ilASM{
+                                [64]
+                                    movd xmm6,dword[rsp]
+                                []
+                            }
+                    elsif i=8 then
+                        #ilASM{
+                                [64]
+                                    movd xmm7,dword[rsp]
+                                []
+                            }
+                    else
+                        ?9/0
+                    end if
+-- removed 11/12/16 (opengl)
+--                  #ilASM{
+--                          [64]
+--                              add rsp,8
+--                          []
+--                        }
+                end if
 end if
---*/
+--!*/
             else
                 ?9/0
             end if
@@ -1581,8 +1587,9 @@ end if
                         []
                     }
 --DEV as above
-            elsif argdefi=#03000008     -- C_DOUBLE
-               or (argdefi=#03000004 and machine_bits()=64) then
+--          elsif argdefi=#03000008     -- C_DOUBLE
+--             or (argdefi=#03000004 and machine_bits()=64) then
+            elsif argdefi=#03000008 then    -- C_DOUBLE
                 #ilASM{
                         [32]
                             mov edx,[argi]
@@ -1625,11 +1632,12 @@ end if
                         else
                             ?9/0
                         end if
-                        #ilASM{
-                                [64]
-                                    add rsp,8
-                                []
-                              }
+-- removed 11/12/16 (opengl)
+--                      #ilASM{
+--                              [64]
+--                                  add rsp,8
+--                              []
+--                            }
                     elsif platform()=LINUX and i<=8 then
                         if i=5 then
                             #ilASM{
@@ -1658,23 +1666,25 @@ end if
                         else
                             ?9/0
                         end if
-                        #ilASM{
-                                [64]
-                                    add rsp,8
-                                []
-                              }
-                    elsif argdefi=#03000004 then
-                        #ilASM{
-                                [64]
-                                    fld qword[rsp]
--- removed 25/11/16:
---                                  add rsp,4
-                                    fstp dword[rsp]
-                                []
-                              }
+-- removed 11/12/16 (opengl)
+--                      #ilASM{
+--                              [64]
+--                                  add rsp,8
+--                              []
+--                            }
+--                  elsif argdefi=#03000004 then
+--                      #ilASM{
+--                              [64]
+--                                  fld qword[rsp]
+---- removed 25/11/16:
+----                                    add rsp,4
+--                                  fstp dword[rsp]
+--                              []
+--                            }
                     end if
                 end if -- machine_bits()=64
             elsif argdefi=#03000004 then -- (and machine_bits()=32) -- C_FLOAT
+if machine_bits()=32 then
                 #ilASM{
                         [32]
                             mov edx,[argi]
@@ -1688,6 +1698,86 @@ end if
 --                              fstp qword[rsp]
                         []
                     }
+else
+                #ilASM{
+                        [64]
+                            mov rdx,[argi]
+                            sub rsp,8
+                            fld tbyte[rbx+rdx*4]
+                            fstp dword[rsp]
+                        []
+                    }
+                if i<=4 then
+                    if i=1 then
+                        #ilASM{
+                                [64]
+                                    movd xmm0,dword[rsp]
+                                []
+                            }
+                    elsif i=2 then
+                        #ilASM{
+                                [64]
+                                    movd xmm1,dword[rsp]
+                                []
+                            }
+                    elsif i=3 then
+                        #ilASM{
+                                [64]
+                                    movd xmm2,dword[rsp]
+                                []
+                              }
+                    elsif i=4 then
+                        #ilASM{
+                                [64]
+                                    movd xmm3,dword[rsp]
+                                []
+                              }
+                    else
+                        ?9/0
+                    end if
+-- removed 11/12/16 (opengl)
+--                  #ilASM{
+--                          [64]
+--                              add rsp,8
+--                          []
+--                        }
+                elsif platform()=LINUX and i<=8 then
+                    if i=5 then
+                        #ilASM{
+                                [64]
+                                    movd xmm4,dword[rsp]
+                                []
+                              }
+                    elsif i=6 then
+                        #ilASM{
+                                [64]
+                                    movd xmm5,dword[rsp]
+                                []
+                              }
+                    elsif i=7 then
+                        #ilASM{
+                                [64]
+                                    movd xmm6,dword[rsp]
+                                []
+                              }
+                    elsif i=8 then
+                        #ilASM{
+                                [64]
+                                    movd xmm7,dword[rsp]
+                                []
+                              }
+                    else
+                        ?9/0
+                    end if
+-- removed 11/12/16 (opengl)
+--                  #ilASM{
+--                          [64]
+--                              add rsp,8
+--                          []
+--                        }
+
+                end if
+end if
             else
                 ?9/0
             end if

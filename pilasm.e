@@ -2293,9 +2293,9 @@ end if
                             elsif op=T_cmp then
                                 if reg=0 then -- eax
                                     -- 0o075 imm32  -- cmp eax,imm32
-if X64=1 then
-    printf(1,"pilasm.e line 2878: please check list.asm (tokline=%d) for cmp eax,imm32\n",{tokline})
-end if
+--if X64=1 then
+--  printf(1,"pilasm.e line 2878: please check list.asm (tokline=%d) for cmp eax,imm32\n",{tokline})
+--end if
                                     s5 &= {0o075}
                                 else
                                     -- 0o201 0o37r imm32    -- cmp reg,imm32
@@ -4398,15 +4398,41 @@ end if
 --;     0F  28  r   MOVAPS  xmm     xmm/m128        Move Aligned Packed Single-FP Values
 --; 66  0F  28  r   MOVAPD  xmm     xmm/m128        Move Aligned Packed Double-FP Values    
 
---          elsif ttidx=T_movd then
+            elsif ttidx=T_movd then
 --00000000004012FB | 66 0F 6E 05 19 0D 00 00    | movd xmm0,dword ptr ds:[40201C]         |
 --0000000000401303 | B8 00 00 00 00         | mov eax,0                               |
---0000000000401308 | 66 0F 6E C8                | movd xmm1,eax                           |
+--0000000000401308 | 66 0F 6E 0o310             | movd xmm1,eax                           |
 --000000000040130C | B8 00 00 00 00         | mov eax,0                               |
---0000000000401311 | 66 0F 6E D0                | movd xmm2,eax                           |
+--0000000000401311 | 66 0F 6E 0o320             | movd xmm2,eax                           |
 --0000000000401315 | B8 00 00 80 3F         | mov eax,3F800000                        |
---000000000040131A | 66 0F 6E D8                | movd xmm3,eax                           |
+--000000000040131A | 66 0F 6E 0o330             | movd xmm3,eax                           |
 --                   66 0F 6E 04 24             | movd xmm0,dword[rsp]
+--constant XMM = {T_xmm0,T_xmm1,T_xmm2,T_xmm3,T_xmm4,T_xmm5,T_xmm6,T_xmm7}
+                {p1type,p1size,p1details} = get_operand(P_XMM)
+                comma()
+                if p1type=P_XMM then
+                    {p2type,p2size,p2details} = get_operand(P_RM)
+                    if p2size!=4 then ?9/0 end if   -- 32 bit floats only...
+                    if emitON then
+                        if p2type=P_MEM then
+                            {scale,idx,base,offset} = p2details
+                            s5 &= {0o146,0o017,0o156}
+                            reg = p1details-1
+                            emit_xrm_sib(reg,scale,idx,base,offset)
+                        elsif p2type=P_VAR then
+                            -- (Phix hll vars will not contain a valid 32-bit float!)
+                            Aborp("illegal")
+                        elsif p2type=P_REG then
+                            reg = p1details-1               -- (xmm0..xmm7)
+                            xrm = 0o300+reg*8+p2details-1   -- (+eax..esi)
+                            s5 &= {0o146,0o017,0o156,xrm}
+                        else
+                            ?9/0 -- sanity check (should never trigger)
+                        end if
+                    end if
+                else
+                    ?9/0 -- placeholder for more code/error message
+                end if
             elsif ttidx=T_prefetchnta then
                 {p1type,p1size,p1details} = get_operand(P_MEM)
 --              if not find(p1size,{0,1,4,8}) then ?9/0 end if  -- sanity check (should never trigger)
