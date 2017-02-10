@@ -39,10 +39,8 @@ from phix.exe). [update: I think I now have "original.exe" to cover this.]
 [2] This may change if I ever finish pgui.exw.
 
 Please note the following entries are probably more for my benefit than yours,
-and contain some references to the closed source back end which you may not
-find very useful. (As stated elsewhere, if you need access to anthing in the
-closed-source back end, I'll try and migrate it to hll/#ilasm for you.)
-I do however make every effort (+some) to be as precise as possible here.
+and contain some references to the low level back end which you may not find 
+very useful. But it is now all open source.
 
 Version 0.7.2
 =============
